@@ -30,10 +30,15 @@ local function new_ordered_map()
                 node.prev = p
         end 
 
-        function obj:last()
-                local node = self.sentinel.prev
-                if node ~= self.sentinel then
-                        return node.key
+        function obj:first_key()
+                if self.n > 0 then
+                        return self.sentinel.next.key
+                end
+        end
+
+        function obj:last_key()
+                if self.n > 0 then
+                        return self.sentinel.prev.key
                 end
         end
 
@@ -41,13 +46,13 @@ local function new_ordered_map()
                 local node = self.index[key]
                 if node then
                         unlink_node(node)
-                        node.val = val
                 else
                         node = {key = key, val = val}
                         self.n = self.n + 1
                         self.index[key] = node
                 end
                 link_after(self.sentinel, node)
+                return node.val
         end
 
         function obj:delete(key)
@@ -82,20 +87,21 @@ local function new_ordered_map()
         return obj
 end
 
-
-local M = {}
+-- Global state =======================================================
 
 local function initialize()
-        counts = {}
         users = new_ordered_map()
         initialized = true
         output = nil
-        show_reasons = false
+        history = 1000
+        show_reasons = true
 end
 
 if not initialized then
         initialize()
 end
+
+-- Screen rendering ===================================================
 
 local function draw()
         io.write('\x1b[2J')
@@ -113,13 +119,13 @@ local function draw()
                         if show_reasons and not entry.connected then
                                 io.write(string.format("%s %4d %-80s %s\n",
                                         cyan .. entry.time .. reset,
-                                        counts[mask] or 1,
+                                        entry.count or 1,
                                         txt,
                                         magenta .. (entry.reason or "") .. reset))
                         else
                                 io.write(string.format("%s %4d %-80s %-48s %s\n",
                                         cyan .. entry.time .. reset,
-                                        counts[mask] or 1,
+                                        entry.count or 1,
                                         txt,
                                         yellow .. entry.ip .. reset,
                                         string.format('%q', entry.gecos)))
@@ -141,6 +147,62 @@ local function draw()
         end
 end
 
+-- Server Notice parsing ==============================================
+
+local function parse_snote(str)
+        local time, nick, userhost, ip, gecos = string.match(str, '^%[([^][]*)%] -%g*- %*%*%* Notice %-%- Client connecting: (%g+) %(([^)]+)%) %[(.*)%] {%?} %[(.*)%]$')
+        if nick then
+                return {
+                        name = 'connect',
+                        mask = nick .. '!' .. userhost,
+                        ip = ip,
+                        gecos = gecos,
+                        time = time
+                }
+        end
+
+        local time, nick, userhost, reason, ip = string.match(str, '^%[([^][]*)%] -%g*- %*%*%* Notice %-%- Client exiting: (%g+) %(([^)]+)%) %[(.*)%] %[([^]]*)%]$')
+        if nick then
+                return {
+                        name = 'disconnect',
+                        mask = nick .. '!' .. userhost,
+                        reason = reason,
+                        ip = ip,
+                }
+        end
+end
+
+-- Server Notice handlers =============================================
+
+local handlers = {}
+
+function handlers.connect(ev)
+        local entry = users:insert(ev.mask, {count = 0})
+        entry.gecos = ev.gecos
+        entry.ip = ev.ip
+        entry.time = ev.time
+        entry.connected = true
+        entry.count = entry.count + 1
+
+        while users.n > history do
+                users:delete(users:last_key())
+        end
+        draw()
+end
+
+function handlers.disconnect(ev)
+        local entry = users:lookup(ev.mask)
+        if entry then
+                entry.connected = false
+                entry.reason = ev.reason
+                draw()
+        end
+end
+
+-- Callback Logic =====================================================
+
+local M = {}
+
 function M.on_input(str)
         if str == 'clear' then
                 initialized = false
@@ -152,19 +214,6 @@ function M.on_input(str)
         if str == 'nofilter' then
                 filter = nil
                 output = nil
-                draw()
-                return
-        end
-
-        if str == 'prune' then
-                local pruned = 0
-                for k,v in pairs(counts) do
-                        if v == 1 then
-                                counts[k] = nil
-                                pruned = pruned + 1
-                        end
-                end
-                output = 'Pruned ' .. tostring(pruned)
                 draw()
                 return
         end
@@ -192,50 +241,6 @@ function M.on_input(str)
         
         output = 'Unknown command'
         draw()
-end
-
-local function parse_snote(str)
-        local time, nick, userhost, ip, gecos = string.match(str, '^%[([^][]*)%] -%g*- %*%*%* Notice %-%- Client connecting: (%g+) %(([^)]+)%) %[(.*)%] {%?} %[(.*)%]$')
-        if nick then
-                return {
-                        name = 'connect',
-                        mask = nick .. '!' .. userhost,
-                        ip = ip,
-                        gecos = gecos,
-                        time = time
-                }
-        end
-
-        local time, nick, userhost, reason, ip = string.match(str, '^%[([^][]*)%] -%g*- %*%*%* Notice %-%- Client exiting: (%g+) %(([^)]+)%) %[(.*)%] %[([^]]*)%]$')
-        if nick then
-                return {
-                        name = 'disconnect',
-                        mask = nick .. '!' .. userhost,
-                        reason = reason,
-                        ip = ip,
-                }
-        end
-end
-
-local handlers = {}
-
-function handlers.connect(ev)
-        local mask = ev.mask
-        users:insert(mask, {gecos = ev.gecos, ip = ev.ip, time = ev.time, connected = true})
-        if users.n > 200 then
-                users:delete(users:last())
-        end
-        counts[mask] = (counts[mask] or 0) + 1
-        draw()
-end
-
-function handlers.disconnect(ev)
-        local entry = users:lookup(ev.mask)
-        if entry then
-                entry.connected = false
-                entry.reason = ev.reason
-                draw()
-        end
 end
 
 function M.on_snote(str)
