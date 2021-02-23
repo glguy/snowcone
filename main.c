@@ -141,14 +141,17 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    int fd = open(argv[1], O_RDONLY);
+    char const* const logic_name = argv[0];
+    char const* const snote_name = argv[1];
+
+    int fd = open(snote_name, O_RDONLY);
     if (-1 == fd)
     {
         perror("open");
         return 1;
     }
 
-    uv_loop_t loop = {.data = app_new(argv[0])};
+    uv_loop_t loop = {.data = app_new(logic_name)};
     uv_loop_init(&loop);
 
     struct readline_data stdin_data = {.cb = do_command};
@@ -163,8 +166,8 @@ int main(int argc, char *argv[])
     uv_pipe_open(&snote_pipe, fd);
     uv_read_start((uv_stream_t *)&snote_pipe, &my_alloc_cb, &readline_cb);
 
-    char *name = strdup(argv[0]);
-    char *dir = strdup(argv[0]);
+    char *name = strdup(logic_name);
+    char *dir = strdup(logic_name);
     uv_fs_event_t files = {.data = basename(name)};
     uv_fs_event_init(&loop, &files);
     uv_fs_event_start(&files, &on_file, dirname(dir), 0);
