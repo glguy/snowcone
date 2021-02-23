@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
         free(dir);
 
         uv_tcp_t tcp;
-        if (port > 0) 
+        if (port > 0)
         {
                 struct sockaddr_in6 addr;
                 uv_ip6_addr(bindaddr, port, &addr);
