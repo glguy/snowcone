@@ -155,10 +155,9 @@ int main(int argc, char *argv[])
     uv_loop_init(&loop);
 
     struct readline_data stdin_data = {.cb = do_command};
-    uv_pipe_t stdin_pipe = {.data = &stdin_data};
-    uv_pipe_init(&loop, &stdin_pipe, 0);
-    uv_pipe_open(&stdin_pipe, 0);
-    uv_read_start((uv_stream_t *)&stdin_pipe, &my_alloc_cb, &readline_cb);
+    uv_tty_t stdin_tty = {.data = &stdin_data};
+    uv_tty_init(&loop, &stdin_tty, STDIN_FILENO, /*unused*/0);
+    uv_read_start((uv_stream_t *)&stdin_tty, &my_alloc_cb, &readline_cb);
 
     struct readline_data snote_data = {.cb = do_snote};
     uv_pipe_t snote_pipe = {.data = &snote_data};
