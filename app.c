@@ -31,16 +31,24 @@ static void load_logic(lua_State *L, char const *filename)
     }
 }
 
+static void start_lua(struct app *a)
+{
+    if (a->L)
+    {
+        lua_close(a->L);
+    }
+    a->L = luaL_newstate();
+    luaL_openlibs(a->L);
+    load_logic(a->L, a->logic_filename);
+}
+
 struct app *app_new(char const *logic)
 {
     struct app *a = malloc(sizeof *a);
-
-    a->L = luaL_newstate();
     a->logic_filename = logic;
+    a->L = NULL;
 
-    luaL_openlibs(a->L);
-    load_logic(a->L, logic);
-
+    start_lua(a);
     return a;
 }
 
@@ -96,6 +104,10 @@ void do_command(struct app *a, char *line)
         if (!strcmp(line, "reload"))
         {
             load_logic(a->L, a->logic_filename);
+        }
+        else if (!strcmp(line, "restart"))
+        {
+            start_lua(a);
         }
     }
     else

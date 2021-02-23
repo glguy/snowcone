@@ -244,7 +244,6 @@ function M.on_input(str)
 end
 
 function M.on_snote(str)
-        output = str
         local event = parse_snote(str)
         if event then
                 local h = handlers[event.name]
