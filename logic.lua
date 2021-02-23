@@ -138,9 +138,9 @@ local function draw()
                                         yellow .. entry.ip .. reset,
                                         string.format('%q', entry.gecos)))
                         end
+                        n = n + 1
+                        if n >= showtop then break end
                 end
-                n = n + 1
-                if n >= showtop then break end
         end
 
         io.write('\n')
