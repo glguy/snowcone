@@ -118,47 +118,43 @@ local function draw()
         local n = 0
         for mask, entry in users:each() do
                 if (conn_filter == nil or conn_filter == entry.connected) and
-                   (count_min == nil or count_min <= entry.count) and
-                   (count_max == nil or count_max >= entry.count) and
-                   (filter == nil or string.match(mask .. ' ' .. entry.gecos, filter)) then
-                        local txt
+                   (count_min   == nil or count_min   <= entry.count) and
+                   (count_max   == nil or count_max   >= entry.count) and
+                   (filter      == nil or string.match(mask .. ' ' .. entry.gecos, filter)) then
+                        local txt1, txt2
                         if entry.connected then
-                                txt = green .. entry.nick .. black .. '!' ..
-                                      green .. entry.user .. black .. '@' ..
-                                      green .. entry.host .. reset
-                                      
+                                txt1 = green .. entry.nick .. black .. '!' ..
+                                       green .. entry.user .. black .. '@' ..
+                                       green .. entry.host .. reset    
                         else
-                                txt = red .. entry.nick .. black .. '!' ..
-                                      red .. entry.user .. black .. '@' ..
-                                      red .. entry.host .. reset
+                                txt1 = red .. entry.nick .. black .. '!' ..
+                                       red .. entry.user .. black .. '@' ..
+                                       red .. entry.host .. reset
                         end
 
                         if show_reasons and not entry.connected then
-                                io.write(string.format("%s %4d %-98s %s\n",
-                                        cyan .. entry.time .. reset,
-                                        entry.count or 1,
-                                        txt,
-                                        magenta .. (entry.reason or "") .. reset))
+                                txt2 = magenta .. (entry.reason or "") .. reset
                         else
-                                io.write(string.format("%s %4d %-98s %-48s %s\n",
-                                        cyan .. entry.time .. reset,
-                                        entry.count or 1,
-                                        txt,
-                                        yellow .. entry.ip .. reset,
-                                        string.format('%q', entry.gecos)))
+                                txt2 = yellow .. entry.ip .. reset
                         end
+
+                        io.write(string.format("%s %4d %-98s %-48s %s\n",
+                                cyan .. entry.time .. reset,
+                                entry.count,
+                                txt1,
+                                txt2,
+                                entry.gecos))
+
                         n = n + 1
                         if n >= showtop then break end
                 end
         end
 
-        io.write('\n')
         if output then
-                print('OUTPUT: ' .. tostring(output))
+                print('\nOUTPUT: ' .. tostring(output))
         end
 
         local filters = {}
-
         if filter then
                 table.insert(filters, string.format('filter=%q', filter))
         end
@@ -175,8 +171,13 @@ local function draw()
                 print(table.concat(filters, ' '))
         end
 end
+draw()
 
 -- Server Notice parsing ==============================================
+
+local function scrub(str)
+        return string.gsub(str, '%c', '~')
+end
 
 local function parse_snote(str)
         local time, nick, user, host, ip, gecos = string.match(str, '^%[([^][]*)%] -%g*- %*%*%* Notice %-%- Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {%?} %[(.*)%]$')
@@ -187,7 +188,7 @@ local function parse_snote(str)
                         user = user,
                         host = host,
                         ip = ip,
-                        gecos = gecos,
+                        gecos = scrub(gecos),
                         time = time
                 }
         end
@@ -199,7 +200,7 @@ local function parse_snote(str)
                         nick = nick,
                         user = user,
                         host = host,
-                        reason = reason,
+                        reason = scrub(reason),
                         ip = ip,
                 }
         end
