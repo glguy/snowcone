@@ -167,9 +167,11 @@ int main(int argc, char *argv[])
     uv_read_start((uv_stream_t *)&snote_pipe, &my_alloc_cb, &readline_cb);
 
     char *name = strdup(logic_name);
-    char *dir = strdup(logic_name);
-    uv_fs_event_t files = {.data = basename(name)};
+    uv_fs_event_t files = {.data = strdup(basename(name))};
+    free(name);
+
     uv_fs_event_init(&loop, &files);
+    char *dir = strdup(logic_name);
     uv_fs_event_start(&files, &on_file, dirname(dir), 0);
     free(dir);
 
@@ -180,7 +182,7 @@ int main(int argc, char *argv[])
         uv_ip6_addr(bindaddr, port, &addr);
         uv_tcp_init(&loop, &tcp);
         uv_tcp_bind(&tcp, (struct sockaddr const*)&addr, 0);
-        uv_listen((uv_stream_t*)&tcp, 3, &on_new_connection);
+        uv_listen((uv_stream_t*)&tcp, SOMAXCONN, &on_new_connection);
     }
 
     uv_run(&loop, UV_RUN_DEFAULT);

@@ -89,16 +89,21 @@ end
 
 -- Global state =======================================================
 
-local function initialize()
-        users = new_ordered_map()
+function reset_filter()
+        filter = nil
+        conn_filter = nil
+        count_min = nil
+        count_max = nil
+end
+
+function initialize()
         initialized = true
+        users = new_ordered_map()
         output = nil
         history = 1000
         showtop = 30
         show_reasons = true
-        conn_filter = nil
-        count_min = nil
-        count_max = nil
+        reset_filter()
 end
 
 if not initialized then
@@ -152,8 +157,22 @@ local function draw()
                 print('OUTPUT: ' .. tostring(output))
         end
 
+        local filters = {}
+
         if filter then
-                print('FILTER: ' .. green .. filter .. reset)
+                table.insert(filters, string.format('filter=%q', filter))
+        end
+        if conn_filter then
+                table.insert(filters, string.format('conn_filter=%s', conn_filter))
+        end
+        if count_min then
+                table.insert(filters, string.format('count_min=%s', count_min))
+        end
+        if count_max then
+                table.insert(filters, string.format('count_max=%s', count_max))
+        end
+        if #filters > 0 then
+                print(table.concat(filters, ' '))
         end
 end
 
