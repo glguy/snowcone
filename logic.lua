@@ -94,7 +94,9 @@ local function initialize()
         initialized = true
         output = nil
         history = 1000
+        showtop = 30
         show_reasons = true
+        conn_filter = nil
 end
 
 if not initialized then
@@ -108,22 +110,28 @@ local function draw()
 
         local n = 0
         for mask, entry in users:each() do
-                if not filter or string.match(mask .. ' ' .. entry.gecos, filter) then
+                if (conn_filter == nil or conn_filter == entry.connected) and
+                   (filter == nil or string.match(mask .. ' ' .. entry.gecos, filter)) then
                         local txt
                         if entry.connected then
-                                txt = green .. mask .. reset
+                                txt = green .. entry.nick .. black .. '!' ..
+                                      green .. entry.user .. black .. '@' ..
+                                      green .. entry.host .. reset
+                                      
                         else
-                                txt = red .. mask .. reset
+                                txt = red .. entry.nick .. black .. '!' ..
+                                      red .. entry.user .. black .. '@' ..
+                                      red .. entry.host .. reset
                         end
 
                         if show_reasons and not entry.connected then
-                                io.write(string.format("%s %4d %-80s %s\n",
+                                io.write(string.format("%s %4d %-98s %s\n",
                                         cyan .. entry.time .. reset,
                                         entry.count or 1,
                                         txt,
                                         magenta .. (entry.reason or "") .. reset))
                         else
-                                io.write(string.format("%s %4d %-80s %-48s %s\n",
+                                io.write(string.format("%s %4d %-98s %-48s %s\n",
                                         cyan .. entry.time .. reset,
                                         entry.count or 1,
                                         txt,
@@ -132,40 +140,42 @@ local function draw()
                         end
                 end
                 n = n + 1
-                if n >= 30 then break end
+                if n >= showtop then break end
         end
 
         io.write('\n')
         if output then
-                print(output)
+                print('OUTPUT: ' .. tostring(output))
         end
 
         if filter then
-                print('FILTER: ' .. filter)
-        else
-                print ('NOFILTER')
+                print('FILTER: ' .. green .. filter .. reset)
         end
 end
 
 -- Server Notice parsing ==============================================
 
 local function parse_snote(str)
-        local time, nick, userhost, ip, gecos = string.match(str, '^%[([^][]*)%] -%g*- %*%*%* Notice %-%- Client connecting: (%g+) %(([^)]+)%) %[(.*)%] {%?} %[(.*)%]$')
+        local time, nick, user, host, ip, gecos = string.match(str, '^%[([^][]*)%] -%g*- %*%*%* Notice %-%- Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {%?} %[(.*)%]$')
         if nick then
                 return {
                         name = 'connect',
-                        mask = nick .. '!' .. userhost,
+                        nick = nick,
+                        user = user,
+                        host = host,
                         ip = ip,
                         gecos = gecos,
                         time = time
                 }
         end
 
-        local time, nick, userhost, reason, ip = string.match(str, '^%[([^][]*)%] -%g*- %*%*%* Notice %-%- Client exiting: (%g+) %(([^)]+)%) %[(.*)%] %[([^]]*)%]$')
+        local time, nick, user, host, reason, ip = string.match(str, '^%[([^][]*)%] -%g*- %*%*%* Notice %-%- Client exiting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] %[([^]]*)%]$')
         if nick then
                 return {
                         name = 'disconnect',
-                        mask = nick .. '!' .. userhost,
+                        nick = nick,
+                        user = user,
+                        host = host,
                         reason = reason,
                         ip = ip,
                 }
@@ -177,8 +187,12 @@ end
 local handlers = {}
 
 function handlers.connect(ev)
-        local entry = users:insert(ev.mask, {count = 0})
+        local mask = ev.nick .. '!' .. ev.user .. '@' .. ev.host
+        local entry = users:insert(mask, {count = 0})
         entry.gecos = ev.gecos
+        entry.host = ev.host
+        entry.user = ev.user
+        entry.nick = ev.nick
         entry.ip = ev.ip
         entry.time = ev.time
         entry.connected = true
@@ -191,7 +205,8 @@ function handlers.connect(ev)
 end
 
 function handlers.disconnect(ev)
-        local entry = users:lookup(ev.mask)
+        local mask = ev.nick .. '!' .. ev.user .. '@' .. ev.host
+        local entry = users:lookup(mask)
         if entry then
                 entry.connected = false
                 entry.reason = ev.reason
@@ -204,42 +219,13 @@ end
 local M = {}
 
 function M.on_input(str)
-        if str == 'clear' then
-                initialized = false
-                initialize()
-                draw()
-                return
+        local chunk, err = load(str, '=(load)', 't')
+        if chunk then
+                local success, result = pcall(chunk)
+                output = result
+        else
+                output = err
         end
-
-        if str == 'nofilter' then
-                filter = nil
-                output = nil
-                draw()
-                return
-        end
-
-        local pattern = string.match(str, '^filter (.*)')
-        if pattern then
-                filter = pattern
-                output = nil
-                draw()
-                return
-        end
-
-        local src = string.match(str, '^>(.*)$')
-        if src then
-                local chunk, err = load(src, '=(load)', 't')
-                if chunk then
-                        local success, result = pcall(chunk)
-                        output = result
-                else
-                        output = err
-                end
-                draw()
-                return
-        end
-        
-        output = 'Unknown command'
         draw()
 end
 
