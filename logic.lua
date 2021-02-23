@@ -97,6 +97,8 @@ local function initialize()
         showtop = 30
         show_reasons = true
         conn_filter = nil
+        count_min = nil
+        count_max = nil
 end
 
 if not initialized then
@@ -111,6 +113,8 @@ local function draw()
         local n = 0
         for mask, entry in users:each() do
                 if (conn_filter == nil or conn_filter == entry.connected) and
+                   (count_min == nil or count_min <= entry.count) and
+                   (count_max == nil or count_max >= entry.count) and
                    (filter == nil or string.match(mask .. ' ' .. entry.gecos, filter)) then
                         local txt
                         if entry.connected then
