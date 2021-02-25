@@ -103,6 +103,7 @@ function initialize()
         history = 1000
         showtop = 30
         show_reasons = true
+        avenrun = {[1] = 0, [5] = 0, [15] = 0}
         reset_filter()
 end
 
@@ -112,43 +113,50 @@ end
 
 -- Screen rendering ===================================================
 
-local function draw()
-        io.write('\x1b[2J')
+local function show_entry(entry)
+        return
+        (conn_filter == nil or conn_filter == entry.connected) and
+        (count_min   == nil or count_min   <= entry.count) and
+        (count_max   == nil or count_max   >= entry.count) and
+        (filter      == nil or string.match(mask .. ' ' .. entry.gecos, filter))
+end
 
+local function draw()
+        local outputs = {}
         local n = 0
         for mask, entry in users:each() do
-                if (conn_filter == nil or conn_filter == entry.connected) and
-                   (count_min   == nil or count_min   <= entry.count) and
-                   (count_max   == nil or count_max   >= entry.count) and
-                   (filter      == nil or string.match(mask .. ' ' .. entry.gecos, filter)) then
-                        local txt1, txt2
+                if show_entry(entry) then
+                        local mask_color
                         if entry.connected then
-                                txt1 = green .. entry.nick .. black .. '!' ..
-                                       green .. entry.user .. black .. '@' ..
-                                       green .. entry.host .. reset    
+                                mask_color = green
                         else
-                                txt1 = red .. entry.nick .. black .. '!' ..
-                                       red .. entry.user .. black .. '@' ..
-                                       red .. entry.host .. reset
+                                mask_color = red
                         end
 
+                        local col4
                         if show_reasons and not entry.connected then
-                                txt2 = magenta .. (entry.reason or "") .. reset
+                                col4 = magenta .. (entry.reason or "") .. reset
                         else
-                                txt2 = yellow .. entry.ip .. reset
+                                col4 = yellow .. entry.ip .. reset
                         end
 
-                        io.write(string.format("%s %4d %-98s %-48s %s\n",
+                        outputs[showtop-n] = string.format("%s %4d %-98s %-48s %s\n",
                                 cyan .. entry.time .. reset,
                                 entry.count,
-                                txt1,
-                                txt2,
-                                entry.gecos))
+                                mask_color .. entry.nick .. black .. '!' ..
+                                mask_color .. entry.user .. black .. '@' ..
+                                mask_color .. entry.host .. reset ,
+                                col4,
+                                entry.gecos)
 
                         n = n + 1
                         if n >= showtop then break end
                 end
         end
+
+        print('\x1b[2J' ..
+                table.concat(outputs, nil, showtop-n+1, showtop) ..
+                string.format('Load: \x1b[37m%.2f %.2f %.2f\x1b[0m', avenrun[1], avenrun[5], avenrun[15]))
 
         if output then
                 print('\nOUTPUT: ' .. tostring(output))
@@ -210,6 +218,8 @@ end
 
 local handlers = {}
 
+local new_connects = 0
+
 function handlers.connect(ev)
         local mask = ev.nick .. '!' .. ev.user .. '@' .. ev.host
         local entry = users:insert(mask, {count = 0})
@@ -225,6 +235,7 @@ function handlers.connect(ev)
         while users.n > history do
                 users:delete(users:last_key())
         end
+        new_connects = new_connects + 1
         draw()
 end
 
@@ -253,12 +264,29 @@ function M.on_input(str)
         draw()
 end
 
+
 function M.on_snote(str)
         local event = parse_snote(str)
         if event then
                 local h = handlers[event.name]
                 h(event)
         end
+end
+
+local exp_1  = 1 / math.exp(1/ 1/60)
+local exp_5  = 1 / math.exp(1/ 5/60)
+local exp_15 = 1 / math.exp(1/15/60)
+
+local function calc_load(i, e)
+        avenrun[i] = avenrun[i] * e + new_connects * (1 - e)
+end
+
+function M.on_timer()
+        calc_load(1, exp_1)
+        calc_load(5, exp_5)
+        calc_load(15, exp_15)
+        new_connects = 0
+        draw()
 end
 
 return M

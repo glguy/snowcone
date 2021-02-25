@@ -4,6 +4,8 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
 
 #include "app.h"
 
@@ -13,7 +15,40 @@ struct app
 {
     lua_State *L;
     char const *logic_filename;
+    void (*write)(char *, size_t);
 };
+
+static int app_print(lua_State *L)
+{
+    int n = lua_gettop(L);  /* number of arguments */
+    struct app *a = lua_touserdata(L, lua_upvalueindex(1));
+
+    luaL_Buffer b;
+    luaL_buffinit(L, &b);
+
+    for (int i = 1; i <= n; i++) {
+            (void)luaL_tolstring(L, i, NULL); // leaves string on stack
+            luaL_addvalue(&b); // consumes string
+            luaL_addchar(&b, i==n ? '\n' : '\t');
+    }
+
+    luaL_pushresult(&b);
+    size_t msglen;
+    char const* msg = lua_tolstring(L, -1, &msglen);
+    
+    if (a->write)
+    {
+        char *copy = malloc(msglen);
+        memcpy(copy, msg, msglen);
+        a->write(copy, msglen);
+    }
+    else
+    {
+        write(STDOUT_FILENO, msg, msglen);
+    }
+
+    return 0;
+}
 
 static void load_logic(lua_State *L, char const *filename)
 {
@@ -24,8 +59,7 @@ static void load_logic(lua_State *L, char const *filename)
     }
     else
     {
-        size_t len;
-        char const *err = luaL_tolstring(L, -1, &len);
+        char const *err = lua_tostring(L, -1);
         printf("Failed to load logic: %s\n", err);
         lua_pop(L, 1);
     }
@@ -39,6 +73,11 @@ static void start_lua(struct app *a)
     }
     a->L = luaL_newstate();
     luaL_openlibs(a->L);
+
+    lua_pushlightuserdata(a->L, a);
+    lua_pushcclosure(a->L, &app_print, 1);
+    lua_setglobal(a->L, "print");
+
     load_logic(a->L, a->logic_filename);
 }
 
@@ -68,9 +107,6 @@ void app_free(struct app *a)
 
 static int lua_callback_worker(lua_State *L)
 {
-    char const *key = luaL_checkstring(L, 1);
-    char const *arg = luaL_checkstring(L, 2);
-
     int module_ty = lua_rawgetp(L, LUA_REGISTRYINDEX, &logic_module);
     if (module_ty != LUA_TNIL)
     {
@@ -119,4 +155,14 @@ void do_command(struct app *a, char *line)
 void do_snote(struct app *a, char *line)
 {
     lua_callback(a->L, "on_snote", line);
+}
+
+void do_timer(struct app *a)
+{
+    lua_callback(a->L, "on_timer", NULL);
+}
+
+void set_writer(struct app *a, void (*cb)(char*, size_t))
+{
+    a->write = cb;
 }

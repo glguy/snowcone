@@ -1,5 +1,6 @@
 #include "uv.h"
 #include <bits/getopt_core.h>
+#include <stdint.h>
 #include <uv.h>
 
 #include <string.h>
@@ -14,6 +15,8 @@
 
 #include "app.h"
 #include "buffer.h"
+
+static const uint64_t timer_ms = 1000;
 
 static void my_alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
@@ -108,7 +111,10 @@ static void on_new_connection(uv_stream_t *server, int status)
     }
 }
 
-
+static void on_timer(uv_timer_t *handle)
+{
+    do_timer(handle->loop->data);
+}
 
 int main(int argc, char *argv[])
 {
@@ -183,6 +189,10 @@ int main(int argc, char *argv[])
         uv_tcp_bind(&tcp, (struct sockaddr const*)&addr, 0);
         uv_listen((uv_stream_t*)&tcp, SOMAXCONN, &on_new_connection);
     }
+
+    uv_timer_t load_timer;
+    uv_timer_init(&loop, &load_timer);
+    uv_timer_start(&load_timer, on_timer, timer_ms, timer_ms);
 
     uv_run(&loop, UV_RUN_DEFAULT);
 
