@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
     }
 
     uv_tty_t stdout_tty;
-    uv_tty_init(&loop, &stdout_tty, STDOUT_FILENO, 0);
+    uv_tty_init(&loop, &stdout_tty, STDOUT_FILENO, /*unused*/0);
 
     struct readline_data stdin_data = {
         .cb = do_command,
@@ -272,10 +272,6 @@ int main(int argc, char *argv[])
     uv_pipe_open(&snote_pipe, fd);
     uv_read_start((uv_stream_t *)&snote_pipe, &my_alloc_cb, &readline_cb);
 
-    char *name = strdup(logic_name);
-    uv_fs_event_t files = {.data = strdup(basename(name))};
-    free(name);
-
     start_file_watcher(&loop, (uv_stream_t*)&stdout_tty, logic_name);
 
     if (port > 0)
@@ -288,8 +284,6 @@ int main(int argc, char *argv[])
     uv_run(&loop, UV_RUN_DEFAULT);
 
     uv_loop_close(&loop);
-    readline_data_close(&stdin_data);
-    readline_data_close(&snote_data);
     app_free(loop.data);
 
     return 0;
