@@ -154,13 +154,9 @@ local function draw()
                 end
         end
 
-        print('\x1b[2J' ..
+        io.write('\x1b[2J' ..
                 table.concat(outputs, nil, showtop-n+1, showtop) ..
-                string.format('Load: \x1b[37m%.2f %.2f %.2f\x1b[0m', avenrun[1], avenrun[5], avenrun[15]))
-
-        if output then
-                print('\nOUTPUT: ' .. tostring(output))
-        end
+                string.format('Load: \x1b[37m%.2f %.2f %.2f\x1b[0m\n', avenrun[1], avenrun[5], avenrun[15]))
 
         local filters = {}
         if filter then
@@ -176,7 +172,7 @@ local function draw()
                 table.insert(filters, string.format('count_max=%s', count_max))
         end
         if #filters > 0 then
-                print(table.concat(filters, ' '))
+                io.write(table.concat(filters, ' ') .. '\n')
         end
 end
 draw()
@@ -256,10 +252,16 @@ local M = {}
 function M.on_input(str)
         local chunk, err = load(str, '=(load)', 't')
         if chunk then
-                local success, result = pcall(chunk)
-                output = result
+                local result = {pcall(chunk)}
+                if result[1] then
+                        if #result > 1 then
+                                print(table.unpack(result, 2))
+                        end
+                else
+                        print(result[2])
+                end
         else
-                output = err
+                print(err)
         end
         draw()
 end

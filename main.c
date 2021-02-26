@@ -1,16 +1,12 @@
-#include "uv.h"
-#include <bits/getopt_core.h>
-#include <stdint.h>
 #include <uv.h>
 
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <fcntl.h>
 #include <libgen.h>
-#include <sys/types.h>
 #include <netinet/in.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include "app.h"
@@ -25,6 +21,8 @@ static void my_alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *bu
 
 struct readline_data
 {
+    uv_stream_t *out;
+    void (*write_cb)(void*, char const*, size_t);
     void (*cb)(struct app *, char *);
     uv_buf_t buffer;
     bool dynamic;
@@ -50,6 +48,27 @@ static void readline_close_cb(uv_handle_t *handle)
     }
 }
 
+static void write_done(uv_write_t *write, int status)
+{
+    uv_buf_t *buf = write->data;
+    buffer_close(buf);
+    free(buf);
+    free(write);
+}
+
+static void to_write(void *data, char const* msg, size_t n)
+{
+    uv_buf_t *buf = malloc(sizeof *buf);
+    buffer_init(buf, n);
+    memcpy(buf->base, msg, n);
+
+    uv_write_t *req = malloc(sizeof *req);
+    req->data = buf;
+
+    uv_stream_t *stream = data;
+    uv_write(req, stream, buf, 1, write_done);
+}
+
 static void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 {
     struct app * const a = stream->loop->data;
@@ -70,7 +89,10 @@ static void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
     while ((end = strchr(start, '\n')))
     {
         *end = '\0';
+
+        app_set_writer(a, d->out, d->write_cb);
         d->cb(a, start);
+        app_set_writer(a, NULL, NULL);
         start = end + 1;
     }
 
@@ -103,6 +125,7 @@ static void on_new_connection(uv_stream_t *server, int status)
     client->data = data;
     uv_tcp_init(server->loop, client);
     if (uv_accept(server, (uv_stream_t*) client) == 0) {
+        data->out = (uv_stream_t*)client;
         uv_read_start((uv_stream_t*) client, my_alloc_cb, readline_cb);
     }
     else
@@ -113,7 +136,8 @@ static void on_new_connection(uv_stream_t *server, int status)
 
 static void on_timer(uv_timer_t *handle)
 {
-    do_timer(handle->loop->data);
+    struct app *a = handle->loop->data;
+    do_timer(a);
 }
 
 int main(int argc, char *argv[])
@@ -150,22 +174,28 @@ int main(int argc, char *argv[])
     char const* const logic_name = argv[0];
     char const* const snote_name = argv[1];
 
-    int fd = open(snote_name, O_RDONLY);
-    if (-1 == fd)
+    struct app *a = app_new(logic_name);
+    uv_loop_t loop = {.data = a};
+    uv_loop_init(&loop);
+
+    uv_fs_t req;
+    uv_file fd = uv_fs_open(&loop, &req, snote_name, UV_FS_O_RDONLY, 0660, NULL);
+    uv_fs_req_cleanup(&req);
+    if (fd < 0)
     {
-        perror("open");
+        fprintf(stderr, "open: %s\n", uv_err_name(fd));
         return 1;
     }
-
-    uv_loop_t loop = {.data = app_new(logic_name)};
-    uv_loop_init(&loop);
 
     struct readline_data stdin_data = {.cb = do_command};
     uv_tty_t stdin_tty = {.data = &stdin_data};
     uv_tty_init(&loop, &stdin_tty, STDIN_FILENO, /*unused*/0);
     uv_read_start((uv_stream_t *)&stdin_tty, &my_alloc_cb, &readline_cb);
 
-    struct readline_data snote_data = {.cb = do_snote};
+    uv_tty_t stdout_tty;
+    uv_tty_init(&loop, &stdout_tty, STDOUT_FILENO, 0);
+
+    struct readline_data snote_data = {.cb = do_snote, .out = (uv_stream_t*)&stdout_tty};
     uv_pipe_t snote_pipe = {.data = &snote_data};
     uv_pipe_init(&loop, &snote_pipe, 0);
     uv_pipe_open(&snote_pipe, fd);
@@ -190,7 +220,7 @@ int main(int argc, char *argv[])
         uv_listen((uv_stream_t*)&tcp, SOMAXCONN, &on_new_connection);
     }
 
-    uv_timer_t load_timer;
+    uv_timer_t load_timer = {.data = (uv_stream_t*)&stdout_tty};
     uv_timer_init(&loop, &load_timer);
     uv_timer_start(&load_timer, on_timer, timer_ms, timer_ms);
 

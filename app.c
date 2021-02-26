@@ -15,36 +15,32 @@ struct app
 {
     lua_State *L;
     char const *logic_filename;
-    void (*write)(char *, size_t);
+    void *write_data;
+    void (*write_cb)(void *, char const* bytes, size_t n);
 };
 
 static int app_print(lua_State *L)
 {
-    int n = lua_gettop(L);  /* number of arguments */
     struct app *a = lua_touserdata(L, lua_upvalueindex(1));
 
-    luaL_Buffer b;
-    luaL_buffinit(L, &b);
+    if (a->write_cb)
+    {
+        int n = lua_gettop(L);  /* number of arguments */
 
-    for (int i = 1; i <= n; i++) {
-            (void)luaL_tolstring(L, i, NULL); // leaves string on stack
-            luaL_addvalue(&b); // consumes string
-            luaL_addchar(&b, i==n ? '\n' : '\t');
-    }
+        luaL_Buffer b;
+        luaL_buffinit(L, &b);
 
-    luaL_pushresult(&b);
-    size_t msglen;
-    char const* msg = lua_tolstring(L, -1, &msglen);
+        for (int i = 1; i <= n; i++) {
+                (void)luaL_tolstring(L, i, NULL); // leaves string on stack
+                luaL_addvalue(&b); // consumes string
+                luaL_addchar(&b, i==n ? '\n' : '\t');
+        }
+
+        luaL_pushresult(&b);
+        size_t msglen;
+        char const* msg = lua_tolstring(L, -1, &msglen);
     
-    if (a->write)
-    {
-        char *copy = malloc(msglen);
-        memcpy(copy, msg, msglen);
-        a->write(copy, msglen);
-    }
-    else
-    {
-        write(STDOUT_FILENO, msg, msglen);
+        a->write_cb(a->write_data, msg, msglen);
     }
 
     return 0;
@@ -86,6 +82,8 @@ struct app *app_new(char const *logic)
     struct app *a = malloc(sizeof *a);
     a->logic_filename = logic;
     a->L = NULL;
+    a->write_cb = NULL;
+    a->write_data = NULL;
 
     start_lua(a);
     return a;
@@ -162,7 +160,8 @@ void do_timer(struct app *a)
     lua_callback(a->L, "on_timer", NULL);
 }
 
-void set_writer(struct app *a, void (*cb)(char*, size_t))
+void app_set_writer(struct app *a, void *data, void (*cb)(void*, char const*, size_t))
 {
-    a->write = cb;
+    a->write_data = data;
+    a->write_cb = cb;
 }
