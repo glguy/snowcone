@@ -105,7 +105,6 @@ function initialize()
 
     -- settings
     history = 1000
-    showtop = 30
     show_reasons = true
     reset_filter()
 end
@@ -125,8 +124,10 @@ local function show_entry(entry)
 end
 
 local function draw()
+    local last_time
     local outputs = {}
     local n = 0
+    local showtop = (tty_height or 25) - 1
     for mask, entry in users:each() do
         if show_entry(entry) then
             local mask_color
@@ -143,8 +144,16 @@ local function draw()
                 col4 = yellow .. entry.ip .. reset
             end
 
+            local time = entry.time
+            if time == last_time then
+                timetxt = '        '
+            else
+                last_time = time
+                timetxt = cyan .. time .. reset
+            end
+
             outputs[showtop-n] = string.format("%s %4d %-98s %-48s %s\n",
-                cyan .. entry.time .. reset,
+                timetxt,
                 entry.count,
                 mask_color .. entry.nick .. black .. '!' ..
                 mask_color .. entry.user .. black .. '@' ..

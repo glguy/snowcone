@@ -203,6 +203,20 @@ static void on_file(uv_fs_event_t *handle, char const *filename, int events, int
 
 /* MAIN **************************************************************/
 
+void update_tty_size(struct app *a, uv_tty_t *tty)
+{
+    int width, height;
+    uv_tty_get_winsize(tty, &width, &height);
+    app_set_window_size(a, width, height);
+}
+
+void on_winch(uv_signal_t* handle, int signum)
+{
+    uv_tty_t *tty = handle->data;
+    struct app *a = handle->loop->data;
+    update_tty_size(a, tty);
+}
+
 int main(int argc, char *argv[])
 {
     char const* const program = argv[0];
@@ -252,7 +266,12 @@ int main(int argc, char *argv[])
 
     uv_tty_t stdout_tty;
     uv_tty_init(&loop, &stdout_tty, STDOUT_FILENO, /*unused*/0);
+    update_tty_size(a, &stdout_tty);
 
+    uv_signal_t winch = {.data = &stdout_tty};
+    uv_signal_init(&loop, &winch);
+    uv_signal_start(&winch, on_winch, SIGWINCH);
+    
     struct readline_data stdin_data = {
         .cb = do_command,
         .write_cb = &to_write,

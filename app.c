@@ -180,3 +180,11 @@ void app_set_writer(struct app *a, void *data, void (*cb)(void*, char const*, si
     a->write_data = data;
     a->write_cb = cb;
 }
+
+void app_set_window_size(struct app *a, int width, int height)
+{
+    lua_pushinteger(a->L, width);
+    lua_setglobal(a->L, "tty_width");
+    lua_pushinteger(a->L, height);
+    lua_setglobal(a->L, "tty_height");
+}
