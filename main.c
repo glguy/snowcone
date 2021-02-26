@@ -19,13 +19,15 @@ static void my_alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *bu
     buffer_init(buf, suggested_size);
 }
 
+/* INPUT LINE PROCESSING *********************************************/
+
 struct readline_data
 {
-    uv_stream_t *out;
-    void (*write_cb)(void*, char const*, size_t);
-    void (*cb)(struct app *, char *);
-    uv_buf_t buffer;
-    bool dynamic;
+  uv_stream_t *write_data;
+  void (*write_cb)(void *, char const *, size_t);
+  void (*cb)(struct app *, char *);
+  uv_buf_t buffer;
+  bool dynamic;
 };
 
 static void readline_data_close(struct readline_data *d)
@@ -46,27 +48,6 @@ static void readline_close_cb(uv_handle_t *handle)
     {
         free(handle);
     }
-}
-
-static void write_done(uv_write_t *write, int status)
-{
-    uv_buf_t *buf = write->data;
-    buffer_close(buf);
-    free(buf);
-    free(write);
-}
-
-static void to_write(void *data, char const* msg, size_t n)
-{
-    uv_buf_t *buf = malloc(sizeof *buf);
-    buffer_init(buf, n);
-    memcpy(buf->base, msg, n);
-
-    uv_write_t *req = malloc(sizeof *req);
-    req->data = buf;
-
-    uv_stream_t *stream = data;
-    uv_write(req, stream, buf, 1, write_done);
 }
 
 static void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
@@ -90,7 +71,7 @@ static void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
     {
         *end = '\0';
 
-        app_set_writer(a, d->out, d->write_cb);
+        app_set_writer(a, d->write_data, d->write_cb);
         d->cb(a, start);
         app_set_writer(a, NULL, NULL);
         start = end + 1;
@@ -99,14 +80,44 @@ static void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
     memmove(d->buffer.base, start, strlen(start) + 1);
 }
 
-static void on_file(uv_fs_event_t *handle, char const *filename, int events, int status)
+/* WRITE MESSAGE TO STREAM *******************************************/
+
+static void write_done(uv_write_t *write, int status);
+
+static void to_write(void *data, char const* msg, size_t n)
 {
-    char const *target = handle->data;
-    struct app *a = handle->loop->data;
-    if (!strcmp(target, filename))
-    {
-        app_reload(a);
-    }
+    uv_buf_t *buf = malloc(sizeof *buf);
+    buffer_init(buf, n);
+    memcpy(buf->base, msg, n);
+
+    uv_write_t *req = malloc(sizeof *req);
+    req->data = buf;
+
+    uv_stream_t *stream = data;
+    uv_write(req, stream, buf, 1, write_done);
+}
+
+static void write_done(uv_write_t *write, int status)
+{
+    uv_buf_t *buf = write->data;
+    buffer_close(buf);
+    free(buf);
+    free(write);
+}
+
+/* TCP SERVER ********************************************************/
+
+static void on_new_connection(uv_stream_t *server, int status);
+
+static void start_tcp_server(uv_loop_t *loop, char const* host, int port)
+{
+    struct sockaddr_in6 addr;
+    uv_ip6_addr(host, port, &addr);
+
+    uv_tcp_t *tcp = malloc(sizeof *tcp);
+    uv_tcp_init(loop, tcp);
+    uv_tcp_bind(tcp, (struct sockaddr*)&addr, 0);
+    uv_listen((uv_stream_t*)tcp, SOMAXCONN, &on_new_connection);
 }
 
 static void on_new_connection(uv_stream_t *server, int status)
@@ -123,23 +134,74 @@ static void on_new_connection(uv_stream_t *server, int status)
 
     uv_tcp_t *client = malloc(sizeof *client);
     client->data = data;
+
     uv_tcp_init(server->loop, client);
-    if (uv_accept(server, (uv_stream_t*) client) == 0) {
-        data->out = (uv_stream_t*)client;
-        data->write_cb = to_write;
-        uv_read_start((uv_stream_t*) client, my_alloc_cb, readline_cb);
-    }
-    else
+    uv_accept(server, (uv_stream_t*)client);
+    data->write_data = (uv_stream_t *)client;
+    data->write_cb = to_write;
+    uv_read_start((uv_stream_t *)client, my_alloc_cb, readline_cb);
+}
+
+/* TIMER *************************************************************/
+
+static void on_timer(uv_timer_t *handle);
+
+static void start_timer(uv_loop_t *loop, uv_stream_t *output)
+{
+    uv_timer_t *timer = malloc(sizeof *timer);
+    timer->data = output;
+    uv_timer_init(loop, timer);
+    uv_timer_start(timer, on_timer, timer_ms, timer_ms);
+}
+
+static void on_timer(uv_timer_t *timer)
+{
+    struct app *a = timer->loop->data;
+    uv_stream_t *output = timer->data;
+    app_set_writer(a, output, to_write);
+    do_timer(a);
+    app_set_writer(a, NULL, NULL);
+}
+
+/* FILE WATCHER ******************************************************/
+
+struct file_watcher_data {
+    char *name;
+    uv_stream_t *output;
+};
+
+static void on_file(uv_fs_event_t *handle, char const *filename, int events, int status);
+
+static void start_file_watcher(uv_loop_t *loop, uv_stream_t *stream, char const* logic_name)
+{
+    uv_fs_event_t *files = malloc(sizeof *files);
+    struct file_watcher_data *data = malloc(sizeof *data);
+    files->data = data;
+    data->output = stream;
+    char *temp = strdup(logic_name);
+    data->name = strdup(basename(temp));
+    free(temp);
+
+    uv_fs_event_init(loop, files);
+    
+    temp = strdup(logic_name);
+    uv_fs_event_start(files, &on_file, dirname(temp), 0);
+    free(temp);
+}
+
+static void on_file(uv_fs_event_t *handle, char const *filename, int events, int status)
+{
+    struct file_watcher_data *data = handle->data;
+    struct app *a = handle->loop->data;
+    if (!strcmp(data->name, filename))
     {
-        uv_close((uv_handle_t*)client, NULL);
+        app_set_writer(a, data->output, to_write);
+        app_reload(a);
+        app_set_writer(a, NULL, NULL);
     }
 }
 
-static void on_timer(uv_timer_t *handle)
-{
-    struct app *a = handle->loop->data;
-    do_timer(a);
-}
+/* MAIN **************************************************************/
 
 int main(int argc, char *argv[])
 {
@@ -188,15 +250,23 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    struct readline_data stdin_data = {.cb = do_command};
+    uv_tty_t stdout_tty;
+    uv_tty_init(&loop, &stdout_tty, STDOUT_FILENO, 0);
+
+    struct readline_data stdin_data = {
+        .cb = do_command,
+        .write_cb = &to_write,
+        .write_data = (uv_stream_t*)&stdout_tty,
+    };
     uv_tty_t stdin_tty = {.data = &stdin_data};
     uv_tty_init(&loop, &stdin_tty, STDIN_FILENO, /*unused*/0);
     uv_read_start((uv_stream_t *)&stdin_tty, &my_alloc_cb, &readline_cb);
 
-    uv_tty_t stdout_tty;
-    uv_tty_init(&loop, &stdout_tty, STDOUT_FILENO, 0);
-
-    struct readline_data snote_data = {.cb = do_snote, .out = (uv_stream_t*)&stdout_tty};
+    struct readline_data snote_data = {
+        .cb = do_snote,
+        .write_data = (uv_stream_t*)&stdout_tty,
+        .write_cb = &to_write,
+    };
     uv_pipe_t snote_pipe = {.data = &snote_data};
     uv_pipe_init(&loop, &snote_pipe, 0);
     uv_pipe_open(&snote_pipe, fd);
@@ -206,25 +276,15 @@ int main(int argc, char *argv[])
     uv_fs_event_t files = {.data = strdup(basename(name))};
     free(name);
 
-    uv_fs_event_init(&loop, &files);
-    char *dir = strdup(logic_name);
-    uv_fs_event_start(&files, &on_file, dirname(dir), 0);
-    free(dir);
+    start_file_watcher(&loop, (uv_stream_t*)&stdout_tty, logic_name);
 
-    uv_tcp_t tcp;
     if (port > 0)
     {
-        struct sockaddr_in6 addr;
-        uv_ip6_addr(bindaddr, port, &addr);
-        uv_tcp_init(&loop, &tcp);
-        uv_tcp_bind(&tcp, (struct sockaddr const*)&addr, 0);
-        uv_listen((uv_stream_t*)&tcp, SOMAXCONN, &on_new_connection);
+        start_tcp_server(&loop, bindaddr, port);
     }
 
-    uv_timer_t load_timer = {.data = (uv_stream_t*)&stdout_tty};
-    uv_timer_init(&loop, &load_timer);
-    uv_timer_start(&load_timer, on_timer, timer_ms, timer_ms);
-
+    start_timer(&loop, (uv_stream_t*)&stdout_tty);
+    
     uv_run(&loop, UV_RUN_DEFAULT);
 
     uv_loop_close(&loop);

@@ -10,8 +10,7 @@ void buffer_close(uv_buf_t const *buf)
 
 void buffer_init(uv_buf_t *buf, size_t n)
 {
-    buf->base = calloc(n, 1);
-    buf->len = n;
+    *buf = uv_buf_init(calloc(n,1), n);
 }
 
 void append_buffer(uv_buf_t *dst, ssize_t n, uv_buf_t const *src)
