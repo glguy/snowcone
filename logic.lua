@@ -166,7 +166,7 @@ local function draw()
         end
     end
 
-    io.write('\n\x1b[2J', table.unpack(outputs, showtop-n+1,showtop))
+    io.write('\r\x1b[2J', table.unpack(outputs, showtop-n+1,showtop))
     io.write(string.format('Load: \x1b[37m%.2f %.2f %.2f\x1b[0m ', avenrun[1], avenrun[5], avenrun[15]))
     io.flush()
 
@@ -196,10 +196,11 @@ local function scrub(str)
 end
 
 local function parse_snote(str)
-    local time, nick, user, host, ip, gecos = string.match(str, '^%[([^][]*)%] -%g*- %*%*%* Notice %-%- Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {%?} %[(.*)%]$')
-    if nick then
+    local time, server, nick, user, host, ip, gecos = string.match(str, '^%[([^][]*)%] %-([^-]*)%- %*%*%* Notice %-%- Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {%?} %[(.*)%]$')
+    if time then
         return {
             name = 'connect',
+            server = server,
             nick = nick,
             user = user,
             host = host,
@@ -209,10 +210,11 @@ local function parse_snote(str)
         }
     end
 
-    local time, nick, user, host, reason, ip = string.match(str, '^%[([^][]*)%] -%g*- %*%*%* Notice %-%- Client exiting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] %[([^]]*)%]$')
-    if nick then
+    local time, server, nick, user, host, reason, ip = string.match(str, '^%[([^][]*)%] %-([^-]*)%- %*%*%* Notice %-%- Client exiting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] %[([^]]*)%]$')
+    if time then
         return {
             name = 'disconnect',
+            server = server,
             nick = nick,
             user = user,
             host = host,
@@ -229,7 +231,7 @@ local handlers = {}
 local new_connects = 0
 
 function handlers.connect(ev)
-    local mask = ev.nick .. '!' .. ev.user .. '@' .. ev.host
+    local mask = ev.nick .. '!' .. ev.user .. '@' .. ev.ip
     local entry = users:insert(mask, {count = 0})
     entry.gecos = ev.gecos
     entry.host = ev.host
@@ -248,7 +250,7 @@ function handlers.connect(ev)
 end
 
 function handlers.disconnect(ev)
-    local mask = ev.nick .. '!' .. ev.user .. '@' .. ev.host
+    local mask = ev.nick .. '!' .. ev.user .. '@' .. ev.ip
     local entry = users:lookup(mask)
     if entry then
         entry.connected = false
