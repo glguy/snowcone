@@ -120,7 +120,7 @@ local function show_entry(entry)
     (conn_filter == nil or conn_filter == entry.connected) and
     (count_min   == nil or count_min   <= entry.count) and
     (count_max   == nil or count_max   >= entry.count) and
-    (filter      == nil or string.match(mask .. ' ' .. entry.gecos, filter))
+    (filter      == nil or string.match(entry.nick .. '!' .. entry.user .. '@' .. entry.host .. ' ' .. entry.gecos, filter))
 end
 
 local function draw()
