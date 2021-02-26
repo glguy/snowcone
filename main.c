@@ -126,6 +126,7 @@ static void on_new_connection(uv_stream_t *server, int status)
     uv_tcp_init(server->loop, client);
     if (uv_accept(server, (uv_stream_t*) client) == 0) {
         data->out = (uv_stream_t*)client;
+        data->write_cb = to_write;
         uv_read_start((uv_stream_t*) client, my_alloc_cb, readline_cb);
     }
     else
