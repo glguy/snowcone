@@ -19,6 +19,13 @@ struct app
     void (*write_cb)(void *, char const* bytes, size_t n);
 };
 
+static int error_handler(lua_State *L)
+{
+    const char* msg = luaL_tolstring(L, 1, NULL);
+    luaL_traceback(L, L, msg, 1);
+    return 1;
+}
+
 static int app_print(lua_State *L)
 {
     struct app *a = *(struct app **)lua_getextraspace(L);
@@ -48,7 +55,8 @@ static int app_print(lua_State *L)
 
 static void load_logic(lua_State *L, char const *filename)
 {
-    int res = luaL_loadfile(L, filename) || lua_pcall(L, 0, 1, 0);
+    lua_pushcfunction(L, error_handler);
+    int res = luaL_loadfile(L, filename) || lua_pcall(L, 0, 1, 1);
     if (res == LUA_OK)
     {
         lua_rawsetp(L, LUA_REGISTRYINDEX, &logic_module);
@@ -56,9 +64,10 @@ static void load_logic(lua_State *L, char const *filename)
     else
     {
         char const *err = lua_tostring(L, -1);
-        printf("Failed to load logic: %s\n", err);
-        lua_pop(L, 1);
+        fprintf(stderr, "Failed to callback logic: %s\n%s\n", filename, err);
+        lua_pop(L, 1); /* error message */
     }
+    lua_pop(L, 1); /* error handler */
 }
 
 static void start_lua(struct app *a)
@@ -115,13 +124,6 @@ static int lua_callback_worker(lua_State *L)
         lua_call(L, 1, 0);
     }
     return 0;
-}
-
-static int error_handler(lua_State *L)
-{
-    const char* msg = luaL_tolstring(L, 1, NULL);
-    luaL_traceback(L, L, msg, 1);
-    return 1;
 }
 
 static void lua_callback(lua_State *L, char const *key, char const *arg)

@@ -57,10 +57,11 @@ local function new_ordered_map()
 
     function obj:delete(key)
         local node = self.index[key]
-        if not node then return end
-        self.index[key] = nil
-        self.n = self.n - 1
-        unlink_node(node)
+        if node then
+            self.index[key] = nil
+            self.n = self.n - 1
+            unlink_node(node)
+        end
     end
 
     function obj:lookup(key)
@@ -257,7 +258,7 @@ function M.on_input(str)
         print(chunk())
         draw()
     else
-        error(err)
+        print(err)
     end
 end
 
