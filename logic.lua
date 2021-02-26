@@ -254,17 +254,10 @@ local M = {}
 function M.on_input(str)
     local chunk, err = load(str, '=(load)', 't')
     if chunk then
-        local result = {pcall(chunk)}
-        if result[1] then
-            if #result > 1 then
-                print(table.unpack(result, 2))
-            end
-        else
-            print(result[2])
-        end
+        print(chunk())
         draw()
     else
-        print(err)
+        error(err)
     end
 end
 

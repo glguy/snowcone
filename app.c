@@ -21,7 +21,7 @@ struct app
 
 static int app_print(lua_State *L)
 {
-    struct app *a = lua_touserdata(L, lua_upvalueindex(1));
+    struct app *a = *(struct app **)lua_getextraspace(L);
 
     if (a->write_cb)
     {
@@ -68,10 +68,11 @@ static void start_lua(struct app *a)
         lua_close(a->L);
     }
     a->L = luaL_newstate();
+    *(struct app **)lua_getextraspace(a->L) = a;
+
     luaL_openlibs(a->L);
 
-    lua_pushlightuserdata(a->L, a);
-    lua_pushcclosure(a->L, &app_print, 1);
+    lua_pushcfunction(a->L, &app_print);
     lua_setglobal(a->L, "print");
 
     load_logic(a->L, a->logic_filename);
@@ -116,18 +117,30 @@ static int lua_callback_worker(lua_State *L)
     return 0;
 }
 
+static int error_handler(lua_State *L)
+{
+    const char* msg = luaL_tolstring(L, 1, NULL);
+    luaL_traceback(L, L, msg, 1);
+    return 1;
+}
+
 static void lua_callback(lua_State *L, char const *key, char const *arg)
 {
+    lua_pushcfunction(L, error_handler);
     lua_pushcfunction(L, lua_callback_worker);
     lua_pushstring(L, key);
     lua_pushstring(L, arg);
 
-    if (lua_pcall(L, 2, 0, 0))
+    if (lua_pcall(L, 2, 0, -4))
     {
-        char const *err = lua_tostring(L, -1);
-        printf("Failed to load logic: %s\n", err);
-        lua_pop(L, 1);
+        struct app *a = *(struct app **)lua_getextraspace(L);
+        size_t len;
+        char const* err = lua_tolstring(L, -1, &len);
+        a->write_cb(a->write_data, err, len);
+        a->write_cb(a->write_data, "\n", 1);
+        lua_pop(L, 1); /* drop the error */
     }
+    lua_pop(L, 1); /* drop error handler */
 }
 
 void do_command(struct app *a, char *line)
