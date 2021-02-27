@@ -8,6 +8,25 @@ local cyan    = '\x1b[36m'
 local white   = '\x1b[37m'
 local reset   = '\x1b[0m'
 
+-- Load Averages ======================================================
+
+local exp_1  = 1 / math.exp(1/ 1/60)
+local exp_5  = 1 / math.exp(1/ 5/60)
+local exp_15 = 1 / math.exp(1/15/60)
+
+local function new_load_average()
+    return {
+        [1] = 0, [5] = 0, [15] = 0,
+        sample = function(self, x)
+            self[ 1] = self[ 1] * exp_1  + x * (1 - exp_1 )
+            self[ 5] = self[ 5] * exp_5  + x * (1 - exp_5 )
+            self[15] = self[15] * exp_15 + x * (1 - exp_15)
+        end
+    }
+end
+
+-- Ordered Maps =======================================================
+
 local function new_ordered_map()
     local sentinel = {}
     sentinel.next = sentinel
@@ -103,6 +122,10 @@ function initialize()
     initialized = true
     users = new_ordered_map()
     avenrun = {[1] = 0, [5] = 0, [15] = 0}
+    connect_counter = {}
+    server_loads = {}
+    global_load = new_load_average()
+    view = 'connections'
 
     -- settings
     history = 1000
@@ -124,7 +147,9 @@ local function show_entry(entry)
     (filter      == nil or string.match(entry.mask, filter))
 end
 
-local function draw()
+local views = {}
+
+function views.connections()
     local last_time
     local outputs = {}
     local n = 0
@@ -173,8 +198,9 @@ local function draw()
         end
     end
 
-    io.write('\r\x1b[2J', table.unpack(outputs, showtop-n+1,showtop))
-    io.write(string.format('Load: \x1b[37m%.2f %.2f %.2f\x1b[0m ', avenrun[1], avenrun[5], avenrun[15]))
+    io.write(table.unpack(outputs, showtop-n+1,showtop))
+    io.write(string.format('Load: \x1b[37m%.2f %.2f %.2f\x1b[0m ',
+               global_load[1], global_load[5], global_load[15]))
     io.flush()
 
     local filters = {}
@@ -198,6 +224,28 @@ local function draw()
         io.flush()
     end
 end
+
+function views.servers()
+    local rows = {}
+    for server,avg in pairs(server_loads) do
+        local name = string.gsub(server, '%.freenode%.net$', '', 1)
+        table.insert(rows, {name=name,load=avg})
+    end
+    table.sort(rows, function(x,y) return x.load[1] < y.load[1] end)
+    
+    io.write(green .. '         Server    1m    5m   15m\n' .. reset)
+    for _,row in ipairs(rows) do
+        local avg = row.load
+        io.write(string.format('%15s  \27[1m%.2f  %.2f  %.2f\27[0m\n', row.name, avg[1], avg[5], avg[15]))
+    end
+    io.write(string.format('\27[34m%15s  %.2f  %.2f  %.2f\27[0m\n', 'GLOBAL', global_load[1], global_load[5], global_load[15]))
+end
+
+local function draw()
+    io.write('\r\27[2J')
+    views[view]()
+end
+
 draw()
 
 -- Server Notice parsing ==============================================
@@ -239,10 +287,9 @@ end
 
 local handlers = {}
 
-local new_connects = 0
-
 function handlers.connect(ev)
     local mask = ev.nick .. '!' .. ev.user .. '@' .. ev.ip
+    local server = ev.server
     local entry = users:insert(mask, {count = 0})
     entry.gecos = ev.gecos
     entry.host = ev.host
@@ -257,7 +304,7 @@ function handlers.connect(ev)
     while users.n > history do
         users:delete(users:last_key())
     end
-    new_connects = new_connects + 1
+    connect_counter[server] = (connect_counter[server] or 0) + 1
     draw()
 end
 
@@ -294,20 +341,29 @@ function M.on_snote(str)
     end
 end
 
-local exp_1  = 1 / math.exp(1/ 1/60)
-local exp_5  = 1 / math.exp(1/ 5/60)
-local exp_15 = 1 / math.exp(1/15/60)
-
-local function calc_load(i, e)
-    avenrun[i] = avenrun[i] * e + new_connects * (1 - e)
-end
-
 function M.on_timer()
-    calc_load(1, exp_1)
-    calc_load(5, exp_5)
-    calc_load(15, exp_15)
-    new_connects = 0
-    --if avenrun[1] > 2 * avenrun[5] then io.write('\7') end
+    local total = 0
+    for server,v in pairs(connect_counter) do
+        if not server_loads[server] then
+            server_loads[server] = new_load_average()
+        end
+        total = total + v
+    end
+    global_load:sample(total)
+    for server,avg in pairs(server_loads) do
+        avg:sample(connect_counter[server] or 0)
+    end
+    connect_counter = {}
+
+    for k,v in pairs(connect_counter) do
+        local avg = load_averages[k]
+        if not avg then
+            avg = new_load_average()
+            load_averages[k] = avg
+        end
+
+        avg:sample(v)
+    end
     draw()
 end
 

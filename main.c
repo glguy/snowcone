@@ -69,12 +69,11 @@ static void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 
     while ((end = strchr(start, '\n')))
     {
-        *end = '\0';
-
+        *end++ = '\0';
         app_set_writer(a, d->write_data, d->write_cb);
         d->cb(a, start);
         app_set_writer(a, NULL, NULL);
-        start = end + 1;
+        start = end;
     }
 
     memmove(d->buffer.base, start, strlen(start) + 1);
