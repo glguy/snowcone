@@ -11,6 +11,16 @@
 
 static char logic_module;
 
+static inline struct app *get_app(lua_State *L)
+{
+    return *(struct app **)lua_getextraspace(L);
+}
+
+static inline void set_app(lua_State *L, struct app *a)
+{
+    *(struct app **)lua_getextraspace(L) = a;
+}
+
 struct app
 {
     lua_State *L;
@@ -28,7 +38,7 @@ static int error_handler(lua_State *L)
 
 static int app_print(lua_State *L)
 {
-    struct app *a = *(struct app **)lua_getextraspace(L);
+    struct app *a = get_app(L);
 
     if (a->write_cb)
     {
@@ -77,7 +87,7 @@ static void start_lua(struct app *a)
         lua_close(a->L);
     }
     a->L = luaL_newstate();
-    *(struct app **)lua_getextraspace(a->L) = a;
+    set_app(a->L, a);
 
     luaL_openlibs(a->L);
 
@@ -90,10 +100,12 @@ static void start_lua(struct app *a)
 struct app *app_new(char const *logic)
 {
     struct app *a = malloc(sizeof *a);
-    a->logic_filename = logic;
-    a->L = NULL;
-    a->write_cb = NULL;
-    a->write_data = NULL;
+    *a = (struct app) {
+        .logic_filename = logic,
+        .L = NULL,
+        .write_cb = NULL,
+        .write_data = NULL,
+    };
 
     start_lua(a);
     return a;
@@ -135,7 +147,7 @@ static void lua_callback(lua_State *L, char const *key, char const *arg)
 
     if (lua_pcall(L, 2, 0, -4))
     {
-        struct app *a = *(struct app **)lua_getextraspace(L);
+        struct app *a = get_app(L);
         size_t len;
         char const* err = lua_tolstring(L, -1, &len);
         a->write_cb(a->write_data, err, len);

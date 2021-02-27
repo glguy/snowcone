@@ -117,24 +117,29 @@ function reset_filter()
     count_max = nil
 end
 
-function initialize()
+local defaults = {
     -- state
-    initialized = true
-    users = new_ordered_map()
-    avenrun = {[1] = 0, [5] = 0, [15] = 0}
-    connect_counter = {}
-    server_loads = {}
-    global_load = new_load_average()
-    view = 'connections'
-
+    users = new_ordered_map(),
+    connect_counter = {},
+    server_loads = {},
+    global_load = new_load_average(),
+    view = 'connections',
     -- settings
-    history = 1000
-    show_reasons = true
+    history = 1000,
+    show_reasons = true,
+}
+
+function initialize()
+    for k,v in pairs(defaults) do
+        _G[k] = v
+    end
     reset_filter()
 end
 
-if not initialized then
-    initialize()
+for k,v in pairs(defaults) do
+    if not _G[k] then
+        _G[k] = v
+    end
 end
 
 -- Screen rendering ===================================================
@@ -148,6 +153,8 @@ local function show_entry(entry)
 end
 
 local views = {}
+function conns() view = 'connections' end
+function servs() view = 'servers' end
 
 function views.connections()
     local last_time
@@ -176,6 +183,7 @@ function views.connections()
             end
 
             local time = entry.time
+            local timetxt
             if time == last_time then
                 timetxt = '        '
             else
@@ -342,6 +350,7 @@ function M.on_snote(str)
 end
 
 function M.on_timer()
+
     local total = 0
     for server,v in pairs(connect_counter) do
         if not server_loads[server] then
@@ -349,21 +358,12 @@ function M.on_timer()
         end
         total = total + v
     end
-    global_load:sample(total)
     for server,avg in pairs(server_loads) do
         avg:sample(connect_counter[server] or 0)
     end
+    global_load:sample(total)
     connect_counter = {}
 
-    for k,v in pairs(connect_counter) do
-        local avg = load_averages[k]
-        if not avg then
-            avg = new_load_average()
-            load_averages[k] = avg
-        end
-
-        avg:sample(v)
-    end
     draw()
 end
 
