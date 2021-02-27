@@ -8,6 +8,19 @@ local cyan    = '\x1b[36m'
 local white   = '\x1b[37m'
 local reset   = '\x1b[0m'
 
+local server_classes = {
+    adams = "eu ipv6", barjavel = "eu", ballard = "hubs", bear = "au ipv6",
+    beckett = "eu", card = "us", cherryh = "us ipv6", egan = "us ipv6",
+    hitchcock = "eu", hobana = "eu ipv6", karatkievich = "us ipv6",
+    kornbluth = "eu", leguin = "eu ipv6", miller = "eu ipv6", moon = "us ipv6",
+    niven = "eu ipv6", odin = "eu", orwell = "eu", puppettest = "eu ipv6",
+    rajaniemi = "eu ipv6", reynolds = "hubs", roddenberry = "us ipv6",
+    rothfuss = "us", shelley = "hubs", sinisalo = "eu ipv6",
+    stross = "eu webchat", tepper = "us", thor = "eu", tolkien = "us",
+    verne = "eu", weber = "us", wilhelm = "eu ipv6", wolfe = "eu ipv6",
+    zettel = "tor", traviss = "hubs",
+}
+
 -- Load Averages ======================================================
 
 local exp_1  = 1 / math.exp(1/ 1/60)
@@ -236,15 +249,24 @@ end
 function views.servers()
     local rows = {}
     for server,avg in pairs(server_loads) do
-        local name = string.gsub(server, '%.freenode%.net$', '', 1)
-        table.insert(rows, {name=name,load=avg})
+        table.insert(rows, {name=server,load=avg})
     end
-    table.sort(rows, function(x,y) return x.load[1] < y.load[1] end)
+    table.sort(rows, function(x,y)
+        if x.load[1] == y.load[1] then
+            return x.name < y.name
+        else
+            return x.load[1] < y.load[1]
+        end
+    end)
     
-    io.write(green .. '         Server    1m    5m   15m\n' .. reset)
+    io.write(green .. '         Server    1m    5m   15m  Class\n' .. reset)
     for _,row in ipairs(rows) do
         local avg = row.load
-        io.write(string.format('%15s  \27[1m%.2f  %.2f  %.2f\27[0m\n', row.name, avg[1], avg[5], avg[15]))
+        local name = row.name
+        local short = string.gsub(name, '%.freenode%.net$', '', 1)
+        local color = (server_highlights[name] and yellow) or ''
+        io.write(string.format('%s%15s\27[0m  \27[1m%.2f  %.2f  %.2f\27[0m  %s\n',
+            color, short, avg[1], avg[5], avg[15], server_classes[short]))
     end
     io.write(string.format('\27[34m%15s  %.2f  %.2f  %.2f\27[0m\n', 'GLOBAL', global_load[1], global_load[5], global_load[15]))
 end
@@ -352,11 +374,13 @@ end
 function M.on_timer()
 
     local total = 0
+    server_highlights = {}
     for server,v in pairs(connect_counter) do
         if not server_loads[server] then
             server_loads[server] = new_load_average()
         end
         total = total + v
+        server_highlights[server] = true
     end
     for server,avg in pairs(server_loads) do
         avg:sample(connect_counter[server] or 0)
