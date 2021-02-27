@@ -92,6 +92,7 @@ end
 
 function reset_filter()
     filter = nil
+    highlight = nil
     conn_filter = nil
     count_min = nil
     count_max = nil
@@ -120,7 +121,7 @@ local function show_entry(entry)
     (conn_filter == nil or conn_filter == entry.connected) and
     (count_min   == nil or count_min   <= entry.count) and
     (count_max   == nil or count_max   >= entry.count) and
-    (filter      == nil or string.match(entry.nick .. '!' .. entry.user .. '@' .. entry.host .. ' ' .. entry.gecos, filter))
+    (filter      == nil or string.match(entry.mask, filter))
 end
 
 local function draw()
@@ -128,13 +129,18 @@ local function draw()
     local outputs = {}
     local n = 0
     local showtop = (tty_height or 25) - 1
-    for mask, entry in users:each() do
+    for _, entry in users:each() do
         if show_entry(entry) then
             local mask_color
             if entry.connected then
                 mask_color = green
             else
                 mask_color = red
+            end
+
+            local make_bold = ''
+            if highlight and string.match(entry.mask, highlight) then
+                make_bold = '\x1b[1m'
             end
 
             local col4
@@ -152,9 +158,10 @@ local function draw()
                 timetxt = cyan .. time .. reset
             end
 
-            outputs[showtop-n] = string.format("%s %4d %-98s %-48s %s\n",
+            outputs[showtop-n] = string.format("%s %4d %s%-98s %-48s %s\n",
                 timetxt,
                 entry.count,
+                make_bold,
                 mask_color .. entry.nick .. black .. '!' ..
                 mask_color .. entry.user .. black .. '@' ..
                 mask_color .. entry.host .. reset ,
@@ -174,6 +181,9 @@ local function draw()
     if filter then
         table.insert(filters, string.format('filter=%q', filter))
     end
+    if highlight then
+        table.insert(filters, string.format('highlight=%q', highlight))
+    end
     if conn_filter then
         table.insert(filters, string.format('conn_filter=%s', conn_filter))
     end
@@ -184,7 +194,8 @@ local function draw()
         table.insert(filters, string.format('count_max=%s', count_max))
     end
     if filters[1] then
-        io.write(table.concat(filters, ' ') .. '\n')
+        io.write(table.concat(filters, ' '))
+        io.flush()
     end
 end
 draw()
@@ -241,6 +252,7 @@ function handlers.connect(ev)
     entry.time = ev.time
     entry.connected = true
     entry.count = entry.count + 1
+    entry.mask = entry.nick .. '!' .. entry.user .. '@' .. entry.host .. ' ' .. entry.gecos
 
     while users.n > history do
         users:delete(users:last_key())
