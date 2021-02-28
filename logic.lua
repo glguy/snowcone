@@ -8,6 +8,8 @@ local cyan    = '\x1b[36m'
 local white   = '\x1b[37m'
 local reset   = '\x1b[0m'
 
+local ticks = {[0]=' ','▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+
 local server_classes = {
     adams = "eu ipv6", barjavel = "eu", ballard = "hubs", bear = "au ipv6",
     beckett = "eu", card = "us", cherryh = "us ipv6", egan = "us ipv6",
@@ -27,54 +29,71 @@ local exp_1  = 1 / math.exp(1/ 1/60)
 local exp_5  = 1 / math.exp(1/ 5/60)
 local exp_15 = 1 / math.exp(1/15/60)
 
-local function new_load_average()
-    return {
-        [1] = 0, [5] = 0, [15] = 0,
-        sample = function(self, x)
-            self[ 1] = self[ 1] * exp_1  + x * (1 - exp_1 )
-            self[ 5] = self[ 5] * exp_5  + x * (1 - exp_5 )
-            self[15] = self[15] * exp_15 + x * (1 - exp_15)
+local load_average_methods = {
+    sample = function(self, x)
+        self[ 1] = self[ 1] * exp_1  + x * (1 - exp_1 )
+        self[ 5] = self[ 5] * exp_5  + x * (1 - exp_5 )
+        self[15] = self[15] * exp_15 + x * (1 - exp_15)
+        self.recent[self.ix] = x
+        self.ix = self.ix % 60 + 1
+    end,
+    graph = function(self)
+        local output = {}
+        local j = 1
+        for i = self.ix-1, 1, -1 do
+            output[j] = ticks[math.min(8, self.recent[i] or 0)]
+            j = j + 1
         end
-    }
+        for i = 60, self.ix, -1 do
+            output[j] = ticks[math.min(8, self.recent[i] or 0)]
+            j = j + 1
+        end
+        return table.concat(output)
+    end,
+}
+
+local load_average_mt = {
+    __name = 'load_average',
+    __index = load_average_methods,
+}
+
+local function new_load_average()
+    local o = {[1]=0, [5]=0, [15]=0, recent={}, ix=1}
+    setmetatable(o, load_average_mt)
+    return o
 end
 
 -- Ordered Maps =======================================================
 
-local function new_ordered_map()
-    local sentinel = {}
-    sentinel.next = sentinel
-    sentinel.prev = sentinel
+local function unlink_node(node)
+    local p = node.prev
+    local q = node.next
+    p.next = q
+    q.prev = p
+end
 
-    local obj = { sentinel = sentinel, index = {}, n=0 }
+local function link_after(p, node)
+    local q = p.next
+    p.next = node
+    node.next = q
+    q.prev = node
+    node.prev = p
+end 
 
-    local function unlink_node(node)
-        local p = node.prev
-        local q = node.next
-        p.next = q
-        q.prev = p
-    end
-
-    local function link_after(p, node)
-        local q = p.next
-        p.next = node
-        node.next = q
-        q.prev = node
-        node.prev = p
-    end 
-
-    function obj:first_key()
+local ordered_map_methods = {
+    first_key = function(self)
         if self.n > 0 then
-            return self.sentinel.next.key
+            return self.next.key
         end
-    end
+    end,
 
-    function obj:last_key()
+    last_key = function(self)
         if self.n > 0 then
-            return self.sentinel.prev.key
+            return self.prev.key
         end
-    end
+    end,
 
-    function obj:insert(key, val)
+    insert = function(self, key, val)
         local node = self.index[key]
         if node then
             unlink_node(node)
@@ -83,40 +102,51 @@ local function new_ordered_map()
             self.n = self.n + 1
             self.index[key] = node
         end
-        link_after(self.sentinel, node)
+        link_after(self, node)
         return node.val
-    end
+    end,
 
-    function obj:delete(key)
+    delete = function(self, key)
         local node = self.index[key]
         if node then
             self.index[key] = nil
             self.n = self.n - 1
             unlink_node(node)
         end
-    end
+    end,
 
-    function obj:lookup(key)
+    lookup = function(self, key)
         local node = self.index[key]
         if node then
             return node.val
         end
-    end
+    end,
 
-    local function each_step(obj, prev)
-        local node
-        if prev then
-            node = obj.index[prev].next
-        else 
-            node = obj.sentinel.next
+    each = function(self)
+        local function each_step(obj, prev)
+            local node
+            if prev then
+                node = obj.index[prev].next
+            else 
+                node = obj.next
+            end
+            return node.key, node.val
         end
-        return node.key, node.val
-    end
-
-    function obj:each()
+        
         return each_step, self
-    end
+    end,
+}
 
+local ordered_map_mt = {
+    __index = ordered_map_methods,
+    __name = "ordered_map",
+}
+
+local function new_ordered_map()
+    local obj = {index = {}, n = 0}
+    obj.next = obj
+    obj.prev = obj
+    setmetatable(obj, ordered_map_mt)
     return obj
 end
 
@@ -220,9 +250,8 @@ function views.connections()
     end
 
     io.write(table.unpack(outputs, showtop-n+1,showtop))
-    io.write(string.format('Load: \x1b[37m%.2f %.2f %.2f\x1b[0m ',
-               global_load[1], global_load[5], global_load[15]))
-    io.flush()
+    io.write(string.format('Load: \x1b[37m%.2f %.2f %.2f\x1b[0m  [%s] ',
+               global_load[1], global_load[5], global_load[15], global_load:graph()))
 
     local filters = {}
     if filter then
@@ -242,7 +271,6 @@ function views.connections()
     end
     if filters[1] then
         io.write(table.concat(filters, ' '))
-        io.flush()
     end
 end
 
@@ -252,11 +280,7 @@ function views.servers()
         table.insert(rows, {name=server,load=avg})
     end
     table.sort(rows, function(x,y)
-        if x.load[1] == y.load[1] then
-            return x.name < y.name
-        else
-            return x.load[1] < y.load[1]
-        end
+        return x.name < y.name
     end)
     
     io.write(green .. '         Server    1m    5m   15m  Class\n' .. reset)
@@ -265,15 +289,17 @@ function views.servers()
         local name = row.name
         local short = string.gsub(name, '%.freenode%.net$', '', 1)
         local color = (server_highlights[name] and yellow) or ''
-        io.write(string.format('%s%15s\27[0m  \27[1m%.2f  %.2f  %.2f\27[0m  %s\n',
-            color, short, avg[1], avg[5], avg[15], server_classes[short]))
+        io.write(string.format('%s%15s\27[0m  \27[1m%.2f  %.2f  %.2f\27[0m  %-10s  [\27[4m%s\27[0m]\n',
+            color, short, avg[1], avg[5], avg[15], server_classes[short], avg:graph()))
     end
-    io.write(string.format('\27[34m%15s  %.2f  %.2f  %.2f\27[0m\n', 'GLOBAL', global_load[1], global_load[5], global_load[15]))
+    io.write(string.format('\27[34m%15s  %.2f  %.2f  %.2f              [%s]',
+        'GLOBAL', global_load[1], global_load[5], global_load[15], global_load:graph()))
 end
 
 local function draw()
     io.write('\r\27[2J')
     views[view]()
+    io.flush()
 end
 
 draw()
