@@ -187,6 +187,11 @@ end
 
 -- Screen rendering ===================================================
 
+local function draw_global_load()
+    io.write(string.format('Load: \x1b[37m%.2f %.2f %.2f\x1b[0m  [%s] ',
+    global_load[1], global_load[5], global_load[15], global_load:graph()))
+end
+
 local function show_entry(entry)
     return
     (conn_filter == nil or conn_filter == entry.connected) and
@@ -198,6 +203,7 @@ end
 local views = {}
 function conns() view = 'connections' end
 function servs() view = 'servers' end
+function reps()  view = 'repeats' end
 
 function views.connections()
     local last_time
@@ -250,8 +256,7 @@ function views.connections()
     end
 
     io.write(table.unpack(outputs, showtop-n+1,showtop))
-    io.write(string.format('Load: \x1b[37m%.2f %.2f %.2f\x1b[0m  [%s] ',
-               global_load[1], global_load[5], global_load[15], global_load:graph()))
+    draw_global_load()
 
     local filters = {}
     if filter then
@@ -294,6 +299,48 @@ function views.servers()
     end
     io.write(string.format('\27[34m%15s  %.2f  %.2f  %.2f              [%s]',
         'GLOBAL', global_load[1], global_load[5], global_load[15], global_load:graph()))
+end
+
+local function top_keys(tab)
+    local result, i = {}, 0
+    for k,v in pairs(tab) do
+        i = i + 1
+        result[i] = {k,v}
+    end
+    table.sort(result, function(x,y)
+        local a, b = x[2], y[2]
+        if a == b then return x[1] < y[1] else return a > b end
+    end)
+    return result
+end
+
+function views.repeats()
+    local nick_counts, mask_counts = {}, {}
+    for mask, user in users:each() do
+        local nick, ip, count = user.nick, user.ip, user.count
+        nick_counts[nick] = (nick_counts[nick] or 0) + 1
+        mask_counts[mask] = count
+    end
+
+    local nicks = top_keys(nick_counts)
+    local masks = top_keys(mask_counts)
+
+    for i = 1, tty_height - 1 do
+        local nick = nicks[i]
+        if nick and nick[2] > 1 then
+            io.write(string.format('%4d \27[33m%-16s\27[0m   ', nick[2], nick[1]))
+        else
+            io.write('                        ')
+        end
+
+        local mask = masks[i]
+        if mask then
+            io.write(string.format('%4d \27[34m%-60s\27[0m\n', mask[2], mask[1]))
+        else
+            io.write('\n')
+        end
+    end
+    draw_global_load()
 end
 
 local function draw()
