@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "app.h"
+#include "lua-ncurses.h"
 
 static char logic_module;
 
@@ -31,6 +32,7 @@ struct app
 
 static int error_handler(lua_State *L)
 {
+        fprintf(stderr, "msg was %s\n", "");
     const char* msg = luaL_tolstring(L, 1, NULL);
     luaL_traceback(L, L, msg, 1);
     return 1;
@@ -90,6 +92,7 @@ static void start_lua(struct app *a)
     set_app(a->L, a);
 
     luaL_openlibs(a->L);
+    luaL_requiref(a->L, "ncurses", luaopen_ncurses, 1);
 
     lua_pushcfunction(a->L, &app_print);
     lua_setglobal(a->L, "print");
@@ -138,12 +141,12 @@ static int lua_callback_worker(lua_State *L)
     return 0;
 }
 
-static void lua_callback(lua_State *L, char const *key, char const *arg)
+static void lua_callback(lua_State *L, char const *key)
 {
     lua_pushcfunction(L, error_handler);
     lua_pushcfunction(L, lua_callback_worker);
     lua_pushstring(L, key);
-    lua_pushstring(L, arg);
+    lua_rotate(L, -4, -1);
 
     if (lua_pcall(L, 2, 0, -4))
     {
@@ -173,18 +176,27 @@ void do_command(struct app *a, char *line)
     }
     else
     {
-        lua_callback(a->L, "on_input", line);
+        lua_pushstring(a->L, line);
+        lua_callback(a->L, "on_input");
     }
 }
 
 void do_snote(struct app *a, char *line)
 {
-    lua_callback(a->L, "on_snote", line);
+    lua_pushstring(a->L, line);
+    lua_callback(a->L, "on_snote");
 }
 
 void do_timer(struct app *a)
 {
-    lua_callback(a->L, "on_timer", NULL);
+    lua_pushnil(a->L);
+    lua_callback(a->L, "on_timer");
+}
+
+void do_keyboard(struct app *a, long key)
+{
+    lua_pushinteger(a->L, key);
+    lua_callback(a->L, "on_keyboard");
 }
 
 void app_set_writer(struct app *a, void *data, void (*cb)(void*, char const*, size_t))

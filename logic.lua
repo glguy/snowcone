@@ -1,12 +1,19 @@
-local black   = '\x1b[30m'
-local red     = '\x1b[31m'
-local green   = '\x1b[32m'
-local yellow  = '\x1b[33m'
-local blue    = '\x1b[34m'
-local magenta = '\x1b[35m'
-local cyan    = '\x1b[36m'
-local white   = '\x1b[37m'
-local reset   = '\x1b[0m'
+local addstr = ncurses.addstr
+local mvaddstr = ncurses.mvaddstr
+local erase = ncurses.erase
+local clear = ncurses.clear
+local refresh = ncurses.refresh
+local normal = ncurses.normal
+local bold = ncurses.bold
+local underline = ncurses.underline
+local red = ncurses.red
+local green = ncurses.green
+local blue = ncurses.blue
+local cyan = ncurses.cyan
+local black = ncurses.black
+local magenta = ncurses.magenta
+local yellow = ncurses.yellow
+local white = ncurses.white
 
 local ticks = {[0]=' ','▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 
@@ -154,7 +161,6 @@ end
 
 function reset_filter()
     filter = nil
-    highlight = nil
     conn_filter = nil
     count_min = nil
     count_max = nil
@@ -188,8 +194,11 @@ end
 -- Screen rendering ===================================================
 
 local function draw_global_load()
-    io.write(string.format('Load: \x1b[37m%.2f %.2f %.2f\x1b[0m  [%s] ',
-    global_load[1], global_load[5], global_load[15], global_load:graph()))
+    mvaddstr(tty_height-1, 0, 'Load: ')
+    bold()
+    addstr(string.format('%.2f %.2f %.2f', global_load[1], global_load[5], global_load[15]))
+    normal()
+    addstr(' [' .. global_load:graph() .. '] ')
 end
 
 local function show_entry(entry)
@@ -219,63 +228,66 @@ function views.connections()
                 mask_color = red
             end
 
-            local make_bold = ''
-            if highlight and string.match(entry.mask, highlight) then
-                make_bold = '\x1b[1m'
-            end
-
-            local col4
-            if show_reasons and not entry.connected then
-                col4 = magenta .. entry.reason .. reset
-            else
-                col4 = yellow .. entry.ip .. reset
-            end
-
+            local y = tty_height-(n+2)
             local time = entry.time
             local timetxt
             if time == last_time then
-                timetxt = '        '
+                mvaddstr(y, 0, '        ')
             else
                 last_time = time
-                timetxt = cyan .. time .. reset
+                cyan()
+                mvaddstr(y, 0, time)
+                normal()
             end
+            addstr(string.format(" %4d ", entry.count))
+            mask_color()
+            addstr(entry.nick)
+            black()
+            addstr('!')
+            mask_color()
+            addstr(entry.user)
+            black()
+            addstr('@')
+            mask_color()
+            addstr(entry.host)
+            normal()
+            
+            if show_reasons and not entry.connected then
+                magenta()
+                mvaddstr(y, 80, string.sub(entry.reason, 1, 39))
+            else
+                yellow()
+                mvaddstr(y, 80, entry.ip)
+            end
+            normal()
 
-            outputs[showtop-n] = string.format("%s %4d %s%-98s %-48s %s\n",
-                timetxt,
-                entry.count,
-                make_bold,
-                mask_color .. entry.nick .. black .. '!' ..
-                mask_color .. entry.user .. black .. '@' ..
-                mask_color .. entry.host .. reset ,
-                col4,
-                entry.gecos)
+            mvaddstr(y, 120, entry.gecos)
 
             n = n + 1
             if n >= showtop then break end
         end
     end
 
-    io.write(table.unpack(outputs, showtop-n+1,showtop))
     draw_global_load()
 
     local filters = {}
-    if filter then
+    if filter ~= nil then
         table.insert(filters, string.format('filter=%q', filter))
     end
-    if highlight then
-        table.insert(filters, string.format('highlight=%q', highlight))
-    end
-    if conn_filter then
+    if conn_filter ~= nil then
         table.insert(filters, string.format('conn_filter=%s', conn_filter))
     end
-    if count_min then
+    if count_min ~= nil then
         table.insert(filters, string.format('count_min=%s', count_min))
     end
-    if count_max then
+    if count_max ~= nil then
         table.insert(filters, string.format('count_max=%s', count_max))
     end
-    if filters[1] then
-        io.write(table.concat(filters, ' '))
+    if filters[1] ~= nil then
+        addstr(table.concat(filters, ' '))
+    end
+    if last_key ~= nil then
+        addstr('last key ' .. tostring(last_key))
     end
 end
 
@@ -288,16 +300,29 @@ function views.servers()
         return x.name < y.name
     end)
     
-    io.write(green .. '         Server    1m    5m   15m  Class\n' .. reset)
-    for _,row in ipairs(rows) do
+    green()
+    mvaddstr(0,0, '         Server    1m    5m   15m  Class')
+    normal()
+    for i,row in ipairs(rows) do
         local avg = row.load
         local name = row.name
         local short = string.gsub(name, '%.freenode%.net$', '', 1)
-        local color = (server_highlights[name] and yellow) or ''
-        io.write(string.format('%s%15s\27[0m  \27[1m%.2f  %.2f  %.2f\27[0m  %-10s  [\27[4m%s\27[0m]\n',
-            color, short, avg[1], avg[5], avg[15], server_classes[short], avg:graph()))
+        if connect_counter[name] then
+            yellow()
+        end
+        mvaddstr(i,0, string.format('%15s', short))
+        normal()
+        bold()
+        addstr(string.format('  %.2f  %.2f  %.2f  ', avg[1], avg[5], avg[15]))
+        normal()
+        addstr(string.format('%-10s  [', server_classes[short]))
+        underline()
+        addstr(avg:graph())
+        normal()
+        addstr(']')
     end
-    io.write(string.format('\27[34m%15s  %.2f  %.2f  %.2f              [%s]',
+    blue()
+    mvaddstr(#rows+1, 0, string.format('%15s  %.2f  %.2f  %.2f              [%s]',
         'GLOBAL', global_load[1], global_load[5], global_load[15], global_load:graph()))
 end
 
@@ -328,28 +353,30 @@ function views.repeats()
     for i = 1, tty_height - 1 do
         local nick = nicks[i]
         if nick and nick[2] > 1 then
-            io.write(string.format('%4d \27[33m%-16s\27[0m   ', nick[2], nick[1]))
-        else
-            io.write('                        ')
+            mvaddstr(i-1, 0,
+                string.format('%4d ', nick[2]))
+            blue()
+            addstr(string.format('%-16s', nick[1]))
+            normal()
         end
 
         local mask = masks[i]
         if mask then
-            io.write(string.format('%4d \27[34m%-60s\27[0m\n', mask[2], mask[1]))
-        else
-            io.write('\n')
+            mvaddstr(i-1, 22, string.format('%4d ', mask[2]))
+            yellow()
+            addstr(mask[1])
+            normal()
         end
     end
     draw_global_load()
 end
 
 local function draw()
-    io.write('\r\27[2J')
+    erase()
+    normal()
     views[view]()
-    io.flush()
+    refresh()
 end
-
-draw()
 
 -- Server Notice parsing ==============================================
 
@@ -462,6 +489,26 @@ function M.on_timer()
     connect_counter = {}
 
     draw()
+end
+
+local keys = {
+    --[[^L]] [ 12] = function() clear() draw() end,
+    --[[F1]] [265] = function() view = 'connections' draw() end,
+    --[[F2]] [266] = function() view = 'servers' draw() end,
+    --[[F3]] [267] = function() view = 'repeats' draw() end,
+    --[[Q ]] [113] = function() conn_filter = true draw() end,
+    --[[W ]] [119] = function() conn_filter = false draw() end,
+    --[[E ]] [101] = function() conn_filter = nil draw() end,
+}
+
+function M.on_keyboard(key)
+    local f = keys[key]
+    if f then
+        last_key = nil
+        f()
+    else
+        last_key = key
+    end
 end
 
 return M

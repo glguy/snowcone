@@ -1,3 +1,5 @@
+#define _XOPEN_SOURCE 600
+
 #include <uv.h>
 
 #include <libgen.h>
@@ -8,6 +10,9 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#include <curses.h>
+#include <locale.h>
 
 #include "app.h"
 #include "buffer.h"
@@ -145,10 +150,9 @@ static void on_new_connection(uv_stream_t *server, int status)
 
 static void on_timer(uv_timer_t *handle);
 
-static void start_timer(uv_loop_t *loop, uv_stream_t *output)
+static void start_timer(uv_loop_t *loop)
 {
     uv_timer_t *timer = malloc(sizeof *timer);
-    timer->data = output;
     uv_timer_init(loop, timer);
     uv_timer_start(timer, on_timer, timer_ms, timer_ms);
 }
@@ -156,29 +160,26 @@ static void start_timer(uv_loop_t *loop, uv_stream_t *output)
 static void on_timer(uv_timer_t *timer)
 {
     struct app *a = timer->loop->data;
-    uv_stream_t *output = timer->data;
-    app_set_writer(a, output, to_write);
     do_timer(a);
-    app_set_writer(a, NULL, NULL);
 }
 
 /* FILE WATCHER ******************************************************/
 
 struct file_watcher_data {
     char *name;
-    uv_stream_t *output;
 };
 
 static void on_file(uv_fs_event_t *handle, char const *filename, int events, int status);
 
-static void start_file_watcher(uv_loop_t *loop, uv_stream_t *stream, char const* logic_name)
+static void start_file_watcher(uv_loop_t *loop, char const* logic_name)
 {
     uv_fs_event_t *files = malloc(sizeof *files);
     struct file_watcher_data *data = malloc(sizeof *data);
     files->data = data;
-    data->output = stream;
     char *temp = strdup(logic_name);
-    data->name = strdup(basename(temp));
+    *data = (struct file_watcher_data) {
+        .name = strdup(basename(temp)),
+    };
     free(temp);
 
     uv_fs_event_init(loop, files);
@@ -194,26 +195,42 @@ static void on_file(uv_fs_event_t *handle, char const *filename, int events, int
     struct app *a = handle->loop->data;
     if (!strcmp(data->name, filename))
     {
-        app_set_writer(a, data->output, to_write);
         app_reload(a);
-        app_set_writer(a, NULL, NULL);
+    }
+}
+
+/* Main Input ********************************************************/
+
+static void on_stdin(uv_poll_t *handle, int status, int events)
+{
+    struct app *a = handle->loop->data;
+
+    wint_t key;
+    while(ERR != get_wch(&key))
+    {
+        do_keyboard(a, key);
     }
 }
 
 /* MAIN **************************************************************/
 
-void update_tty_size(struct app *a, uv_tty_t *tty)
+void update_tty_size(struct app *a)
 {
-    int width, height;
-    uv_tty_get_winsize(tty, &width, &height);
-    app_set_window_size(a, width, height);
+    int y, x;
+    getmaxyx(stdscr, y, x);
+    app_set_window_size(a, x, y);
 }
 
 void on_winch(uv_signal_t* handle, int signum)
 {
-    uv_tty_t *tty = handle->data;
     struct app *a = handle->loop->data;
-    update_tty_size(a, tty);
+
+    clear();
+    endwin();
+    refresh();
+    resizeterm(0, 0);
+    
+    update_tty_size(a);
 }
 
 int main(int argc, char *argv[])
@@ -247,6 +264,20 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+
+    /* Configure ncurses */
+    setlocale(LC_ALL, "");
+    initscr(); 
+    start_color();
+    use_default_colors();
+    timeout(0);
+    cbreak();
+    noecho();
+    nonl();
+    intrflush(stdscr, FALSE);
+    keypad(stdscr, TRUE);
+    curs_set(0);
+
     char const* const logic_name = argv[0];
     char const* const snote_name = argv[1];
 
@@ -263,43 +294,36 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    uv_tty_t stdout_tty;
-    uv_tty_init(&loop, &stdout_tty, STDOUT_FILENO, /*unused*/0);
-    update_tty_size(a, &stdout_tty);
+    update_tty_size(a);
 
-    uv_signal_t winch = {.data = &stdout_tty};
+    uv_poll_t input;
+    uv_poll_init(&loop, &input, STDIN_FILENO);
+    uv_poll_start(&input, UV_READABLE, on_stdin);
+
+    uv_signal_t winch;
     uv_signal_init(&loop, &winch);
     uv_signal_start(&winch, on_winch, SIGWINCH);
-    
-    struct readline_data stdin_data = {
-        .cb = do_command,
-        .write_cb = &to_write,
-        .write_data = (uv_stream_t*)&stdout_tty,
-    };
-    uv_tty_t stdin_tty = {.data = &stdin_data};
-    uv_tty_init(&loop, &stdin_tty, STDIN_FILENO, /*unused*/0);
-    uv_read_start((uv_stream_t *)&stdin_tty, &my_alloc_cb, &readline_cb);
 
     struct readline_data snote_data = {
         .cb = do_snote,
-        .write_data = (uv_stream_t*)&stdout_tty,
-        .write_cb = &to_write,
     };
     uv_pipe_t snote_pipe = {.data = &snote_data};
     uv_pipe_init(&loop, &snote_pipe, 0);
     uv_pipe_open(&snote_pipe, fd);
     uv_read_start((uv_stream_t *)&snote_pipe, &my_alloc_cb, &readline_cb);
 
-    start_file_watcher(&loop, (uv_stream_t*)&stdout_tty, logic_name);
+    start_file_watcher(&loop, logic_name);
 
     if (port > 0)
     {
         start_tcp_server(&loop, bindaddr, port);
     }
 
-    start_timer(&loop, (uv_stream_t*)&stdout_tty);
-    
+    start_timer(&loop);
+
     uv_run(&loop, UV_RUN_DEFAULT);
+
+    endwin();
 
     uv_loop_close(&loop);
     app_free(loop.data);

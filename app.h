@@ -13,5 +13,6 @@ void app_set_window_size(struct app *a, int width, int height);
 void do_command(struct app *a, char *line);
 void do_snote(struct app *a, char *line);
 void do_timer(struct app *a);
+void do_keyboard(struct app *, long);
 
 #endif
