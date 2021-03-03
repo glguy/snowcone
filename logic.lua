@@ -249,8 +249,15 @@ function views.connections()
             black()
             addstr('@')
             mask_color()
-            addstr(entry.host)
-            normal()
+            local maxwidth = 63 - #entry.nick - #entry.user
+            if #entry.host <= maxwidth then
+                addstr(entry.host)
+                normal()
+            else
+                addstr(string.sub(entry.host, 1, maxwidth-1))
+                normal()
+                addstr('…')
+            end
             
             if show_reasons and not entry.connected then
                 magenta()
