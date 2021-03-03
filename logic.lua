@@ -210,9 +210,6 @@ local function show_entry(entry)
 end
 
 local views = {}
-function conns() view = 'connections' end
-function servs() view = 'servers' end
-function reps()  view = 'repeats' end
 
 function views.connections()
     local last_time
@@ -311,6 +308,7 @@ function views.servers()
     mvaddstr(0,0, '         Server    1m    5m   15m  Class')
     normal()
     for i,row in ipairs(rows) do
+        if i >= tty_height then return end
         local avg = row.load
         local name = row.name
         local short = string.gsub(name, '%.freenode%.net$', '', 1)
@@ -328,9 +326,11 @@ function views.servers()
         normal()
         addstr(']')
     end
-    blue()
-    mvaddstr(#rows+1, 0, string.format('%15s  %.2f  %.2f  %.2f              [%s]',
-        'GLOBAL', global_load[1], global_load[5], global_load[15], global_load:graph()))
+    if #rows+1 < tty_height then
+        blue()
+        mvaddstr(#rows+1, 0, string.format('%15s  %.2f  %.2f  %.2f              [%s]',
+            'GLOBAL', global_load[1], global_load[5], global_load[15], global_load:graph()))
+    end
 end
 
 local function top_keys(tab)
