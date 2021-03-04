@@ -1,3 +1,4 @@
+#include <sys/socket.h>
 #define _XOPEN_SOURCE 600
 
 #include <uv.h>
@@ -10,6 +11,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <netdb.h>
 
 #include <curses.h>
 #include <locale.h>
@@ -113,15 +115,29 @@ static void write_done(uv_write_t *write, int status)
 
 static void on_new_connection(uv_stream_t *server, int status);
 
-static void start_tcp_server(uv_loop_t *loop, char const* host, int port)
+static void start_tcp_server(uv_loop_t *loop, char const* node, char const* service)
 {
-    struct sockaddr_in6 addr;
-    uv_ip6_addr(host, port, &addr);
-
-    uv_tcp_t *tcp = malloc(sizeof *tcp);
-    uv_tcp_init(loop, tcp);
-    uv_tcp_bind(tcp, (struct sockaddr*)&addr, 0);
-    uv_listen((uv_stream_t*)tcp, SOMAXCONN, &on_new_connection);
+    struct addrinfo hints = {
+        .ai_flags = AI_PASSIVE,
+        .ai_family = PF_UNSPEC,
+        .ai_socktype = SOCK_STREAM,
+    };
+    uv_getaddrinfo_t req;
+    int res = uv_getaddrinfo(loop, &req, NULL, node, service, &hints);
+    if (res < 0)
+    {
+        fprintf(stderr, "failed to resolve tcp bind: %s\n", uv_err_name(res));
+        exit(1);
+    }
+    
+    for (struct addrinfo *ai = req.addrinfo; ai; ai = ai->ai_next)
+    {
+        uv_tcp_t *tcp = malloc(sizeof *tcp);
+        uv_tcp_init(loop, tcp);
+        uv_tcp_bind(tcp, ai->ai_addr, 0);
+        uv_listen((uv_stream_t*)tcp, SOMAXCONN, &on_new_connection);
+    }
+    uv_freeaddrinfo(req.addrinfo);
 }
 
 static void on_new_connection(uv_stream_t *server, int status)
@@ -214,43 +230,32 @@ static void on_stdin(uv_poll_t *handle, int status, int events)
 
 /* MAIN **************************************************************/
 
-void update_tty_size(struct app *a)
-{
-    int y, x;
-    getmaxyx(stdscr, y, x);
-    app_set_window_size(a, x, y);
-}
-
 void on_winch(uv_signal_t* handle, int signum)
 {
     struct app *a = handle->loop->data;
-
-    clear();
     endwin();
     refresh();
-    resizeterm(0, 0);
-    
-    update_tty_size(a);
+    app_set_window_size(a);
 }
 
 int main(int argc, char *argv[])
 {
     char const* const program = argv[0];
 
-    int port = 0;
-    char const* bindaddr = "::";
+    char const* host = NULL;
+    char const* port = NULL;
 
     int opt;
     while ((opt = getopt(argc, argv, "h:p:")) != -1) {
         switch (opt) {
         case 'h':
-            bindaddr = optarg;
+            host = optarg;
             break;
         case 'p':
-            port = atoi(optarg);
+            port = optarg;
             break;
         default:
-            fprintf(stderr, "Usage: %s [-p port] logic.lua snote_pipe\n", program);
+            fprintf(stderr, "Usage: %s [-h host] [-p port] logic.lua snote_pipe\n", program);
             return 1;
         }
     }
@@ -260,10 +265,9 @@ int main(int argc, char *argv[])
 
     if (argc < 2)
     {
-        fprintf(stderr, "Usage: %s [-p port] logic.lua snote_pipe\n", program);
+        fprintf(stderr, "Usage: %s [-h host] [-p port] logic.lua snote_pipe\n", program);
         return 1;
     }
-
 
     /* Configure ncurses */
     setlocale(LC_ALL, "");
@@ -294,8 +298,6 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    update_tty_size(a);
-
     uv_poll_t input;
     uv_poll_init(&loop, &input, STDIN_FILENO);
     uv_poll_start(&input, UV_READABLE, on_stdin);
@@ -314,9 +316,9 @@ int main(int argc, char *argv[])
 
     start_file_watcher(&loop, logic_name);
 
-    if (port > 0)
+    if (port != 0)
     {
-        start_tcp_server(&loop, bindaddr, port);
+        start_tcp_server(&loop, host, port);
     }
 
     start_timer(&loop);

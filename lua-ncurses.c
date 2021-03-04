@@ -130,6 +130,14 @@ static int l_mvaddstr(lua_State *L)
 {
     int y = luaL_checkinteger(L, 1);
     int x = luaL_checkinteger(L, 2);
+
+    int wy, wx;
+    getmaxyx(stdscr, wy, wx);
+    if (y >= wy || x >= wx)
+    {
+        return luaL_error(L, "bad bounds %d %d %d %d", y, x, wy, wx);
+    }
+
     char const* str = luaL_checkstring(L, 3);
     if (ERR == mvaddstr(y, x, str)) {
         return luaL_error(L, "ncurses mvaddstr failed");
@@ -159,6 +167,16 @@ static luaL_Reg lib[] = {
     {"black", l_black},
     {},
 };
+
+void l_ncurses_resize(lua_State *L)
+{
+    int y, x;
+    getmaxyx(stdscr, y, x);
+    lua_pushinteger(L, x);
+    lua_setglobal(L, "tty_width");
+    lua_pushinteger(L, y);
+    lua_setglobal(L, "tty_height");
+}
 
 int luaopen_ncurses(lua_State *L)
 {

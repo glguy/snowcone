@@ -32,7 +32,6 @@ struct app
 
 static int error_handler(lua_State *L)
 {
-        fprintf(stderr, "msg was %s\n", "");
     const char* msg = luaL_tolstring(L, 1, NULL);
     luaL_traceback(L, L, msg, 1);
     return 1;
@@ -93,6 +92,7 @@ static void start_lua(struct app *a)
 
     luaL_openlibs(a->L);
     luaL_requiref(a->L, "ncurses", luaopen_ncurses, 1);
+    l_ncurses_resize(a->L);
 
     lua_pushcfunction(a->L, &app_print);
     lua_setglobal(a->L, "print");
@@ -205,10 +205,7 @@ void app_set_writer(struct app *a, void *data, void (*cb)(void*, char const*, si
     a->write_cb = cb;
 }
 
-void app_set_window_size(struct app *a, int width, int height)
+void app_set_window_size(struct app *a)
 {
-    lua_pushinteger(a->L, width);
-    lua_setglobal(a->L, "tty_width");
-    lua_pushinteger(a->L, height);
-    lua_setglobal(a->L, "tty_height");
+    l_ncurses_resize(a->L);
 }
