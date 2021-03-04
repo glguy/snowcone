@@ -7,7 +7,7 @@ mkdir build
 cd build
 cmake ..
 make
-./snote_con -p6000 ../logic.lua <(tail -qf $LOGS/*.net/$(date +%Y-%m-%d).log)
+./snote_con -h::1 -p6000 ../logic.lua <(tail -qf $LOGS/*.net/$(date +%Y-%m-%d).log)
 ```
 
 By adding a listener on port 6000 I can send in Lua code via a separate window instead of
@@ -21,9 +21,13 @@ rlwrap nc ::1 6000
 The tool automatically reloads the Lua logic when you save the file so you can
 quickly adapt to changing circumstances, apply custom filters, etc.
 
-Built-in commands:
+Built-in keyboard shortcuts:
 
 ```
-/reload - force reloads the Lua from the C driver side
-/restart - creates a new Lua environment and then /reload
+F1 - connections
+F2 - servers
+F3 - repeats
+Q - only live connections
+W - only dead connections
+E - all connections
 ```
