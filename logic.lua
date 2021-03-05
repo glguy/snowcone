@@ -4,6 +4,7 @@ local erase = ncurses.erase
 local clear = ncurses.clear
 local refresh = ncurses.refresh
 local attron = ncurses.attron
+local attroff = ncurses.attroff
 local attrset = ncurses.attrset
 
 local function normal()     attrset(ncurses.normal)     end
@@ -360,9 +361,12 @@ function views.klines()
     end
     if #rows+2 < tty_height then
         blue()
-        mvaddstr(#rows+1, 0, string.format('%16s  %.2f  %.2f  %.2f   [%s]',
-            'GLOBAL', kline_tracker.global[1], kline_tracker.global[5], kline_tracker.global[15], kline_tracker.global:graph()))
-        normal()
+        mvaddstr(#rows+1, 0, string.format('%16s  %.2f  %.2f  %.2f   [',
+            'GLOBAL', kline_tracker.global[1], kline_tracker.global[5], kline_tracker.global[15]))
+        underline()
+        addstr(kline_tracker.global:graph())
+        attroff(ncurses.underline)
+        addstr(']')
     end
     draw_global_load()
 end

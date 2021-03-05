@@ -1,7 +1,11 @@
+#define _XOPEN_SOURCE 600
+
 #include <lua5.3/lua.h>
 #include <ncurses.h>
 #include <lua5.3/lauxlib.h>
 #include <lua5.3/lualib.h>
+#include <wchar.h>
+#include <stdlib.h>
 
 #include "lua-ncurses.h"
 
@@ -58,15 +62,20 @@ static int l_attrset(lua_State *L)
 
 static int l_addstr(lua_State *L)
 {
-    char const* str = luaL_checkstring(L, 1);
+    size_t len;
+    char const* str = luaL_checklstring(L, 1, &len);
 
     int wy, wx, y, x;
     getmaxyx(stdscr, wy, wx);
     getyx(stdscr, y, x);
     
-    if (y < wy && x < wx)
+    wchar_t *wstr = lua_newuserdata(L, sizeof(wchar_t) * len);
+    size_t wlen = mbstowcs(wstr, str, len);
+    int width = wcswidth(wstr, wlen);
+
+    if (width != -1 && y < wy && x+width < wx)
     {
-        if (ERR == addnstr(str, wx-x)) {
+        if (ERR == addnwstr(wstr, wlen)) {
             return luaL_error(L, "ncurses error");
         }
     }
@@ -77,15 +86,20 @@ static int l_mvaddstr(lua_State *L)
 {
     int y = luaL_checkinteger(L, 1);
     int x = luaL_checkinteger(L, 2);
-    char const* str = luaL_checkstring(L, 3);
+    size_t len;
+    char const* str = luaL_checklstring(L, 3, &len);
 
     int wy, wx;
     getmaxyx(stdscr, wy, wx);
 
-    if (y < wy && x < wx)
+    wchar_t *wstr = lua_newuserdata(L, sizeof(wchar_t) * len);
+    size_t wlen = mbstowcs(wstr, str, len);
+    int width = wcswidth(wstr, wlen);
+
+    if (width != -1 && y < wy && x+width <= wx)
     {
-        if (ERR == mvaddnstr(y, x, str, wx-x)) {
-            return luaL_error(L, "ncurses mvaddstr failed");
+        if (ERR == mvaddnwstr(y, x, wstr, wlen)) {
+            return luaL_error(L, "ncurses error");
         }
     }
     return 0;
