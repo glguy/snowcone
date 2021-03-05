@@ -45,17 +45,19 @@ local load_average_methods = {
         self[ 1] = self[ 1] * exp_1  + x * (1 - exp_1 )
         self[ 5] = self[ 5] * exp_5  + x * (1 - exp_5 )
         self[15] = self[15] * exp_15 + x * (1 - exp_15)
-        self.recent[self.ix] = x
-        self.ix = self.ix % 60 + 1
+        self.recent[self.n % 60 + 1] = x
+        self.n = self.n + 1
     end,
+
     graph = function(self)
         local output = {}
         local j = 1
-        for i = self.ix-1, 1, -1 do
+        local start = (self.n - 1) % 60 + 1
+        for i = start, 1, -1 do
             output[j] = ticks[math.min(8, self.recent[i] or 0)]
             j = j + 1
         end
-        for i = 60, self.ix, -1 do
+        for i = 60, start+1, -1 do
             output[j] = ticks[math.min(8, self.recent[i] or 0)]
             j = j + 1
         end
@@ -69,7 +71,7 @@ local load_average_mt = {
 }
 
 local function new_load_average()
-    local o = {[1]=0, [5]=0, [15]=0, recent={}, ix=1}
+    local o = {[1]=0, [5]=0, [15]=0, recent={}, n=0}
     setmetatable(o, load_average_mt)
     return o
 end
@@ -230,12 +232,30 @@ end
 
 -- Screen rendering ===================================================
 
+local function draw_load_1(avg, i)
+    if avg.n >= 60*i then
+        attron(ncurses.bold)
+        addstr(string.format('%.2f  ', avg[i]))
+        attroff(ncurses.bold)
+    else
+        addstr(string.format('%.2f  ', avg[i]))
+    end
+end
+
+local function draw_load(avg)
+    draw_load_1(avg, 1)
+    draw_load_1(avg, 5)
+    draw_load_1(avg,15)
+    addstr('[')
+    underline()
+    addstr(avg:graph())
+    attroff(ncurses.underline)
+    addstr(']')
+end
+
 local function draw_global_load()
     mvaddstr(tty_height-1, 0, 'Load: ')
-    bold()
-    addstr(string.format('%.2f %.2f %.2f', conn_tracker.global[1], conn_tracker.global[5], conn_tracker.global[15]))
-    normal()
-    addstr(' [' .. conn_tracker.global:graph() .. '] ')
+    draw_load(conn_tracker.global)
 end
 
 local function show_entry(entry)
@@ -342,31 +362,19 @@ function views.klines()
     end)
 
     green()
-    mvaddstr(0,0, '         K-Liner    1m    5m   15m')
+    mvaddstr(0,0, '         K-Liner  1m    5m    15m   Histogram')
     normal()
     for i,row in ipairs(rows) do
         if i+1 >= tty_height then break end
         local avg = row.load
         local nick = row.name
-        mvaddstr(i,0, string.format('%16s', nick))
-        normal()
-        bold()
-        addstr(string.format('  %.2f  %.2f  %.2f  ', avg[1], avg[5], avg[15]))
-        normal()
-        addstr(' [')
-        underline()
-        addstr(avg:graph())
-        normal()
-        addstr(']')
+        mvaddstr(i,0, string.format('%16s  ', nick))
+        draw_load(avg)
     end
     if #rows+2 < tty_height then
         blue()
-        mvaddstr(#rows+1, 0, string.format('%16s  %.2f  %.2f  %.2f   [',
-            'GLOBAL', kline_tracker.global[1], kline_tracker.global[5], kline_tracker.global[15]))
-        underline()
-        addstr(kline_tracker.global:graph())
-        attroff(ncurses.underline)
-        addstr(']')
+        mvaddstr(#rows+1, 0, string.format('%16s  ', 'GLOBAL'))
+        draw_load(kline_tracker.global)
     end
     draw_global_load()
 end
@@ -381,7 +389,7 @@ function views.servers()
     end)
     
     green()
-    mvaddstr(0,0, '         Server    1m    5m   15m  Class')
+    mvaddstr(0,0, '         Server  1m    5m    15m   Histogram                                                       Class')
     normal()
     for i,row in ipairs(rows) do
         if i >= tty_height then return end
@@ -391,24 +399,15 @@ function views.servers()
         if conn_tracker.events[name] ~= nil then
             yellow()
         end
-        mvaddstr(i,0, string.format('%15s', short))
+        mvaddstr(i,0, string.format('%15s  ', short))
         normal()
-        bold()
-        addstr(string.format('  %.2f  %.2f  %.2f  ', avg[1], avg[5], avg[15]))
-        normal()
-        addstr(string.format('%-10s  [', server_classes[short]))
-        underline()
-        addstr(avg:graph())
-        normal()
-        addstr(']')
+        draw_load(avg)
+        addstr('  ' .. server_classes[short])
     end
     if #rows+1 < tty_height then
         blue()
-        mvaddstr(#rows+1, 0, string.format('%15s  %.2f  %.2f  %.2f              [',
-            'GLOBAL', conn_tracker.global[1], conn_tracker.global[5],
-            conn_tracker.global[15]))
-        addstr(conn_tracker.global:graph())
-        addstr(']')
+        mvaddstr(#rows+1, 0, '         GLOBAL  ')
+        draw_load(conn_tracker.global)
         normal()
     end
 end
