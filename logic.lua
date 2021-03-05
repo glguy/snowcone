@@ -362,6 +362,7 @@ function views.klines()
         blue()
         mvaddstr(#rows+1, 0, string.format('%16s  %.2f  %.2f  %.2f   [%s]',
             'GLOBAL', kline_tracker.global[1], kline_tracker.global[5], kline_tracker.global[15], kline_tracker.global:graph()))
+        normal()
     end
     draw_global_load()
 end
@@ -399,8 +400,12 @@ function views.servers()
     end
     if #rows+1 < tty_height then
         blue()
-        mvaddstr(#rows+1, 0, string.format('%15s  %.2f  %.2f  %.2f              [%s]',
-            'GLOBAL', conn_tracker.global[1], conn_tracker.global[5], conn_tracker.global[15], conn_tracker.global:graph()))
+        mvaddstr(#rows+1, 0, string.format('%15s  %.2f  %.2f  %.2f              [',
+            'GLOBAL', conn_tracker.global[1], conn_tracker.global[5],
+            conn_tracker.global[15]))
+        addstr(conn_tracker.global:graph())
+        addstr(']')
+        normal()
     end
 end
 
