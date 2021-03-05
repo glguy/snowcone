@@ -70,6 +70,40 @@ local function new_load_average()
     return o
 end
 
+-- Load Map ===========================================================
+
+local load_tracker_methods = {
+    track = function(self, name)
+        self.events[name] = (self.events[name] or 0) + 1
+    end,
+    tick = function(self)
+        for name, _ in pairs(self.events) do
+            if not self.detail[name] then
+                self.detail[name] = new_load_average()
+            end
+        end
+        local total = 0
+        for name, avg in pairs(self.detail) do
+            local n = self.events[name] or 0
+            avg:sample(n)
+            total = total + n
+        end
+        self.events = {}
+        self.global:sample(total)
+    end
+}
+
+local load_tracker_mt = {
+    __name = 'load_tracker',
+    __index = load_tracker_methods,
+}
+
+local function new_load_tracker()
+    local o = {events={}, global=new_load_average(), detail={}}
+    setmetatable(o, load_tracker_mt)
+    return o
+end
+
 -- Ordered Maps =======================================================
 
 local function unlink_node(node)
@@ -169,9 +203,8 @@ end
 local defaults = {
     -- state
     users = new_ordered_map(),
-    connect_counter = {},
-    server_loads = {},
-    global_load = new_load_average(),
+    kline_tracker = new_load_tracker(),
+    conn_tracker = new_load_tracker(),
     view = 'connections',
     -- settings
     history = 1000,
@@ -196,9 +229,9 @@ end
 local function draw_global_load()
     mvaddstr(tty_height-1, 0, 'Load: ')
     bold()
-    addstr(string.format('%.2f %.2f %.2f', global_load[1], global_load[5], global_load[15]))
+    addstr(string.format('%.2f %.2f %.2f', conn_tracker.global[1], conn_tracker.global[5], conn_tracker.global[15]))
     normal()
-    addstr(' [' .. global_load:graph() .. '] ')
+    addstr(' [' .. conn_tracker.global:graph() .. '] ')
 end
 
 local function show_entry(entry)
@@ -295,9 +328,44 @@ function views.connections()
     end
 end
 
+function views.klines()
+    local rows = {}
+    for nick,avg in pairs(kline_tracker.detail) do
+        table.insert(rows, {name=nick,load=avg})
+    end
+    table.sort(rows, function(x,y)
+        return x.name < y.name
+    end)
+
+    green()
+    mvaddstr(0,0, '         K-Liner    1m    5m   15m')
+    normal()
+    for i,row in ipairs(rows) do
+        if i+1 >= tty_height then break end
+        local avg = row.load
+        local nick = row.name
+        mvaddstr(i,0, string.format('%16s', nick))
+        normal()
+        bold()
+        addstr(string.format('  %.2f  %.2f  %.2f  ', avg[1], avg[5], avg[15]))
+        normal()
+        addstr(' [')
+        underline()
+        addstr(avg:graph())
+        normal()
+        addstr(']')
+    end
+    if #rows+2 < tty_height then
+        blue()
+        mvaddstr(#rows+1, 0, string.format('%16s  %.2f  %.2f  %.2f   [%s]',
+            'GLOBAL', kline_tracker.global[1], kline_tracker.global[5], kline_tracker.global[15], kline_tracker.global:graph()))
+    end
+    draw_global_load()
+end
+
 function views.servers()
     local rows = {}
-    for server,avg in pairs(server_loads) do
+    for server,avg in pairs(conn_tracker.detail) do
         table.insert(rows, {name=server,load=avg})
     end
     table.sort(rows, function(x,y)
@@ -312,7 +380,7 @@ function views.servers()
         local avg = row.load
         local name = row.name
         local short = string.gsub(name, '%.freenode%.net$', '', 1)
-        if connect_counter[name] then
+        if conn_tracker.events[name] ~= nil then
             yellow()
         end
         mvaddstr(i,0, string.format('%15s', short))
@@ -329,7 +397,7 @@ function views.servers()
     if #rows+1 < tty_height then
         blue()
         mvaddstr(#rows+1, 0, string.format('%15s  %.2f  %.2f  %.2f              [%s]',
-            'GLOBAL', global_load[1], global_load[5], global_load[15], global_load:graph()))
+            'GLOBAL', conn_tracker.global[1], conn_tracker.global[5], conn_tracker.global[15], conn_tracker.global:graph()))
     end
 end
 
@@ -392,7 +460,7 @@ local function scrub(str)
 end
 
 local function parse_snote(str)
-    local time, server, nick, user, host, ip, gecos = string.match(str, '^%[([^][]*)%] %-([^-]*)%- %*%*%* Notice %-%- Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {%?} %[(.*)%]$')
+    local time, server, nick, user, host, ip, gecos = string.match(str, '^%[([^]]*)%] %-([^-]*)%- %*%*%* Notice %-%- Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {%?} %[(.*)%]$')
     if time then
         return {
             name = 'connect',
@@ -406,7 +474,7 @@ local function parse_snote(str)
         }
     end
 
-    local time, server, nick, user, host, reason, ip = string.match(str, '^%[([^][]*)%] %-([^-]*)%- %*%*%* Notice %-%- Client exiting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] %[([^]]*)%]$')
+    local time, server, nick, user, host, reason, ip = string.match(str, '^%[([^]]*)%] %-([^-]*)%- %*%*%* Notice %-%- Client exiting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] %[([^]]*)%]$')
     if time then
         return {
             name = 'disconnect',
@@ -418,6 +486,21 @@ local function parse_snote(str)
             ip = ip,
         }
     end
+
+    local time, server, nick, user, host, oper, duration, mask, reason = string.match(str, '^%[([^][]*)%] %-([^-]*)%- %*%*%* Notice %-%- ([^!]+)!([^@]+)@([^{]+){([^}]*)} added global (%d+) min. K%-Line for %[([^]]*)%] %[(.*)%]$')
+    if time then
+        return {
+            name = 'kline',
+            server = server,
+            nick = nick,
+            user = user,
+            host = host,
+            oper = oper,
+            mask = mask,
+            reason = scrub(reason)
+        }
+    end
+
 end
 
 -- Server Notice handlers =============================================
@@ -441,7 +524,7 @@ function handlers.connect(ev)
     while users.n > history do
         users:delete(users:last_key())
     end
-    connect_counter[server] = (connect_counter[server] or 0) + 1
+    conn_tracker:track(server)
     draw()
 end
 
@@ -453,6 +536,10 @@ function handlers.disconnect(ev)
         entry.reason = ev.reason
         draw()
     end
+end
+
+function handlers.kline(ev)
+    kline_tracker:track(ev.nick)
 end
 
 -- Callback Logic =====================================================
@@ -474,27 +561,13 @@ function M.on_snote(str)
     local event = parse_snote(str)
     if event then
         local h = handlers[event.name]
-        h(event)
+        if h then h(event) end
     end
 end
 
 function M.on_timer()
-
-    local total = 0
-    server_highlights = {}
-    for server,v in pairs(connect_counter) do
-        if not server_loads[server] then
-            server_loads[server] = new_load_average()
-        end
-        total = total + v
-        server_highlights[server] = true
-    end
-    for server,avg in pairs(server_loads) do
-        avg:sample(connect_counter[server] or 0)
-    end
-    global_load:sample(total)
-    connect_counter = {}
-
+    conn_tracker:tick()
+    kline_tracker:tick()
     draw()
 end
 
@@ -503,6 +576,7 @@ local keys = {
     --[[F1]] [265] = function() view = 'connections' draw() end,
     --[[F2]] [266] = function() view = 'servers' draw() end,
     --[[F3]] [267] = function() view = 'repeats' draw() end,
+    --[[F4]] [268] = function() view = 'klines' draw() end,
     --[[Q ]] [113] = function() conn_filter = true draw() end,
     --[[W ]] [119] = function() conn_filter = false draw() end,
     --[[E ]] [101] = function() conn_filter = nil draw() end,
