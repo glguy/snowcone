@@ -67,7 +67,7 @@ static int app_print(lua_State *L)
 static void load_logic(lua_State *L, char const *filename)
 {
     lua_pushcfunction(L, error_handler);
-    int res = luaL_loadfile(L, filename) || lua_pcall(L, 0, 1, 1);
+    int res = luaL_loadfile(L, filename) || lua_pcall(L, 0, 1, -2);
     if (res == LUA_OK)
     {
         lua_rawsetp(L, LUA_REGISTRYINDEX, &logic_module);
@@ -92,6 +92,7 @@ static void start_lua(struct app *a)
 
     luaL_openlibs(a->L);
     luaL_requiref(a->L, "ncurses", luaopen_ncurses, 1);
+    lua_pop(a->L, 1);
     l_ncurses_resize(a->L);
 
     lua_pushcfunction(a->L, &app_print);

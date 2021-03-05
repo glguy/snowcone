@@ -3,17 +3,20 @@ local mvaddstr = ncurses.mvaddstr
 local erase = ncurses.erase
 local clear = ncurses.clear
 local refresh = ncurses.refresh
-local normal = ncurses.normal
-local bold = ncurses.bold
-local underline = ncurses.underline
-local red = ncurses.red
-local green = ncurses.green
-local blue = ncurses.blue
-local cyan = ncurses.cyan
-local black = ncurses.black
-local magenta = ncurses.magenta
-local yellow = ncurses.yellow
-local white = ncurses.white
+local attron = ncurses.attron
+local attrset = ncurses.attrset
+
+local function normal()     attrset(ncurses.normal)     end
+local function bold()       attron(ncurses.bold)        end
+local function underline()  attron(ncurses.underline)   end
+local function red()        attron(ncurses.red)         end
+local function green()      attron(ncurses.green)       end
+local function blue()       attron(ncurses.blue)        end
+local function cyan()       attron(ncurses.cyan)        end
+local function black()      attron(ncurses.black)       end
+local function magenta()    attron(ncurses.magenta)     end
+local function yellow()     attron(ncurses.yellow)      end
+local function white()      attron(ncurses.white)       end
 
 local ticks = {[0]=' ','▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 
@@ -70,7 +73,7 @@ local function new_load_average()
     return o
 end
 
--- Load Map ===========================================================
+-- Load Tracker =======================================================
 
 local load_tracker_methods = {
     track = function(self, name)
