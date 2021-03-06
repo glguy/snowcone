@@ -7,9 +7,9 @@ local attron = ncurses.attron
 local attroff = ncurses.attroff
 local attrset = ncurses.attrset
 
-local function normal()     attrset(ncurses.normal)     end
-local function bold()       attron(ncurses.bold)        end
-local function underline()  attron(ncurses.underline)   end
+local function normal()     attrset(ncurses.A_NORMAL)     end
+local function bold()       attron(ncurses.A_BOLD)        end
+local function underline()  attron(ncurses.A_UNDERLINE)   end
 local function red()        attron(ncurses.red)         end
 local function green()      attron(ncurses.green)       end
 local function blue()       attron(ncurses.blue)        end
@@ -20,6 +20,7 @@ local function yellow()     attron(ncurses.yellow)      end
 local function white()      attron(ncurses.white)       end
 
 local ticks = {[0]=' ','▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+local spinner = {'◴','◷','◶','◵'}
 
 local server_classes = {
     adams = "eu ipv6", barjavel = "eu", ballard = "hubs", bear = "au ipv6",
@@ -212,6 +213,7 @@ local defaults = {
     kline_tracker = new_load_tracker(),
     conn_tracker = new_load_tracker(),
     view = 'connections',
+    uptime = 0,
     -- settings
     history = 1000,
     show_reasons = true,
@@ -234,9 +236,9 @@ end
 
 local function draw_load_1(avg, i)
     if avg.n >= 60*i then
-        attron(ncurses.bold)
+        attron(ncurses.A_BOLD)
         addstr(string.format('%.2f  ', avg[i]))
-        attroff(ncurses.bold)
+        attroff(ncurses.A_BOLD)
     else
         addstr(string.format('%.2f  ', avg[i]))
     end
@@ -249,13 +251,15 @@ local function draw_load(avg)
     addstr('[')
     underline()
     addstr(avg:graph())
-    attroff(ncurses.underline)
+    attroff(ncurses.A_UNDERLINE)
     addstr(']')
 end
 
 local function draw_global_load()
-    mvaddstr(tty_height-1, 0, 'Load: ')
+    magenta()
+    mvaddstr(tty_height-1, 0, 'sn' .. spinner[uptime % #spinner + 1] .. 'wcone  CLICON  ')
     draw_load(conn_tracker.global)
+    normal()
 end
 
 local function show_entry(entry)
@@ -277,9 +281,9 @@ function views.connections()
         if show_entry(entry) then
             local mask_color
             if entry.connected then
-                mask_color = green
+                mask_color = ncurses.green
             else
-                mask_color = red
+                mask_color = ncurses.red
             end
 
             local y = tty_height-(n+2)
@@ -294,15 +298,15 @@ function views.connections()
                 normal()
             end
             addstr(string.format(" %4d ", entry.count))
-            mask_color()
+            attron(mask_color)
             addstr(entry.nick)
             black()
             addstr('!')
-            mask_color()
+            attron(mask_color)
             addstr(entry.user)
             black()
             addstr('@')
-            mask_color()
+            attron(mask_color)
             local maxwidth = 63 - #entry.nick - #entry.user
             if #entry.host <= maxwidth then
                 addstr(entry.host)
@@ -361,20 +365,23 @@ function views.klines()
         return x.name < y.name
     end)
 
+    local pad = tty_height - #rows - 3
+
     green()
-    mvaddstr(0,0, '         K-Liner  1m    5m    15m   Histogram')
+    mvaddstr(pad,0, '         K-Liner  1m    5m    15m   Histogram')
     normal()
     for i,row in ipairs(rows) do
         if i+1 >= tty_height then break end
         local avg = row.load
         local nick = row.name
-        mvaddstr(i,0, string.format('%16s  ', nick))
+        mvaddstr(pad+i,0, string.format('%16s  ', nick))
         draw_load(avg)
     end
     if #rows+2 < tty_height then
         blue()
-        mvaddstr(#rows+1, 0, string.format('%16s  ', 'GLOBAL'))
+        mvaddstr(pad+#rows+1, 0, string.format('%16s  ', 'KLINES'))
         draw_load(kline_tracker.global)
+        normal()
     end
     draw_global_load()
 end
@@ -388,8 +395,10 @@ function views.servers()
         return x.name < y.name
     end)
     
+    local pad = tty_height - #rows - 2
+
     green()
-    mvaddstr(0,0, '         Server  1m    5m    15m   Histogram                                                       Class')
+    mvaddstr(pad,0, '          Server  1m    5m    15m   Histogram                                                       Class')
     normal()
     for i,row in ipairs(rows) do
         if i >= tty_height then return end
@@ -399,17 +408,12 @@ function views.servers()
         if conn_tracker.events[name] ~= nil then
             yellow()
         end
-        mvaddstr(i,0, string.format('%15s  ', short))
+        mvaddstr(pad+i,0, string.format('%16s  ', short))
         normal()
         draw_load(avg)
         addstr('  ' .. server_classes[short])
     end
-    if #rows+1 < tty_height then
-        blue()
-        mvaddstr(#rows+1, 0, '         GLOBAL  ')
-        draw_load(conn_tracker.global)
-        normal()
-    end
+    draw_global_load()
 end
 
 local function top_keys(tab)
@@ -577,20 +581,21 @@ function M.on_snote(str)
 end
 
 function M.on_timer()
+    uptime = uptime + 1
     conn_tracker:tick()
     kline_tracker:tick()
     draw()
 end
 
 local keys = {
+    [ncurses.KEY_F1] = function() view = 'connections' draw() end,
+    [ncurses.KEY_F2] = function() view = 'servers'     draw() end,
+    [ncurses.KEY_F3] = function() view = 'klines'      draw() end,
+    [ncurses.KEY_F4] = function() view = 'repeats'     draw() end,
     --[[^L]] [ 12] = function() clear() draw() end,
-    --[[F1]] [265] = function() view = 'connections' draw() end,
-    --[[F2]] [266] = function() view = 'servers' draw() end,
-    --[[F3]] [267] = function() view = 'repeats' draw() end,
-    --[[F4]] [268] = function() view = 'klines' draw() end,
-    --[[Q ]] [113] = function() conn_filter = true draw() end,
+    --[[Q ]] [113] = function() conn_filter = true  draw() end,
     --[[W ]] [119] = function() conn_filter = false draw() end,
-    --[[E ]] [101] = function() conn_filter = nil draw() end,
+    --[[E ]] [101] = function() conn_filter = nil   draw() end,
 }
 
 function M.on_keyboard(key)

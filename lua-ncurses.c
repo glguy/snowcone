@@ -136,6 +136,19 @@ static inline void setup_color(lua_State *L, short i, short f, short b, char con
     lua_setfield(L, -2, name);
 }
 
+#define LCURSES__SPLICE(_s, _t) _s##_t
+#define LCURSES_SPLICE(_s, _t) LCURSES__SPLICE(_s, _t)
+#define LCURSES__STR(_s) #_s
+#define LCURSES_STR(_s) LCURSES__STR(_s)
+
+#define CCR(n, v) do { \
+	lua_pushinteger(L, v); \
+	lua_setfield(L, -2, n); \
+} while(0)
+
+#define CC(s) CCR(#s, s)
+#define CF(i) CCR(LCURSES_STR(LCURSES_SPLICE(KEY_F, i)), KEY_F(i))
+
 int luaopen_ncurses(lua_State *L)
 {
     luaL_newlib(L, lib);
@@ -148,14 +161,22 @@ int luaopen_ncurses(lua_State *L)
     setup_color(L, 7, COLOR_WHITE, -1, "white");
     setup_color(L, 8, COLOR_BLACK, -1, "black");
 
-    lua_pushinteger(L, A_BOLD);
-    lua_setfield(L, -2, "bold");
+	/* attributes */
+	CC(A_NORMAL);		CC(A_STANDOUT);		CC(A_UNDERLINE);
+	CC(A_REVERSE);		CC(A_BLINK);		CC(A_DIM);
+	CC(A_BOLD);		CC(A_PROTECT);		CC(A_INVIS);
+	CC(A_ALTCHARSET);	CC(A_CHARTEXT);
+	CC(A_ATTRIBUTES);
+#ifdef A_COLOR
+	CC(A_COLOR);
+#endif
 
-    lua_pushinteger(L, A_UNDERLINE);
-    lua_setfield(L, -2, "underline");
+	CC(KEY_DOWN);		CC(KEY_UP);         CC(KEY_END);
+	CC(KEY_LEFT);		CC(KEY_RIGHT);		CC(KEY_HOME);
+	CC(KEY_BACKSPACE);  CC(KEY_PPAGE);      CC(KEY_NPAGE);
 
-    lua_pushinteger(L, A_NORMAL);
-    lua_setfield(L, -2, "normal");
+	CF( 1); CF( 2); CF( 3); CF( 4); CF( 5); CF( 6); CF( 7); 
+    CF( 8); CF( 9); CF(10); CF(11); CF(12);
 
     return 1;
 }
