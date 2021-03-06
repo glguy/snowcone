@@ -9,6 +9,7 @@
 
 #include "app.h"
 #include "lua-ncurses.h"
+#include <ncurses.h>
 
 static char logic_module;
 
@@ -75,6 +76,7 @@ static void load_logic(lua_State *L, char const *filename)
     else
     {
         char const *err = lua_tostring(L, -1);
+        endwin();
         fprintf(stderr, "Failed to callback logic: %s\n%s\n", filename, err);
         lua_pop(L, 1); /* error message */
     }
@@ -154,8 +156,13 @@ static void lua_callback(lua_State *L, char const *key)
         struct app *a = get_app(L);
         size_t len;
         char const* err = lua_tolstring(L, -1, &len);
-        a->write_cb(a->write_data, err, len);
-        a->write_cb(a->write_data, "\n", 1);
+        if (a->write_cb) {
+            a->write_cb(a->write_data, err, len);
+            a->write_cb(a->write_data, "\n", 1);
+        } else {
+            endwin();
+            fprintf(stderr, "%s\n", err);
+        }
         lua_pop(L, 1); /* drop the error */
     }
     lua_pop(L, 1); /* drop error handler */
