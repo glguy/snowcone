@@ -2,10 +2,13 @@
 #include <lua5.3/lauxlib.h>
 #include <lua5.3/lualib.h>
 
+#include <netdb.h>
+#include <netinet/in.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <netdb.h>
 
 #include "app.h"
 #include "lua-ncurses.h"
@@ -223,4 +226,21 @@ void app_set_writer(struct app *a, void *data, void (*cb)(void*, char const*, si
 void app_set_window_size(struct app *a)
 {
     l_ncurses_resize(a->L);
+}
+
+void do_mrs(struct app *a, struct addrinfo const* ai)
+{
+    char buffer[INET6_ADDRSTRLEN];
+    lua_State * const L = a->L;
+    lua_newtable(L);
+    lua_Integer i = 0;
+    while (ai) {
+        i++;
+        struct sockaddr_in a;
+        getnameinfo(ai->ai_addr, ai->ai_addrlen, buffer, sizeof buffer, NULL, 0, NI_NUMERICHOST);
+        lua_pushstring(L, buffer);
+        lua_rawseti(L, -2, i);
+        ai = ai->ai_next;
+    }
+    lua_callback(L, "on_mrs");
 }

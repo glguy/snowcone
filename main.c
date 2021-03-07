@@ -228,6 +228,36 @@ static void on_stdin(uv_poll_t *handle, int status, int events)
     }
 }
 
+/* MRS LOOKUP ********************************************************/
+
+static void on_mrs_timer(uv_timer_t *timer);
+static void on_mrs_getaddrinfo(uv_getaddrinfo_t *, int, struct addrinfo *);
+
+static void start_mrs_timer(uv_loop_t *loop)
+{
+    uv_timer_t *timer = malloc(sizeof *timer);
+    uv_timer_init(loop, timer);
+    uv_timer_start(timer, on_mrs_timer, 1000, 60 * 1000);
+}
+
+static void on_mrs_timer(uv_timer_t *timer)
+{
+    uv_getaddrinfo_t *req = malloc(sizeof *req);
+    struct addrinfo hints = {
+        .ai_socktype = SOCK_STREAM,
+    };
+    uv_getaddrinfo(timer->loop, req, &on_mrs_getaddrinfo, "chat.freenode.net", NULL, &hints);
+}
+static void on_mrs_getaddrinfo(uv_getaddrinfo_t *req, int status, struct addrinfo *ai)
+{
+    if (0 == status)
+    {
+        do_mrs(req->loop->data, ai);
+        uv_freeaddrinfo(ai);
+    }
+    free(req);
+}
+
 /* MAIN **************************************************************/
 
 void on_winch(uv_signal_t* handle, int signum)
@@ -322,6 +352,7 @@ int main(int argc, char *argv[])
     }
 
     start_timer(&loop);
+    start_mrs_timer(&loop);
 
     uv_run(&loop, UV_RUN_DEFAULT);
 

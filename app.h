@@ -1,6 +1,7 @@
 #ifndef APP_H
 #define APP_H
 
+#include <netdb.h>
 #include <stdlib.h>
 
 struct app;
@@ -14,5 +15,6 @@ void do_command(struct app *a, char *line);
 void do_snote(struct app *a, char *line);
 void do_timer(struct app *a);
 void do_keyboard(struct app *, long);
+void do_mrs(struct app *, struct addrinfo const* ai);
 
 #endif

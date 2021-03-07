@@ -44,6 +44,7 @@ local defaults = {
     conn_tracker = load_tracker.new(),
     view = 'connections',
     uptime = 0,
+    mrs = {},
     -- settings
     history = 1000,
     show_reasons = true,
@@ -219,6 +220,12 @@ function views.klines()
     
 end
 
+local region_color = {
+    US = red,
+    EU = blue,
+    AU = white,
+}
+
 function views.servers()
     local rows = {}
     for server,avg in pairs(conn_tracker.detail) do
@@ -227,26 +234,51 @@ function views.servers()
     table.sort(rows, function(x,y)
         return x.name < y.name
     end)
-    
-    local pad = tty_height - #rows - 2
+
+    draw_global_load()
+
+    local pad = math.max(tty_height - #rows - 2, 0)
 
     green()
-    mvaddstr(pad,0, '          Server  1m    5m    15m   Histogram                                                       Class')
+    mvaddstr(pad,0, '          Server  1m    5m    15m   Histogram                                                      Region')
     normal()
     for i,row in ipairs(rows) do
-        if i >= tty_height then return end
+        if i+1 >= tty_height then return end
         local avg = row.load
         local name = row.name
         local short = string.gsub(name, '%.freenode%.net$', '', 1)
-        if conn_tracker.events[name] ~= nil then
+        local info = server_classes[short] or {}
+        if mrs[info.ipv4] or mrs[info.ipv6] then
             yellow()
         end
         mvaddstr(pad+i,0, string.format('%16s  ', short))
-        normal()
         draw_load(avg)
-        addstr('  ' .. server_classes[short])
+        normal()
+
+        if info.ipv4 then
+            if mrs[info.ipv4] then yellow() end
+            addstr(' 4')
+            normal()
+        else
+            addstr('  ')
+        end
+
+        if info.ipv6 then
+            if mrs[info.ipv6] then yellow() end
+            addstr('6')
+            normal()
+        else
+            addstr(' ')
+        end
+
+        local region = info.region
+        if region then
+            region_color[region]()
+            addstr('  ' .. region)
+            normal()
+        end
+
     end
-    draw_global_load()
 end
 
 local function top_keys(tab)
@@ -310,7 +342,7 @@ end
 local function parse_snote(str)
     local time, server, str = string.match(str, '^%[([^]]*)%] %-([^-]*)%- %*%*%* Notice %-%- (.*)$')
     if time then
-        local nick, user, host, ip, gecos = string.match(str, '^Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {%?} %[([^][]*)%]$')
+        local nick, user, host, ip, class, gecos = string.match(str, '^Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {([^}]*)} %[([^][]*)%]$')
         if nick then
             return {
                 name = 'connect',
@@ -320,7 +352,8 @@ local function parse_snote(str)
                 host = host,
                 ip = ip,
                 gecos = scrub(gecos),
-                time = time
+                time = time,
+                class = class,
             }
         end
 
@@ -441,6 +474,14 @@ function M.on_keyboard(key)
     else
         last_key = key
     end
+end
+
+function M.on_mrs(x)
+    local set = {}
+    for _, ip in ipairs(x) do
+        set[ip] = true
+    end
+    mrs = set
 end
 
 return M
