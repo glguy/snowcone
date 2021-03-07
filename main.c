@@ -20,6 +20,7 @@
 #include "buffer.h"
 
 static const uint64_t timer_ms = 1000;
+static const uint64_t mrs_update_ms = 30 * 1000;
 
 static void my_alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
@@ -237,22 +238,30 @@ static void start_mrs_timer(uv_loop_t *loop)
 {
     uv_timer_t *timer = malloc(sizeof *timer);
     uv_timer_init(loop, timer);
-    uv_timer_start(timer, on_mrs_timer, 1000, 60 * 1000);
+    uv_timer_start(timer, on_mrs_timer, 0, mrs_update_ms);
 }
 
 static void on_mrs_timer(uv_timer_t *timer)
 {
-    uv_getaddrinfo_t *req = malloc(sizeof *req);
     struct addrinfo hints = {
         .ai_socktype = SOCK_STREAM,
+        .ai_flags = AI_CANONNAME,
     };
+    uv_getaddrinfo_t *req;
+    req = malloc(sizeof *req);
     uv_getaddrinfo(timer->loop, req, &on_mrs_getaddrinfo, "chat.freenode.net", NULL, &hints);
+    req = malloc(sizeof *req);
+    uv_getaddrinfo(timer->loop, req, &on_mrs_getaddrinfo, "chat.us.freenode.net", NULL, &hints);
+    req = malloc(sizeof *req);
+    uv_getaddrinfo(timer->loop, req, &on_mrs_getaddrinfo, "chat.eu.freenode.net", NULL, &hints);
+    req = malloc(sizeof *req);
+    uv_getaddrinfo(timer->loop, req, &on_mrs_getaddrinfo, "chat.au.freenode.net", NULL, &hints);
 }
 static void on_mrs_getaddrinfo(uv_getaddrinfo_t *req, int status, struct addrinfo *ai)
 {
     if (0 == status)
     {
-        do_mrs(req->loop->data, ai);
+        do_mrs(req->loop->data, ai->ai_canonname, ai);
         uv_freeaddrinfo(ai);
     }
     free(req);

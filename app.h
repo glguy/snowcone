@@ -15,6 +15,6 @@ void do_command(struct app *a, char *line);
 void do_snote(struct app *a, char *line);
 void do_timer(struct app *a);
 void do_keyboard(struct app *, long);
-void do_mrs(struct app *, struct addrinfo const* ai);
+void do_mrs(struct app *, char const* host, struct addrinfo const* ai);
 
 #endif

@@ -226,6 +226,11 @@ local region_color = {
     AU = white,
 }
 
+local function in_rotation(region, ipv4, ipv6)
+    local ips = mrs[region] or {}
+    return ips[ipv4] or ips[ipv6]
+end
+
 function views.servers()
     local rows = {}
     for server,avg in pairs(conn_tracker.detail) do
@@ -248,7 +253,7 @@ function views.servers()
         local name = row.name
         local short = string.gsub(name, '%.freenode%.net$', '', 1)
         local info = server_classes[short] or {}
-        if mrs[info.ipv4] or mrs[info.ipv6] then
+        if in_rotation('', info.ipv4, info.ipv6) then
             yellow()
         end
         mvaddstr(pad+i,0, string.format('%16s  ', short))
@@ -256,7 +261,7 @@ function views.servers()
         normal()
 
         if info.ipv4 then
-            if mrs[info.ipv4] then yellow() end
+            if in_rotation('', info.ipv4, nil) then yellow() end
             addstr(' 4')
             normal()
         else
@@ -264,7 +269,7 @@ function views.servers()
         end
 
         if info.ipv6 then
-            if mrs[info.ipv6] then yellow() end
+            if in_rotation('', nil, info.ipv6) then yellow() end
             addstr('6')
             normal()
         else
@@ -275,6 +280,9 @@ function views.servers()
         if region then
             region_color[region]()
             addstr('  ' .. region)
+            if in_rotation(region, info.ipv4, info.ipv6) then
+                addstr('*')
+            end
             normal()
         end
 
@@ -478,10 +486,11 @@ end
 
 function M.on_mrs(x)
     local set = {}
+    local region = string.upper(string.match(x.hostname, '^chat%.?(.*)%.freenode%.net$'))
     for _, ip in ipairs(x) do
         set[ip] = true
     end
-    mrs = set
+    mrs[region] = set
 end
 
 return M
