@@ -228,7 +228,7 @@ void app_set_window_size(struct app *a)
     l_ncurses_resize(a->L);
 }
 
-void do_mrs(struct app *a, char const* host, struct addrinfo const* ai)
+void do_mrs(struct app *a, char const* name, struct addrinfo const* ai)
 {
     char buffer[INET6_ADDRSTRLEN];
     lua_State * const L = a->L;
@@ -242,7 +242,7 @@ void do_mrs(struct app *a, char const* host, struct addrinfo const* ai)
         lua_rawseti(L, -2, i);
         ai = ai->ai_next;
     }
-    lua_pushstring(L, host);
-    lua_setfield(L, -2, "hostname");
+    lua_pushstring(L, name);
+    lua_setfield(L, -2, "name");
     lua_callback(L, "on_mrs");
 }

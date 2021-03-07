@@ -243,25 +243,47 @@ static void start_mrs_timer(uv_loop_t *loop)
 
 static void on_mrs_timer(uv_timer_t *timer)
 {
-    struct addrinfo hints = {
+    static struct addrinfo const hints = {
         .ai_socktype = SOCK_STREAM,
-        .ai_flags = AI_CANONNAME,
     };
+    static struct addrinfo const hints4 = {
+        .ai_family = PF_INET,
+        .ai_socktype = SOCK_STREAM,
+    };
+    static struct addrinfo const hints6 = {
+        .ai_family = PF_INET6,
+        .ai_socktype = SOCK_STREAM,
+    };
+
     uv_getaddrinfo_t *req;
-    req = malloc(sizeof *req);
-    uv_getaddrinfo(timer->loop, req, &on_mrs_getaddrinfo, "chat.freenode.net", NULL, &hints);
-    req = malloc(sizeof *req);
-    uv_getaddrinfo(timer->loop, req, &on_mrs_getaddrinfo, "chat.us.freenode.net", NULL, &hints);
-    req = malloc(sizeof *req);
-    uv_getaddrinfo(timer->loop, req, &on_mrs_getaddrinfo, "chat.eu.freenode.net", NULL, &hints);
-    req = malloc(sizeof *req);
-    uv_getaddrinfo(timer->loop, req, &on_mrs_getaddrinfo, "chat.au.freenode.net", NULL, &hints);
+    uv_loop_t *loop = timer->loop;
+
+    req = malloc(sizeof *req); req->data = "";
+    uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, "chat.freenode.net", NULL, &hints);
+
+    req = malloc(sizeof *req); req->data = "US";
+    uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, "chat.us.freenode.net", NULL, &hints);
+
+    req = malloc(sizeof *req); req->data = "EU";
+    uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, "chat.eu.freenode.net", NULL, &hints);
+
+    req = malloc(sizeof *req); req->data = "AU";
+    uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, "chat.au.freenode.net", NULL, &hints);
+
+    req = malloc(sizeof *req); req->data = "IPV4";
+    uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, "chat.ipv4.freenode.net", NULL, &hints4);
+
+    req = malloc(sizeof *req); req->data = "IPV6";
+    uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, "chat.ipv6.freenode.net", NULL, &hints6);
 }
+
 static void on_mrs_getaddrinfo(uv_getaddrinfo_t *req, int status, struct addrinfo *ai)
 {
+    char const* const name = req->data;
+
     if (0 == status)
     {
-        do_mrs(req->loop->data, ai->ai_canonname, ai);
+        do_mrs(req->loop->data, name, ai);
         uv_freeaddrinfo(ai);
     }
     free(req);

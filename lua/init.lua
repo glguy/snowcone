@@ -1,4 +1,5 @@
 local app = require 'pl.app'
+local Set = require 'pl.Set'
 app.require_here()
 
 local addstr = ncurses.addstr
@@ -165,8 +166,6 @@ function views.connections()
         end
     end
 
-    draw_global_load()
-
     if filter ~= nil then
         addstr(string.format(' filter=%q', filter))
     end
@@ -200,8 +199,6 @@ function views.klines()
     normal()
     y = y + 1
 
-    draw_global_load()
-
     if 3 <= tty_height then
         blue()
         mvaddstr(tty_height-2, 0, string.format('%16s  ', 'KLINES'))
@@ -226,9 +223,21 @@ local region_color = {
     AU = white,
 }
 
-local function in_rotation(region, ipv4, ipv6)
+local function in_rotation(region, a1, a2)
     local ips = mrs[region] or {}
-    return ips[ipv4] or ips[ipv6]
+    return ips[a1] or ips[a2]
+end
+
+local function render_mrs(zone, addr, str)
+    if not addr then
+        addstr ' '
+    elseif in_rotation(zone, addr) then
+        yellow()
+        addstr(str)
+        normal()
+    else
+        addstr(str)
+    end
 end
 
 function views.servers()
@@ -240,12 +249,10 @@ function views.servers()
         return x.name < y.name
     end)
 
-    draw_global_load()
-
     local pad = math.max(tty_height - #rows - 2, 0)
 
     green()
-    mvaddstr(pad,0, '          Server  1m    5m    15m   Histogram                                                      Region')
+    mvaddstr(pad,0, '          Server  1m    5m    15m   Histogram                                                      Mn  Region AF')
     normal()
     for i,row in ipairs(rows) do
         if i+1 >= tty_height then return end
@@ -253,39 +260,32 @@ function views.servers()
         local name = row.name
         local short = string.gsub(name, '%.freenode%.net$', '', 1)
         local info = server_classes[short] or {}
-        if in_rotation('', info.ipv4, info.ipv6) then
-            yellow()
-        end
+        local in_main = in_rotation('', info.ipv4, info.ipv6)
+        if in_main then yellow() end
         mvaddstr(pad+i,0, string.format('%16s  ', short))
+        -- Main rotation info
         draw_load(avg)
         normal()
+        addstr(' ')
+        render_mrs('',          info.ipv4, '4')
+        render_mrs('',          info.ipv6, '6')
 
-        if info.ipv4 then
-            if in_rotation('', info.ipv4, nil) then yellow() end
-            addstr(' 4')
-            normal()
-        else
-            addstr('  ')
-        end
-
-        if info.ipv6 then
-            if in_rotation('', nil, info.ipv6) then yellow() end
-            addstr('6')
-            normal()
-        else
-            addstr(' ')
-        end
-
+        -- Regional info
         local region = info.region
         if region then
             region_color[region]()
-            addstr('  ' .. region)
-            if in_rotation(region, info.ipv4, info.ipv6) then
-                addstr('*')
-            end
+            addstr('  ' .. region .. ' ')
             normal()
+        else
+            addstr('     ')
         end
-
+        render_mrs(info.region, info.ipv4, '4')
+        render_mrs(info.region, info.ipv6, '6')
+        
+        -- Family-specific info
+        addstr('  ')
+        render_mrs('IPV4'     , info.ipv4, '4')
+        render_mrs('IPV6'     , info.ipv6, '6')
     end
 end
 
@@ -331,13 +331,13 @@ function views.repeats()
             normal()
         end
     end
-    draw_global_load()
 end
 
 local function draw()
     erase()
     normal()
     views[view]()
+    draw_global_load()
     refresh()
 end
 
@@ -485,12 +485,7 @@ function M.on_keyboard(key)
 end
 
 function M.on_mrs(x)
-    local set = {}
-    local region = string.upper(string.match(x.hostname, '^chat%.?(.*)%.freenode%.net$'))
-    for _, ip in ipairs(x) do
-        set[ip] = true
-    end
-    mrs[region] = set
+    mrs[x.name] = Set(x)
 end
 
 return M
