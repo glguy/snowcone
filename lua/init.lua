@@ -378,7 +378,7 @@ local function parse_snote(str)
             }
         end
 
-        local nick, user, host, oper, duration, mask, reason = string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} added global (%d+) min. K%-Line for %[([^]]*)%] %[(.*)%]$')
+        local nick, user, host, oper, duration, mask, reason = string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} added %g+ (%d+) min. K%-Line for %[([^]]*)%] %[(.*)%]$')
         if nick then
             return {
                 name = 'kline',
