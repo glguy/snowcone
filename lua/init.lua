@@ -107,19 +107,13 @@ local views = {}
 
 function views.connections()
     local last_time
-    local outputs = {}
     local n = 0
-    local showtop = (tty_height or 25) - 1
     for _, entry in users:each() do
         if show_entry(entry) then
-            local mask_color
-            if entry.connected then
-                mask_color = ncurses.green
-            else
-                mask_color = ncurses.red
-            end
+            local y = tty_height-n-2
+            if y < 0 then break end
 
-            local y = tty_height-(n+2)
+            -- TIME
             local time = entry.time
             local timetxt
             if time == last_time then
@@ -131,6 +125,9 @@ function views.connections()
                 normal()
             end
             addstr(string.format(" %4d ", entry.count))
+            
+            -- MASK
+            local mask_color = entry.connected and ncurses.green or ncurses.red
             attron(mask_color)
             addstr(entry.nick)
             black()
@@ -150,6 +147,7 @@ function views.connections()
                 addstr('…')
             end
             
+            -- IP or REASON
             if show_reasons and not entry.connected then
                 magenta()
                 mvaddstr(y, 80, string.sub(entry.reason, 1, 39))
@@ -159,33 +157,29 @@ function views.connections()
             end
             normal()
 
+            -- GECOS
             mvaddstr(y, 120, entry.gecos)
 
             n = n + 1
-            if n >= showtop then break end
         end
     end
 
     draw_global_load()
 
-    local filters = {}
     if filter ~= nil then
-        table.insert(filters, string.format('filter=%q', filter))
+        addstr(string.format(' filter=%q', filter))
     end
     if conn_filter ~= nil then
-        table.insert(filters, string.format('conn_filter=%s', conn_filter))
+        addstr(string.format(' conn_filter=%s', conn_filter))
     end
     if count_min ~= nil then
-        table.insert(filters, string.format('count_min=%s', count_min))
+        addstr(string.format(' count_min=%s', count_min))
     end
     if count_max ~= nil then
-        table.insert(filters, string.format('count_max=%s', count_max))
-    end
-    if filters[1] ~= nil then
-        addstr(table.concat(filters, ' '))
+        addstr(string.format(' count_max=%s', count_max))
     end
     if last_key ~= nil then
-        addstr('last key ' .. tostring(last_key))
+        addstr(' key ' .. tostring(last_key))
     end
 end
 
@@ -198,25 +192,31 @@ function views.klines()
         return x.name < y.name
     end)
 
-    local pad = tty_height - #rows - 3
+    local y = math.max(tty_height - #rows - 3, 0)
 
     green()
-    mvaddstr(pad,0, '         K-Liner  1m    5m    15m   Histogram')
+    mvaddstr(y, 0, '         K-Liner  1m    5m    15m   Histogram')
     normal()
-    for i,row in ipairs(rows) do
-        if i+1 >= tty_height then break end
-        local avg = row.load
-        local nick = row.name
-        mvaddstr(pad+i,0, string.format('%16s  ', nick))
-        draw_load(avg)
-    end
-    if #rows+2 < tty_height then
+    y = y + 1
+
+    draw_global_load()
+
+    if 3 <= tty_height then
         blue()
-        mvaddstr(pad+#rows+1, 0, string.format('%16s  ', 'KLINES'))
+        mvaddstr(tty_height-2, 0, string.format('%16s  ', 'KLINES'))
         draw_load(kline_tracker.global)
         normal()
     end
-    draw_global_load()
+
+    for _, row in ipairs(rows) do
+        if y+2 >= tty_height then return end
+        local avg = row.load
+        local nick = row.name
+        mvaddstr(y, 0, string.format('%16s  ', nick))
+        draw_load(avg)
+        y = y + 1
+    end
+    
 end
 
 function views.servers()
