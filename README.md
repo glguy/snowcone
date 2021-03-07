@@ -16,7 +16,7 @@ mkdir build
 cd build
 cmake ..
 make
-./snowcone -h::1 -p6000 ../logic.lua <(tail -qf $LOGS/*.net/$(date +%Y-%m-%d).log)
+./snowcone -h::1 -p6000 ../lua/init.lua <(tail -qf $LOGS/*.net/$(date +%Y-%m-%d).log)
 ```
 
 By adding a listener on port 6000 I can send in Lua code via a separate window instead of

@@ -22,7 +22,6 @@ local function magenta()    attron(ncurses.magenta)       end
 local function yellow()     attron(ncurses.yellow)        end
 local function white()      attron(ncurses.white)         end
 
-local ticks = {[0]=' ','▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 local spinner = {'◴','◷','◶','◵'}
 
 local server_classes = require 'server_classes'

@@ -3,6 +3,7 @@ local M = {}
 local exp_1  = 1 / math.exp(1/ 1/60)
 local exp_5  = 1 / math.exp(1/ 5/60)
 local exp_15 = 1 / math.exp(1/15/60)
+local ticks = {[0]=' ','▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 
 local load_average_methods = {
     sample = function(self, x)
