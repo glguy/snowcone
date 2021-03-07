@@ -1,3 +1,6 @@
+local app = require 'pl.app'
+app.require_here()
+
 local addstr = ncurses.addstr
 local mvaddstr = ncurses.mvaddstr
 local erase = ncurses.erase
@@ -10,193 +13,21 @@ local attrset = ncurses.attrset
 local function normal()     attrset(ncurses.A_NORMAL)     end
 local function bold()       attron(ncurses.A_BOLD)        end
 local function underline()  attron(ncurses.A_UNDERLINE)   end
-local function red()        attron(ncurses.red)         end
-local function green()      attron(ncurses.green)       end
-local function blue()       attron(ncurses.blue)        end
-local function cyan()       attron(ncurses.cyan)        end
-local function black()      attron(ncurses.black)       end
-local function magenta()    attron(ncurses.magenta)     end
-local function yellow()     attron(ncurses.yellow)      end
-local function white()      attron(ncurses.white)       end
+local function red()        attron(ncurses.red)           end
+local function green()      attron(ncurses.green)         end
+local function blue()       attron(ncurses.blue)          end
+local function cyan()       attron(ncurses.cyan)          end
+local function black()      attron(ncurses.black)         end
+local function magenta()    attron(ncurses.magenta)       end
+local function yellow()     attron(ncurses.yellow)        end
+local function white()      attron(ncurses.white)         end
 
 local ticks = {[0]=' ','▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 local spinner = {'◴','◷','◶','◵'}
 
-local server_classes = {
-    adams = "eu ipv6", barjavel = "eu", ballard = "hubs", bear = "au ipv6",
-    beckett = "eu", card = "us", cherryh = "us ipv6", egan = "us ipv6",
-    hitchcock = "eu", hobana = "eu ipv6", karatkievich = "us ipv6",
-    kornbluth = "eu", leguin = "eu ipv6", miller = "eu ipv6", moon = "us ipv6",
-    niven = "eu ipv6", odin = "eu", orwell = "eu", puppettest = "eu ipv6",
-    rajaniemi = "eu ipv6", reynolds = "hubs", roddenberry = "us ipv6",
-    rothfuss = "us", shelley = "hubs", sinisalo = "eu ipv6",
-    stross = "eu webchat", tepper = "us", thor = "eu", tolkien = "us",
-    verne = "eu", weber = "us", wilhelm = "eu ipv6", wolfe = "eu ipv6",
-    zettel = "tor", traviss = "hubs",
-}
-
--- Load Averages ======================================================
-
-local exp_1  = 1 / math.exp(1/ 1/60)
-local exp_5  = 1 / math.exp(1/ 5/60)
-local exp_15 = 1 / math.exp(1/15/60)
-
-local load_average_methods = {
-    sample = function(self, x)
-        self[ 1] = self[ 1] * exp_1  + x * (1 - exp_1 )
-        self[ 5] = self[ 5] * exp_5  + x * (1 - exp_5 )
-        self[15] = self[15] * exp_15 + x * (1 - exp_15)
-        self.recent[self.n % 60 + 1] = x
-        self.n = self.n + 1
-    end,
-
-    graph = function(self)
-        local output = {}
-        local j = 1
-        local start = (self.n - 1) % 60 + 1
-        for i = start, 1, -1 do
-            output[j] = ticks[math.min(8, self.recent[i] or 0)]
-            j = j + 1
-        end
-        for i = 60, start+1, -1 do
-            output[j] = ticks[math.min(8, self.recent[i] or 0)]
-            j = j + 1
-        end
-        return table.concat(output)
-    end,
-}
-
-local load_average_mt = {
-    __name = 'load_average',
-    __index = load_average_methods,
-}
-
-local function new_load_average()
-    local o = {[1]=0, [5]=0, [15]=0, recent={}, n=0}
-    setmetatable(o, load_average_mt)
-    return o
-end
-
--- Load Tracker =======================================================
-
-local load_tracker_methods = {
-    track = function(self, name)
-        self.events[name] = (self.events[name] or 0) + 1
-    end,
-    tick = function(self)
-        for name, _ in pairs(self.events) do
-            if not self.detail[name] then
-                self.detail[name] = new_load_average()
-            end
-        end
-        local total = 0
-        for name, avg in pairs(self.detail) do
-            local n = self.events[name] or 0
-            avg:sample(n)
-            total = total + n
-        end
-        self.events = {}
-        self.global:sample(total)
-    end
-}
-
-local load_tracker_mt = {
-    __name = 'load_tracker',
-    __index = load_tracker_methods,
-}
-
-local function new_load_tracker()
-    local o = {events={}, global=new_load_average(), detail={}}
-    setmetatable(o, load_tracker_mt)
-    return o
-end
-
--- Ordered Maps =======================================================
-
-local function unlink_node(node)
-    local p = node.prev
-    local q = node.next
-    p.next = q
-    q.prev = p
-end
-
-local function link_after(p, node)
-    local q = p.next
-    p.next = node
-    node.next = q
-    q.prev = node
-    node.prev = p
-end 
-
-local ordered_map_methods = {
-    first_key = function(self)
-        if self.n > 0 then
-            return self.next.key
-        end
-    end,
-
-    last_key = function(self)
-        if self.n > 0 then
-            return self.prev.key
-        end
-    end,
-
-    insert = function(self, key, val)
-        local node = self.index[key]
-        if node then
-            unlink_node(node)
-        else
-            node = {key = key, val = val}
-            self.n = self.n + 1
-            self.index[key] = node
-        end
-        link_after(self, node)
-        return node.val
-    end,
-
-    delete = function(self, key)
-        local node = self.index[key]
-        if node then
-            self.index[key] = nil
-            self.n = self.n - 1
-            unlink_node(node)
-        end
-    end,
-
-    lookup = function(self, key)
-        local node = self.index[key]
-        if node then
-            return node.val
-        end
-    end,
-
-    each = function(self)
-        local function each_step(obj, prev)
-            local node
-            if prev then
-                node = obj.index[prev].next
-            else 
-                node = obj.next
-            end
-            return node.key, node.val
-        end
-        
-        return each_step, self
-    end,
-}
-
-local ordered_map_mt = {
-    __index = ordered_map_methods,
-    __name = "ordered_map",
-}
-
-local function new_ordered_map()
-    local obj = {index = {}, n = 0}
-    obj.next = obj
-    obj.prev = obj
-    setmetatable(obj, ordered_map_mt)
-    return obj
-end
+local server_classes = require 'server_classes'
+local load_tracker = require 'load_tracker'
+local ordered_map = require 'ordered_map'
 
 -- Global state =======================================================
 
@@ -209,9 +40,9 @@ end
 
 local defaults = {
     -- state
-    users = new_ordered_map(),
-    kline_tracker = new_load_tracker(),
-    conn_tracker = new_load_tracker(),
+    users = ordered_map.new(),
+    kline_tracker = load_tracker.new(),
+    conn_tracker = load_tracker.new(),
     view = 'connections',
     uptime = 0,
     -- settings
@@ -257,7 +88,10 @@ end
 
 local function draw_global_load()
     magenta()
-    mvaddstr(tty_height-1, 0, 'sn' .. spinner[uptime % #spinner + 1] .. 'wcone  CLICON  ')
+    attron(ncurses.A_REVERSE)
+    mvaddstr(tty_height-1, 0, 'sn' .. spinner[uptime % #spinner + 1] .. 'wcone')
+    attroff(ncurses.A_REVERSE)
+    addstr(' CLICON  ')
     draw_load(conn_tracker.global)
     normal()
 end
@@ -475,47 +309,49 @@ local function scrub(str)
 end
 
 local function parse_snote(str)
-    local time, server, nick, user, host, ip, gecos = string.match(str, '^%[([^]]*)%] %-([^-]*)%- %*%*%* Notice %-%- Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {%?} %[(.*)%]$')
+    local time, server, str = string.match(str, '^%[([^]]*)%] %-([^-]*)%- %*%*%* Notice %-%- (.*)$')
     if time then
-        return {
-            name = 'connect',
-            server = server,
-            nick = nick,
-            user = user,
-            host = host,
-            ip = ip,
-            gecos = scrub(gecos),
-            time = time
-        }
-    end
+        local nick, user, host, ip, gecos = string.match(str, '^Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {%?} %[([^][]*)%]$')
+        if nick then
+            return {
+                name = 'connect',
+                server = server,
+                nick = nick,
+                user = user,
+                host = host,
+                ip = ip,
+                gecos = scrub(gecos),
+                time = time
+            }
+        end
 
-    local time, server, nick, user, host, reason, ip = string.match(str, '^%[([^]]*)%] %-([^-]*)%- %*%*%* Notice %-%- Client exiting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] %[([^]]*)%]$')
-    if time then
-        return {
-            name = 'disconnect',
-            server = server,
-            nick = nick,
-            user = user,
-            host = host,
-            reason = scrub(reason),
-            ip = ip,
-        }
-    end
+        local nick, user, host, reason, ip = string.match(str, '^Client exiting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] %[([^][]*)%]$')
+        if nick then
+            return {
+                name = 'disconnect',
+                server = server,
+                nick = nick,
+                user = user,
+                host = host,
+                reason = scrub(reason),
+                ip = ip,
+            }
+        end
 
-    local time, server, nick, user, host, oper, duration, mask, reason = string.match(str, '^%[([^][]*)%] %-([^-]*)%- %*%*%* Notice %-%- ([^!]+)!([^@]+)@([^{]+){([^}]*)} added global (%d+) min. K%-Line for %[([^]]*)%] %[(.*)%]$')
-    if time then
-        return {
-            name = 'kline',
-            server = server,
-            nick = nick,
-            user = user,
-            host = host,
-            oper = oper,
-            mask = mask,
-            reason = scrub(reason)
-        }
+        local nick, user, host, oper, duration, mask, reason = string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} added global (%d+) min. K%-Line for %[([^]]*)%] %[(.*)%]$')
+        if nick then
+            return {
+                name = 'kline',
+                server = server,
+                nick = nick,
+                user = user,
+                host = host,
+                oper = oper,
+                mask = mask,
+                reason = scrub(reason)
+            }
+        end
     end
-
 end
 
 -- Server Notice handlers =============================================

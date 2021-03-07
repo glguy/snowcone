@@ -1,5 +1,14 @@
 # snote_con
 
+## Dependencies
+
+```
+apt install lua5.3 liblua5.3-dev luarocks
+luarocks install penlight
+```
+
+## Usage
+
 How I run this currently
 
 ```
@@ -7,7 +16,7 @@ mkdir build
 cd build
 cmake ..
 make
-./snote_con -h::1 -p6000 ../logic.lua <(tail -qf $LOGS/*.net/$(date +%Y-%m-%d).log)
+./snowcone -h::1 -p6000 ../logic.lua <(tail -qf $LOGS/*.net/$(date +%Y-%m-%d).log)
 ```
 
 By adding a listener on port 6000 I can send in Lua code via a separate window instead of

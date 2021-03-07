@@ -83,6 +83,23 @@ static void load_logic(lua_State *L, char const *filename)
     lua_pop(L, 1); /* error handler */
 }
 
+static void app_prepare_globals(lua_State *L, char const* script_name)
+{
+    luaL_openlibs(L);
+    
+    luaL_requiref(L, "ncurses", luaopen_ncurses, 1);
+    lua_pop(L, 1);
+    l_ncurses_resize(L);
+
+    lua_pushcfunction(L, &app_print);
+    lua_setglobal(L, "print");
+
+    lua_createtable(L, 0, 1);
+    lua_pushstring(L, script_name);
+    lua_rawseti(L, -2, 0);
+    lua_setglobal(L, "arg");
+}
+
 static void start_lua(struct app *a)
 {
     if (a->L)
@@ -92,14 +109,7 @@ static void start_lua(struct app *a)
     a->L = luaL_newstate();
     set_app(a->L, a);
 
-    luaL_openlibs(a->L);
-    luaL_requiref(a->L, "ncurses", luaopen_ncurses, 1);
-    lua_pop(a->L, 1);
-    l_ncurses_resize(a->L);
-
-    lua_pushcfunction(a->L, &app_print);
-    lua_setglobal(a->L, "print");
-
+    app_prepare_globals(a->L, a->logic_filename);
     load_logic(a->L, a->logic_filename);
 }
 
@@ -108,9 +118,6 @@ struct app *app_new(char const *logic)
     struct app *a = malloc(sizeof *a);
     *a = (struct app) {
         .logic_filename = logic,
-        .L = NULL,
-        .write_cb = NULL,
-        .write_data = NULL,
     };
 
     start_lua(a);
