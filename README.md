@@ -3,8 +3,7 @@
 ## Dependencies
 
 ```
-apt install lua5.3 liblua5.3-dev luarocks
-luarocks install penlight
+apt install lua5.3 liblua5.3-dev lua-penlight lua-penlight-dev libuv1-dev
 ```
 
 ## Usage
