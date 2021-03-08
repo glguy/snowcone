@@ -4,7 +4,7 @@ set(CMAKE_C_STANDARD 11)
 project(snowcone
     VERSION 1
     DESCRIPTION "IRC server notice console"
-    HOMEPAGE_URL "https://github.com/glguy/snocon"
+    HOMEPAGE_URL "https://github.com/glguy/snowcone"
     LANGUAGES C
 )
 
