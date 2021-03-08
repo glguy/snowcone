@@ -5,10 +5,11 @@ project(snowcone)
 
 set(CURSES_NEED_WIDE TRUE)
 find_package(Curses REQUIRED)
+find_package(Lua 5.3 REQUIRED)
 
 add_executable(snowcone main.c app.c buffer.c lua-ncurses.c)
-target_link_libraries(snowcone PRIVATE lua5.3 uv dl ${CURSES_LIBRARIES})
-target_include_directories(snowcone PRIVATE ${CURSES_INCLUDE_PATH})
+target_link_libraries(snowcone PRIVATE uv dl ${LUA_LIBRARIES} ${CURSES_LIBRARIES})
+target_include_directories(snowcone PRIVATE ${LUA_INCLUDE_DIR} ${CURSES_INCLUDE_PATH})
 target_compile_options(snowcone PRIVATE ${CURSES_CFLAGS})
 
 install (TARGETS snowcone DESTINATION bin)
