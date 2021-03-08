@@ -1,5 +1,8 @@
+package.loaded = {} -- always reload everything
+
 local app = require 'pl.app'
 local Set = require 'pl.Set'
+local tablex = require 'pl.tablex'
 app.require_here()
 
 local addstr = ncurses.addstr
@@ -53,9 +56,7 @@ local defaults = {
 }
 
 function initialize()
-    for k,v in pairs(defaults) do
-        _G[k] = v
-    end
+    tablex.update(_G, defaults)
     reset_filter()
 end
 

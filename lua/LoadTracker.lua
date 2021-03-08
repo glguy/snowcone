@@ -6,6 +6,7 @@ LoadTracker._name = 'LoadTracker'
 function LoadTracker:track(name)
     self.events[name] = (self.events[name] or 0) + 1
 end
+
 function LoadTracker:tick()
     for name, _ in pairs(self.events) do
         if not self.detail[name] then
