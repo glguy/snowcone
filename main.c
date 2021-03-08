@@ -258,23 +258,18 @@ static void on_mrs_timer(uv_timer_t *timer)
     uv_getaddrinfo_t *req;
     uv_loop_t *loop = timer->loop;
 
-    req = malloc(sizeof *req); req->data = "";
-    uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, "chat.freenode.net", NULL, &hints);
+#define ROTATION(NAME, HOST, HINTS) \
+    req = malloc(sizeof *req); req->data = NAME; \
+    uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, HOST, NULL, HINTS);
 
-    req = malloc(sizeof *req); req->data = "US";
-    uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, "chat.us.freenode.net", NULL, &hints);
+    ROTATION("", "chat.freenode.net", &hints)
+    ROTATION("AU", "chat.au.freenode.net", &hints)
+    ROTATION("EU", "chat.eu.freenode.net", &hints)
+    ROTATION("US", "chat.us.freenode.net", &hints)
+    ROTATION("IPV4", "chat.ipv4.freenode.net", &hints4)
+    ROTATION("IPV6", "chat.ipv6.freenode.net", &hints6)
 
-    req = malloc(sizeof *req); req->data = "EU";
-    uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, "chat.eu.freenode.net", NULL, &hints);
-
-    req = malloc(sizeof *req); req->data = "AU";
-    uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, "chat.au.freenode.net", NULL, &hints);
-
-    req = malloc(sizeof *req); req->data = "IPV4";
-    uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, "chat.ipv4.freenode.net", NULL, &hints4);
-
-    req = malloc(sizeof *req); req->data = "IPV6";
-    uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, "chat.ipv6.freenode.net", NULL, &hints6);
+#undef ROTATION
 }
 
 static void on_mrs_getaddrinfo(uv_getaddrinfo_t *req, int status, struct addrinfo *ai)
@@ -299,35 +294,32 @@ void on_winch(uv_signal_t* handle, int signum)
     app_set_window_size(a);
 }
 
+static void __attribute__((noreturn)) usage(void) 
+{
+    fprintf(stderr, "usage: snowcode [-h host] [-p port] LUA_FILE SNOTE_PIPE\n");
+    exit(EXIT_FAILURE);
+}
+
 int main(int argc, char *argv[])
 {
-    char const* const program = argv[0];
-
     char const* host = NULL;
     char const* port = NULL;
 
     int opt;
     while ((opt = getopt(argc, argv, "h:p:")) != -1) {
         switch (opt) {
-        case 'h':
-            host = optarg;
-            break;
-        case 'p':
-            port = optarg;
-            break;
-        default:
-            fprintf(stderr, "Usage: %s [-h host] [-p port] logic.lua snote_pipe\n", program);
-            return 1;
+        case 'h': host = optarg; break;
+        case 'p': port = optarg; break;
+        default: usage();
         }
     }
 
     argv += optind;
     argc -= optind;
 
-    if (argc < 2)
+    if (argc != 2)
     {
-        fprintf(stderr, "Usage: %s [-h host] [-p port] logic.lua snote_pipe\n", program);
-        return 1;
+        usage();
     }
 
     /* Configure ncurses */
@@ -335,13 +327,13 @@ int main(int argc, char *argv[])
     initscr(); 
     start_color();
     use_default_colors();
-    timeout(0);
-    cbreak();
-    noecho();
-    nonl();
+    timeout(0); /* nonblocking input reads */
+    cbreak(); /* no input line buffering */
+    noecho(); /* no echo input to screen */
+    nonl(); /* no newline on pressing return */
     intrflush(stdscr, FALSE);
-    keypad(stdscr, TRUE);
-    curs_set(0);
+    keypad(stdscr, TRUE); /* process keyboard input escape sequences */
+    curs_set(0); /* no cursor */
 
     char const* const logic_name = argv[0];
     char const* const snote_name = argv[1];
