@@ -26,8 +26,8 @@ local function white()      attron(ncurses.white)         end
 local spinner = {'◴','◷','◶','◵'}
 
 local server_classes = require 'server_classes'
-local load_tracker = require 'load_tracker'
-local ordered_map = require 'ordered_map'
+local LoadTracker = require 'LoadTracker'
+local OrderedMap = require 'OrderedMap'
 
 -- Global state =======================================================
 
@@ -40,9 +40,9 @@ end
 
 local defaults = {
     -- state
-    users = ordered_map.new(),
-    kline_tracker = load_tracker.new(),
-    conn_tracker = load_tracker.new(),
+    users = OrderedMap(),
+    kline_tracker = LoadTracker(),
+    conn_tracker = LoadTracker(),
     view = 'connections',
     uptime = 0,
     mrs = {},
@@ -175,13 +175,18 @@ function views.connections()
     draw_global_load()
 
     if scroll ~= 0 then
-        addstr(string.format(' scroll=%d', scroll))
+        addstr(string.format(' scroll %d', scroll))
     end
     if filter ~= nil then
-        addstr(string.format(' filter=%q', filter))
+        addstr(string.format(' filter %q', filter))
     end
     if conn_filter ~= nil then
-        addstr(string.format(' conn_filter=%s', conn_filter))
+        if conn_filter then
+            green() addstr(' LIVE')
+        else
+            red() addstr(' DEAD')
+        end
+        normal()
     end
     if count_min ~= nil then
         addstr(string.format(' count_min=%s', count_min))
