@@ -191,6 +191,14 @@ void do_command(struct app *a, char *line)
         {
             start_lua(a);
         }
+        else
+        {
+            if (a->write_cb)
+            {
+                char const* msg = "Unknown command\n";
+                a->write_cb(a->write_data, msg, strlen(msg));
+            }
+        }
     }
     else
     {

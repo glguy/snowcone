@@ -46,6 +46,7 @@ local defaults = {
     view = 'connections',
     uptime = 0,
     mrs = {},
+    scroll = 0,
     -- settings
     history = 1000,
     show_reasons = true,
@@ -108,12 +109,15 @@ end
 local views = {}
 
 function views.connections()
+    local skips = scroll or 0
     local last_time
     local n = 0
     for _, entry in users:each() do
         if show_entry(entry) then
             local y = tty_height-n-2
             if y < 0 then break end
+
+            if skips > 0 then skips = skips - 1 goto skip end
 
             -- TIME
             local time = entry.time
@@ -163,9 +167,16 @@ function views.connections()
             mvaddstr(y, 120, entry.gecos)
 
             n = n + 1
+
+            ::skip::
         end
     end
 
+    draw_global_load()
+
+    if scroll ~= 0 then
+        addstr(string.format(' scroll=%d', scroll))
+    end
     if filter ~= nil then
         addstr(string.format(' filter=%q', filter))
     end
@@ -184,6 +195,8 @@ function views.connections()
 end
 
 function views.klines()
+    draw_global_load()
+
     local rows = {}
     for nick,avg in pairs(kline_tracker.detail) do
         table.insert(rows, {name=nick,load=avg})
@@ -241,6 +254,8 @@ local function render_mrs(zone, addr, str)
 end
 
 function views.servers()
+    draw_global_load()
+
     local rows = {}
     for server,avg in pairs(conn_tracker.detail) do
         table.insert(rows, {name=server,load=avg})
@@ -303,6 +318,8 @@ local function top_keys(tab)
 end
 
 function views.repeats()
+    draw_global_load()
+
     local nick_counts, mask_counts = {}, {}
     for mask, user in users:each() do
         local nick, ip, count = user.nick, user.ip, user.count
@@ -337,7 +354,6 @@ local function draw()
     erase()
     normal()
     views[view]()
-    draw_global_load()
     refresh()
 end
 
@@ -464,10 +480,21 @@ function M.on_timer()
 end
 
 local keys = {
-    [ncurses.KEY_F1] = function() view = 'connections' draw() end,
+    [ncurses.KEY_F1] = function() scroll = 0 view = 'connections' draw() end,
     [ncurses.KEY_F2] = function() view = 'servers'     draw() end,
     [ncurses.KEY_F3] = function() view = 'klines'      draw() end,
     [ncurses.KEY_F4] = function() view = 'repeats'     draw() end,
+    [ncurses.KEY_PPAGE] = function()
+        scroll = scroll + math.max(1, tty_height - 1)
+        scroll = math.min(scroll, users.n - 1)
+        scroll = math.max(scroll, 0)
+        draw()
+    end,
+    [ncurses.KEY_NPAGE] = function()
+        scroll = scroll - math.max(1, tty_height - 1)
+        scroll = math.max(scroll, 0)
+        draw()
+    end,
     --[[^L]] [ 12] = function() clear() draw() end,
     --[[Q ]] [113] = function() conn_filter = true  draw() end,
     --[[W ]] [119] = function() conn_filter = false draw() end,
