@@ -50,6 +50,8 @@ local defaults = {
     uptime = 0,
     mrs = {},
     scroll = 0,
+    clicon_n = 0,
+    filter_tracker = LoadTracker(),
     -- settings
     history = 1000,
     show_reasons = true,
@@ -113,10 +115,18 @@ function views.connections()
     local skips = scroll or 0
     local last_time
     local n = 0
+    local rotating_view = scroll == 0 and conn_filter == nil
+
     for _, entry in users:each() do
         if show_entry(entry) then
-            local y = tty_height-n-2
-            if y < 0 then break end
+            local y
+            if rotating_view then
+                if n >= tty_height-2 then break end
+                y = (clicon_n-n) % (tty_height-1)
+            else
+                if n >= tty_height-1 then break end
+                y = tty_height-n-2
+            end
 
             if skips > 0 then skips = skips - 1 goto skip end
 
@@ -131,10 +141,19 @@ function views.connections()
                 mvaddstr(y, 0, time)
                 normal()
             end
-            addstr(string.format(" %4d ", entry.count))
-            
-            -- MASK
+
             local mask_color = entry.connected and ncurses.green or ncurses.red
+
+            if entry.filters then
+                attron(mask_color)
+                addstr(string.format(' %3d! ', entry.filters))
+            else
+                if entry.count < 2 then
+                    black()
+                end
+                addstr(string.format(" %4d ", entry.count))
+            end
+            -- MASK
             attron(mask_color)
             addstr(entry.nick)
             black()
@@ -172,6 +191,12 @@ function views.connections()
             ::skip::
         end
     end
+    
+    if rotating_view then
+        local y = (clicon_n+1) % (tty_height-1)
+        black()
+        mvaddstr(y, 0, string.rep('─', tty_width))
+    end
 
     draw_global_load()
 
@@ -179,7 +204,10 @@ function views.connections()
         addstr(string.format(' scroll %d', scroll))
     end
     if filter ~= nil then
-        addstr(string.format(' filter %q', filter))
+        yellow()
+        addstr(' FILTER ')
+        normal()
+        addstr(string.format('%q', filter))
     end
     if conn_filter ~= nil then
         if conn_filter then
@@ -214,7 +242,7 @@ function views.klines()
     local y = math.max(tty_height - #rows - 3, 0)
 
     green()
-    mvaddstr(y, 0, '         K-Liner  1m    5m    15m   Histogram')
+    mvaddstr(y, 0, '         K-Liner  1m    5m    15m   Kline History')
     normal()
     y = y + 1
 
@@ -273,7 +301,7 @@ function views.servers()
     local pad = math.max(tty_height - #rows - 2, 0)
 
     green()
-    mvaddstr(pad,0, '          Server  1m    5m    15m   Histogram                                                      Mn  Region AF')
+    mvaddstr(pad,0, '          Server  1m    5m    15m   Connection History                                                      Mn  Region AF')
     normal()
     for i,row in ipairs(rows) do
         if i+1 >= tty_height then return end
@@ -307,6 +335,39 @@ function views.servers()
         addstr('  ')
         render_mrs('IPV4'     , info.ipv4, '4')
         render_mrs('IPV6'     , info.ipv6, '6')
+    end
+end
+
+function views.filters()
+    draw_global_load()
+
+    local rows = {}
+    for server,avg in pairs(filter_tracker.detail) do
+        table.insert(rows, {name=server,load=avg})
+    end
+    table.sort(rows, function(x,y)
+        return x.name < y.name
+    end)
+
+    local pad = math.max(tty_height - #rows - 2, 0)
+
+    green()
+    mvaddstr(pad,0, '          Server  1m    5m    15m   Filter History')
+    normal()
+    for i,row in ipairs(rows) do
+        if i+1 >= tty_height then return end
+        local avg = row.load
+        local name = row.name
+        local short = string.gsub(name, '%.freenode%.net$', '', 1)
+        mvaddstr(pad+i,0, string.format('%16s  ', short))
+        draw_load(avg)
+    end
+
+    if 3 <= tty_height then
+        blue()
+        mvaddstr(tty_height-2, 0, string.format('%16s  ', 'FILTERS'))
+        draw_load(kline_tracker.global)
+        normal()
     end
 end
 
@@ -413,6 +474,18 @@ local function parse_snote(str)
                 reason = scrub(reason)
             }
         end
+
+        local nick, user, host, ip = string.match(str, '^FILTER: ([^!]+)!([^@]+)@([^ ]+) %[(.*)%]$')
+        if nick then
+            return {
+                name = 'filter',
+                server = server,
+                nick = nick,
+                user = user,
+                host = host,
+                ip = ip,
+            }
+        end
     end
 end
 
@@ -438,6 +511,9 @@ function handlers.connect(ev)
         users:delete(users:last_key())
     end
     conn_tracker:track(server)
+    if show_entry(entry) then
+        clicon_n = clicon_n + 1
+    end
     draw()
 end
 
@@ -453,6 +529,15 @@ end
 
 function handlers.kline(ev)
     kline_tracker:track(ev.nick)
+end
+
+function handlers.filter(ev)
+    filter_tracker:track(ev.server)
+    local mask = ev.nick .. '!' .. ev.user .. '@' .. ev.ip
+    local user = users:lookup(mask)
+    if user then
+        user.filters = (user.filters or 0) + 1
+    end
 end
 
 -- Callback Logic =====================================================
@@ -482,6 +567,7 @@ function M.on_timer()
     uptime = uptime + 1
     conn_tracker:tick()
     kline_tracker:tick()
+    filter_tracker:tick()
     draw()
 end
 
@@ -489,7 +575,8 @@ local keys = {
     [ncurses.KEY_F1] = function() scroll = 0 view = 'connections' draw() end,
     [ncurses.KEY_F2] = function() view = 'servers'     draw() end,
     [ncurses.KEY_F3] = function() view = 'klines'      draw() end,
-    [ncurses.KEY_F4] = function() view = 'repeats'     draw() end,
+    [ncurses.KEY_F4] = function() view = 'filters'     draw() end,
+    [ncurses.KEY_F5] = function() view = 'repeats'     draw() end,
     [ncurses.KEY_PPAGE] = function()
         scroll = scroll + math.max(1, tty_height - 1)
         scroll = math.min(scroll, users.n - 1)
