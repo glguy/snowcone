@@ -40,3 +40,8 @@ void append_buffer(uv_buf_t *dst, ssize_t n, uv_buf_t const *src)
 
     buffer_close(src);
 }
+
+void my_alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
+{
+    buffer_init(buf, suggested_size);
+}

@@ -1,4 +1,6 @@
+#include "configuration.h"
 #include <sys/socket.h>
+#include <uv/unix.h>
 #define _XOPEN_SOURCE 600
 
 #include <uv.h>
@@ -18,150 +20,13 @@
 
 #include "app.h"
 #include "buffer.h"
+#include "tcp-server.h"
+#include "read-line.h"
+#include "write.h"
+#include "mrs.h"
+#include "irc.h"
 
 static const uint64_t timer_ms = 1000;
-static const uint64_t mrs_update_ms = 30 * 1000;
-
-static void my_alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
-{
-    buffer_init(buf, suggested_size);
-}
-
-/* INPUT LINE PROCESSING *********************************************/
-
-struct readline_data
-{
-  uv_stream_t *write_data;
-  void (*write_cb)(void *, char const *, size_t);
-  void (*cb)(struct app *, char *);
-  uv_buf_t buffer;
-  bool dynamic;
-};
-
-static void readline_data_close(struct readline_data *d)
-{
-    buffer_close(&d->buffer);
-    if (d->dynamic)
-    {
-        free(d);
-    }
-}
-
-static void readline_close_cb(uv_handle_t *handle)
-{
-    struct readline_data *d = handle->data;
-    bool dynamic = d->dynamic;
-    readline_data_close(handle->data);
-    if (dynamic)
-    {
-        free(handle);
-    }
-}
-
-static void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
-{
-    struct app * const a = stream->loop->data;
-    struct readline_data * const d = stream->data;
-
-    if (nread < 0)
-    {
-        buffer_close(buf);
-        uv_close((uv_handle_t *)stream, readline_close_cb);
-        return;
-    }
-
-    append_buffer(&d->buffer, nread, buf);
-
-    char *start = d->buffer.base;
-    char *end;
-
-    while ((end = strchr(start, '\n')))
-    {
-        *end++ = '\0';
-        app_set_writer(a, d->write_data, d->write_cb);
-        d->cb(a, start);
-        app_set_writer(a, NULL, NULL);
-        start = end;
-    }
-
-    memmove(d->buffer.base, start, strlen(start) + 1);
-}
-
-/* WRITE MESSAGE TO STREAM *******************************************/
-
-static void write_done(uv_write_t *write, int status);
-
-static void to_write(void *data, char const* msg, size_t n)
-{
-    uv_buf_t *buf = malloc(sizeof *buf);
-    buffer_init(buf, n);
-    memcpy(buf->base, msg, n);
-
-    uv_write_t *req = malloc(sizeof *req);
-    req->data = buf;
-
-    uv_stream_t *stream = data;
-    uv_write(req, stream, buf, 1, write_done);
-}
-
-static void write_done(uv_write_t *write, int status)
-{
-    uv_buf_t *buf = write->data;
-    buffer_close(buf);
-    free(buf);
-    free(write);
-}
-
-/* TCP SERVER ********************************************************/
-
-static void on_new_connection(uv_stream_t *server, int status);
-
-static void start_tcp_server(uv_loop_t *loop, char const* node, char const* service)
-{
-    struct addrinfo hints = {
-        .ai_flags = AI_PASSIVE,
-        .ai_family = PF_UNSPEC,
-        .ai_socktype = SOCK_STREAM,
-    };
-    uv_getaddrinfo_t req;
-    int res = uv_getaddrinfo(loop, &req, NULL, node, service, &hints);
-    if (res < 0)
-    {
-        fprintf(stderr, "failed to resolve tcp bind: %s\n", uv_err_name(res));
-        exit(1);
-    }
-    
-    for (struct addrinfo *ai = req.addrinfo; ai; ai = ai->ai_next)
-    {
-        uv_tcp_t *tcp = malloc(sizeof *tcp);
-        uv_tcp_init(loop, tcp);
-        uv_tcp_bind(tcp, ai->ai_addr, 0);
-        uv_listen((uv_stream_t*)tcp, SOMAXCONN, &on_new_connection);
-    }
-    uv_freeaddrinfo(req.addrinfo);
-}
-
-static void on_new_connection(uv_stream_t *server, int status)
-{
-    if (status < 0) {
-        fprintf(stderr, "New connection error %s\n", uv_strerror(status));
-        return;
-    }
-
-    struct readline_data *data = malloc(sizeof *data);
-    data->cb = &do_command;
-    data->dynamic = true;
-    buffer_init(&data->buffer, 512);
-
-    uv_tcp_t *client = malloc(sizeof *client);
-    client->data = data;
-
-    uv_tcp_init(server->loop, client);
-    uv_accept(server, (uv_stream_t*)client);
-    data->write_data = (uv_stream_t *)client;
-    data->write_cb = to_write;
-    uv_read_start((uv_stream_t *)client, my_alloc_cb, readline_cb);
-}
 
 /* TIMER *************************************************************/
 
@@ -229,64 +94,9 @@ static void on_stdin(uv_poll_t *handle, int status, int events)
     }
 }
 
-/* MRS LOOKUP ********************************************************/
+/* Window size changes ***********************************************/
 
-static void on_mrs_timer(uv_timer_t *timer);
-static void on_mrs_getaddrinfo(uv_getaddrinfo_t *, int, struct addrinfo *);
-
-static void start_mrs_timer(uv_loop_t *loop)
-{
-    uv_timer_t *timer = malloc(sizeof *timer);
-    uv_timer_init(loop, timer);
-    uv_timer_start(timer, on_mrs_timer, 0, mrs_update_ms);
-}
-
-static void on_mrs_timer(uv_timer_t *timer)
-{
-    static struct addrinfo const hints = {
-        .ai_socktype = SOCK_STREAM,
-    };
-    static struct addrinfo const hints4 = {
-        .ai_family = PF_INET,
-        .ai_socktype = SOCK_STREAM,
-    };
-    static struct addrinfo const hints6 = {
-        .ai_family = PF_INET6,
-        .ai_socktype = SOCK_STREAM,
-    };
-
-    uv_getaddrinfo_t *req;
-    uv_loop_t *loop = timer->loop;
-
-#define ROTATION(NAME, HOST, HINTS) \
-    req = malloc(sizeof *req); req->data = NAME; \
-    uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, HOST, NULL, HINTS);
-
-    ROTATION("", "chat.freenode.net", &hints)
-    ROTATION("AU", "chat.au.freenode.net", &hints)
-    ROTATION("EU", "chat.eu.freenode.net", &hints)
-    ROTATION("US", "chat.us.freenode.net", &hints)
-    ROTATION("IPV4", "chat.ipv4.freenode.net", &hints4)
-    ROTATION("IPV6", "chat.ipv6.freenode.net", &hints6)
-
-#undef ROTATION
-}
-
-static void on_mrs_getaddrinfo(uv_getaddrinfo_t *req, int status, struct addrinfo *ai)
-{
-    char const* const name = req->data;
-
-    if (0 == status)
-    {
-        do_mrs(req->loop->data, name, ai);
-        uv_freeaddrinfo(ai);
-    }
-    free(req);
-}
-
-/* MAIN **************************************************************/
-
-void on_winch(uv_signal_t* handle, int signum)
+static void on_winch(uv_signal_t* handle, int signum)
 {
     struct app *a = handle->loop->data;
     endwin();
@@ -294,34 +104,12 @@ void on_winch(uv_signal_t* handle, int signum)
     app_set_window_size(a);
 }
 
-static void __attribute__((noreturn)) usage(void) 
-{
-    fprintf(stderr, "usage: snowcode [-h host] [-p port] LUA_FILE SNOTE_PIPE\n");
-    exit(EXIT_FAILURE);
-}
+/* MAIN **************************************************************/
 
 int main(int argc, char *argv[])
 {
-    char const* host = NULL;
-    char const* port = NULL;
-
-    int opt;
-    while ((opt = getopt(argc, argv, "h:p:")) != -1) {
-        switch (opt) {
-        case 'h': host = optarg; break;
-        case 'p': port = optarg; break;
-        default: usage();
-        }
-    }
-
-    argv += optind;
-    argc -= optind;
-
-    if (argc != 2)
-    {
-        usage();
-    }
-
+    struct configuration cfg = load_configuration(argc, argv);
+    
     /* Configure ncurses */
     setlocale(LC_ALL, "");
     initscr(); 
@@ -335,21 +123,9 @@ int main(int argc, char *argv[])
     keypad(stdscr, TRUE); /* process keyboard input escape sequences */
     curs_set(0); /* no cursor */
 
-    char const* const logic_name = argv[0];
-    char const* const snote_name = argv[1];
-
-    struct app *a = app_new(logic_name);
+    struct app *a = app_new(cfg.lua_filename);
     uv_loop_t loop = {.data = a};
     uv_loop_init(&loop);
-
-    uv_fs_t req;
-    uv_file fd = uv_fs_open(&loop, &req, snote_name, UV_FS_O_RDONLY, 0660, NULL);
-    uv_fs_req_cleanup(&req);
-    if (fd < 0)
-    {
-        fprintf(stderr, "open: %s\n", uv_err_name(fd));
-        return 1;
-    }
 
     uv_poll_t input;
     uv_poll_init(&loop, &input, STDIN_FILENO);
@@ -359,20 +135,14 @@ int main(int argc, char *argv[])
     uv_signal_init(&loop, &winch);
     uv_signal_start(&winch, on_winch, SIGWINCH);
 
-    struct readline_data snote_data = {
-        .cb = do_snote,
-    };
-    uv_pipe_t snote_pipe = {.data = &snote_data};
-    uv_pipe_init(&loop, &snote_pipe, 0);
-    uv_pipe_open(&snote_pipe, fd);
-    uv_read_start((uv_stream_t *)&snote_pipe, &my_alloc_cb, &readline_cb);
-
-    start_file_watcher(&loop, logic_name);
-
-    if (port != 0)
+    /* start up networking */
+    start_irc(&loop, &cfg);
+    if (cfg.console_service != NULL)
     {
-        start_tcp_server(&loop, host, port);
+        start_tcp_server(&loop, cfg.console_node, cfg.console_service);
     }
+
+    start_file_watcher(&loop, cfg.lua_filename);
 
     start_timer(&loop);
     start_mrs_timer(&loop);

@@ -577,18 +577,21 @@ function M.on_input(str)
 end
 
 
-function M.on_irc(irc)
-    if irc.command == 'PING' then
-        send_irc('PONG ZNC\r\n')
-    elseif irc.command == 'NOTICE' and string.match(irc.source, '%.') and irc.tags.time then
-        local time = string.match(irc.tags.time, '^%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d*Z$')
-        local note = string.match(irc[2], '^%*%*%* Notice %-%- (.*)$')
-        if time and note then
-            local event = parse_snote(time, irc.source, note)
-            if event then
-                local h = handlers[event.name]
-                if h then h(event) end
-            end
+function M.on_irc(str)
+    --io.stderr:write(require 'pl.pretty' .write(str))
+    --io.exit()
+    local time, server, snote = string.match(str,
+        '^@time=%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d*Z :(%g+) NOTICE %* :%*%*%* Notice %-%- (.*)\r$'
+    )
+    if time then
+        local event = parse_snote(time, server, snote)
+        if event then
+            local h = handlers[event.name]
+            if h then h(event) end
+        end
+    else
+        if string.match(str, '^@time=%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d*Z PING :ZNC\r$') then
+            send_irc('PONG ZNC\r\n')
         end
     end
 end

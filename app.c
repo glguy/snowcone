@@ -11,6 +11,7 @@
 #include <netdb.h>
 
 #include "app.h"
+#include "ircmsg.h"
 #include "lua-ncurses.h"
 #include <ncurses.h>
 
@@ -178,7 +179,7 @@ static void lua_callback(lua_State *L, char const *key)
     lua_pop(L, 1); /* drop error handler */
 }
 
-void do_command(struct app *a, char *line)
+void do_command(struct app *a, char const* line)
 {
     if (*line == '/')
     {
@@ -207,12 +208,6 @@ void do_command(struct app *a, char *line)
     }
 }
 
-void do_snote(struct app *a, char *line)
-{
-    lua_pushstring(a->L, line);
-    lua_callback(a->L, "on_snote");
-}
-
 void do_timer(struct app *a)
 {
     lua_pushnil(a->L);
@@ -229,6 +224,24 @@ void app_set_writer(struct app *a, void *data, void (*cb)(void*, char const*, si
 {
     a->write_data = data;
     a->write_cb = cb;
+}
+
+static int l_writeirc(lua_State *L)
+{
+    void *data = lua_touserdata(L, lua_upvalueindex(1));
+    void (*cb)(void*, char const*, size_t) = lua_touserdata(L, lua_upvalueindex(2));
+    size_t len;
+    char const* cmd = luaL_checklstring(L, 1, &len);
+    cb(data, cmd, len);
+    return 0;
+}
+
+void app_set_irc(struct app *a, void *data, void (*cb)(void*, char const*, size_t))
+{
+    lua_pushlightuserdata(a->L, data);
+    lua_pushlightuserdata(a->L, cb);
+    lua_pushcclosure(a->L, l_writeirc, 2);
+    lua_setglobal(a->L, "send_irc");
 }
 
 void app_set_window_size(struct app *a)
@@ -253,4 +266,37 @@ void do_mrs(struct app *a, char const* name, struct addrinfo const* ai)
     lua_pushstring(L, name);
     lua_setfield(L, -2, "name");
     lua_callback(L, "on_mrs");
+}
+
+void do_irc(struct app *a, char *line)
+{
+    struct ircmsg msg;
+    
+    char *cr = strchr(line, '\r');
+    if (cr) *cr = '\0';
+
+    parse_irc_message(&msg, line);
+
+    lua_createtable(a->L, msg.args_n, 3);
+
+    lua_createtable(a->L, 0, msg.tags_n);
+    for (int i = 0; i < msg.tags_n; i++) {
+        lua_pushstring(a->L, msg.tags[i].val);
+        lua_setfield(a->L, -2, msg.tags[i].key);
+    }
+    lua_setfield(a->L, -2, "tags");
+
+    lua_pushstring(a->L, msg.source);
+    lua_setfield(a->L, -2, "source");
+
+    lua_pushstring(a->L, msg.command);
+    lua_setfield(a->L, -2, "command");
+
+    for (int i = 0; i < msg.args_n; i++)
+    {
+        lua_pushstring(a->L, msg.args[i]);
+        lua_rawseti(a->L, -2, i+1);
+    }
+
+    lua_callback(a->L, "on_irc");
 }

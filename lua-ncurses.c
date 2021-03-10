@@ -74,7 +74,7 @@ static int l_addstr(lua_State *L)
     size_t wlen = mbstowcs(wstr, str, len);
     int width = wcswidth(wstr, wlen);
 
-    if (width != -1 && y < wy && x+width < wx)
+    if (width != -1 && y < wy && x+width <= wx)
     {
         if (ERR == addnwstr(wstr, wlen)) {
             return luaL_error(L, "ncurses error");
