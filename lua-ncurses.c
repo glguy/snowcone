@@ -70,16 +70,23 @@ static int l_addstr(lua_State *L)
     getmaxyx(stdscr, wy, wx);
     getyx(stdscr, y, x);
     
-    wchar_t *wstr = lua_newuserdata(L, sizeof(wchar_t) * len);
+    wchar_t *wstr = calloc(len, sizeof *wstr);
+    if (NULL == wstr)
+    {
+        luaL_error(L, "allocation failed");
+    }
+
     size_t wlen = mbstowcs(wstr, str, len);
     int width = wcswidth(wstr, wlen);
-
+    
     if (width != -1 && y < wy && x+width <= wx)
     {
         if (ERR == addnwstr(wstr, wlen)) {
+            free(wstr);
             return luaL_error(L, "ncurses error");
         }
     }
+    free(wstr);
     return 0;
 }
 
@@ -89,20 +96,27 @@ static int l_mvaddstr(lua_State *L)
     int x = luaL_checkinteger(L, 2);
     size_t len;
     char const* str = luaL_checklstring(L, 3, &len);
-
+    
     int wy, wx;
     getmaxyx(stdscr, wy, wx);
 
-    wchar_t *wstr = lua_newuserdata(L, sizeof(wchar_t) * len);
+    wchar_t *wstr = calloc(len, sizeof(wchar_t));
+    if (NULL == wstr)
+    {
+        return luaL_error(L, "allocation failed");
+    }
+
     size_t wlen = mbstowcs(wstr, str, len);
     int width = wcswidth(wstr, wlen);
 
     if (width != -1 && y < wy && x+width <= wx)
     {
         if (ERR == mvaddnwstr(y, x, wstr, wlen)) {
+            free(wstr);
             return luaL_error(L, "ncurses error");
         }
     }
+    free(wstr);
     return 0;
 }
 

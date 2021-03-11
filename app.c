@@ -268,35 +268,48 @@ void do_mrs(struct app *a, char const* name, struct addrinfo const* ai)
     lua_callback(L, "on_mrs");
 }
 
-void do_irc(struct app *a, char *line)
+void do_irc(struct app *a, struct ircmsg const* msg)
 {
-    struct ircmsg msg;
-    
-    char *cr = strchr(line, '\r');
-    if (cr) *cr = '\0';
+    lua_createtable(a->L, msg->args_n, 3);
 
-    parse_irc_message(&msg, line);
-
-    lua_createtable(a->L, msg.args_n, 3);
-
-    lua_createtable(a->L, 0, msg.tags_n);
-    for (int i = 0; i < msg.tags_n; i++) {
-        lua_pushstring(a->L, msg.tags[i].val);
-        lua_setfield(a->L, -2, msg.tags[i].key);
+    lua_createtable(a->L, 0, msg->tags_n);
+    for (int i = 0; i < msg->tags_n; i++) {
+        if (msg->tags[i].val)
+        {
+            lua_pushstring(a->L, msg->tags[i].val);
+        }
+        else
+        {
+            lua_pushboolean(a->L, 1);
+        }
+        lua_setfield(a->L, -2, msg->tags[i].key);
     }
     lua_setfield(a->L, -2, "tags");
 
-    lua_pushstring(a->L, msg.source);
+    lua_pushstring(a->L, msg->source);
     lua_setfield(a->L, -2, "source");
 
-    lua_pushstring(a->L, msg.command);
+    lua_pushstring(a->L, msg->command);
     lua_setfield(a->L, -2, "command");
 
-    for (int i = 0; i < msg.args_n; i++)
+    for (int i = 0; i < msg->args_n; i++)
     {
-        lua_pushstring(a->L, msg.args[i]);
+        lua_pushstring(a->L, msg->args[i]);
         lua_rawseti(a->L, -2, i+1);
     }
 
     lua_callback(a->L, "on_irc");
+}
+
+void do_mouse(struct app *a, int x, int y)
+{
+    lua_createtable(a->L, 0, 2);
+
+    lua_pushinteger(a->L, x);
+    lua_setfield(a->L, -2, "x");
+
+    lua_pushinteger(a->L, y);
+    lua_setfield(a->L, -2, "y");
+
+    lua_callback(a->L, "on_mouse");
 }

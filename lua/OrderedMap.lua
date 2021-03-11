@@ -73,11 +73,10 @@ function OrderedMap:each()
 end
 
 function OrderedMap:_init()
-    local obj = {index = {}, n = 0}
-    obj.next = obj
-    obj.prev = obj
-    setmetatable(obj, ordered_map_mt)
-    return obj
+    self.next = self
+    self.prev = self
+    self.index = {}
+    self.n = 0
 end
 
 return OrderedMap

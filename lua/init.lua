@@ -3,6 +3,7 @@ package.loaded = {} -- always reload everything
 local app = require 'pl.app'
 local Set = require 'pl.Set'
 local tablex = require 'pl.tablex'
+require 'pl.stringx'.import()
 app.require_here()
 
 local addstr = ncurses.addstr
@@ -31,6 +32,8 @@ local spinner = {'◴','◷','◶','◵'}
 local server_classes = require 'server_classes'
 local LoadTracker = require 'LoadTracker'
 local OrderedMap = require 'OrderedMap'
+local compute_kline_mask = require 'freenode_masks'
+local parse_snote = require 'parse_snote'
 
 -- Global state =======================================================
 
@@ -40,6 +43,8 @@ function reset_filter()
     conn_filter = nil
     count_min = nil
     count_max = nil
+    highlight = nil
+    highlight_plain = false
 end
 
 local defaults = {
@@ -53,9 +58,11 @@ local defaults = {
     scroll = 0,
     clicon_n = 0,
     filter_tracker = LoadTracker(),
+    clicks = {},
     -- settings
     history = 1000,
     show_reasons = true,
+    kline_reason = 'Please email kline@freenode.net to request assistance with this ban.|!freenodebl botspam'
 }
 
 function initialize()
@@ -70,6 +77,10 @@ for k,v in pairs(defaults) do
 end
 
 -- Screen rendering ===================================================
+
+local function kline_ready()
+    return view == 'connections' and kline_command ~= nil
+end
 
 local function draw_load_1(avg, i)
     if avg.n >= 60*i then
@@ -93,11 +104,13 @@ local function draw_load(avg)
 end
 
 local function draw_global_load()
-    magenta()
+    if kline_ready() then red () else magenta () end
     attron(ncurses.A_REVERSE)
     mvaddstr(tty_height-1, 0, 'sn' .. spinner[uptime % #spinner + 1] .. 'wcone')
     attroff(ncurses.A_REVERSE)
-    addstr(' CLICON  ')
+    addstr(' ')
+    magenta()
+    addstr('CLICON  ')
     draw_load(conn_tracker.global)
     normal()
 end
@@ -156,6 +169,12 @@ function views.connections()
                 addstr(string.format(" %4d ", entry.count))
             end
             -- MASK
+            if highlight and (
+                highlight_plain     and highlight == entry.mask or
+                not highlight_plain and string.match(entry.mask, highlight)) then
+                    bold()
+            end
+
             attron(mask_color)
             addstr(entry.nick)
             black()
@@ -191,6 +210,7 @@ function views.connections()
             normal()
             mvaddstr(y, 124, entry.gecos)
 
+            clicks[y] = entry
             n = n + 1
 
             ::skip::
@@ -205,6 +225,10 @@ function views.connections()
 
     draw_global_load()
 
+    if kline_mask ~= nil then
+        red()
+        addstr(' '..kline_mask)
+    end
     if scroll ~= 0 then
         addstr(string.format(' scroll %d', scroll))
     end
@@ -354,7 +378,7 @@ function views.filters()
         return x.name < y.name
     end)
 
-    local pad = math.max(tty_height - #rows - 2, 0)
+    local pad = math.max(tty_height - #rows - 3, 0)
 
     green()
     mvaddstr(pad,0, '          Server  1m    5m    15m   Filter History')
@@ -423,73 +447,11 @@ function views.repeats()
 end
 
 local function draw()
+    clicks = {}
     erase()
     normal()
     views[view]()
     refresh()
-end
-
--- Server Notice parsing ==============================================
-
-local function scrub(str)
-    return string.gsub(str, '%c', '~')
-end
-
-local function parse_snote(time, server, str)
-
-    local nick, user, host, ip, class, gecos = string.match(str, '^Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {([^}]*)} %[([^][]*)%]$')
-    if nick then
-        return {
-            name = 'connect',
-            server = server,
-            nick = nick,
-            user = user,
-            host = host,
-            ip = ip,
-            gecos = scrub(gecos),
-            time = time,
-            class = class,
-        }
-    end
-
-    local nick, user, host, reason, ip = string.match(str, '^Client exiting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] %[([^][]*)%]$')
-    if nick then
-        return {
-            name = 'disconnect',
-            server = server,
-            nick = nick,
-            user = user,
-            host = host,
-            reason = scrub(reason),
-            ip = ip,
-        }
-    end
-
-    local nick, user, host, oper, duration, mask, reason = string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} added %g+ (%d+) min. K%-Line for %[([^]]*)%] %[(.*)%]$')
-    if nick then
-        return {
-            name = 'kline',
-            server = server,
-            nick = nick,
-            user = user,
-            host = host,
-            oper = oper,
-            mask = mask,
-            reason = scrub(reason)
-        }
-    end
-
-    local nick, user, host, ip = string.match(str, '^FILTER: ([^!]+)!([^@]+)@([^ ]+) %[(.*)%]$')
-    if nick then
-        return {
-            name = 'filter',
-            server = server,
-            nick = nick,
-            user = user,
-            host = host,
-            ip = ip,
-        }
-    end
 end
 
 -- Server Notice handlers =============================================
@@ -636,6 +598,25 @@ end
 
 function M.on_mrs(x)
     mrs[x.name] = Set(x)
+end
+
+function M.on_mouse(ev)
+    local entry = clicks[ev.y]
+    if entry then
+        local mask = compute_kline_mask(entry.user, entry.ip, entry.host)
+        kline_command = 'KLINE 240 ' .. mask .. ' :' .. kline_reason .. '\r\n'
+        kline_mask = entry.nick .. ' ' .. mask
+        highlight = entry.mask
+        highlight_plain = true
+    elseif kline_ready() and ev.y == tty_height-1 and ev.x < 8 then
+        send_irc(kline_command)
+        kline_command = nil
+        kline_mask = nil
+    else
+        kline_command = nil
+        kline_mask = nil
+    end
+    draw()
 end
 
 return M

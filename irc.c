@@ -65,8 +65,15 @@ void start_irc(uv_loop_t *loop, struct configuration *cfg)
     int res = uv_tcp_connect(req, irc, (struct sockaddr*)&addr, &on_connect);
 }
 
-static void on_line(void *data, char *msg)
+static void on_line(void *data, char *line)
 {
     struct app *a = data;
-    do_irc(a, msg);
+    struct ircmsg irc;
+    
+    char *msg = strsep(&line, "\r");
+
+    if (0 == parse_irc_message(&irc, msg))
+    {
+        do_irc(a, &irc);
+    }
 }

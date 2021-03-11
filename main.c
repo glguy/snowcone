@@ -90,8 +90,17 @@ static void on_stdin(uv_poll_t *handle, int status, int events)
     wint_t key;
     while(ERR != get_wch(&key))
     {
-        do_keyboard(a, key);
-    }
+        switch (key)
+        {
+            default: do_keyboard(a, key); break;
+            case KEY_MOUSE: {
+                MEVENT ev;
+                getmouse(&ev);
+                do_mouse(a, ev.x, ev.y);
+                break;
+            }
+        }
+        }
 }
 
 /* Window size changes ***********************************************/
@@ -122,6 +131,7 @@ int main(int argc, char *argv[])
     intrflush(stdscr, FALSE);
     keypad(stdscr, TRUE); /* process keyboard input escape sequences */
     curs_set(0); /* no cursor */
+    mousemask(BUTTON1_CLICKED, NULL);
 
     struct app *a = app_new(cfg.lua_filename);
     uv_loop_t loop = {.data = a};

@@ -24,6 +24,31 @@ static char *word(char **msg)
     return start;
 }
 
+static void unescape_tag_value(char *val)
+{
+    char *write = val;
+    for (char *cursor = val; *cursor; cursor++)
+    {
+        if (*cursor == '\\')
+        {
+            switch (*++cursor)
+            {
+                case '\0': *write = '\0'; return;
+                case ':': *write++ = ';' ; break;
+                case 's': *write++ = ' ' ; break;
+                case 'r': *write++ = '\r'; break;
+                case 'n': *write++ = '\n'; break;
+                default: *write++ = *cursor; break;
+            }
+        }
+        else
+        {
+            *write++ = *cursor;
+        }
+    }
+    *write = '\0';
+}
+
 int parse_irc_message(struct ircmsg *out, char *msg)
 {
     /* MESSAGE TAGS */
@@ -39,8 +64,14 @@ int parse_irc_message(struct ircmsg *out, char *msg)
         for (char *keyval = strtok(tagpart, delim); keyval; keyval = strtok(NULL, delim))
         {
             if (i >= MAX_MSG_TAGS) return 2;
-            
+
             char *key = strsep(&keyval, "=");
+
+            if (NULL != keyval)
+            {
+                unescape_tag_value(keyval);
+            }
+
             out->tags[i] = (struct tag) {
                 .key = key,
                 .val = keyval,

@@ -64,6 +64,6 @@ static void on_line(void *data, char *msg)
     struct app *a = loop->data;
 
     app_set_writer(a, stream, to_write);
-    do_irc(a, msg);
+    do_command(a, msg);
     app_set_writer(a, NULL, NULL);
 }
