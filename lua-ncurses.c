@@ -120,9 +120,19 @@ static int l_mvaddstr(lua_State *L)
     return 0;
 }
 
+static int l_getyx(lua_State *L)
+{
+    int y, x;
+    getyx(stdscr, y, x);
+    lua_pushinteger(L, y);
+    lua_pushinteger(L, x);
+    return 2;
+}
+
 static luaL_Reg lib[] = {
     {"addstr", l_addstr},
     {"mvaddstr", l_mvaddstr},
+    {"getyx", l_getyx},
 
     {"refresh", l_refresh},
     {"erase", l_erase},

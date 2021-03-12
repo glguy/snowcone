@@ -14,13 +14,9 @@ local function compute_kline_mask(username, ipaddress, hostname, realname)
         end
 
         -- Cloaked gateway-session bans honor ident
-        match = hostname:match '^(.-/)x%-%a%a%a%a%a%a%a%a%a%a%a%a%a%a%a%a$'
+        match = hostname:match '^(.*/)session$'
         if match then
             return username .. '@' .. match .. '*'
-        end
-
-        if hostname:endswith '/session' then
-            error('K-line failed: unresolved session', 0)
         end
 
         -- Cloaked gateway-account bans ignore ident
@@ -28,7 +24,7 @@ local function compute_kline_mask(username, ipaddress, hostname, realname)
     end
 
     -- Either I missed a case or I'm trying to k-line staff
-    if ipaddress == '255.255.255.255' then
+    if ipaddress == '0' or ipaddress == '255.255.255.255' then
         error('K-line failed: Spoofed IP address', 0)
     end
 
@@ -48,11 +44,11 @@ end
 -- Always run the unit tests to ensure I don't change something and start banning the wrong people
 assert(
     '?id123456@gateway/web/irccloud.com/*' ==
-    compute_kline_mask('uid123456', '255.255.255.255',  'gateway/web/irccloud.com/x-vmpkhfyseoqksxei'),
+    compute_kline_mask('uid123456', '255.255.255.255',  'gateway/web/irccloud.com/session'),
     'IRC cloud test')
 assert(
     'user@nat/redhat/*' ==
-    compute_kline_mask('user', '255.255.255.255', 'nat/redhat/x-vmpkhfyseoqksxei'),
+    compute_kline_mask('user', '255.255.255.255', 'nat/redhat/session'),
     'NAT/session test')
 assert(
     '*@10.0.0.1' ==
@@ -86,16 +82,13 @@ assert(
     not pcall(compute_kline_mask, 'user', '127.0.0.1', 'freenode/bot/target'),
     'localhost should fail')
 assert(
-    not pcall(compute_kline_mask, 'user', '255.255.255.255', 'gateway/web/stuff/session'),
-    'no raw session ban')
-assert(
     '*@2001:470:7857:c::6667' ==
     compute_kline_mask('~user', '2001:470:7857:c::6667', '2001:470:7857:c::6667'),
     'ipv6 no rDNS'
 )
 assert(
     'user@gateway/shell/matrix.org/*' ==
-    compute_kline_mask('user', '255.255.255.255', 'gateway/shell/matrix.org/x-egpmqrvgxoqstqsf'),
+    compute_kline_mask('user', '255.255.255.255', 'gateway/shell/matrix.org/session'),
     'matrix mask is just ident'
 )
 assert(
