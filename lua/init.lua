@@ -180,18 +180,12 @@ local function draw_buttons()
         addstr(' ')
     end
 
-    if highlight then
-        yellow()
-        add_button('[ CLEAR HIGHLIGHT ]', function()
-            highlight = nil
-        end)
-        addstr(' ')
-    end
-
     if kline_ready() then
         green()
         add_button('[ CANCEL KLINE ]', function()
             staged_kline = nil
+            highlight = nil
+            highlight_plain = nil
         end)
         addstr(' ')
         red()
@@ -337,8 +331,8 @@ function views.connections()
     
     if rotating_view then
         local y = (clicon_n+1) % rows
-        black()
-        mvaddstr(y, 0, string.rep('─', tty_width))
+        yellow()
+        mvaddstr(y, 0, string.rep('·', tty_width))
     end
 
     draw_buttons()
@@ -579,7 +573,7 @@ local function syn_connect(ev)
     local entry = users:lookup(oldmask)
     if entry then
         local mask = ev.nick .. '!' .. ev.user .. '@' .. ev.ip
-        local gateway = string.match(ev.host, '^(.*/)session')
+        local gateway = string.match(ev.host, '^(.*/)session$')
         if gateway then
             users:delete(oldmask)
             entry.ip = ev.ip

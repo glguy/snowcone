@@ -47,38 +47,22 @@ static void on_timer(uv_timer_t *timer)
 
 /* FILE WATCHER ******************************************************/
 
-struct file_watcher_data {
-    char *name;
-};
-
 static void on_file(uv_fs_event_t *handle, char const *filename, int events, int status);
 
 static void start_file_watcher(uv_loop_t *loop, char const* logic_name)
 {
     uv_fs_event_t *files = malloc(sizeof *files);
-    struct file_watcher_data *data = malloc(sizeof *data);
-    files->data = data;
-    char *temp = strdup(logic_name);
-    *data = (struct file_watcher_data) {
-        .name = strdup(basename(temp)),
-    };
-    free(temp);
-
     uv_fs_event_init(loop, files);
     
-    temp = strdup(logic_name);
+    char *temp = strdup(logic_name);
     uv_fs_event_start(files, &on_file, dirname(temp), 0);
     free(temp);
 }
 
 static void on_file(uv_fs_event_t *handle, char const *filename, int events, int status)
 {
-    struct file_watcher_data *data = handle->data;
     struct app *a = handle->loop->data;
-    if (!strcmp(data->name, filename))
-    {
-        app_reload(a);
-    }
+    app_reload(a);
 }
 
 /* Main Input ********************************************************/
