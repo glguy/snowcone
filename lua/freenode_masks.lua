@@ -1,4 +1,4 @@
-local function compute_kline_mask(username, ipaddress, hostname, realname)
+local function compute_kline_mask(username, ipaddress, hostname, realname, trust_uname)
 
     if hostname:startswith 'gateway/' or hostname:startswith 'nat/' then
 
@@ -34,8 +34,11 @@ local function compute_kline_mask(username, ipaddress, hostname, realname)
     end
 
     -- Only honor identd
-    if username:startswith '~' or realname == 'https://webchat.freenode.net' then
-        username = '*'
+    if not trust_uname then
+        if username:startswith '~' or
+        realname == 'https://webchat.freenode.net' then
+            username = '*'
+        end
     end
 
     return username .. '@' .. ipaddress

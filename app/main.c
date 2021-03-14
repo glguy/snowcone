@@ -74,7 +74,7 @@ static void on_stdin(uv_poll_t *handle, int status, int events)
             case KEY_MOUSE: {
                 MEVENT ev;
                 getmouse(&ev);
-                do_mouse(a, ev.x, ev.y);
+                do_mouse(a, ev.y, ev.x);
                 break;
             }
         }

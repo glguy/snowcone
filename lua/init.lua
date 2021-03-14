@@ -68,6 +68,7 @@ local defaults = {
     show_reasons = true,
     kline_duration = 1,
     kline_reason = 1,
+    trust_uname = false,
 }
 
 local kline_durations = {
@@ -82,6 +83,17 @@ local kline_reasons = {
     {'broken',     'Your client is repeatedly reconnecting. Please email kline@freenode.net when fixed.'},
     {'plain',      'Please email kline@freenode.net to request assistance with this ban.'},
 }
+
+local function entry_to_kline(entry)
+    local success, mask = pcall(compute_kline_mask, entry.user, entry.ip, entry.host, entry.gecos, trust_uname)
+    if success then
+        staged_kline = {mask=mask, entry=entry}
+        send_irc('TESTMASK ' .. mask .. '\r\n')
+    else
+        last_key = mask
+        staged_kline = nil
+    end
+end
 
 function initialize()
     tablex.update(_G, defaults)
@@ -187,11 +199,33 @@ local function draw_buttons()
             highlight = nil
             highlight_plain = nil
         end)
+
+        addstr(' ')
+        cyan()
+        add_button('[ ' .. kline_durations[kline_duration][1] .. ' ]', function()
+            kline_duration = kline_duration % #kline_durations + 1
+        end)
+
+        addstr(' ')
+        blue()
+        add_button(trust_uname and '[ ~ ]' or '[ = ]', function()
+            trust_uname = not trust_uname
+            entry_to_kline(staged_kline.entry)
+        end)
+
+        addstr(' ')
+        magenta()
+        local blacklist_text =
+            string.format('[ %-10s ]', kline_reasons[kline_reason][1])
+        add_button(blacklist_text, function()
+            kline_reason = kline_reason % #kline_reasons + 1
+        end)
+
         addstr(' ')
         red()
         local klineText = string.format('[ KLINE %s %s %s ]',
             staged_kline.count and tostring(staged_kline.count) or '?',
-            staged_kline.nick,
+            staged_kline.entry.nick,
             staged_kline.mask)
         add_button(klineText, function()
             send_irc(
@@ -202,20 +236,6 @@ local function draw_buttons()
                 )
             )
             staged_kline = nil
-        end)
-
-        addstr(' ')
-        cyan()
-        add_button('[ ' .. kline_durations[kline_duration][1] .. ' ]', function()
-            kline_duration = kline_duration % #kline_durations + 1
-        end)
-
-        addstr(' ')
-        magenta()
-        local blacklist_text =
-            string.format('[ %-10s ]', kline_reasons[kline_reason][1])
-        add_button(blacklist_text, function()
-            kline_reason = kline_reason % #kline_reasons + 1
         end)
     end
 
@@ -311,14 +331,7 @@ function views.connections()
             mvaddstr(y, 124, entry.gecos)
 
             add_click(y, 0, tty_width, function()
-                local success, mask = pcall(compute_kline_mask, entry.user, entry.ip, entry.host)
-                if success then
-                    staged_kline = {nick=entry.nick, mask=mask}
-                    send_irc('TESTMASK ' .. staged_kline.mask .. '\r\n')
-                else
-                    staged_kline = nil
-                    last_key = mask
-                end
+                entry_to_kline(entry)
                 highlight = entry.mask
                 highlight_plain = true
             end)
@@ -728,9 +741,9 @@ function M.on_mrs(x)
     mrs[x.name] = Set(x)
 end
 
-function M.on_mouse(ev)
-    for _, button in ipairs(clicks[ev.y] or {}) do
-        if button.lo <= ev.x and ev.x < button.hi then
+function M.on_mouse(y, x)
+    for _, button in ipairs(clicks[y] or {}) do
+        if button.lo <= x and x < button.hi then
             button.action()
             draw()
             return

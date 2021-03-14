@@ -4,6 +4,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <ncurses.h>
+
 #include "lua.h"
 #include "lauxlib.h"
 #include "lualib.h"
@@ -11,7 +13,6 @@
 #include "app.h"
 #include "ircmsg.h"
 #include "lua-ncurses.h"
-#include <ncurses.h>
 
 static char logic_module;
 
@@ -46,14 +47,9 @@ static void pushircmsg(lua_State *L, struct ircmsg const* msg)
     }
 }
 
-static inline struct app *get_app(lua_State *L)
+static inline struct app **app_ref(lua_State *L)
 {
-    return *(struct app **)lua_getextraspace(L);
-}
-
-static inline void set_app(lua_State *L, struct app *a)
-{
-    *(struct app **)lua_getextraspace(L) = a;
+    return lua_getextraspace(L);
 }
 
 struct app
@@ -88,7 +84,7 @@ static int error_handler(lua_State *L)
 
 static int app_print(lua_State *L)
 {
-    struct app *a = get_app(L);
+    struct app * const a = *app_ref(L);
 
     if (a->write_cb)
     {
@@ -158,7 +154,7 @@ static void start_lua(struct app *a)
         lua_close(a->L);
     }
     a->L = luaL_newstate();
-    set_app(a->L, a);
+    *app_ref(a->L) = a;
 
     app_prepare_globals(a->L, a->logic_filename);
     load_logic(a->L, a->logic_filename);
@@ -191,27 +187,31 @@ void app_free(struct app *a)
 
 static int lua_callback_worker(lua_State *L)
 {
+    
     int module_ty = lua_rawgetp(L, LUA_REGISTRYINDEX, &logic_module);
     if (module_ty != LUA_TNIL)
     {
-        lua_pushvalue(L, 1);
+        lua_rotate(L, 1, -1);
         lua_gettable(L, -2);
-        lua_pushvalue(L, 2);
-        lua_call(L, 1, 0);
+        lua_rotate(L, 1, 1);
+        lua_pop(L, 1);
+        int args = lua_gettop(L) - 1;
+        lua_call(L, args, 0);
     }
     return 0;
 }
 
-static void lua_callback(lua_State *L, char const *key)
+static void lua_callback(lua_State *L, char const *key, int args)
 {
-    lua_pushcfunction(L, error_handler);
-    lua_pushcfunction(L, lua_callback_worker);
-    lua_pushstring(L, key);
-    lua_rotate(L, -4, -1);
+    /* args */
+    lua_pushcfunction(L, error_handler); /* args eh */
+    lua_pushcfunction(L, lua_callback_worker); /* args eh f */
+    lua_pushstring(L, key); /* args eh f key */
+    lua_rotate(L, -3-args, -args); /* eh f key args */
 
-    if (lua_pcall(L, 2, 0, -4))
+    if (lua_pcall(L, 1+args, 0, -3-args))
     {
-        struct app *a = get_app(L);
+        struct app * const a = *app_ref(L);
         size_t len;
         char const* err = lua_tolstring(L, -1, &len);
         if (a->write_cb) {
@@ -255,7 +255,7 @@ void do_command(
     else
     {
         lua_pushstring(a->L, line);
-        lua_callback(a->L, "on_input");
+        lua_callback(a->L, "on_input", 1);
     }
     
     a->write_cb = NULL;
@@ -264,14 +264,13 @@ void do_command(
 
 void do_timer(struct app *a)
 {
-    lua_pushnil(a->L);
-    lua_callback(a->L, "on_timer");
+    lua_callback(a->L, "on_timer", 0);
 }
 
 void do_keyboard(struct app *a, long key)
 {
     lua_pushinteger(a->L, key);
-    lua_callback(a->L, "on_keyboard");
+    lua_callback(a->L, "on_keyboard", 1);
 }
 
 static int l_writeirc(lua_State *L)
@@ -313,24 +312,18 @@ void do_mrs(struct app *a, char const* name, struct addrinfo const* ai)
     }
     lua_pushstring(L, name);
     lua_setfield(L, -2, "name");
-    lua_callback(L, "on_mrs");
+    lua_callback(L, "on_mrs", 1);
 }
 
 void do_irc(struct app *a, struct ircmsg const* msg)
 {
     pushircmsg(a->L, msg);
-    lua_callback(a->L, "on_irc");
+    lua_callback(a->L, "on_irc", 1);
 }
 
-void do_mouse(struct app *a, int x, int y)
+void do_mouse(struct app *a, int y, int x)
 {
-    lua_createtable(a->L, 0, 2);
-
-    lua_pushinteger(a->L, x);
-    lua_setfield(a->L, -2, "x");
-
     lua_pushinteger(a->L, y);
-    lua_setfield(a->L, -2, "y");
-
-    lua_callback(a->L, "on_mouse");
+    lua_pushinteger(a->L, x);
+    lua_callback(a->L, "on_mouse", 2);
 }
