@@ -17,6 +17,37 @@
 
 static char logic_module;
 
+static void pushircmsg(lua_State *L, struct ircmsg const* msg)
+{
+    lua_createtable(L, msg->args_n, 3);
+
+    lua_createtable(L, 0, msg->tags_n);
+    for (int i = 0; i < msg->tags_n; i++) {
+        if (msg->tags[i].val)
+        {
+            lua_pushstring(L, msg->tags[i].val);
+        }
+        else
+        {
+            lua_pushboolean(L, 1);
+        }
+        lua_setfield(L, -2, msg->tags[i].key);
+    }
+    lua_setfield(L, -2, "tags");
+
+    lua_pushstring(L, msg->source);
+    lua_setfield(L, -2, "source");
+
+    lua_pushstring(L, msg->command);
+    lua_setfield(L, -2, "command");
+
+    for (int i = 0; i < msg->args_n; i++)
+    {
+        lua_pushstring(L, msg->args[i]);
+        lua_rawseti(L, -2, i+1);
+    }
+}
+
 static inline struct app *get_app(lua_State *L)
 {
     return *(struct app **)lua_getextraspace(L);
@@ -34,6 +65,21 @@ struct app
     void *write_data;
     void (*write_cb)(void *, char const* bytes, size_t n);
 };
+
+static int app_parseirc(lua_State *L) 
+{
+    char const* msg = luaL_checkstring(L, 1);
+    char *dup = strdup(msg);
+    struct ircmsg imsg;
+    int err = parse_irc_message(&imsg, dup);
+    if (err) {
+        free(dup);
+        luaL_error(L, "parse error %d", err);
+    }
+    pushircmsg(L, &imsg);
+    free(dup);
+    return 1;
+}
 
 static int error_handler(lua_State *L)
 {
@@ -56,9 +102,9 @@ static int app_print(lua_State *L)
         for (int i = 1; i <= n; i++) {
                 (void)luaL_tolstring(L, i, NULL); // leaves string on stack
                 luaL_addvalue(&b); // consumes string
-                luaL_addchar(&b, i==n ? '\n' : '\t');
+                if (i<n) luaL_addchar(&b, '\t');
         }
-
+        luaL_addchar(&b, '\n');
         luaL_pushresult(&b);
         size_t msglen;
         char const* msg = lua_tolstring(L, -1, &msglen);
@@ -97,6 +143,9 @@ static void app_prepare_globals(lua_State *L, char const* script_name)
 
     lua_pushcfunction(L, &app_print);
     lua_setglobal(L, "print");
+
+    lua_pushcfunction(L, app_parseirc);
+    lua_setglobal(L, "parseirc");
 
     lua_createtable(L, 0, 1);
     lua_pushstring(L, script_name);
@@ -179,8 +228,15 @@ static void lua_callback(lua_State *L, char const *key)
     lua_pop(L, 1); /* drop error handler */
 }
 
-void do_command(struct app *a, char const* line)
+void do_command(
+    struct app *a,
+    char const* line,
+    void *write_data,
+    void (*write_cb)(void*, char const*, size_t))
 {
+    a->write_cb = write_cb;
+    a->write_data = write_data;
+
     if (*line == '/')
     {
         line++;
@@ -194,11 +250,8 @@ void do_command(struct app *a, char const* line)
         }
         else
         {
-            if (a->write_cb)
-            {
-                char const* msg = "Unknown command\n";
-                a->write_cb(a->write_data, msg, strlen(msg));
-            }
+            char const* msg = "Unknown command\n";
+            write_cb(write_data, msg, strlen(msg));
         }
     }
     else
@@ -206,6 +259,9 @@ void do_command(struct app *a, char const* line)
         lua_pushstring(a->L, line);
         lua_callback(a->L, "on_input");
     }
+    
+    a->write_cb = NULL;
+    a->write_data = NULL;
 }
 
 void do_timer(struct app *a)
@@ -218,12 +274,6 @@ void do_keyboard(struct app *a, long key)
 {
     lua_pushinteger(a->L, key);
     lua_callback(a->L, "on_keyboard");
-}
-
-void app_set_writer(struct app *a, void *data, void (*cb)(void*, char const*, size_t))
-{
-    a->write_data = data;
-    a->write_cb = cb;
 }
 
 static int l_writeirc(lua_State *L)
@@ -270,34 +320,7 @@ void do_mrs(struct app *a, char const* name, struct addrinfo const* ai)
 
 void do_irc(struct app *a, struct ircmsg const* msg)
 {
-    lua_createtable(a->L, msg->args_n, 3);
-
-    lua_createtable(a->L, 0, msg->tags_n);
-    for (int i = 0; i < msg->tags_n; i++) {
-        if (msg->tags[i].val)
-        {
-            lua_pushstring(a->L, msg->tags[i].val);
-        }
-        else
-        {
-            lua_pushboolean(a->L, 1);
-        }
-        lua_setfield(a->L, -2, msg->tags[i].key);
-    }
-    lua_setfield(a->L, -2, "tags");
-
-    lua_pushstring(a->L, msg->source);
-    lua_setfield(a->L, -2, "source");
-
-    lua_pushstring(a->L, msg->command);
-    lua_setfield(a->L, -2, "command");
-
-    for (int i = 0; i < msg->args_n; i++)
-    {
-        lua_pushstring(a->L, msg->args[i]);
-        lua_rawseti(a->L, -2, i+1);
-    }
-
+    pushircmsg(a->L, msg);
     lua_callback(a->L, "on_irc");
 }
 

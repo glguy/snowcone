@@ -1,4 +1,6 @@
+#include <stdlib.h>
 #include <string.h>
+#include <uv.h>
 
 #include "app.h"
 #include "irc.h"
@@ -7,9 +9,36 @@
 #include "buffer.h"
 
 static void on_line(void *, char *msg);
+static void on_connect(uv_connect_t* req, int status);
+
+void start_irc(uv_loop_t *loop, struct configuration *cfg)
+{
+    struct readline_data *irc_data = malloc(sizeof *irc_data);
+    *irc_data = (struct readline_data) {
+        .cb = on_line,
+        .cb_data = loop->data,
+    };
+    
+    uv_tcp_t *irc = malloc(sizeof *irc);
+    irc->data = irc_data;
+    uv_tcp_init(loop, irc);
+
+    struct sockaddr_in addr;
+    uv_ip4_addr(cfg->irc_node, atoi(cfg->irc_service), &addr);
+
+    uv_connect_t *req = malloc(sizeof *req);
+    req->data = cfg;
+    int res = uv_tcp_connect(req, irc, (struct sockaddr*)&addr, &on_connect);
+}
 
 static void on_connect(uv_connect_t* req, int status)
 {
+    if (status < 0)
+    {
+        fprintf(stderr, "failed to connect to IRC: %s\n", uv_strerror(status));
+        exit(EXIT_FAILURE);
+    }
+
     struct configuration *cfg = req->data;
     uv_stream_t *stream = req->handle;
     uv_loop_t *loop = stream->loop;
@@ -43,26 +72,6 @@ static void on_connect(uv_connect_t* req, int status)
     uv_read_start(stream, &my_alloc_cb, &readline_cb);
 
     free(req);
-}
-
-void start_irc(uv_loop_t *loop, struct configuration *cfg)
-{
-    struct readline_data *irc_data = malloc(sizeof *irc_data);
-    *irc_data = (struct readline_data) {
-        .cb = on_line,
-        .cb_data = loop->data,
-    };
-    
-    uv_tcp_t *irc = malloc(sizeof *irc);
-    irc->data = irc_data;
-    uv_tcp_init(loop, irc);
-
-    struct sockaddr_in addr;
-    uv_ip4_addr(cfg->irc_node, atoi(cfg->irc_service), &addr);
-
-    uv_connect_t *req = malloc(sizeof *req);
-    req->data = cfg;
-    int res = uv_tcp_connect(req, irc, (struct sockaddr*)&addr, &on_connect);
 }
 
 static void on_line(void *data, char *line)

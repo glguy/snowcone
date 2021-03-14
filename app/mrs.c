@@ -1,8 +1,9 @@
 #include <stdlib.h>
+#include <sys/socket.h>
+#include <assert.h>
 
 #include "app.h"
 #include "mrs.h"
-
 
 static const uint64_t mrs_update_ms = 30 * 1000;
 
@@ -18,42 +19,37 @@ void start_mrs_timer(uv_loop_t *loop)
 
 static void on_mrs_timer(uv_timer_t *timer)
 {
-    static struct addrinfo const hints = {
-        .ai_socktype = SOCK_STREAM,
-    };
-    static struct addrinfo const hints4 = {
-        .ai_family = PF_INET,
-        .ai_socktype = SOCK_STREAM,
-    };
-    static struct addrinfo const hints6 = {
-        .ai_family = PF_INET6,
-        .ai_socktype = SOCK_STREAM,
-    };
+    struct addrinfo hints = {.ai_socktype = SOCK_STREAM};
 
     uv_getaddrinfo_t *req;
-    uv_loop_t *loop = timer->loop;
+    uv_loop_t * const loop = timer->loop;
 
-#define ROTATION(NAME, HOST, HINTS) \
-    req = malloc(sizeof *req); req->data = NAME; \
-    uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, HOST, NULL, HINTS);
+#define ROTATION(NAME, HOST) \
+    req = malloc(sizeof *req); \
+    req->data = NAME; \
+    assert(0 == uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, HOST, NULL, &hints));
 
-    ROTATION("", "chat.freenode.net", &hints)
-    ROTATION("AU", "chat.au.freenode.net", &hints)
-    ROTATION("EU", "chat.eu.freenode.net", &hints)
-    ROTATION("US", "chat.us.freenode.net", &hints)
-    ROTATION("IPV4", "chat.ipv4.freenode.net", &hints4)
-    ROTATION("IPV6", "chat.ipv6.freenode.net", &hints6)
+    hints.ai_family = PF_UNSPEC;
+    ROTATION("", "chat.freenode.net")
+    ROTATION("AU", "chat.au.freenode.net")
+    ROTATION("EU", "chat.eu.freenode.net")
+    ROTATION("US", "chat.us.freenode.net")
+    hints.ai_family = PF_INET;
+    ROTATION("IPV4", "chat.ipv4.freenode.net")
+    hints.ai_family = PF_INET6;
+    ROTATION("IPV6", "chat.ipv6.freenode.net")
 
 #undef ROTATION
 }
 
 static void on_mrs_getaddrinfo(uv_getaddrinfo_t *req, int status, struct addrinfo *ai)
 {
+    struct app * const a = req->loop->data;
     char const* const name = req->data;
 
     if (0 == status)
     {
-        do_mrs(req->loop->data, name, ai);
+        do_mrs(a, name, ai);
         uv_freeaddrinfo(ai);
     }
     free(req);

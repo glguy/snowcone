@@ -3,7 +3,9 @@
 #include "buffer.h"
 #include "read-line.h"
 #include "write.h"
+#include <stdlib.h>
 #include <uv.h>
+#include <assert.h>
 
 /* TCP SERVER ********************************************************/
 
@@ -17,20 +19,44 @@ void start_tcp_server(uv_loop_t *loop, char const* node, char const* service)
         .ai_family = PF_UNSPEC,
         .ai_socktype = SOCK_STREAM,
     };
+
     uv_getaddrinfo_t req;
     int res = uv_getaddrinfo(loop, &req, NULL, node, service, &hints);
     if (res < 0)
     {
-        fprintf(stderr, "failed to resolve tcp bind: %s\n", uv_err_name(res));
+        fprintf(stderr, "failed to resolve %s: %s\n", node, uv_strerror(res));
         exit(1);
     }
     
     for (struct addrinfo *ai = req.addrinfo; ai; ai = ai->ai_next)
     {
         uv_tcp_t *tcp = malloc(sizeof *tcp);
-        uv_tcp_init(loop, tcp);
-        uv_tcp_bind(tcp, ai->ai_addr, 0);
-        uv_listen((uv_stream_t*)tcp, SOMAXCONN, &on_new_connection);
+        if (NULL == tcp)
+        {
+            perror("malloc");
+            exit(EXIT_FAILURE);
+        }
+
+        res = uv_tcp_init(loop, tcp);
+        if (res < 0)
+        {
+            fprintf(stderr, "failed to create socket: %s\n", uv_strerror(res));
+            exit(EXIT_FAILURE);
+        }
+
+        res = uv_tcp_bind(tcp, ai->ai_addr, 0);
+        if (res < 0)
+        {
+            fprintf(stderr, "failed to bind: %s\n", uv_strerror(res));
+            exit(EXIT_FAILURE);
+        } 
+
+        res = uv_listen((uv_stream_t*)tcp, SOMAXCONN, &on_new_connection);
+        if (res < 0)
+        {
+            fprintf(stderr, "failed to listen: %s\n", uv_strerror(res));
+            exit(EXIT_FAILURE);
+        } 
     }
     uv_freeaddrinfo(req.addrinfo);
 }
@@ -63,7 +89,5 @@ static void on_line(void *data, char *msg)
     uv_loop_t *loop = stream->loop;
     struct app *a = loop->data;
 
-    app_set_writer(a, stream, to_write);
-    do_command(a, msg);
-    app_set_writer(a, NULL, NULL);
+    do_command(a, msg, stream, to_write);
 }
