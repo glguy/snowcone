@@ -44,8 +44,6 @@ function reset_filter()
     filter = nil
     server_filter = nil
     conn_filter = nil
-    count_min = nil
-    count_max = nil
     highlight = nil
     highlight_plain = false
     staged_kline = nil
@@ -71,6 +69,19 @@ local defaults = {
     trust_uname = false,
 }
 
+function initialize()
+    tablex.update(_G, defaults)
+    reset_filter()
+end
+
+for k,v in pairs(defaults) do
+    if not _G[k] then
+        _G[k] = v
+    end
+end
+
+-- Kline logic ========================================================
+
 local kline_durations = {
     {'4h','240'},
     {'1d','1400'},
@@ -95,23 +106,33 @@ local function entry_to_kline(entry)
     end
 end
 
-function initialize()
-    tablex.update(_G, defaults)
-    reset_filter()
-end
-
-for k,v in pairs(defaults) do
-    if not _G[k] then
-        _G[k] = v
-    end
-end
-
--- Screen rendering ===================================================
-
 local function kline_ready()
     return view == 'connections' and staged_kline ~= nil
 end
 
+-- Mouse logic ========================================================
+
+local function add_click(y, lo, hi, action)
+    local list = clicks[y]
+    local entry = {lo=lo, hi=hi, action=action}
+    if list then
+        table.insert(list, entry)
+    else
+        clicks[y] = {entry}
+    end
+end
+
+local function add_button(text, action)
+    local y1,x1 = ncurses.getyx()
+    attron(ncurses.A_REVERSE)
+    addstr(text)
+    attroff(ncurses.A_REVERSE)
+    local y2,x2 = ncurses.getyx()
+    add_click(y1, x1, x2, action)
+end
+
+
+-- Screen rendering ===================================================
 
 local function draw_load_1(avg, i)
     if avg.n >= 60*i then
@@ -150,28 +171,7 @@ local function show_entry(entry)
     return
     (server_filter == nil or server_filter == entry.server) and
     (conn_filter == nil or conn_filter == entry.connected) and
-    (count_min   == nil or count_min   <= entry.count) and
-    (count_max   == nil or count_max   >= entry.count) and
     (filter      == nil or string.match(entry.mask, filter))
-end
-
-local function add_click(y, lo, hi, action)
-    local list = clicks[y]
-    local entry = {lo=lo, hi=hi, action=action}
-    if list then
-        table.insert(list, entry)
-    else
-        clicks[y] = {entry}
-    end
-end
-
-local function add_button(text, action)
-    local y1,x1 = ncurses.getyx()
-    attron(ncurses.A_REVERSE)
-    addstr(text)
-    attroff(ncurses.A_REVERSE)
-    local y2,x2 = ncurses.getyx()
-    add_click(y1, x1, x2, action)
 end
 
 local function draw_buttons()
@@ -368,12 +368,6 @@ function views.connections()
             red() addstr(' DEAD')
         end
         normal()
-    end
-    if count_min ~= nil then
-        addstr(string.format(' count_min=%s', count_min))
-    end
-    if count_max ~= nil then
-        addstr(string.format(' count_max=%s', count_max))
     end
     if last_key ~= nil then
         addstr(' key ' .. tostring(last_key))
