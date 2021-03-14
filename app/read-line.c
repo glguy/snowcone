@@ -1,7 +1,7 @@
 #include <string.h>
 
-#include "read-line.h"
 #include "buffer.h"
+#include "read-line.h"
 
 static void readline_close_cb(uv_handle_t *handle)
 {

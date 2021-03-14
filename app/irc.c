@@ -1,12 +1,13 @@
 #include <stdlib.h>
 #include <string.h>
+
 #include <uv.h>
 
 #include "app.h"
-#include "irc.h"
-#include "write.h"
-#include "read-line.h"
 #include "buffer.h"
+#include "irc.h"
+#include "read-line.h"
+#include "write.h"
 
 static void on_line(void *, char *msg);
 static void on_connect(uv_connect_t* req, int status);

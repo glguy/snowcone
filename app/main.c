@@ -1,30 +1,24 @@
-#include "configuration.h"
-#include <sys/socket.h>
-#include <uv/unix.h>
 #define _XOPEN_SOURCE 600
 
-#include <uv.h>
-
 #include <libgen.h>
-#include <netinet/in.h>
-#include <stdbool.h>
+#include <locale.h>
+#include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 #include <unistd.h>
-#include <netdb.h>
 
 #include <curses.h>
-#include <locale.h>
+#include <uv.h>
 
 #include "app.h"
 #include "buffer.h"
-#include "tcp-server.h"
-#include "read-line.h"
-#include "write.h"
-#include "mrs.h"
+#include "configuration.h"
 #include "irc.h"
+#include "mrs.h"
+#include "read-line.h"
+#include "tcp-server.h"
+#include "write.h"
 
 static const uint64_t timer_ms = 1000;
 

@@ -1,7 +1,7 @@
-#include "buffer.h"
-
 #include <string.h>
 #include <stdlib.h>
+
+#include "buffer.h"
 
 void buffer_close(uv_buf_t const *buf)
 {

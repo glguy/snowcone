@@ -1,6 +1,5 @@
 #include <string.h>
-#include <stdbool.h>
-#include <stdio.h>
+
 #include "ircmsg.h"
 
 static char *word(char **msg)

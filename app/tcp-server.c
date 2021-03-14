@@ -1,11 +1,13 @@
-#include "tcp-server.h"
+#include <assert.h>
+#include <stdlib.h>
+
+#include <uv.h>
+
 #include "app.h"
 #include "buffer.h"
 #include "read-line.h"
+#include "tcp-server.h"
 #include "write.h"
-#include <stdlib.h>
-#include <uv.h>
-#include <assert.h>
 
 /* TCP SERVER ********************************************************/
 

@@ -1,12 +1,13 @@
 #define _XOPEN_SOURCE 600
 
+#include <stdlib.h>
+#include <wchar.h>
+
+#include <ncurses.h>
+
 #include "lua.h"
 #include "lauxlib.h"
 #include "lualib.h"
-
-#include <ncurses.h>
-#include <stdlib.h>
-#include <wchar.h>
 
 #include "lua-ncurses.h"
 

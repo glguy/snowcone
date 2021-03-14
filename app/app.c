@@ -1,14 +1,12 @@
+#include <netdb.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
 #include "lua.h"
 #include "lauxlib.h"
 #include "lualib.h"
-
-#include <netdb.h>
-#include <netinet/in.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <netdb.h>
 
 #include "app.h"
 #include "ircmsg.h"
