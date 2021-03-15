@@ -3,8 +3,8 @@ local LoadAverage = require 'LoadAverage'
 local LoadTracker = class()
 LoadTracker._name = 'LoadTracker'
 
-function LoadTracker:track(name)
-    self.events[name] = (self.events[name] or 0) + 1
+function LoadTracker:track(name, n)
+    self.events[name] = (self.events[name] or 0) + (n or 1)
 end
 
 function LoadTracker:tick()
