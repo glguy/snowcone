@@ -25,7 +25,7 @@ By adding a listener on port 6000 I get a Lua console that I can use to inspect 
 program state.
 
 ```
-telnet ::1 6000
+rlwrap nc ::1 6000
 ```
 
 I've got this connecting to my local ZNC via a socat TLS tunnel running on localhost.
@@ -39,7 +39,8 @@ Built-in keyboard shortcuts:
 F1 - connections
 F2 - servers
 F3 - klines
-F4 - repeats
+F4 - filters
+F5 - repeats
 Q - only live connections
 W - only dead connections
 E - all connections

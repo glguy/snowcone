@@ -663,7 +663,12 @@ end
 
 function irc_handlers.NOTICE(irc)
     if string.match(irc.source, '%.') and irc.tags.time then
-        local time = string.match(irc.tags.time, '^%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d*Z$')
+        local time
+        if irc.tags.time then
+            time = string.match(irc.tags.time, '^%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d*Z$')
+        else
+            time = os.date '%H:%M:%S'
+        end
         local note = string.match(irc[2], '^%*%*%* Notice %-%- (.*)$')
         if time and note then
             local event = parse_snote(time, irc.source, note)
