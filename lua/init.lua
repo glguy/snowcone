@@ -662,7 +662,7 @@ function irc_handlers.PING()
 end
 
 function irc_handlers.NOTICE(irc)
-    if string.match(irc.source, '%.') and irc.tags.time then
+    if string.match(irc.source, '%.') then
         local note = string.match(irc[2], '^%*%*%* Notice %-%- (.*)$')
         if note then
             local time
