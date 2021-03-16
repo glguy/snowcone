@@ -12,4 +12,3 @@ target_include_directories(snowcone PRIVATE ${LUA_INCLUDE_DIR} ${CURSES_INCLUDE_
 target_compile_options(snowcone PRIVATE ${CURSES_CFLAGS})
 
 install(TARGETS snowcone DESTINATION bin)
-install(DIRECTORY "lua" DESTINATION "share/snowcone")

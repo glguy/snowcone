@@ -9,3 +9,5 @@ project(snowcone
 )
 
 add_subdirectory(app)
+
+install(DIRECTORY "lua" DESTINATION "share/snowcone")
