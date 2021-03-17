@@ -52,13 +52,13 @@ static uv_tcp_t *make_connection(uv_loop_t *loop, struct configuration *cfg)
 
 void start_irc(uv_loop_t *loop, struct configuration *cfg)
 {
+    uv_tcp_t *irc = make_connection(loop, cfg);
+ 
     struct readline_data *irc_data = malloc(sizeof *irc_data);
     *irc_data = (struct readline_data) {
         .cb = on_line,
         .cb_data = loop->data,
     };
-
-    uv_tcp_t *irc = make_connection(loop, cfg);
     irc->data = irc_data;
 
     uv_stream_t *stream = (uv_stream_t*)irc;

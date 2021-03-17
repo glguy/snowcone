@@ -16,11 +16,13 @@ cd build
 cmake ..
 make
 app/snowcone \
-   -h::1 -p6000 \
-   -SOPENSSL:[::1]:7000,certificate=certificate.pem \
+   -h ::1 -p 6000 \
+   -S OPENSSL:[::1]:7000,certificate=certificate.pem \
    -Nglguy -Xglguy@snowcone/freenode: \
    ../lua/init.lua
 ```
+
+To connect to an unencrypted TCP port use: `-S TCP:${HOST}:${PORT}`
 
 By adding a listener on port 6000 I get a Lua console that I can use to inspect the
 program state.
