@@ -46,7 +46,7 @@ function reset_filter()
     conn_filter = nil
     highlight = nil
     highlight_plain = false
-    staged_kline = nil
+    staged_action = nil
 end
 
 local defaults = {
@@ -80,6 +80,11 @@ for k,v in pairs(defaults) do
     end
 end
 
+-- Prepopulate the server list
+for k,_ in pairs(server_classes) do
+    conn_tracker:track(k..'.freenode.net', 0)
+end
+
 -- Kline logic ========================================================
 
 local kline_durations = {
@@ -98,16 +103,29 @@ local kline_reasons = {
 local function entry_to_kline(entry)
     local success, mask = pcall(compute_kline_mask, entry.user, entry.ip, entry.host, entry.gecos, trust_uname)
     if success then
-        staged_kline = {mask=mask, entry=entry}
+        staged_action = {action='kline', mask=mask, entry=entry}
         send_irc('TESTMASK ' .. mask .. '\r\n')
     else
         last_key = mask
-        staged_kline = nil
+        staged_action = nil
     end
 end
 
+local function entry_to_unkline(entry)
+    local mask = entry.user .. '@' .. entry.ip
+    send_irc('TESTLINE ' .. mask .. '\r\n')
+    staged_action = {action = 'unkline', entry = entry}
+end
+
 local function kline_ready()
-    return view == 'connections' and staged_kline ~= nil
+    return view == 'connections' and staged_action ~= nil and staged_action.action == 'kline'
+end
+
+local function unkline_ready()
+    return view == 'connections'
+        and staged_action ~= nil
+        and staged_action.action == 'unkline'
+        and staged_action.mask ~= nil
 end
 
 -- Mouse logic ========================================================
@@ -195,7 +213,7 @@ local function draw_buttons()
     if kline_ready() then
         green()
         add_button('[ CANCEL KLINE ]', function()
-            staged_kline = nil
+            staged_action = nil
             highlight = nil
             highlight_plain = nil
         end)
@@ -210,7 +228,7 @@ local function draw_buttons()
         blue()
         add_button(trust_uname and '[ ~ ]' or '[ = ]', function()
             trust_uname = not trust_uname
-            entry_to_kline(staged_kline.entry)
+            entry_to_kline(staged_action.entry)
         end)
 
         addstr(' ')
@@ -224,18 +242,43 @@ local function draw_buttons()
         addstr(' ')
         red()
         local klineText = string.format('[ KLINE %s %s %s ]',
-            staged_kline.count and tostring(staged_kline.count) or '?',
-            staged_kline.entry.nick,
-            staged_kline.mask)
+            staged_action.count and tostring(staged_action.count) or '?',
+            staged_action.entry.nick,
+            staged_action.mask)
         add_button(klineText, function()
             send_irc(
                 string.format('KLINE %s %s :%s\r\n',
                     kline_durations[kline_duration][2],
-                    staged_kline.mask,
+                    staged_action.mask,
                     kline_reasons[kline_reason][2]
                 )
             )
-            staged_kline = nil
+            staged_action = nil
+        end)
+    elseif staged_action and staged_action.action == 'unkline' then
+        green()
+        add_button('[ CANCEL UNKLINE ]', function()
+            staged_action = nil
+            highlight = nil
+            highlight_plain = nil
+        end)
+
+        addstr(' ')
+        yellow()
+        local klineText = string.format('[ UNKLINE %s %s ]',
+            staged_action.entry.nick,
+            staged_action.mask or '?')
+        add_button(klineText, function()
+            if staged_action.mask then
+                send_irc(
+                    string.format('KLINE %s %s :%s\r\n',
+                        kline_durations[kline_duration][2],
+                        staged_action.mask,
+                        kline_reasons[kline_reason][2]
+                    )
+                )
+            end
+            staged_action = nil
         end)
     end
 
@@ -330,11 +373,19 @@ function views.connections()
             normal()
             mvaddstr(y, 124, entry.gecos)
 
-            add_click(y, 0, tty_width, function()
-                entry_to_kline(entry)
-                highlight = entry.mask
-                highlight_plain = true
-            end)
+            if entry.reason == 'K-Lined' then
+                add_click(y, 0, tty_width, function()
+                    entry_to_unkline(entry)
+                    highlight = entry.mask
+                    highlight_plain = true
+                end)
+            else
+                add_click(y, 0, tty_width, function()
+                    entry_to_kline(entry)
+                    highlight = entry.mask
+                    highlight_plain = true
+                end)
+            end
 
             n = n + 1
 
@@ -681,9 +732,28 @@ function irc_handlers.NOTICE(irc)
     end
 end
 
+irc_handlers['215'] = function(irc)
+    if staged_action ~= nil
+    and staged_action.action == 'unkline'
+    and staged_action.mask == nil
+    then
+        staged_action = nil
+    end
+end
+
+irc_handlers['725'] = function(irc)
+    if irc[2] == 'k'
+    and staged_action ~= nil
+    and staged_action.action == 'unkline'
+    and staged_action.mask == nil
+    then
+        staged_action.mask = irc[4]
+    end
+end
+
 irc_handlers['727'] = function(irc)
-    if staged_kline and '*!'..staged_kline.mask == irc[4] then        
-        staged_kline.count = math.tointeger(irc[2]) + math.tointeger(irc[3])
+    if staged_action and '*!'..staged_action.mask == irc[4] then        
+        staged_action.count = math.tointeger(irc[2]) + math.tointeger(irc[3])
     end
 end
 

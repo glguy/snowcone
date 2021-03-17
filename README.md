@@ -17,7 +17,8 @@ cmake ..
 make
 app/snowcone \
    -h::1 -p6000 \
-   -H::1 -P6667 -Nglguy -Xglguy@snowcone/freenode: \
+   -SOPENSSL:[::1]:7000,certificate=certificate.pem \
+   -Nglguy -Xglguy@snowcone/freenode: \
    ../lua/init.lua
 ```
 
@@ -27,8 +28,6 @@ program state.
 ```
 rlwrap nc ::1 6000
 ```
-
-I've got this connecting to my local ZNC via a socat TLS tunnel running on localhost.
 
 The tool automatically reloads the Lua logic when you save the file so you can
 quickly adapt to changing circumstances, apply custom filters, etc.
