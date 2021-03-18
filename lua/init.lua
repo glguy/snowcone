@@ -271,10 +271,8 @@ local function draw_buttons()
         add_button(klineText, function()
             if staged_action.mask then
                 send_irc(
-                    string.format('KLINE %s %s :%s\r\n',
-                        kline_durations[kline_duration][2],
-                        staged_action.mask,
-                        kline_reasons[kline_reason][2]
+                    string.format('UNKLINE %s\r\n',
+                        staged_action.mask
                     )
                 )
             end
