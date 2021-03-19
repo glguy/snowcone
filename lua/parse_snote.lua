@@ -5,7 +5,7 @@ end
     
 return function(time, server, str)
 
-    local nick, user, host, ip, class, gecos = string.match(str, '^Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {([^}]*)} %[([^][]*)%]$')
+    local nick, user, host, ip, class, gecos = string.match(str, '^Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {([^}]*)} %[(.*)%]$')
     if nick then
         return {
             name = 'connect',
@@ -20,7 +20,7 @@ return function(time, server, str)
         }
     end
 
-    local nick, user, host, reason, ip = string.match(str, '^Client exiting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] %[([^][]*)%]$')
+    local nick, user, host, reason, ip = string.match(str, '^Client exiting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] %[(.*)%]$')
     if nick then
         return {
             name = 'disconnect',
