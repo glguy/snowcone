@@ -61,6 +61,7 @@ local defaults = {
     clicon_n = 0,
     filter_tracker = LoadTracker(),
     clicks = {},
+    population = {},
     -- settings
     history = 1000,
     show_reasons = true,
@@ -496,7 +497,7 @@ function views.servers()
     local pad = math.max(tty_height - #rows - 2, 0)
 
     green()
-    mvaddstr(pad,0, '          Server  1m    5m    15m   Connection History                                             Mn  Region AF')
+    mvaddstr(pad,0, '          Server  1m    5m    15m   Connection History                                             Mn  Region AF  Conns')
     normal()
     for i,row in ipairs(rows) do
         if i+1 >= tty_height then return end
@@ -530,6 +531,13 @@ function views.servers()
         addstr('  ')
         render_mrs('IPV4'     , info.ipv4, '4')
         render_mrs('IPV6'     , info.ipv6, '6')
+
+        local pop = population[name]
+        if pop then
+            addstr(string.format('  %5d', pop))
+        else
+            addstr('      ?')
+        end
     end
 end
 
@@ -664,12 +672,24 @@ function handlers.connect(ev)
     if show_entry(entry) then
         clicon_n = clicon_n + 1
     end
+
+    local pop = population[ev.server]
+    if pop then
+        population[ev.server] = pop + 1
+    end
+
     draw()
 end
 
 function handlers.disconnect(ev)
     local mask = ev.nick .. '!' .. ev.user .. '@' .. ev.ip
     local entry = users:lookup(mask)
+
+    local pop = population[ev.server]
+    if pop then
+        population[ev.server] = pop - 1
+    end
+
     if entry then
         entry.connected = false
         entry.reason = ev.reason
@@ -752,6 +772,13 @@ end
 irc_handlers['727'] = function(irc)
     if staged_action and '*!'..staged_action.mask == irc[4] then        
         staged_action.count = math.tointeger(irc[2]) + math.tointeger(irc[3])
+    end
+end
+
+irc_handlers['015'] = function(irc)
+    local server, count = string.match(irc[2], '(%g*)%[...%] %-* | Users: +(%d+)')
+    if server then
+        population[server] = math.tointeger(count)
     end
 end
 
