@@ -633,27 +633,28 @@ end
 local handlers = {}
 
 local function syn_connect(ev)
-    local oldmask = ev.nick .. '!' .. ev.user .. '@0'
-    local entry = users:lookup(oldmask)
+    local oldkey = ev.nick .. '!' .. ev.user .. '@' .. ev.host
+    local entry = users:lookup(oldkey)
     if entry then
-        local mask = ev.nick .. '!' .. ev.user .. '@' .. ev.ip
         local gateway = string.match(ev.host, '^(.*/)session$')
         if gateway then
-            users:delete(oldmask)
+            users:delete(oldkey)
             entry.ip = ev.ip
             entry.host = gateway .. 'ip.' .. ev.ip
-            users:insert(mask, entry)
+            local key = entry.nick .. '!' .. entry.user .. '@' .. entry.host
+            entry.mask = key .. ' ' .. entry.gecos
+            users:insert(key, entry)
         end
     end
 end
 
 function handlers.connect(ev)
-    local mask = ev.nick .. '!' .. ev.user .. '@' .. ev.ip
+    local key = ev.nick .. '!' .. ev.user .. '@' .. ev.host
     local server = ev.server
     
     if server == 'syn.' then syn_connect(ev) return end
 
-    local entry = users:insert(mask, {count = 0})
+    local entry = users:insert(key, {count = 0})
     entry.server = ev.server
     entry.gecos = ev.gecos
     entry.host = ev.host
@@ -682,8 +683,8 @@ function handlers.connect(ev)
 end
 
 function handlers.disconnect(ev)
-    local mask = ev.nick .. '!' .. ev.user .. '@' .. ev.ip
-    local entry = users:lookup(mask)
+    local key = ev.nick .. '!' .. ev.user .. '@' .. ev.host
+    local entry = users:lookup(key)
 
     local pop = population[ev.server]
     if pop then
