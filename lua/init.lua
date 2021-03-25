@@ -81,9 +81,16 @@ function initialize()
 end
 
 if not geoip_org then
-    local success, result = pcall(mygeoip.open_org_db)
+    local success, result = pcall(mygeoip.open_db, mygeoip.GEOIP_ASNUM_EDITION)
     if success then
         geoip_org = result
+    end
+end
+
+if not geoip_org_v6 then
+    local success, result = pcall(mygeoip.open_db, mygeoip.GEOIP_ASNUM_EDITION_V6)
+    if success then
+        geoip_org_v6 = result
     end
 end
 
@@ -97,6 +104,18 @@ end
 for k,_ in pairs(server_classes) do
     conn_tracker:track(k..'.freenode.net', 0)
 end
+
+-- GeoIP lookup =======================================================
+
+local function ip_org(addr)
+    if geoip_org and string.match(addr, '%.') then
+        return geoip_org:get_name_by_addr(addr)
+    end
+    if geoip_org_v6 and string.match(addr, ':') then
+        return geoip_org_v6:get_name_by_addr_v6(addr)
+    end
+end
+
 
 -- Kline logic ========================================================
 
@@ -673,9 +692,7 @@ local function syn_connect(ev)
         if gateway then
             users:delete(oldkey)
             entry.ip = ev.ip
-            if geoip_org then
-                entry.org = geoip_org:get_org_by_addr(ev.ip)
-            end
+            entry.org = ip_org(ev.ip)
             entry.host = gateway .. 'ip.' .. ev.ip
             local key = entry.nick .. '!' .. entry.user .. '@' .. entry.host
             entry.mask = key .. ' ' .. entry.gecos
@@ -701,9 +718,7 @@ function handlers.connect(ev)
     entry.connected = true
     entry.count = entry.count + 1
     entry.mask = entry.nick .. '!' .. entry.user .. '@' .. entry.host .. ' ' .. entry.gecos
-    if geoip_org then
-        entry.org = geoip_org:get_org_by_addr(entry.ip)
-    end
+    entry.org = ip_org(entry.ip)
 
     while users.n > history do
         users:delete(users:last_key())
