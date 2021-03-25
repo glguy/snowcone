@@ -25,6 +25,8 @@ local function magenta()    attron(ncurses.magenta)       end
 local function yellow()     attron(ncurses.yellow)        end
 local function white()      attron(ncurses.white)         end
 
+local palette = {black, red, green, yellow, blue, magenta, cyan, white}
+
 local spinner = {'◴','◷','◶','◵'}
 
 local function require_(name)
@@ -32,6 +34,7 @@ local function require_(name)
     return require(name)
 end
 
+local primary_hub = 'reynolds.freenode.net'
 local server_classes = require_ 'server_classes'
 local LoadTracker = require_ 'LoadTracker'
 local OrderedMap = require_ 'OrderedMap'
@@ -62,6 +65,8 @@ local defaults = {
     filter_tracker = LoadTracker(),
     clicks = {},
     population = {},
+    links = {},
+    upstream = {},
     -- settings
     history = 1000,
     show_reasons = true,
@@ -73,6 +78,13 @@ local defaults = {
 function initialize()
     tablex.update(_G, defaults)
     reset_filter()
+end
+
+if not geoip_org then
+    local success, result = pcall(mygeoip.open_org_db)
+    if success then
+        geoip_org = result
+    end
 end
 
 for k,v in pairs(defaults) do
@@ -360,6 +372,9 @@ function views.connections()
             if show_reasons and not entry.connected then
                 magenta()
                 mvaddstr(y, 80, string.sub(entry.reason, 1, 39))
+            elseif entry.org then
+                yellow()
+                mvaddstr(y, 80, string.sub(entry.org, 1, 39))
             else
                 yellow()
                 mvaddstr(y, 80, entry.ip)
@@ -496,8 +511,11 @@ function views.servers()
 
     local pad = math.max(tty_height - #rows - 2, 0)
 
+    local upcolor = {}
+    local next_color = 2
+
     green()
-    mvaddstr(pad,0, '          Server  1m    5m    15m   Connection History                                             Mn  Region AF  Conns')
+    mvaddstr(pad,0, '          Server  1m    5m    15m   Connection History                                             Mn  Region AF  Conns  Link')
     normal()
     for i,row in ipairs(rows) do
         if i+1 >= tty_height then return end
@@ -537,6 +555,21 @@ function views.servers()
             addstr(string.format('  %5d', pop))
         else
             addstr('      ?')
+        end
+
+        local link = upstream[name]
+        if link then
+            local color = upcolor[link]
+            if not color then
+                color = palette[next_color]
+                upcolor[link] = color
+                next_color = next_color % #palette + 1
+            end
+            color()
+            addstr('  '..string.sub(link, 1, 4))
+            normal()
+        else
+            addstr('      ')
         end
     end
 end
@@ -640,6 +673,9 @@ local function syn_connect(ev)
         if gateway then
             users:delete(oldkey)
             entry.ip = ev.ip
+            if geoip_org then
+                entry.org = geoip_org:get_org_by_addr(ev.ip)
+            end
             entry.host = gateway .. 'ip.' .. ev.ip
             local key = entry.nick .. '!' .. entry.user .. '@' .. entry.host
             entry.mask = key .. ' ' .. entry.gecos
@@ -665,6 +701,9 @@ function handlers.connect(ev)
     entry.connected = true
     entry.count = entry.count + 1
     entry.mask = entry.nick .. '!' .. entry.user .. '@' .. entry.host .. ' ' .. entry.gecos
+    if geoip_org then
+        entry.org = geoip_org:get_org_by_addr(entry.ip)
+    end
 
     while users.n > history do
         users:delete(users:last_key())
@@ -751,6 +790,7 @@ function irc_handlers.NOTICE(irc)
     end
 end
 
+-- RPL_STATS_ILINE
 irc_handlers['215'] = function(irc)
     if staged_action ~= nil
     and staged_action.action == 'unkline'
@@ -760,6 +800,7 @@ irc_handlers['215'] = function(irc)
     end
 end
 
+-- RPL_TESTLINE
 irc_handlers['725'] = function(irc)
     if irc[2] == 'k'
     and staged_action ~= nil
@@ -770,17 +811,45 @@ irc_handlers['725'] = function(irc)
     end
 end
 
+-- RPL_TESTMASK_GECOS
 irc_handlers['727'] = function(irc)
     if staged_action and '*!'..staged_action.mask == irc[4] then        
         staged_action.count = math.tointeger(irc[2]) + math.tointeger(irc[3])
     end
 end
 
+-- RPL_MAP
 irc_handlers['015'] = function(irc)
     local server, count = string.match(irc[2], '(%g*)%[...%] %-* | Users: +(%d+)')
     if server then
         population[server] = math.tointeger(count)
     end
+end
+
+-- RPL_LINKS
+irc_handlers['364'] = function(irc)
+    local server = irc[2]
+    local linked = irc[3]
+    if server == linked then
+        links = {[server] = Set{}}
+    else
+        links[server] = Set{linked}
+        links[linked][server] = true
+    end
+end
+
+-- RPL_END_OF_LINKS
+irc_handlers['365'] = function(irc)
+    upstream = {}
+    local function go(here, up)
+        if not upstream[here] then
+            upstream[here] = up
+            for k, _ in pairs(links[here]) do
+                go(k, here)
+            end
+        end
+    end
+    go(primary_hub, '')
 end
 
 function M.on_irc(irc)

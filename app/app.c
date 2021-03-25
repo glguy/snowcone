@@ -13,6 +13,7 @@
 #include "app.h"
 #include "ircmsg.h"
 #include "lua-ncurses.h"
+#include "mygeoip.h"
 
 static char logic_module;
 
@@ -140,6 +141,9 @@ static void app_prepare_globals(lua_State *L, char const* script_name)
 
     lua_pushcfunction(L, app_parseirc);
     lua_setglobal(L, "parseirc");
+
+    luaopen_mygeoip(L);
+    lua_setglobal(L, "mygeoip");
 
     lua_createtable(L, 0, 1);
     lua_pushstring(L, script_name);
