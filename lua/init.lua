@@ -81,6 +81,7 @@ function initialize()
 end
 
 if not geoip_org then
+    -- Other useful edition: mygeoip.GEOIP_ORG_EDITION
     local success, result = pcall(mygeoip.open_db, mygeoip.GEOIP_ASNUM_EDITION)
     if success then
         geoip_org = result
