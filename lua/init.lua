@@ -1,6 +1,10 @@
 local app = require 'pl.app'
 local Set = require 'pl.Set'
 local tablex = require 'pl.tablex'
+
+local has_mmdb, mmdb = pcall(require, 'mmdb')
+if not has_mmdb then mmdb = nil end
+
 require 'pl.stringx'.import()
 app.require_here()
 
@@ -34,6 +38,7 @@ local function require_(name)
     return require(name)
 end
 
+local spam_delay = 6
 local primary_hub = 'reynolds.freenode.net'
 local server_classes = require_ 'server_classes'
 local LoadTracker = require_ 'LoadTracker'
@@ -67,6 +72,7 @@ local defaults = {
     population = {},
     links = {},
     upstream = {},
+
     -- settings
     history = 1000,
     show_reasons = true,
@@ -80,18 +86,25 @@ function initialize()
     reset_filter()
 end
 
-if not geoip_org then
-    -- Other useful edition: mygeoip.GEOIP_ORG_EDITION
-    local success, result = pcall(mygeoip.open_db, mygeoip.GEOIP_ASNUM_EDITION)
+if mmdb and not geoip then
+    local success, result = pcall(mmdb.open, 'GeoLite2-ASN.mmdb')
     if success then
-        geoip_org = result
+        geoip = result
     end
 end
 
-if not geoip_org_v6 then
+if not geoip and not geoip4 then
+    -- Other useful edition: mygeoip.GEOIP_ORG_EDITION, GEOIP_ISP_EDITION, GEOIP_ASNUM_EDITION
+    local success, result = pcall(mygeoip.open_db, mygeoip.GEOIP_ISP_EDITION)
+    if success then
+        geoip4 = result
+    end
+end
+
+if not geoip and not geoip6 then
     local success, result = pcall(mygeoip.open_db, mygeoip.GEOIP_ASNUM_EDITION_V6)
     if success then
-        geoip_org_v6 = result
+        geoip6 = result
     end
 end
 
@@ -109,11 +122,17 @@ end
 -- GeoIP lookup =======================================================
 
 local function ip_org(addr)
-    if geoip_org and string.match(addr, '%.') then
-        return geoip_org:get_name_by_addr(addr)
+    if geoip and string.match(addr, '%.') then
+        return geoip:search_ipv4(addr).autonomous_system_organization
     end
-    if geoip_org_v6 and string.match(addr, ':') then
-        return geoip_org_v6:get_name_by_addr_v6(addr)
+    if geoip and string.match(addr, ':') then
+        return geoip:search_ipv6(addr).autonomous_system_organization
+    end
+    if geoip4 and string.match(addr, '%.') then
+        return geoip4:get_name_by_addr(addr)
+    end
+    if geoip6 and string.match(addr, ':') then
+        return geoip6:get_name_by_addr_v6(addr)
     end
 end
 
@@ -346,7 +365,11 @@ function views.connections()
                 mvaddstr(y, 0, '        ')
             else
                 last_time = time
-                cyan()
+                if uptime - entry.timestamp <= spam_delay then
+                    white()
+                else
+                    cyan()
+                end
                 mvaddstr(y, 0, time)
                 normal()
             end
@@ -720,6 +743,7 @@ function handlers.connect(ev)
     entry.count = entry.count + 1
     entry.mask = entry.nick .. '!' .. entry.user .. '@' .. entry.host .. ' ' .. entry.gecos
     entry.org = ip_org(entry.ip)
+    entry.timestamp = uptime
 
     while users.n > history do
         users:delete(users:last_key())
@@ -773,7 +797,10 @@ local M = {}
 function M.on_input(str)
     local chunk, err = load(str, '=(load)', 't')
     if chunk then
-        print(chunk())
+        local returns = {chunk()}
+        if select('#', returns) > 0 then
+            print(table.unpack(returns))
+        end
         draw()
     else
         print(err)
