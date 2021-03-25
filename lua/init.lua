@@ -365,12 +365,16 @@ function views.connections()
                 mvaddstr(y, 0, '        ')
             else
                 last_time = time
-                if uptime - entry.timestamp <= spam_delay then
+                local age = uptime - entry.timestamp
+                if age < 8 then
                     white()
+                    mvaddstr(y, 0, string.sub(time, 1, 8-age))
+                    cyan()
+                    addstr(string.sub(time, 9-age, 8))
                 else
                     cyan()
+                    mvaddstr(y, 0, time)
                 end
-                mvaddstr(y, 0, time)
                 normal()
             end
 
@@ -720,6 +724,7 @@ local function syn_connect(ev)
             entry.host = gateway .. 'ip.' .. ev.ip
             local key = entry.nick .. '!' .. entry.user .. '@' .. entry.host
             entry.mask = key .. ' ' .. entry.gecos
+            users:delete(key)
             users:insert(key, entry)
         end
     end
