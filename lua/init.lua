@@ -39,7 +39,7 @@ local function require_(name)
 end
 
 local spam_delay = 6
-local primary_hub = 'reynolds.freenode.net'
+local primary_hub = 'traviss.freenode.net'
 local server_classes = require_ 'server_classes'
 local LoadTracker = require_ 'LoadTracker'
 local OrderedMap = require_ 'OrderedMap'
@@ -365,7 +365,8 @@ function views.connections()
                 mvaddstr(y, 0, '        ')
             else
                 last_time = time
-                local age = uptime - entry.timestamp
+                
+                local age = uptime - (entry.timestamp or 0)
                 if age < 8 then
                     white()
                     mvaddstr(y, 0, string.sub(time, 1, 8-age))
@@ -599,7 +600,14 @@ function views.servers()
 
         local pop = population[name]
         if pop then
-            addstr(string.format('  %5d', pop))
+            if pop < 1000 then
+                addstr(string.format('  %5d', pop))
+            else
+                bold()
+                addstr(string.format('  %2d', pop // 1000))
+                normal()
+                addstr(string.format('%03d', pop % 1000))
+            end
         else
             addstr('      ?')
         end
@@ -715,7 +723,7 @@ local handlers = {}
 local function syn_connect(ev)
     local oldkey = ev.nick .. '!' .. ev.user .. '@' .. ev.host
     local entry = users:lookup(oldkey)
-    if entry then
+    if entry and entry.connected then
         local gateway = string.match(ev.host, '^(.*/)session$')
         if gateway then
             users:delete(oldkey)
@@ -803,7 +811,7 @@ function M.on_input(str)
     local chunk, err = load(str, '=(load)', 't')
     if chunk then
         local returns = {chunk()}
-        if select('#', returns) > 0 then
+        if #returns > 0 then
             print(table.unpack(returns))
         end
         draw()
@@ -897,7 +905,7 @@ irc_handlers['365'] = function(irc)
             end
         end
     end
-    go(primary_hub, '')
+    go(primary_hub, primary_hub)
 end
 
 function M.on_irc(irc)
