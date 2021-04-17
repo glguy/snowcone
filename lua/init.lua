@@ -38,13 +38,13 @@ local function require_(name)
     return require(name)
 end
 
-local spam_delay = 6
-local primary_hub = 'reynolds.freenode.net'
-local server_classes = require_ 'server_classes'
-local LoadTracker = require_ 'LoadTracker'
-local OrderedMap = require_ 'OrderedMap'
+-- Local modules ======================================================
+
+local server_classes     = require_ 'server_classes'
+local LoadTracker        = require_ 'LoadTracker'
+local OrderedMap         = require_ 'OrderedMap'
 local compute_kline_mask = require_ 'freenode_masks'
-local parse_snote = require_ 'parse_snote'
+local parse_snote        = require_ 'parse_snote'
 
 -- Global state =======================================================
 
@@ -79,6 +79,12 @@ local defaults = {
     kline_duration = 1,
     kline_reason = 1,
     trust_uname = false,
+    primary_hub = 'reynolds.freenode.net',
+    region_color = {
+        US = red,
+        EU = blue,
+        AU = white,
+    },
 }
 
 function initialize()
@@ -148,10 +154,11 @@ local kline_durations = {
 }
 
 local kline_reasons = {
-    {'freenodebl', 'Please email kline@freenode.net to request assistance with this ban.|!freenodebl botspam'},
+--  {'freenodebl', 'Please email kline@freenode.net to request assistance with this ban.|!freenodebl botspam'},
+    {'plain',      'Please email kline@freenode.net to request assistance with this ban.'},
+
     {'dronebl',    'Please email kline@freenode.net to request assistance with this ban.|!dnsbl'},
     {'broken',     'Your client is repeatedly reconnecting. Please email kline@freenode.net when fixed.'},
-    {'plain',      'Please email kline@freenode.net to request assistance with this ban.'},
 }
 
 local function entry_to_kline(entry)
@@ -254,15 +261,38 @@ local function draw_buttons()
     add_button('[ REASON ]', function()
         show_reasons = not show_reasons
     end)
-    addstr(' ')
+    addstr ' '
 
     if filter then
         blue()
         add_button('[ CLEAR FILTER ]', function()
             filter = nil
         end)
-        addstr(' ')
+        addstr ' '
     end
+
+    cyan()
+    add_button('[ ' .. kline_durations[kline_duration][1] .. ' ]', function()
+        kline_duration = kline_duration % #kline_durations + 1
+    end)
+    addstr ' '
+
+    blue()
+    add_button(trust_uname and '[ ~ ]' or '[ = ]', function()
+        trust_uname = not trust_uname
+        if staged_action and staged_action.action == 'kline' then
+            entry_to_kline(staged_action.entry)
+        end
+    end)
+    addstr ' '
+
+    magenta()
+    local blacklist_text =
+        string.format('[ %-7s ]', kline_reasons[kline_reason][1])
+    add_button(blacklist_text, function()
+        kline_reason = kline_reason % #kline_reasons + 1
+    end)
+    addstr ' '
 
     if kline_ready() then
         green()
@@ -270,27 +300,6 @@ local function draw_buttons()
             staged_action = nil
             highlight = nil
             highlight_plain = nil
-        end)
-
-        addstr(' ')
-        cyan()
-        add_button('[ ' .. kline_durations[kline_duration][1] .. ' ]', function()
-            kline_duration = kline_duration % #kline_durations + 1
-        end)
-
-        addstr(' ')
-        blue()
-        add_button(trust_uname and '[ ~ ]' or '[ = ]', function()
-            trust_uname = not trust_uname
-            entry_to_kline(staged_action.entry)
-        end)
-
-        addstr(' ')
-        magenta()
-        local blacklist_text =
-            string.format('[ %-10s ]', kline_reasons[kline_reason][1])
-        add_button(blacklist_text, function()
-            kline_reason = kline_reason % #kline_reasons + 1
         end)
 
         addstr(' ')
@@ -524,12 +533,6 @@ function views.klines()
     end
     
 end
-
-local region_color = {
-    US = red,
-    EU = blue,
-    AU = white,
-}
 
 local function in_rotation(region, a1, a2)
     local ips = mrs[region] or {}
@@ -805,22 +808,7 @@ function handlers.filter(ev)
     end
 end
 
--- Callback Logic =====================================================
-
-local M = {}
-
-function M.on_input(str)
-    local chunk, err = load(str, '=(load)', 't')
-    if chunk then
-        local returns = {chunk()}
-        if #returns > 0 then
-            print(table.unpack(returns))
-        end
-        draw()
-    else
-        print(err)
-    end
-end
+-- IRC Message Handlers ===============================================
 
 local irc_handlers = {}
 
@@ -829,7 +817,7 @@ function irc_handlers.PING()
 end
 
 function irc_handlers.NOTICE(irc)
-    if string.match(irc.source, '%.') then
+    if not string.match(irc.source, '@') then
         local note = string.match(irc[2], '^%*%*%* Notice %-%- (.*)$')
         if note then
             local time
@@ -871,8 +859,9 @@ end
 
 -- RPL_TESTMASK_GECOS
 irc_handlers['727'] = function(irc)
-    if staged_action and '*!'..staged_action.mask == irc[4] then        
-        staged_action.count = math.tointeger(irc[2]) + math.tointeger(irc[3])
+    local loc, rem, mask = table.unpack(irc,2,4)
+    if staged_action and '*!'..staged_action.mask == mask then        
+        staged_action.count = math.tointeger(loc) + math.tointeger(rem)
     end
 end
 
@@ -886,28 +875,41 @@ end
 
 -- RPL_LINKS
 irc_handlers['364'] = function(irc)
-    local server = irc[2]
-    local linked = irc[3]
-    if server == linked then
-        links = {[server] = Set{}}
-    else
-        links[server] = Set{linked}
-        links[linked][server] = true
-    end
+    local server, linked = table.unpack(irc, 2, 3)
+    if server == linked then links = {} end -- start
+    links[server] = Set{linked}
+    links[linked][server] = true
 end
 
 -- RPL_END_OF_LINKS
 irc_handlers['365'] = function(irc)
-    upstream = {}
-    local function go(here, up)
-        if not upstream[here] then
-            upstream[here] = up
-            for k, _ in pairs(links[here]) do
-                go(k, here)
+    upstream = {[primary_hub] = primary_hub}
+    local q = {primary_hub}
+    for _, here in ipairs(q) do
+        for k, _ in pairs(links[here]) do
+            if not upstream[k] then
+                upstream[k] = here
+                table.insert(q, k)
             end
         end
     end
-    go(primary_hub, primary_hub)
+end
+
+-- Callback Logic =====================================================
+
+local M = {}
+
+function M.on_input(str)
+    local chunk, err = load(str, '=(load)', 't')
+    if chunk then
+        local returns = {chunk()}
+        if #returns > 0 then
+            print(table.unpack(returns))
+        end
+        draw()
+    else
+        print(err)
+    end
 end
 
 function M.on_irc(irc)
