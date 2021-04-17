@@ -39,7 +39,7 @@ local function require_(name)
 end
 
 local spam_delay = 6
-local primary_hub = 'traviss.freenode.net'
+local primary_hub = 'reynolds.freenode.net'
 local server_classes = require_ 'server_classes'
 local LoadTracker = require_ 'LoadTracker'
 local OrderedMap = require_ 'OrderedMap'
@@ -123,10 +123,12 @@ end
 
 local function ip_org(addr)
     if geoip and string.match(addr, '%.') then
-        return geoip:search_ipv4(addr).autonomous_system_organization
+        local result = geoip:search_ipv4(addr)
+        return result and result.autonomous_system_organization
     end
     if geoip and string.match(addr, ':') then
-        return geoip:search_ipv6(addr).autonomous_system_organization
+        local result = geoip:search_ipv6(addr)
+        return result and result.autonomous_system_organization
     end
     if geoip4 and string.match(addr, '%.') then
         return geoip4:get_name_by_addr(addr)
@@ -970,6 +972,15 @@ function M.on_mouse(y, x)
             return
         end
     end
+end
+
+function M.on_connect(f)
+    send_irc = f
+    send_irc 'MAP\r\nLINKS\r\n'
+end
+
+function M.on_disconnect()
+    send_irc = nil
 end
 
 return M

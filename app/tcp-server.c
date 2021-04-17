@@ -76,8 +76,8 @@ static void on_new_connection(uv_stream_t *server, int status)
     client->data = data;
 
     *data = (struct readline_data){
-        .cb = &on_line,
-        .cb_data = client,
+        .read = &on_line,
+        .read_data = client,
     };
 
     uv_tcp_init(server->loop, client);

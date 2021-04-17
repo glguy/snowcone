@@ -18,6 +18,10 @@ void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 
     if (nread < 0)
     {
+        if (d->close)
+        {
+            d->close(d->close_data);
+        }
         buffer_close(buf);
         uv_close((uv_handle_t *)stream, readline_close_cb);
         return;
@@ -31,7 +35,7 @@ void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
     while ((end = strchr(start, '\n')))
     {
         *end++ = '\0';
-        d->cb(d->cb_data, start);
+        d->read(d->read_data, start);
         start = end;
     }
 

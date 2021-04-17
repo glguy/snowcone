@@ -8,13 +8,21 @@
 
 #include "app.h"
 #include "buffer.h"
+#include "configuration.h"
 #include "irc.h"
 #include "read-line.h"
 #include "write.h"
 #include "tls-helper.h"
 
+struct close_state
+{
+    uv_loop_t *loop;
+    struct configuration *cfg;
+};
+
 static void on_line(void *, char *msg);
 static void on_connect(uv_connect_t* req, int status);
+static void on_close(void *data);
 
 static uv_tcp_t *make_connection(uv_loop_t *loop, struct configuration *cfg)
 {
@@ -52,17 +60,25 @@ static uv_tcp_t *make_connection(uv_loop_t *loop, struct configuration *cfg)
 
 void start_irc(uv_loop_t *loop, struct configuration *cfg)
 {
+    struct app * const a = loop->data;
+
     uv_tcp_t *irc = make_connection(loop, cfg);
  
     struct readline_data *irc_data = malloc(sizeof *irc_data);
+    struct close_state *close_data = malloc(sizeof *close_data);
     *irc_data = (struct readline_data) {
-        .cb = on_line,
-        .cb_data = loop->data,
+        .read = on_line,
+        .read_data = a,
+        .close = on_close,
+        .close_data = close_data,
     };
     irc->data = irc_data;
+    *close_data = (struct close_state) {
+        .loop = loop,
+        .cfg = cfg,
+    };
 
     uv_stream_t *stream = (uv_stream_t*)irc;
-    struct app *a = loop->data;
 
     static char buffer[512];
     char const* msg;
@@ -90,6 +106,16 @@ void start_irc(uv_loop_t *loop, struct configuration *cfg)
     app_set_irc(a, stream, to_write);
 
     uv_read_start(stream, &my_alloc_cb, &readline_cb);
+}
+
+static void on_close(void *data)
+{
+    struct close_state * const st = data;
+    uv_loop_t * const loop = st->loop;
+    struct app *a = loop->data;
+    app_clear_irc(a);
+    start_irc(loop, st->cfg);
+    free(st);
 }
 
 static void on_line(void *data, char *line)

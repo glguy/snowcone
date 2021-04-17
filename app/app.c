@@ -292,7 +292,12 @@ void app_set_irc(struct app *a, void *data, void (*cb)(void*, char const*, size_
     lua_pushlightuserdata(a->L, data);
     lua_pushlightuserdata(a->L, cb);
     lua_pushcclosure(a->L, l_writeirc, 2);
-    lua_setglobal(a->L, "send_irc");
+    lua_callback(a->L, "on_connect", 1);
+}
+
+void app_clear_irc(struct app *a)
+{
+    lua_callback(a->L, "on_disconnect", 0);
 }
 
 void app_set_window_size(struct app *a)
