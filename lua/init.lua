@@ -46,6 +46,8 @@ local OrderedMap         = require_ 'OrderedMap'
 local compute_kline_mask = require_ 'freenode_masks'
 local parse_snote        = require_ 'parse_snote'
 
+local views = {}
+
 -- Global state =======================================================
 
 function reset_filter()
@@ -62,7 +64,7 @@ local defaults = {
     users = OrderedMap(),
     kline_tracker = LoadTracker(),
     conn_tracker = LoadTracker(),
-    view = 'connections',
+    view = 1,
     uptime = 0,
     mrs = {},
     scroll = 0,
@@ -179,11 +181,11 @@ local function entry_to_unkline(entry)
 end
 
 local function kline_ready()
-    return view == 'connections' and staged_action ~= nil and staged_action.action == 'kline'
+    return view == 1 and staged_action ~= nil and staged_action.action == 'kline'
 end
 
 local function unkline_ready()
-    return view == 'connections'
+    return view == 1
         and staged_action ~= nil
         and staged_action.action == 'unkline'
         and staged_action.mask ~= nil
@@ -244,6 +246,10 @@ local function draw_global_load()
     addstr('CLICON  ')
     draw_load(conn_tracker.global)
     normal()
+
+    add_click(tty_height-1, 0, 9, function()
+        view = view % #views + 1
+    end)
 end
 
 local function show_entry(entry)
@@ -346,9 +352,7 @@ local function draw_buttons()
     normal()
 end
 
-local views = {}
-
-function views.connections()
+views[1] = function()
     local skips = scroll or 0
     local last_time
     local n = 0
@@ -498,42 +502,6 @@ function views.connections()
     end
 end
 
-function views.klines()
-    draw_global_load()
-
-    local rows = {}
-    for nick,avg in pairs(kline_tracker.detail) do
-        table.insert(rows, {name=nick,load=avg})
-    end
-    table.sort(rows, function(x,y)
-        return x.name < y.name
-    end)
-
-    local y = math.max(tty_height - #rows - 3, 0)
-
-    green()
-    mvaddstr(y, 0, '         K-Liner  1m    5m    15m   Kline History')
-    normal()
-    y = y + 1
-
-    if 3 <= tty_height then
-        blue()
-        mvaddstr(tty_height-2, 0, string.format('%16s  ', 'KLINES'))
-        draw_load(kline_tracker.global)
-        normal()
-    end
-
-    for _, row in ipairs(rows) do
-        if y+2 >= tty_height then return end
-        local avg = row.load
-        local nick = row.name
-        mvaddstr(y, 0, string.format('%16s  ', nick))
-        draw_load(avg)
-        y = y + 1
-    end
-    
-end
-
 local function in_rotation(region, a1, a2)
     local ips = mrs[region] or {}
     return ips[a1] or ips[a2]
@@ -551,7 +519,8 @@ local function render_mrs(zone, addr, str)
     end
 end
 
-function views.servers()
+-- Server connections
+views[2] = function()
     draw_global_load()
 
     local rows = {}
@@ -634,7 +603,45 @@ function views.servers()
     end
 end
 
-function views.filters()
+-- K-Line tracking
+views[3] = function()
+    draw_global_load()
+
+    local rows = {}
+    for nick,avg in pairs(kline_tracker.detail) do
+        table.insert(rows, {name=nick,load=avg})
+    end
+    table.sort(rows, function(x,y)
+        return x.name < y.name
+    end)
+
+    local y = math.max(tty_height - #rows - 3, 0)
+
+    green()
+    mvaddstr(y, 0, '         K-Liner  1m    5m    15m   Kline History')
+    normal()
+    y = y + 1
+
+    if 3 <= tty_height then
+        blue()
+        mvaddstr(tty_height-2, 0, string.format('%16s  ', 'KLINES'))
+        draw_load(kline_tracker.global)
+        normal()
+    end
+
+    for _, row in ipairs(rows) do
+        if y+2 >= tty_height then return end
+        local avg = row.load
+        local nick = row.name
+        mvaddstr(y, 0, string.format('%16s  ', nick))
+        draw_load(avg)
+        y = y + 1
+    end
+    
+end
+
+-- Filter tracking
+views[4] = function()
     draw_global_load()
 
     local rows = {}
@@ -680,7 +687,8 @@ local function top_keys(tab)
     return result
 end
 
-function views.repeats()
+-- Repeat connection tracking
+views[5] = function()
     draw_global_load()
 
     local nick_counts, mask_counts = {}, {}
@@ -928,11 +936,11 @@ function M.on_timer()
 end
 
 local keys = {
-    [ncurses.KEY_F1] = function() scroll = 0 view = 'connections' draw() end,
-    [ncurses.KEY_F2] = function() view = 'servers'     draw() end,
-    [ncurses.KEY_F3] = function() view = 'klines'      draw() end,
-    [ncurses.KEY_F4] = function() view = 'filters'     draw() end,
-    [ncurses.KEY_F5] = function() view = 'repeats'     draw() end,
+    [ncurses.KEY_F1] = function() view = 1 scroll = 0 draw() end,
+    [ncurses.KEY_F2] = function() view = 2 draw() end,
+    [ncurses.KEY_F3] = function() view = 3 draw() end,
+    [ncurses.KEY_F4] = function() view = 4 draw() end,
+    [ncurses.KEY_F5] = function() view = 5 draw() end,
     [ncurses.KEY_PPAGE] = function()
         scroll = scroll + math.max(1, tty_height - 1)
         scroll = math.min(scroll, users.n - 1)
