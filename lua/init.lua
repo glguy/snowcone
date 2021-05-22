@@ -81,11 +81,12 @@ local defaults = {
     kline_duration = 1,
     kline_reason = 1,
     trust_uname = false,
-    primary_hub = 'reynolds.freenode.net',
+    primary_hub = 'helium.libera.chat',
     region_color = {
         US = red,
         EU = blue,
         AU = white,
+        EA = green,
     },
 }
 
@@ -124,7 +125,7 @@ end
 
 -- Prepopulate the server list
 for k,_ in pairs(server_classes) do
-    conn_tracker:track(k..'.freenode.net', 0)
+    conn_tracker:track(k..'.libera.chat', 0)
 end
 
 -- GeoIP lookup =======================================================
@@ -156,11 +157,11 @@ local kline_durations = {
 }
 
 local kline_reasons = {
---  {'freenodebl', 'Please email kline@freenode.net to request assistance with this ban.|!freenodebl botspam'},
-    {'plain',      'Please email kline@freenode.net to request assistance with this ban.'},
+--  {'freenodebl', 'Please email bans@libera.chat to request assistance with this ban.|!freenodebl botspam'},
+    {'plain',      'Please email bans@libera.chat to request assistance with this ban.'},
 
-    {'dronebl',    'Please email kline@freenode.net to request assistance with this ban.|!dnsbl'},
-    {'broken',     'Your client is repeatedly reconnecting. Please email kline@freenode.net when fixed.'},
+    {'dronebl',    'Please email bans@libera.chat to request assistance with this ban.|!dnsbl'},
+    {'broken',     'Your client is repeatedly reconnecting. Please email bans@libera.chat when fixed.'},
 }
 
 local function entry_to_kline(entry)
@@ -661,7 +662,7 @@ views[4] = function()
         if i+1 >= tty_height then return end
         local avg = row.load
         local name = row.name
-        local short = string.gsub(name, '%.freenode%.net$', '', 1)
+        local short = string.gsub(name, '%.libera%.chat$', '', 1)
         mvaddstr(pad+i,0, string.format('%16s  ', short))
         draw_load(avg)
     end
