@@ -216,6 +216,21 @@ end
 
 -- Screen rendering ===================================================
 
+local function add_population(pop)
+    if pop then
+        if pop < 1000 then
+            addstr(string.format('  %5d', pop))
+        else
+            bold()
+            addstr(string.format('  %2d', pop // 1000))
+            attroff(ncurses.A_BOLD)
+            addstr(string.format('%03d', pop % 1000))
+        end
+    else
+        addstr('      ?')
+    end
+end
+
 local function draw_load_1(avg, i)
     if avg.n >= 60*i then
         attron(ncurses.A_BOLD)
@@ -247,6 +262,14 @@ local function draw_global_load()
     addstr('CLICON  ')
     draw_load(conn_tracker.global)
     normal()
+
+    if view == 2 then
+	    local n = 0
+	    for _,v in pairs(population) do n = n + v end
+	    addstr('              ')
+	    magenta()
+	    add_population(n)
+    end
 
     add_click(tty_height-1, 0, 9, function()
         view = view % #views + 1
@@ -325,6 +348,15 @@ local function draw_buttons()
             )
             staged_action = nil
         end)
+
+	addstr ' '
+	blue()
+	add_button('[SPY]', function()
+	    send_irc(
+	    	string.format('WHOIS !%s\r\n', staged_action.entry.nick)
+	    )
+	end)
+
     elseif staged_action and staged_action.action == 'unkline' then
         green()
         add_button('[ CANCEL UNKLINE ]', function()
@@ -573,19 +605,7 @@ views[2] = function()
         render_mrs('IPV4'     , info.ipv4, '4')
         render_mrs('IPV6'     , info.ipv6, '6')
 
-        local pop = population[name]
-        if pop then
-            if pop < 1000 then
-                addstr(string.format('  %5d', pop))
-            else
-                bold()
-                addstr(string.format('  %2d', pop // 1000))
-                normal()
-                addstr(string.format('%03d', pop % 1000))
-            end
-        else
-            addstr('      ?')
-        end
+        add_population(population[name])
 
         local link = upstream[name]
         if link then
@@ -958,6 +978,18 @@ local keys = {
     --[[Q ]] [113] = function() conn_filter = true  end,
     --[[W ]] [119] = function() conn_filter = false end,
     --[[E ]] [101] = function() conn_filter = nil   end,
+    --[[K ]] [107] = function()
+        if staged_action.action == 'kline' then
+            send_irc(
+                string.format('KLINE %s %s :%s\r\n',
+                    kline_durations[kline_duration][2],
+                    staged_action.mask,
+                    kline_reasons[kline_reason][2]
+                )
+            )
+            staged_action = nil
+        end
+    end,
 }
 
 function M.on_keyboard(key)

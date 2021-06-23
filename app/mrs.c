@@ -29,14 +29,15 @@ static void on_mrs_timer(uv_timer_t *timer)
     assert(0 == uv_getaddrinfo(loop, req, &on_mrs_getaddrinfo, HOST, NULL, &hints));
 
     hints.ai_family = PF_UNSPEC;
-    ROTATION("", "chat.freenode.net")
-    ROTATION("AU", "chat.au.freenode.net")
-    ROTATION("EU", "chat.eu.freenode.net")
-    ROTATION("US", "chat.us.freenode.net")
+    ROTATION("", "irc.libera.chat")
+    ROTATION("AU", "irc.au.libera.chat")
+    ROTATION("EA", "irc.ea.libera.chat")
+    ROTATION("EU", "irc.eu.libera.chat")
+    ROTATION("US", "irc.us.libera.chat")
     hints.ai_family = PF_INET;
-    ROTATION("IPV4", "chat.ipv4.freenode.net")
+    ROTATION("IPV4", "irc.ipv4.libera.chat")
     hints.ai_family = PF_INET6;
-    ROTATION("IPV6", "chat.ipv6.freenode.net")
+    ROTATION("IPV6", "irc.ipv6.libera.chat")
 
 #undef ROTATION
 }
