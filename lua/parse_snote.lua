@@ -5,6 +5,7 @@ end
     
 return function(time, server, str)
 
+    -- old format withot account
     local nick, user, host, ip, class, gecos = string.match(str, '^Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {([^}]*)} %[(.*)%]$')
     if nick then
         return {
@@ -17,6 +18,23 @@ return function(time, server, str)
             gecos = scrub(gecos),
             time = time,
             class = class,
+        }
+    end
+
+    -- new format with account
+    local nick, user, host, ip, class, account, gecos = string.match(str, '^Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {([^}]*)} <([^>]*)> %[(.*)%]$')
+    if nick then
+        return {
+            name = 'connect',
+            server = server,
+            nick = nick,
+            user = user,
+            host = host,
+            ip = ip,
+            gecos = scrub(gecos),
+            time = time,
+            class = class,
+            account = account,
         }
     end
 
