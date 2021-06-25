@@ -157,9 +157,7 @@ local kline_durations = {
 }
 
 local kline_reasons = {
---  {'freenodebl', 'Please email bans@libera.chat to request assistance with this ban.|!freenodebl botspam'},
     {'plain',      'Please email bans@libera.chat to request assistance with this ban.'},
-
     {'dronebl',    'Please email bans@libera.chat to request assistance with this ban.|!dnsbl'},
     {'broken',     'Your client is repeatedly reconnecting. Please email bans@libera.chat when fixed.'},
 }
@@ -264,11 +262,11 @@ local function draw_global_load()
     normal()
 
     if view == 2 then
-	    local n = 0
-	    for _,v in pairs(population) do n = n + v end
-	    addstr('              ')
-	    magenta()
-	    add_population(n)
+        local n = 0
+        for _,v in pairs(population) do n = n + v end
+        addstr('              ')
+        magenta()
+        add_population(n)
     end
 
     add_click(tty_height-1, 0, 9, function()
@@ -349,13 +347,13 @@ local function draw_buttons()
             staged_action = nil
         end)
 
-	addstr ' '
-	blue()
-	add_button('[SPY]', function()
-	    send_irc(
-	    	string.format('WHOIS !%s\r\n', staged_action.entry.nick)
-	    )
-	end)
+    addstr ' '
+    blue()
+    add_button('[SPY]', function()
+        send_irc(
+            string.format('WHOIS !%s\r\n', staged_action.entry.nick)
+        )
+    end)
 
     elseif staged_action and staged_action.action == 'unkline' then
         green()
@@ -466,10 +464,20 @@ views[1] = function()
             
             -- IP or REASON
             if show_reasons and not entry.connected then
-                magenta()
+                if entry.reason == 'K-Lined' then
+                    red()
+                else
+                    magenta()
+                end
                 mvaddstr(y, 80, string.sub(entry.reason, 1, 39))
             elseif entry.org then
-                yellow()
+                if entry.connected then
+                    yellow()
+                elseif entry.reason == 'K-Lined' then
+                    red()
+                else
+                    magenta()
+                end
                 mvaddstr(y, 80, string.sub(entry.org, 1, 39))
             else
                 yellow()
@@ -479,10 +487,17 @@ views[1] = function()
             blue()
             mvaddstr(y, 120, string.sub(entry.server, 1, 3))
             
-            -- GECOS
+            -- GECOS or account
             normal()
-            mvaddstr(y, 124, entry.gecos)
+            local account = entry.account
+            if account == '*' then
+                mvaddstr(y, 124, entry.gecos)
+            else
+                cyan()
+                mvaddstr(y, 124, account)
+            end
 
+            -- Click handlers
             if entry.reason == 'K-Lined' then
                 add_click(y, 0, tty_width, function()
                     entry_to_unkline(entry)
@@ -754,29 +769,9 @@ end
 
 local handlers = {}
 
-local function syn_connect(ev)
-    local oldkey = ev.nick .. '!' .. ev.user .. '@' .. ev.host
-    local entry = users:lookup(oldkey)
-    if entry and entry.connected then
-        local gateway = string.match(ev.host, '^(.*/)session$')
-        if gateway then
-            users:delete(oldkey)
-            entry.ip = ev.ip
-            entry.org = ip_org(ev.ip)
-            entry.host = gateway .. 'ip.' .. ev.ip
-            local key = entry.nick .. '!' .. entry.user .. '@' .. entry.host
-            entry.mask = key .. ' ' .. entry.gecos
-            users:delete(key)
-            users:insert(key, entry)
-        end
-    end
-end
-
 function handlers.connect(ev)
     local key = ev.nick .. '!' .. ev.user .. '@' .. ev.host
     local server = ev.server
-    
-    if server == 'syn.' then syn_connect(ev) return end
 
     local entry = users:insert(key, {count = 0})
     entry.server = ev.server
@@ -784,6 +779,7 @@ function handlers.connect(ev)
     entry.host = ev.host
     entry.user = ev.user
     entry.nick = ev.nick
+    entry.account = ev.account
     entry.ip = ev.ip
     entry.time = ev.time
     entry.connected = true
