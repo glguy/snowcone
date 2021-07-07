@@ -232,10 +232,10 @@ end
 local function draw_load_1(avg, i)
     if avg.n >= 60*i then
         attron(ncurses.A_BOLD)
-        addstr(string.format('%.2f  ', avg[i]))
+        addstr(string.format('%5.2f ', avg[i]))
         attroff(ncurses.A_BOLD)
     else
-        addstr(string.format('%.2f  ', avg[i]))
+        addstr(string.format('%5.2f ', avg[i]))
     end
 end
 
@@ -257,7 +257,7 @@ local function draw_global_load()
     attroff(ncurses.A_REVERSE)
     addstr(' ')
     magenta()
-    addstr('CLICON  ')
+    addstr('CLICON ')
     draw_load(conn_tracker.global)
     normal()
 
@@ -495,6 +495,7 @@ views[1] = function()
             else
                 cyan()
                 mvaddstr(y, 124, account)
+		normal()
             end
 
             -- Click handlers
@@ -585,7 +586,7 @@ views[2] = function()
     local next_color = 2
 
     green()
-    mvaddstr(pad,0, '          Server  1m    5m    15m   Connection History                                             Mn  Region AF  Conns  Link')
+    mvaddstr(pad,0, '          Server  1m    5m    15m  Connection History                                             Mn  Region AF  Conns  Link')
     normal()
     for i,row in ipairs(rows) do
         if i+1 >= tty_height then return end
@@ -595,7 +596,7 @@ views[2] = function()
         local info = server_classes[short] or {}
         local in_main = in_rotation('', info.ipv4, info.ipv6)
         if in_main then yellow() end
-        mvaddstr(pad+i,0, string.format('%16s  ', short))
+        mvaddstr(pad+i,0, string.format('%16s ', short))
         -- Main rotation info
         draw_load(avg)
         normal()
