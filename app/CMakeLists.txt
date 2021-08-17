@@ -1,7 +1,8 @@
 set(CURSES_NEED_WIDE TRUE)
 find_package(Curses REQUIRED)
 
-find_package(Lua 5.3 REQUIRED)
+include(FindPkgConfig)
+pkg_search_module(LUA REQUIRED lua>=5.3 lua5.3 lua-5.3 lua53 lua5.4 lua-5.4 lua54)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBUV REQUIRED IMPORTED_TARGET libuv)
