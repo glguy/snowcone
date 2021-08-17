@@ -16,7 +16,7 @@ void tls_wrapper(uv_loop_t *loop, char const* socat, int sock)
 {
     char *argv[4] = {};
 
-    argv[0] = strdup("/usr/bin/socat");
+    argv[0] = strdup("socat");
     asprintf(&argv[1], "FD:%d", sock);
     argv[2] = strdup(socat);
 
@@ -28,7 +28,7 @@ void tls_wrapper(uv_loop_t *loop, char const* socat, int sock)
     };
 
     uv_process_options_t options = {
-        .file = "/usr/bin/socat",
+        .file = "socat",
         .args = argv,
         .exit_cb = tls_exit,
         .stdio_count = sizeof containers / sizeof *containers,
