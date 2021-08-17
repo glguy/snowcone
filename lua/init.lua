@@ -411,7 +411,7 @@ views[1] = function()
                 mvaddstr(y, 0, '        ')
             else
                 last_time = time
-                
+
                 local age = uptime - (entry.timestamp or 0)
                 if age < 8 then
                     white()
@@ -461,7 +461,7 @@ views[1] = function()
                 normal()
                 addstr('…')
             end
-            
+
             -- IP or REASON
             if show_reasons and not entry.connected then
                 if entry.reason == 'K-Lined' then
@@ -486,7 +486,7 @@ views[1] = function()
 
             blue()
             mvaddstr(y, 120, string.sub(entry.server, 1, 3))
-            
+
             -- GECOS or account
             normal()
             local account = entry.account
@@ -518,7 +518,7 @@ views[1] = function()
             ::skip::
         end
     end
-    
+
     if rotating_view then
         local y = (clicon_n+1) % rows
         yellow()
@@ -615,7 +615,7 @@ views[2] = function()
         end
         render_mrs(info.region, info.ipv4, '4')
         render_mrs(info.region, info.ipv6, '6')
-        
+
         -- Family-specific info
         addstr('  ')
         render_mrs('IPV4'     , info.ipv4, '4')
@@ -674,7 +674,7 @@ views[3] = function()
         draw_load(avg)
         y = y + 1
     end
-    
+
 end
 
 -- Filter tracking
@@ -771,7 +771,7 @@ end
 local handlers = {}
 
 function handlers.connect(ev)
-    local key = ev.nick .. '!' .. ev.user .. '@' .. ev.host
+    local key = ev.nick
     local server = ev.server
 
     local entry = users:insert(key, {count = 0})
@@ -806,7 +806,7 @@ function handlers.connect(ev)
 end
 
 function handlers.disconnect(ev)
-    local key = ev.nick .. '!' .. ev.user .. '@' .. ev.host
+    local key = ev.nick
     local entry = users:lookup(key)
 
     local pop = population[ev.server]
@@ -821,13 +821,21 @@ function handlers.disconnect(ev)
     end
 end
 
+function handlers.nick(ev)
+    local user = users:lookup(ev.old)
+    if user then
+        user.nick = ev.new
+        users:rekey(ev.old, ev.new)
+    end
+end
+
 function handlers.kline(ev)
     kline_tracker:track(ev.nick)
 end
 
 function handlers.filter(ev)
     filter_tracker:track(ev.server)
-    local mask = ev.nick .. '!' .. ev.user .. '@' .. ev.ip
+    local mask = ev.nick
     local user = users:lookup(mask)
     if user then
         user.filters = (user.filters or 0) + 1
@@ -886,7 +894,7 @@ end
 -- RPL_TESTMASK_GECOS
 irc_handlers['727'] = function(irc)
     local loc, rem, mask = table.unpack(irc,2,4)
-    if staged_action and '*!'..staged_action.mask == mask then        
+    if staged_action and '*!'..staged_action.mask == mask then
         staged_action.count = math.tointeger(loc) + math.tointeger(rem)
     end
 end

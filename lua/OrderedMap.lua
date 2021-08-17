@@ -15,7 +15,7 @@ local function link_after(p, node)
     node.next = q
     q.prev = node
     node.prev = p
-end 
+end
 
 function OrderedMap:first_key()
     if self.n > 0 then
@@ -58,17 +58,27 @@ function OrderedMap:lookup(key)
     end
 end
 
+function OrderedMap:rekey(old, new)
+    self:delete(new)
+    local node = self.index[old]
+    if node then
+        node.key = new
+        self.index[old] = nil
+        self.index[new] = node
+    end
+end
+
 function OrderedMap:each()
     local function each_step(obj, prev)
         local node
         if prev then
             node = obj.index[prev].next
-        else 
+        else
             node = obj.next
         end
         return node.key, node.val
     end
-    
+
     return each_step, self
 end
 

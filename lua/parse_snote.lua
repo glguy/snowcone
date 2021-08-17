@@ -2,7 +2,7 @@
 local function scrub(str)
     return string.gsub(str, '%c', '~')
 end
-    
+
 return function(time, server, str)
 
     local nick, user, host, ip, class, account, gecos = string.match(str, '^Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {([^}]*)} <([^>]*)> %[(.*)%]$')
@@ -31,6 +31,7 @@ return function(time, server, str)
             host = host,
             reason = scrub(reason),
             ip = ip,
+            time = time,
         }
     end
 
@@ -44,7 +45,21 @@ return function(time, server, str)
             host = host,
             oper = oper,
             mask = mask,
-            reason = scrub(reason)
+            reason = scrub(reason),
+            time = time,
+        }
+
+    end
+    local old, new, user, host = string.match(str, '^Nick change: From (%g+) to (%g+) %[(%g+)@(%g+)%]$')
+    if old then
+        return {
+            name = 'nick',
+            server = server,
+            old = old,
+            new = new,
+            user = user,
+            host = host,
+            time = time,
         }
     end
 
@@ -57,6 +72,7 @@ return function(time, server, str)
             user = user,
             host = host,
             ip = ip,
+            time = time,
         }
     end
 end
