@@ -45,6 +45,7 @@ local LoadTracker        = require_ 'LoadTracker'
 local OrderedMap         = require_ 'OrderedMap'
 local compute_kline_mask = require_ 'freenode_masks'
 local parse_snote        = require_ 'parse_snote'
+local elements           = require_ 'elements'
 
 local views = {}
 
@@ -487,16 +488,18 @@ views[1] = function()
             end
 
             blue()
-            mvaddstr(y, 120, string.sub(entry.server, 1, 3))
+            local server = elements[string.match(entry.server, '[^.]*')]
+                        or string.substr(entry.server, 1, 2)
+            mvaddstr(y, 120, server)
 
             -- GECOS or account
             normal()
             local account = entry.account
             if account == '*' then
-                mvaddstr(y, 124, entry.gecos)
+                mvaddstr(y, 123, entry.gecos)
             else
                 cyan()
-                mvaddstr(y, 124, account)
+                mvaddstr(y, 123, account)
 		normal()
             end
 
