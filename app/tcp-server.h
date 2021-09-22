@@ -3,6 +3,6 @@
 
 #include <uv.h>
 
-void start_tcp_server(uv_loop_t *, char const*, char const*);
+int start_tcp_server(uv_loop_t *, char const*, char const*);
 
 #endif

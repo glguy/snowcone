@@ -43,7 +43,7 @@ static void on_timer(uv_timer_t *timer)
 
 static void on_file(uv_fs_event_t *handle, char const *filename, int events, int status);
 
-static void start_file_watcher(uv_loop_t *loop, char const* logic_name)
+static int start_file_watcher(uv_loop_t *loop, char const* logic_name)
 {
     uv_fs_event_t *files = malloc(sizeof *files);
     uv_fs_event_init(loop, files);
@@ -51,6 +51,8 @@ static void start_file_watcher(uv_loop_t *loop, char const* logic_name)
     char *temp = strdup(logic_name);
     uv_fs_event_start(files, &on_file, dirname(temp), 0);
     free(temp);
+
+    return 0;
 }
 
 static void on_file(uv_fs_event_t *handle, char const *filename, int events, int status)
@@ -124,23 +126,35 @@ int main(int argc, char *argv[])
     uv_signal_start(&winch, on_winch, SIGWINCH);
 
     /* start up networking */
-    start_irc(&loop, &cfg);
     if (cfg.console_service != NULL)
     {
-        start_tcp_server(&loop, cfg.console_node, cfg.console_service);
+        if (start_tcp_server(&loop, cfg.console_node, cfg.console_service))
+        {
+            goto cleanup;
+        }
     }
 
-    start_file_watcher(&loop, cfg.lua_filename);
+    if (start_irc(&loop, &cfg))
+    {
+        goto cleanup;
+    }
+
+    if (start_file_watcher(&loop, cfg.lua_filename))
+    {
+        goto cleanup;
+    }
 
     start_timer(&loop);
     start_mrs_timer(&loop);
 
     uv_run(&loop, UV_RUN_DEFAULT);
 
-    endwin();
+cleanup:
 
     uv_loop_close(&loop);
     app_free(loop.data);
+
+    endwin();
 
     return 0;
 }

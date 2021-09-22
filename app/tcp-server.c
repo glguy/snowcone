@@ -14,7 +14,7 @@
 static void on_new_connection(uv_stream_t *server, int status);
 static void on_line(void *data, char *msg);
 
-void start_tcp_server(uv_loop_t *loop, char const* node, char const* service)
+int start_tcp_server(uv_loop_t *loop, char const* node, char const* service)
 {
     struct addrinfo hints = {
         .ai_flags = AI_PASSIVE,
@@ -27,7 +27,7 @@ void start_tcp_server(uv_loop_t *loop, char const* node, char const* service)
     if (res < 0)
     {
         fprintf(stderr, "failed to resolve %s: %s\n", node, uv_strerror(res));
-        exit(1);
+        return 1;
     }
     
     for (struct addrinfo *ai = req.addrinfo; ai; ai = ai->ai_next)
@@ -36,31 +36,33 @@ void start_tcp_server(uv_loop_t *loop, char const* node, char const* service)
         if (NULL == tcp)
         {
             perror("malloc");
-            exit(EXIT_FAILURE);
+            return 1;
         }
 
         res = uv_tcp_init(loop, tcp);
         if (res < 0)
         {
             fprintf(stderr, "failed to create socket: %s\n", uv_strerror(res));
-            exit(EXIT_FAILURE);
+            return 1;
         }
 
         res = uv_tcp_bind(tcp, ai->ai_addr, 0);
         if (res < 0)
         {
             fprintf(stderr, "failed to bind: %s\n", uv_strerror(res));
-            exit(EXIT_FAILURE);
+            return 1;
         } 
 
         res = uv_listen((uv_stream_t*)tcp, SOMAXCONN, &on_new_connection);
         if (res < 0)
         {
             fprintf(stderr, "failed to listen: %s\n", uv_strerror(res));
-            exit(EXIT_FAILURE);
+            return 1;
         } 
     }
     uv_freeaddrinfo(req.addrinfo);
+
+    return 0;
 }
 
 static void on_new_connection(uv_stream_t *server, int status)

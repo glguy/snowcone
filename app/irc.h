@@ -5,6 +5,6 @@
 
 #include "configuration.h"
 
-void start_irc(uv_loop_t *loop, struct configuration *cfg);
+int start_irc(uv_loop_t *loop, struct configuration *cfg);
 
 #endif

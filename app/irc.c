@@ -31,21 +31,25 @@ static uv_tcp_t *make_connection(uv_loop_t *loop, struct configuration *cfg)
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, fds))
     {
         perror("socketpair");
-        exit(EXIT_FAILURE);
+        return NULL;
     }
 
     int oldflags = fcntl(fds[0], F_GETFD);
     if (oldflags < 0)
     {
         perror("fcntl");
-        exit(EXIT_FAILURE);
+        close(fds[0]);
+        close(fds[1]);
+        return NULL;
     }
 
     int res = fcntl(fds[0], F_SETFD, FD_CLOEXEC | oldflags);
     if (res < 0)
     {
         perror("fcntl");
-        exit(EXIT_FAILURE);
+        close(fds[0]);
+        close(fds[1]);
+        return NULL;
     }
 
     tls_wrapper(loop, cfg->irc_socat, fds[1]);
@@ -58,11 +62,15 @@ static uv_tcp_t *make_connection(uv_loop_t *loop, struct configuration *cfg)
     return tcp;
 }
 
-void start_irc(uv_loop_t *loop, struct configuration *cfg)
+int start_irc(uv_loop_t *loop, struct configuration *cfg)
 {
     struct app * const a = loop->data;
 
     uv_tcp_t *irc = make_connection(loop, cfg);
+    if (NULL == irc)
+    {
+        return 1;
+    }
  
     struct readline_data *irc_data = malloc(sizeof *irc_data);
     struct close_state *close_data = malloc(sizeof *close_data);
@@ -106,6 +114,8 @@ void start_irc(uv_loop_t *loop, struct configuration *cfg)
     app_set_irc(a, stream, to_write);
 
     uv_read_start(stream, &my_alloc_cb, &readline_cb);
+
+    return 0;
 }
 
 static void on_close(void *data)
