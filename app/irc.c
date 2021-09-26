@@ -56,7 +56,8 @@ static uv_tcp_t *make_connection(uv_loop_t *loop, struct configuration *cfg)
     close(fds[1]);
 
     if (start_error) {
-        fprintf(stderr, "Failed to spawn socat: %d\n", start_error);
+        fprintf(stderr, "Failed to spawn socat: %s\n", uv_strerror(start_error));
+        close(fds[0]);
         return NULL;
     }
 
