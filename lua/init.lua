@@ -43,7 +43,7 @@ end
 local server_classes     = require_ 'server_classes'
 local LoadTracker        = require_ 'LoadTracker'
 local OrderedMap         = require_ 'OrderedMap'
-local compute_kline_mask = require_ 'freenode_masks'
+local compute_kline_mask = require_ 'libera_masks'
 local parse_snote        = require_ 'parse_snote'
 local elements           = require_ 'elements'
 
