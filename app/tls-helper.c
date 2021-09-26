@@ -12,7 +12,7 @@
 
 static void tls_exit(uv_process_t *process, int64_t exit_status, int term_signal);
 
-void tls_wrapper(uv_loop_t *loop, char const* socat, int sock)
+int tls_wrapper(uv_loop_t *loop, char const* socat, int sock)
 {
     char *argv[4] = {};
 
@@ -36,11 +36,13 @@ void tls_wrapper(uv_loop_t *loop, char const* socat, int sock)
     };
 
     uv_process_t *process = malloc(sizeof *process);
-    uv_spawn(loop, process, &options);
+    int result = uv_spawn(loop, process, &options);
 
     free(argv[0]);
     free(argv[1]);
     free(argv[2]);
+
+    return result;
 }
 
 static void tls_exit(uv_process_t *process, int64_t exit_status, int term_signal)

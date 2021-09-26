@@ -52,8 +52,13 @@ static uv_tcp_t *make_connection(uv_loop_t *loop, struct configuration *cfg)
         return NULL;
     }
 
-    tls_wrapper(loop, cfg->irc_socat, fds[1]);
+    int start_error = tls_wrapper(loop, cfg->irc_socat, fds[1]);
     close(fds[1]);
+
+    if (start_error) {
+        fprintf(stderr, "Failed to spawn socat: %d\n", start_error);
+        return NULL;
+    }
 
     uv_tcp_t *tcp = malloc(sizeof *tcp);
     uv_tcp_init(loop, tcp);
