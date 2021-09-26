@@ -666,7 +666,7 @@ views[3] = function()
 
     if 3 <= tty_height then
         blue()
-        mvaddstr(tty_height-2, 0, string.format('%16s  ', 'KLINES'))
+        mvaddstr(tty_height-2, 0, string.format('%16s ', 'KLINES'))
         draw_load(kline_tracker.global)
         normal()
     end
@@ -675,7 +675,7 @@ views[3] = function()
         if y+2 >= tty_height then return end
         local avg = row.load
         local nick = row.name
-        mvaddstr(y, 0, string.format('%16s  ', nick))
+        mvaddstr(y, 0, string.format('%16s ', nick))
         draw_load(avg)
         y = y + 1
     end
@@ -704,13 +704,13 @@ views[4] = function()
         local avg = row.load
         local name = row.name
         local short = string.gsub(name, '%.libera%.chat$', '', 1)
-        mvaddstr(pad+i,0, string.format('%16s  ', short))
+        mvaddstr(pad+i,0, string.format('%16s ', short))
         draw_load(avg)
     end
 
     if 3 <= tty_height then
         blue()
-        mvaddstr(tty_height-2, 0, string.format('%16s  ', 'FILTERS'))
+        mvaddstr(tty_height-2, 0, string.format('%16s ', 'FILTERS'))
         draw_load(filter_tracker.global)
         normal()
     end
