@@ -20,7 +20,7 @@ make
 app/snowcone \
    -h ::1 -p 6000 \
    -S OPENSSL:[::1]:7000,certificate=certificate.pem \
-   -Nglguy -Xglguy@snowcone/freenode: \
+   -Nglguy -Xglguy@snowcone/libera: \
    ../lua/init.lua
 ```
 
