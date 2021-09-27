@@ -4,7 +4,6 @@
 #include <unistd.h>
 
 #include <uv.h>
-#include <uv/unix.h>
 
 #include "app.h"
 #include "buffer.h"
@@ -24,32 +23,11 @@ static void on_line(void *, char *msg);
 static void on_connect(uv_connect_t* req, int status);
 static void on_close(void *data);
 
-static void free_handle(uv_handle_t *handle)
-{
-    free(handle);
-}
-
-static uv_stream_t *make_connection(uv_loop_t *loop, struct configuration *cfg)
-{
-    uv_pipe_t *stream = malloc(sizeof *stream);
-    uv_pipe_init(loop, stream, 0);
-
-    int start_error = socat_wrapper(loop, cfg->irc_socat, (uv_stream_t*)stream);
-    
-    if (start_error) {
-        fprintf(stderr, "Failed to spawn socat: %s\n", uv_strerror(start_error));
-        uv_close((uv_handle_t*)stream, free_handle);
-        return NULL;
-    }
-
-    return (uv_stream_t*)stream;
-}
-
 int start_irc(uv_loop_t *loop, struct configuration *cfg)
 {
     struct app * const a = loop->data;
 
-    uv_stream_t *irc = make_connection(loop, cfg);
+    uv_stream_t *irc = socat_wrapper(loop, cfg->irc_socat);
     if (NULL == irc)
     {
         return 1;
