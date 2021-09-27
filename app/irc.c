@@ -12,7 +12,7 @@
 #include "irc.h"
 #include "read-line.h"
 #include "write.h"
-#include "tls-helper.h"
+#include "socat.h"
 
 struct close_state
 {
@@ -24,55 +24,32 @@ static void on_line(void *, char *msg);
 static void on_connect(uv_connect_t* req, int status);
 static void on_close(void *data);
 
-static uv_tcp_t *make_connection(uv_loop_t *loop, struct configuration *cfg)
+static void free_handle(uv_handle_t *handle)
 {
-    uv_os_sock_t fds[2];
+    free(handle);
+}
 
-    if (socketpair(AF_UNIX, SOCK_STREAM, 0, fds))
-    {
-        perror("socketpair");
-        return NULL;
-    }
+static uv_stream_t *make_connection(uv_loop_t *loop, struct configuration *cfg)
+{
+    uv_pipe_t *stream = malloc(sizeof *stream);
+    uv_pipe_init(loop, stream, 0);
 
-    int oldflags = fcntl(fds[0], F_GETFD);
-    if (oldflags < 0)
-    {
-        perror("fcntl");
-        close(fds[0]);
-        close(fds[1]);
-        return NULL;
-    }
-
-    int res = fcntl(fds[0], F_SETFD, FD_CLOEXEC | oldflags);
-    if (res < 0)
-    {
-        perror("fcntl");
-        close(fds[0]);
-        close(fds[1]);
-        return NULL;
-    }
-
-    int start_error = tls_wrapper(loop, cfg->irc_socat, fds[1]);
-    close(fds[1]);
-
+    int start_error = socat_wrapper(loop, cfg->irc_socat, (uv_stream_t*)stream);
+    
     if (start_error) {
         fprintf(stderr, "Failed to spawn socat: %s\n", uv_strerror(start_error));
-        close(fds[0]);
+        uv_close((uv_handle_t*)stream, free_handle);
         return NULL;
     }
 
-    uv_tcp_t *tcp = malloc(sizeof *tcp);
-    uv_tcp_init(loop, tcp);
-    uv_tcp_open(tcp, fds[0]);
-
-    return tcp;
+    return (uv_stream_t*)stream;
 }
 
 int start_irc(uv_loop_t *loop, struct configuration *cfg)
 {
     struct app * const a = loop->data;
 
-    uv_tcp_t *irc = make_connection(loop, cfg);
+    uv_stream_t *irc = make_connection(loop, cfg);
     if (NULL == irc)
     {
         return 1;
@@ -92,34 +69,32 @@ int start_irc(uv_loop_t *loop, struct configuration *cfg)
         .cfg = cfg,
     };
 
-    uv_stream_t *stream = (uv_stream_t*)irc;
-
     static char buffer[512];
     char const* msg;
 
     msg = "CAP REQ :znc.in/playback\r\n";
-    to_write(stream, msg, strlen(msg));
+    to_write(irc, msg, strlen(msg));
 
     msg = "CAP END\r\n";
-    to_write(stream, msg, strlen(msg));
+    to_write(irc, msg, strlen(msg));
 
     if (cfg->irc_pass)
     {
         snprintf(buffer, sizeof buffer, "PASS %s\r\n", cfg->irc_pass);
         buffer[sizeof buffer - 1] = '\0';
-        to_write(stream, buffer, strlen(buffer));
+        to_write(irc, buffer, strlen(buffer));
     }
 
     snprintf(buffer, sizeof buffer, "NICK %s\r\n", cfg->irc_nick);
     buffer[sizeof buffer - 1] = '\0';
-    to_write(stream, buffer, strlen(buffer));
+    to_write(irc, buffer, strlen(buffer));
 
     msg = "USER x * * x\r\n";
-    to_write(stream, msg, strlen(msg));
+    to_write(irc, msg, strlen(msg));
 
-    app_set_irc(a, stream, to_write);
+    app_set_irc(a, irc, to_write);
 
-    uv_read_start(stream, &my_alloc_cb, &readline_cb);
+    uv_read_start(irc, &my_alloc_cb, &readline_cb);
 
     return 0;
 }

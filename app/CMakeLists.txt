@@ -9,7 +9,7 @@ pkg_check_modules(LIBUV REQUIRED IMPORTED_TARGET libuv)
 include_directories (include src/lib ${LUA_INCLUDE_DIRS})
 
 add_executable(snowcone
-    main.c app.c tls-helper.c buffer.c configuration.c mygeoip.c
+    main.c app.c socat.c buffer.c configuration.c mygeoip.c
     ircmsg.c lua-ncurses.c irc.c tcp-server.c mrs.c write.c read-line.c)
 target_link_libraries(snowcone PRIVATE GeoIP PkgConfig::LIBUV ${LUA_LIBRARIES} ${CURSES_LIBRARIES})
 target_include_directories(snowcone PRIVATE ${LUA_INCLUDE_DIR} ${CURSES_INCLUDE_PATH})
