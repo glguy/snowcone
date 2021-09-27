@@ -30,7 +30,11 @@ By adding a listener on port 6000 I get a Lua console that I can use to inspect 
 program state.
 
 ```
-rlwrap nc ::1 6000
+$ rlwrap nc ::1 6000
+filter='!~' -- set the filter to match connections without ident
+print(filter) -- print the current filter
+!~
+filter=nil -- reset the filter
 ```
 
 The tool automatically reloads the Lua logic when you save the file so you can
@@ -38,18 +42,19 @@ quickly adapt to changing circumstances, apply custom filters, etc.
 
 Built-in keyboard shortcuts:
 
-```
-F1 - connections
-F2 - servers
-F3 - klines
-F4 - filters
-F5 - repeats
-Q - only live connections
-W - only dead connections
-E - all connections
-Page Up - scroll to older connections
-Page Down - scroll to newer connections
-```
+- <kbd>F1</kbd> - connections
+  - <kbd>Q</kbd> - only live connections
+  - <kbd>W</kbd> - only dead connections
+  - <kbd>E</kbd> - all connections
+  - <kbd>K</kbd> - **issue kline**
+- <kbd>F2</kbd> - servers
+- <kbd>F3</kbd> - klines
+- <kbd>F4</kbd> - filters
+- <kbd>F5</kbd> - repeats
+- <kbd>F6</kbd> - exits
+- <kbd>PgUp</kbd> - scroll up
+- <kbd>PgDn</kbd> - scroll down
+
 
 Built-in Lua console commands
 
@@ -62,5 +67,5 @@ Built-in Lua console commands
 
 snowcone expects to connect to your existing client. We know it works with irssi, weechat, and znc.
 
-* https://weechat.org/files/doc/stable/weechat_user.en.html#relay_irc_proxy
-* https://github.com/irssi/irssi/blob/master/docs/proxy.txt
+- https://weechat.org/files/doc/stable/weechat_user.en.html#relay_irc_proxy
+- https://github.com/irssi/irssi/blob/master/docs/proxy.txt
