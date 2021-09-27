@@ -58,16 +58,17 @@ quickly adapt to changing circumstances, apply custom filters, etc.
 
 Built-in keyboard shortcuts:
 
-- <kbd>F1</kbd> - connections
+- <kbd>F1</kbd> - recent connections
   - <kbd>Q</kbd> - only live connections
   - <kbd>W</kbd> - only dead connections
   - <kbd>E</kbd> - all connections
   - <kbd>K</kbd> - **issue kline**
-- <kbd>F2</kbd> - servers
-- <kbd>F3</kbd> - klines
-- <kbd>F4</kbd> - filters
-- <kbd>F5</kbd> - repeats
-- <kbd>F6</kbd> - exits
+- <kbd>F2</kbd> - server connection load
+- <kbd>F3</kbd> - recent exits
+- <kbd>F4</kbd> - server exit load
+- <kbd>F5</kbd> - kline load
+- <kbd>F6</kbd> - filter load
+- <kbd>F7</kbd> - reconnecting nicknames
 - <kbd>PgUp</kbd> - scroll up
 - <kbd>PgDn</kbd> - scroll down
 

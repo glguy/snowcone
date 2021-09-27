@@ -8,28 +8,26 @@ if not has_mmdb then mmdb = nil end
 require 'pl.stringx'.import()
 app.require_here()
 
-local addstr = ncurses.addstr
-local mvaddstr = ncurses.mvaddstr
-local erase = ncurses.erase
-local clear = ncurses.clear
-local refresh = ncurses.refresh
-local attron = ncurses.attron
-local attroff = ncurses.attroff
-local attrset = ncurses.attrset
+addstr = ncurses.addstr
+mvaddstr = ncurses.mvaddstr
+erase = ncurses.erase
+clear = ncurses.clear
+refresh = ncurses.refresh
+attron = ncurses.attron
+attroff = ncurses.attroff
+attrset = ncurses.attrset
 
-local function normal()     attrset(ncurses.A_NORMAL)     end
-local function bold()       attron(ncurses.A_BOLD)        end
-local function underline()  attron(ncurses.A_UNDERLINE)   end
-local function red()        attron(ncurses.red)           end
-local function green()      attron(ncurses.green)         end
-local function blue()       attron(ncurses.blue)          end
-local function cyan()       attron(ncurses.cyan)          end
-local function black()      attron(ncurses.black)         end
-local function magenta()    attron(ncurses.magenta)       end
-local function yellow()     attron(ncurses.yellow)        end
-local function white()      attron(ncurses.white)         end
-
-local palette = {black, red, green, yellow, blue, magenta, cyan, white}
+function normal()     attrset(ncurses.A_NORMAL)     end
+function bold()       attron(ncurses.A_BOLD)        end
+function underline()  attron(ncurses.A_UNDERLINE)   end
+function red()        attron(ncurses.red)           end
+function green()      attron(ncurses.green)         end
+function blue()       attron(ncurses.blue)          end
+function cyan()       attron(ncurses.cyan)          end
+function black()      attron(ncurses.black)         end
+function magenta()    attron(ncurses.magenta)       end
+function yellow()     attron(ncurses.yellow)        end
+function white()      attron(ncurses.white)         end
 
 local spinner = {'◴','◷','◶','◵'}
 
@@ -40,13 +38,16 @@ end
 
 -- Local modules ======================================================
 
-local server_classes     = require_ 'server_classes'
+server_classes = require_ 'server_classes'
+elements       = require_ 'elements'
+
 local LoadTracker        = require_ 'LoadTracker'
 local OrderedMap         = require_ 'OrderedMap'
 local compute_kline_mask = require_ 'libera_masks'
 local parse_snote        = require_ 'parse_snote'
-local elements           = require_ 'elements'
-
+local view_recent_conn   = require_ 'view_recent_conn'
+local view_recent_exit   = require_ 'view_recent_exit'
+local view_server_load   = require_ 'view_server_load'
 local views = {}
 
 -- Global state =======================================================
@@ -66,6 +67,7 @@ local defaults = {
     exits = OrderedMap(),
     kline_tracker = LoadTracker(),
     conn_tracker = LoadTracker(),
+    exit_tracker = LoadTracker(),
     view = 1,
     uptime = 0,
     mrs = {},
@@ -128,7 +130,9 @@ end
 
 -- Prepopulate the server list
 for k,_ in pairs(server_classes) do
-    conn_tracker:track(k..'.libera.chat', 0)
+    local server = k..'.libera.chat'
+    conn_tracker:track(server, 0)
+    exit_tracker:track(server, 0)
 end
 
 -- GeoIP lookup =======================================================
@@ -153,13 +157,13 @@ end
 
 -- Kline logic ========================================================
 
-local kline_durations = {
+kline_durations = {
     {'4h','240'},
     {'1d','1400'},
     {'3d','4320'}
 }
 
-local kline_reasons = {
+kline_reasons = {
     {'plain',      'Please email bans@libera.chat to request assistance with this ban.'},
     {'dronebl',    'Please email bans@libera.chat to request assistance with this ban.|!dnsbl'},
     {'broken',     'Your client is repeatedly reconnecting. Please email bans@libera.chat when fixed.'},
@@ -176,17 +180,17 @@ local function entry_to_kline(entry)
     end
 end
 
-local function entry_to_unkline(entry)
+function entry_to_unkline(entry)
     local mask = entry.user .. '@' .. entry.ip
     send_irc('TESTLINE ' .. mask .. '\r\n')
     staged_action = {action = 'unkline', entry = entry}
 end
 
-local function kline_ready()
+function kline_ready()
     return view == 1 and staged_action ~= nil and staged_action.action == 'kline'
 end
 
-local function unkline_ready()
+function unkline_ready()
     return view == 1
         and staged_action ~= nil
         and staged_action.action == 'unkline'
@@ -195,7 +199,7 @@ end
 
 -- Mouse logic ========================================================
 
-local function add_click(y, lo, hi, action)
+function add_click(y, lo, hi, action)
     local list = clicks[y]
     local entry = {lo=lo, hi=hi, action=action}
     if list then
@@ -205,7 +209,7 @@ local function add_click(y, lo, hi, action)
     end
 end
 
-local function add_button(text, action)
+function add_button(text, action)
     local y1,x1 = ncurses.getyx()
     attron(ncurses.A_REVERSE)
     addstr(text)
@@ -214,10 +218,9 @@ local function add_button(text, action)
     add_click(y1, x1, x2, action)
 end
 
-
 -- Screen rendering ===================================================
 
-local function add_population(pop)
+function add_population(pop)
     if pop then
         if pop < 1000 then
             addstr(string.format('  %5d', pop))
@@ -242,7 +245,7 @@ local function draw_load_1(avg, i)
     end
 end
 
-local function draw_load(avg)
+function draw_load(avg)
     draw_load_1(avg, 1)
     draw_load_1(avg, 5)
     draw_load_1(avg,15)
@@ -253,18 +256,18 @@ local function draw_load(avg)
     addstr(']')
 end
 
-local function draw_global_load()
+function draw_global_load(title, tracker)
     if kline_ready() then red () else white() end
     attron(ncurses.A_REVERSE)
     mvaddstr(tty_height-1, 0, 'sn' .. spinner[uptime % #spinner + 1] .. 'wcone')
     attroff(ncurses.A_REVERSE)
     addstr(' ')
     magenta()
-    addstr('CLICON ')
-    draw_load(conn_tracker.global)
+    addstr(title .. ' ')
+    draw_load(tracker.global)
     normal()
 
-    if view == 2 then
+    if view == 2 or view == 4 then
         local n = 0
         for _,v in pairs(population) do n = n + v end
         addstr('              ')
@@ -277,14 +280,14 @@ local function draw_global_load()
     end)
 end
 
-local function show_entry(entry)
+function show_entry(entry)
     return
     (server_filter == nil or server_filter == entry.server) and
     (conn_filter == nil or conn_filter == entry.connected) and
     (filter      == nil or string.match(entry.mask, filter))
 end
 
-local function draw_buttons()
+function draw_buttons()
     mvaddstr(tty_height-2, 0, ' ')
     bold()
 
@@ -386,268 +389,19 @@ local function draw_buttons()
     normal()
 end
 
-views[1] = function()
-    local skips = scroll or 0
-    local last_time
-    local n = 0
-    local rotating_view = scroll == 0 and conn_filter == nil
-
-    local rows = math.max(1, tty_height-2)
-
-    for _, entry in users:each() do
-        if show_entry(entry) then
-            local y
-            if rotating_view then
-                if n >= rows-1 then break end
-                y = (clicon_n-n) % rows
-            else
-                if n >= rows then break end
-                y = rows-n-1
-            end
-
-            if skips > 0 then skips = skips - 1 goto skip end
-
-            -- TIME
-            local time = entry.time
-            local timetxt
-            if time == last_time then
-                mvaddstr(y, 0, '        ')
-            else
-                last_time = time
-
-                local age = uptime - (entry.timestamp or 0)
-                if age < 8 then
-                    white()
-                    mvaddstr(y, 0, string.sub(time, 1, 8-age))
-                    cyan()
-                    addstr(string.sub(time, 9-age, 8))
-                else
-                    cyan()
-                    mvaddstr(y, 0, time)
-                end
-                normal()
-            end
-
-            local mask_color = entry.connected and ncurses.green or ncurses.red
-
-            if entry.filters then
-                attron(mask_color)
-                addstr(string.format(' %3d! ', entry.filters))
-            else
-                if entry.count < 2 then
-                    black()
-                end
-                addstr(string.format(" %4d ", entry.count))
-            end
-            -- MASK
-            if highlight and (
-                highlight_plain     and highlight == entry.mask or
-                not highlight_plain and string.match(entry.mask, highlight)) then
-                    bold()
-            end
-
-            attron(mask_color)
-            addstr(entry.nick)
-            black()
-            addstr('!')
-            attron(mask_color)
-            addstr(entry.user)
-            black()
-            addstr('@')
-            attron(mask_color)
-            local maxwidth = 63 - #entry.nick - #entry.user
-            if #entry.host <= maxwidth then
-                addstr(entry.host)
-                normal()
-            else
-                addstr(string.sub(entry.host, 1, maxwidth-1))
-                normal()
-                addstr('…')
-            end
-
-            -- IP or REASON
-            if show_reasons and not entry.connected then
-                if entry.reason == 'K-Lined' then
-                    red()
-                else
-                    magenta()
-                end
-                mvaddstr(y, 80, string.sub(entry.reason, 1, 39))
-            elseif entry.org then
-                if entry.connected then
-                    yellow()
-                elseif entry.reason == 'K-Lined' then
-                    red()
-                else
-                    magenta()
-                end
-                mvaddstr(y, 80, string.sub(entry.org, 1, 39))
-            else
-                yellow()
-                mvaddstr(y, 80, entry.ip)
-            end
-
-            blue()
-            local server = elements[string.match(entry.server, '[^.]*')]
-                        or string.substr(entry.server, 1, 2)
-            mvaddstr(y, 120, server)
-
-            -- GECOS or account
-            normal()
-            local account = entry.account
-            if account == '*' then
-                mvaddstr(y, 123, entry.gecos)
-            else
-                cyan()
-                mvaddstr(y, 123, account)
-		normal()
-            end
-
-            -- Click handlers
-            if entry.reason == 'K-Lined' then
-                add_click(y, 0, tty_width, function()
-                    entry_to_unkline(entry)
-                    highlight = entry.mask
-                    highlight_plain = true
-                end)
-            else
-                add_click(y, 0, tty_width, function()
-                    entry_to_kline(entry)
-                    highlight = entry.mask
-                    highlight_plain = true
-                end)
-            end
-
-            n = n + 1
-
-            ::skip::
-        end
-    end
-
-    if rotating_view then
-        local y = (clicon_n+1) % rows
-        yellow()
-        mvaddstr(y, 0, string.rep('·', tty_width))
-    end
-
-    draw_buttons()
-
-    draw_global_load()
-
-    if scroll ~= 0 then
-        addstr(string.format(' scroll %d', scroll))
-    end
-    if filter ~= nil then
-        yellow()
-        addstr(' FILTER ')
-        normal()
-        addstr(string.format('%q', filter))
-    end
-    if conn_filter ~= nil then
-        if conn_filter then
-            green() addstr(' LIVE')
-        else
-            red() addstr(' DEAD')
-        end
-        normal()
-    end
-    if last_key ~= nil then
-        addstr(' key ' .. tostring(last_key))
-    end
-end
-
-local function in_rotation(region, a1, a2)
-    local ips = mrs[region] or {}
-    return ips[a1] or ips[a2]
-end
-
-local function render_mrs(zone, addr, str)
-    if not addr then
-        addstr ' '
-    elseif in_rotation(zone, addr) then
-        yellow()
-        addstr(str)
-        normal()
-    else
-        addstr(str)
-    end
-end
+views[1] = view_recent_conn
 
 -- Server connections
-views[2] = function()
-    draw_global_load()
+views[2] = view_server_load('Connection History', 'CLICON', ncurses.green, conn_tracker)
 
-    local rows = {}
-    for server,avg in pairs(conn_tracker.detail) do
-        table.insert(rows, {name=server,load=avg})
-    end
-    table.sort(rows, function(x,y)
-        return x.name < y.name
-    end)
+views[3] = view_recent_exit
 
-    local pad = math.max(tty_height - #rows - 2, 0)
-
-    local upcolor = {}
-    local next_color = 2
-
-    green()
-    mvaddstr(pad,0, '          Server  1m    5m    15m  Connection History                                             Mn  Region AF  Conns  Link')
-    normal()
-    for i,row in ipairs(rows) do
-        if i+1 >= tty_height then return end
-        local avg = row.load
-        local name = row.name
-        local short = string.gsub(name, '%..*', '', 1)
-        local info = server_classes[short] or {}
-        local in_main = in_rotation('', info.ipv4, info.ipv6)
-        if in_main then yellow() end
-        mvaddstr(pad+i,0, string.format('%16s ', short))
-        -- Main rotation info
-        draw_load(avg)
-        normal()
-        addstr(' ')
-        render_mrs('',          info.ipv4, '4')
-        render_mrs('',          info.ipv6, '6')
-
-        -- Regional info
-        local region = info.region
-        if region then
-            region_color[region]()
-            addstr('  ' .. region .. ' ')
-            normal()
-        else
-            addstr('     ')
-        end
-        render_mrs(info.region, info.ipv4, '4')
-        render_mrs(info.region, info.ipv6, '6')
-
-        -- Family-specific info
-        addstr('  ')
-        render_mrs('IPV4'     , info.ipv4, '4')
-        render_mrs('IPV6'     , info.ipv6, '6')
-
-        add_population(population[name])
-
-        local link = upstream[name]
-        if link then
-            local color = upcolor[link]
-            if not color then
-                color = palette[next_color]
-                upcolor[link] = color
-                next_color = next_color % #palette + 1
-            end
-            color()
-            addstr('  '..string.sub(link, 1, 4))
-            normal()
-        else
-            addstr('      ')
-        end
-    end
-end
+-- Server connections
+views[4] = view_server_load('Disconnection History', 'CLIEXI', ncurses.red, exit_tracker)
 
 -- K-Line tracking
-views[3] = function()
-    draw_global_load()
+views[5] = function()
+    draw_global_load('CLICON', conn_tracker)
 
     local rows = {}
     for nick,avg in pairs(kline_tracker.detail) do
@@ -683,8 +437,8 @@ views[3] = function()
 end
 
 -- Filter tracking
-views[4] = function()
-    draw_global_load()
+views[6] = function()
+    draw_global_load('CLICON', conn_tracker)
 
     local rows = {}
     for server,avg in pairs(filter_tracker.detail) do
@@ -730,8 +484,8 @@ local function top_keys(tab)
 end
 
 -- Repeat connection tracking
-views[5] = function()
-    draw_global_load()
+views[7] = function()
+    draw_global_load('CLICON', conn_tracker)
 
     local nick_counts, mask_counts = {}, {}
     for mask, user in users:each() do
@@ -761,106 +515,6 @@ views[5] = function()
             normal()
         end
     end
-end
-
-views[6] = function()
-    draw_global_load()
-
-    local n = 0
-    local rows = math.max(1, tty_height-2)
-
-    local last_time
-    for _, entry in exits:each() do
-        if n >= rows-1 then break end
-        y = (cliexit_n-n) % rows
-
-        -- TIME
-        local time = entry.time
-        local timetxt
-        if time == last_time then
-            mvaddstr(y, 0, '        ')
-        else
-            last_time = time
-
-            local age = uptime - (entry.timestamp or 0)
-            if age < 8 then
-                white()
-                mvaddstr(y, 0, string.sub(time, 1, 8-age))
-                cyan()
-                addstr(string.sub(time, 9-age, 8))
-            else
-                cyan()
-                mvaddstr(y, 0, time)
-            end
-        end
-
-        addstr('      ')
-        local mask_color = ncurses.red
-        -- MASK
-
-        attron(mask_color)
-        addstr(entry.nick)
-        black()
-        addstr('!')
-        attron(mask_color)
-        addstr(entry.user)
-        black()
-        addstr('@')
-        attron(mask_color)
-        local maxwidth = 63 - #entry.nick - #entry.user
-        if #entry.host <= maxwidth then
-            addstr(entry.host)
-            normal()
-        else
-            addstr(string.sub(entry.host, 1, maxwidth-1))
-            normal()
-            addstr('…')
-        end
-
-        -- IP or REASON
-        if show_reasons then
-            if entry.reason == 'K-Lined' then
-                red()
-            else
-                magenta()
-            end
-            mvaddstr(y, 80, string.sub(entry.reason, 1, 39))
-        elseif entry.org then
-            if entry.connected then
-                yellow()
-            elseif entry.reason == 'K-Lined' then
-                red()
-            else
-                magenta()
-            end
-            mvaddstr(y, 80, string.sub(entry.org, 1, 39))
-        else
-            yellow()
-            mvaddstr(y, 80, entry.ip)
-        end
-
-        blue()
-        mvaddstr(y, 120, string.sub(entry.server, 1, 3))
-
-        -- Click handlers
-        if entry.reason == 'K-Lined' then
-            add_click(y, 0, tty_width, function()
-                entry_to_unkline(entry)
-            end)
-        else
-            add_click(y, 0, tty_width, function()
-                entry_to_kline(entry)
-            end)
-        end
-
-        n = n + 1
-    end
-
-    local y = (cliexit_n+1) % rows
-    yellow()
-    mvaddstr(y, 0, string.rep('·', tty_width))
-
-    draw_buttons()
 end
 
 local function draw()
@@ -914,6 +568,7 @@ function handlers.disconnect(ev)
     local key = ev.nick
     local entry = users:lookup(key)
 
+    exit_tracker:track(ev.server)
     local pop = population[ev.server]
     if pop then
         population[ev.server] = pop - 1
@@ -1079,6 +734,7 @@ end
 function M.on_timer()
     uptime = uptime + 1
     conn_tracker:tick()
+    exit_tracker:tick()
     kline_tracker:tick()
     filter_tracker:tick()
     draw()
@@ -1091,6 +747,7 @@ local keys = {
     [ncurses.KEY_F4] = function() view = 4 draw() end,
     [ncurses.KEY_F5] = function() view = 5 draw() end,
     [ncurses.KEY_F6] = function() view = 6 draw() end,
+    [ncurses.KEY_F7] = function() view = 7 draw() end,
     [ncurses.KEY_PPAGE] = function()
         scroll = scroll + math.max(1, tty_height - 1)
         scroll = math.min(scroll, users.n - 1)
