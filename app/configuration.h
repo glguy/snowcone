@@ -9,6 +9,8 @@ struct configuration
     char const* irc_socat;
     char const* irc_nick;
     char const* irc_pass;
+    char const* irc_user;
+    char const* irc_gecos;
 };
 
 struct configuration load_configuration(int argc, char **argv);

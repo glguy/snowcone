@@ -10,7 +10,21 @@ Penlight shows up in Lua as `pl`. If you get errors about finding things like `p
 
 ## Usage
 
-How I run this
+```
+usage: snowcode
+         [-h console_host]
+         [-p console_port]
+         [-S irc_socat]
+         [-N irc_nick]
+         [-U irc_user]
+         [-G irc_gecos]
+         [-X irc_password]
+         LUA_FILE
+```
+
+To keep the IRC password out of your command-line arguments you can set the `IRC_PASSWORD` environment variable.
+
+How I run this:
 
 ```
 mkdir build
@@ -20,7 +34,9 @@ make
 app/snowcone \
    -h ::1 -p 6000 \
    -S OPENSSL:[::1]:7000,certificate=certificate.pem \
-   -Nglguy -Xglguy@snowcone/libera: \
+   -N glguy \
+   -U glguy@snowcone/libera \
+   -X x \
    ../lua/init.lua
 ```
 
@@ -67,5 +83,5 @@ Built-in Lua console commands
 
 snowcone expects to connect to your existing client. We know it works with irssi, weechat, and znc.
 
-- https://weechat.org/files/doc/stable/weechat_user.en.html#relay_irc_proxy
-- https://github.com/irssi/irssi/blob/master/docs/proxy.txt
+- [weechat IRC proxy documentation](https://weechat.org/files/doc/stable/weechat_user.en.html#relay_irc_proxy)
+- [irssi IRC proxy documentation](https://github.com/irssi/irssi/blob/master/docs/proxy.txt)

@@ -59,16 +59,16 @@ int start_irc(uv_loop_t *loop, struct configuration *cfg)
     if (cfg->irc_pass)
     {
         snprintf(buffer, sizeof buffer, "PASS %s\r\n", cfg->irc_pass);
-        buffer[sizeof buffer - 1] = '\0';
         to_write(irc, buffer, strlen(buffer));
     }
 
     snprintf(buffer, sizeof buffer, "NICK %s\r\n", cfg->irc_nick);
-    buffer[sizeof buffer - 1] = '\0';
     to_write(irc, buffer, strlen(buffer));
 
-    msg = "USER x * * x\r\n";
-    to_write(irc, msg, strlen(msg));
+    char const* irc_user = cfg->irc_user ? cfg->irc_user : "x";
+    char const* irc_gecos = cfg->irc_gecos ? cfg->irc_gecos : "x";
+    snprintf(buffer, sizeof buffer, "USER %s * * %s\r\n", irc_user, irc_gecos);
+    to_write(irc, buffer, strlen(buffer));
 
     app_set_irc(a, irc, to_write);
 

@@ -12,6 +12,8 @@ noreturn static void usage(void)
                     "         [-p console_port]\n"
                     "         [-S irc_socat]\n"
                     "         [-N irc_nick]\n"
+                    "         [-U irc_user]\n"
+                    "         [-G irc_gecos]\n"
                     "         [-X irc_password]\n"
                     "         LUA_FILE\n");
     exit(EXIT_FAILURE);
@@ -21,14 +23,18 @@ struct configuration load_configuration(int argc, char **argv)
 {
     struct configuration cfg = {};
 
+    cfg.irc_pass = getenv("IRC_PASSWORD");
+
     int opt;
-    while ((opt = getopt(argc, argv, "h:p:S:X:N:")) != -1) {
+    while ((opt = getopt(argc, argv, "h:p:S:X:N:U:G:")) != -1) {
         switch (opt) {
         case 'h': cfg.console_node = optarg; break;
         case 'p': cfg.console_service = optarg; break;
+        case 'G': cfg.irc_gecos = optarg; break;
         case 'N': cfg.irc_nick = optarg; break;
-        case 'X': cfg.irc_pass = optarg; break;
         case 'S': cfg.irc_socat = optarg; break;
+        case 'U': cfg.irc_user = optarg; break;
+        case 'X': cfg.irc_pass = optarg; break;
         default: usage();
         }
     }
