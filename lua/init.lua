@@ -169,7 +169,7 @@ kline_reasons = {
     {'broken',     'Your client is repeatedly reconnecting. Please email bans@libera.chat when fixed.'},
 }
 
-local function entry_to_kline(entry)
+function entry_to_kline(entry)
     local success, mask = pcall(compute_kline_mask, entry.user, entry.ip, entry.host, trust_uname)
     if success then
         staged_action = {action='kline', mask=mask, entry=entry}
