@@ -65,8 +65,8 @@ int start_irc(uv_loop_t *loop, struct configuration *cfg)
     snprintf(buffer, sizeof buffer, "NICK %s\r\n", cfg->irc_nick);
     to_write(irc, buffer, strlen(buffer));
 
-    char const* irc_user = cfg->irc_user ? cfg->irc_user : "x";
-    char const* irc_gecos = cfg->irc_gecos ? cfg->irc_gecos : "x";
+    char const* irc_user = cfg->irc_user ? cfg->irc_user : cfg->irc_nick;
+    char const* irc_gecos = cfg->irc_gecos ? cfg->irc_gecos : cfg->irc_nick;
     snprintf(buffer, sizeof buffer, "USER %s * * %s\r\n", irc_user, irc_gecos);
     to_write(irc, buffer, strlen(buffer));
 

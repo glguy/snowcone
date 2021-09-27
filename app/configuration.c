@@ -7,7 +7,7 @@
 
 noreturn static void usage(void) 
 {
-    fprintf(stderr, "usage: snowcode\n"
+    fprintf(stderr, "usage: snowcone\n"
                     "         [-h console_host]\n"
                     "         [-p console_port]\n"
                     "         [-S irc_socat]\n"
@@ -42,8 +42,27 @@ struct configuration load_configuration(int argc, char **argv)
     argv += optind;
     argc -= optind;
 
+    int show_usage = 0;
+
+    if (NULL == cfg.irc_nick)
+    {
+        fprintf(stderr, "IRC nickname required (-N).\n");
+        show_usage = 1;
+    }
+
+    if (NULL == cfg.irc_socat)
+    {
+        fprintf(stderr, "socat connection argument required (-S).\n");
+        show_usage = 1;
+    }
+
     if (argc != 1)
     {
+        fprintf(stderr, "Lua filename required (LUA_FILE).\n");
+        show_usage = 1;
+    }
+
+    if (show_usage) {
         usage();
     }
 
