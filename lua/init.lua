@@ -166,7 +166,7 @@ local kline_reasons = {
 }
 
 local function entry_to_kline(entry)
-    local success, mask = pcall(compute_kline_mask, entry.user, entry.ip, entry.host, entry.gecos, trust_uname)
+    local success, mask = pcall(compute_kline_mask, entry.user, entry.ip, entry.host, trust_uname)
     if success then
         staged_action = {action='kline', mask=mask, entry=entry}
         send_irc('TESTMASK ' .. mask .. '\r\n')
