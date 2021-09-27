@@ -57,3 +57,10 @@ Built-in Lua console commands
 /reload - reruns the Lua program preserving the global environment
 /restart - forces a restart of the Lua environment
 ```
+
+## Known working clients
+
+snowcone expects to connect to your existing client. We know it works with irssi, weechat, and znc.
+
+* https://weechat.org/files/doc/stable/weechat_user.en.html#relay_irc_proxy
+* https://github.com/irssi/irssi/blob/master/docs/proxy.txt
