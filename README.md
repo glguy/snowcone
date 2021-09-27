@@ -2,11 +2,11 @@
 
 ## Dependencies
 
-(switch to Lua 5.4 on Debian Bullseye)
-
 ```
 apt install libgeoip-dev lua5.3 liblua5.3-dev lua-geoip lua-penlight lua-penlight-dev libuv1-dev
 ```
+
+Penlight shows up in Lua as `pl`. If you get errors about finding things like `pl.app`, then Penlight isn't installed for the version of Lua you're building with.
 
 ## Usage
 
