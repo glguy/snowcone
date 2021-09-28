@@ -1,6 +1,6 @@
 local app = require 'pl.app'
-local Set = require 'pl.Set'
-local tablex = require 'pl.tablex'
+Set = require 'pl.Set'
+tablex = require 'pl.tablex'
 
 local has_mmdb, mmdb = pcall(require, 'mmdb')
 if not has_mmdb then mmdb = nil end
@@ -31,7 +31,7 @@ function white()      attron(ncurses.white)         end
 
 local spinner = {'◴','◷','◶','◵'}
 
-local function require_(name)
+function require_(name)
     package.loaded[name] = nil
     return require(name)
 end
@@ -44,11 +44,7 @@ elements       = require_ 'elements'
 local LoadTracker        = require_ 'LoadTracker'
 local OrderedMap         = require_ 'OrderedMap'
 local compute_kline_mask = require_ 'libera_masks'
-local parse_snote        = require_ 'parse_snote'
-local view_recent_conn   = require_ 'view_recent_conn'
-local view_recent_exit   = require_ 'view_recent_exit'
-local view_server_load   = require_ 'view_server_load'
-local views = {}
+local views
 
 -- Global state =======================================================
 
@@ -137,7 +133,7 @@ end
 
 -- GeoIP lookup =======================================================
 
-local function ip_org(addr)
+function ip_org(addr)
     if geoip and string.match(addr, '%.') then
         local result = geoip:search_ipv4(addr)
         return result and result.autonomous_system_organization
@@ -153,7 +149,6 @@ local function ip_org(addr)
         return geoip6:get_name_by_addr_v6(addr)
     end
 end
-
 
 -- Kline logic ========================================================
 
@@ -187,11 +182,13 @@ function entry_to_unkline(entry)
 end
 
 function kline_ready()
-    return view == 1 and staged_action ~= nil and staged_action.action == 'kline'
+    return (view == 1 or view == 3)
+       and staged_action ~= nil
+       and staged_action.action == 'kline'
 end
 
 function unkline_ready()
-    return view == 1
+    return (view == 1 or view == 3)
         and staged_action ~= nil
         and staged_action.action == 'unkline'
         and staged_action.mask ~= nil
@@ -353,15 +350,7 @@ function draw_buttons()
             staged_action = nil
         end)
 
-    addstr ' '
-    blue()
-    add_button('[SPY]', function()
-        send_irc(
-            string.format('WHOIS !%s\r\n', staged_action.entry.nick)
-        )
-    end)
-
-    elseif staged_action and staged_action.action == 'unkline' then
+    elseif unkline_ready() then
         green()
         add_button('[ CANCEL UNKLINE ]', function()
             staged_action = nil
@@ -389,322 +378,31 @@ function draw_buttons()
     normal()
 end
 
-views[1] = view_recent_conn
+local view_server_load = require_ 'view_server_load'
+local view_simple_load = require_ 'view_simple_load'
+views = {
+    -- Recent connections
+    require_ 'view_recent_conn',
+    -- Server connections
+    view_server_load('Connection History', 'CLICON', ncurses.green, conn_tracker),
+    -- Recent exists
+    require_ 'view_recent_exit',
+    -- Server exits
+    view_server_load('Disconnection History', 'CLIEXI', ncurses.red, exit_tracker),
+    -- K-Line tracking
+    view_simple_load('K-Liner', 'KLINES', 'K-Line History', kline_tracker),
+    -- Filter tracking
+    view_simple_load('Server', 'FILTERS', 'Filter History', filter_tracker),
+    -- Repeat connection tracking
+    require_ 'view_reconnects',
+}
 
--- Server connections
-views[2] = view_server_load('Connection History', 'CLICON', ncurses.green, conn_tracker)
-
-views[3] = view_recent_exit
-
--- Server connections
-views[4] = view_server_load('Disconnection History', 'CLIEXI', ncurses.red, exit_tracker)
-
--- K-Line tracking
-views[5] = function()
-    draw_global_load('CLICON', conn_tracker)
-
-    local rows = {}
-    for nick,avg in pairs(kline_tracker.detail) do
-        table.insert(rows, {name=nick,load=avg})
-    end
-    table.sort(rows, function(x,y)
-        return x.name < y.name
-    end)
-
-    local y = math.max(tty_height - #rows - 3, 0)
-
-    green()
-    mvaddstr(y, 0, '         K-Liner  1m    5m    15m   Kline History')
-    normal()
-    y = y + 1
-
-    if 3 <= tty_height then
-        blue()
-        mvaddstr(tty_height-2, 0, string.format('%16s ', 'KLINES'))
-        draw_load(kline_tracker.global)
-        normal()
-    end
-
-    for _, row in ipairs(rows) do
-        if y+2 >= tty_height then return end
-        local avg = row.load
-        local nick = row.name
-        mvaddstr(y, 0, string.format('%16s ', nick))
-        draw_load(avg)
-        y = y + 1
-    end
-
-end
-
--- Filter tracking
-views[6] = function()
-    draw_global_load('CLICON', conn_tracker)
-
-    local rows = {}
-    for server,avg in pairs(filter_tracker.detail) do
-        table.insert(rows, {name=server,load=avg})
-    end
-    table.sort(rows, function(x,y)
-        return x.name < y.name
-    end)
-
-    local pad = math.max(tty_height - #rows - 3, 0)
-
-    green()
-    mvaddstr(pad,0, '          Server  1m    5m    15m   Filter History')
-    normal()
-    for i,row in ipairs(rows) do
-        if i+1 >= tty_height then return end
-        local avg = row.load
-        local name = row.name
-        local short = string.gsub(name, '%.libera%.chat$', '', 1)
-        mvaddstr(pad+i,0, string.format('%16s ', short))
-        draw_load(avg)
-    end
-
-    if 3 <= tty_height then
-        blue()
-        mvaddstr(tty_height-2, 0, string.format('%16s ', 'FILTERS'))
-        draw_load(filter_tracker.global)
-        normal()
-    end
-end
-
-local function top_keys(tab)
-    local result, i = {}, 0
-    for k,v in pairs(tab) do
-        i = i + 1
-        result[i] = {k,v}
-    end
-    table.sort(result, function(x,y)
-        local a, b = x[2], y[2]
-        if a == b then return x[1] < y[1] else return a > b end
-    end)
-    return result
-end
-
--- Repeat connection tracking
-views[7] = function()
-    draw_global_load('CLICON', conn_tracker)
-
-    local nick_counts, mask_counts = {}, {}
-    for mask, user in users:each() do
-        local nick, ip, count = user.nick, user.ip, user.count
-        nick_counts[nick] = (nick_counts[nick] or 0) + 1
-        mask_counts[mask] = count
-    end
-
-    local nicks = top_keys(nick_counts)
-    local masks = top_keys(mask_counts)
-
-    for i = 1, tty_height - 1 do
-        local nick = nicks[i]
-        if nick and nick[2] > 1 then
-            mvaddstr(i-1, 0,
-                string.format('%4d ', nick[2]))
-            blue()
-            addstr(string.format('%-16s', nick[1]))
-            normal()
-        end
-
-        local mask = masks[i]
-        if mask then
-            mvaddstr(i-1, 22, string.format('%4d ', mask[2]))
-            yellow()
-            addstr(mask[1])
-            normal()
-        end
-    end
-end
-
-local function draw()
+function draw()
     clicks = {}
     erase()
     normal()
     views[view]()
     refresh()
-end
-
--- Server Notice handlers =============================================
-
-local handlers = {}
-
-function handlers.connect(ev)
-    local key = ev.nick
-    local server = ev.server
-
-    local entry = users:insert(key, {count = 0})
-    entry.server = ev.server
-    entry.gecos = ev.gecos
-    entry.host = ev.host
-    entry.user = ev.user
-    entry.nick = ev.nick
-    entry.account = ev.account
-    entry.ip = ev.ip
-    entry.time = ev.time
-    entry.connected = true
-    entry.count = entry.count + 1
-    entry.mask = entry.nick .. '!' .. entry.user .. '@' .. entry.host .. ' ' .. entry.gecos
-    entry.org = ip_org(entry.ip)
-    entry.timestamp = uptime
-
-    while users.n > history do
-        users:delete(users:last_key())
-    end
-    conn_tracker:track(server)
-    if show_entry(entry) then
-        clicon_n = clicon_n + 1
-    end
-
-    local pop = population[ev.server]
-    if pop then
-        population[ev.server] = pop + 1
-    end
-
-    draw()
-end
-
-function handlers.disconnect(ev)
-    local key = ev.nick
-    local entry = users:lookup(key)
-
-    exit_tracker:track(ev.server)
-    local pop = population[ev.server]
-    if pop then
-        population[ev.server] = pop - 1
-    end
-
-    if entry then
-        entry.connected = false
-        entry.reason = ev.reason
-        draw()
-    end
-
-    cliexit_n = cliexit_n + 1
-    while exits.n > history do
-        exits:delete(exits:last_key())
-    end
-    local entry = {
-        nick = ev.nick,
-        user = ev.user,
-        host = ev.host,
-        ip = ev.ip,
-        reason = ev.reason,
-        timestamp = uptime,
-        time = ev.time,
-        server = ev.server,
-        org = ip_org(ev.ip),
-    }
-    ev.timestamp = uptime
-    exits:insert(cliexit_n, entry)
-end
-
-function handlers.nick(ev)
-    local user = users:lookup(ev.old)
-    if user then
-        user.nick = ev.new
-        users:rekey(ev.old, ev.new)
-    end
-end
-
-function handlers.kline(ev)
-    kline_tracker:track(ev.nick)
-end
-
-function handlers.filter(ev)
-    filter_tracker:track(ev.server)
-    local mask = ev.nick
-    local user = users:lookup(mask)
-    if user then
-        user.filters = (user.filters or 0) + 1
-    end
-end
-
--- IRC Message Handlers ===============================================
-
-local irc_handlers = {}
-
-function irc_handlers.PING()
-    send_irc('PONG ZNC\r\n')
-end
-
-function irc_handlers.NOTICE(irc)
-    if not string.match(irc.source, '@') then
-        local note = string.match(irc[2], '^%*%*%* Notice %-%- (.*)$')
-        if note then
-            local time
-            if irc.tags.time then
-                time = string.match(irc.tags.time, '^%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d*Z$')
-            else
-                time = os.date '%H:%M:%S'
-            end
-
-            local event = parse_snote(time, irc.source, note)
-            if event then
-                local h = handlers[event.name]
-                if h then h(event) end
-            end
-        end
-    end
-end
-
--- RPL_STATS_ILINE
-irc_handlers['215'] = function(irc)
-    if staged_action ~= nil
-    and staged_action.action == 'unkline'
-    and staged_action.mask == nil
-    then
-        staged_action = nil
-    end
-end
-
--- RPL_TESTLINE
-irc_handlers['725'] = function(irc)
-    if irc[2] == 'k'
-    and staged_action ~= nil
-    and staged_action.action == 'unkline'
-    and staged_action.mask == nil
-    then
-        staged_action.mask = irc[4]
-    end
-end
-
--- RPL_TESTMASK_GECOS
-irc_handlers['727'] = function(irc)
-    local loc, rem, mask = table.unpack(irc,2,4)
-    if staged_action and '*!'..staged_action.mask == mask then
-        staged_action.count = math.tointeger(loc) + math.tointeger(rem)
-    end
-end
-
--- RPL_MAP
-irc_handlers['015'] = function(irc)
-    local server, count = string.match(irc[2], '(%g*)%[...%] %-* | Users: +(%d+)')
-    if server then
-        population[server] = math.tointeger(count)
-    end
-end
-
--- RPL_LINKS
-irc_handlers['364'] = function(irc)
-    local server, linked = table.unpack(irc, 2, 3)
-    if server == linked then links = {} end -- start
-    links[server] = Set{linked}
-    links[linked][server] = true
-end
-
--- RPL_END_OF_LINKS
-irc_handlers['365'] = function(irc)
-    upstream = {[primary_hub] = primary_hub}
-    local q = {primary_hub}
-    for _, here in ipairs(q) do
-        for k, _ in pairs(links[here]) do
-            if not upstream[k] then
-                upstream[k] = here
-                table.insert(q, k)
-            end
-        end
-    end
 end
 
 -- Callback Logic =====================================================
@@ -724,6 +422,7 @@ function M.on_input(str)
     end
 end
 
+local irc_handlers = require_ 'handlers_irc'
 function M.on_irc(irc)
     local f = irc_handlers[irc.command]
     if f then
