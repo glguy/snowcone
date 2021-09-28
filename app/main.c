@@ -1,4 +1,6 @@
 #define _XOPEN_SOURCE 600
+#define _XOPEN_SOURCE_EXTENDED
+#define _DARWIN_C_SOURCE
 
 #include <libgen.h>
 #include <locale.h>
@@ -47,7 +49,7 @@ static int start_file_watcher(uv_loop_t *loop, char const* logic_name)
 {
     uv_fs_event_t *files = malloc(sizeof *files);
     uv_fs_event_init(loop, files);
-    
+
     char *temp = strdup(logic_name);
     uv_fs_event_start(files, &on_file, dirname(temp), 0);
     free(temp);
