@@ -33,15 +33,15 @@ return function()
         local mask_color = ncurses.red
         -- MASK
 
-        attron(mask_color)
+        ncurses.attron(mask_color)
         addstr(entry.nick)
         black()
         addstr('!')
-        attron(mask_color)
+        ncurses.attron(mask_color)
         addstr(entry.user)
         black()
         addstr('@')
-        attron(mask_color)
+        ncurses.attron(mask_color)
         local maxwidth = 63 - #entry.nick - #entry.user
         if #entry.host <= maxwidth then
             addstr(entry.host)

@@ -1,33 +1,28 @@
-local app = require 'pl.app'
-Set = require 'pl.Set'
+-- Library imports
+Set    = require 'pl.Set'
 tablex = require 'pl.tablex'
 
-local has_mmdb, mmdb = pcall(require, 'mmdb')
-if not has_mmdb then mmdb = nil end
-
 require 'pl.stringx'.import()
-app.require_here()
+require 'pl.app'.require_here()
 
 addstr = ncurses.addstr
 mvaddstr = ncurses.mvaddstr
-erase = ncurses.erase
-clear = ncurses.clear
-refresh = ncurses.refresh
-attron = ncurses.attron
-attroff = ncurses.attroff
-attrset = ncurses.attrset
 
-function normal()     attrset(ncurses.A_NORMAL)     end
-function bold()       attron(ncurses.A_BOLD)        end
-function underline()  attron(ncurses.A_UNDERLINE)   end
-function red()        attron(ncurses.red)           end
-function green()      attron(ncurses.green)         end
-function blue()       attron(ncurses.blue)          end
-function cyan()       attron(ncurses.cyan)          end
-function black()      attron(ncurses.black)         end
-function magenta()    attron(ncurses.magenta)       end
-function yellow()     attron(ncurses.yellow)        end
-function white()      attron(ncurses.white)         end
+function normal()       ncurses.attrset(ncurses.A_NORMAL)     end
+function bold()         ncurses.attron(ncurses.A_BOLD)        end
+function bold_()        ncurses.attroff(ncurses.A_BOLD)       end
+function reversevideo() ncurses.attron(ncurses.A_REVERSE)     end
+function reversevideo_()ncurses.attroff(ncurses.A_REVERSE)    end
+function underline()    ncurses.attron(ncurses.A_UNDERLINE)   end
+function underline_()   ncurses.attroff(ncurses.A_UNDERLINE)  end
+function red()          ncurses.attron(ncurses.red)           end
+function green()        ncurses.attron(ncurses.green)         end
+function blue()         ncurses.attron(ncurses.blue)          end
+function cyan()         ncurses.attron(ncurses.cyan)          end
+function black()        ncurses.attron(ncurses.black)         end
+function magenta()      ncurses.attron(ncurses.magenta)       end
+function yellow()       ncurses.attron(ncurses.yellow)        end
+function white()        ncurses.attron(ncurses.white)         end
 
 local spinner = {'◴','◷','◶','◵'}
 
@@ -40,6 +35,7 @@ end
 
 server_classes = require_ 'server_classes'
 elements       = require_ 'elements'
+ip_org         = require_ 'ip_org'
 
 local LoadTracker        = require_ 'LoadTracker'
 local OrderedMap         = require_ 'OrderedMap'
@@ -96,28 +92,6 @@ function initialize()
     reset_filter()
 end
 
-if mmdb and not geoip then
-    local success, result = pcall(mmdb.open, 'GeoLite2-ASN.mmdb')
-    if success then
-        geoip = result
-    end
-end
-
-if not geoip and not geoip4 then
-    -- Other useful edition: mygeoip.GEOIP_ORG_EDITION, GEOIP_ISP_EDITION, GEOIP_ASNUM_EDITION
-    local success, result = pcall(mygeoip.open_db, mygeoip.GEOIP_ISP_EDITION)
-    if success then
-        geoip4 = result
-    end
-end
-
-if not geoip and not geoip6 then
-    local success, result = pcall(mygeoip.open_db, mygeoip.GEOIP_ASNUM_EDITION_V6)
-    if success then
-        geoip6 = result
-    end
-end
-
 for k,v in pairs(defaults) do
     if not _G[k] then
         _G[k] = v
@@ -131,24 +105,6 @@ for k,_ in pairs(server_classes) do
     exit_tracker:track(server, 0)
 end
 
--- GeoIP lookup =======================================================
-
-function ip_org(addr)
-    if geoip and string.match(addr, '%.') then
-        local result = geoip:search_ipv4(addr)
-        return result and result.autonomous_system_organization
-    end
-    if geoip and string.match(addr, ':') then
-        local result = geoip:search_ipv6(addr)
-        return result and result.autonomous_system_organization
-    end
-    if geoip4 and string.match(addr, '%.') then
-        return geoip4:get_name_by_addr(addr)
-    end
-    if geoip6 and string.match(addr, ':') then
-        return geoip6:get_name_by_addr_v6(addr)
-    end
-end
 
 -- Kline logic ========================================================
 
@@ -208,9 +164,9 @@ end
 
 function add_button(text, action)
     local y1,x1 = ncurses.getyx()
-    attron(ncurses.A_REVERSE)
+    reversevideo()
     addstr(text)
-    attroff(ncurses.A_REVERSE)
+    reversevideo_()
     local y2,x2 = ncurses.getyx()
     add_click(y1, x1, x2, action)
 end
@@ -224,7 +180,7 @@ function add_population(pop)
         else
             bold()
             addstr(string.format('  %2d', pop // 1000))
-            attroff(ncurses.A_BOLD)
+            bold_()
             addstr(string.format('%03d', pop % 1000))
         end
     else
@@ -234,9 +190,9 @@ end
 
 local function draw_load_1(avg, i)
     if avg.n >= 60*i then
-        attron(ncurses.A_BOLD)
+        bold()
         addstr(string.format('%5.2f ', avg[i]))
-        attroff(ncurses.A_BOLD)
+        bold_()
     else
         addstr(string.format('%5.2f ', avg[i]))
     end
@@ -249,15 +205,15 @@ function draw_load(avg)
     addstr('[')
     underline()
     addstr(avg:graph())
-    attroff(ncurses.A_UNDERLINE)
+    underline_()
     addstr(']')
 end
 
 function draw_global_load(title, tracker)
     if kline_ready() then red () else white() end
-    attron(ncurses.A_REVERSE)
+    reversevideo()
     mvaddstr(tty_height-1, 0, 'sn' .. spinner[uptime % #spinner + 1] .. 'wcone')
-    attroff(ncurses.A_REVERSE)
+    reversevideo_()
     addstr(' ')
     magenta()
     addstr(title .. ' ')
@@ -399,10 +355,10 @@ views = {
 
 function draw()
     clicks = {}
-    erase()
+    ncurses.erase()
     normal()
     views[view]()
-    refresh()
+    ncurses.refresh()
 end
 
 -- Callback Logic =====================================================
@@ -458,7 +414,7 @@ local keys = {
         scroll = math.max(scroll, 0)
         draw()
     end,
-    --[[^L]] [ 12] = function() clear() end,
+    --[[^L]] [ 12] = function() ncurses.clear() end,
     --[[ESC]][ 27] = function() reset_filter() end,
     --[[Q ]] [113] = function() conn_filter = true  end,
     --[[W ]] [119] = function() conn_filter = false end,

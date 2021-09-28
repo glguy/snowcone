@@ -43,7 +43,7 @@ return function()
             local mask_color = entry.connected and ncurses.green or ncurses.red
 
             if entry.filters then
-                attron(mask_color)
+                ncurses.attron(mask_color)
                 addstr(string.format(' %3d! ', entry.filters))
             else
                 if entry.count < 2 then
@@ -58,15 +58,15 @@ return function()
                     bold()
             end
 
-            attron(mask_color)
+            ncurses.attron(mask_color)
             addstr(entry.nick)
             black()
             addstr('!')
-            attron(mask_color)
+            ncurses.attron(mask_color)
             addstr(entry.user)
             black()
             addstr('@')
-            attron(mask_color)
+            ncurses.attron(mask_color)
             local maxwidth = 63 - #entry.nick - #entry.user
             if #entry.host <= maxwidth then
                 addstr(entry.host)
