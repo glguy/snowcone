@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <assert.h>
 
 #include <uv.h>
 
@@ -22,6 +23,8 @@ struct close_state
 static void on_line(void *, char *msg);
 static void on_connect(uv_connect_t* req, int status);
 static void on_close(void *data);
+static void on_reconnect(uv_timer_t *timer);
+static void register_irc(uv_stream_t *irc, struct configuration *cfg);
 
 int start_irc(uv_loop_t *loop, struct configuration *cfg)
 {
@@ -34,7 +37,11 @@ int start_irc(uv_loop_t *loop, struct configuration *cfg)
     }
  
     struct readline_data *irc_data = malloc(sizeof *irc_data);
+    assert(irc_data);
+
     struct close_state *close_data = malloc(sizeof *close_data);
+    assert(close_data);
+
     *irc_data = (struct readline_data) {
         .read = on_line,
         .read_data = a,
@@ -47,6 +54,18 @@ int start_irc(uv_loop_t *loop, struct configuration *cfg)
         .cfg = cfg,
     };
 
+    register_irc(irc, cfg);
+
+    app_set_irc(a, irc);
+
+    int r = uv_read_start(irc, &my_alloc_cb, &readline_cb);
+    assert(0 == r);
+
+    return 0;
+}
+
+static void register_irc(uv_stream_t *irc, struct configuration *cfg)
+{
     static char buffer[512];
     char const* msg;
 
@@ -69,12 +88,6 @@ int start_irc(uv_loop_t *loop, struct configuration *cfg)
     char const* irc_gecos = cfg->irc_gecos ? cfg->irc_gecos : cfg->irc_nick;
     snprintf(buffer, sizeof buffer, "USER %s * * %s\r\n", irc_user, irc_gecos);
     to_write(irc, buffer, strlen(buffer));
-
-    app_set_irc(a, irc, to_write);
-
-    uv_read_start(irc, &my_alloc_cb, &readline_cb);
-
-    return 0;
 }
 
 static void on_close(void *data)
@@ -83,8 +96,19 @@ static void on_close(void *data)
     uv_loop_t * const loop = st->loop;
     struct app *a = loop->data;
     app_clear_irc(a);
-    start_irc(loop, st->cfg);
+
+    uv_timer_t *timer = malloc(sizeof *timer);
+    uv_timer_init(loop, timer);
+    timer->data = st;
+    uv_timer_start(timer, on_reconnect, 5000, 0);
+}
+
+static void on_reconnect(uv_timer_t *timer)
+{
+    struct close_state * const st = timer->data;
+    start_irc(st->loop, st->cfg);
     free(st);
+    free(timer);
 }
 
 static void on_line(void *data, char *line)
