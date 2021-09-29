@@ -93,5 +93,5 @@ static void on_line(void *data, char *msg)
     uv_loop_t *loop = stream->loop;
     struct app *a = loop->data;
 
-    do_command(a, msg, stream, to_write);
+    do_command(a, msg, stream);
 }

@@ -14,6 +14,7 @@
 #include "ircmsg.h"
 #include "lua-ncurses.h"
 #include "mygeoip.h"
+#include "write.h"
 
 static char logic_module;
 
@@ -57,24 +58,8 @@ struct app
 {
     lua_State *L;
     char const *logic_filename;
-    void *write_data;
-    void (*write_cb)(void *, char const* bytes, size_t n);
+    uv_stream_t *stream;
 };
-
-static int app_parseirc(lua_State *L) 
-{
-    char const* msg = luaL_checkstring(L, 1);
-    char *dup = strdup(msg);
-    struct ircmsg imsg;
-    int err = parse_irc_message(&imsg, dup);
-    if (err) {
-        free(dup);
-        luaL_error(L, "parse error %d", err);
-    }
-    pushircmsg(L, &imsg);
-    free(dup);
-    return 1;
-}
 
 static int error_handler(lua_State *L)
 {
@@ -87,7 +72,7 @@ static int app_print(lua_State *L)
 {
     struct app * const a = *app_ref(L);
 
-    if (a->write_cb)
+    if (a->stream)
     {
         int n = lua_gettop(L);  /* number of arguments */
 
@@ -104,7 +89,7 @@ static int app_print(lua_State *L)
         size_t msglen;
         char const* msg = lua_tolstring(L, -1, &msglen);
     
-        a->write_cb(a->write_data, msg, msglen);
+        to_write(a->stream, msg, msglen);
     }
 
     return 0;
@@ -138,9 +123,6 @@ static void app_prepare_globals(lua_State *L, char const* script_name)
 
     lua_pushcfunction(L, &app_print);
     lua_setglobal(L, "print");
-
-    lua_pushcfunction(L, app_parseirc);
-    lua_setglobal(L, "parseirc");
 
     luaopen_mygeoip(L);
     lua_setglobal(L, "mygeoip");
@@ -218,9 +200,9 @@ static void lua_callback(lua_State *L, char const *key, int args)
         struct app * const a = *app_ref(L);
         size_t len;
         char const* err = lua_tolstring(L, -1, &len);
-        if (a->write_cb) {
-            a->write_cb(a->write_data, err, len);
-            a->write_cb(a->write_data, "\n", 1);
+        if (a->stream) {
+            to_write(a->stream, err, len);
+            to_write(a->stream, "\n", 1);
         } else {
             endwin();
             fprintf(stderr, "%s\n", err);
@@ -233,11 +215,9 @@ static void lua_callback(lua_State *L, char const *key, int args)
 void do_command(
     struct app *a,
     char const* line,
-    void *write_data,
-    void (*write_cb)(void*, char const*, size_t))
+    uv_stream_t *stream)
 {
-    a->write_cb = write_cb;
-    a->write_data = write_data;
+    a->stream = stream;
 
     if (*line == '/')
     {
@@ -253,7 +233,7 @@ void do_command(
         else
         {
             char const* msg = "Unknown command\n";
-            write_cb(write_data, msg, strlen(msg));
+            to_write(stream, msg, strlen(msg));
         }
     }
     else
@@ -262,8 +242,7 @@ void do_command(
         lua_callback(a->L, "on_input", 1);
     }
     
-    a->write_cb = NULL;
-    a->write_data = NULL;
+    a->stream = NULL;
 }
 
 void do_timer(struct app *a)
@@ -279,19 +258,17 @@ void do_keyboard(struct app *a, long key)
 
 static int l_writeirc(lua_State *L)
 {
-    void *data = lua_touserdata(L, lua_upvalueindex(1));
-    void (*cb)(void*, char const*, size_t) = lua_touserdata(L, lua_upvalueindex(2));
+    uv_stream_t *stream = lua_touserdata(L, lua_upvalueindex(1));
     size_t len;
     char const* cmd = luaL_checklstring(L, 1, &len);
-    cb(data, cmd, len);
+    to_write(stream, cmd, len);
     return 0;
 }
 
-void app_set_irc(struct app *a, void *data, void (*cb)(void*, char const*, size_t))
+void app_set_irc(struct app *a, uv_stream_t *stream)
 {
-    lua_pushlightuserdata(a->L, data);
-    lua_pushlightuserdata(a->L, cb);
-    lua_pushcclosure(a->L, l_writeirc, 2);
+    lua_pushlightuserdata(a->L, stream);
+    lua_pushcclosure(a->L, l_writeirc, 1);
     lua_callback(a->L, "on_connect", 1);
 }
 

@@ -11,9 +11,15 @@ static void on_mrs_getaddrinfo(uv_getaddrinfo_t *, int, struct addrinfo *);
 
 void start_mrs_timer(uv_loop_t *loop)
 {
+    int r;
     uv_timer_t *timer = malloc(sizeof *timer);
-    uv_timer_init(loop, timer);
-    uv_timer_start(timer, on_mrs_timer, 0, mrs_update_ms);
+    assert(timer);
+
+    r = uv_timer_init(loop, timer);
+    assert(0 == r);
+
+    r = uv_timer_start(timer, on_mrs_timer, 0, mrs_update_ms);
+    assert(0 == r);
 }
 
 static void on_mrs_timer(uv_timer_t *timer)

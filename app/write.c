@@ -8,10 +8,8 @@
 
 static void write_done(uv_write_t *write, int status);
 
-void to_write(void *data, char const* msg, size_t n)
+void to_write(uv_stream_t *stream, char const* msg, size_t n)
 {
-    uv_stream_t *stream = data;
-
     uv_buf_t *buf = malloc(sizeof *buf);
     buffer_init(buf, n);
     memcpy(buf->base, msg, n);

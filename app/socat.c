@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <assert.h>
 
 #include <uv.h>
 
@@ -19,10 +20,15 @@ static void free_handle(uv_handle_t *handle)
 
 uv_stream_t * socat_wrapper(uv_loop_t *loop, char const* socat)
 {
+    int r;
     char const* argv[] = {"socat", "FD:3", socat, NULL};
 
     uv_pipe_t *stream = malloc(sizeof *stream);
-    uv_pipe_init(loop, stream, 0);
+    r = uv_pipe_init(loop, stream, 0);
+    if (0 != r) {
+        fprintf(stderr, "Failed to init pipe: %s\n", uv_strerror(r));
+        return NULL;
+    }
 
     uv_stdio_container_t containers[] = {
         {.flags = UV_IGNORE},
@@ -40,9 +46,9 @@ uv_stream_t * socat_wrapper(uv_loop_t *loop, char const* socat)
     };
 
     uv_process_t *process = malloc(sizeof *process);
-    int result = uv_spawn(loop, process, &options);
-    if (result) {
-        fprintf(stderr, "Failed to spawn socat: %s\n", uv_strerror(result));
+    r = uv_spawn(loop, process, &options);
+    if (0 != r) {
+        fprintf(stderr, "Failed to spawn socat: %s\n", uv_strerror(r));
         free(process);
         uv_close((uv_handle_t*)stream, free_handle);
         return NULL;

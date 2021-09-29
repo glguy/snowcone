@@ -115,8 +115,9 @@ int main(int argc, char *argv[])
     curs_set(0); /* no cursor */
     mousemask(BUTTON1_CLICKED, NULL);
 
+    uv_loop_t loop = {};
     struct app *a = app_new(cfg.lua_filename);
-    uv_loop_t loop = {.data = a};
+    loop.data = a;
     uv_loop_init(&loop);
 
     uv_poll_t input;
