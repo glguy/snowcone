@@ -44,6 +44,16 @@ local views
 
 -- Global state =======================================================
 
+local rotations = {
+    ['irc.libera.chat'] = '',
+    ['irc.ipv4.libera.chat'] = 'IPV4',
+    ['irc.ipv6.libera.chat'] = 'IPV6',
+    ['irc.eu.libera.chat'] = 'EU',
+    ['irc.ea.libera.chat'] = 'EA',
+    ['irc.us.libera.chat'] = 'US',
+    ['irc.au.libera.chat'] = 'AU',
+}
+
 function reset_filter()
     filter = nil
     server_filter = nil
@@ -387,6 +397,12 @@ function M.on_irc(irc)
 end
 
 function M.on_timer()
+    if 0 == uptime % 30 then
+        for k,_ in pairs(rotations) do
+            dnslookup(k)
+        end
+    end
+
     uptime = uptime + 1
     conn_tracker:tick()
     exit_tracker:tick()
@@ -444,8 +460,8 @@ function M.on_keyboard(key)
     end
 end
 
-function M.on_mrs(x)
-    mrs[x.name] = Set(x)
+function M.on_dns(name, addrs)
+    mrs[rotations[name]] = Set(addrs)
 end
 
 function M.on_mouse(y, x)

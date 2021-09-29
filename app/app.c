@@ -59,6 +59,7 @@ struct app
     lua_State *L;
     char const *logic_filename;
     uv_stream_t *stream;
+    uv_loop_t *loop;
 };
 
 static int error_handler(lua_State *L)
@@ -66,6 +67,35 @@ static int error_handler(lua_State *L)
     const char* msg = luaL_tolstring(L, 1, NULL);
     luaL_traceback(L, L, msg, 1);
     return 1;
+}
+
+static void
+on_dnslookup(uv_getaddrinfo_t *req, int status, struct addrinfo *res)
+{
+    struct app * const a = req->loop->data;
+
+    if (0 == status) {
+        do_mrs(a, res->ai_canonname, res);
+        uv_freeaddrinfo(res);
+    }
+
+    free(req);
+}
+
+static int
+app_dnslookup(lua_State *L)
+{
+    struct app * const a = *app_ref(L);
+    char const* hostname = luaL_checkstring(L, 1);
+
+    uv_getaddrinfo_t *req = malloc(sizeof *req);
+    struct addrinfo hints = { .ai_flags = AI_CANONNAME, .ai_socktype = SOCK_STREAM };
+    int r = uv_getaddrinfo(a->loop, req, on_dnslookup, hostname, NULL, &hints);
+    if (0 != r) {
+        free(req);
+        luaL_error(L, "dnslookup: uv_getaddrinfo failed with %d", r);
+    }
+    return 0;
 }
 
 static int app_print(lua_State *L)
@@ -121,8 +151,11 @@ static void app_prepare_globals(lua_State *L, char const* script_name)
     lua_pop(L, 1);
     l_ncurses_resize(L);
 
-    lua_pushcfunction(L, &app_print);
+    lua_pushcfunction(L, app_print);
     lua_setglobal(L, "print");
+
+    lua_pushcfunction(L, app_dnslookup);
+    lua_setglobal(L, "dnslookup");
 
     luaopen_mygeoip(L);
     lua_setglobal(L, "mygeoip");
@@ -146,10 +179,11 @@ static void start_lua(struct app *a)
     load_logic(a->L, a->logic_filename);
 }
 
-struct app *app_new(char const *logic)
+struct app *app_new(uv_loop_t *loop, char const *logic)
 {
     struct app *a = malloc(sizeof *a);
     *a = (struct app) {
+        .loop = loop,
         .logic_filename = logic,
     };
 
@@ -286,6 +320,7 @@ void do_mrs(struct app *a, char const* name, struct addrinfo const* ai)
 {
     char buffer[INET6_ADDRSTRLEN];
     lua_State * const L = a->L;
+    lua_pushstring(L, name);
     lua_newtable(L);
     lua_Integer i = 0;
     while (ai) {
@@ -296,9 +331,7 @@ void do_mrs(struct app *a, char const* name, struct addrinfo const* ai)
         lua_rawseti(L, -2, i);
         ai = ai->ai_next;
     }
-    lua_pushstring(L, name);
-    lua_setfield(L, -2, "name");
-    lua_callback(L, "on_mrs", 1);
+    lua_callback(L, "on_dns", 2);
 }
 
 void do_irc(struct app *a, struct ircmsg const* msg)

@@ -17,7 +17,6 @@
 #include "buffer.h"
 #include "configuration.h"
 #include "irc.h"
-#include "mrs.h"
 #include "read-line.h"
 #include "tcp-server.h"
 #include "write.h"
@@ -116,7 +115,7 @@ int main(int argc, char *argv[])
     mousemask(BUTTON1_CLICKED, NULL);
 
     uv_loop_t loop = {};
-    struct app *a = app_new(cfg.lua_filename);
+    struct app *a = app_new(&loop, cfg.lua_filename);
     loop.data = a;
     uv_loop_init(&loop);
 
@@ -148,7 +147,6 @@ int main(int argc, char *argv[])
     }
 
     start_timer(&loop);
-    start_mrs_timer(&loop);
 
     uv_run(&loop, UV_RUN_DEFAULT);
 
