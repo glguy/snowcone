@@ -6,7 +6,8 @@
 
 #include "ircmsg.h"
 
-static void testcase(char *input, struct ircmsg *expected) {
+static void
+testcase(char *input, struct ircmsg const* expected) {
   struct ircmsg got;
   int result = parse_irc_message(&got, input);
 
@@ -129,6 +130,20 @@ START_TEST(test_max_args_colon)
   };
   char input[] = "command 1 2 3 4 5 6 7 8 9 10 11 12 13 14 :15 16";
   testcase(input, &expect);
+}
+END_TEST
+
+START_TEST(test_bare_prefix)
+{
+  char input[] = ":prefix";
+  testcase(input, NULL);
+}
+END_TEST
+
+START_TEST(test_bare_prefix_space)
+{
+  char input[] = ":prefix ";
+  testcase(input, NULL);
 }
 END_TEST
 
@@ -353,6 +368,8 @@ int main(void) {
   tcase_add_test(tc_parsing, test_internal_colon);
   tcase_add_test(tc_parsing, test_max_args);
   tcase_add_test(tc_parsing, test_max_args_colon);
+  tcase_add_test(tc_parsing, test_bare_prefix);
+  tcase_add_test(tc_parsing, test_bare_prefix_space);
   tcase_add_test(tc_parsing, test_prefix);
   tcase_add_test(tc_parsing, test_prefix_and_colon);
   tcase_add_test(tc_parsing, test_simple_tag);
@@ -376,7 +393,7 @@ int main(void) {
   tcase_add_test(tc_parsing, test_spaces);
 
   SRunner *sr = srunner_create(s);
-  srunner_run_all(sr, CK_NORMAL);
+  srunner_run_all(sr, CK_ENV);
 
   int number_failed = srunner_ntests_failed(sr);
   return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
