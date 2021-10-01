@@ -17,7 +17,7 @@ static int close_org_db(lua_State *L)
 static int open_db(lua_State *L)
 {
         int type = luaL_checknumber(L, 1);
-        GeoIP *geoip = GeoIP_open_type(type, 0);
+        GeoIP *geoip = GeoIP_open_type(type, GEOIP_SILENCE);
         if (NULL==geoip) luaL_error(L, "Failed to open");
 
         GeoIP **ptr = lua_newuserdata(L, sizeof geoip);
