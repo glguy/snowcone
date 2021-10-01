@@ -6,9 +6,11 @@ static char *word(char **msg)
 {
     if (NULL == *msg || '\0' == **msg) return NULL;
     char *start = strsep(msg, " ");
+
     if (NULL != *msg)
     {
         while (' ' == **msg) (*msg)++;
+        if ('\0' == **msg) *msg = NULL;
     }
     return start;
 }
@@ -44,10 +46,16 @@ static inline int parse_tags(struct ircmsg *out, char *tagpart)
     char const* const delim = ";";
     char *last;
     int i = 0;
-    for (char *keyval = strtok_r(tagpart, delim, &last);
-        keyval;
-        keyval = strtok_r(NULL, delim, &last))
+
+    while (tagpart)
     {
+        if (' ' == *tagpart || '\0' == *tagpart)
+        {
+            return 2;
+        }
+
+        char *keyval = strsep(&tagpart, ";");
+
         if (i >= MAX_MSG_TAGS) return 1;
         char *key = strsep(&keyval, "=");
         if (NULL != keyval) unescape_tag_value(keyval);
@@ -57,20 +65,29 @@ static inline int parse_tags(struct ircmsg *out, char *tagpart)
             .val = keyval,
         };
 
+        if ('\0' == *key)
+        {
+            return 1;
+        }
+
         i++;
     }
+
     out->tags_n = i;
     return 0;
 }
 
 int parse_irc_message(struct ircmsg *out, char *msg)
 {
+    /* Ignore leading space */
+    while (*msg == ' ') msg++;
+
     /* MESSAGE TAGS */
-    if (*msg == '@') 
+    if (*msg == '@')
     {
         msg++;
         char *tagpart = word(&msg);
-        if (NULL == tagpart) return 1;
+        if (NULL == tagpart || '\0' == *tagpart || NULL == msg) return 1;
         if (parse_tags(out, tagpart)) return 2;
     }
     else
@@ -83,7 +100,7 @@ int parse_irc_message(struct ircmsg *out, char *msg)
     {
         msg++;
         char *source = word(&msg);
-        if (NULL == source) return 3;
+        if (NULL == source || '\0' == *source) return 3;
         out->source = source;
     }
     else

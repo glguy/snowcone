@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
     initscr(); 
     start_color();
     use_default_colors();
-    timeout(0); /* nonblocking input reads */
+    nodelay(stdscr, TRUE); /* nonblocking input reads */
     cbreak(); /* no input line buffering */
     noecho(); /* no echo input to screen */
     nonl(); /* no newline on pressing return */
@@ -115,9 +115,10 @@ int main(int argc, char *argv[])
     mousemask(BUTTON1_CLICKED, NULL);
 
     uv_loop_t loop = {};
+    uv_loop_init(&loop);
+
     struct app *a = app_new(&loop, cfg.lua_filename);
     loop.data = a;
-    uv_loop_init(&loop);
 
     uv_poll_t input;
     uv_poll_init(&loop, &input, STDIN_FILENO);
