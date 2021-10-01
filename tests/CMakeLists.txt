@@ -1,4 +1,4 @@
-pkg_check_modules(CHECK REQUIRED IMPORTED_TARGET check)
+pkg_check_modules(CHECK REQUIRED IMPORTED_TARGET check>=0.11.0)
 
 add_executable(tests-ircmsg tests-ircmsg.c)
 target_link_libraries(tests-ircmsg PRIVATE ircmsg)
