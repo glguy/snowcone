@@ -1,8 +1,8 @@
 #include <GeoIP.h>
 
+#include "lua.h"
 #include "lauxlib.h"
 
-#include "lua.h"
 #include "mygeoip.h"
 
 static char const* db_type_name = "geoip db";
@@ -11,6 +11,7 @@ static int close_org_db(lua_State *L)
 {
         GeoIP **geoip = luaL_checkudata(L, 1, db_type_name);
         GeoIP_delete(*geoip);
+        *geoip = NULL;
         return 0;
 }
 
@@ -21,8 +22,8 @@ static int open_db(lua_State *L)
         if (NULL==geoip) luaL_error(L, "Failed to open");
 
         GeoIP **ptr = lua_newuserdata(L, sizeof geoip);
-        luaL_setmetatable(L, db_type_name);
         *ptr = geoip;
+        luaL_setmetatable(L, db_type_name);
         return 1;
 }
 
