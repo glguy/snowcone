@@ -1,6 +1,6 @@
 
-#ifndef LUA_NCURSES_H
-#define LUA_NCURSES_H
+#ifndef MY_NCURSES_H
+#define MY_NCURSES_H
 
 #include "lua.h"
 

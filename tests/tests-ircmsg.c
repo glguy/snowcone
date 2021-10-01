@@ -9,7 +9,7 @@
 static void
 testcase(char *input, struct ircmsg const* expected) {
   struct ircmsg got;
-  int result = parse_irc_message(&got, input);
+  int result = parse_irc_message(input, &got);
 
   if (NULL == expected) {
     ck_assert_int_ne(result, 0);

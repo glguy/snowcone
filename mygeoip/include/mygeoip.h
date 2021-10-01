@@ -1,5 +1,5 @@
-#ifndef MYGEOIP_H
-#define MYGEOIP_H
+#ifndef MY_GEOIP_H
+#define MY_GEOIP_H
 
 #include "lua.h"
 

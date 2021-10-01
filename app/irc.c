@@ -116,9 +116,9 @@ static void on_line(void *data, char *line)
     struct app *a = data;
     struct ircmsg irc;
     
-    char *msg = strsep(&line, "\r");
+    char *msg = strsep(&line, "\r\n");
 
-    if (0 == parse_irc_message(&irc, msg))
+    if (0 == parse_irc_message(msg, &irc))
     {
         do_irc(a, &irc);
     }

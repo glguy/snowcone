@@ -19,6 +19,13 @@ struct ircmsg
     int tags_n, args_n;
 };
 
-int parse_irc_message(struct ircmsg *out, char *msg);
+/**
+ * Parses the given IRC message into a structured format.
+ * The original message is mangled to store string fragments
+ * that are pointed to by the structured message type.
+ * 
+ * Returns zero for success, non-zero for parse error.
+ */
+int parse_irc_message(char *msg, struct ircmsg *out);
 
 #endif

@@ -10,7 +10,7 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
-#include "lua-ncurses.h"
+#include "myncurses.h"
 
 static int l_erase(lua_State *L)
 {

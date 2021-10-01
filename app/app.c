@@ -10,11 +10,13 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
+#include <myncurses.h>
+#include <mygeoip.h>
+
 #include "app.h"
 #include "ircmsg.h"
-#include "lua-ncurses.h"
-#include "mygeoip.h"
 #include "write.h"
+
 
 static char logic_module;
 

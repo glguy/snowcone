@@ -41,7 +41,8 @@ static void unescape_tag_value(char *val)
     *write = '\0';
 }
 
-static inline int parse_tags(struct ircmsg *out, char *tagpart)
+static int
+parse_tags(char *tagpart, struct ircmsg *out)
 {
     char const* const delim = ";";
     char *last;
@@ -77,7 +78,8 @@ static inline int parse_tags(struct ircmsg *out, char *tagpart)
     return 0;
 }
 
-int parse_irc_message(struct ircmsg *out, char *msg)
+int
+parse_irc_message(char *msg, struct ircmsg *out)
 {
     /* Ignore leading space */
     while (*msg == ' ') msg++;
@@ -88,7 +90,7 @@ int parse_irc_message(struct ircmsg *out, char *msg)
         msg++;
         char *tagpart = word(&msg);
         if (NULL == tagpart || '\0' == *tagpart || NULL == msg) return 1;
-        if (parse_tags(out, tagpart)) return 2;
+        if (parse_tags(tagpart, out)) return 2;
     }
     else
     {
