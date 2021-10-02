@@ -23,12 +23,12 @@ return function(time, server, str)
         return {
             name = 'connect',
             server = server,
+            time = time,
             nick = nick,
             user = user,
             host = host,
             ip = ip,
             gecos = scrub(gecos),
-            time = time,
             class = class,
             account = account,
         }
@@ -40,12 +40,12 @@ return function(time, server, str)
         return {
             name = 'disconnect',
             server = server,
+            time = time,
             nick = nick,
             user = user,
             host = host,
             reason = scrub(reason),
             ip = ip,
-            time = time,
         }
     end
 
@@ -55,27 +55,27 @@ return function(time, server, str)
         return {
             name = 'kline',
             server = server,
+            time = time,
             nick = nick,
             user = user,
             host = host,
             oper = oper,
             mask = mask,
             reason = scrub(reason),
-            time = time,
         }
-
     end
+
     local old, new, user, host =
         string.match(str, '^Nick change: From (%g+) to (%g+) %[(%g+)@(%g+)%]$')
     if old then
         return {
             name = 'nick',
             server = server,
+            time = time,
             old = old,
             new = new,
             user = user,
             host = host,
-            time = time,
         }
     end
 
@@ -85,11 +85,41 @@ return function(time, server, str)
         return {
             name = 'filter',
             server = server,
+            time = time,
             nick = nick,
             user = user,
             host = host,
             ip = ip,
+        }
+    end
+
+    local server1, server2, sid1, sid2, reason =
+        string.match(str, '^Netsplit (%g+) <%-> (%g+) %((%g+) (%g+)%) %((.*)%)$')
+    if server1 then
+        return {
+            name = 'netsplit',
+            server = server,
             time = time,
+            server1 = server1,
+            server2 = server2,
+            sid1 = sid1,
+            sid2 = sid2,
+            reason = reason,
+        }
+    end
+
+    local server1, server2, sid1, sid2, reason =
+        string.match(str, '^Netjoin (%g+) <%-> (%g+) %((%g+) (%g+)%) %((.*)%)$')
+    if server1 then
+        return {
+            name = 'netjoin',
+            server = server,
+            time = time,
+            server1 = server1,
+            server2 = server2,
+            sid1 = sid1,
+            sid2 = sid2,
+            reason = reason,
         }
     end
 end

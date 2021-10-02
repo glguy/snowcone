@@ -94,4 +94,12 @@ function M.filter(ev)
     end
 end
 
+function M.netjoin(ev)
+    send_irc 'MAP\r\nLINKS\r\n'
+end
+
+function M.netsplit(ev)
+    send_irc 'MAP\r\nLINKS\r\n'
+end
+
 return M
