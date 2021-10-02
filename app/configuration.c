@@ -15,7 +15,7 @@ noreturn static void usage(void)
                     "         [-U irc_user]\n"
                     "         [-G irc_gecos]\n"
                     "         [-X irc_password]\n"
-                    "         LUA_FILE\n");
+                    "         [-L init.lua]\n");
     exit(EXIT_FAILURE);
 }
 
@@ -24,13 +24,15 @@ struct configuration load_configuration(int argc, char **argv)
     struct configuration cfg = {};
 
     cfg.irc_pass = getenv("IRC_PASSWORD");
+    cfg.lua_filename = INSTALL_PREFIX "/share/snowcone/lua/init.lua";
 
     int opt;
-    while ((opt = getopt(argc, argv, "h:p:S:X:N:U:G:")) != -1) {
+    while ((opt = getopt(argc, argv, "h:p:S:X:N:U:G:L:")) != -1) {
         switch (opt) {
         case 'h': cfg.console_node = optarg; break;
         case 'p': cfg.console_service = optarg; break;
         case 'G': cfg.irc_gecos = optarg; break;
+        case 'L': cfg.lua_filename = optarg; break;
         case 'N': cfg.irc_nick = optarg; break;
         case 'S': cfg.irc_socat = optarg; break;
         case 'U': cfg.irc_user = optarg; break;
@@ -56,17 +58,15 @@ struct configuration load_configuration(int argc, char **argv)
         show_usage = 1;
     }
 
-    if (argc != 1)
+    if (0 != argc)
     {
-        fprintf(stderr, "Lua filename required (LUA_FILE).\n");
+        fprintf(stderr, "Unexpected positional argument (use -L for lua path).\n");
         show_usage = 1;
     }
 
     if (show_usage) {
         usage();
     }
-
-    cfg.lua_filename = argv[0];
 
     return cfg;
 }

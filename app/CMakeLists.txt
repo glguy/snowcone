@@ -4,3 +4,4 @@ add_executable(snowcone
 target_link_libraries(snowcone PRIVATE PkgConfig::UV PkgConfig::NCURSESW PkgConfig::LUA ircmsg mygeoip myncurses)
 
 install(TARGETS snowcone DESTINATION bin)
+add_definitions(-DINSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}")

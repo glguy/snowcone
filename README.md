@@ -19,7 +19,7 @@ usage: snowcode
          [-U irc_user]
          [-G irc_gecos]
          [-X irc_password]
-         LUA_FILE
+         [-L lua.init]
 ```
 
 To keep the IRC password out of your command-line arguments you can set the `IRC_PASSWORD` environment variable.
@@ -37,7 +37,7 @@ app/snowcone \
    -N glguy \
    -U glguy@snowcone/libera \
    -X x \
-   ../lua/init.lua
+   -L ../lua/init.lua
 ```
 
 To connect to an unencrypted TCP port use: `-S TCP:${HOST}:${PORT}`

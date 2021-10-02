@@ -139,7 +139,7 @@ static void load_logic(lua_State *L, char const *filename)
     {
         char const *err = lua_tostring(L, -1);
         endwin();
-        fprintf(stderr, "Failed to callback logic: %s\n%s\n", filename, err);
+        fprintf(stderr, "Failed to start callback logic: %s\n%s\n", filename, err);
         lua_pop(L, 1); /* error message */
     }
     lua_pop(L, 1); /* error handler */
