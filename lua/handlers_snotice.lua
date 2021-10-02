@@ -6,23 +6,26 @@ function M.connect(ev)
     local key = ev.nick
     local server = ev.server
 
-    local entry = users:insert(key, {count = 0})
-    entry.server = ev.server
-    entry.gecos = ev.gecos
-    entry.host = ev.host
-    entry.user = ev.user
-    entry.nick = ev.nick
-    entry.account = ev.account
-    entry.ip = ev.ip
-    entry.time = ev.time
-    entry.connected = true
-    entry.count = entry.count + 1
-    entry.mask = entry.nick .. '!' .. entry.user .. '@' .. entry.host .. ' ' .. entry.gecos
-    entry.org = ip_org(entry.ip)
-    entry.timestamp = uptime
+    local prev = users:lookup(key)
+    local entry = {
+        server = ev.server,
+        gecos = ev.gecos,
+        host = ev.host,
+        user = ev.user,
+        nick = ev.nick,
+        account = ev.account,
+        ip = ev.ip,
+        org = ip_org(ev.ip),
+        time = ev.time,
+        connected = true,
+        count = prev and prev.count+1 or 1,
+        mask = ev.nick .. '!' .. ev.user .. '@' .. ev.host .. ' ' .. ev.gecos,
+        timestamp = uptime,
+    }
+    users:insert(key, entry)
 
     while users.n > history do
-        users:delete(users:last_key())
+        users:pop_back()
     end
     conn_tracker:track(server)
     if show_entry(entry) then
@@ -54,10 +57,7 @@ function M.disconnect(ev)
     end
 
     cliexit_n = cliexit_n + 1
-    while exits.n > history do
-        exits:delete(exits:last_key())
-    end
-    local entry = {
+    exits:insert(true, {
         nick = ev.nick,
         user = ev.user,
         host = ev.host,
@@ -67,9 +67,10 @@ function M.disconnect(ev)
         time = ev.time,
         server = ev.server,
         org = ip_org(ev.ip),
-    }
-    ev.timestamp = uptime
-    exits:insert(cliexit_n, entry)
+    })
+    while exits.n > history do
+        exits:pop_back()
+    end
 end
 
 function M.nick(ev)

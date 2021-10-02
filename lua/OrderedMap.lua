@@ -30,16 +30,10 @@ function OrderedMap:last_key()
 end
 
 function OrderedMap:insert(key, val)
-    local node = self.index[key]
-    if node then
-        unlink_node(node)
-    else
-        node = {key = key, val = val}
-        self.n = self.n + 1
-        self.index[key] = node
-    end
+    local node = {key = key, val = val}
+    self.n = self.n + 1
+    self.index[key] = node
     link_after(self, node)
-    return node.val
 end
 
 function OrderedMap:delete(key)
@@ -47,6 +41,17 @@ function OrderedMap:delete(key)
     if node then
         self.index[key] = nil
         self.n = self.n - 1
+        unlink_node(node)
+    end
+end
+
+function OrderedMap:pop_back()
+    if self.n > 0 then
+        local node = self.prev
+        local key = node.key
+        if self.index[key] == node then
+            self.indix[key] = nil
+        end
         unlink_node(node)
     end
 end
@@ -69,17 +74,16 @@ function OrderedMap:rekey(old, new)
 end
 
 function OrderedMap:each()
-    local function each_step(obj, prev)
-        local node
-        if prev then
-            node = obj.index[prev].next
-        else
-            node = obj.next
+    local node = self
+    local function gen()
+        local node1 = node.next
+        if node1 ~= self then
+            node = node1
+            return node.key, node.val
         end
-        return node.key, node.val
     end
 
-    return each_step, self
+    return gen
 end
 
 function OrderedMap:_init()
