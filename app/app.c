@@ -149,7 +149,7 @@ static void app_prepare_globals(lua_State *L, char const* script_name)
 {
     luaL_openlibs(L);
     
-    luaL_requiref(L, "ncurses", luaopen_ncurses, 1);
+    luaL_requiref(L, "ncurses", luaopen_myncurses, 1);
     lua_pop(L, 1);
     l_ncurses_resize(L);
 

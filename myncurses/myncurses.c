@@ -176,7 +176,7 @@ static inline void setup_color(lua_State *L, short i, short f, short b, char con
 #define CC(s) CCR(#s, s)
 #define CF(i) CCR(LCURSES_STR(LCURSES_SPLICE(KEY_F, i)), KEY_F(i))
 
-int luaopen_ncurses(lua_State *L)
+int luaopen_myncurses(lua_State *L)
 {
     luaL_newlib(L, lib);
     setup_color(L, 1, COLOR_RED, -1, "red");
