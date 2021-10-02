@@ -9,4 +9,4 @@ target_link_libraries(snowcone PRIVATE
 configure_file(config.h.in config.h @ONLY)
 target_include_directories(snowcone PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
-install(TARGETS snowcone DESTINATION bin)
+install(TARGETS snowcone DESTINATION "${CMAKE_INSTALL_BINDIR}")

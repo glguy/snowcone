@@ -25,7 +25,7 @@ struct configuration load_configuration(int argc, char **argv)
     struct configuration cfg = {};
 
     cfg.irc_pass = getenv("IRC_PASSWORD");
-    cfg.lua_filename = INSTALL_PREFIX "/share/snowcone/lua/init.lua";
+    cfg.lua_filename = DATAROOTDIR "/snowcone/lua/init.lua";
 
     int opt;
     while ((opt = getopt(argc, argv, "h:p:S:X:N:U:G:L:")) != -1) {

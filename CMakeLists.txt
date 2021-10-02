@@ -8,6 +8,7 @@ project(snowcone
     LANGUAGES C
 )
 
+include(GNUInstallDirs)
 include(CTest)
 find_package(PkgConfig REQUIRED)
 
@@ -25,4 +26,4 @@ if(BUILD_TESTING)
 add_subdirectory(tests)
 endif()
 
-install(DIRECTORY "lua" DESTINATION "share/snowcone")
+install(DIRECTORY "lua" DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/snowcone")
