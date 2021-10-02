@@ -50,9 +50,10 @@ function OrderedMap:pop_back()
         local node = self.prev
         local key = node.key
         if self.index[key] == node then
-            self.indix[key] = nil
+            self.index[key] = nil
         end
         unlink_node(node)
+        self.n = self.n-1
     end
 end
 
