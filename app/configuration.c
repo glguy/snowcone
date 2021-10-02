@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include "configuration.h"
+#include "config.h"
 
 noreturn static void usage(void) 
 {
