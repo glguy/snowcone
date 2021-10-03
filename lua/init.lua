@@ -3,7 +3,10 @@ Set    = require 'pl.Set'
 tablex = require 'pl.tablex'
 
 require 'pl.stringx'.import()
-require 'pl.app'.require_here()
+
+if not uptime then
+    require 'pl.app'.require_here()
+end
 
 addstr = ncurses.addstr
 mvaddstr = ncurses.mvaddstr
