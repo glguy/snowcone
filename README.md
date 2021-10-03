@@ -11,7 +11,7 @@ Penlight shows up in Lua as `pl`. If you get errors about finding things like `p
 ## Usage
 
 ```
-usage: snowcode
+usage: snowcone
          [-h console_host]
          [-p console_port]
          [-S irc_socat]
