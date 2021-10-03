@@ -6,10 +6,11 @@
 #include <uv.h>
 
 #include "ircmsg.h"
+#include "configuration.h"
 
 struct app;
 
-struct app *app_new(uv_loop_t *loop, char const *logic);
+struct app *app_new(uv_loop_t *loop, struct configuration *cfg);
 void app_free(struct app *a);
 void app_reload(struct app *a);
 void app_set_irc(struct app *a, uv_stream_t *stream);

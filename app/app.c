@@ -59,7 +59,7 @@ static inline struct app **app_ref(lua_State *L)
 struct app
 {
     lua_State *L;
-    char const *logic_filename;
+    struct configuration *cfg;
     uv_stream_t *stream;
     uv_loop_t *loop;
 };
@@ -145,8 +145,31 @@ static void load_logic(lua_State *L, char const *filename)
     lua_pop(L, 1); /* error handler */
 }
 
-static void app_prepare_globals(lua_State *L, char const* script_name)
+static void push_configuration(lua_State *L, struct configuration *cfg)
 {
+    lua_createtable(L, 0, 8);
+    lua_pushstring(L, cfg->console_node);
+    lua_setfield(L, -2, "console_node");
+    lua_pushstring(L, cfg->console_service);
+    lua_setfield(L, -2, "console_service");
+    lua_pushstring(L, cfg->lua_filename);
+    lua_setfield(L, -2, "lua_filename");
+    lua_pushstring(L, cfg->irc_socat);
+    lua_setfield(L, -2, "irc_socat");
+    lua_pushstring(L, cfg->irc_nick);
+    lua_setfield(L, -2, "irc_nick");
+    lua_pushstring(L, cfg->irc_pass);
+    lua_setfield(L, -2, "irc_pass");
+    lua_pushstring(L, cfg->irc_user);
+    lua_setfield(L, -2, "irc_user");
+    lua_pushstring(L, cfg->irc_gecos);
+    lua_setfield(L, -2, "irc_gecos");
+}
+
+static void app_prepare_globals(struct app *a)
+{
+    lua_State * const L = a->L;
+
     luaL_openlibs(L);
     
     luaL_requiref(L, "ncurses", luaopen_myncurses, 1);
@@ -162,8 +185,11 @@ static void app_prepare_globals(lua_State *L, char const* script_name)
     luaopen_mygeoip(L);
     lua_setglobal(L, "mygeoip");
 
+    push_configuration(L, a->cfg);
+    lua_setglobal(L, "configuration");
+
     lua_createtable(L, 0, 1);
-    lua_pushstring(L, script_name);
+    lua_pushstring(L, a->cfg->lua_filename);
     lua_rawseti(L, -2, 0);
     lua_setglobal(L, "arg");
 }
@@ -177,16 +203,16 @@ static void start_lua(struct app *a)
     a->L = luaL_newstate();
     *app_ref(a->L) = a;
 
-    app_prepare_globals(a->L, a->logic_filename);
-    load_logic(a->L, a->logic_filename);
+    app_prepare_globals(a);
+    load_logic(a->L, a->cfg->lua_filename);
 }
 
-struct app *app_new(uv_loop_t *loop, char const *logic)
+struct app *app_new(uv_loop_t *loop, struct configuration *cfg)
 {
     struct app *a = malloc(sizeof *a);
     *a = (struct app) {
         .loop = loop,
-        .logic_filename = logic,
+        .cfg = cfg,
     };
 
     start_lua(a);
@@ -195,7 +221,7 @@ struct app *app_new(uv_loop_t *loop, char const *logic)
 
 void app_reload(struct app *a)
 {
-    load_logic(a->L, a->logic_filename);
+    load_logic(a->L, a->cfg->lua_filename);
 }
 
 void app_free(struct app *a)
@@ -260,7 +286,7 @@ void do_command(
         line++;
         if (!strcmp(line, "reload"))
         {
-            load_logic(a->L, a->logic_filename);
+            load_logic(a->L, a->cfg->lua_filename);
         }
         else if (!strcmp(line, "restart"))
         {

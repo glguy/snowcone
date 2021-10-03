@@ -455,7 +455,24 @@ end
 
 function M.on_connect(f)
     send_irc = f
-    send_irc 'MAP\r\nLINKS\r\n'
+
+    local pass = ''
+    if configuration.irc_pass then
+        pass = 'PASS ' .. configuration.irc_pass .. '\r\n'
+    end
+
+    local user = configuration.irc_user or configuration.irc_nick
+    local gecos = configuration.irc_gecos or configuration.irc_nick
+
+    send_irc(
+        'CAP LS 302\r\n' ..
+        pass ..
+        'NICK ' .. configuration.irc_nick .. '\r\n' ..
+        'USER ' .. user .. ' * * ' .. gecos .. '\r\n' ..
+        'CAP REQ znc.in/playback\r\n' ..
+        'CAP END\r\n' ..
+        'MAP\r\n' ..
+        'LINKS\r\n')
 end
 
 function M.on_disconnect()

@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
     uv_loop_t loop = {};
     uv_loop_init(&loop);
 
-    struct app *a = app_new(&loop, cfg.lua_filename);
+    struct app *a = app_new(&loop, &cfg);
     loop.data = a;
 
     uv_poll_t input;

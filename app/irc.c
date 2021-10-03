@@ -24,7 +24,6 @@ static void on_line(void *, char *msg);
 static void on_connect(uv_connect_t* req, int status);
 static void on_close(void *data);
 static void on_reconnect(uv_timer_t *timer);
-static void register_irc(uv_stream_t *irc, struct configuration *cfg);
 
 int start_irc(uv_loop_t *loop, struct configuration *cfg)
 {
@@ -54,40 +53,12 @@ int start_irc(uv_loop_t *loop, struct configuration *cfg)
         .cfg = cfg,
     };
 
-    register_irc(irc, cfg);
-
     app_set_irc(a, irc);
 
     int r = uv_read_start(irc, &my_alloc_cb, &readline_cb);
     assert(0 == r);
 
     return 0;
-}
-
-static void register_irc(uv_stream_t *irc, struct configuration *cfg)
-{
-    static char buffer[512];
-    char const* msg;
-
-    msg = "CAP REQ :znc.in/playback\r\n";
-    to_write(irc, msg, strlen(msg));
-
-    msg = "CAP END\r\n";
-    to_write(irc, msg, strlen(msg));
-
-    if (cfg->irc_pass)
-    {
-        snprintf(buffer, sizeof buffer, "PASS %s\r\n", cfg->irc_pass);
-        to_write(irc, buffer, strlen(buffer));
-    }
-
-    snprintf(buffer, sizeof buffer, "NICK %s\r\n", cfg->irc_nick);
-    to_write(irc, buffer, strlen(buffer));
-
-    char const* irc_user = cfg->irc_user ? cfg->irc_user : cfg->irc_nick;
-    char const* irc_gecos = cfg->irc_gecos ? cfg->irc_gecos : cfg->irc_nick;
-    snprintf(buffer, sizeof buffer, "USER %s * * %s\r\n", irc_user, irc_gecos);
-    to_write(irc, buffer, strlen(buffer));
 }
 
 static void on_close(void *data)

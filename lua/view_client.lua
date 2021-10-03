@@ -4,7 +4,7 @@ local function render_irc(irc)
     local parts = {}
 
     if irc.source then
-        table.insert(parts, irc.source)
+        table.insert(parts, ':'..irc.source)
     end
 
     table.insert(parts, irc.command)
@@ -22,7 +22,7 @@ local function render_irc(irc)
     if #full > tty_width then
         full = string.sub(full, 1, tty_width) -- better to do something with unicode!
     end
-    return full
+    return string.gsub(full, '%c', '.')
 end
 
 local M = {}
@@ -34,7 +34,7 @@ function M:keypress(key)
         buffer = ''
     elseif key == 0x7f then
         buffer = string.sub(buffer, 1, #buffer - 1)
-    elseif 0x14 <= key then
+    elseif 0x14 <= key and key < 0x7f then
         buffer = buffer .. utf8.char(key)
     elseif key == 0xd then
         send_irc(buffer..'\r\n')
