@@ -16,6 +16,8 @@ noreturn static void usage(void)
                     "         [-U irc_user]\n"
                     "         [-G irc_gecos]\n"
                     "         [-X irc_password]\n"
+                    "         [-O irc_oper]\n"
+                    "         [-K irc_challenge_key]\n"
                     "         [-L init.lua]\n");
     exit(EXIT_FAILURE);
 }
@@ -26,15 +28,18 @@ struct configuration load_configuration(int argc, char **argv)
 
     cfg.irc_pass = getenv("IRC_PASSWORD");
     cfg.lua_filename = DATAROOTDIR "/snowcone/lua/init.lua";
+    cfg.irc_challenge_password = getenv("IRC_CHALLENGE_PASSWORD");
 
     int opt;
-    while ((opt = getopt(argc, argv, "h:p:S:X:N:U:G:L:")) != -1) {
+    while ((opt = getopt(argc, argv, "h:p:S:X:N:U:G:L:K:O:")) != -1) {
         switch (opt) {
         case 'h': cfg.console_node = optarg; break;
         case 'p': cfg.console_service = optarg; break;
         case 'G': cfg.irc_gecos = optarg; break;
+        case 'K': cfg.irc_challenge_key = optarg; break;
         case 'L': cfg.lua_filename = optarg; break;
         case 'N': cfg.irc_nick = optarg; break;
+        case 'O': cfg.irc_oper = optarg; break;
         case 'S': cfg.irc_socat = optarg; break;
         case 'U': cfg.irc_user = optarg; break;
         case 'X': cfg.irc_pass = optarg; break;

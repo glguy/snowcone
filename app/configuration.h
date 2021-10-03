@@ -11,6 +11,9 @@ struct configuration
     char const* irc_pass;
     char const* irc_user;
     char const* irc_gecos;
+    char const* irc_oper;
+    char const* irc_challenge_key;
+    char const* irc_challenge_password;
 };
 
 struct configuration load_configuration(int argc, char **argv);

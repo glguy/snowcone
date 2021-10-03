@@ -87,4 +87,36 @@ M['365'] = function(irc)
     end
 end
 
+local challenge_buffer = ''
+
+-- ERR_ERR_NOOPERHOST
+M['491'] = function(irc)
+    challenge_buffer = ''
+end
+
+-- ERR_PASSWDMISMATCH
+M['464'] = function(irc)
+    challenge_buffer = ''
+end
+
+-- RPL_RSACHALLENGE2
+M['740'] = function(irc)
+    challenge_buffer = challenge_buffer .. irc[2]
+end
+
+-- RPL_ENDOFRSACHALLENGE2
+M['741'] = function(irc)
+    local irc_challenge = require_ 'irc_challenge'
+    local file = require 'pl.file'
+    local rsa_key = file.read(configuration.irc_challenge_key)
+    local password = configuration.irc_challenge_password
+    send_irc('CHALLENGE ' .. irc_challenge(rsa_key, password, challenge_buffer) .. '\r\n')
+    challenge_buffer=''
+end
+
+-- RPL_YOUREOPER
+M['381'] = function(irc)
+    send_irc 'MAP\r\nLINKS\r\n'
+end
+
 return M

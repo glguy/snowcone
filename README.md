@@ -19,7 +19,9 @@ usage: snowcone
          [-U irc_user]
          [-G irc_gecos]
          [-X irc_password]
-         [-L lua.init]
+         [-O irc_oper]
+         [-K irc_challenge_key]
+         [-L init.lua]
 ```
 
 To keep the IRC password out of your command-line arguments you can set the `IRC_PASSWORD` environment variable.
@@ -86,3 +88,21 @@ snowcone expects to connect to your existing client. We know it works with irssi
 
 - [weechat IRC proxy documentation](https://weechat.org/files/doc/stable/weechat_user.en.html#relay_irc_proxy)
 - [irssi IRC proxy documentation](https://github.com/irssi/irssi/blob/master/docs/proxy.txt)
+
+## Connecting directly
+
+snowcone can connect directly to libera.chat and handle challenge on its own (if you have the openssl lua module available)
+
+Here's the configuration script I use to do that.
+
+```sh
+#!/bin/sh
+IRC_PASSWORD=$(security find-generic-password -a glguy -s 'libera.chat iline' -w) \
+IRC_CHALLENGE_PASSWORD=$(security find-generic-password -a glguy -s 'libera.chat challenge' -w) \
+app/snowcone \
+  -O glguy \
+  -K liberachat-challenge.p8 \
+  -S OPENSSL:irc.libera.chat:6697,certificate=nickserv.libera.chat.pem,key=key.pem \
+  -N snowcone \
+  -L ../lua/init.lua
+```

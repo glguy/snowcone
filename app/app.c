@@ -146,7 +146,7 @@ static void load_logic(lua_State *L, char const *filename)
 
 static void push_configuration(lua_State *L, struct configuration *cfg)
 {
-    lua_createtable(L, 0, 8);
+    lua_createtable(L, 0, 11);
     lua_pushstring(L, cfg->console_node);
     lua_setfield(L, -2, "console_node");
     lua_pushstring(L, cfg->console_service);
@@ -163,6 +163,12 @@ static void push_configuration(lua_State *L, struct configuration *cfg)
     lua_setfield(L, -2, "irc_user");
     lua_pushstring(L, cfg->irc_gecos);
     lua_setfield(L, -2, "irc_gecos");
+    lua_pushstring(L, cfg->irc_challenge_key);
+    lua_setfield(L, -2, "irc_challenge_key");
+    lua_pushstring(L, cfg->irc_challenge_password);
+    lua_setfield(L, -2, "irc_challenge_password");
+    lua_pushstring(L, cfg->irc_oper);
+    lua_setfield(L, -2, "irc_oper");
 }
 
 static void app_prepare_globals(struct app *a)

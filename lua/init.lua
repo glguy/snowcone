@@ -464,6 +464,11 @@ function M.on_connect(f)
     local user = configuration.irc_user or configuration.irc_nick
     local gecos = configuration.irc_gecos or configuration.irc_nick
 
+    local first = 'MAP\r\nLINKS\r\n'
+    if configuration.irc_oper and configuration.irc_challenge_key then
+        first = 'CHALLENGE ' .. configuration.irc_oper .. '\r\n'
+    end
+
     send_irc(
         'CAP LS 302\r\n' ..
         pass ..
@@ -471,8 +476,7 @@ function M.on_connect(f)
         'USER ' .. user .. ' * * ' .. gecos .. '\r\n' ..
         'CAP REQ znc.in/playback\r\n' ..
         'CAP END\r\n' ..
-        'MAP\r\n' ..
-        'LINKS\r\n')
+        first)
 end
 
 function M.on_disconnect()
