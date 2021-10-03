@@ -33,9 +33,8 @@ end
 
 -- Local modules ======================================================
 
-server_classes = require_ 'server_classes'
-elements       = require_ 'elements'
-ip_org         = require_ 'ip_org'
+servers  = require_ 'servers'
+ip_org   = require_ 'ip_org'
 
 local LoadTracker        = require_ 'LoadTracker'
 local OrderedMap         = require_ 'OrderedMap'
@@ -110,8 +109,7 @@ for k,v in pairs(defaults) do
 end
 
 -- Prepopulate the server list
-for k,_ in pairs(server_classes) do
-    local server = k..'.libera.chat'
+for server, _ in pairs(servers) do
     conn_tracker:track(server, 0)
     exit_tracker:track(server, 0)
 end

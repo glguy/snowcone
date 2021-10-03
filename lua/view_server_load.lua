@@ -41,14 +41,14 @@ function M:render()
     local next_color = 2
 
     ncurses.attron(color)
-    mvaddstr(pad,0, string.format('          Server  1m    5m    15m  %-62s Mn  Region AF  Conns  Link', title))
+    mvaddstr(pad,0, string.format('          Server  1m    5m    15m  %-62s Mn  Region AF  Conns  Up', title))
     normal()
     for i,row in ipairs(rows) do
         if i+1 >= tty_height then return end
         local avg = row.load
         local name = row.name
         local short = string.gsub(name, '%..*', '', 1)
-        local info = server_classes[short] or {}
+        local info = servers[name] or {}
         local in_main = in_rotation('', info.ipv4, info.ipv6)
         if in_main then yellow() end
         mvaddstr(pad+i,0, string.format('%16s ', short))
@@ -87,7 +87,8 @@ function M:render()
                 next_color = next_color % #palette + 1
             end
             color()
-            addstr('  '..string.sub(link, 1, 4))
+            local linktext = (servers[link] or {}).alias or link
+            addstr('  '.. linktext)
             normal()
         else
             addstr('      ')

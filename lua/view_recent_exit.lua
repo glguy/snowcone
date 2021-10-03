@@ -80,8 +80,8 @@ function M:render()
         end
 
         blue()
-        local server = elements[string.match(entry.server, '[^.]*')]
-        or string.substr(entry.server, 1, 2)
+        local server = (servers[entry.server] or {}).alias
+                    or string.substr(entry.server, 1, 2)
         mvaddstr(y, 120, server)
 
         -- Click handlers
