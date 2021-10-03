@@ -10,11 +10,11 @@ local handlers = {
         scroll = scroll - math.max(1, tty_height - 1)
         scroll = math.max(scroll, 0)
     end,
-    --[[ESC]][ 27] = function() reset_filter() end,
-    --[[Q ]] [113] = function() conn_filter = true  end,
-    --[[W ]] [119] = function() conn_filter = false end,
-    --[[E ]] [101] = function() conn_filter = nil   end,
-    --[[K ]] [107] = function()
+    --[[ESC]][0x1b] = function() reset_filter() end,
+    [string.byte('q')] = function() conn_filter = true  end,
+    [string.byte('w')] = function() conn_filter = false end,
+    [string.byte('e')] = function() conn_filter = nil   end,
+    [string.byte('k')] = function()
         if staged_action.action == 'kline' then
             send_irc(
                 string.format('KLINE %s %s :%s\r\n',
