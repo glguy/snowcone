@@ -6,5 +6,5 @@ return function(key_txt, password, challenge)
     local message  = assert(key:decrypt(envelope, 'oaep'))
     local digest   = sha1:digest(message)
     local response = openssl.base64(digest, true, true)
-    return '+'..response
+    return response
 end

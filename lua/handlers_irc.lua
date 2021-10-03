@@ -78,7 +78,7 @@ M['365'] = function(irc)
     upstream = {[primary_hub] = primary_hub}
     local q = {primary_hub}
     for _, here in ipairs(q) do
-        for k, _ in pairs(links[here]) do
+        for k, _ in pairs(links[here] or {}) do
             if not upstream[k] then
                 upstream[k] = here
                 table.insert(q, k)
@@ -106,12 +106,15 @@ end
 
 -- RPL_ENDOFRSACHALLENGE2
 M['741'] = function(irc)
+    -- remember and clear the challenge buffer now before failures below
+    local challenge = challenge_buffer
+    challenge_buffer = ''
+
     local irc_challenge = require_ 'irc_challenge'
-    local file = require 'pl.file'
-    local rsa_key = file.read(configuration.irc_challenge_key)
-    local password = configuration.irc_challenge_password
-    send_irc('CHALLENGE ' .. irc_challenge(rsa_key, password, challenge_buffer) .. '\r\n')
-    challenge_buffer=''
+    local file          = require 'pl.file'
+    local rsa_key       = assert(file.read(configuration.irc_challenge_key))
+    local password      = configuration.irc_challenge_password
+    send_irc('CHALLENGE +' .. irc_challenge(rsa_key, password, challenge) .. '\r\n')
 end
 
 -- RPL_YOUREOPER
