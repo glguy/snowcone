@@ -1,4 +1,4 @@
-# snowcone - IRCd server notice console
+# Snowcone - solanum server notice console
 
 ## Dependencies
 
@@ -65,14 +65,17 @@ Built-in keyboard shortcuts:
   - <kbd>W</kbd> - only dead connections
   - <kbd>E</kbd> - all connections
   - <kbd>K</kbd> - **issue kline**
+  - <kbd>⎋</kbd> - clear filters
+  - <kbd>PgUp</kbd> - scroll up
+  - <kbd>PgDn</kbd> - scroll down
 - <kbd>F2</kbd> - server connection load
 - <kbd>F3</kbd> - recent exits
 - <kbd>F4</kbd> - server exit load
 - <kbd>F5</kbd> - kline load
 - <kbd>F6</kbd> - filter load
 - <kbd>F7</kbd> - reconnecting nicknames
-- <kbd>PgUp</kbd> - scroll up
-- <kbd>PgDn</kbd> - scroll down
+- <kbd>F8</kbd> - raw IRC console
+
 
 
 Built-in Lua console commands
@@ -84,25 +87,30 @@ Built-in Lua console commands
 
 ## Known working clients
 
-snowcone expects to connect to your existing client. We know it works with irssi, weechat, and znc.
+Snowcone expects to connect to your existing client. It works with irssi, weechat, and znc.
 
 - [weechat IRC proxy documentation](https://weechat.org/files/doc/stable/weechat_user.en.html#relay_irc_proxy)
 - [irssi IRC proxy documentation](https://github.com/irssi/irssi/blob/master/docs/proxy.txt)
 
 ## Connecting directly
 
-snowcone can connect directly to libera.chat and handle challenge on its own (if you have the openssl lua module available)
+Snowcone can connect directly to libera.chat and handle challenge on its own.
 
-Here's the configuration script I use to do that.
+This requires an extra Lua dependency [openssl](https://github.com/zhaozg/lua-openssl) that isn't packaged in Debian.
+
+```sh
+luarocks install openssl
+```
+
+Here's the configuration script I use:
 
 ```sh
 #!/bin/sh
-IRC_PASSWORD=$(security find-generic-password -a glguy -s 'libera.chat iline' -w) \
-IRC_CHALLENGE_PASSWORD=$(security find-generic-password -a glguy -s 'libera.chat challenge' -w) \
-app/snowcone \
+IRC_PASSWORD=$(security find-generic-password -s iline -w) \
+IRC_CHALLENGE_PASSWORD=$(security find-generic-password -s challenge -w) \
+snowcone \
   -O glguy \
-  -K liberachat-challenge.p8 \
-  -S OPENSSL:irc.libera.chat:6697,certificate=nickserv.libera.chat.pem,key=key.pem \
-  -N snowcone \
-  -L ../lua/init.lua
+  -K challenge.p8 \
+  -S OPENSSL:irc.libera.chat:6697,certificate=cert.pem,key=key.pem \
+  -N snowcone
 ```

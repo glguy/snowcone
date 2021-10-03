@@ -8,17 +8,19 @@
 
 noreturn static void usage(void) 
 {
-    fprintf(stderr, "usage: snowcone\n"
-                    "         [-h console_host]\n"
-                    "         [-p console_port]\n"
-                    "         [-S irc_socat]\n"
-                    "         [-N irc_nick]\n"
-                    "         [-U irc_user]\n"
-                    "         [-G irc_gecos]\n"
-                    "         [-X irc_password]\n"
-                    "         [-O irc_oper]\n"
-                    "         [-K irc_challenge_key]\n"
-                    "         [-L init.lua]\n");
+    fprintf(stderr,
+    "usage: snowcone\n"
+    "         -S irc_socat\n"
+    "         -N irc_nick\n"
+    "         [-U irc_user]\n"
+    "         [-G irc_gecos]\n"
+    "         [-X irc_password]\n"
+    "         [-O irc_oper]\n"
+    "         [-K irc_challenge_key]\n"
+    "         [-L init.lua]\n"
+    "         [-h console_host]\n"
+    "         [-p console_port]\n"
+    );
     exit(EXIT_FAILURE);
 }
 
