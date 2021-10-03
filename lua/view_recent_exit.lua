@@ -1,4 +1,9 @@
-return function()
+local M = {}
+
+function M:keypress()
+end
+
+function M:render()
     draw_global_load('CLIEXI', exit_tracker)
 
     local n = 0
@@ -99,3 +104,5 @@ return function()
 
     draw_buttons()
 end
+
+return M

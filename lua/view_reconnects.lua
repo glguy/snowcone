@@ -1,4 +1,9 @@
-return function()
+local M = {}
+
+function M:keypress()
+end
+
+function M:render()
     draw_global_load('CLICON', conn_tracker)
 
     local nick_counts, mask_counts = {}, {}
@@ -43,3 +48,5 @@ return function()
         end
     end
 end
+
+return M

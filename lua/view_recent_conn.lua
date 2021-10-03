@@ -1,4 +1,42 @@
-return function()
+local M = {}
+
+local handlers = {
+    [ncurses.KEY_PPAGE] = function()
+        scroll = scroll + math.max(1, tty_height - 1)
+        scroll = math.min(scroll, users.n - 1)
+        scroll = math.max(scroll, 0)
+    end,
+    [ncurses.KEY_NPAGE] = function()
+        scroll = scroll - math.max(1, tty_height - 1)
+        scroll = math.max(scroll, 0)
+    end,
+    --[[ESC]][ 27] = function() reset_filter() end,
+    --[[Q ]] [113] = function() conn_filter = true  end,
+    --[[W ]] [119] = function() conn_filter = false end,
+    --[[E ]] [101] = function() conn_filter = nil   end,
+    --[[K ]] [107] = function()
+        if staged_action.action == 'kline' then
+            send_irc(
+                string.format('KLINE %s %s :%s\r\n',
+                    kline_durations[kline_duration][2],
+                    staged_action.mask,
+                    kline_reasons[kline_reason][2]
+                )
+            )
+            staged_action = nil
+        end
+    end,
+}
+
+function M:keypress(key)
+    local f = handlers[key]
+    if f then
+        f()
+        draw()
+    end
+end
+
+function M:render()
     local skips = scroll or 0
     local last_time
     local n = 0
@@ -163,7 +201,6 @@ return function()
         end
         normal()
     end
-    if last_key ~= nil then
-        addstr(' key ' .. tostring(last_key))
-    end
 end
+
+return M

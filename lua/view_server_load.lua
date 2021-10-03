@@ -18,7 +18,13 @@ local function render_mrs(zone, addr, str)
 end
 
 return function(title, label, color, tracker)
-return function()
+
+local M = {}
+
+function M:keypress()
+end
+
+function M:render()
     draw_global_load(label, tracker)
 
     local rows = {}
@@ -88,4 +94,6 @@ return function()
         end
     end
 end
+
+return M
 end

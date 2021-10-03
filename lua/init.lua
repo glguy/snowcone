@@ -67,6 +67,7 @@ local defaults = {
     -- state
     users = OrderedMap(),
     exits = OrderedMap(),
+    messages = OrderedMap(),
     kline_tracker = LoadTracker(),
     conn_tracker = LoadTracker(),
     exit_tracker = LoadTracker(),
@@ -136,7 +137,6 @@ function entry_to_kline(entry)
         staged_action = {action='kline', mask=mask, entry=entry}
         send_irc('TESTMASK ' .. mask .. '\r\n')
     else
-        last_key = mask
         staged_action = nil
     end
 end
@@ -361,13 +361,14 @@ views = {
     view_simple_load('Server', 'FILTERS', 'Filter History', filter_tracker),
     -- Repeat connection tracking
     require_ 'view_reconnects',
+    require_ 'view_client',
 }
 
 function draw()
     clicks = {}
     ncurses.erase()
     normal()
-    views[view]()
+    views[view]:render()
     ncurses.refresh()
 end
 
@@ -390,6 +391,11 @@ end
 
 local irc_handlers = require_ 'handlers_irc'
 function M.on_irc(irc)
+    messages:insert(true, irc)
+    while messages.n > 100 do
+        messages:pop_back()
+    end
+
     local f = irc_handlers[irc.command]
     if f then
         f(irc)
@@ -412,51 +418,24 @@ function M.on_timer()
 end
 
 local keys = {
-    [ncurses.KEY_F1] = function() view = 1 scroll = 0 draw() end,
-    [ncurses.KEY_F2] = function() view = 2 draw() end,
-    [ncurses.KEY_F3] = function() view = 3 draw() end,
-    [ncurses.KEY_F4] = function() view = 4 draw() end,
-    [ncurses.KEY_F5] = function() view = 5 draw() end,
-    [ncurses.KEY_F6] = function() view = 6 draw() end,
-    [ncurses.KEY_F7] = function() view = 7 draw() end,
-    [ncurses.KEY_PPAGE] = function()
-        scroll = scroll + math.max(1, tty_height - 1)
-        scroll = math.min(scroll, users.n - 1)
-        scroll = math.max(scroll, 0)
-        draw()
-    end,
-    [ncurses.KEY_NPAGE] = function()
-        scroll = scroll - math.max(1, tty_height - 1)
-        scroll = math.max(scroll, 0)
-        draw()
-    end,
+    [ncurses.KEY_F1] = function() view = 1 scroll = 0 end,
+    [ncurses.KEY_F2] = function() view = 2 end,
+    [ncurses.KEY_F3] = function() view = 3 end,
+    [ncurses.KEY_F4] = function() view = 4 end,
+    [ncurses.KEY_F5] = function() view = 5 end,
+    [ncurses.KEY_F6] = function() view = 6 end,
+    [ncurses.KEY_F7] = function() view = 7 end,
+    [ncurses.KEY_F8] = function() view = 8 end,
     --[[^L]] [ 12] = function() ncurses.clear() end,
-    --[[ESC]][ 27] = function() reset_filter() end,
-    --[[Q ]] [113] = function() conn_filter = true  end,
-    --[[W ]] [119] = function() conn_filter = false end,
-    --[[E ]] [101] = function() conn_filter = nil   end,
-    --[[K ]] [107] = function()
-        if staged_action.action == 'kline' then
-            send_irc(
-                string.format('KLINE %s %s :%s\r\n',
-                    kline_durations[kline_duration][2],
-                    staged_action.mask,
-                    kline_reasons[kline_reason][2]
-                )
-            )
-            staged_action = nil
-        end
-    end,
 }
 
 function M.on_keyboard(key)
     local f = keys[key]
     if f then
-        last_key = nil
         f()
         draw()
     else
-        last_key = key
+        views[view]:keypress(key)
     end
 end
 

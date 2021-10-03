@@ -1,5 +1,10 @@
 return function(title, label, history, tracker)
-return function()
+local M = {}
+
+function M:keypress()
+end
+
+function M:render()
     draw_global_load('CLICON', conn_tracker)
 
     local rows = {}
@@ -34,4 +39,6 @@ return function()
     end
 
 end
+
+return M
 end
