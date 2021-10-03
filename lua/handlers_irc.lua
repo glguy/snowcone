@@ -2,8 +2,8 @@
 
 local M = {}
 
-function M.PING()
-    send_irc('PONG ZNC\r\n')
+function M.PING(irc)
+    send_irc('PONG ' .. irc[1] .. '\r\n')
 end
 
 local parse_snote = require_ 'parse_snote'
@@ -119,7 +119,11 @@ end
 
 -- RPL_YOUREOPER
 M['381'] = function(irc)
-    send_irc 'MAP\r\nLINKS\r\n'
+    send_irc(
+        'MAP\r\n' ..
+        'LINKS\r\n' ..
+        'MODE ' .. configuration.irc_nick .. ' s Fknsx\r\n'
+    )
 end
 
 return M
