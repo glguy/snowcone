@@ -122,8 +122,14 @@ M['741'] = function()
         local file          = require 'pl.file'
         local rsa_key       = assert(file.read(configuration.irc_challenge_key))
         local password      = configuration.irc_challenge_password
-        send_irc('CHALLENGE +' .. irc_authentication.challenge(rsa_key, password, challenge) .. '\r\n')
-        status_message = 'challenged'
+        local success, resp = pcall(irc_authentication.challenge, rsa_key, password, challenge)
+        if success then
+            send_irc('CHALLENGE +' .. resp .. '\r\n')
+            status_message = 'challenged'
+        else
+            io.stderr:write(resp,'\n')
+            status_message = 'challenge failed - see stderr'
+        end
     end
 end
 
