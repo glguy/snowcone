@@ -28,8 +28,13 @@ function M.NOTICE(irc)
     end
 end
 
+-- RPL_WELCOME
+M['001'] = function()
+    status_message = 'connected'
+end
+
 -- RPL_STATS_ILINE
-M['215'] = function(irc)
+M['215'] = function()
     if staged_action ~= nil
     and staged_action.action == 'unkline'
     and staged_action.mask == nil
@@ -76,7 +81,7 @@ M['364'] = function(irc)
 end
 
 -- RPL_END_OF_LINKS
-M['365'] = function(irc)
+M['365'] = function()
     upstream = {[primary_hub] = primary_hub}
     local q = {primary_hub}
     for _, here in ipairs(q) do
@@ -90,13 +95,13 @@ M['365'] = function(irc)
 end
 
 -- ERR_ERR_NOOPERHOST
-M['491'] = function(irc)
+M['491'] = function()
     irc_state.challenge = nil
     status_message = 'no oper host'
 end
 
 -- ERR_PASSWDMISMATCH
-M['464'] = function(irc)
+M['464'] = function()
     irc_state.challenge = nil
     status_message = 'oper password mismatch'
 end
@@ -108,7 +113,7 @@ M['740'] = function(irc)
 end
 
 -- RPL_ENDOFRSACHALLENGE2
-M['741'] = function(irc)
+M['741'] = function()
     -- remember and clear the challenge buffer now before failures below
     local challenge = irc_state.challenge
     if challenge then
@@ -123,7 +128,7 @@ M['741'] = function(irc)
 end
 
 -- RPL_YOUREOPER
-M['381'] = function(irc)
+M['381'] = function()
     send_irc(
         'MAP\r\n' ..
         'LINKS\r\n' ..
@@ -133,17 +138,17 @@ M['381'] = function(irc)
 end
 
 -- RPL_SASLSUCCESS
-M['903'] = function(irc)
+M['903'] = function()
     status_message = 'SASL success'
 end
 
 -- ERR_SASLFAIL
-M['904'] = function(irc)
+M['904'] = function()
     status_message = 'SASL failed'
 end
 
 -- RPL_SASLMECHS
-M['908'] = function(irc)
+M['908'] = function()
     status_message = 'bad SASL mechanism'
 end
 

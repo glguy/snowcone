@@ -81,7 +81,6 @@ local defaults = {
     clicon_n = 0,
     cliexit_n = 0,
     filter_tracker = LoadTracker(),
-    clicks = {},
     population = {},
     links = {},
     upstream = {},
@@ -118,7 +117,6 @@ for server, _ in pairs(servers) do
     conn_tracker:track(server, 0)
     exit_tracker:track(server, 0)
 end
-
 
 -- Kline logic ========================================================
 
@@ -165,6 +163,8 @@ end
 
 -- Mouse logic ========================================================
 
+local clicks = {}
+
 function add_click(y, lo, hi, action)
     local list = clicks[y]
     local entry = {lo=lo, hi=hi, action=action}
@@ -180,7 +180,7 @@ function add_button(text, action)
     reversevideo()
     addstr(text)
     reversevideo_()
-    local y2,x2 = ncurses.getyx()
+    local _, x2 = ncurses.getyx()
     add_click(y1, x1, x2, action)
 end
 
@@ -494,7 +494,9 @@ function M.on_connect(f)
         auth = irc_authentication.sasl('EXTERNAL', '')
     elseif configuration.irc_sasl_mechanism == "PLAIN" then
         table.insert(caps, 'sasl')
-        auth = irc_authentication.sasl('PLAIN', '\0' .. configuration.irc_sasl_username .. '\0' .. configuration.irc_sasl_password)
+        auth = irc_authentication.sasl('PLAIN',
+                '\0' .. configuration.irc_sasl_username ..
+                '\0' .. configuration.irc_sasl_password)
     end
 
     local capreq = ''
