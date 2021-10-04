@@ -70,7 +70,9 @@ M['364'] = function(irc)
     local server, linked = table.unpack(irc, 2, 3)
     if server == linked then links = {} end -- start
     links[server] = Set{linked}
-    links[linked][server] = true
+    if links[linked] then
+        links[linked][server] = true
+    end
 end
 
 -- RPL_END_OF_LINKS
@@ -87,34 +89,38 @@ M['365'] = function(irc)
     end
 end
 
-local challenge_buffer = ''
-
 -- ERR_ERR_NOOPERHOST
 M['491'] = function(irc)
-    challenge_buffer = ''
+    irc_state.challenge = nil
+    status_message = 'no oper host'
 end
 
 -- ERR_PASSWDMISMATCH
 M['464'] = function(irc)
-    challenge_buffer = ''
+    irc_state.challenge = nil
+    status_message = 'oper password mismatch'
 end
 
 -- RPL_RSACHALLENGE2
 M['740'] = function(irc)
-    challenge_buffer = challenge_buffer .. irc[2]
+    irc_state.challenge = irc_state.challenge .. irc[2]
+    status_message = 'challenging'
 end
 
 -- RPL_ENDOFRSACHALLENGE2
 M['741'] = function(irc)
     -- remember and clear the challenge buffer now before failures below
-    local challenge = challenge_buffer
-    challenge_buffer = ''
+    local challenge = irc_state.challenge
+    if challenge then
+        irc_state.challenge = nil
 
-    local irc_challenge = require_ 'irc_challenge'
-    local file          = require 'pl.file'
-    local rsa_key       = assert(file.read(configuration.irc_challenge_key))
-    local password      = configuration.irc_challenge_password
-    send_irc('CHALLENGE +' .. irc_challenge(rsa_key, password, challenge) .. '\r\n')
+        local irc_challenge = require_ 'irc_challenge'
+        local file          = require 'pl.file'
+        local rsa_key       = assert(file.read(configuration.irc_challenge_key))
+        local password      = configuration.irc_challenge_password
+        send_irc('CHALLENGE +' .. irc_challenge(rsa_key, password, challenge) .. '\r\n')
+        status_message = 'challenged'
+    end
 end
 
 -- RPL_YOUREOPER
@@ -122,8 +128,9 @@ M['381'] = function(irc)
     send_irc(
         'MAP\r\n' ..
         'LINKS\r\n' ..
-        'MODE ' .. configuration.irc_nick .. ' s Fknsx\r\n'
+        'MODE ' .. irc_state.nick .. ' s Fknsx\r\n'
     )
+    status_message = "you're oper"
 end
 
 return M

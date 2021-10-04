@@ -10,7 +10,7 @@ local handlers = {
         scroll = scroll - math.max(1, tty_height - 1)
         scroll = math.max(scroll, 0)
     end,
-    --[[ESC]][0x1b] = function() reset_filter() end,
+    --[[ESC]][0x1b] = function() reset_filter() status_message = '' end,
     [string.byte('q')] = function() conn_filter = true  end,
     [string.byte('w')] = function() conn_filter = false end,
     [string.byte('e')] = function() conn_filter = nil   end,

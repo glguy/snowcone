@@ -96,10 +96,12 @@ end
 
 function M.netjoin(ev)
     send_irc 'MAP\r\nLINKS\r\n'
+    status_message = 'netjoin ' .. ev.server2
 end
 
 function M.netsplit(ev)
     send_irc 'MAP\r\nLINKS\r\n'
+    status_message = 'netsplit ' .. ev.server2
 end
 
 return M

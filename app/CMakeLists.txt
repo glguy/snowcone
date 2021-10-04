@@ -1,6 +1,6 @@
 add_executable(snowcone
     main.c app.c socat.c buffer.c configuration.c
-    irc.c tcp-server.c write.c read-line.c)
+    irc.c tcp-server.c write.c read-line.c base64.c)
 
 target_link_libraries(snowcone PRIVATE
     PkgConfig::UV PkgConfig::NCURSESW PkgConfig::LUA

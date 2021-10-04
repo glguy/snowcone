@@ -16,6 +16,7 @@
 
 #include "app.h"
 #include "write.h"
+#include "base64.h"
 
 static char logic_module;
 
@@ -126,6 +127,18 @@ static int app_print(lua_State *L)
     return 0;
 }
 
+static int app_to_base64(lua_State *L)
+{
+    size_t input_len;
+    char const* input = luaL_checklstring(L, 1, &input_len);
+    size_t outlen = (input_len + 2) / 3 * 4 + 1;
+    char *output = malloc(outlen);
+    snowcone_base64(input, input_len, output);
+    lua_pushstring(L, output);
+    free(output);
+    return 1;
+}
+
 static void load_logic(lua_State *L, char const *filename)
 {
     lua_pushcfunction(L, error_handler);
@@ -146,7 +159,7 @@ static void load_logic(lua_State *L, char const *filename)
 
 static void push_configuration(lua_State *L, struct configuration *cfg)
 {
-    lua_createtable(L, 0, 11);
+    lua_createtable(L, 0, 16);
     lua_pushstring(L, cfg->console_node);
     lua_setfield(L, -2, "console_node");
     lua_pushstring(L, cfg->console_service);
@@ -167,8 +180,18 @@ static void push_configuration(lua_State *L, struct configuration *cfg)
     lua_setfield(L, -2, "irc_challenge_key");
     lua_pushstring(L, cfg->irc_challenge_password);
     lua_setfield(L, -2, "irc_challenge_password");
-    lua_pushstring(L, cfg->irc_oper);
-    lua_setfield(L, -2, "irc_oper");
+    lua_pushstring(L, cfg->irc_oper_username);
+    lua_setfield(L, -2, "irc_oper_username");
+    lua_pushstring(L, cfg->irc_oper_password);
+    lua_setfield(L, -2, "irc_oper_password");
+    lua_pushstring(L, cfg->irc_sasl_mechanism);
+    lua_setfield(L, -2, "irc_sasl_mechanism");
+    lua_pushstring(L, cfg->irc_sasl_username);
+    lua_setfield(L, -2, "irc_sasl_username");
+    lua_pushstring(L, cfg->irc_sasl_password);
+    lua_setfield(L, -2, "irc_sasl_password");
+    lua_pushstring(L, cfg->irc_capabilities);
+    lua_setfield(L, -2, "irc_capabilities");
 }
 
 static void app_prepare_globals(struct app *a)
@@ -180,6 +203,9 @@ static void app_prepare_globals(struct app *a)
     luaL_requiref(L, "ncurses", luaopen_myncurses, 1);
     lua_pop(L, 1);
     l_ncurses_resize(L);
+
+    lua_pushcfunction(L, app_to_base64);
+    lua_setglobal(L, "to_base64");
 
     lua_pushcfunction(L, app_print);
     lua_setglobal(L, "print");

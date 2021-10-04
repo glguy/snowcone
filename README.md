@@ -12,19 +12,26 @@ Penlight shows up in Lua as `pl`. If you get errors about finding things like `p
 
 ```
 usage: snowcone
-         [-h console_host]
-         [-p console_port]
-         [-S irc_socat]
-         [-N irc_nick]
+         -S irc_socat
+         -N irc_nick
          [-U irc_user]
          [-G irc_gecos]
          [-X irc_password]
-         [-O irc_oper]
+         [-O irc_oper_username]
          [-K irc_challenge_key]
+         [-M irc_sasl_mechanism]
+         [-E irc_sasl_username]
+         [-C irc_capabilities]
          [-L init.lua]
+         [-h console_host]
+         [-p console_port]
 ```
 
-To keep the IRC password out of your command-line arguments you can set the `IRC_PASSWORD` environment variable.
+Passwords go in environment variables to keep them from showing up in the process list:
+
+- `IRC_PASSWORD` - Sent with `PASS` command
+- `IRC_SASL_PASSWORD` - Sent with SASL PLAIN (use with `-M PLAIN`)
+- `IRC_OPER_PASSWORD` - Sent with `OPER` command (use with `-O <username>`)
 
 How I run this:
 

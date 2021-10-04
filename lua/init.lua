@@ -84,6 +84,7 @@ local defaults = {
     population = {},
     links = {},
     upstream = {},
+    status_message = '',
 
     -- settings
     history = 1000,
@@ -231,7 +232,11 @@ function draw_global_load(title, tracker)
     draw_load(tracker.global)
     normal()
 
-    if view == 2 or view == 4 then
+    if view == 1 or view == 3 then
+        if status_message then
+            addstr(' ' .. status_message)
+        end
+    elseif view == 2 or view == 4 then
         local n = 0
         for _,v in pairs(population) do n = n + v end
         addstr('              ')
@@ -456,6 +461,8 @@ end
 
 function M.on_connect(f)
     send_irc = f
+    irc_state = { nick = configuration.irc_nick }
+    status_message = 'connecting'
 
     local pass = ''
     if configuration.irc_pass then
@@ -466,8 +473,34 @@ function M.on_connect(f)
     local gecos = configuration.irc_gecos or configuration.irc_nick
 
     local first = 'MAP\r\nLINKS\r\n'
-    if configuration.irc_oper and configuration.irc_challenge_key then
-        first = 'CHALLENGE ' .. configuration.irc_oper .. '\r\n'
+    if configuration.irc_oper_username and configuration.irc_challenge_key then
+        first = 'CHALLENGE ' .. configuration.irc_oper_username .. '\r\n'
+        irc_state.challenge = ''
+    elseif configuration.irc_oper_username and configuration.irc_oper_password then
+        first = 'OPER ' ..
+            configuration.irc_oper_username .. ' ' ..
+            configuration.irc_oper_password .. '\r\n'
+    end
+
+    local caps = {}
+    if configuration.irc_capabilities then
+        table.insert(caps, configuration.irc_capabilities)
+    end
+
+    local auth = ''
+    if configuration.irc_sasl_mechanism == "EXTERNAL" then
+        table.insert(caps, 'sasl')
+        auth = 'AUTHENTICATE EXTERNAL\r\n' ..
+               'AUTHENTICATE +\r\n'
+    elseif configuration.irc_sasl_mechanism == "PLAIN" then
+        table.insert(caps, 'sasl')
+        auth = 'AUTHENTICATE PLAIN\r\n' ..
+               'AUTHENTICATE ' .. to_base64('\0' .. configuration.irc_sasl_username .. '\0' .. configuration.irc_sasl_password) .. '\r\n'
+    end
+
+    local capreq = ''
+    if next(caps) then
+        capreq = 'CAP REQ :' .. table.concat(caps, ',') .. '\r\n'
     end
 
     send_irc(
@@ -475,13 +508,16 @@ function M.on_connect(f)
         pass ..
         'NICK ' .. configuration.irc_nick .. '\r\n' ..
         'USER ' .. user .. ' * * ' .. gecos .. '\r\n' ..
-        'CAP REQ znc.in/playback\r\n' ..
+        capreq ..
+        auth ..
         'CAP END\r\n' ..
         first)
 end
 
 function M.on_disconnect()
     send_irc = nil
+    irc_state = nil
+    status_message = 'disconnected'
 end
 
 return M
