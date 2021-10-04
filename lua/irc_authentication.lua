@@ -12,20 +12,27 @@ function M.challenge(key_txt, password, challenge)
 end
 
 function M.sasl(mechanism, body)
-    local commands = 'AUTHENTICATE ' .. mechanism .. '\r\n'
+    local commands = {}
 
+    local function authenticate(msg)
+        table.insert(commands, 'AUTHENTICATE ' .. msg .. '\r\n')
+    end
+
+    authenticate(mechanism)
+
+    body = to_base64(body)
     while #body >= 400 do
-        commands = commands .. 'AUTHENTICATE ' .. to_base64(string.sub(body, 1, 400)) .. '\r\n'
+        authenticate(string.sub(body, 1, 400))
         body = string.sub(body, 401)
     end
 
     if "" == body then
-        commands = commands .. 'AUTHENTICATE +\r\n'
+        authenticate('+')
     else
-        commands = commands .. 'AUTHENTICATE ' .. to_base64(body) .. '\r\n'
+        authenticate(body)
     end
 
-    return commands
+    return table.concat(commands)
 end
 
 return M
