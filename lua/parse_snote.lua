@@ -50,7 +50,7 @@ return function(time, server, str)
     end
 
     local nick, user, host, oper, duration, mask, reason =
-        string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} added %g+ (%d+) min. K%-Line for %[([^]]*)%] %[(.*)%]$')
+        string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} added %g+ (%d+) min%. K%-Line for %[([^]]*)%] %[(.*)%]$')
     if nick then
         return {
             name = 'kline',

@@ -2,8 +2,8 @@
 
 ## Dependencies
 
-```
-apt install libgeoip-dev lua5.3 liblua5.3-dev lua-geoip lua-penlight lua-penlight-dev libuv1-dev
+```sh
+apt install libgeoip-dev liblua5.3-dev libuv1-dev lua-geoip lua-penlight check
 ```
 
 Penlight shows up in Lua as `pl`. If you get errors about finding things like `pl.app`, then Penlight isn't installed for the version of Lua you're building with.
@@ -35,35 +35,21 @@ Passwords go in environment variables to keep them from showing up in the proces
 
 How I run this:
 
-```
-mkdir build
-cd build
-cmake ..
-make
-app/snowcone \
+```sh
+cmake -B build
+make -C build
+build/app/snowcone \
    -h ::1 -p 6000 \
    -S OPENSSL:[::1]:7000,certificate=certificate.pem \
    -N glguy \
    -U glguy@snowcone/libera \
    -X x \
-   -L ../lua/init.lua
+   -L lua/init.lua
 ```
 
-To connect to an unencrypted TCP port use: `-S TCP:${HOST}:${PORT}`
+To connect to an unencrypted TCP port use: `-S TCP:${HOST}:${PORT}`. See `man socat` for other options.
 
-By adding a listener on port 6000 I get a Lua console that I can use to inspect the
-program state.
-
-```
-$ rlwrap nc ::1 6000
-filter='!~' -- set the filter to match connections without ident
-print(filter) -- print the current filter
-!~
-filter=nil -- reset the filter
-```
-
-The tool automatically reloads the Lua logic when you save the file so you can
-quickly adapt to changing circumstances, apply custom filters, etc.
+The tool automatically reloads the Lua logic when you save the file so you can quickly adapt to changing circumstances, apply custom filters, etc.
 
 Built-in keyboard shortcuts:
 
@@ -83,18 +69,30 @@ Built-in keyboard shortcuts:
 - <kbd>F7</kbd> - reconnecting nicknames
 - <kbd>F8</kbd> - raw IRC console
 
+## Lua console
 
+Snowcone supports running an interactive Lua prompt on a network port that can be used to inspect the live Lua environment and set parameters that don't have a UI exposed yet.
 
-Built-in Lua console commands
+By adding a listener on port 6000 I get a Lua console that I can use to inspect the program state. The `rlwrap` program is handy for getting a nicer text input to `nc`.
 
 ```
-/reload - reruns the Lua program preserving the global environment
-/restart - forces a restart of the Lua environment
+$ snowcone ... -h ::1 -p 6000 ...
+
+$ rlwrap nc ::1 6000
+filter='!~' -- set the filter to match connections without ident
+print(filter) -- print the current filter
+!~
+filter=nil -- reset the filter
 ```
+
+Built-in Lua console commands:
+
+- `/reload` - reruns the Lua program preserving the global environment
+- `/restart` - forces a restart of the Lua environment
 
 ## Known working clients
 
-Snowcone expects to connect to your existing client. It works with irssi, weechat, and znc.
+Snowcone expects to connect to your existing client. It works with irssi, weechat, and ZNC.
 
 - [weechat IRC proxy documentation](https://weechat.org/files/doc/stable/weechat_user.en.html#relay_irc_proxy)
 - [irssi IRC proxy documentation](https://github.com/irssi/irssi/blob/master/docs/proxy.txt)
@@ -119,5 +117,6 @@ snowcone \
   -O glguy \
   -K challenge.p8 \
   -S OPENSSL:irc.libera.chat:6697,certificate=cert.pem,key=key.pem \
+  -M EXTERNAL \
   -N snowcone
 ```
