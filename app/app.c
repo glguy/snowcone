@@ -232,7 +232,8 @@ static void start_lua(struct app *a)
         lua_close(a->L);
     }
     a->L = luaL_newstate();
-    *app_ref(a->L) = a;
+    struct app **aptr = app_ref(a->L);
+    *aptr = a;
 
     app_prepare_globals(a);
     load_logic(a->L, a->cfg->lua_filename);
