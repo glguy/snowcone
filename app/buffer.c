@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -10,7 +11,9 @@ void buffer_close(uv_buf_t const *buf)
 
 void buffer_init(uv_buf_t *buf, size_t n)
 {
-    *buf = uv_buf_init(calloc(n,1), n);
+    char *p = calloc(n,1);
+    assert(p);
+    *buf = uv_buf_init(p, n);
 }
 
 void append_buffer(uv_buf_t *dst, ssize_t n, uv_buf_t const *src)
@@ -33,6 +36,7 @@ void append_buffer(uv_buf_t *dst, ssize_t n, uv_buf_t const *src)
             dst->len *= 2;
         }
         dst->base = realloc(dst->base, dst->len);
+        assert(dst->base);
     }
 
     memcpy(dst->base + dlen, src->base, n);

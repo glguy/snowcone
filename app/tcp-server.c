@@ -33,11 +33,7 @@ int start_tcp_server(uv_loop_t *loop, char const* node, char const* service)
     for (struct addrinfo *ai = req.addrinfo; ai; ai = ai->ai_next)
     {
         uv_tcp_t *tcp = malloc(sizeof *tcp);
-        if (NULL == tcp)
-        {
-            perror("malloc");
-            return 1;
-        }
+        assert(tcp);
 
         res = uv_tcp_init(loop, tcp);
         if (res < 0)
@@ -73,8 +69,10 @@ static void on_new_connection(uv_stream_t *server, int status)
     }
 
     struct readline_data *data = malloc(sizeof *data);
+    assert(data);
 
     uv_tcp_t *client = malloc(sizeof *client);
+    assert(client);
     client->data = data;
 
     *data = (struct readline_data){

@@ -21,6 +21,8 @@ uv_stream_t * socat_wrapper(uv_loop_t *loop, char const* socat)
     char const* argv[] = {"socat", "FD:3", socat, NULL};
 
     uv_pipe_t *stream = malloc(sizeof *stream);
+    assert(stream);
+
     r = uv_pipe_init(loop, stream, 0);
     if (0 != r) {
         fprintf(stderr, "Failed to init pipe: %s\n", uv_strerror(r));
@@ -43,6 +45,8 @@ uv_stream_t * socat_wrapper(uv_loop_t *loop, char const* socat)
     };
 
     uv_process_t *process = malloc(sizeof *process);
+    assert(process);
+
     r = uv_spawn(loop, process, &options);
     if (0 != r) {
         fprintf(stderr, "Failed to spawn socat: %s\n", uv_strerror(r));

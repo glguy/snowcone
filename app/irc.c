@@ -67,6 +67,7 @@ static void on_close(void *data)
     app_clear_irc(a);
 
     uv_timer_t *timer = malloc(sizeof *timer);
+    assert(timer);
     uv_timer_init(loop, timer);
     timer->data = st;
     uv_timer_start(timer, on_reconnect, 5000, 0);

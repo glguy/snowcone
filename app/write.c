@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -11,10 +12,13 @@ static void write_done(uv_write_t *write, int status);
 void to_write(uv_stream_t *stream, char const* msg, size_t n)
 {
     uv_buf_t *buf = malloc(sizeof *buf);
+    assert(buf);
     buffer_init(buf, n);
     memcpy(buf->base, msg, n);
 
     uv_write_t *req = malloc(sizeof *req);
+    assert(req);
+
     *req = (uv_write_t){ .data = buf };
     uv_write(req, stream, buf, 1, write_done);
 }

@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -91,6 +92,8 @@ app_dnslookup(lua_State *L)
     char const* hostname = luaL_checkstring(L, 1);
 
     uv_getaddrinfo_t *req = malloc(sizeof *req);
+    assert(req);
+
     struct addrinfo hints = { .ai_flags = AI_CANONNAME, .ai_socktype = SOCK_STREAM };
     int r = uv_getaddrinfo(a->loop, req, on_dnslookup, hostname, NULL, &hints);
     if (0 != r) {
@@ -133,6 +136,8 @@ static int app_to_base64(lua_State *L)
     char const* input = luaL_checklstring(L, 1, &input_len);
     size_t outlen = (input_len + 2) / 3 * 4 + 1;
     char *output = malloc(outlen);
+    assert(output);
+
     snowcone_base64(input, input_len, output);
     lua_pushstring(L, output);
     free(output);
@@ -231,7 +236,10 @@ static void start_lua(struct app *a)
     {
         lua_close(a->L);
     }
+
     a->L = luaL_newstate();
+    assert(a->L);
+
     struct app **aptr = app_ref(a->L);
     *aptr = a;
 
@@ -242,6 +250,8 @@ static void start_lua(struct app *a)
 struct app *app_new(uv_loop_t *loop, struct configuration *cfg)
 {
     struct app *a = malloc(sizeof *a);
+    assert(a);
+
     *a = (struct app) {
         .loop = loop,
         .cfg = cfg,
