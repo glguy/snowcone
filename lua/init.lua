@@ -38,6 +38,7 @@ end
 
 servers  = require_ 'servers'
 ip_org   = require_ 'ip_org'
+irc_authentication = require_ 'irc_authentication'
 
 local LoadTracker        = require_ 'LoadTracker'
 local OrderedMap         = require_ 'OrderedMap'
@@ -490,12 +491,10 @@ function M.on_connect(f)
     local auth = ''
     if configuration.irc_sasl_mechanism == "EXTERNAL" then
         table.insert(caps, 'sasl')
-        auth = 'AUTHENTICATE EXTERNAL\r\n' ..
-               'AUTHENTICATE +\r\n'
+        auth = irc_authentication.sasl('EXTERNAL', '')
     elseif configuration.irc_sasl_mechanism == "PLAIN" then
         table.insert(caps, 'sasl')
-        auth = 'AUTHENTICATE PLAIN\r\n' ..
-               'AUTHENTICATE ' .. to_base64('\0' .. configuration.irc_sasl_username .. '\0' .. configuration.irc_sasl_password) .. '\r\n'
+        auth = irc_authentication.sasl('PLAIN', '\0' .. configuration.irc_sasl_username .. '\0' .. configuration.irc_sasl_password)
     end
 
     local capreq = ''

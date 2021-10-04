@@ -114,11 +114,10 @@ M['741'] = function(irc)
     if challenge then
         irc_state.challenge = nil
 
-        local irc_challenge = require_ 'irc_challenge'
         local file          = require 'pl.file'
         local rsa_key       = assert(file.read(configuration.irc_challenge_key))
         local password      = configuration.irc_challenge_password
-        send_irc('CHALLENGE +' .. irc_challenge(rsa_key, password, challenge) .. '\r\n')
+        send_irc('CHALLENGE +' .. irc_authentication.challenge(rsa_key, password, challenge) .. '\r\n')
         status_message = 'challenged'
     end
 end
@@ -131,6 +130,21 @@ M['381'] = function(irc)
         'MODE ' .. irc_state.nick .. ' s Fknsx\r\n'
     )
     status_message = "you're oper"
+end
+
+-- RPL_SASLSUCCESS
+M['903'] = function(irc)
+    status_message = 'SASL success'
+end
+
+-- ERR_SASLFAIL
+M['904'] = function(irc)
+    status_message = 'SASL failed'
+end
+
+-- RPL_SASLMECHS
+M['908'] = function(irc)
+    status_message = 'bad SASL mechanism'
 end
 
 return M
