@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 #include "base64.h"
 
 void snowcone_base64(char const* input, size_t len, char *output)
