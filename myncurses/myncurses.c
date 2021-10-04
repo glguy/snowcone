@@ -75,7 +75,7 @@ static int l_addstr(lua_State *L)
     wchar_t *wstr = calloc(len, sizeof *wstr);
     if (NULL == wstr)
     {
-        luaL_error(L, "allocation failed");
+        return luaL_error(L, "allocation failed");
     }
 
     size_t wlen = mbstowcs(wstr, str, len);

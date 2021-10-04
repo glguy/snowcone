@@ -2,9 +2,8 @@
 Set    = require 'pl.Set'
 tablex = require 'pl.tablex'
 
-require 'pl.stringx'.import()
-
 if not uptime then
+    require 'pl.stringx'.import()
     require 'pl.app'.require_here()
 end
 
@@ -43,9 +42,10 @@ irc_authentication = require_ 'irc_authentication'
 local LoadTracker        = require_ 'LoadTracker'
 local OrderedMap         = require_ 'OrderedMap'
 local compute_kline_mask = require_ 'libera_masks'
-local views
 
 -- Global state =======================================================
+
+local views
 
 local rotations = {
     ['irc.libera.chat'] = '',
