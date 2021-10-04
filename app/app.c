@@ -395,7 +395,6 @@ void do_mrs(struct app *a, char const* name, struct addrinfo const* ai)
     lua_Integer i = 0;
     while (ai) {
         i++;
-        struct sockaddr_in a;
         getnameinfo(ai->ai_addr, ai->ai_addrlen, buffer, sizeof buffer, NULL, 0, NI_NUMERICHOST);
         lua_pushstring(L, buffer);
         lua_rawseti(L, -2, i);
