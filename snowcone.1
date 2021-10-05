@@ -39,7 +39,9 @@ IRC password (PASS)
 IRC operator username (OPER and CHALLENGE)
 .TP
 .BI "\-K " filename
-Path to RSA key for CHALLENGE
+Path to RSA key for CHALLENGE. Challenge support requires you to
+install an extra Lua dependency:
+.B luarocks install openssl
 .TP
 .BI "\-M " mechanism
 SASL mechanism: PLAIN or EXTERNAL
