@@ -27,3 +27,4 @@ add_subdirectory(tests)
 endif()
 
 install(DIRECTORY "lua" DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/snowcone")
+install(FILES "snowcone.1" DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
