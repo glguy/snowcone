@@ -26,7 +26,6 @@ function M:render()
         elseif entry then
             -- TIME
             local time = entry.time
-            local timetxt
             if time == last_time then
                 mvaddstr(y, 0, '        ')
             else
@@ -91,7 +90,7 @@ function M:render()
 
             blue()
             local server = (servers[entry.server] or {}).alias
-                        or string.substr(entry.server, 1, 2)
+                        or string.sub(entry.server, 1, 2)
             mvaddstr(y, 120, server)
 
             -- Click handlers

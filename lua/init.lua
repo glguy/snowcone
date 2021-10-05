@@ -379,6 +379,59 @@ function draw()
     ncurses.refresh()
 end
 
+-- IRC Registration Logic =============================================
+
+local function irc_register()
+    local pass = ''
+    if configuration.irc_pass then
+        pass = 'PASS ' .. configuration.irc_pass .. '\r\n'
+    end
+
+    local user = configuration.irc_user or configuration.irc_nick
+    local gecos = configuration.irc_gecos or configuration.irc_nick
+
+    local first = 'MAP\r\nLINKS\r\n'
+    if configuration.irc_oper_username and configuration.irc_challenge_key then
+        first = 'CHALLENGE ' .. configuration.irc_oper_username .. '\r\n'
+        irc_state.challenge = ''
+    elseif configuration.irc_oper_username and configuration.irc_oper_password then
+        first = 'OPER ' ..
+            configuration.irc_oper_username .. ' ' ..
+            configuration.irc_oper_password .. '\r\n'
+    end
+
+    local caps = {}
+    if configuration.irc_capabilities then
+        table.insert(caps, configuration.irc_capabilities)
+    end
+
+    local auth = ''
+    if configuration.irc_sasl_mechanism == "EXTERNAL" then
+        table.insert(caps, 'sasl')
+        auth = irc_authentication.sasl('EXTERNAL', '')
+    elseif configuration.irc_sasl_mechanism == "PLAIN" then
+        table.insert(caps, 'sasl')
+        auth = irc_authentication.sasl('PLAIN',
+                '\0' .. configuration.irc_sasl_username ..
+                '\0' .. configuration.irc_sasl_password)
+    end
+
+    local capreq = ''
+    if next(caps) then
+        capreq = 'CAP REQ :' .. table.concat(caps, ',') .. '\r\n'
+    end
+
+    send_irc(
+        'CAP LS 302\r\n' ..
+        pass ..
+        'NICK ' .. configuration.irc_nick .. '\r\n' ..
+        'USER ' .. user .. ' * * ' .. gecos .. '\r\n' ..
+        capreq ..
+        auth ..
+        'CAP END\r\n' ..
+        first)
+end
+
 -- Callback Logic =====================================================
 
 local M = {}
@@ -436,7 +489,7 @@ local keys = {
     --[[^L]] [ 12] = function() ncurses.clear() end,
 }
 
-function M.on_keyboard(key, special)
+function M.on_keyboard(key)
     local f = keys[key]
     if f then
         f()
@@ -468,55 +521,7 @@ function M.on_connect(f)
     send_irc = f
     irc_state = { nick = configuration.irc_nick }
     status_message = 'connecting'
-
-    local pass = ''
-    if configuration.irc_pass then
-        pass = 'PASS ' .. configuration.irc_pass .. '\r\n'
-    end
-
-    local user = configuration.irc_user or configuration.irc_nick
-    local gecos = configuration.irc_gecos or configuration.irc_nick
-
-    local first = 'MAP\r\nLINKS\r\n'
-    if configuration.irc_oper_username and configuration.irc_challenge_key then
-        first = 'CHALLENGE ' .. configuration.irc_oper_username .. '\r\n'
-        irc_state.challenge = ''
-    elseif configuration.irc_oper_username and configuration.irc_oper_password then
-        first = 'OPER ' ..
-            configuration.irc_oper_username .. ' ' ..
-            configuration.irc_oper_password .. '\r\n'
-    end
-
-    local caps = {}
-    if configuration.irc_capabilities then
-        table.insert(caps, configuration.irc_capabilities)
-    end
-
-    local auth = ''
-    if configuration.irc_sasl_mechanism == "EXTERNAL" then
-        table.insert(caps, 'sasl')
-        auth = irc_authentication.sasl('EXTERNAL', '')
-    elseif configuration.irc_sasl_mechanism == "PLAIN" then
-        table.insert(caps, 'sasl')
-        auth = irc_authentication.sasl('PLAIN',
-                '\0' .. configuration.irc_sasl_username ..
-                '\0' .. configuration.irc_sasl_password)
-    end
-
-    local capreq = ''
-    if next(caps) then
-        capreq = 'CAP REQ :' .. table.concat(caps, ',') .. '\r\n'
-    end
-
-    send_irc(
-        'CAP LS 302\r\n' ..
-        pass ..
-        'NICK ' .. configuration.irc_nick .. '\r\n' ..
-        'USER ' .. user .. ' * * ' .. gecos .. '\r\n' ..
-        capreq ..
-        auth ..
-        'CAP END\r\n' ..
-        first)
+    irc_register()
 end
 
 function M.on_disconnect()

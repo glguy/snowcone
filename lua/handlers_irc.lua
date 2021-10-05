@@ -33,6 +33,10 @@ M['001'] = function()
     status_message = 'connected'
 end
 
+M['008'] = function(irc)
+    status_message = 'snomask ' .. irc[2]
+end
+
 -- RPL_STATS_ILINE
 M['215'] = function()
     if staged_action ~= nil

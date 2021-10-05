@@ -1,5 +1,3 @@
-local pretty = require 'pl.pretty'
-
 local function render_irc(irc)
     local parts = {}
 
@@ -46,9 +44,8 @@ function M:keypress(key)
 end
 
 function M:render()
-
     local y = tty_height - 1
-    
+
     mvaddstr(y, 0, buffer)
     y = y - 1
 
