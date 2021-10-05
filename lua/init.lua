@@ -446,8 +446,12 @@ function M.on_keyboard(key)
     end
 end
 
-function M.on_dns(name, addrs)
-    mrs[rotations[name]] = Set(addrs)
+function M.on_dns(name, addrs, reason)
+    if addrs then
+        mrs[rotations[name]] = Set(addrs)
+    else
+        status_message = name .. ' - ' .. reason
+    end
 end
 
 function M.on_mouse(y, x)

@@ -21,6 +21,8 @@
 
 static char logic_module;
 
+static void lua_callback(lua_State *L, char const *key, int args);
+
 static void pushircmsg(lua_State *L, struct ircmsg const* msg)
 {
     lua_createtable(L, msg->args_n, 3);
@@ -76,12 +78,19 @@ static void
 on_dnslookup(uv_getaddrinfo_t *req, int status, struct addrinfo *res)
 {
     struct app * const a = req->loop->data;
+    char *hostname = req->data;
 
     if (0 == status) {
-        do_mrs(a, res->ai_canonname, res);
+        do_mrs(a, hostname, res);
         uv_freeaddrinfo(res);
+    } else {
+        lua_State * const L = a->L;
+        lua_pushstring(L, hostname);
+        lua_pushnil(L);
+        lua_pushstring(L, uv_strerror(status));
+        lua_callback(L, "on_dns", 3);
     }
-
+    free(hostname);
     free(req);
 }
 
@@ -94,7 +103,9 @@ app_dnslookup(lua_State *L)
     uv_getaddrinfo_t *req = malloc(sizeof *req);
     assert(req);
 
-    struct addrinfo hints = { .ai_flags = AI_CANONNAME, .ai_socktype = SOCK_STREAM };
+    req->data = strdup(hostname);
+
+    struct addrinfo hints = { .ai_socktype = SOCK_STREAM };
     int r = uv_getaddrinfo(a->loop, req, on_dnslookup, hostname, NULL, &hints);
     if (0 != r) {
         free(req);
@@ -277,7 +288,6 @@ void app_free(struct app *a)
 
 static int lua_callback_worker(lua_State *L)
 {
-    
     int module_ty = lua_rawgetp(L, LUA_REGISTRYINDEX, &logic_module);
     if (module_ty != LUA_TNIL)
     {
@@ -394,10 +404,15 @@ void do_mrs(struct app *a, char const* name, struct addrinfo const* ai)
     lua_newtable(L);
     lua_Integer i = 0;
     while (ai) {
-        i++;
-        getnameinfo(ai->ai_addr, ai->ai_addrlen, buffer, sizeof buffer, NULL, 0, NI_NUMERICHOST);
-        lua_pushstring(L, buffer);
-        lua_rawseti(L, -2, i);
+        int r = getnameinfo(ai->ai_addr, ai->ai_addrlen, buffer, sizeof buffer, NULL, 0, NI_NUMERICHOST);
+        if (0 == r){
+            i++;
+            lua_pushstring(L, buffer);
+            lua_rawseti(L, -2, i);
+        } else {
+            // I don't know when this could actually fail
+            fprintf(stderr, "getnameinfo: %s\n", gai_strerror(r));
+        }
         ai = ai->ai_next;
     }
     lua_callback(L, "on_dns", 2);
