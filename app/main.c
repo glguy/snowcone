@@ -68,20 +68,27 @@ static void on_stdin(uv_poll_t *handle, int status, int events)
 {
     struct app *a = handle->loop->data;
 
-    wint_t key;
-    while(ERR != get_wch(&key))
+    int key;
+    mbstate_t ps = {};
+
+    while(ERR != (key = getch()))
     {
-        switch (key)
+        if (KEY_MOUSE == key)
         {
-            default: do_keyboard(a, key); break;
-            case KEY_MOUSE: {
-                MEVENT ev;
-                getmouse(&ev);
-                do_mouse(a, ev.y, ev.x);
-                break;
+            MEVENT ev;
+            getmouse(&ev);
+            do_mouse(a, ev.y, ev.x);
+        } else if (key > 0xff || key < 0x80) {
+            do_keyboard(a, key);
+        } else {
+            char c = key;
+            wchar_t code;
+            size_t r = mbrtowc(&code, &c, 1, &ps);
+            if (r < (size_t)-2) {
+                do_keyboard(a, code);
             }
         }
-        }
+    }
 }
 
 /* Window size changes ***********************************************/
