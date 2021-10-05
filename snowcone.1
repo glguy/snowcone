@@ -1,0 +1,160 @@
+.TH SNOWCONE 1 2021 "Solanum Server Notice Console"
+.SH NAME
+Snowcone \- Solanum Server Notice Console
+.SH SYNOPSIS
+.B snowcone
+\-S irc_socat \-N nick
+[\-U user] [\-G gecos] [\-X password]
+[\-O oper_username] [\-K challenge_key]
+[\-M sasl_mechanism] [\-E sasl_username]
+[\-C capabilities] [\-L init.lua]
+[\-h host] [\-p port]
+.SH DESCRIPTION
+.BSnowcone provides a live view of server notices focused on awareness
+of recent connections and disconnections to the network. It can show
+information about the most recent connections as well as various load
+meters split by server and operators. It does this with a run-time
+editable scripting environment to support rapidly adapting to the
+needs of the current situation.
+.SH OPTIONS
+.TP
+.BI "-S " address
+specify the IRC server to connect to using
+.B socat
+argument syntax.
+.TP
+.BI "\-N " nick
+IRC nickname (NICK)
+.TP
+.BI "\-U " user
+IRC username (USER)
+.TP
+.BI "\-G " gecos
+IRC gecos/realname (USER)
+.TP
+.BI "\-X " password
+IRC password (PASS)
+.TP
+.BI "\-O " username
+IRC operator username (OPER and CHALLENGE)
+.TP
+.BI "\-K " filename
+Path to RSA key for CHALLENGE
+.TP
+.BI "\-M " mechanism
+SASL mechanism: PLAIN or EXTERNAL
+.TP
+.BI "\-E " username
+SASL PLAIN username
+.TP
+.BI "\-C " capabilities
+Extra comma-separated capabilities to request upon connect (CAP REQ)
+.TP
+.BI "\-L " filename
+Path to Lua logic entry point (init.lua)
+.TP
+.BI "\-h " host
+Binding hostname for Lua console
+.TP
+.BI "\-p " port
+Binding TCP port for Lua console
+.SH ENVIRONMENT VARIABLES
+Sensitive arguments are passed using environment variables to keep them
+out of the process list.
+.TP
+.BI "IRC_PASSWORD"
+IRC password (PASS)
+.TP
+.BI "IRC_SASL_PASSWORD"
+IRC account password (SASL PLAIN)
+.TP
+.BI "IRC_OPER_PASSWORD"
+IRC operator password (OPER)
+.SH SOCAT ADDRESSES
+Check the
+.B socat
+man page for an exhaustive set of connection addresses, but these will
+be the most commonly used.
+.IP TCP:server:6667
+Connect to a plain-text IRC server
+.IP OPENSSL:server:6697,certificate=cert.pem
+Connect to a TLS-enabled IRC server using a client-side certificate
+.SH LUA CONSOLE
+When a Lua console port is specified, snowcone will listen for
+connections on that port and provide a Lua console with access
+to snowcone's internal state. This can be useful for developing
+snowcone or adding custom logic at runtime. Calls to print from
+inside a console will be piped back to that console.
+.SH MODES
+.TP
+.BI F1
+recent connections
+.TP
+.BI F2
+server connection load
+.TP
+.BI F3
+recent exits
+.TP
+.BI F4
+server exit load
+.TP
+.BI F5
+kline load
+.TP
+.BI F6
+filter load
+.TP
+.BI F7
+reconnecting nicknames
+.TP
+.BI F8
+raw IRC console
+.SH RECENT CONNECTIONS
+The recent connections view has a number of special features. Click on
+a connection to select it for kline or unkline. The buttons below will
+allow you to set kline reasons, durations, and to see the number of
+affected users before you commit to the action.
+.TP
+.BI Q
+only live connections
+.TP
+.BI W
+only dead connections
+.TP
+.BI E
+all connections
+.TP
+.BI K
+issue kline
+.TP
+.BI Esc
+clear filters
+.TP
+.BI PgUp
+scroll up
+.TP
+.BI PgDn
+scroll down
+.SH GEOIP SUPPORT
+Both legacy GeoIP and modern GeoIP Maxmind database are supported
+and will be used if they are found at startup time.
+.SH FILES
+.TP
+.I /usr/share/snowcone/lua
+Lua run-time source files. These can be edited at runtime. Specify
+an alternative entry point with
+.B -L
+.
+.TP
+.I ./GeoLite2-ASN.mmdb
+If the
+.B mmdb
+Lua library is installed, and the
+.B GeoLite2-ASN.mmdb
+database is in the current directory,
+.B snowcone
+will use it to provide more information about recent connections.
+.SH AUTHOR
+.B Snowcone
+was written by Eric Mertens <glguy@libera.chat>.
