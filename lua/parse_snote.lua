@@ -116,7 +116,7 @@ return function(time, server, str)
                 server2 = server2,
                 sid1 = sid1,
                 sid2 = sid2,
-                reason = reason,
+                reason = scrub(reason),
             }
         end
     end
@@ -133,7 +133,7 @@ return function(time, server, str)
                 server2 = server2,
                 sid1 = sid1,
                 sid2 = sid2,
-                reason = reason,
+                reason = scrub(reason),
             }
         end
     end

@@ -13,7 +13,7 @@
 static int l_erase(lua_State *L)
 {
     if (ERR == erase()) {
-        return luaL_error(L, "ncurses error");
+        return luaL_error(L, "erase: ncurses error");
     }
     return 0;
 }
@@ -21,7 +21,7 @@ static int l_erase(lua_State *L)
 static int l_clear(lua_State *L)
 {
     if (ERR == clear()) {
-        return luaL_error(L, "ncurses error");
+        return luaL_error(L, "clear: ncurses error");
     }
     return 0;
 }
@@ -38,7 +38,7 @@ static int l_attron(lua_State *L)
 {
     int a = luaL_checkinteger(L, 1);
     if (ERR == attron(a)) {
-        return luaL_error(L, "ncurses error");
+        return luaL_error(L, "attron: ncurses error");
     }
     return 0;
 }
@@ -47,7 +47,7 @@ static int l_attroff(lua_State *L)
 {
     int a = luaL_checkinteger(L, 1);
     if (ERR == attroff(a)) {
-        return luaL_error(L, "ncurses error");
+        return luaL_error(L, "attroff: ncurses error");
     }
     return 0;
 }
@@ -56,7 +56,7 @@ static int l_attrset(lua_State *L)
 {
     int a = luaL_checkinteger(L, 1);
     if (ERR == attrset(a)) {
-        return luaL_error(L, "ncurses error");
+        return luaL_error(L, "attrset: ncurses error");
     }
     return 0;
 }
@@ -65,17 +65,7 @@ static int l_addstr(lua_State *L)
 {
     size_t len;
     char const* str = luaL_checklstring(L, 1, &len);
-
-    int wy, wx, y, x;
-    getmaxyx(stdscr, wy, wx);
-    getyx(stdscr, y, x);
-    
-    if (y < wy && x < wx)
-    {
-        if (ERR == addnstr(str, len)) {
-            return luaL_error(L, "ncurses error");
-        }
-    }
+    addnstr(str, len);
     return 0;
 }
 
@@ -91,9 +81,7 @@ static int l_mvaddstr(lua_State *L)
 
     if (y < wy && x < wx)
     {
-        if (ERR == mvaddnstr(y, x, str, len)) {
-            return luaL_error(L, "ncurses error");
-        }
+        mvaddnstr(y, x, str, len);
     }
     return 0;
 }
