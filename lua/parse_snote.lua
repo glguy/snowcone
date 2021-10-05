@@ -122,7 +122,7 @@ return function(time, server, str)
     end
 
     do
-        local server1, server2, sid1, sid2, reason =
+        local server1, server2, sid1, sid2 =
             string.match(str, '^Netjoin (%g+) <%-> (%g+) %((%g+) (%g+)%)$')
         if server1 then
             return {
@@ -133,7 +133,6 @@ return function(time, server, str)
                 server2 = server2,
                 sid1 = sid1,
                 sid2 = sid2,
-                reason = scrub(reason),
             }
         end
     end

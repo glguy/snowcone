@@ -101,7 +101,7 @@ end
 
 function M.netsplit(ev)
     send_irc 'MAP\r\nLINKS\r\n'
-    status_message = 'netsplit ' .. ev.server2
+    status_message = 'netsplit ' .. ev.server2 .. ' ('.. ev.reason .. ')'
 end
 
 return M
