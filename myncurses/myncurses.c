@@ -1,8 +1,6 @@
 #define _XOPEN_SOURCE 600
-#define _XOPEN_SOURCE_EXTENDED
 
 #include <stdlib.h>
-#include <wchar.h>
 
 #include <ncurses.h>
 
@@ -72,23 +70,12 @@ static int l_addstr(lua_State *L)
     getmaxyx(stdscr, wy, wx);
     getyx(stdscr, y, x);
     
-    wchar_t *wstr = calloc(len, sizeof *wstr);
-    if (NULL == wstr)
+    if (y < wy && x < wx)
     {
-        return luaL_error(L, "allocation failed");
-    }
-
-    size_t wlen = mbstowcs(wstr, str, len);
-    int width = wcswidth(wstr, wlen);
-    
-    if (width != -1 && y < wy && x+width <= wx)
-    {
-        if (ERR == addnwstr(wstr, wlen)) {
-            free(wstr);
+        if (ERR == addnstr(str, len)) {
             return luaL_error(L, "ncurses error");
         }
     }
-    free(wstr);
     return 0;
 }
 
@@ -102,23 +89,12 @@ static int l_mvaddstr(lua_State *L)
     int wy, wx;
     getmaxyx(stdscr, wy, wx);
 
-    wchar_t *wstr = calloc(len, sizeof(wchar_t));
-    if (NULL == wstr)
+    if (y < wy && x < wx)
     {
-        return luaL_error(L, "allocation failed");
-    }
-
-    size_t wlen = mbstowcs(wstr, str, len);
-    int width = wcswidth(wstr, wlen);
-
-    if (width != -1 && y < wy && x+width <= wx)
-    {
-        if (ERR == mvaddnwstr(y, x, wstr, wlen)) {
-            free(wstr);
+        if (ERR == mvaddnstr(y, x, str, len)) {
             return luaL_error(L, "ncurses error");
         }
     }
-    free(wstr);
     return 0;
 }
 

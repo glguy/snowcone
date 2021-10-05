@@ -2,12 +2,12 @@ local M = {}
 
 local handlers = {
     [ncurses.KEY_PPAGE] = function()
-        scroll = scroll + math.max(1, tty_height - 1)
+        scroll = scroll + math.max(1, tty_height - 2)
         scroll = math.min(scroll, users.n - 1)
         scroll = math.max(scroll, 0)
     end,
     [ncurses.KEY_NPAGE] = function()
-        scroll = scroll - math.max(1, tty_height - 1)
+        scroll = scroll - math.max(1, tty_height - 2)
         scroll = math.max(scroll, 0)
     end,
     --[[ESC]][0x1b] = function() reset_filter() status_message = '' end,
@@ -44,19 +44,42 @@ function M:render()
 
     local rows = math.max(1, tty_height-2)
 
+    local window = {}
     for _, entry in users:each() do
         if show_entry(entry) then
             local y
             if rotating_view then
-                if n >= rows-1 then break end
-                y = (clicon_n-n) % rows
+                y = (clicon_n-1-n) % rows
             else
-                if n >= rows then break end
-                y = rows-n-1
+                y = rows-1-n
             end
 
-            if skips > 0 then skips = skips - 1 goto skip end
+            if skips == 0 then
+                window[y] = entry
+                n = n + 1
+                if rotating_view then
+                    if n >= rows-1 then break end
+                else
+                    if n >= rows then break end
+                end
+            else
+                skips = skips - 1
+            end
+        end
+    end
 
+    if rotating_view then
+        window[clicon_n % rows] = 'divider'
+    end
+
+    for y = 0,rows-1 do
+        local entry = window[y]
+        if entry == 'divider' then
+            yellow()
+            mvaddstr(y, 0, string.rep('·', tty_width))
+            normal()
+            last_time = nil
+        elseif entry then
             -- TIME
             local time = entry.time
             local timetxt
@@ -150,7 +173,7 @@ function M:render()
             else
                 cyan()
                 mvaddstr(y, 123, account)
-		normal()
+		        normal()
             end
 
             -- Click handlers
@@ -167,17 +190,7 @@ function M:render()
                     highlight_plain = true
                 end)
             end
-
-            n = n + 1
-
-            ::skip::
         end
-    end
-
-    if rotating_view then
-        local y = (clicon_n+1) % rows
-        yellow()
-        mvaddstr(y, 0, string.rep('·', tty_width))
     end
 
     draw_buttons()

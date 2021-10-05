@@ -5,8 +5,6 @@ function M:keypress()
 end
 
 function M:render()
-    draw_global_load('CLICON', conn_tracker)
-
     local rows = {}
     for name,load in pairs(tracker.detail) do
         table.insert(rows, {name=name,load=load})
@@ -37,7 +35,7 @@ function M:render()
         draw_load(load)
         y = y + 1
     end
-
+    draw_global_load('CLICON', conn_tracker)
 end
 
 return M

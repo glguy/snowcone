@@ -25,7 +25,6 @@ function M:keypress()
 end
 
 function M:render()
-    draw_global_load(label, tracker)
 
     local rows = {}
     for server,avg in pairs(tracker.detail) do
@@ -94,6 +93,7 @@ function M:render()
             addstr('      ')
         end
     end
+    draw_global_load(label, tracker)
 end
 
 return M

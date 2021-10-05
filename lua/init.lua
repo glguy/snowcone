@@ -7,8 +7,8 @@ if not uptime then
     require 'pl.app'.require_here()
 end
 
-addstr = ncurses.addstr
-mvaddstr = ncurses.mvaddstr
+addstr = function(s) pcall(ncurses.addstr, s) end
+mvaddstr = function (y,x,s) pcall(ncurses.mvaddstr,y,x,s) end
 
 function normal()       ncurses.attrset(ncurses.A_NORMAL)     end
 function bold()         ncurses.attron(ncurses.A_BOLD)        end

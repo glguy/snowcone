@@ -4,8 +4,6 @@ function M:keypress()
 end
 
 function M:render()
-    draw_global_load('CLICON', conn_tracker)
-
     local nick_counts, mask_counts = {}, {}
     for mask, user in users:each() do
         local nick, ip, count = user.nick, user.ip, user.count
@@ -47,6 +45,7 @@ function M:render()
             normal()
         end
     end
+    draw_global_load('CLICON', conn_tracker)
 end
 
 return M
