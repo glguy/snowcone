@@ -1,12 +1,12 @@
 local M = {}
 
 local handlers = {
-    [ncurses.KEY_PPAGE] = function()
+    [-ncurses.KEY_PPAGE] = function()
         scroll = scroll + math.max(1, tty_height - 2)
         scroll = math.min(scroll, users.n - 1)
         scroll = math.max(scroll, 0)
     end,
-    [ncurses.KEY_NPAGE] = function()
+    [-ncurses.KEY_NPAGE] = function()
         scroll = scroll - math.max(1, tty_height - 2)
         scroll = math.max(scroll, 0)
     end,

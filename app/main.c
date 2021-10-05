@@ -78,7 +78,9 @@ static void on_stdin(uv_poll_t *handle, int status, int events)
             MEVENT ev;
             getmouse(&ev);
             do_mouse(a, ev.y, ev.x);
-        } else if (key > 0xff || key < 0x80) {
+        } else if (key > 0xff) {
+            do_keyboard(a, -key);
+        } else if (key < 0x80) {
             do_keyboard(a, key);
         } else {
             char c = key;

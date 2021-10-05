@@ -425,18 +425,18 @@ function M.on_timer()
 end
 
 local keys = {
-    [ncurses.KEY_F1] = function() view = 1 scroll = 0 end,
-    [ncurses.KEY_F2] = function() view = 2 end,
-    [ncurses.KEY_F3] = function() view = 3 end,
-    [ncurses.KEY_F4] = function() view = 4 end,
-    [ncurses.KEY_F5] = function() view = 5 end,
-    [ncurses.KEY_F6] = function() view = 6 end,
-    [ncurses.KEY_F7] = function() view = 7 end,
-    [ncurses.KEY_F8] = function() view = 8 end,
+    [-ncurses.KEY_F1] = function() view = 1 scroll = 0 end,
+    [-ncurses.KEY_F2] = function() view = 2 end,
+    [-ncurses.KEY_F3] = function() view = 3 end,
+    [-ncurses.KEY_F4] = function() view = 4 end,
+    [-ncurses.KEY_F5] = function() view = 5 end,
+    [-ncurses.KEY_F6] = function() view = 6 end,
+    [-ncurses.KEY_F7] = function() view = 7 end,
+    [-ncurses.KEY_F8] = function() view = 8 end,
     --[[^L]] [ 12] = function() ncurses.clear() end,
 }
 
-function M.on_keyboard(key)
+function M.on_keyboard(key, special)
     local f = keys[key]
     if f then
         f()

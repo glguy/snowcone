@@ -34,7 +34,7 @@ function M:keypress(key)
         buffer = ''
     elseif key == 0x7f then
         buffer = string.sub(buffer, 1, #buffer - 1)
-    elseif 0x14 <= key and key < 0x7f then
+    elseif 0x14 <= key then
         buffer = buffer .. utf8.char(key)
     elseif key == 0xd then
         send_irc(buffer..'\r\n')
