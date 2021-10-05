@@ -1,4 +1,5 @@
 return {
+ignore = { "212/self" },
 globals = {
     "irc_state", "send_irc", "require_", "status_message",
 

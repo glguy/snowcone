@@ -1,3 +1,4 @@
+-- luacheck: ignore 631
 return {
     ['cadmium.libera.chat']    = { alias = 'Cd', ipv4 = '103.196.36.38',   ipv6 = nil,                              region = 'US' },
     ['calcium.libera.chat']    = { alias = 'Ca', ipv4 = '64.86.243.186',   ipv6 = '2001:5a0:3604:1:64:86:243:186',  region = 'US' },
