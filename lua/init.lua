@@ -518,14 +518,12 @@ function M.on_mouse(y, x)
 end
 
 function M.on_connect(f)
-    send_irc = f
     irc_state = { nick = configuration.irc_nick }
     status_message = 'connecting'
     irc_register()
 end
 
 function M.on_disconnect()
-    send_irc = nil
     irc_state = nil
     status_message = 'disconnected'
 end

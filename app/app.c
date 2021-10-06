@@ -64,6 +64,7 @@ struct app
     lua_State *L;
     struct configuration *cfg;
     uv_stream_t *stream;
+    uv_stream_t *irc;
     uv_loop_t *loop;
 };
 
@@ -155,6 +156,22 @@ static int app_to_base64(lua_State *L)
     return 1;
 }
 
+static int l_writeirc(lua_State *L)
+{
+    struct app * const a = *app_ref(L);
+
+    size_t len;
+    char const* cmd = luaL_checklstring(L, 1, &len);
+
+    if (NULL == a->irc)
+    {
+        return luaL_error(L, "IRC not connected");
+    }
+
+    to_write(a->irc, cmd, len);
+    return 0;
+}
+
 static void load_logic(lua_State *L, char const *filename)
 {
     lua_pushcfunction(L, error_handler);
@@ -225,6 +242,9 @@ static void app_prepare_globals(struct app *a)
 
     lua_pushcfunction(L, app_print);
     lua_setglobal(L, "print");
+
+    lua_pushcfunction(L, l_writeirc);
+    lua_setglobal(L, "send_irc");
 
     lua_pushcfunction(L, app_dnslookup);
     lua_setglobal(L, "dnslookup");
@@ -370,24 +390,15 @@ void do_keyboard(struct app *a, long key)
     lua_callback(a->L, "on_keyboard", 1);
 }
 
-static int l_writeirc(lua_State *L)
+void app_set_irc(struct app *a, uv_stream_t *irc)
 {
-    uv_stream_t *stream = lua_touserdata(L, lua_upvalueindex(1));
-    size_t len;
-    char const* cmd = luaL_checklstring(L, 1, &len);
-    to_write(stream, cmd, len);
-    return 0;
-}
-
-void app_set_irc(struct app *a, uv_stream_t *stream)
-{
-    lua_pushlightuserdata(a->L, stream);
-    lua_pushcclosure(a->L, l_writeirc, 1);
-    lua_callback(a->L, "on_connect", 1);
+    a->irc = irc;
+    lua_callback(a->L, "on_connect", 0);
 }
 
 void app_clear_irc(struct app *a)
 {
+    a->irc = NULL;
     lua_callback(a->L, "on_disconnect", 0);
 }
 
