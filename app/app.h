@@ -20,6 +20,5 @@ void do_command(struct app *a, char const* line, uv_stream_t *console);
 void do_irc(struct app *a, struct ircmsg const*);
 void do_timer(struct app *a);
 void do_keyboard(struct app *, long);
-void do_mrs(struct app *, char const* host, struct addrinfo const* ai);
 void do_mouse(struct app *, int x, int y);
 #endif

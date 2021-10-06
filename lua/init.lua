@@ -465,11 +465,22 @@ function M.on_irc(irc)
     end
 end
 
+local function refresh_rotations()
+    for hostname, label in pairs(rotations) do
+        dnslookup(hostname, function(addrs, _, reason)
+            if addrs then
+                mrs[label] = Set(addrs) 
+            else
+                mrs[label] = nil
+                status_message = hostname .. ' - ' .. reason
+            end
+        end)
+    end
+end
+
 function M.on_timer()
     if 0 == uptime % 30 then
-        for k,_ in pairs(rotations) do
-            dnslookup(k)
-        end
+        refresh_rotations()
     end
 
     uptime = uptime + 1
@@ -499,14 +510,6 @@ function M.on_keyboard(key)
         draw()
     else
         views[view]:keypress(key)
-    end
-end
-
-function M.on_dns(name, addrs, reason)
-    if addrs then
-        mrs[rotations[name]] = Set(addrs)
-    else
-        status_message = name .. ' - ' .. reason
     end
 end
 
