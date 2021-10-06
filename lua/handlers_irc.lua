@@ -22,7 +22,12 @@ function M.NOTICE(irc)
             local event = parse_snote(time, irc.source, note)
             if event then
                 local h = handlers[event.name]
-                if h then h(event) draw() end
+                if h then
+                    h(event)
+                    if view == 1 or view == 3 or view == 8 then
+                        draw()
+                    end
+                end
             end
         end
     end
