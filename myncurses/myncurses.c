@@ -79,7 +79,7 @@ static int l_mvaddstr(lua_State *L)
     int wy, wx;
     getmaxyx(stdscr, wy, wx);
 
-    if (y < wy && x < wx)
+    if (0 <= y && 0 <= x && y < wy && x < wx)
     {
         mvaddnstr(y, x, str, len);
     }

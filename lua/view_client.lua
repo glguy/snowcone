@@ -85,7 +85,7 @@ function M:render()
     local window = {}
 
     local n = 0
-    local rows = math.max(1, tty_height - 1)
+    local rows = math.max(1, tty_height - 2)
 
     for _, entry in messages:each() do
         local y = (messages_n-1-n) % rows
@@ -108,7 +108,8 @@ function M:render()
         end
     end
     cyan()
-    mvaddstr(tty_height - 1, 0, buffer)
+    mvaddstr(tty_height - 2, 0, buffer)
+    draw_global_load('CLICON', conn_tracker)
 end
 
 return M
