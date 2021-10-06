@@ -1,4 +1,11 @@
 local align = true
+local palette = {
+    PRIVMSG = blue,
+    NOTICE = cyan,
+    JOIN = green,
+    PART = yellow,
+    QUIT = red,
+}
 
 local function render_irc(irc)
 
@@ -6,6 +13,7 @@ local function render_irc(irc)
     and irc[1] == '*' and #irc == 2
     and irc[2]:startswith '*** Notice -- ' then
         addstr(string.format('%-16.16s', irc.source) .. ' ')
+        magenta()
         bold()
         addstr 'SNOW '
         bold_()
@@ -23,9 +31,11 @@ local function render_irc(irc)
             addstr(string.rep(' ', 17))
         end
 
+        local color = palette[irc.command]
+        if color then color() end
         bold()
         addstr(string.format('%-4.4s', irc.command))
-        bold_()
+        normal()
     else
         if irc.source then
             addstr(irc.source .. ' ')

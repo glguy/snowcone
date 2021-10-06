@@ -385,8 +385,10 @@ end
 function add_network_tracker(label)
     local address, prefix = string.match(label, '^([^/]*)/(%d+)$')
     dnslookup(address, function(a,b)
-        local entry = NetTracker(a[1]..'/'..prefix, b[1], math.tointeger(prefix))
+        local net = a[1] .. '/' .. prefix
+        local entry = NetTracker(net, b[1], math.tointeger(prefix))
         table.insert(net_trackers, entry)
+        send_irc('TESTMASK *@' .. net .. '\r\n')
     end)
 end
 
