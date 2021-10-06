@@ -58,7 +58,9 @@ local function render_irc(irc)
     end
 end
 
-local M = {}
+local M = {
+    active = true,
+}
 
 local buffer = ""
 

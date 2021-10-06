@@ -24,7 +24,7 @@ function M.NOTICE(irc)
                 local h = handlers[event.name]
                 if h then
                     h(event)
-                    if view == 1 or view == 3 or view == 8 then
+                    if views[view].active then
                         draw()
                     end
                 end

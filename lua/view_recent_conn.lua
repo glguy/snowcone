@@ -1,6 +1,6 @@
 return function(data, total_name)
 
-local M = {}
+local M = { active = true }
 
 local handlers = {
     [-ncurses.KEY_PPAGE] = function()

@@ -46,8 +46,6 @@ local compute_kline_mask = require_ 'libera_masks'
 
 -- Global state =======================================================
 
-local views
-
 local rotations = {
     ['irc.libera.chat'] = '',
     ['irc.ipv4.libera.chat'] = 'IPV4',
@@ -369,7 +367,7 @@ views = {
     -- Raw IRC console
     require_ 'view_client',
     -- Counters for network masks
-    require_ 'view_net_trackers',
+    (require_ 'view_net_trackers'),
 }
 
 function draw()
