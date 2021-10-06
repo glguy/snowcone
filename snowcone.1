@@ -131,13 +131,25 @@ all connections
 issue kline
 .TP
 .BI Esc
-clear filters
+clear filters, reset scroll, clear status message
 .TP
 .BI PgUp
 scroll up
 .TP
 .BI PgDn
 scroll down
+.SH RAW CLIENT
+The raw client view (F8) is primarily intended for debugging. It exists
+to see what snowcone sees.
+.TP
+.BI C-p
+Toggle aligned/truncated rendering
+.TP
+.BI Esc
+Erase input buffer
+.TP
+.BI Enter
+Send raw IRC command
 .SH GEOIP SUPPORT
 Both legacy GeoIP and modern GeoIP Maxmind database are supported
 and will be used if they are found at startup time.
