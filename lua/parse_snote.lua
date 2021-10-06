@@ -136,4 +136,19 @@ return function(time, server, str)
             }
         end
     end
+
+    do
+        local oper, token, arg =
+            string.match(str, '^OPERSPY (%g+) (%g+) (.*)$')
+        if oper then
+            return {
+                name = 'operspy',
+                server = server,
+                time = time,
+                oper = oper,
+                token = token,
+                arg = arg,
+            }
+        end
+    end
 end
