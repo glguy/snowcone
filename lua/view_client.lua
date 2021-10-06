@@ -1,26 +1,36 @@
+local align = true
+
 local function render_irc(irc)
-    local parts = {}
+    if align then
+        if irc.source then
+            addstr(string.format('%-16.16s', irc.source) .. ' ')
+        else
+            addstr(string.rep(' ', 17))
+        end
 
-    if irc.source then
-        table.insert(parts, ':'..irc.source)
+        bold()
+        addstr(string.format('%-4.4s', irc.command))
+        bold_()
+    else
+        if irc.source then
+            addstr(irc.source .. ' ')
+        end
+        bold()
+        addstr(irc.command)
+        bold_()
     end
-
-    table.insert(parts, irc.command)
 
     local n = #irc
     for i,arg in ipairs(irc) do
         if i == n then
-            table.insert(parts, ':'..arg)
+            cyan()
+            addstr(' :')
+            normal()
+            addstr(arg)
         else
-            table.insert(parts, arg)
+            addstr(' '..arg)
         end
     end
-
-    local full = table.concat(parts, ' ')
-    if #full > tty_width then
-        full = string.sub(full, 1, tty_width) -- better to do something with unicode!
-    end
-    return string.gsub(full, '%c', '.')
 end
 
 local M = {}
@@ -32,6 +42,8 @@ function M:keypress(key)
         buffer = ''
     elseif key == 0x7f then
         buffer = string.sub(buffer, 1, #buffer - 1)
+    elseif key == 0x10 then
+        align = not align
     elseif 0x14 <= key then
         buffer = buffer .. utf8.char(key)
     elseif key == 0xd then
@@ -66,7 +78,8 @@ function M:render()
             mvaddstr(y, 0, string.rep('·', tty_width))
             normal()
         else
-            mvaddstr(y, 0, render_irc(window[y]))
+            mvaddstr(y, 0, '')
+            render_irc(window[y])
         end
     end
     cyan()
