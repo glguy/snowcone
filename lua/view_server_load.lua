@@ -1,4 +1,10 @@
 local palette = {black, red, green, yellow, blue, magenta, cyan, white}
+local region_color = {
+    US = red,
+    EU = blue,
+    AU = white,
+    EA = green,
+}
 
 local function in_rotation(region, a1, a2)
     local ips = mrs[region] or {}
@@ -17,7 +23,7 @@ local function render_mrs(zone, addr, str)
     end
 end
 
-return function(title, label, color, tracker)
+return function(title, label, header_color, tracker)
 
 local M = {}
 
@@ -39,7 +45,7 @@ function M:render()
     local upcolor = {}
     local next_color = 2
 
-    ncurses.attron(color)
+    ncurses.attron(header_color)
     mvaddstr(pad,0, string.format('          Server  1m    5m    15m  %-62s Mn  Region AF  Conns  Up', title))
     normal()
     for i,row in ipairs(rows) do

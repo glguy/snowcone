@@ -94,12 +94,6 @@ local defaults = {
     kline_reason = 1,
     trust_uname = false,
     primary_hub = 'xenon.libera.chat',
-    region_color = {
-        US = red,
-        EU = blue,
-        AU = white,
-        EA = green,
-    },
 }
 
 function initialize()
@@ -469,7 +463,7 @@ local function refresh_rotations()
     for hostname, label in pairs(rotations) do
         dnslookup(hostname, function(addrs, _, reason)
             if addrs then
-                mrs[label] = Set(addrs) 
+                mrs[label] = Set(addrs)
             else
                 mrs[label] = nil
                 status_message = hostname .. ' - ' .. reason
