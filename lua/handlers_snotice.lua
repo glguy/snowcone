@@ -1,5 +1,20 @@
 -- Logic for parsed snotices
 
+local function count_ip(address, delta)
+    if next(net_trackers) then
+    dnslookup(address, function(_, baddrs, _)
+        if baddrs then
+            local baddr = baddrs[1]
+            for _, x in ipairs(net_trackers) do
+                if x:match(baddr) then
+                    x.count = x.count + delta
+                end
+            end
+        end
+    end)
+    end
+end
+
 local M = {}
 
 function M.connect(ev)
@@ -37,7 +52,7 @@ function M.connect(ev)
         population[ev.server] = pop + 1
     end
 
-    draw()
+    count_ip(ev.ip, 1)
 end
 
 function M.disconnect(ev)
@@ -71,6 +86,8 @@ function M.disconnect(ev)
     while exits.n > history do
         exits:pop_back()
     end
+
+    count_ip(ev.ip, -1)
 end
 
 function M.nick(ev)
@@ -95,12 +112,12 @@ function M.filter(ev)
 end
 
 function M.netjoin(ev)
-    send_irc 'MAP\r\nLINKS\r\n'
+    send_irc(counter_sync_commands())
     status_message = 'netjoin ' .. ev.server2
 end
 
 function M.netsplit(ev)
-    send_irc 'MAP\r\nLINKS\r\n'
+    send_irc(counter_sync_commands())
     status_message = 'netsplit ' .. ev.server2 .. ' ('.. ev.reason .. ')'
 end
 

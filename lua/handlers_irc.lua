@@ -22,7 +22,7 @@ function M.NOTICE(irc)
             local event = parse_snote(time, irc.source, note)
             if event then
                 local h = handlers[event.name]
-                if h then h(event) end
+                if h then h(event) draw() end
             end
         end
     end
@@ -60,9 +60,15 @@ end
 
 -- RPL_TESTMASK_GECOS
 M['727'] = function(irc)
-    local loc, rem, mask = table.unpack(irc,2,4)
-    if staged_action and '*!'..staged_action.mask == mask then
-        staged_action.count = math.tointeger(loc) + math.tointeger(rem)
+    local loc, rem, mask, gecos = table.unpack(irc,2,5)
+    local total = math.tointeger(loc) + math.tointeger(rem)
+    if staged_action and '*' == gecos and '*!'..staged_action.mask == mask then
+        staged_action.count = total
+    end
+    for _, entry in ipairs(net_trackers) do
+        if '*' == gecos and '*!*@' .. entry.label == mask then
+            entry.count = total
+        end
     end
 end
 

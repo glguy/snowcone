@@ -38,6 +38,7 @@ end
 servers  = require_ 'servers'
 ip_org   = require_ 'ip_org'
 irc_authentication = require_ 'irc_authentication'
+NetTracker = require_ 'NetTracker'
 
 local LoadTracker        = require_ 'LoadTracker'
 local OrderedMap         = require_ 'OrderedMap'
@@ -74,6 +75,7 @@ local defaults = {
     kline_tracker = LoadTracker(),
     conn_tracker = LoadTracker(),
     exit_tracker = LoadTracker(),
+    net_trackers = {},
     view = 1,
     uptime = 0,
     mrs = {},
@@ -364,7 +366,10 @@ views = {
     view_simple_load('Server', 'FILTERS', 'Filter History', filter_tracker),
     -- Repeat connection tracking
     require_ 'view_reconnects',
+    -- Raw IRC console
     require_ 'view_client',
+    -- Counters for network masks
+    require_ 'view_net_trackers',
 }
 
 function draw()
@@ -375,7 +380,25 @@ function draw()
     ncurses.refresh()
 end
 
+-- Network Tracker Logic ==============================================
+
+function add_network_tracker(label)
+    local address, prefix = string.match(label, '^([^/]*)/(%d+)$')
+    dnslookup(address, function(a,b)
+        local entry = NetTracker(a[1]..'/'..prefix, b[1], math.tointeger(prefix))
+        table.insert(net_trackers, entry)
+    end)
+end
+
 -- IRC Registration Logic =============================================
+
+function counter_sync_commands()
+    local commands = {'MAP\r\nLINKS\r\n'}
+    for _, entry in ipairs(net_trackers) do
+        table.insert(commands, 'TESTMASK *@' .. entry.label .. '\r\n')
+    end
+    return table.concat(commands)
+end
 
 local function irc_register()
     local pass = ''
@@ -386,7 +409,7 @@ local function irc_register()
     local user = configuration.irc_user or configuration.irc_nick
     local gecos = configuration.irc_gecos or configuration.irc_nick
 
-    local first = 'MAP\r\nLINKS\r\n'
+    local first
     if configuration.irc_oper_username and configuration.irc_challenge_key then
         first = 'CHALLENGE ' .. configuration.irc_oper_username .. '\r\n'
         irc_state.challenge = ''
@@ -394,6 +417,8 @@ local function irc_register()
         first = 'OPER ' ..
             configuration.irc_oper_username .. ' ' ..
             configuration.irc_oper_password .. '\r\n'
+    else
+        first = counter_sync_commands()
     end
 
     local caps = {}
@@ -488,12 +513,13 @@ end
 local keys = {
     [-ncurses.KEY_F1] = function() view = 1 scroll = 0 end,
     [-ncurses.KEY_F2] = function() view = 2 end,
-    [-ncurses.KEY_F3] = function() view = 3 end,
+    [-ncurses.KEY_F3] = function() view = 3 scroll = 0 end,
     [-ncurses.KEY_F4] = function() view = 4 end,
     [-ncurses.KEY_F5] = function() view = 5 end,
     [-ncurses.KEY_F6] = function() view = 6 end,
     [-ncurses.KEY_F7] = function() view = 7 end,
     [-ncurses.KEY_F8] = function() view = 8 end,
+    [-ncurses.KEY_F9] = function() view = 9 end,
     --[[^L]] [ 12] = function() ncurses.clear() end,
 }
 
