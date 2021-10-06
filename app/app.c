@@ -63,7 +63,7 @@ struct app
 {
     lua_State *L;
     struct configuration *cfg;
-    uv_stream_t *stream;
+    uv_stream_t *console;
     uv_stream_t *irc;
     uv_loop_t *loop;
 };
@@ -119,7 +119,7 @@ static int app_print(lua_State *L)
 {
     struct app * const a = *app_ref(L);
 
-    if (a->stream)
+    if (a->console)
     {
         int n = lua_gettop(L);  /* number of arguments */
 
@@ -136,7 +136,7 @@ static int app_print(lua_State *L)
         size_t msglen;
         char const* msg = lua_tolstring(L, -1, &msglen);
     
-        to_write(a->stream, msg, msglen);
+        to_write(a->console, msg, msglen);
     }
 
     return 0;
@@ -334,9 +334,9 @@ static void lua_callback(lua_State *L, char const *key, int args)
         struct app * const a = *app_ref(L);
         size_t len;
         char const* err = lua_tolstring(L, -1, &len);
-        if (a->stream) {
-            to_write(a->stream, err, len);
-            to_write(a->stream, "\n", 1);
+        if (a->console) {
+            to_write(a->console, err, len);
+            to_write(a->console, "\n", 1);
         } else {
             endwin();
             fprintf(stderr, "%s\n", err);
@@ -349,9 +349,9 @@ static void lua_callback(lua_State *L, char const *key, int args)
 void do_command(
     struct app *a,
     char const* line,
-    uv_stream_t *stream)
+    uv_stream_t *console)
 {
-    a->stream = stream;
+    a->console = console;
 
     if (*line == '/')
     {
@@ -367,7 +367,7 @@ void do_command(
         else
         {
             char const* msg = "Unknown command\n";
-            to_write(stream, msg, strlen(msg));
+            to_write(console, msg, strlen(msg));
         }
     }
     else
@@ -376,7 +376,7 @@ void do_command(
         lua_callback(a->L, "on_input", 1);
     }
     
-    a->stream = NULL;
+    a->console = NULL;
 }
 
 void do_timer(struct app *a)

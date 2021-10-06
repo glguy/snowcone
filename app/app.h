@@ -16,7 +16,7 @@ void app_reload(struct app *a);
 void app_set_irc(struct app *a, uv_stream_t *stream);
 void app_clear_irc(struct app *a);
 void app_set_window_size(struct app *a);
-void do_command(struct app *a, char const* line, uv_stream_t *stream);
+void do_command(struct app *a, char const* line, uv_stream_t *console);
 void do_irc(struct app *a, struct ircmsg const*);
 void do_timer(struct app *a);
 void do_keyboard(struct app *, long);
