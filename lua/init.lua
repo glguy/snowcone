@@ -420,7 +420,7 @@ local function irc_register()
 
     local capreq = ''
     if next(caps) then
-        capreq = 'CAP REQ :' .. table.concat(caps, ',') .. '\r\n'
+        capreq = 'CAP REQ :' .. table.concat(caps, ' ') .. '\r\n'
     end
 
     send_irc(
