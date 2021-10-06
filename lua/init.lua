@@ -80,6 +80,7 @@ local defaults = {
     scroll = 0,
     clicon_n = 0,
     cliexit_n = 0,
+    messages_n = 0,
     filter_tracker = LoadTracker(),
     population = {},
     links = {},
@@ -452,6 +453,7 @@ end
 
 local irc_handlers = require_ 'handlers_irc'
 function M.on_irc(irc)
+    messages_n = messages_n + 1
     messages:insert(true, irc)
     while messages.n > 100 do
         messages:pop_back()

@@ -7,7 +7,8 @@ globals = {
     "staged_action", "kline_reason", "scroll", "history",
 
     "links", "upstream", "population", "conn_tracker", "exit_tracker",
-    "kline_tracker", "filter_tracker", "messages",
+    "kline_tracker", "filter_tracker",
+    "messages", "messages_n",
     "users", "clicon_n",
     "exits", "cliexit_n",
 

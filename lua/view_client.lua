@@ -44,19 +44,33 @@ function M:keypress(key)
 end
 
 function M:render()
-    local y = tty_height - 1
 
-    mvaddstr(y, 0, buffer)
-    y = y - 1
+    local window = {}
 
-    for _, irc in messages:each() do
-        ncurses.mvaddstr(y, 0, render_irc(irc))
+    local n = 0
+    local rows = math.max(1, tty_height - 1)
 
-        y = y - 1
-        if y < 0 then
-            break
+    for _, entry in messages:each() do
+        local y = (messages_n-1-n) % rows
+        window[y] = entry
+        n = n + 1
+        if n >= rows-1 then break end
+    end
+
+    window[messages_n % rows] = 'divider'
+
+    for y = 0, rows - 1 do
+        local entry = window[y]
+        if entry == 'divider' then
+            yellow()
+            mvaddstr(y, 0, string.rep('·', tty_width))
+            normal()
+        else
+            mvaddstr(y, 0, render_irc(window[y]))
         end
     end
+    cyan()
+    mvaddstr(tty_height - 1, 0, buffer)
 end
 
 return M
