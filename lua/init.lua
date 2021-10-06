@@ -228,16 +228,17 @@ function draw_global_load(title, tracker)
     draw_load(tracker.global)
     normal()
 
-    if view == 1 or view == 3 then
-        if status_message then
-            addstr(' ' .. status_message)
-        end
-    elseif view == 2 or view == 4 then
+    if view == 2 or view == 4 then
         local n = 0
         for _,v in pairs(population) do n = n + v end
         addstr('              ')
         magenta()
         add_population(n)
+        normal()
+    end
+
+    if status_message then
+        addstr(' ' .. status_message)
     end
 
     add_click(tty_height-1, 0, 9, function()

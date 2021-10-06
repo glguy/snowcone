@@ -64,9 +64,53 @@ local M = {
 
 local buffer = ""
 
+local commands = {}
+
+function commands.quote(args)
+    send_irc(args .. '\r\n')
+end
+
+function commands.nettrack(args)
+    add_network_tracker(args)
+end
+
+function commands.filter(args)
+    if args == '' then
+        filter = nil
+    else
+        filter = args
+    end
+end
+
+function commands.eval(args)
+    local chunk, message = load(args, '=(eval)', 't')
+    if chunk == 'fail' then
+        status_message = string.match(message, '^[^\n]*')
+    else
+        local res, err = pcall(chunk)
+        if not res then
+            status_message = string.match(err, '^[^\n]*')
+        end
+    end
+end
+
+local function execute()
+    local command, args = string.match(buffer, '^ */(%g*) *(.*)$')
+    local impl = commands[command]
+    if impl then
+        buffer = ''
+        status_message = ''
+        impl(args)
+    else
+        status_message = 'unknown command'
+    end
+    draw()
+end
+
 function M:keypress(key)
     if key == 0x1b then
         buffer = ''
+        status_message = ''
     elseif key == 0x7f then
         buffer = string.sub(buffer, 1, #buffer - 1)
     elseif key == 0x10 then
@@ -74,8 +118,7 @@ function M:keypress(key)
     elseif 0x14 <= key then
         buffer = buffer .. utf8.char(key)
     elseif key == 0xd then
-        send_irc(buffer..'\r\n')
-        buffer = ''
+        execute()
     else
         buffer = string.format('%s[%d]', buffer, key)
     end
