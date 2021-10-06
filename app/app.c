@@ -432,8 +432,16 @@ static void do_dns(struct app *a, struct addrinfo const* ai)
 
             switch (ai->ai_family) {
                 default: lua_pushstring(L, ""); break;
-                case AF_INET: lua_pushlstring(L, (char*)&((struct sockaddr_in *)ai->ai_addr)->sin_addr, 4); break;
-                case AF_INET6: lua_pushlstring(L, (char*)&((struct sockaddr_in6 *)ai->ai_addr)->sin6_addr, 16); break;
+                case PF_INET: {
+                    struct sockaddr_in *sin = (struct sockaddr_in *)ai->ai_addr;
+                    lua_pushlstring(L, (char*)&sin->sin_addr, sizeof sin->sin_addr);
+                    break;
+                }
+                case PF_INET6: {
+                    struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)ai->ai_addr;
+                    lua_pushlstring(L, (char*)&sin6->sin6_addr, sizeof sin6->sin6_addr);
+                    break;
+                }
             }
             lua_rawseti(L, -2, i);
         } else {
