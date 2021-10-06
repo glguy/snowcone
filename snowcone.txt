@@ -61,6 +61,7 @@ MODES
   F6  filter load
   F7  reconnecting nicknames
   F8  raw IRC console
+  F9  network-mask connection tracker
 SH RECENT CONNECTIONS
   The recent connections view has a number of special features. Click on
   a connection to select it for kline or unkline. The buttons below will
@@ -78,9 +79,16 @@ RAW CLIENT
   The raw client view (F8) is primarily intended for debugging. It exists
   to see what snowcone sees.
 
-  C-p    Toggle aligned/truncated rendering
-  Esc    Erase input buffer
-  Enter  Send raw IRC command
+  C-p     Toggle aligned/truncated rendering
+  Esc     Erase input buffer
+  Enter   Execute IRC command
+
+  /eval luacode             Evaluate arbitrary Lua code
+  /filter pattern           Update the recent connection filter
+                            using Lua pattern syntax
+  /nettrack address/prefix  Add a network to the F9 tracking view
+  /quote raw_command        Send a raw IRC command
+
 GEOIP SUPPORT
   Both legacy GeoIP and modern GeoIP Maxmind database are supported
   and will be used if they are found at startup time.

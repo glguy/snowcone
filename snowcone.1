@@ -144,6 +144,10 @@ reconnecting nicknames
 .B
 F8
 raw IRC console
+.TP
+.B
+F9
+network-mask connection tracker
 .SH SH RECENT CONNECTIONS
 The recent connections view has a number of special features. Click on
 a connection to select it for kline or unkline. The buttons below will
@@ -191,7 +195,24 @@ Erase input buffer
 .TP
 .B
 Enter
-Send raw IRC command
+Execute IRC command
+.TP
+.B
+/eval luacode
+Evaluate arbitrary Lua code
+.TP
+.B
+/filter pattern
+Update the recent connection filter
+using Lua pattern syntax
+.TP
+.B
+/nettrack \fIaddress\fP/prefix
+Add a network to the F9 tracking view
+.TP
+.B
+/quote raw_command
+Send a raw IRC command
 .SH GEOIP SUPPORT
 Both legacy GeoIP and modern GeoIP Maxmind database are supported
 and will be used if they are found at startup time.
