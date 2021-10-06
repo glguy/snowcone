@@ -1,6 +1,21 @@
 local align = true
 
 local function render_irc(irc)
+
+    if align and irc.source and irc.command == 'NOTICE'
+    and irc[1] == '*' and #irc == 2
+    and irc[2]:startswith '*** Notice -- ' then
+        addstr(string.format('%-16.16s', irc.source) .. ' ')
+        bold()
+        addstr 'SNOW '
+        bold_()
+        cyan()
+        addstr(':')
+        normal()
+        addstr(string.sub(irc[2], 15))
+        return
+    end
+
     if align then
         if irc.source then
             addstr(string.format('%-16.16s', irc.source) .. ' ')
