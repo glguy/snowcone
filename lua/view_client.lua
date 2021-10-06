@@ -22,7 +22,7 @@ local function render_irc(irc)
 
     local n = #irc
     for i,arg in ipairs(irc) do
-        if i == n then
+        if i == n and (arg == '' or arg:startswith ':' or arg:match ' ') then
             cyan()
             addstr(' :')
             normal()
