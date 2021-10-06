@@ -351,15 +351,16 @@ function draw_buttons()
     normal()
 end
 
+local view_recent_conn = require_ 'view_recent_conn'
 local view_server_load = require_ 'view_server_load'
 local view_simple_load = require_ 'view_simple_load'
 views = {
     -- Recent connections
-    require_ 'view_recent_conn',
+    view_recent_conn(users, 'clicon_n'),
     -- Server connections
     view_server_load('Connection History', 'CLICON', ncurses.green, conn_tracker),
     -- Recent exists
-    require_ 'view_recent_exit',
+    view_recent_conn(exits, 'cliexit_n'),
     -- Server exits
     view_server_load('Disconnection History', 'CLIEXI', ncurses.red, exit_tracker),
     -- K-Line tracking

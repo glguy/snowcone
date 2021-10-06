@@ -1,3 +1,5 @@
+return function(data, total_name)
+
 local M = {}
 
 local handlers = {
@@ -41,15 +43,15 @@ function M:render()
     local last_time
     local n = 0
     local rotating_view = scroll == 0 and conn_filter == nil
-
+    local total = _G[total_name]
     local rows = math.max(1, tty_height-2)
 
     local window = {}
-    for _, entry in users:each() do
+    for _, entry in data:each() do
         if show_entry(entry) then
             local y
             if rotating_view then
-                y = (clicon_n-1-n) % rows
+                y = (total-1-n) % rows
             else
                 y = rows-1-n
             end
@@ -69,7 +71,7 @@ function M:render()
     end
 
     if rotating_view then
-        window[clicon_n % rows] = 'divider'
+        window[total % rows] = 'divider'
     end
 
     for y = 0,rows-1 do
@@ -105,7 +107,7 @@ function M:render()
             if entry.filters then
                 ncurses.attron(mask_color)
                 addstr(string.format(' %3d! ', entry.filters))
-            else
+            elseif entry.count then
                 if entry.count < 2 then
                     black()
                 end
@@ -119,7 +121,7 @@ function M:render()
             end
 
             ncurses.attron(mask_color)
-            addstr(entry.nick)
+            mvaddstr(y, 14, entry.nick)
             black()
             addstr('!')
             ncurses.attron(mask_color)
@@ -167,9 +169,9 @@ function M:render()
             -- GECOS or account
             normal()
             local account = entry.account
-            if account == '*' then
+            if account == '*' and entry.gecos then
                 mvaddstr(y, 123, entry.gecos)
-            else
+            elseif account then
                 cyan()
                 mvaddstr(y, 123, account)
 		        normal()
@@ -216,3 +218,5 @@ function M:render()
 end
 
 return M
+
+end
