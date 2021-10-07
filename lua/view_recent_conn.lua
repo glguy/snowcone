@@ -158,13 +158,15 @@ function M:render()
 
             -- SERVER
             blue()
-            local server = (servers.servers[entry.server] or {}).alias
-                        or string.sub(entry.server, 1, 2)
-            mvaddstr(y, 120, server)
+            local alias = (servers.servers[entry.server] or {}).alias
+            if alias then
+                mvaddstr(y, 120, string.format('%-2.2s ', alias))
+            else
+                mvaddstr(y, 120, string.format('%-3.3s ', entry.server))
+            end
 
             -- GECOS or ACCOUNT
             normal()
-            mvaddstr(y, 123, '')
             if entry.account and entry.account ~= '*' then
                 cyan()
                 addstr(entry.account .. ' ')
