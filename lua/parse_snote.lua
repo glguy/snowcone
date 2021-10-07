@@ -158,4 +158,20 @@ return function(time, server, str)
             }
         end
     end
+
+    do
+        local kind, nick, user, host =
+            string.match(str, '^Too many (%g+) connections for ([^!]+)!([^@]+)@(.+)$')
+        if kind then
+            return {
+                name = 'toomany',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                kind = kind,
+            }
+        end
+    end
 end
