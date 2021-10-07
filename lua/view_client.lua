@@ -36,7 +36,7 @@ local function render_irc(irc)
             cyan()
             addstr(':')
             normal()
-            addstr(string.sub(irc[2], 15))
+            addstr(scrub(string.sub(irc[2], 15)))
             return
         end
 
@@ -68,9 +68,9 @@ local function render_irc(irc)
             cyan()
             addstr(' :')
             normal()
-            addstr(arg)
+            addstr(scrub(arg))
         else
-            addstr(' '..arg)
+            addstr(' '..scrub(arg))
         end
     end
 end
