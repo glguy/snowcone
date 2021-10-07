@@ -7,26 +7,41 @@ local palette = {
     QUIT = red,
 }
 
-local function render_irc(irc)
-
-    if align and irc.source and irc.command == 'NOTICE'
-    and irc[1] == '*' and #irc == 2
-    and irc[2]:startswith '*** Notice -- ' then
-        addstr(string.format('%-16.16s', irc.source) .. ' ')
-        magenta()
-        bold()
-        addstr 'SNOW '
-        bold_()
+local function pretty_source(source)
+    local head, tail = string.match(source, '^([^.!]*)(.*)$')
+    head = head:sub(1,16)
+    local head_n = #head
+    tail = tail:sub(1, 16 - head_n)
+    if tail:startswith '!' then
         cyan()
-        addstr(':')
-        normal()
-        addstr(string.sub(irc[2], 15))
-        return
+    else
+        yellow()
     end
+    addstr(head)
+    normal()
+    addstr(tail)
+    addstr(string.rep(' ', 17 - head_n - #tail))
+end
 
+local function render_irc(irc)
     if align then
+        if irc.source and irc.command == 'NOTICE'
+        and irc[1] == '*' and #irc == 2
+        and irc[2]:startswith '*** Notice -- ' then
+            pretty_source(irc.source)
+            magenta()
+            bold()
+            addstr 'SNOW '
+            bold_()
+            cyan()
+            addstr(':')
+            normal()
+            addstr(string.sub(irc[2], 15))
+            return
+        end
+
         if irc.source then
-            addstr(string.format('%-16.16s', irc.source) .. ' ')
+            pretty_source(irc.source)
         else
             addstr(string.rep(' ', 17))
         end
@@ -41,8 +56,10 @@ local function render_irc(irc)
             addstr(irc.source .. ' ')
         end
         bold()
+        local color = palette[irc.command]
+        if color then color() end
         addstr(irc.command)
-        bold_()
+        normal()
     end
 
     local n = #irc
