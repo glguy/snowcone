@@ -168,13 +168,15 @@ function M:render()
 
             -- GECOS or account
             normal()
-            local account = entry.account
-            if account == '*' and entry.gecos then
-                mvaddstr(y, 123, entry.gecos)
-            elseif account then
+            mvaddstr(y, 123, '')
+            if entry.account and entry.account ~= '*' then
                 cyan()
-                mvaddstr(y, 123, account)
+                addstr(entry.account .. ' ')
 		        normal()
+            end
+
+            if entry.gecos then
+                addstr(entry.gecos)
             end
 
             -- Click handlers
