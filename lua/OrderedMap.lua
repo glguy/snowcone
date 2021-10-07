@@ -65,7 +65,6 @@ function OrderedMap:lookup(key)
 end
 
 function OrderedMap:rekey(old, new)
-    self:delete(new)
     local node = self.index[old]
     if node then
         node.key = new
