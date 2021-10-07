@@ -102,7 +102,7 @@ function M:render()
                 normal()
             end
 
-            local mask_color = entry.connected and ncurses.green or ncurses.red
+            local mask_color = entry.reason and ncurses.red or ncurses.green
 
             if entry.filters then
                 ncurses.attron(mask_color)
@@ -140,33 +140,29 @@ function M:render()
             end
 
             -- IP or REASON
-            if show_reasons and not entry.connected then
-                if entry.reason == 'K-Lined' then
-                    red()
-                else
-                    magenta()
-                end
+            if not entry.reason then
+                yellow()
+            elseif entry.reason == 'K-Lined' then
+                red()
+            else
+                magenta()
+            end
+
+            if show_reasons and entry.reason then
                 mvaddstr(y, 80, string.sub(entry.reason, 1, 39))
             elseif entry.org then
-                if entry.connected then
-                    yellow()
-                elseif entry.reason == 'K-Lined' then
-                    red()
-                else
-                    magenta()
-                end
                 mvaddstr(y, 80, string.sub(entry.org, 1, 39))
             else
-                yellow()
                 mvaddstr(y, 80, entry.ip)
             end
 
+            -- SERVER
             blue()
             local server = (servers[entry.server] or {}).alias
                         or string.sub(entry.server, 1, 2)
             mvaddstr(y, 120, server)
 
-            -- GECOS or account
+            -- GECOS or ACCOUNT
             normal()
             mvaddstr(y, 123, '')
             if entry.account and entry.account ~= '*' then

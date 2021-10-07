@@ -249,7 +249,7 @@ end
 function show_entry(entry)
     return
     (server_filter == nil or server_filter == entry.server) and
-    (conn_filter == nil or conn_filter == entry.connected) and
+    (conn_filter == nil or conn_filter == not entry.reason) and
     (filter      == nil or string.match(entry.mask, filter))
 end
 

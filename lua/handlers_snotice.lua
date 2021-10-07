@@ -32,7 +32,6 @@ function M.connect(ev)
         ip = ev.ip,
         org = ip_org(ev.ip),
         time = ev.time,
-        connected = true,
         count = prev and prev.count+1 or 1,
         mask = ev.nick .. '!' .. ev.user .. '@' .. ev.host .. ' ' .. ev.gecos,
         timestamp = uptime,
@@ -66,7 +65,6 @@ function M.disconnect(ev)
     end
 
     if entry then
-        entry.connected = false
         entry.reason = ev.reason
         draw()
     end
