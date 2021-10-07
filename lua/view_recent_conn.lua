@@ -105,7 +105,7 @@ function M:render()
             local mask_color = entry.reason and ncurses.red or ncurses.green
 
             if entry.filters then
-                ncurses.attron(mask_color)
+                ncurses.colorset(mask_color)
                 addstr(string.format(' %3d! ', entry.filters))
             elseif entry.count then
                 if entry.count < 2 then
@@ -120,15 +120,15 @@ function M:render()
                     bold()
             end
 
-            ncurses.attron(mask_color)
+            ncurses.colorset(mask_color)
             mvaddstr(y, 14, entry.nick)
             black()
             addstr('!')
-            ncurses.attron(mask_color)
+            ncurses.colorset(mask_color)
             addstr(entry.user)
             black()
             addstr('@')
-            ncurses.attron(mask_color)
+            ncurses.colorset(mask_color)
             local maxwidth = 63 - #entry.nick - #entry.user
             if #entry.host <= maxwidth then
                 addstr(entry.host)

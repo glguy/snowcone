@@ -37,7 +37,7 @@ static int l_refresh(lua_State *L)
 static int l_attron(lua_State *L)
 {
     int a = luaL_checkinteger(L, 1);
-    if (ERR == attron(a)) {
+    if (ERR == attr_on(a, NULL)) {
         return luaL_error(L, "attron: ncurses error");
     }
     return 0;
@@ -46,7 +46,7 @@ static int l_attron(lua_State *L)
 static int l_attroff(lua_State *L)
 {
     int a = luaL_checkinteger(L, 1);
-    if (ERR == attroff(a)) {
+    if (ERR == attr_off(a, NULL)) {
         return luaL_error(L, "attroff: ncurses error");
     }
     return 0;
@@ -55,7 +55,8 @@ static int l_attroff(lua_State *L)
 static int l_attrset(lua_State *L)
 {
     int a = luaL_checkinteger(L, 1);
-    if (ERR == attrset(a)) {
+    int color = luaL_checkinteger(L, 2);
+    if (ERR == attr_set(a, color, NULL)) {
         return luaL_error(L, "attrset: ncurses error");
     }
     return 0;
@@ -95,6 +96,16 @@ static int l_getyx(lua_State *L)
     return 2;
 }
 
+static int l_colorset(lua_State *L)
+{
+    int color = luaL_checkinteger(L, 1);
+    if (ERR == color_set(color, NULL)) 
+    {
+        return luaL_error(L, "color_set: ncurses error");
+    }
+    return 0;
+}
+
 static luaL_Reg lib[] = {
     {"addstr", l_addstr},
     {"mvaddstr", l_mvaddstr},
@@ -107,6 +118,7 @@ static luaL_Reg lib[] = {
     {"attron", l_attron},
     {"attroff", l_attroff},
     {"attrset", l_attrset},
+    {"colorset", l_colorset},
     {},
 };
 
@@ -123,7 +135,7 @@ void l_ncurses_resize(lua_State *L)
 static inline void setup_color(lua_State *L, short i, short f, short b, char const* name)
 {
     init_pair(i, f, b);
-    lua_pushinteger(L, COLOR_PAIR(i));
+    lua_pushinteger(L, i);
     lua_setfield(L, -2, name);
 }
 
@@ -153,14 +165,9 @@ int luaopen_myncurses(lua_State *L)
     setup_color(L, 8, COLOR_BLACK, -1, "black");
 
 	/* attributes */
-	CC(A_NORMAL);		CC(A_STANDOUT);		CC(A_UNDERLINE);
-	CC(A_REVERSE);		CC(A_BLINK);		CC(A_DIM);
-	CC(A_BOLD);		CC(A_PROTECT);		CC(A_INVIS);
-	CC(A_ALTCHARSET);	CC(A_CHARTEXT);
-	CC(A_ATTRIBUTES);
-#ifdef A_COLOR
-	CC(A_COLOR);
-#endif
+	CC(WA_NORMAL);		CC(WA_STANDOUT);		CC(WA_UNDERLINE);
+	CC(WA_REVERSE);		CC(WA_BLINK);		CC(WA_DIM);
+	CC(WA_BOLD);        CC(WA_ALTCHARSET);
 
 	CC(KEY_DOWN);		CC(KEY_UP);         CC(KEY_END);
 	CC(KEY_LEFT);		CC(KEY_RIGHT);		CC(KEY_HOME);

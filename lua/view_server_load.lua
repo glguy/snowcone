@@ -45,7 +45,7 @@ function M:render()
     local upcolor = {}
     local next_color = 2
 
-    ncurses.attron(header_color)
+    ncurses.colorset(header_color)
     mvaddstr(pad,0, string.format('          Server  1m    5m    15m  %-62s Mn  Region AF  Conns  Up', title))
     normal()
     for i,row in ipairs(rows) do

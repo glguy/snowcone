@@ -10,21 +10,21 @@ end
 addstr = ncurses.addstr
 mvaddstr = ncurses.mvaddstr
 
-function normal()       ncurses.attrset(ncurses.A_NORMAL)     end
-function bold()         ncurses.attron(ncurses.A_BOLD)        end
-function bold_()        ncurses.attroff(ncurses.A_BOLD)       end
-function reversevideo() ncurses.attron(ncurses.A_REVERSE)     end
-function reversevideo_()ncurses.attroff(ncurses.A_REVERSE)    end
-function underline()    ncurses.attron(ncurses.A_UNDERLINE)   end
-function underline_()   ncurses.attroff(ncurses.A_UNDERLINE)  end
-function red()          ncurses.attron(ncurses.red)           end
-function green()        ncurses.attron(ncurses.green)         end
-function blue()         ncurses.attron(ncurses.blue)          end
-function cyan()         ncurses.attron(ncurses.cyan)          end
-function black()        ncurses.attron(ncurses.black)         end
-function magenta()      ncurses.attron(ncurses.magenta)       end
-function yellow()       ncurses.attron(ncurses.yellow)        end
-function white()        ncurses.attron(ncurses.white)         end
+function normal()       ncurses.attrset(ncurses.WA_NORMAL, 0)   end
+function bold()         ncurses.attron(ncurses.WA_BOLD)         end
+function bold_()        ncurses.attroff(ncurses.WA_BOLD)        end
+function reversevideo() ncurses.attron(ncurses.WA_REVERSE)      end
+function reversevideo_()ncurses.attroff(ncurses.WA_REVERSE)     end
+function underline()    ncurses.attron(ncurses.WA_UNDERLINE)    end
+function underline_()   ncurses.attroff(ncurses.WA_UNDERLINE)   end
+function red()          ncurses.colorset(ncurses.red)           end
+function green()        ncurses.colorset(ncurses.green)         end
+function blue()         ncurses.colorset(ncurses.blue)          end
+function cyan()         ncurses.colorset(ncurses.cyan)          end
+function black()        ncurses.colorset(ncurses.black)         end
+function magenta()      ncurses.colorset(ncurses.magenta)       end
+function yellow()       ncurses.colorset(ncurses.yellow)        end
+function white()        ncurses.colorset(ncurses.white)         end
 
 local spinner = {'◴','◷','◶','◵'}
 
