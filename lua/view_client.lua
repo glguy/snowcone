@@ -145,6 +145,7 @@ end
 function M:render()
 
     local window = {}
+    local clear_string = string.rep(' ', tty_width)
 
     local n = 0
     local rows = math.max(1, tty_height - 2)
@@ -165,6 +166,7 @@ function M:render()
             mvaddstr(y, 0, string.rep('·', tty_width))
             normal()
         else
+            mvaddstr(y, 0, clear_string)
             mvaddstr(y, 0, '')
             render_irc(window[y])
         end
