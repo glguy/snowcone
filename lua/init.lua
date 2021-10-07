@@ -47,7 +47,8 @@ local OrderedMap         = require_ 'OrderedMap'
 local compute_kline_mask = require_ 'libera_masks'
 
 do
-    servers = { servers = {}, regions = {} }
+    servers = { servers = {}, regions = {},
+        kline_reasons = { 'banned', "You are banned."} }
     local manual = true
     local conf = os.getenv 'SNOWCONE_SERVERS'
     if not conf then
@@ -135,12 +136,6 @@ kline_durations = {
     {'4h','240'},
     {'1d','1400'},
     {'3d','4320'}
-}
-
-kline_reasons = {
-    {'plain',      'Please email bans@libera.chat to request assistance with this ban.'},
-    {'dronebl',    'Please email bans@libera.chat to request assistance with this ban.|!dnsbl'},
-    {'broken',     'Your client is repeatedly reconnecting. Please email bans@libera.chat when fixed.'},
 }
 
 function entry_to_kline(entry)
@@ -304,9 +299,9 @@ function draw_buttons()
 
     magenta()
     local blacklist_text =
-        string.format('[ %-7s ]', kline_reasons[kline_reason][1])
+        string.format('[ %-7s ]', servers.kline_reasons[kline_reason][1])
     add_button(blacklist_text, function()
-        kline_reason = kline_reason % #kline_reasons + 1
+        kline_reason = kline_reason % #servers.kline_reasons + 1
     end)
     addstr ' '
 
@@ -329,7 +324,7 @@ function draw_buttons()
                 string.format('KLINE %s %s :%s\r\n',
                     kline_durations[kline_duration][2],
                     staged_action.mask,
-                    kline_reasons[kline_reason][2]
+                    servers.kline_reasons[kline_reason][2]
                 )
             )
             staged_action = nil

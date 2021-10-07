@@ -236,23 +236,22 @@ rendering treatment in the server list.
 .nf
 .fam C
         {
+          primary_hub = 'hub.irc.tld',
+          regions = {
+            MAIN = { hostname = 'irc.tld' },
+            US   = { hostname = 'us.irc.tld', color = 'red' },
+          },
+          servers = {
+            'xyz.irc.tld' =
+              { alias = 'Xy', region = 'US',
+                ipv4 = '192.0.2.1', ipv6 = '2001:db8::16' }
+          },
+          kline_reasons = {
+            { 'banned', 'You are banned.' },
+          },
+        }
 .fam T
 .fi
-primary_hub = 'hub.irc.tld',
-regions = {
-MAIN = { hostname = 'irc.tld' },
-.RS
-.TP
-.B
-US
-= { hostname = 'us.irc.tld', color = 'red' },
-},
-servers = {
-\(cqxyz.irc.tld' =
-{ alias = 'Xy', region = 'US',
-ipv4 = '192.0.2.1', ipv6 = '2001:db8::16' }
-},
-}
 .SH FILES
 .TP
 .B

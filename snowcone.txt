@@ -101,7 +101,7 @@ SERVERS CONFIGURATION
   rendering treatment in the server list.
 
 	{
-    primary_hub = 'hub.irc.tld',
+	  primary_hub = 'hub.irc.tld',
 	  regions = {
 	    MAIN = { hostname = 'irc.tld' },
 	    US   = { hostname = 'us.irc.tld', color = 'red' },
@@ -110,6 +110,9 @@ SERVERS CONFIGURATION
 	    'xyz.irc.tld' =
 	      { alias = 'Xy', region = 'US',
 	        ipv4 = '192.0.2.1', ipv6 = '2001:db8::16' }
+	  },
+	  kline_reasons = {
+	    { 'banned', 'You are banned.' },
 	  },
 	}
 FILES
