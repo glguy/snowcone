@@ -94,6 +94,10 @@ IRC account \fIpassword\fP (SASL PLAIN)
 .B
 IRC_OPER_PASSWORD
 IRC operator \fIpassword\fP (OPER)
+.TP
+.B
+SNOWCONE_SERVERS
+Path to alternative servers configuration file
 .SH SOCAT ADDRESSES
 Check the \fBsocat\fP(1) man page for an exhaustive set of connection
 addresses, but these will be the most commonly used:
@@ -224,7 +228,36 @@ Send a raw IRC command
 .SH GEOIP SUPPORT
 Both legacy GeoIP and modern GeoIP Maxmind database are supported
 and will be used if they are found at startup time.
+.SH SERVERS CONFIGURATION
+Information about your network can be populated in the servers
+configuration file. The MAIN, IPV4, and IPV6 regions get special
+rendering treatment in the server list.
+.PP
+.nf
+.fam C
+        {
+.fam T
+.fi
+primary_hub = 'hub.irc.tld',
+regions = {
+MAIN = { hostname = 'irc.tld' },
+.RS
+.TP
+.B
+US
+= { hostname = 'us.irc.tld', color = 'red' },
+},
+servers = {
+\(cqxyz.irc.tld' =
+{ alias = 'Xy', region = 'US',
+ipv4 = '192.0.2.1', ipv6 = '2001:db8::16' }
+},
+}
 .SH FILES
+.TP
+.B
+~/.config/\fBsnowcone\fP/servers.lua
+Lua syntax table specifying server addresses and regions.
 .TP
 .B
 /usr/share/\fBsnowcone\fP/lua

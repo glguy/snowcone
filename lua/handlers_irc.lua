@@ -97,13 +97,16 @@ end
 
 -- RPL_END_OF_LINKS
 M['365'] = function()
-    upstream = {[primary_hub] = primary_hub}
-    local q = {primary_hub}
-    for _, here in ipairs(q) do
-        for k, _ in pairs(links[here] or {}) do
-            if not upstream[k] then
-                upstream[k] = here
-                table.insert(q, k)
+    local primary_hub = servers.primary_hub
+    if primary_hub then
+        upstream = {[primary_hub] = primary_hub}
+        local q = {primary_hub}
+        for _, here in ipairs(q) do
+            for k, _ in pairs(links[here] or {}) do
+                if not upstream[k] then
+                    upstream[k] = here
+                    table.insert(q, k)
+                end
             end
         end
     end

@@ -110,7 +110,6 @@ local defaults = {
     kline_duration = 1,
     kline_reason = 1,
     trust_uname = false,
-    primary_hub = 'xenon.libera.chat',
 }
 
 function initialize()

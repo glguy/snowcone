@@ -101,6 +101,7 @@ SERVERS CONFIGURATION
   rendering treatment in the server list.
 
 	{
+    primary_hub = 'hub.irc.tld',
 	  regions = {
 	    MAIN = { hostname = 'irc.tld' },
 	    US   = { hostname = 'us.irc.tld', color = 'red' },
