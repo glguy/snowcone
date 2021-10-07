@@ -113,7 +113,7 @@ function M:keypress(key)
         status_message = ''
     elseif key == 0x7f then
         buffer = string.sub(buffer, 1, #buffer - 1)
-    elseif key == 0x10 then
+    elseif key == 0x12 then
         align = not align
     elseif 0x14 <= key then
         buffer = buffer .. utf8.char(key)

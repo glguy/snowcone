@@ -62,6 +62,8 @@ MODES
   F7  reconnecting nicknames
   F8  raw IRC console
   F9  network-mask connection tracker
+  C-n  next view
+  C-p  previous view
 SH RECENT CONNECTIONS
   The recent connections view has a number of special features. Click on
   a connection to select it for kline or unkline. The buttons below will
@@ -79,7 +81,7 @@ RAW CLIENT
   The raw client view (F8) is primarily intended for debugging. It exists
   to see what snowcone sees.
 
-  C-p     Toggle aligned/truncated rendering
+  C-r     Toggle raw/aligned message rendering
   Esc     Erase input buffer
   Enter   Execute IRC command
 

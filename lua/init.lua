@@ -522,6 +522,8 @@ local keys = {
     [-ncurses.KEY_F8] = function() view = 8 end,
     [-ncurses.KEY_F9] = function() view = 9 end,
     --[[^L]] [ 12] = function() ncurses.clear() end,
+    --[[^N]] [ 14] = function() view = view % #views + 1 end,
+    --[[^P]] [ 16] = function() view = (view - 2) % #views + 1 end,
 }
 
 function M.on_keyboard(key)
