@@ -49,11 +49,14 @@ local compute_kline_mask = require_ 'libera_masks'
 do
     servers = { servers = {}, regions = {} }
     local manual = true
-    local conf = os.getenv("SNOWCONE_SERVERS")
+    local conf = os.getenv 'SNOWCONE_SERVERS'
     if not conf then
         manual = false
-        local home = os.getenv("HOME")
-        conf = path.join(home, ".config", "snowcone", "servers.lua")
+        local xdgconf = os.getenv 'XDG_CONFIG_HOME'
+        if not xdgconf then
+            xdgconf = path.join(os.getenv 'HOME', '.config')
+        end
+        conf = path.join(xdgconf, "snowcone", "servers.lua")
     end
     local txt, file_err = file.read(conf)
     if txt then
