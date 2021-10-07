@@ -138,16 +138,38 @@ return function(time, server, str)
     end
 
     do
-        local oper, token, arg =
-            string.match(str, '^OPERSPY (%g+) (%g+) (.*)$')
+        local nick, user, host, oper, token, arg =
+            string.match(str, '^OPERSPY ([^!]+)!([^@]+)@([^{]+){([^}]*)} (%g+) (.*)$')
         if oper then
             return {
                 name = 'operspy',
                 server = server,
                 time = time,
+                nick = nick,
+                user = user,
+                host = host,
                 oper = oper,
                 token = token,
                 arg = arg,
+            }
+        end
+    end
+
+    do
+        local nick, user, host, oper, target, kind =
+            string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} \z
+                               is using oper%-override on (%g+) %((.*)%)$')
+        if nick then
+            return {
+                name = 'override',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                oper = oper,
+                target = target,
+                kind = kind,
             }
         end
     end
