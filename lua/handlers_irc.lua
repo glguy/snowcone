@@ -16,7 +16,7 @@ function M.NOTICE(irc)
             if irc.tags.time then
                 time = string.match(irc.tags.time, '^%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d*Z$')
             else
-                time = os.date '%H:%M:%S'
+                time = os.date '!%H:%M:%S'
             end
 
             local event = parse_snote(time, irc.source, note)

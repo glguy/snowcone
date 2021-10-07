@@ -78,7 +78,7 @@ function M:render()
         local entry = window[y]
         if entry == 'divider' then
             yellow()
-            mvaddstr(y, 0, string.rep('·', tty_width))
+            mvaddstr(y, 0, os.date '!%H:%M:%S' .. string.rep('·', tty_width - 8))
             normal()
             last_time = nil
         elseif entry then
