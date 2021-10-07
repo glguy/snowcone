@@ -26,7 +26,10 @@ if(BUILD_TESTING)
 add_subdirectory(tests)
 endif()
 
-install(DIRECTORY "lua" DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/snowcone")
+install(
+    DIRECTORY   "lua"
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/snowcone"
+    PATTERN     ".luacheckrc" EXCLUDE)
 install(FILES "snowcone.1" DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
 
 set(CPACK_GENERATOR "DEB")
