@@ -201,7 +201,7 @@ static void load_logic(lua_State *L, char const *filename)
 
 static void push_configuration(lua_State *L, struct configuration *cfg)
 {
-    lua_createtable(L, 0, 16);
+    lua_createtable(L, 0, 17);
     lua_pushstring(L, cfg->console_node);
     lua_setfield(L, -2, "console_node");
     lua_pushstring(L, cfg->console_service);
@@ -234,6 +234,8 @@ static void push_configuration(lua_State *L, struct configuration *cfg)
     lua_setfield(L, -2, "irc_sasl_password");
     lua_pushstring(L, cfg->irc_capabilities);
     lua_setfield(L, -2, "irc_capabilities");
+    lua_pushstring(L, cfg->network_filename);
+    lua_setfield(L, -2, "network_filename");
 }
 
 static void app_prepare_globals(struct app *a)

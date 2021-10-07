@@ -8,7 +8,7 @@
 \fBsnowcone\fP \fB-S\fP \fIaddress\fP \fB-N\fP \fInick\fP [\fB-U\fP \fIuser\fP] [\fB-G\fP \fIgecos\fP] [\fB-X\fP \fIpassword\fP]
          [\fB-O\fP \fIopername\fP] [\fB-K\fP \fIchallenge\fP] [\fB-M\fP \fImechanism\fP]
          [\fB-E\fP \fIsaslname\fP] [\fB-C\fP \fIcapabilities\fP] [\fB-L\fP \fIinitfile\fP]
-         [\fB-h\fP \fIhost\fP] [\fB-p\fP \fIport\fP]
+         [\fB-f\fP \fIfilename\fP] [\fB-l\fP \fIhost\fP] [\fB-p\fP \fIport\fP] [\fB-h\fP]
 .fam T
 .fi
 .fam T
@@ -70,15 +70,23 @@ Extra space-delimited \fIcapabilities\fP to request upon connect (CAP REQ)
 .TP
 .B
 \fB-L\fP \fIinitfile\fP
-Path to Lua logic entry point (defaults to init.lua)
+Path to Lua logic entry point
 .TP
 .B
-\fB-h\fP \fIhost\fP
+\fB-f\fP \fIfilename\fP
+Path to Lua network configuration
+.TP
+.B
+\fB-l\fP \fIhost\fP
 Binding \fIhost\fP for Lua console
 .TP
 .B
 \fB-p\fP \fIport\fP
 Binding TCP \fIport\fP for Lua console
+.TP
+.B
+\fB-h\fP
+print this usage information
 .SH ENVIRONMENT
 Sensitive arguments are passed using environment variables to keep them
 out of the process list.
@@ -94,10 +102,6 @@ IRC account \fIpassword\fP (SASL PLAIN)
 .B
 IRC_OPER_PASSWORD
 IRC operator \fIpassword\fP (OPER)
-.TP
-.B
-SNOWCONE_SERVERS
-Path to alternative servers configuration file
 .SH SOCAT ADDRESSES
 Check the \fBsocat\fP(1) man page for an exhaustive set of connection
 addresses, but these will be the most commonly used:
@@ -228,7 +232,7 @@ Send a raw IRC command
 .SH GEOIP SUPPORT
 Both legacy GeoIP and modern GeoIP Maxmind database are supported
 and will be used if they are found at startup time.
-.SH SERVERS CONFIGURATION
+.SH NETWORK CONFIGURATION
 Information about your network can be populated in the servers
 configuration file. The MAIN, IPV4, and IPV6 regions get special
 rendering treatment in the server list.

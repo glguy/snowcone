@@ -11,19 +11,21 @@ noreturn static void usage(void)
 {
     fprintf(stderr,
     "usage: snowcone\n"
-    "         -S irc_socat\n"
-    "         -N irc_nick\n"
-    "         [-U irc_user]\n"
-    "         [-G irc_gecos]\n"
-    "         [-X irc_password]\n"
-    "         [-O irc_oper_username]\n"
-    "         [-K irc_challenge_key]\n"
-    "         [-M irc_sasl_mechanism]\n"
-    "         [-E irc_sasl_username]\n"
-    "         [-C irc_capabilities]\n"
+    "         -S socat_address\n"
+    "         -N nick\n"
+    "         [-U user]\n"
+    "         [-G gecos]\n"
+    "         [-X password]\n"
+    "         [-O oper_username]\n"
+    "         [-K challenge_key]\n"
+    "         [-M sasl_mechanism]\n"
+    "         [-E sasl_username]\n"
+    "         [-C capabilities]\n"
     "         [-L init.lua]\n"
-    "         [-h console_host]\n"
+    "         [-f network.lua]\n"
+    "         [-l console_host]\n"
     "         [-p console_port]\n"
+    "         [-h]\n"
     );
     exit(EXIT_FAILURE);
 }
@@ -40,9 +42,11 @@ struct configuration load_configuration(int argc, char **argv)
     cfg.irc_oper_password = getenv("IRC_OPER_PASSWORD");
 
     int opt;
-    while ((opt = getopt(argc, argv, "h:p:C:S:X:N:U:G:L:K:O:M:E:")) != -1) {
+    while ((opt = getopt(argc, argv, "f:hl:p:C:S:X:N:U:G:L:K:O:M:E:")) != -1) {
         switch (opt) {
-        case 'h': cfg.console_node = optarg; break;
+        case 'h': usage();
+        case 'f': cfg.network_filename = optarg; break;
+        case 'l': cfg.console_node = optarg; break;
         case 'p': cfg.console_service = optarg; break;
         case 'C': cfg.irc_capabilities = optarg; break;
         case 'E': cfg.irc_sasl_username = optarg; break;

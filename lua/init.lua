@@ -49,10 +49,8 @@ local compute_kline_mask = require_ 'libera_masks'
 do
     servers = { servers = {}, regions = {},
         kline_reasons = { 'banned', "You are banned."} }
-    local manual = true
-    local conf = os.getenv 'SNOWCONE_SERVERS'
+    local conf = configuration.network_filename
     if not conf then
-        manual = false
         local xdgconf = os.getenv 'XDG_CONFIG_HOME'
         if not xdgconf then
             xdgconf = path.join(os.getenv 'HOME', '.config')
@@ -67,7 +65,7 @@ do
         else
             error('Failed to parse ' .. conf .. '\n' .. lua_err)
         end
-    elseif manual then
+    elseif configuration.network_filename then
         error(file_err)
     end
 end

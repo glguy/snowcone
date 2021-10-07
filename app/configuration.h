@@ -19,6 +19,7 @@ struct configuration
     char const* irc_sasl_username;
     char const* irc_sasl_password;
     char const* irc_capabilities;
+    char const* network_filename;
 };
 
 struct configuration load_configuration(int argc, char **argv);
