@@ -82,7 +82,6 @@ function M.disconnect(ev)
         org = ip_org(ev.ip),
         mask = ev.nick .. '!' .. ev.user .. '@' .. ev.host,
         gecos = (entry or {}).gecos,
-        account = (entry or {}).account,
     })
     while exits.n > history do
         exits:pop_back()
