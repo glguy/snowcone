@@ -1,6 +1,9 @@
 -- Library imports
 Set    = require 'pl.Set'
 tablex = require 'pl.tablex'
+pretty = require 'pl.pretty'
+path   = require 'pl.path'
+file   = require 'pl.file'
 
 if not uptime then
     require 'pl.stringx'.import()
@@ -35,7 +38,6 @@ end
 
 -- Local modules ======================================================
 
-servers  = require_ 'servers'
 ip_org   = require_ 'ip_org'
 irc_authentication = require_ 'irc_authentication'
 NetTracker = require_ 'NetTracker'
@@ -44,17 +46,29 @@ local LoadTracker        = require_ 'LoadTracker'
 local OrderedMap         = require_ 'OrderedMap'
 local compute_kline_mask = require_ 'libera_masks'
 
--- Global state =======================================================
+do
+    servers = { servers = {}, regions = {} }
+    local manual = true
+    local conf = os.getenv("SNOWCONE_SERVERS")
+    if not conf then
+        manual = false
+        local home = os.getenv("HOME")
+        conf = path.join(home, ".config", "snowcone", "servers.lua")
+    end
+    local txt, file_err = file.read(conf)
+    if txt then
+        local val, lua_err = pretty.read(txt)
+        if val then
+            servers = val
+        else
+            error('Failed to parse ' .. conf .. '\n' .. lua_err)
+        end
+    elseif manual then
+        error(file_err)
+    end
+end
 
-local rotations = {
-    ['irc.libera.chat'] = '',
-    ['irc.ipv4.libera.chat'] = 'IPV4',
-    ['irc.ipv6.libera.chat'] = 'IPV6',
-    ['irc.eu.libera.chat'] = 'EU',
-    ['irc.ea.libera.chat'] = 'EA',
-    ['irc.us.libera.chat'] = 'US',
-    ['irc.au.libera.chat'] = 'AU',
-}
+-- Global state =======================================================
 
 function reset_filter()
     filter = nil
@@ -108,7 +122,7 @@ for k,v in pairs(defaults) do
 end
 
 -- Prepopulate the server list
-for server, _ in pairs(servers) do
+for server, _ in pairs(servers.servers or {}) do
     conn_tracker:track(server, 0)
     exit_tracker:track(server, 0)
 end
@@ -486,13 +500,13 @@ function M.on_irc(irc)
 end
 
 local function refresh_rotations()
-    for hostname, label in pairs(rotations) do
-        dnslookup(hostname, function(addrs, _, reason)
+    for label, entry in pairs(servers.regions or {}) do
+        dnslookup(entry.hostname, function(addrs, _, reason)
             if addrs then
                 mrs[label] = Set(addrs)
             else
                 mrs[label] = nil
-                status_message = hostname .. ' - ' .. reason
+                status_message = entry.hostname .. ' - ' .. reason
             end
         end)
     end

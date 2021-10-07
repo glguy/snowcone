@@ -158,7 +158,7 @@ function M:render()
 
             -- SERVER
             blue()
-            local server = (servers[entry.server] or {}).alias
+            local server = (servers.servers[entry.server] or {}).alias
                         or string.sub(entry.server, 1, 2)
             mvaddstr(y, 120, server)
 

@@ -1,10 +1,8 @@
 local palette = {black, red, green, yellow, blue, magenta, cyan, white}
-local region_color = {
-    US = red,
-    EU = blue,
-    AU = white,
-    EA = green,
-}
+local colormap =
+  { black = ncurses.black, red = ncurses.red, green = ncurses.green,
+    yellow = ncurses.yellow, blue = ncurses.blue, magenta = ncurses.magenta,
+    cyan = ncurses.cyan, white = ncurses.white, }
 
 local function in_rotation(region, a1, a2)
     local ips = mrs[region] or {}
@@ -53,8 +51,8 @@ function M:render()
         local avg = row.load
         local name = row.name
         local short = string.gsub(name, '%..*', '', 1)
-        local info = servers[name] or {}
-        local in_main = in_rotation('', info.ipv4, info.ipv6)
+        local info = servers.servers[name] or {}
+        local in_main = in_rotation('MAIN', info.ipv4, info.ipv6)
         if in_main then yellow() end
         mvaddstr(pad+i,0, string.format('%16s ', short))
         -- Main rotation info
@@ -67,7 +65,8 @@ function M:render()
         -- Regional info
         local region = info.region
         if region then
-            region_color[region]()
+            local color = colormap[servers.regions[region].color]
+            if color then ncurses.colorset(color) end
             addstr('  ' .. region .. ' ')
             normal()
         else
@@ -92,7 +91,7 @@ function M:render()
                 next_color = next_color % #palette + 1
             end
             color()
-            local linktext = (servers[link] or {}).alias or link
+            local linktext = (servers.servers[link] or {}).alias or link
             addstr('  '.. linktext)
             normal()
         else
