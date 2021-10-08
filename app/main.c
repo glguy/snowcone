@@ -85,7 +85,6 @@ static void on_winch(uv_signal_t* handle, int signum)
 
 int main(int argc, char *argv[])
 {
-    unsetenv("LD_PRELOAD");
     int r;
     struct configuration cfg = load_configuration(argc, argv);
     
@@ -102,6 +101,7 @@ int main(int argc, char *argv[])
     keypad(stdscr, TRUE); /* process keyboard input escape sequences */
     curs_set(0); /* no cursor */
     mousemask(BUTTON1_CLICKED, NULL);
+    endwin();
 
     uv_loop_t loop = {};
     r = uv_loop_init(&loop);
