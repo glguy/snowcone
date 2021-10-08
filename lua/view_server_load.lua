@@ -45,6 +45,8 @@ function M:render()
 
     ncurses.colorset(header_color)
     mvaddstr(pad,0, string.format('          Server  1m    5m    15m  %-62s Mn  Region AF  Conns  Up', title))
+    if servers.flags then addstr(' Flags') end
+
     normal()
     for i,row in ipairs(rows) do
         if i+1 >= tty_height then return end
@@ -96,6 +98,15 @@ function M:render()
             normal()
         else
             addstr('      ')
+        end
+
+        for _, flag in ipairs(servers.flags or {}) do
+            if in_rotation(flag, info.ipv4) or in_rotation(flag, info.ipv6) then
+                local color = colormap[servers.regions[flag].color]
+                if color then ncurses.colorset(color) end
+                addstr(' '..flag)
+                normal()
+            end
         end
     end
     draw_global_load(label, tracker)
