@@ -4,11 +4,19 @@
 #include <netdb.h>
 #include <stdlib.h>
 #include <uv.h>
+#include <lua.h>
 
 #include "ircmsg.h"
 #include "configuration.h"
 
-struct app;
+struct app
+{
+    lua_State *L;
+    struct configuration *cfg;
+    uv_stream_t *console;
+    uv_stream_t *irc;
+    uv_loop_t *loop;
+};
 
 struct app *app_new(uv_loop_t *loop, struct configuration *cfg);
 void app_free(struct app *a);

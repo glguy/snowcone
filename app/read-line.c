@@ -18,10 +18,7 @@ void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 
     if (nread < 0)
     {
-        if (d->close)
-        {
-            d->close(d->close_data);
-        }
+        d->read(d->read_data, NULL);
         buffer_close(buf);
         uv_close((uv_handle_t *)stream, readline_close_cb);
         return;

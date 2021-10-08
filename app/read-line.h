@@ -9,8 +9,6 @@ struct readline_data
   uv_stream_t *write_data;
   void (*read)(void *, char*);
   void *read_data;
-  void (*close)(void *);
-  void *close_data;
   uv_buf_t buffer;
 };
 

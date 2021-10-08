@@ -36,20 +36,11 @@ int start_irc(uv_loop_t *loop, struct configuration *cfg)
     struct readline_data *irc_data = malloc(sizeof *irc_data);
     assert(irc_data);
 
-    struct close_state *close_data = malloc(sizeof *close_data);
-    assert(close_data);
-
     *irc_data = (struct readline_data) {
         .read = on_line,
         .read_data = a,
-        .close = on_close,
-        .close_data = close_data,
     };
     irc->data = irc_data;
-    *close_data = (struct close_state) {
-        .loop = loop,
-        .cfg = cfg,
-    };
 
     app_set_irc(a, irc);
 
@@ -59,37 +50,34 @@ int start_irc(uv_loop_t *loop, struct configuration *cfg)
     return 0;
 }
 
-static void on_close(void *data)
+static void on_line(void *data, char *line)
 {
-    struct close_state * const st = data;
-    uv_loop_t * const loop = st->loop;
-    struct app *a = loop->data;
-    app_clear_irc(a);
+    struct app * const a = data;
 
-    uv_timer_t *timer = malloc(sizeof *timer);
-    assert(timer);
-    uv_timer_init(loop, timer);
-    timer->data = st;
-    uv_timer_start(timer, on_reconnect, 5000, 0);
+    if (line)
+    {
+        struct ircmsg irc;
+        char *msg = strsep(&line, "\r\n");
+
+        if (0 == parse_irc_message(msg, &irc))
+        {
+            do_irc(a, &irc);
+        }
+    } else {
+        uv_loop_t * const loop = a->loop;
+        app_clear_irc(a);
+
+        uv_timer_t *timer = malloc(sizeof *timer);
+        assert(timer);
+        uv_timer_init(loop, timer);
+        timer->data = a;
+        uv_timer_start(timer, on_reconnect, 5000, 0);
+    }
 }
 
 static void on_reconnect(uv_timer_t *timer)
 {
-    struct close_state * const st = timer->data;
-    start_irc(st->loop, st->cfg);
-    free(st);
+    struct app * const a = timer->data;
     free(timer);
-}
-
-static void on_line(void *data, char *line)
-{
-    struct app *a = data;
-    struct ircmsg irc;
-    
-    char *msg = strsep(&line, "\r\n");
-
-    if (0 == parse_irc_message(msg, &irc))
-    {
-        do_irc(a, &irc);
-    }
+    start_irc(a->loop, a->cfg);    
 }

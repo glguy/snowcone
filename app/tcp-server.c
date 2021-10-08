@@ -87,9 +87,11 @@ static void on_new_connection(uv_stream_t *server, int status)
 
 static void on_line(void *data, char *msg)
 {
-    uv_stream_t *stream = data;
-    uv_loop_t *loop = stream->loop;
-    struct app *a = loop->data;
-
-    do_command(a, msg, stream);
+    if (msg)
+    {
+        uv_stream_t *stream = data;
+        uv_loop_t *loop = stream->loop;
+        struct app *a = loop->data;
+        do_command(a, msg, stream);
+    }
 }

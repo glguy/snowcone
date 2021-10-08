@@ -27,13 +27,6 @@ static const uint64_t timer_ms = 1000;
 
 static void on_timer(uv_timer_t *handle);
 
-static void start_timer(uv_loop_t *loop)
-{
-    uv_timer_t *timer = malloc(sizeof *timer);
-    uv_timer_init(loop, timer);
-    uv_timer_start(timer, on_timer, timer_ms, timer_ms);
-}
-
 static void on_timer(uv_timer_t *timer)
 {
     struct app *a = timer->loop->data;
@@ -43,18 +36,6 @@ static void on_timer(uv_timer_t *timer)
 /* FILE WATCHER ******************************************************/
 
 static void on_file(uv_fs_event_t *handle, char const *filename, int events, int status);
-
-static int start_file_watcher(uv_loop_t *loop, char const* logic_name)
-{
-    uv_fs_event_t *files = malloc(sizeof *files);
-    uv_fs_event_init(loop, files);
-
-    char *temp = strdup(logic_name);
-    uv_fs_event_start(files, &on_file, dirname(temp), 0);
-    free(temp);
-
-    return 0;
-}
 
 static void on_file(uv_fs_event_t *handle, char const *filename, int events, int status)
 {
@@ -151,12 +132,15 @@ int main(int argc, char *argv[])
         goto cleanup;
     }
 
-    if (start_file_watcher(&loop, cfg.lua_filename))
-    {
-        goto cleanup;
-    }
+    uv_fs_event_t files;
+    uv_fs_event_init(&loop, &files);
+    char *lua_dir = strdup(cfg.lua_filename);
+    uv_fs_event_start(&files, &on_file, dirname(lua_dir), 0);
+    free(lua_dir);
 
-    start_timer(&loop);
+    uv_timer_t timer;
+    uv_timer_init(&loop, &timer);
+    uv_timer_start(&timer, on_timer, timer_ms, timer_ms);
 
     uv_run(&loop, UV_RUN_DEFAULT);
 

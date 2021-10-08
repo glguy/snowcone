@@ -60,15 +60,6 @@ static inline struct app **app_ref(lua_State *L)
     return lua_getextraspace(L);
 }
 
-struct app
-{
-    lua_State *L;
-    struct configuration *cfg;
-    uv_stream_t *console;
-    uv_stream_t *irc;
-    uv_loop_t *loop;
-};
-
 static int error_handler(lua_State *L)
 {
     const char* msg = luaL_tolstring(L, 1, NULL);
@@ -181,6 +172,13 @@ static int l_writeirc(lua_State *L)
     return 0;
 }
 
+static int l_shutdown(lua_State *L)
+{
+    struct app * const a = *app_ref(L);
+    uv_stop(a->loop);
+    return 0;
+}
+
 static void load_logic(lua_State *L, char const *filename)
 {
     lua_pushcfunction(L, error_handler);
@@ -250,16 +248,14 @@ static void app_prepare_globals(struct app *a)
 
     lua_pushcfunction(L, app_to_base64);
     lua_setglobal(L, "to_base64");
-
     lua_pushcfunction(L, app_print);
     lua_setglobal(L, "print");
-
     lua_pushcfunction(L, l_writeirc);
     lua_setglobal(L, "send_irc");
-
     lua_pushcfunction(L, app_dnslookup);
     lua_setglobal(L, "dnslookup");
-
+    lua_pushcfunction(L, l_shutdown);
+    lua_setglobal(L, "shutdown");
     luaopen_mygeoip(L);
     lua_setglobal(L, "mygeoip");
 
