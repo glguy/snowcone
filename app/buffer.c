@@ -31,10 +31,11 @@ void append_buffer(uv_buf_t *dst, size_t n, uv_buf_t const *src)
 
     if (len >= dst->len)
     {
-        while (len >= dst->len)
+        do
         {
             dst->len *= 2;
-        }
+        } while (len >= dst->len);
+
         dst->base = realloc(dst->base, dst->len);
         assert(dst->base);
     }

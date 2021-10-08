@@ -8,19 +8,14 @@ local palette = {
 }
 
 local function pretty_source(source)
-    local head, tail = string.match(source, '^([^.!]*)(.*)$')
-    head = head:sub(1,16)
-    local head_n = #head
-    tail = tail:sub(1, 16 - head_n)
-    if tail:startswith '!' then
+    local head, kind = string.match(source, '^(.-)([.!])')
+    if kind == '!' then
         cyan()
     else
         yellow()
     end
-    addstr(head)
+    addstr(string.format('%16.16s ', head or source))
     normal()
-    addstr(tail)
-    addstr(string.rep(' ', 17 - head_n - #tail))
 end
 
 local function render_irc(irc)
@@ -49,7 +44,7 @@ local function render_irc(irc)
         local color = palette[irc.command]
         if color then color() end
         bold()
-        addstr(string.format('%-4.4s', irc.command))
+        addstr(string.format('%4.4s', irc.command))
         normal()
     else
         if irc.source then
