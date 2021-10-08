@@ -2,6 +2,7 @@
 #define _XOPEN_SOURCE_EXTENDED
 #define _DARWIN_C_SOURCE
 
+#include <assert.h>
 #include <libgen.h>
 #include <locale.h>
 #include <netdb.h>
@@ -25,8 +26,6 @@ static const uint64_t timer_ms = 1000;
 
 /* TIMER *************************************************************/
 
-static void on_timer(uv_timer_t *handle);
-
 static void on_timer(uv_timer_t *timer)
 {
     struct app *a = timer->loop->data;
@@ -34,8 +33,6 @@ static void on_timer(uv_timer_t *timer)
 }
 
 /* FILE WATCHER ******************************************************/
-
-static void on_file(uv_fs_event_t *handle, char const *filename, int events, int status);
 
 static void on_file(uv_fs_event_t *handle, char const *filename, int events, int status)
 {
@@ -88,6 +85,7 @@ static void on_winch(uv_signal_t* handle, int signum)
 
 int main(int argc, char *argv[])
 {
+    int r;
     struct configuration cfg = load_configuration(argc, argv);
     
     /* Configure ncurses */
@@ -105,18 +103,23 @@ int main(int argc, char *argv[])
     mousemask(BUTTON1_CLICKED, NULL);
 
     uv_loop_t loop = {};
-    uv_loop_init(&loop);
+    r = uv_loop_init(&loop);
+    assert(0 == r);
 
     struct app *a = app_new(&loop, &cfg);
     loop.data = a;
 
     uv_poll_t input;
-    uv_poll_init(&loop, &input, STDIN_FILENO);
-    uv_poll_start(&input, UV_READABLE, on_stdin);
+    r = uv_poll_init(&loop, &input, STDIN_FILENO);
+    assert(0 == r);
+    r = uv_poll_start(&input, UV_READABLE, on_stdin);
+    assert(0 == r);
 
     uv_signal_t winch;
-    uv_signal_init(&loop, &winch);
-    uv_signal_start(&winch, on_winch, SIGWINCH);
+    r = uv_signal_init(&loop, &winch);
+    assert(0 == r);
+    r = uv_signal_start(&winch, on_winch, SIGWINCH);
+    assert(0 == r);
 
     /* start up networking */
     if (cfg.console_service != NULL)
@@ -133,21 +136,28 @@ int main(int argc, char *argv[])
     }
 
     uv_fs_event_t files;
-    uv_fs_event_init(&loop, &files);
+    r = uv_fs_event_init(&loop, &files);
+    assert(0 == r);
     char *lua_dir = strdup(cfg.lua_filename);
-    uv_fs_event_start(&files, &on_file, dirname(lua_dir), 0);
+    r = uv_fs_event_start(&files, &on_file, dirname(lua_dir), 0);
+    assert(0 == r);
     free(lua_dir);
 
     uv_timer_t timer;
-    uv_timer_init(&loop, &timer);
-    uv_timer_start(&timer, on_timer, timer_ms, timer_ms);
+    r = uv_timer_init(&loop, &timer);
+    assert(0 == r);
+    r = uv_timer_start(&timer, on_timer, timer_ms, timer_ms);
+    assert(0 == r);
 
-    uv_run(&loop, UV_RUN_DEFAULT);
+    // returns non-zero if stopped while handles are active
+    (void)uv_run(&loop, UV_RUN_DEFAULT);
 
 cleanup:
 
-    uv_loop_close(&loop);
-    app_free(loop.data);
+    r = uv_loop_close(&loop);
+    assert(0 == r);
+
+    app_free(a);
 
     endwin();
 
