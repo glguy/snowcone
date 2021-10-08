@@ -85,6 +85,7 @@ static void on_winch(uv_signal_t* handle, int signum)
 
 int main(int argc, char *argv[])
 {
+    unsetenv("LD_PRELOAD");
     int r;
     struct configuration cfg = load_configuration(argc, argv);
     
@@ -153,13 +154,9 @@ int main(int argc, char *argv[])
     (void)uv_run(&loop, UV_RUN_DEFAULT);
 
 cleanup:
-
-    r = uv_loop_close(&loop);
-    assert(0 == r);
-
+    // This won't be a clean close on manual uv_stop()
+    (void)uv_loop_close(&loop);
     app_free(a);
-
     endwin();
-
     return 0;
 }
