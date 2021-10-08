@@ -17,32 +17,11 @@ local function link_after(p, node)
     node.prev = p
 end
 
-function OrderedMap:first_key()
-    if self.n > 0 then
-        return self.next.key
-    end
-end
-
-function OrderedMap:last_key()
-    if self.n > 0 then
-        return self.prev.key
-    end
-end
-
 function OrderedMap:insert(key, val)
     local node = {key = key, val = val}
     self.n = self.n + 1
     self.index[key] = node
     link_after(self, node)
-end
-
-function OrderedMap:delete(key)
-    local node = self.index[key]
-    if node then
-        self.index[key] = nil
-        self.n = self.n - 1
-        unlink_node(node)
-    end
 end
 
 function OrderedMap:pop_back()
