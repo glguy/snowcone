@@ -9,11 +9,7 @@
 #include "socat.h"
 
 static void socat_exit(uv_process_t *process, int64_t exit_status, int term_signal);
-
-static void free_handle(uv_handle_t *handle)
-{
-    free(handle);
-}
+static void free_handle(uv_handle_t *handle);
 
 uv_stream_t * socat_wrapper(uv_loop_t *loop, char const* socat)
 {
@@ -24,10 +20,7 @@ uv_stream_t * socat_wrapper(uv_loop_t *loop, char const* socat)
     assert(stream);
 
     r = uv_pipe_init(loop, stream, 0);
-    if (0 != r) {
-        fprintf(stderr, "Failed to init pipe: %s\n", uv_strerror(r));
-        return NULL;
-    }
+    assert(0 == r);
 
     uv_stdio_container_t containers[] = {
         {.flags = UV_IGNORE},
@@ -56,6 +49,11 @@ uv_stream_t * socat_wrapper(uv_loop_t *loop, char const* socat)
     }
 
     return (uv_stream_t*)stream;
+}
+
+static void free_handle(uv_handle_t *handle)
+{
+    free(handle);
 }
 
 static void socat_exit(uv_process_t *process, int64_t exit_status, int term_signal)
