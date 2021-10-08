@@ -16,7 +16,7 @@ void buffer_init(uv_buf_t *buf, size_t n)
     *buf = uv_buf_init(p, n);
 }
 
-void append_buffer(uv_buf_t *dst, ssize_t n, uv_buf_t const *src)
+void append_buffer(uv_buf_t *dst, size_t n, uv_buf_t const *src)
 {
     if (dst->base == NULL)
     {

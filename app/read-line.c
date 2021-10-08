@@ -24,16 +24,15 @@ void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
         return;
     }
 
+    // This consumes and closes buf
     append_buffer(&d->buffer, nread, buf);
 
-    char *start = d->buffer.base;
-    char *end;
+    char *cursor = d->buffer.base;
+    char *start;
 
-    while ((end = strchr(start, '\n')))
+    while(start = strsep(&cursor, "\n"), NULL != cursor)
     {
-        *end++ = '\0';
         d->read(d->read_data, start);
-        start = end;
     }
 
     memmove(d->buffer.base, start, strlen(start) + 1);
