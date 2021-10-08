@@ -53,6 +53,7 @@ int start_irc(uv_loop_t *loop, struct configuration *cfg)
 static void on_line(void *data, char *line)
 {
     struct app * const a = data;
+    int r;
 
     if (line)
     {
@@ -69,9 +70,14 @@ static void on_line(void *data, char *line)
 
         uv_timer_t *timer = malloc(sizeof *timer);
         assert(timer);
-        uv_timer_init(loop, timer);
+
+        r = uv_timer_init(loop, timer);
+        assert(0 == r);
+
         timer->data = a;
-        uv_timer_start(timer, on_reconnect, 5000, 0);
+
+        r = uv_timer_start(timer, on_reconnect, 5000, 0);
+        assert(0 == r);
     }
 }
 

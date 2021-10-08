@@ -25,7 +25,8 @@ void to_write(uv_stream_t *stream, char const* msg, size_t n)
     memcpy(req->body, msg, n);
 
     req->write = (uv_write_t){ .data = req };
-    uv_write(&req->write, stream, &req->buf, 1, write_done);
+    int res = uv_write(&req->write, stream, &req->buf, 1, write_done);
+    assert(0 == res);
 }
 
 static void write_done(uv_write_t *write, int status)
