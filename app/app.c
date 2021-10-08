@@ -102,11 +102,12 @@ app_dnslookup(lua_State *L)
     uv_getaddrinfo_t *req = malloc(sizeof *req);
     assert(req);
 
-    struct addrinfo hints = { .ai_socktype = SOCK_STREAM };
+    struct addrinfo const hints = { .ai_socktype = SOCK_STREAM };
     int r = uv_getaddrinfo(a->loop, req, on_dnslookup, hostname, NULL, &hints);
-    if (0 != r) {
+    if (0 != r)
+    {
         free(req);
-        luaL_error(L, "dnslookup: uv_getaddrinfo failed with %d", r);
+        return luaL_error(L, "dnslookup: %s", uv_strerror(r));
     }
 
     int cb = luaL_ref(L, LUA_REGISTRYINDEX);
