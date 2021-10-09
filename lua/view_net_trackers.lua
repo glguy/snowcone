@@ -15,13 +15,37 @@ local function render_entry(y, network, count)
     end
 end
 
+local function sortpairs(t, f)
+    local keys = tablex.keys(t)
+    if f then
+        table.sort(keys, function(x,y) return f(t[x], t[y]) end)
+    else
+        table.sort(keys)
+    end
+    local i = 0
+    return function()
+        i = i + 1
+        local k = keys[i]
+        if k then
+            return k, t[k]
+        end
+    end
+end
+
+local function ordermask(v1, v2)
+    return v1.addrlen < v2.addrlen
+        or v1.addrlen == v2.addrlen
+       and (v1.network < v2.network
+        or v1.network == v2.network and v1.tailbyte < v2.tailbyte)
+end
+
 function M:render()
     cyan()
     mvaddstr(0,33, "Network  Count  Actions")
     normal()
 
     local y = 1
-    for name, tracker in pairs(net_trackers) do
+    for name, tracker in sortpairs(net_trackers) do
         if y+1 >= tty_height then break end
 
         normal()
@@ -37,7 +61,7 @@ function M:render()
             yellow()
             add_button('[-]', function() tracker.expanded = nil end)
             blue()
-            for label, entry in pairs(tracker.masks) do
+            for label, entry in sortpairs(tracker.masks, ordermask) do
                 y = y + 1
                 if y+1 >= tty_height then break end
                 render_entry(y, label, entry.count)
