@@ -413,7 +413,6 @@ function add_network_tracker(name, mask)
         end
         local net = a[1] .. '/' .. prefix
         net_trackers[name]:track(net, b[1], math.tointeger(prefix))
-        send_irc('TESTMASK *@' .. net .. '\r\n')
     end)
 end
 
