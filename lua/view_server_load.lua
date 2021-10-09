@@ -61,8 +61,8 @@ function M:render()
         draw_load(avg)
         normal()
         addstr(' ')
-        render_mrs('',          info.ipv4, '4')
-        render_mrs('',          info.ipv6, '6')
+        render_mrs('MAIN', info.ipv4, '4')
+        render_mrs('MAIN', info.ipv6, '6')
 
         -- Regional info
         local region = info.region
@@ -79,8 +79,8 @@ function M:render()
 
         -- Family-specific info
         addstr('  ')
-        render_mrs('IPV4'     , info.ipv4, '4')
-        render_mrs('IPV6'     , info.ipv6, '6')
+        render_mrs('IPV4', info.ipv4, '4')
+        render_mrs('IPV6', info.ipv6, '6')
 
         add_population(population[name])
 
