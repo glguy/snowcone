@@ -73,22 +73,30 @@ on_dnslookup(uv_getaddrinfo_t *req, int status, struct addrinfo *res)
     struct app * const a = req->loop->data;
     lua_State * const L = a->L;
 
+    lua_pushcfunction(L, error_handler);
+
     int cb = (intptr_t)req->data;
     lua_rawgeti(L, LUA_REGISTRYINDEX, cb);
     luaL_unref(L, LUA_REGISTRYINDEX, cb);
 
     if (0 == status) {
-        do_dns(a, res);
+        do_dns(a, res); // pushes two arrays
+        lua_pushnil(L);
         uv_freeaddrinfo(res);
     } else {
         lua_pushnil(L);
         lua_pushnil(L);
         lua_pushstring(L, uv_strerror(status));
-        if (LUA_OK != lua_pcall(L, 3, 0, 0)) {
-            lua_pop(L, 1);
-        }
     }
     free(req);
+
+    if (LUA_OK == lua_pcall(L, 3, 0, -5)) {
+        lua_pop(L, 1);
+    } else {
+        char const *err = lua_tostring(L, -1);
+        fprintf(stderr, "dnslookup callback error: %s\n", err);
+        lua_pop(L, 2); /* error message and handler */
+    }
 }
 
 static int
@@ -448,9 +456,6 @@ static void do_dns(struct app *a, struct addrinfo const* ai)
             fprintf(stderr, "getnameinfo: %s\n", gai_strerror(r));
         }
         ai = ai->ai_next;
-    }
-    if (LUA_OK != lua_pcall(L, 2, 0, 0)) {
-        lua_pop(L, 1);
     }
 }
 

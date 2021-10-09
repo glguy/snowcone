@@ -5,10 +5,8 @@ local function count_ip(address, delta)
     dnslookup(address, function(_, baddrs, _)
         if baddrs then
             local baddr = baddrs[1]
-            for _, x in ipairs(net_trackers) do
-                if x:match(baddr) then
-                    x.count = x.count + delta
-                end
+            for _, track in pairs(net_trackers) do
+                track:delta(baddr, delta)
             end
         end
     end)

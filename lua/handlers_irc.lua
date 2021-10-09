@@ -70,9 +70,10 @@ M['727'] = function(irc)
     if staged_action and '*' == gecos and '*!'..staged_action.mask == mask then
         staged_action.count = total
     end
-    for _, entry in ipairs(net_trackers) do
-        if '*' == gecos and '*!*@' .. entry.label == mask then
-            entry.count = total
+    if gecos == '*' and mask:startswith '*!*@' then
+        local label = string.sub(mask, 5)
+        for _, entry in pairs(net_trackers) do
+            entry:set(label, total)
         end
     end
 end

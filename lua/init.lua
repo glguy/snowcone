@@ -405,22 +405,34 @@ end
 
 -- Network Tracker Logic ==============================================
 
-function add_network_tracker(label)
-    local address, prefix = string.match(label, '^([^/]*)/(%d+)$')
+function add_network_tracker(name, mask)
+    local address, prefix = string.match(mask, '^([^/]*)/(%d+)$')
     dnslookup(address, function(a,b)
+        if not net_trackers[name] then
+            net_trackers[name] = NetTracker()
+        end
         local net = a[1] .. '/' .. prefix
-        local entry = NetTracker(net, b[1], math.tointeger(prefix))
-        table.insert(net_trackers, entry)
+        net_trackers[name]:track(net, b[1], math.tointeger(prefix))
         send_irc('TESTMASK *@' .. net .. '\r\n')
     end)
+end
+
+for name, masks in pairs(servers.net_tracks or {}) do
+    if not net_trackers[name] then
+        for _, mask in ipairs(masks) do
+            add_network_tracker(name, mask)
+        end
+    end
 end
 
 -- IRC Registration Logic =============================================
 
 function counter_sync_commands()
     local commands = {'MAP\r\nLINKS\r\n'}
-    for _, entry in ipairs(net_trackers) do
-        table.insert(commands, 'TESTMASK *@' .. entry.label .. '\r\n')
+    for _, entry in pairs(net_trackers) do
+        for label, _ in entry.masks do
+            table.insert(commands, 'TESTMASK *@' .. label .. '\r\n')
+        end
     end
     return table.concat(commands)
 end
