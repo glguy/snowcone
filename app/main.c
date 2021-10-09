@@ -22,6 +22,8 @@
 #include "tcp-server.h"
 #include "write.h"
 
+static void on_winch(uv_signal_t* handle, int signum);
+
 static const uint64_t timer_ms = 1000;
 
 /* TIMER *************************************************************/
@@ -56,6 +58,7 @@ static void on_stdin(uv_poll_t *handle, int status, int events)
             MEVENT ev;
             getmouse(&ev);
             do_mouse(a, ev.y, ev.x);
+        } else if (KEY_RESIZE == key) {
         } else if (key > 0xff) {
             do_keyboard(a, -key);
         } else if (key < 0x80) {

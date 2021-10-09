@@ -83,7 +83,10 @@ function commands.quote(args)
 end
 
 function commands.nettrack(args)
-    add_network_tracker(args)
+    local name, mask = string.match(args, '(%g+) +(%g+)')
+    if name then
+        add_network_tracker(name, mask)
+    end
 end
 
 function commands.filter(args)
