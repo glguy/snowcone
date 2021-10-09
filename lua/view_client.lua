@@ -166,7 +166,9 @@ function M:render()
         else
             mvaddstr(y, 0, clear_string)
             mvaddstr(y, 0, '')
-            render_irc(window[y])
+            if window[y] then
+                render_irc(window[y])
+            end
         end
     end
     cyan()

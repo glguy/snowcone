@@ -429,7 +429,7 @@ end
 function counter_sync_commands()
     local commands = {'MAP\r\nLINKS\r\n'}
     for _, entry in pairs(net_trackers) do
-        for label, _ in entry.masks do
+        for label, _ in pairs(entry.masks) do
             table.insert(commands, 'TESTMASK *@' .. label .. '\r\n')
         end
     end
