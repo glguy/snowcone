@@ -45,7 +45,7 @@ function M:render()
 
     ncurses.colorset(header_color)
     mvaddstr(pad,0, string.format('          Server  1m    5m    15m  %-62s Mn  Region AF  Conns  Up', title))
-    if servers.flags then addstr(' Flags') end
+    if servers.flags then addstr('  Flags') end
 
     normal()
     for i,row in ipairs(rows) do
@@ -94,10 +94,10 @@ function M:render()
             end
             color()
             local linktext = (servers.servers[link] or {}).alias or link
-            addstr('  '.. linktext)
+            addstr('  '.. linktext .. ' ')
             normal()
         else
-            addstr('      ')
+            addstr('       ')
         end
 
         for _, flag in ipairs(servers.flags or {}) do
