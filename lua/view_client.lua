@@ -97,6 +97,10 @@ function commands.filter(args)
     end
 end
 
+function commands.sync()
+    send_irc(counter_sync_commands())
+end
+
 function commands.eval(args)
     local chunk, message = load(args, '=(eval)', 't')
     if chunk == 'fail' then
