@@ -3,7 +3,7 @@
 ## Dependencies
 
 ```sh
-apt install libgeoip-dev liblua5.3-dev libuv1-dev lua-geoip lua-penlight check
+apt install libgeoip-dev liblua5.3-dev libuv1-dev lua-penlight check
 ```
 
 Penlight shows up in Lua as `pl`. If you get errors about finding things like `pl.app`, then Penlight isn't installed for the version of Lua you're building with.

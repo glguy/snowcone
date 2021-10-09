@@ -174,4 +174,23 @@ return function(time, server, str)
             }
         end
     end
+
+    -- Previous implementation, useful for oftc-hybrid
+    do
+        local nick, user, host, ip, class, gecos =
+            string.match(str, '^Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {([^}]*)} %[(.*)%]$')
+        if nick then
+            return {
+                name = 'connect',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                ip = ip,
+                gecos = scrub(gecos),
+                class = class,
+            }
+        end
+    end
 end
