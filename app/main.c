@@ -3,7 +3,6 @@
 #define _DARWIN_C_SOURCE
 
 #include <assert.h>
-#include <libgen.h>
 #include <locale.h>
 #include <netdb.h>
 #include <stdio.h>
@@ -23,14 +22,6 @@
 #include "write.h"
 
 static void on_winch(uv_signal_t* handle, int signum);
-
-/* FILE WATCHER ******************************************************/
-
-static void on_file(uv_fs_event_t *handle, char const *filename, int events, int status)
-{
-    struct app *a = handle->loop->data;
-    app_reload(a);
-}
 
 /* Main Input ********************************************************/
 
@@ -128,14 +119,6 @@ int main(int argc, char *argv[])
     {
         goto cleanup;
     }
-
-    uv_fs_event_t files;
-    r = uv_fs_event_init(&loop, &files);
-    assert(0 == r);
-    char *lua_dir = strdup(cfg.lua_filename);
-    r = uv_fs_event_start(&files, &on_file, dirname(lua_dir), 0);
-    assert(0 == r);
-    free(lua_dir);
 
     // returns non-zero if stopped while handles are active
     (void)uv_run(&loop, UV_RUN_DEFAULT);

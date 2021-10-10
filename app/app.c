@@ -18,6 +18,7 @@
 #include "app.h"
 #include "base64.h"
 #include "lua_uv_timer.h"
+#include "lua_uv_filewatcher.h"
 #include "safecall.h"
 #include "write.h"
 
@@ -169,13 +170,15 @@ static int l_shutdown(lua_State *L)
     return 0;
 }
 
+static int l_setmodule(lua_State *L)
+{
+    lua_rawsetp(L, LUA_REGISTRYINDEX, &logic_module);
+    return 0;
+}
+
 static void load_logic(lua_State *L, char const *filename)
 {
-    int res = luaL_loadfile(L, filename) || safecall(L, "load_logic", 0, 1);
-    if (res == LUA_OK)
-    {
-        lua_rawsetp(L, LUA_REGISTRYINDEX, &logic_module);
-    }
+    luaL_loadfile(L, filename) || safecall(L, "load_logic", 0, 0);
 }
 
 static void push_configuration(lua_State *L, struct configuration *cfg)
@@ -224,6 +227,13 @@ static int l_newtimer(lua_State *L)
     return 1;
 }
 
+static int l_newwatcher(lua_State *L)
+{
+    struct app * const a = *app_ref(L);
+    push_new_fs_event(L, a->loop);
+    return 1;
+}
+
 static void app_prepare_globals(struct app *a)
 {
     lua_State * const L = a->L;
@@ -246,6 +256,10 @@ static void app_prepare_globals(struct app *a)
     lua_setglobal(L, "shutdown");
     lua_pushcfunction(L, l_newtimer);
     lua_setglobal(L, "newtimer");
+    lua_pushcfunction(L, l_newwatcher);
+    lua_setglobal(L, "newwatcher");
+    lua_pushcfunction(L, l_setmodule);
+    lua_setglobal(L, "setmodule");
 
     /* install configuration */
     push_configuration(L, a->cfg);

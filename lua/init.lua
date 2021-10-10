@@ -557,6 +557,13 @@ if not tick_timer then
     end)
 end
 
+if not reloader then
+    reloader = newwatcher()
+    reloader:start(path.dirname(configuration.lua_filename), function()
+        assert(loadfile(configuration.lua_filename))()
+    end)
+end
+
 local keys = {
     [-ncurses.KEY_F1] = function() view = 1 scroll = 0 end,
     [-ncurses.KEY_F2] = function() view = 2 end,
@@ -603,4 +610,4 @@ function M.on_disconnect()
     status_message = 'disconnected'
 end
 
-return M
+setmodule(M)
