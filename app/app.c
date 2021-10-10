@@ -75,9 +75,9 @@ on_dnslookup(uv_getaddrinfo_t *req, int status, struct addrinfo *res)
 
     lua_pushcfunction(L, error_handler);
 
-    int cb = (intptr_t)req->data;
-    lua_rawgeti(L, LUA_REGISTRYINDEX, cb);
-    luaL_unref(L, LUA_REGISTRYINDEX, cb);
+    lua_rawgetp(L, LUA_REGISTRYINDEX, req);
+    lua_pushnil(L);
+    lua_rawsetp(L, LUA_REGISTRYINDEX, req);
 
     if (0 == status) {
         do_dns(a, res); // pushes two arrays
@@ -118,8 +118,7 @@ app_dnslookup(lua_State *L)
         return luaL_error(L, "dnslookup: %s", uv_strerror(r));
     }
 
-    int cb = luaL_ref(L, LUA_REGISTRYINDEX);
-    req->data = (void*)(intptr_t)cb;
+    lua_rawsetp(L, LUA_REGISTRYINDEX, req);
 
     return 0;
 }
