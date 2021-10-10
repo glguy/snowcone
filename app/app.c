@@ -16,8 +16,10 @@
 #include <mygeoip.h>
 
 #include "app.h"
-#include "write.h"
 #include "base64.h"
+#include "lua_uv_timer.h"
+#include "safecall.h"
+#include "write.h"
 
 static char logic_module;
 
@@ -55,53 +57,11 @@ static void pushircmsg(lua_State *L, struct ircmsg const* msg)
     }
 }
 
-static inline struct app **app_ref(lua_State *L)
-{
-    return lua_getextraspace(L);
-}
-
-static int error_handler(lua_State *L)
-{
-    const char* msg = luaL_tolstring(L, 1, NULL);
-    luaL_traceback(L, L, msg, 1);
-    return 1;
-}
-
-static int
-safecall(lua_State *L, char const* location, int args, int results)
-{
-    lua_pushcfunction(L, error_handler);
-    // f a1 a2.. eh
-    lua_insert(L, -2-args);
-    // eh f a1 a2..
-
-    int r = lua_pcall(L, args, results, -2-args);
-    if (LUA_OK == r) {
-        lua_remove(L, -1-results);
-    } else {
-        struct app * const a = *app_ref(L);
-        size_t len;
-        char const* err = luaL_tolstring(L, -1, &len);
-        if (a->console) {
-            to_write(a->console, err, len);
-            to_write(a->console, "\n", 1);
-        } else {
-            endwin();
-            fprintf(stderr, "error in %s: %s\n", location, err);
-        }
-        lua_pop(L, 3); /* error, error string, handler */
-    }
-
-    return r;
-}
-
 static void
 on_dnslookup(uv_getaddrinfo_t *req, int status, struct addrinfo *res)
 {
     struct app * const a = req->loop->data;
     lua_State * const L = a->L;
-
-    lua_pushcfunction(L, error_handler);
 
     lua_rawgetp(L, LUA_REGISTRYINDEX, req);
     lua_pushnil(L);
@@ -257,6 +217,13 @@ static void push_configuration(lua_State *L, struct configuration *cfg)
     lua_setfield(L, -2, "network_filename");
 }
 
+static int l_newtimer(lua_State *L)
+{
+    struct app * const a = *app_ref(L);
+    push_new_uv_timer(L, a->loop);
+    return 1;
+}
+
 static void app_prepare_globals(struct app *a)
 {
     lua_State * const L = a->L;
@@ -277,6 +244,8 @@ static void app_prepare_globals(struct app *a)
     lua_setglobal(L, "dnslookup");
     lua_pushcfunction(L, l_shutdown);
     lua_setglobal(L, "shutdown");
+    lua_pushcfunction(L, l_newtimer);
+    lua_setglobal(L, "newtimer");
 
     /* install configuration */
     push_configuration(L, a->cfg);
@@ -354,10 +323,9 @@ static int lua_callback_worker(lua_State *L)
 static void lua_callback(lua_State *L, char const *key, int args)
 {
     /* args */
-    lua_pushcfunction(L, error_handler); /* args eh */
-    lua_pushcfunction(L, lua_callback_worker); /* args eh f */
-    lua_pushstring(L, key); /* args eh f key */
-    lua_rotate(L, -3-args, -args); /* eh f key args */
+    lua_pushcfunction(L, lua_callback_worker); /* args f */
+    lua_pushstring(L, key); /* args f key */
+    lua_rotate(L, -2-args, -args); /* eh f key args */
 
     safecall(L, key, 1+args, 0);
 }
@@ -393,11 +361,6 @@ void do_command(
     }
     
     a->console = NULL;
-}
-
-void do_timer(struct app *a)
-{
-    lua_callback(a->L, "on_timer", 0);
 }
 
 void do_keyboard(struct app *a, long key)

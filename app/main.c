@@ -24,16 +24,6 @@
 
 static void on_winch(uv_signal_t* handle, int signum);
 
-static const uint64_t timer_ms = 1000;
-
-/* TIMER *************************************************************/
-
-static void on_timer(uv_timer_t *timer)
-{
-    struct app *a = timer->loop->data;
-    do_timer(a);
-}
-
 /* FILE WATCHER ******************************************************/
 
 static void on_file(uv_fs_event_t *handle, char const *filename, int events, int status)
@@ -146,12 +136,6 @@ int main(int argc, char *argv[])
     r = uv_fs_event_start(&files, &on_file, dirname(lua_dir), 0);
     assert(0 == r);
     free(lua_dir);
-
-    uv_timer_t timer;
-    r = uv_timer_init(&loop, &timer);
-    assert(0 == r);
-    r = uv_timer_start(&timer, on_timer, timer_ms, timer_ms);
-    assert(0 == r);
 
     // returns non-zero if stopped while handles are active
     (void)uv_run(&loop, UV_RUN_DEFAULT);

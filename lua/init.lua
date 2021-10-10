@@ -538,17 +538,23 @@ local function refresh_rotations()
     end
 end
 
-function M.on_timer()
-    if 0 == uptime % 30 then
+if not rotations_timer then
+    rotations_timer = newtimer()
+    rotations_timer:start(30000, function()
         refresh_rotations()
-    end
+    end)
+end
 
-    uptime = uptime + 1
-    conn_tracker:tick()
-    exit_tracker:tick()
-    kline_tracker:tick()
-    filter_tracker:tick()
-    draw()
+if not tick_timer then
+    tick_timer = newtimer()
+    tick_timer:start(1000, function()
+        uptime = uptime + 1
+        conn_tracker:tick()
+        exit_tracker:tick()
+        kline_tracker:tick()
+        filter_tracker:tick()
+        draw()
+    end)
 end
 
 local keys = {

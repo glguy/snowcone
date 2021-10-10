@@ -33,5 +33,7 @@ globals = {
     "configuration", "to_base64", "dnslookup", "mrs", "mygeoip", "pretty",
     "Set", "tablex", "irc_authentication", "ncurses", "ip_org", "servers",
     "path", "file", "scrub",
+
+    "newtimer", "rotations_timer", "tick_timer",
     },
 }
