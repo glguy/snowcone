@@ -122,7 +122,7 @@ on_dnslookup(uv_getaddrinfo_t *req, int status, struct addrinfo *res)
 }
 
 static int
-app_dnslookup(lua_State *L)
+l_dnslookup(lua_State *L)
 {
     struct app * const a = *app_ref(L);
     char const* hostname = luaL_checkstring(L, 1);
@@ -145,7 +145,7 @@ app_dnslookup(lua_State *L)
     return 0;
 }
 
-static int app_print(lua_State *L)
+static int l_print(lua_State *L)
 {
     struct app * const a = *app_ref(L);
 
@@ -261,32 +261,34 @@ static void app_prepare_globals(struct app *a)
 {
     lua_State * const L = a->L;
 
+    /* setup libraries */
     luaL_openlibs(L);
-    
     luaL_requiref(L, "ncurses", luaopen_myncurses, 1);
-    lua_pop(L, 1);
-    l_ncurses_resize(L);
+    luaL_requiref(L, "mygeoip", luaopen_mygeoip, 1);
+    lua_pop(L, 2);
 
     lua_pushcfunction(L, app_to_base64);
     lua_setglobal(L, "to_base64");
-    lua_pushcfunction(L, app_print);
+    lua_pushcfunction(L, l_print);
     lua_setglobal(L, "print");
     lua_pushcfunction(L, l_writeirc);
     lua_setglobal(L, "send_irc");
-    lua_pushcfunction(L, app_dnslookup);
+    lua_pushcfunction(L, l_dnslookup);
     lua_setglobal(L, "dnslookup");
     lua_pushcfunction(L, l_shutdown);
     lua_setglobal(L, "shutdown");
-    luaopen_mygeoip(L);
-    lua_setglobal(L, "mygeoip");
 
+    /* install configuration */
     push_configuration(L, a->cfg);
     lua_setglobal(L, "configuration");
 
+    /* populate arg */
     lua_createtable(L, 0, 1);
     lua_pushstring(L, a->cfg->lua_filename);
     lua_rawseti(L, -2, 0);
     lua_setglobal(L, "arg");
+
+    l_ncurses_resize(L);
 }
 
 static void start_lua(struct app *a)
