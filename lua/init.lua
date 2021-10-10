@@ -102,6 +102,7 @@ local defaults = {
     links = {},
     upstream = {},
     status_message = '',
+    irc_state = {},
 
     -- settings
     history = 1000,
@@ -413,6 +414,9 @@ function add_network_tracker(name, mask)
         end
         local net = a[1] .. '/' .. prefix
         net_trackers[name]:track(net, b[1], math.tointeger(prefix))
+        if irc_state.oper then
+            send_irc('TESTMASK *@' .. net .. '\r\n')
+        end
     end)
 end
 
@@ -454,6 +458,7 @@ local function irc_register()
             configuration.irc_oper_username .. ' ' ..
             configuration.irc_oper_password .. '\r\n'
     else
+        irc_state.oper = true
         first = counter_sync_commands()
     end
 
@@ -588,7 +593,7 @@ function M.on_connect()
 end
 
 function M.on_disconnect()
-    irc_state = nil
+    irc_state = {}
     status_message = 'disconnected'
 end
 

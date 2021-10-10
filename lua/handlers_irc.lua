@@ -2,6 +2,10 @@
 
 local M = {}
 
+function M.ERROR()
+    irc_state.connected = nil
+end
+
 function M.PING(irc)
     send_irc('PONG ' .. irc[1] .. '\r\n')
 end
@@ -35,6 +39,7 @@ end
 
 -- RPL_WELCOME
 M['001'] = function()
+    irc_state.connected = true
     status_message = 'connected'
 end
 
@@ -154,6 +159,7 @@ end
 
 -- RPL_YOUREOPER
 M['381'] = function()
+    irc_state.oper = true
     send_irc(
         'MAP\r\n' ..
         'LINKS\r\n' ..
