@@ -67,6 +67,34 @@ static int error_handler(lua_State *L)
     return 1;
 }
 
+static int
+safecall(lua_State *L, char const* location, int args, int results)
+{
+    lua_pushcfunction(L, error_handler);
+    // f a1 a2.. eh
+    lua_insert(L, -2-args);
+    // eh f a1 a2..
+
+    int r = lua_pcall(L, args, results, -2-args);
+    if (LUA_OK == r) {
+        lua_remove(L, -1-results);
+    } else {
+        struct app * const a = *app_ref(L);
+        size_t len;
+        char const* err = luaL_tolstring(L, -1, &len);
+        if (a->console) {
+            to_write(a->console, err, len);
+            to_write(a->console, "\n", 1);
+        } else {
+            endwin();
+            fprintf(stderr, "error in %s: %s\n", location, err);
+        }
+        lua_pop(L, 3); /* error, error string, handler */
+    }
+
+    return r;
+}
+
 static void
 on_dnslookup(uv_getaddrinfo_t *req, int status, struct addrinfo *res)
 {
@@ -90,13 +118,7 @@ on_dnslookup(uv_getaddrinfo_t *req, int status, struct addrinfo *res)
     }
     free(req);
 
-    if (LUA_OK == lua_pcall(L, 3, 0, -5)) {
-        lua_pop(L, 1);
-    } else {
-        char const *err = lua_tostring(L, -1);
-        fprintf(stderr, "dnslookup callback error: %s\n", err);
-        lua_pop(L, 2); /* error message and handler */
-    }
+    safecall(L, "dnslookup callback", 3, 0);
 }
 
 static int
@@ -189,20 +211,11 @@ static int l_shutdown(lua_State *L)
 
 static void load_logic(lua_State *L, char const *filename)
 {
-    lua_pushcfunction(L, error_handler);
-    int res = luaL_loadfile(L, filename) || lua_pcall(L, 0, 1, -2);
+    int res = luaL_loadfile(L, filename) || safecall(L, "load_logic", 0, 1);
     if (res == LUA_OK)
     {
         lua_rawsetp(L, LUA_REGISTRYINDEX, &logic_module);
     }
-    else
-    {
-        char const *err = lua_tostring(L, -1);
-        endwin();
-        fprintf(stderr, "Failed to start callback logic: %s\n%s\n", filename, err);
-        lua_pop(L, 1); /* error message */
-    }
-    lua_pop(L, 1); /* error handler */
 }
 
 static void push_configuration(lua_State *L, struct configuration *cfg)
@@ -344,21 +357,7 @@ static void lua_callback(lua_State *L, char const *key, int args)
     lua_pushstring(L, key); /* args eh f key */
     lua_rotate(L, -3-args, -args); /* eh f key args */
 
-    if (lua_pcall(L, 1+args, 0, -3-args))
-    {
-        struct app * const a = *app_ref(L);
-        size_t len;
-        char const* err = lua_tolstring(L, -1, &len);
-        if (a->console) {
-            to_write(a->console, err, len);
-            to_write(a->console, "\n", 1);
-        } else {
-            endwin();
-            fprintf(stderr, "%s\n", err);
-        }
-        lua_pop(L, 1); /* drop the error */
-    }
-    lua_pop(L, 1); /* drop error handler */
+    safecall(L, key, 1+args, 0);
 }
 
 void do_command(
