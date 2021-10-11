@@ -74,6 +74,7 @@ local M = {
     active = true,
 }
 
+local previous_buffer = ""
 local buffer = ""
 
 local commands = {}
@@ -116,27 +117,30 @@ local function execute()
     local command, args = string.match(buffer, '^ */(%g*) *(.*)$')
     local impl = commands[command]
     if impl then
+        previous_buffer = buffer
         buffer = ''
         status_message = ''
         impl(args)
     else
         status_message = 'unknown command'
     end
-    draw()
 end
 
+local keymap = {
+    [0x1b] = function() buffer = '' status_message = '' end, -- Esc
+    [0x7f] = function() buffer = string.sub(buffer, 1, #buffer - 1) end, -- Del
+    [-ncurses.KEY_BACKSPACE] = function() buffer = string.sub(buffer, 1, #buffer - 1) end,
+    [0x12] = function() align = not align end, -- ^R
+    [-ncurses.KEY_UP] = function() buffer = previous_buffer end,
+    [0xd] = execute, -- Enter
+}
+
 function M:keypress(key)
-    if key == 0x1b then
-        buffer = ''
-        status_message = ''
-    elseif key == 0x7f or key == -ncurses.KEY_BACKSPACE then
-        buffer = string.sub(buffer, 1, #buffer - 1)
-    elseif key == 0x12 then
-        align = not align
+    local h = keymap[key]
+    if h then
+        h()
     elseif 0x14 <= key then
         buffer = buffer .. utf8.char(key)
-    elseif key == 0xd then
-        execute()
     else
         buffer = string.format('%s[%d]', buffer, key)
     end
