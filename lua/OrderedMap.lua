@@ -34,8 +34,9 @@ function OrderedMap:each()
     local i = 0
     local n = self.n
     local m = self.max
+    local t = math.min(n,m)
     local function gen()
-        if i < self.n then
+        if i < t then
             i = i + 1
             local j = (n-i)%m+1
             return self.keys[j], self.vals[j]
