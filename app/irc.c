@@ -68,8 +68,6 @@ static void on_line(void *data, char *line)
         r = uv_timer_init(loop, timer);
         assert(0 == r);
 
-        timer->data = a;
-
         r = uv_timer_start(timer, on_reconnect, 5000, 0);
         assert(0 == r);
     }
@@ -77,7 +75,7 @@ static void on_line(void *data, char *line)
 
 static void on_reconnect(uv_timer_t *timer)
 {
-    struct app * const a = timer->data;
+    struct app * const a = timer->loop->data;
     free(timer);
     start_irc(a->loop, a->cfg);    
 }

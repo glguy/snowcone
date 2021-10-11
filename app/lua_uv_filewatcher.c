@@ -1,13 +1,15 @@
 
 #include <assert.h>
 
+#include "app.h"
 #include "lua_uv_filewatcher.h"
 #include "lauxlib.h"
 #include "safecall.h"
 
 static void on_close(uv_handle_t *handle)
 {
-    lua_State * const L = handle->data;
+    struct app * const a = handle->loop->data;
+    lua_State * const L = a->L;
     lua_pushnil(L);
     lua_rawsetp(L, LUA_REGISTRYINDEX, handle);
 }
@@ -21,7 +23,8 @@ static int l_close(lua_State *L)
 
 void on_file(uv_fs_event_t *handle, const char *filename, int events, int status)
 {
-    lua_State * const L = handle->data;
+    struct app * const a = handle->loop->data;
+    lua_State * const L = a->L;
     lua_rawgetp(L, LUA_REGISTRYINDEX, handle);
     lua_getuservalue(L, -1);
     lua_remove(L, -2);
@@ -51,7 +54,6 @@ static luaL_Reg MT[] = {
 void push_new_fs_event(lua_State *L, uv_loop_t *loop)
 {
     uv_fs_event_t *fs_event = lua_newuserdata(L, sizeof *fs_event);
-    fs_event->data = L;
 
     if (luaL_newmetatable(L, "uv_fs_event")) {
         luaL_setfuncs(L, MT, 0);

@@ -1,12 +1,14 @@
 #include <assert.h>
 
+#include "app.h"
 #include "lua_uv_timer.h"
 #include "lauxlib.h"
 #include "safecall.h"
 
 static void on_close(uv_handle_t *handle)
 {
-    lua_State * const L = handle->data;
+    struct app * const a = handle->loop->data;
+    lua_State * const L = a->L;
     lua_pushnil(L);
     lua_rawsetp(L, LUA_REGISTRYINDEX, handle);
 }
@@ -20,7 +22,8 @@ static int l_close(lua_State *L)
 
 static void on_timer(uv_timer_t *timer)
 {
-    lua_State * const L = timer->data;
+    struct app * const a = timer->loop->data;
+    lua_State * const L = a->L;
     lua_rawgetp(L, LUA_REGISTRYINDEX, timer);
     lua_getuservalue(L, -1);
     lua_remove(L, -2);
@@ -49,7 +52,6 @@ static luaL_Reg MT[] = {
 void push_new_uv_timer(lua_State *L, uv_loop_t *loop)
 {
     uv_timer_t *timer = lua_newuserdata(L, sizeof *timer);
-    timer->data = L;
 
     if (luaL_newmetatable(L, "uv_timer")) {
         luaL_setfuncs(L, MT, 0);
