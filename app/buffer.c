@@ -11,9 +11,9 @@ void buffer_close(uv_buf_t const *buf)
 
 void buffer_init(uv_buf_t *buf, size_t n)
 {
-    char *p = calloc(n,1);
-    assert(p);
-    *buf = uv_buf_init(p, n);
+    buf->base = calloc(n,1);
+    assert(buf->base);
+    buf->len = n;
 }
 
 void append_buffer(uv_buf_t *dst, size_t n, uv_buf_t const *src)

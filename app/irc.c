@@ -77,7 +77,8 @@ static void on_line(void *data, char *line)
 
 static void on_reconnect(uv_timer_t *timer)
 {
-    struct app * const a = timer->loop->data;
+    uv_loop_t *loop = timer->loop;
+    struct app * const a = loop->data;
     free(timer);
-    start_irc(timer->loop, a->cfg);    
+    start_irc(loop, a->cfg);
 }

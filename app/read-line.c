@@ -13,7 +13,6 @@ static void readline_close_cb(uv_handle_t *handle)
 
 void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 {
-    struct app * const a = stream->loop->data;
     struct readline_data * const d = stream->data;
 
     if (nread < 0)
