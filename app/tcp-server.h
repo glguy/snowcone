@@ -1,8 +1,8 @@
 #ifndef TCP_SERVER_H
 #define TCP_SERVER_H
 
-#include <uv.h>
+#include "app.h"
 
-int start_tcp_server(uv_loop_t *, char const*, char const*);
+int start_tcp_server(struct app *, char const*, char const*);
 
 #endif

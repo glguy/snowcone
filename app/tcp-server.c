@@ -15,7 +15,7 @@ static void on_new_connection(uv_stream_t *server, int status);
 static void on_line(void *data, char *msg);
 static void free_handle(uv_handle_t *handle);
 
-int start_tcp_server(uv_loop_t *loop, char const* node, char const* service)
+int start_tcp_server(struct app *a, char const* node, char const* service)
 {
     struct addrinfo const hints = {
         .ai_flags = AI_PASSIVE,
@@ -25,7 +25,7 @@ int start_tcp_server(uv_loop_t *loop, char const* node, char const* service)
 
     // Resolve the addresses
     uv_getaddrinfo_t req;
-    int res = uv_getaddrinfo(loop, &req, NULL, node, service, &hints);
+    int res = uv_getaddrinfo(&a->loop, &req, NULL, node, service, &hints);
     if (res < 0)
     {
         fprintf(stderr, "failed to resolve %s: %s\n", node, uv_strerror(res));
@@ -40,16 +40,15 @@ int start_tcp_server(uv_loop_t *loop, char const* node, char const* service)
     }
 
     // Allocate temporary storage for tracking all the inprogress sockets
-    uv_tcp_t **tcps = calloc(n, sizeof *tcps);
-    assert(tcps);
+    a->listeners = calloc(n, sizeof a->listeners[0]);
+    assert(a->listeners);
+    a->listeners_len = n;
 
     // Allocate all tcp streams
     size_t i = 0;
     for (struct addrinfo *ai = req.addrinfo; ai; ai = ai->ai_next, i++)
     {
-        tcps[i] = malloc(sizeof *tcps[i]);
-        assert(tcps[i]);
-        res = uv_tcp_init(loop, tcps[i]);
+        res = uv_tcp_init(&a->loop, &a->listeners[i]);
         assert(0 == res);
     }
 
@@ -57,7 +56,7 @@ int start_tcp_server(uv_loop_t *loop, char const* node, char const* service)
     i = 0;
     for (struct addrinfo *ai = req.addrinfo; ai; ai = ai->ai_next, i++)
     {
-        uv_tcp_t *tcp = tcps[i];
+        uv_tcp_t *tcp = &a->listeners[i];
         res = uv_tcp_bind(tcp, ai->ai_addr, 0);
         if (res < 0)
         {
@@ -74,16 +73,14 @@ int start_tcp_server(uv_loop_t *loop, char const* node, char const* service)
     }
 
     uv_freeaddrinfo(req.addrinfo);
-    free(tcps);
     return 0;
 
 teardown:
     uv_freeaddrinfo(req.addrinfo);
     for (i = 0; i < n; i++)
     {
-        uv_close((uv_handle_t*)tcps[i], free_handle);
+        uv_close((uv_handle_t*)&a->listeners[i], NULL);
     }
-    free(tcps);
     return 1;
 }
 
@@ -91,7 +88,7 @@ static void on_new_connection(uv_stream_t *server, int status)
 {
     if (status < 0) {
         fprintf(stderr, "New connection error %s\n", uv_strerror(status));
-        uv_close((uv_handle_t*)server, free_handle);
+        uv_close((uv_handle_t*)server, NULL);
         return;
     }
 
@@ -126,9 +123,4 @@ static void on_line(void *data, char *msg)
         struct app *a = loop->data;
         do_command(a, msg, stream);
     }
-}
-
-static void free_handle(uv_handle_t *handle)
-{
-    free(handle);
 }

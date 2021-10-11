@@ -3,6 +3,7 @@
 
 #include <netdb.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <uv.h>
 #include <lua.h>
 
@@ -15,10 +16,15 @@ struct app
     struct configuration *cfg;
     uv_stream_t *console;
     uv_stream_t *irc;
-    uv_loop_t *loop;
+    uv_loop_t loop;
+    uv_poll_t input;
+    uv_signal_t winch;
+    uv_tcp_t *listeners;
+    size_t listeners_len;
+    bool closing;
 };
 
-struct app *app_new(uv_loop_t *loop, struct configuration *cfg);
+struct app *app_new(struct configuration *cfg);
 void app_free(struct app *a);
 void app_reload(struct app *a);
 void app_set_irc(struct app *a, uv_stream_t *stream);

@@ -94,7 +94,7 @@ l_dnslookup(lua_State *L)
     assert(req);
 
     struct addrinfo const hints = { .ai_socktype = SOCK_STREAM };
-    int r = uv_getaddrinfo(a->loop, req, on_dnslookup, hostname, NULL, &hints);
+    int r = uv_getaddrinfo(&a->loop, req, on_dnslookup, hostname, NULL, &hints);
     if (0 != r)
     {
         free(req);
@@ -166,7 +166,15 @@ static int l_writeirc(lua_State *L)
 static int l_shutdown(lua_State *L)
 {
     struct app * const a = *app_ref(L);
-    uv_stop(a->loop);
+    a->closing = true;
+
+    for (size_t i = 0; i < a->listeners_len; i++)
+    {
+        uv_close((uv_handle_t*)&a->listeners[i], NULL);
+    }
+
+    uv_close((uv_handle_t*)&a->input, NULL);
+    uv_close((uv_handle_t*)&a->winch, NULL);
     return 0;
 }
 
@@ -176,7 +184,7 @@ static int l_setmodule(lua_State *L)
     return 0;
 }
 
-static int load_logic(lua_State *L, char const *filename)
+static void load_logic(lua_State *L, char const *filename)
 {
     int r = luaL_loadfile(L, filename);
     if (LUA_OK == r) {
@@ -238,14 +246,14 @@ static void push_configuration(lua_State *L, struct configuration *cfg)
 static int l_newtimer(lua_State *L)
 {
     struct app * const a = *app_ref(L);
-    push_new_uv_timer(L, a->loop);
+    push_new_uv_timer(L, &a->loop);
     return 1;
 }
 
 static int l_newwatcher(lua_State *L)
 {
     struct app * const a = *app_ref(L);
-    push_new_fs_event(L, a->loop);
+    push_new_fs_event(L, &a->loop);
     return 1;
 }
 
@@ -306,15 +314,24 @@ static void start_lua(struct app *a)
     load_logic(a->L, a->cfg->lua_filename);
 }
 
-struct app *app_new(uv_loop_t *loop, struct configuration *cfg)
+struct app *app_new(struct configuration *cfg)
 {
     struct app *a = malloc(sizeof *a);
     assert(a);
 
     *a = (struct app) {
-        .loop = loop,
         .cfg = cfg,
+        .loop.data = a,
     };
+
+    int r = uv_loop_init(&a->loop);
+    assert(0 == r);
+
+    r = uv_poll_init(&a->loop, &a->input, STDIN_FILENO);
+    assert(0 == r);
+
+    r = uv_signal_init(&a->loop, &a->winch);
+    assert(0 == r);
 
     start_lua(a);
     return a;
@@ -329,6 +346,8 @@ void app_free(struct app *a)
 {
     if (a)
     {
+        uv_loop_close(&a->loop);
+        free(a->listeners);
         lua_close(a->L);
         free(a);
     }

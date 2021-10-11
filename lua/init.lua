@@ -494,36 +494,7 @@ local function irc_register()
         first)
 end
 
--- Callback Logic =====================================================
-
-local M = {}
-
-function M.on_input(str)
-    local chunk, err = load(str, '=(load)', 't')
-    if chunk then
-        local returns = {chunk()}
-        if #returns > 0 then
-            print(table.unpack(returns))
-        end
-        draw()
-    else
-        print(err)
-    end
-end
-
-local irc_handlers = require_ 'handlers_irc'
-function M.on_irc(irc)
-    messages_n = messages_n + 1
-    messages:insert(true, irc)
-    while messages.n > 100 do
-        messages:pop_back()
-    end
-
-    local f = irc_handlers[irc.command]
-    if f then
-        f(irc)
-    end
-end
+-- Timers =============================================================
 
 local function refresh_rotations()
     for label, entry in pairs(servers.regions or {}) do
@@ -564,6 +535,14 @@ if not reloader then
     end)
 end
 
+function quit()
+    shutdown()
+    tick_timer:close()
+    reloader:close()
+    rotations_timer:close()
+    send_irc 'QUIT\r\n'
+end
+
 local keys = {
     [-ncurses.KEY_F1] = function() view = 1 scroll = 0 end,
     [-ncurses.KEY_F2] = function() view = 2 end,
@@ -578,6 +557,37 @@ local keys = {
     --[[^N]] [ 14] = function() view = view % #views + 1 end,
     --[[^P]] [ 16] = function() view = (view - 2) % #views + 1 end,
 }
+
+-- Callback Logic =====================================================
+
+local M = {}
+
+function M.on_input(str)
+    local chunk, err = load(str, '=(load)', 't')
+    if chunk then
+        local returns = {chunk()}
+        if #returns > 0 then
+            print(table.unpack(returns))
+        end
+        draw()
+    else
+        print(err)
+    end
+end
+
+local irc_handlers = require_ 'handlers_irc'
+function M.on_irc(irc)
+    messages_n = messages_n + 1
+    messages:insert(true, irc)
+    while messages.n > 100 do
+        messages:pop_back()
+    end
+
+    local f = irc_handlers[irc.command]
+    if f then
+        f(irc)
+    end
+end
 
 function M.on_keyboard(key)
     local f = keys[key]

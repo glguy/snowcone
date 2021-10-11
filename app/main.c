@@ -87,46 +87,34 @@ int main(int argc, char *argv[])
     mousemask(BUTTON1_CLICKED, NULL);
     endwin();
 
-    uv_loop_t loop = {};
-    r = uv_loop_init(&loop);
+    struct app *a = app_new(&cfg);
+
+    r = uv_poll_start(&a->input, UV_READABLE, on_stdin);
     assert(0 == r);
 
-    struct app *a = app_new(&loop, &cfg);
-    loop.data = a;
-
-    uv_poll_t input;
-    r = uv_poll_init(&loop, &input, STDIN_FILENO);
-    assert(0 == r);
-    r = uv_poll_start(&input, UV_READABLE, on_stdin);
-    assert(0 == r);
-
-    uv_signal_t winch;
-    r = uv_signal_init(&loop, &winch);
-    assert(0 == r);
-    r = uv_signal_start(&winch, on_winch, SIGWINCH);
+    r = uv_signal_start(&a->winch, on_winch, SIGWINCH);
     assert(0 == r);
 
     /* start up networking */
     if (cfg.console_service != NULL)
     {
-        if (start_tcp_server(&loop, cfg.console_node, cfg.console_service))
+        if (start_tcp_server(a, cfg.console_node, cfg.console_service))
         {
             goto cleanup;
         }
     }
 
-    if (start_irc(&loop, &cfg))
+    if (start_irc(&a->loop, &cfg))
     {
         goto cleanup;
     }
 
     // returns non-zero if stopped while handles are active
-    (void)uv_run(&loop, UV_RUN_DEFAULT);
+    r = uv_run(&a->loop, UV_RUN_DEFAULT);
+    assert(0 == r);
 
 cleanup:
-    // This won't be a clean close on manual uv_stop()
-    (void)uv_loop_close(&loop);
-    app_free(a);
     endwin();
+    app_free(a);
     return 0;
 }

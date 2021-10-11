@@ -59,17 +59,19 @@ static void on_line(void *data, char *line)
             do_irc(a, &irc);
         }
     } else {
-        uv_loop_t * const loop = a->loop;
         app_clear_irc(a);
 
-        uv_timer_t *timer = malloc(sizeof *timer);
-        assert(timer);
+        if (!a->closing)
+        {
+            uv_timer_t *timer = malloc(sizeof *timer);
+            assert(timer);
 
-        r = uv_timer_init(loop, timer);
-        assert(0 == r);
+            r = uv_timer_init(&a->loop, timer);
+            assert(0 == r);
 
-        r = uv_timer_start(timer, on_reconnect, 5000, 0);
-        assert(0 == r);
+            r = uv_timer_start(timer, on_reconnect, 5000, 0);
+            assert(0 == r);
+        }
     }
 }
 
@@ -77,5 +79,5 @@ static void on_reconnect(uv_timer_t *timer)
 {
     struct app * const a = timer->loop->data;
     free(timer);
-    start_irc(a->loop, a->cfg);    
+    start_irc(timer->loop, a->cfg);    
 }
