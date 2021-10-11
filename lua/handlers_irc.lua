@@ -132,8 +132,10 @@ end
 
 -- RPL_RSACHALLENGE2
 M['740'] = function(irc)
-    irc_state.challenge = irc_state.challenge .. irc[2]
-    status_message = 'challenging'
+    local challenge = irc_state.challenge
+    if challenge then
+        table.insert(challenge, irc[2])
+    end
 end
 
 -- RPL_ENDOFRSACHALLENGE2
@@ -142,6 +144,7 @@ M['741'] = function()
     local challenge = irc_state.challenge
     if challenge then
         irc_state.challenge = nil
+        challenge = table.concat(challenge)
 
         local file          = require 'pl.file'
         local rsa_key       = assert(file.read(configuration.irc_challenge_key))

@@ -452,7 +452,7 @@ local function irc_register()
     local first
     if configuration.irc_oper_username and configuration.irc_challenge_key then
         first = 'CHALLENGE ' .. configuration.irc_oper_username .. '\r\n'
-        irc_state.challenge = ''
+        irc_state.challenge = {}
     elseif configuration.irc_oper_username and configuration.irc_oper_password then
         first = 'OPER ' ..
             configuration.irc_oper_username .. ' ' ..
