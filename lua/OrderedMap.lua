@@ -2,74 +2,55 @@ local class = require 'pl.class'
 local OrderedMap = class()
 OrderedMap._name = 'OrderedMap'
 
-local function unlink_node(node)
-    local p = node.prev
-    local q = node.next
-    p.next = q
-    q.prev = p
-end
-
-local function link_after(p, node)
-    local q = p.next
-    p.next = node
-    node.next = q
-    q.prev = node
-    node.prev = p
-end
-
 function OrderedMap:insert(key, val)
-    local node = {key = key, val = val}
-    self.n = self.n + 1
-    self.index[key] = node
-    link_after(self, node)
-end
+    local m = self.max
+    local n = self.n
+    local i = n%m + 1
+    self.n = n + 1
 
-function OrderedMap:pop_back()
-    if self.n > 0 then
-        local node = self.prev
-        local key = node.key
-        if self.index[key] == node then
-            self.index[key] = nil
-        end
-        unlink_node(node)
-        self.n = self.n-1
+    if self.index[self.keys[i]] == i then
+        self.index[self.keys[i]] = nil
     end
+
+    self.keys[i] = key
+    self.vals[i] = val
+    self.index[key] = i
 end
 
 function OrderedMap:lookup(key)
-    local node = self.index[key]
-    if node then
-        return node.val
-    end
+    return self.vals[self.index[key]]
 end
 
 function OrderedMap:rekey(old, new)
-    local node = self.index[old]
-    if node then
-        node.key = new
+    local i = self.index[old]
+    if i then
         self.index[old] = nil
-        self.index[new] = node
+        self.keys[i] = new
+        self.index[new] = i
     end
 end
 
 function OrderedMap:each()
-    local node = self
+    local i = 0
+    local n = self.n
+    local m = self.max
     local function gen()
-        local node1 = node.next
-        if node1 ~= self then
-            node = node1
-            return node.key, node.val
+        if i < self.n then
+            i = i + 1
+            local j = (n-i)%m+1
+            return self.keys[j], self.vals[j]
         end
     end
 
     return gen
 end
 
-function OrderedMap:_init()
-    self.next = self
-    self.prev = self
+function OrderedMap:_init(n)
     self.index = {}
+    self.keys = {}
+    self.vals = {}
     self.n = 0
+    self.max = n
 end
 
 return OrderedMap

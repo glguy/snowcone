@@ -83,9 +83,9 @@ end
 
 local defaults = {
     -- state
-    users = OrderedMap(),
-    exits = OrderedMap(),
-    messages = OrderedMap(),
+    users = OrderedMap(1000),
+    exits = OrderedMap(1000),
+    messages = OrderedMap(100),
     kline_tracker = LoadTracker(),
     conn_tracker = LoadTracker(),
     exit_tracker = LoadTracker(),
@@ -96,7 +96,6 @@ local defaults = {
     scroll = 0,
     clicon_n = 0,
     cliexit_n = 0,
-    messages_n = 0,
     filter_tracker = LoadTracker(),
     population = {},
     links = {},
@@ -105,7 +104,6 @@ local defaults = {
     irc_state = {},
 
     -- settings
-    history = 1000,
     show_reasons = true,
     kline_duration = 1,
     kline_reason = 1,
@@ -577,11 +575,7 @@ end
 
 local irc_handlers = require_ 'handlers_irc'
 function M.on_irc(irc)
-    messages_n = messages_n + 1
     messages:insert(true, irc)
-    while messages.n > 100 do
-        messages:pop_back()
-    end
 
     local f = irc_handlers[irc.command]
     if f then

@@ -106,10 +106,9 @@ function commands.eval(args)
     if chunk == 'fail' then
         status_message = string.match(message, '^[^\n]*')
     else
-        local res, err = pcall(chunk)
-        if not res then
-            status_message = string.match(err, '^[^\n]*')
-        end
+        local _, ret = pcall(chunk)
+        status_message = string.match(tostring(ret), '^[^\n]*')
+        normal()
     end
 end
 
@@ -153,13 +152,13 @@ function M:render()
     local rows = math.max(1, tty_height - 2)
 
     for _, entry in messages:each() do
-        local y = (messages_n-1-n) % rows
+        local y = (messages.n-1-n) % rows
         window[y] = entry
         n = n + 1
         if n >= rows-1 then break end
     end
 
-    window[messages_n % rows] = 'divider'
+    window[messages.n % rows] = 'divider'
 
     for y = 0, rows - 1 do
         local entry = window[y]

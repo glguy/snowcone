@@ -36,9 +36,6 @@ function M.connect(ev)
     }
     users:insert(key, entry)
 
-    while users.n > history do
-        users:pop_back()
-    end
     conn_tracker:track(server)
     if show_entry(entry) then
         clicon_n = clicon_n + 1
@@ -81,9 +78,6 @@ function M.disconnect(ev)
         mask = ev.nick .. '!' .. ev.user .. '@' .. ev.host,
         gecos = (entry or {}).gecos,
     })
-    while exits.n > history do
-        exits:pop_back()
-    end
 
     count_ip(ev.ip, -1)
 end
