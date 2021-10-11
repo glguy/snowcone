@@ -12,12 +12,6 @@
 #include "write.h"
 #include "socat.h"
 
-struct close_state
-{
-    uv_loop_t *loop;
-    struct configuration *cfg;
-};
-
 static void on_line(void *, char *msg);
 static void on_connect(uv_connect_t* req, int status);
 static void on_close(void *data);
