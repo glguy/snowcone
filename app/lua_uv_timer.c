@@ -5,6 +5,8 @@
 #include "lauxlib.h"
 #include "safecall.h"
 
+static char const* const typename = "uv_timer";
+
 static void on_close(uv_handle_t *handle)
 {
     struct app * const a = handle->loop->data;
@@ -15,7 +17,7 @@ static void on_close(uv_handle_t *handle)
 
 static int l_close(lua_State *L)
 {
-    uv_timer_t *timer = luaL_checkudata(L, 1, "uv_timer");
+    uv_timer_t *timer = luaL_checkudata(L, 1, typename);
     uv_close((uv_handle_t*)timer, on_close);
     return 0;
 }
@@ -33,10 +35,11 @@ static void on_timer(uv_timer_t *timer)
 
 static int l_start(lua_State *L)
 {
-    uv_timer_t *timer = luaL_checkudata(L, 1, "uv_timer");
+    uv_timer_t *timer = luaL_checkudata(L, 1, typename);
     lua_Integer millis = luaL_checkinteger(L, 2);
     luaL_checkany(L, 3);
     lua_settop(L, 3);
+
     lua_setuservalue(L, 1);
     int r = uv_timer_start(timer, on_timer, millis, millis);
     assert(0 == r);
@@ -53,7 +56,7 @@ void push_new_uv_timer(lua_State *L, uv_loop_t *loop)
 {
     uv_timer_t *timer = lua_newuserdata(L, sizeof *timer);
 
-    if (luaL_newmetatable(L, "uv_timer")) {
+    if (luaL_newmetatable(L, typename)) {
         luaL_setfuncs(L, MT, 0);
         lua_pushvalue(L, -1);
         lua_setfield(L, -2, "__index");

@@ -6,6 +6,8 @@
 #include "lauxlib.h"
 #include "safecall.h"
 
+static char const* const typename = "uv_fs_event";
+
 static void on_close(uv_handle_t *handle)
 {
     struct app * const a = handle->loop->data;
@@ -16,7 +18,7 @@ static void on_close(uv_handle_t *handle)
 
 static int l_close(lua_State *L)
 {
-    uv_fs_event_t *fs_event = luaL_checkudata(L, 1, "uv_fs_event");
+    uv_fs_event_t *fs_event = luaL_checkudata(L, 1, typename);
     uv_close((uv_handle_t*)fs_event, on_close);
     return 0;
 }
@@ -33,7 +35,7 @@ void on_file(uv_fs_event_t *handle, const char *filename, int events, int status
 
 static int l_start(lua_State *L)
 {
-    uv_fs_event_t *fs_event = luaL_checkudata(L, 1, "uv_fs_event");
+    uv_fs_event_t *fs_event = luaL_checkudata(L, 1, typename);
     char const* dir = luaL_checkstring(L, 2);
     luaL_checkany(L, 3);
     lua_settop(L, 3);
@@ -55,7 +57,7 @@ void push_new_fs_event(lua_State *L, uv_loop_t *loop)
 {
     uv_fs_event_t *fs_event = lua_newuserdata(L, sizeof *fs_event);
 
-    if (luaL_newmetatable(L, "uv_fs_event")) {
+    if (luaL_newmetatable(L, typename)) {
         luaL_setfuncs(L, MT, 0);
         lua_pushvalue(L, -1);
         lua_setfield(L, -2, "__index");
