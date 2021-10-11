@@ -1,10 +1,8 @@
 #ifndef IRC_H
 #define IRC_H
 
-#include <uv.h>
+#include "app.h"
 
-#include "configuration.h"
-
-int start_irc(uv_loop_t *loop, struct configuration *cfg);
+int start_irc(struct app *);
 
 #endif

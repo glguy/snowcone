@@ -17,11 +17,9 @@ static void on_connect(uv_connect_t* req, int status);
 static void on_close(void *data);
 static void on_reconnect(uv_timer_t *timer);
 
-int start_irc(uv_loop_t *loop, struct configuration *cfg)
+int start_irc(struct app *a)
 {
-    struct app * const a = loop->data;
-
-    uv_stream_t *irc = socat_wrapper(loop, cfg->irc_socat);
+    uv_stream_t *irc = socat_wrapper(&a->loop, a->cfg->irc_socat);
     if (NULL == irc)
     {
         return 1;
@@ -77,8 +75,7 @@ static void on_line(void *data, char *line)
 
 static void on_reconnect(uv_timer_t *timer)
 {
-    uv_loop_t *loop = timer->loop;
-    struct app * const a = loop->data;
+    struct app * const a = timer->loop->data;
     free(timer);
-    start_irc(loop, a->cfg);
+    start_irc(a);
 }

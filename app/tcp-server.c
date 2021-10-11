@@ -15,7 +15,7 @@ static void on_new_connection(uv_stream_t *server, int status);
 static void on_line(void *data, char *msg);
 static void free_handle(uv_handle_t *handle);
 
-int start_tcp_server(struct app *a, char const* node, char const* service)
+int start_tcp_server(struct app *a)
 {
     struct addrinfo const hints = {
         .ai_flags = AI_PASSIVE,
@@ -25,10 +25,10 @@ int start_tcp_server(struct app *a, char const* node, char const* service)
 
     // Resolve the addresses
     uv_getaddrinfo_t req;
-    int res = uv_getaddrinfo(&a->loop, &req, NULL, node, service, &hints);
+    int res = uv_getaddrinfo(&a->loop, &req, NULL, a->cfg->console_node, a->cfg->console_service, &hints);
     if (res < 0)
     {
-        fprintf(stderr, "failed to resolve %s: %s\n", node, uv_strerror(res));
+        fprintf(stderr, "failed to resolve %s: %s\n", a->cfg->console_node, uv_strerror(res));
         return 1;
     }
     

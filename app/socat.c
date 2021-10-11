@@ -4,8 +4,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <uv.h>
-
 #include "socat.h"
 
 static void socat_exit(uv_process_t *process, int64_t exit_status, int term_signal);

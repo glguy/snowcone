@@ -98,13 +98,13 @@ int main(int argc, char *argv[])
     /* start up networking */
     if (cfg.console_service != NULL)
     {
-        if (start_tcp_server(a, cfg.console_node, cfg.console_service))
+        if (start_tcp_server(a))
         {
             goto cleanup;
         }
     }
 
-    if (start_irc(&a->loop, &cfg))
+    if (start_irc(a))
     {
         goto cleanup;
     }
