@@ -79,7 +79,7 @@ on_dnslookup(uv_getaddrinfo_t *req, int status, struct addrinfo *res)
     }
     free(req);
 
-    safecall(L, "dnslookup callback", 3, 0);
+    safecall(L, "dnslookup callback", 3);
 }
 
 static int
@@ -176,9 +176,24 @@ static int l_setmodule(lua_State *L)
     return 0;
 }
 
-static void load_logic(lua_State *L, char const *filename)
+static int load_logic(lua_State *L, char const *filename)
 {
-    luaL_loadfile(L, filename) || safecall(L, "load_logic", 0, 0);
+    int r = luaL_loadfile(L, filename);
+    if (LUA_OK == r) {
+        safecall(L, "load_logic:call", 0);
+    } else {
+        struct app * const a = *app_ref(L);
+        size_t len;
+        char const* err = lua_tolstring(L, -1, &len);
+        if (a->console) {
+            to_write(a->console, err, len);
+            to_write(a->console, "\n", 1);
+        } else {
+            endwin();
+            fprintf(stderr, "error in %s: %s\n", "load_logic:load", err);
+        }
+        lua_pop(L, 1);
+    }
 }
 
 static void push_configuration(lua_State *L, struct configuration *cfg)
@@ -341,7 +356,7 @@ static void lua_callback(lua_State *L, char const *key, int args)
     lua_pushstring(L, key); /* args f key */
     lua_rotate(L, -2-args, -args); /* eh f key args */
 
-    safecall(L, key, 1+args, 0);
+    safecall(L, key, 1+args);
 }
 
 void do_command(

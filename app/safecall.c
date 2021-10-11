@@ -13,20 +13,16 @@ static int error_handler(lua_State *L)
     return 1;
 }
 
-int safecall(lua_State *L, char const* location, int args, int results)
+static int finish_safecall(lua_State *L, int status, lua_KContext ctx)
 {
-    lua_pushcfunction(L, error_handler);
-    // f a1 a2.. eh
-    lua_insert(L, -2-args);
-    // eh f a1 a2..
+    char const* location = (char const*)ctx;
 
-    int r = lua_pcall(L, args, results, -2-args);
-    if (LUA_OK == r) {
-        lua_remove(L, -1-results);
+    if (LUA_OK == status) {
+        lua_pop(L, 1);
     } else {
         struct app * const a = *app_ref(L);
         size_t len;
-        char const* err = luaL_tolstring(L, -1, &len);
+        char const* err = lua_tolstring(L, -1, &len);
         if (a->console) {
             to_write(a->console, err, len);
             to_write(a->console, "\n", 1);
@@ -34,8 +30,18 @@ int safecall(lua_State *L, char const* location, int args, int results)
             endwin();
             fprintf(stderr, "error in %s: %s\n", location, err);
         }
-        lua_pop(L, 3); /* error, error string, handler */
+        lua_pop(L, 2); /* error string, handler */
     }
+    return status;
+}
 
-    return r;
+int safecall(lua_State *L, char const* location, int args)
+{
+    lua_pushcfunction(L, error_handler);
+    // f a1 a2.. eh
+    lua_insert(L, -2-args);
+    // eh f a1 a2..
+
+    lua_KContext ctx = (intptr_t)location;
+    return finish_safecall(L, lua_pcallk(L, args, 0, -2-args, ctx, finish_safecall), ctx);
 }

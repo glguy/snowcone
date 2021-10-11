@@ -25,7 +25,7 @@ static void on_timer(uv_timer_t *timer)
     lua_getuservalue(L, -1);
     lua_remove(L, -2);
 
-    safecall(L, "timer", 0, 0);
+    safecall(L, "timer", 0);
 }
 
 static int l_start(lua_State *L)

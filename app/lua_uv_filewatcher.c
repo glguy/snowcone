@@ -25,7 +25,7 @@ void on_file(uv_fs_event_t *handle, const char *filename, int events, int status
     lua_rawgetp(L, LUA_REGISTRYINDEX, handle);
     lua_getuservalue(L, -1);
     lua_remove(L, -2);
-    safecall(L, "fs_event", 0, 0);
+    safecall(L, "fs_event", 0);
 }
 
 static int l_start(lua_State *L)
