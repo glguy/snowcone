@@ -67,6 +67,7 @@ on_dnslookup(uv_getaddrinfo_t *req, int status, struct addrinfo *res)
     lua_rawgetp(L, LUA_REGISTRYINDEX, req);
     lua_pushnil(L);
     lua_rawsetp(L, LUA_REGISTRYINDEX, req);
+    free(req);
 
     if (0 == status) {
         do_dns(a, res); // pushes two arrays
@@ -77,7 +78,6 @@ on_dnslookup(uv_getaddrinfo_t *req, int status, struct addrinfo *res)
         lua_pushnil(L);
         lua_pushstring(L, uv_strerror(status));
     }
-    free(req);
 
     safecall(L, "dnslookup callback", 3);
 }

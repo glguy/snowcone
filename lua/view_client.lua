@@ -104,12 +104,12 @@ end
 
 function commands.eval(args)
     local chunk, message = load(args, '=(eval)', 't')
-    if chunk == 'fail' then
-        status_message = string.match(message, '^[^\n]*')
-    else
+    if chunk then
         local _, ret = pcall(chunk)
         status_message = string.match(tostring(ret), '^[^\n]*')
         normal()
+    else
+        status_message = string.match(message, '^[^\n]*')
     end
 end
 
