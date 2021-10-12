@@ -3,8 +3,12 @@ local M = {}
 function M:keypress()
 end
 
-local function render_entry(y, network, count)
-    mvaddstr(y, 0, string.format('%40s  ', network))
+local function render_entry(y, network, count, nest)
+    if nest then
+        mvaddstr(y, 0, string.format('%43s┘  ', network))
+    else
+        mvaddstr(y, 0, string.format('%44s  ', network))
+    end
     if count > 999 then
         bold()
         addstr(string.format('%2d', count//1000))
@@ -40,35 +44,41 @@ local function ordermask(v1, v2)
 end
 
 function M:render()
-    cyan()
-    mvaddstr(0,33, "Network  Count  Actions")
+    green()
+    mvaddstr(0,37, "Network  Count  Actions")
     normal()
 
     local y = 1
     for name, tracker in sortpairs(net_trackers) do
         if y+1 >= tty_height then break end
 
-        normal()
+        bold()
+        cyan()
         render_entry(y, name, tracker:count())
 
         red()
-        add_button('[X]', function()
+        add_button('(x)', function()
             net_trackers[name] = nil
         end)
 
         addstr(' ')
         if tracker.expanded then
             yellow()
-            add_button('[-]', function() tracker.expanded = nil end)
-            blue()
+            add_button('(-)', function() tracker.expanded = nil end)
             for label, entry in sortpairs(tracker.masks, ordermask) do
                 y = y + 1
                 if y+1 >= tty_height then break end
-                render_entry(y, label, entry.count)
+                blue()
+                render_entry(y, label, entry.count, true)
+
+                red()
+                add_button('(x)', function()
+                    tracker.masks[label] = nil
+                end)
             end
         else
             green()
-            add_button('[+]', function() tracker.expanded = true end)
+            add_button('(+)', function() tracker.expanded = true end)
         end
         y = y + 1
     end
