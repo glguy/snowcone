@@ -4,7 +4,6 @@
 #include <uv.h>
 
 #include "app.h"
-#include "buffer.h"
 #include "read-line.h"
 #include "tcp-server.h"
 #include "write.h"
@@ -92,7 +91,7 @@ static void on_new_connection(uv_stream_t *server, int status)
         return;
     }
 
-    struct readline_data *data = malloc(sizeof *data);
+    struct readline_data *data = calloc(1, sizeof *data);
     assert(data);
 
     uv_tcp_t *client = malloc(sizeof *client);
@@ -110,7 +109,7 @@ static void on_new_connection(uv_stream_t *server, int status)
     res = uv_accept(server, (uv_stream_t*)client);
     assert(0 == res);
 
-    res = uv_read_start((uv_stream_t *)client, my_alloc_cb, readline_cb);
+    res = uv_read_start((uv_stream_t *)client, readline_alloc, readline_cb);
     assert(0 == res);
 }
 

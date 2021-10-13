@@ -4,7 +4,6 @@
 
 #include <uv.h>
 
-#include "buffer.h"
 #include "write.h"
 
 struct request {

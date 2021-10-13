@@ -14,7 +14,6 @@
 #include <uv.h>
 
 #include "app.h"
-#include "buffer.h"
 #include "configuration.h"
 #include "irc.h"
 #include "read-line.h"

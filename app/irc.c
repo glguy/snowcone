@@ -5,7 +5,6 @@
 #include <uv.h>
 
 #include "app.h"
-#include "buffer.h"
 #include "configuration.h"
 #include "irc.h"
 #include "read-line.h"
@@ -25,18 +24,16 @@ int start_irc(struct app *a)
         return 1;
     }
  
-    struct readline_data *irc_data = malloc(sizeof *irc_data);
+    struct readline_data *irc_data = calloc(1, sizeof *irc_data);
     assert(irc_data);
 
-    *irc_data = (struct readline_data) {
-        .read = on_line,
-        .read_data = a,
-    };
+    irc_data->read = on_line;
+    irc_data->read_data = a;
     irc->data = irc_data;
 
     app_set_irc(a, irc);
 
-    int r = uv_read_start(irc, &my_alloc_cb, &readline_cb);
+    int r = uv_read_start(irc, readline_alloc, readline_cb);
     assert(0 == r);
 
     return 0;

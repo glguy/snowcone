@@ -1,14 +1,18 @@
 #include <string.h>
 
-#include "buffer.h"
 #include "read-line.h"
 
 static void readline_close_cb(uv_handle_t *handle)
 {
-    struct readline_data *d = handle->data;
-    buffer_close(&d->buffer);
-    free(d);
+    free(handle->data);
     free(handle);
+}
+
+void readline_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
+{
+    struct readline_data * const d = handle->data;
+    buf->base = d->buffer + d->used;
+    buf->len = sizeof d->buffer - d->used - 1; // always save a byte for NUL
 }
 
 void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
@@ -18,15 +22,14 @@ void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
     if (nread < 0)
     {
         d->read(d->read_data, NULL);
-        buffer_close(buf);
         uv_close((uv_handle_t *)stream, readline_close_cb);
         return;
     }
 
-    // This consumes and closes buf
-    append_buffer(&d->buffer, nread, buf);
+    d->used += nread;
+    d->buffer[d->used] = '\0';
 
-    char *cursor = d->buffer.base;
+    char *cursor = d->buffer;
     char *start;
 
     while(start = strsep(&cursor, "\n"), NULL != cursor)
@@ -34,5 +37,6 @@ void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
         d->read(d->read_data, start);
     }
 
-    memmove(d->buffer.base, start, strlen(start) + 1);
+    d->used = strlen(start);
+    memmove(d->buffer, start, d->used);
 }
