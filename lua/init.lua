@@ -376,11 +376,11 @@ local view_server_load = require_ 'view_server_load'
 local view_simple_load = require_ 'view_simple_load'
 views = {
     -- Recent connections
-    view_recent_conn(users, 'clicon_n'),
+    view_recent_conn(users, 'clicon_n', 'CLICON', conn_tracker),
     -- Server connections
     view_server_load('Connection History', 'CLICON', ncurses.green, conn_tracker),
     -- Recent exists
-    view_recent_conn(exits, 'cliexit_n'),
+    view_recent_conn(exits, 'cliexit_n', 'CLIEXI', exit_tracker),
     -- Server exits
     view_server_load('Disconnection History', 'CLIEXI', ncurses.red, exit_tracker),
     -- K-Line tracking

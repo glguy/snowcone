@@ -1,4 +1,4 @@
-return function(data, total_name)
+return function(data, total_name, label, tracker)
 
 local M = { active = true }
 
@@ -196,7 +196,7 @@ function M:render()
 
     draw_buttons()
 
-    draw_global_load('CLICON', conn_tracker)
+    draw_global_load(label, tracker)
 
     if scroll ~= 0 then
         addstr(string.format(' scroll %d', scroll))
