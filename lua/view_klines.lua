@@ -3,6 +3,26 @@ local M = {}
 function M:keypress()
 end
 
+local function fmt(n)
+    return string.gsub(string.format('%.2f', n), '%.?0*$', '')
+end
+
+local function pretty_duration(duration)
+    local m = math.tointeger(duration)
+    if m then
+        if m >= 1440 then
+            return fmt(m/1440) .. 'd'
+        end
+        if m >= 60 then
+            return fmt(m/60) .. 'h'
+        end
+
+        return duration .. 'm'
+    else
+        return duration
+    end
+end
+
 local palette = {
     kline = red,
     expired = yellow,
@@ -16,7 +36,7 @@ function M:render()
     local clear_string = string.rep(' ', tty_width)
 
     local n = 0
-    local rows = math.max(1, tty_height - 2)
+    local rows = math.max(1, tty_height - 1)
 
     for _, entry in klines:each() do
         local y = (klines.n-1-n) % rows + 1
@@ -29,7 +49,7 @@ function M:render()
 
     bold()
     magenta()
-    addstr('time     kind     operator   duration mask                                     kline reason')
+    addstr('time     kind     operator   duration mask                                     reason')
     bold_()
 
     for y = 1, rows - 1 do
@@ -49,7 +69,7 @@ function M:render()
             green()
             addstr(string.format('%-12s ', entry.oper or ''))
             yellow()
-            addstr(string.format('%6s ', entry.duration or ''))
+            addstr(string.format('%6s ', pretty_duration(entry.duration) or ''))
             palette[entry.kind]()
             addstr(string.format('%-40s ', entry.mask))
             blue()

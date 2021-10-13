@@ -106,12 +106,6 @@ function M.expired(ev)
         if old then
             old.kind = 'inactive'
         end
-
-        klines:insert(true, {
-            time = ev.time,
-            mask = ev.mask,
-            kind = 'expired'
-        })
     end
 end
 
