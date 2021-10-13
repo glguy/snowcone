@@ -58,6 +58,37 @@ static void pushircmsg(lua_State *L, struct ircmsg const* msg)
     }
 }
 
+static int l_pton(lua_State *L)
+{
+    char const* p = luaL_checkstring(L, 1);
+    bool ipv6 = strchr(p, ':');
+
+    union {
+        struct in_addr a4;
+        struct in6_addr a6;
+    } dst;
+
+    int res = inet_pton(ipv6 ? AF_INET6 : AF_INET, p, &dst);
+
+    if (res == 1)
+    {
+        lua_pushlstring(L, (char*)&dst, ipv6 ? sizeof (struct in6_addr) : sizeof (struct in_addr));
+        return 1;
+    }
+    else if (res < 0)
+    {
+        lua_pushnil(L);
+        lua_pushfstring(L, "pton: %s", strerror(errno));
+        return 2;
+    }
+    else
+    {
+        lua_pushnil(L);
+        lua_pushstring(L, "pton: bad address");
+        return 2;
+    }
+}
+
 static void
 on_dnslookup(uv_getaddrinfo_t *req, int status, struct addrinfo *res)
 {
@@ -275,6 +306,8 @@ static void app_prepare_globals(struct app *a)
     lua_setglobal(L, "send_irc");
     lua_pushcfunction(L, l_dnslookup);
     lua_setglobal(L, "dnslookup");
+    lua_pushcfunction(L, l_pton);
+    lua_setglobal(L, "pton");
     lua_pushcfunction(L, l_shutdown);
     lua_setglobal(L, "shutdown");
     lua_pushcfunction(L, l_newtimer);

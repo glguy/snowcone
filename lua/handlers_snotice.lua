@@ -2,14 +2,12 @@
 
 local function count_ip(address, delta)
     if next(net_trackers) then
-        dnslookup(address, function(_, baddrs, _)
-            if baddrs then
-                local baddr = baddrs[1]
-                for _, track in pairs(net_trackers) do
-                    track:delta(baddr, delta)
-                end
+        local baddr = pton(address)
+        if baddr then
+            for _, track in pairs(net_trackers) do
+                track:delta(baddr, delta)
             end
-        end)
+        end
     end
 end
 

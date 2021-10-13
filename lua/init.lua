@@ -406,16 +406,15 @@ end
 
 function add_network_tracker(name, mask)
     local address, prefix = string.match(mask, '^([^/]*)/(%d+)$')
-    dnslookup(address, function(a,b)
-        if not net_trackers[name] then
-            net_trackers[name] = NetTracker()
-        end
-        local net = a[1] .. '/' .. prefix
-        net_trackers[name]:track(net, b[1], math.tointeger(prefix))
-        if irc_state.oper then
-            send_irc('TESTMASK *@' .. net .. '\r\n')
-        end
-    end)
+    local b = pton(address)
+    if not net_trackers[name] then
+        net_trackers[name] = NetTracker()
+    end
+
+    net_trackers[name]:track(mask, b, math.tointeger(prefix))
+    if irc_state.oper then
+        send_irc('TESTMASK *@' .. mask .. '\r\n')
+    end
 end
 
 for name, masks in pairs(servers.net_tracks or {}) do

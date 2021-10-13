@@ -35,6 +35,6 @@ globals = {
     "path", "file", "scrub",
 
     "newtimer", "rotations_timer", "tick_timer", "setmodule",
-    "newwatcher", "reloader", "quit", "shutdown",
+    "newwatcher", "reloader", "quit", "shutdown", "pton",
     },
 }
