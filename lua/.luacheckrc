@@ -8,7 +8,7 @@ globals = {
 
     "links", "upstream", "population", "conn_tracker", "exit_tracker",
     "kline_tracker", "filter_tracker", "net_trackers",
-    "messages", "messages_n",
+    "messages", "messages_n", "klines",
     "users", "clicon_n",
     "exits", "cliexit_n",
 

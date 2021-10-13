@@ -90,6 +90,53 @@ return function(time, server, str)
     end
 
     do
+        local kind, mask =
+            string.match(str, '^Temporary (%g+) for %[(.*)%] expired$')
+        if kind then
+            return {
+                name = 'expired',
+                server = server,
+                time = time,
+                kind = kind,
+                mask = mask,
+            }
+        end
+    end
+
+    do
+        local mask =
+            string.match(str, '^Propagated ban for %[(.*)%] expired$')
+        if mask then
+            return {
+                name = 'expired',
+                server = server,
+                time = time,
+                kind = 'K-Line',
+                mask = mask,
+            }
+        end
+    end
+
+    do
+        local nick, user, host, oper, kind, mask =
+            string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} \z
+                               has removed the %g+ (%g+) for: %[(.*)%]$')
+        if nick then
+            return {
+                name = 'removed',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                oper = oper,
+                kind = kind,
+                mask = mask,
+            }
+        end
+    end
+
+    do
         local server1, server2, sid1, sid2, reason =
             string.match(str, '^Netsplit (%g+) <%-> (%g+) %((%g+) (%g+)%) %((.*)%)$')
         if server1 then

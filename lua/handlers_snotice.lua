@@ -90,6 +90,45 @@ end
 
 function M.kline(ev)
     kline_tracker:track(ev.nick)
+    klines:insert('kline ' .. ev.mask, {
+        time = ev.time,
+        oper = ev.oper,
+        duration = ev.duration,
+        reason = ev.reason,
+        mask = ev.mask,
+        kind = 'kline',
+    })
+end
+
+function M.expired(ev)
+    if ev.kind == 'K-Line' then
+        local old = klines:lookup('kline ' .. ev.mask)
+        if old then
+            old.kind = 'inactive'
+        end
+
+        klines:insert(true, {
+            time = ev.time,
+            mask = ev.mask,
+            kind = 'expired'
+        })
+    end
+end
+
+function M.removed(ev)
+    if ev.kind == 'K-Line' then
+        local old = klines:lookup('kline ' .. ev.mask)
+        if old then
+            old.kind = 'inactive'
+        end
+
+        klines:insert(true, {
+            time = ev.time,
+            oper = ev.oper,
+            mask = ev.mask,
+            kind = 'removed'
+        })
+    end
 end
 
 function M.filter(ev)

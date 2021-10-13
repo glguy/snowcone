@@ -86,6 +86,7 @@ local defaults = {
     users = OrderedMap(1000),
     exits = OrderedMap(1000),
     messages = OrderedMap(100),
+    klines = OrderedMap(100),
     kline_tracker = LoadTracker(),
     conn_tracker = LoadTracker(),
     exit_tracker = LoadTracker(),
@@ -391,7 +392,8 @@ views = {
     -- Raw IRC console
     require_ 'view_client',
     -- Counters for network masks
-    (require_ 'view_net_trackers'),
+    require_ 'view_net_trackers',
+    (require_ 'view_klines'),
 }
 
 function draw()
@@ -550,6 +552,8 @@ local keys = {
     [-ncurses.KEY_F7] = function() view = 7 end,
     [-ncurses.KEY_F8] = function() view = 8 end,
     [-ncurses.KEY_F9] = function() view = 9 end,
+    [-ncurses.KEY_F10] = function() view = 10 end,
+
     --[[^L]] [ 12] = function() ncurses.clear() end,
     --[[^N]] [ 14] = function() view = view % #views + 1 end,
     --[[^P]] [ 16] = function() view = (view - 2) % #views + 1 end,
