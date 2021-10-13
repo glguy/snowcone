@@ -97,7 +97,7 @@ return function(time, server, str)
                 name = 'expired',
                 server = server,
                 time = time,
-                kind = kind,
+                kind = string.lower(kind), -- resv, k-line, x-line
                 mask = mask,
             }
         end
@@ -111,7 +111,7 @@ return function(time, server, str)
                 name = 'expired',
                 server = server,
                 time = time,
-                kind = 'K-Line',
+                kind = 'k-line',
                 mask = mask,
             }
         end
@@ -130,7 +130,7 @@ return function(time, server, str)
                 user = user,
                 host = host,
                 oper = oper,
-                kind = kind,
+                kind = string.lower(kind),
                 mask = mask,
             }
         end

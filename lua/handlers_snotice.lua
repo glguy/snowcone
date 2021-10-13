@@ -101,7 +101,7 @@ function M.kline(ev)
 end
 
 function M.expired(ev)
-    if ev.kind == 'K-Line' then
+    if ev.kind == 'k-line' then
         local old = klines:lookup('kline ' .. ev.mask)
         if old then
             old.kind = 'inactive'
@@ -110,7 +110,7 @@ function M.expired(ev)
 end
 
 function M.removed(ev)
-    if ev.kind == 'K-Line' then
+    if ev.kind == 'k-line' then
         local old = klines:lookup('kline ' .. ev.mask)
         if old then
             old.kind = 'inactive'
