@@ -11,7 +11,7 @@
 /* TCP SERVER ********************************************************/
 
 static void on_new_connection(uv_stream_t *server, int status);
-static void on_line(void *data, char *msg);
+static void on_line(uv_stream_t *, char *);
 static void free_handle(uv_handle_t *handle);
 
 int start_tcp_server(struct app *a)
@@ -93,15 +93,11 @@ static void on_new_connection(uv_stream_t *server, int status)
 
     struct readline_data *data = calloc(1, sizeof *data);
     assert(data);
+    data->line_cb = on_line;
 
     uv_tcp_t *client = malloc(sizeof *client);
     assert(client);
     client->data = data;
-
-    *data = (struct readline_data){
-        .read = &on_line,
-        .read_data = client,
-    };
 
     int res = uv_tcp_init(server->loop, client);
     assert(0 == res);
@@ -113,13 +109,11 @@ static void on_new_connection(uv_stream_t *server, int status)
     assert(0 == res);
 }
 
-static void on_line(void *data, char *msg)
+static void on_line(uv_stream_t *stream, char *msg)
 {
     if (msg)
     {
-        uv_stream_t *stream = data;
-        uv_loop_t *loop = stream->loop;
-        struct app *a = loop->data;
+        struct app *a = stream->loop->data;
         do_command(a, msg, stream);
     }
 }

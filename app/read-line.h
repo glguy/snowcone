@@ -7,8 +7,7 @@
 struct readline_data
 {
   uv_stream_t *write_data;
-  void (*read)(void *, char*);
-  void *read_data;
+  void (*line_cb)(uv_stream_t *, char*);
   size_t used;
   char buffer[65000];
 };

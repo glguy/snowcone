@@ -11,7 +11,7 @@
 #include "write.h"
 #include "socat.h"
 
-static void on_line(void *, char *msg);
+static void on_line(uv_stream_t *, char *msg);
 static void on_connect(uv_connect_t* req, int status);
 static void on_close(void *data);
 static void on_reconnect(uv_timer_t *timer);
@@ -27,8 +27,7 @@ int start_irc(struct app *a)
     struct readline_data *irc_data = calloc(1, sizeof *irc_data);
     assert(irc_data);
 
-    irc_data->read = on_line;
-    irc_data->read_data = a;
+    irc_data->line_cb = on_line;
     irc->data = irc_data;
 
     app_set_irc(a, irc);
@@ -39,9 +38,9 @@ int start_irc(struct app *a)
     return 0;
 }
 
-static void on_line(void *data, char *line)
+static void on_line(uv_stream_t *stream, char *line)
 {
-    struct app * const a = data;
+    struct app * const a = stream->loop->data;
     int r;
 
     if (line)

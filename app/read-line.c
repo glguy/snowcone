@@ -21,7 +21,7 @@ void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 
     if (nread < 0)
     {
-        d->read(d->read_data, NULL);
+        d->line_cb(stream, NULL);
         uv_close((uv_handle_t *)stream, readline_close_cb);
         return;
     }
@@ -34,7 +34,7 @@ void readline_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 
     while(start = strsep(&cursor, "\n"), NULL != cursor)
     {
-        d->read(d->read_data, start);
+        d->line_cb(stream, start);
     }
 
     d->used = strlen(start);
