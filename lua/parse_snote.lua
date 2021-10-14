@@ -90,6 +90,22 @@ return function(time, server, str)
     end
 
     do
+        local nick, user, host, mask =
+            string.match(str, '^KLINE active for (.-)%[(.-)@(.-)%] %((.*)%)$')
+            if nick then
+                return {
+                    name = 'kline_active',
+                    server = server,
+                    time = time,
+                    nick = nick,
+                    user = user,
+                    host = host,
+                    mask = mask,
+                }
+            end
+    end
+
+    do
         local kind, mask =
             string.match(str, '^Temporary (%g+) for %[(.*)%] expired$')
         if kind then

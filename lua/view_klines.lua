@@ -30,26 +30,17 @@ local palette = {
     inactive = normal,
 }
 
+local rotating_window = require 'rotating_window'
+
 function M:render()
 
-    local window = {}
+    local rows = math.max(0, tty_height - 1)
+    local window = rotating_window.build_window(klines, 'each', rows)
     local clear_string = string.rep(' ', tty_width)
-
-    local n = 0
-    local rows = math.max(1, tty_height - 1)
-
-    for _, entry in klines:each() do
-        local y = (klines.n-1-n) % rows + 1
-        window[y] = entry
-        n = n + 1
-        if n >= rows-1 then break end
-    end
-
-    window[klines.n % rows + 1] = 'divider'
 
     bold()
     magenta()
-    addstr('time     kind     operator   duration mask                                     reason')
+    addstr('time     operator   duration mask                           affected users and reason')
     bold_()
 
     for y = 1, rows - 1 do
@@ -64,14 +55,29 @@ function M:render()
             mvaddstr(y, 0, clear_string)
             cyan()
             mvaddstr(y, 0, entry.time)
-            normal()
-            addstr(string.format(' %-8s ', entry.kind or 'xx'))
             green()
-            addstr(string.format('%-12s ', entry.oper or ''))
-            yellow()
-            addstr(string.format('%6s ', pretty_duration(entry.duration) or ''))
+            addstr(string.format(' %-12s ', entry.oper or ''))
+            if entry.duration then
+                yellow()
+                addstr(string.format('%6s ', pretty_duration(entry.duration) or ''))
+            else
+                normal()
+                addstr(string.format('%-6.6s ', entry.kind))
+            end
             palette[entry.kind]()
-            addstr(string.format('%-40s ', entry.mask))
+            addstr(string.format('%-30s ', entry.mask))
+
+            local nicks = entry.nicks
+            if nicks then
+                if #nicks > 7 then
+                    magenta()
+                    addstr(string.format('affected %d', #nicks))
+                else
+                    normal()
+                    addstr(table.concat(entry.nicks, ' ') .. ' ')
+                end
+            end
+
             blue()
             addstr(entry.reason or '')
         end

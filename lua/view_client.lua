@@ -147,22 +147,13 @@ function M:keypress(key)
     draw()
 end
 
+local rotating_window = require 'rotating_window'
+
 function M:render()
 
-    local window = {}
+    local rows = math.max(0, tty_height - 2)
+    local window = rotating_window.build_window(messages, 'each', rows)
     local clear_string = string.rep(' ', tty_width)
-
-    local n = 0
-    local rows = math.max(1, tty_height - 2)
-
-    for _, entry in messages:each() do
-        local y = (messages.n-1-n) % rows
-        window[y] = entry
-        n = n + 1
-        if n >= rows-1 then break end
-    end
-
-    window[messages.n % rows] = 'divider'
 
     for y = 0, rows - 1 do
         local entry = window[y]

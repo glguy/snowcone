@@ -100,6 +100,18 @@ function M.kline(ev)
     })
 end
 
+function M.kline_active(ev)
+    local entry = klines:lookup('kline ' .. ev.mask)
+    if entry then
+        local nicks = entry.nicks
+        if nicks then
+            table.insert(nicks, ev.nick)
+        else
+            entry.nicks = { ev.nick }
+        end
+    end
+end
+
 function M.expired(ev)
     if ev.kind == 'k-line' then
         local old = klines:lookup('kline ' .. ev.mask)
