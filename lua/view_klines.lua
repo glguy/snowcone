@@ -64,6 +64,15 @@ function M:render()
                 normal()
                 addstr(string.format('%-6.6s ', entry.kind))
             end
+
+            if entry.kind == 'kline' then
+                local _, x = ncurses.getyx()
+                add_click(y, x, x + #entry.mask, function()
+                    send_irc('TESTLINE ' .. entry.mask .. '\r\n')
+                    staged_action = {action = 'unkline', entry = {nick = '*'}}
+                end)
+            end
+
             palette[entry.kind]()
             addstr(string.format('%-30s ', entry.mask))
 
@@ -71,7 +80,7 @@ function M:render()
             if nicks then
                 if #nicks > 7 then
                     magenta()
-                    addstr(string.format('affected %d', #nicks))
+                    addstr(string.format('affected %d ', #nicks))
                 else
                     normal()
                     addstr(table.concat(entry.nicks, ' ') .. ' ')
