@@ -164,8 +164,7 @@ end
 M['381'] = function()
     irc_state.oper = true
     send_irc(
-        'MAP\r\n' ..
-        'LINKS\r\n' ..
+        counter_sync_commands() ..
         'MODE ' .. irc_state.nick .. ' s Fknsx\r\n'
     )
     status_message = "you're oper"
