@@ -28,15 +28,71 @@ local M = {}
 function M:keypress()
 end
 
+local orderings = {
+    name = function(x,y)
+        return x.name < y.name
+    end,
+    load1 = function(x,y)
+        return x.load[1] < y.load[1]
+            or x.load[1] == y.load[1] and x.name < y.name
+    end,
+    load5 = function(x,y)
+        return x.load[5] < y.load[5]
+            or x.load[5] == y.load[5] and x.name < y.name
+    end,
+    load15 = function(x,y)
+        return x.load[15] < y.load[15]
+            or x.load[15] == y.load[15] and x.name < y.name
+    end,
+    region = function(x,y)
+        local a = (servers.servers[x.name] or {}).region or ''
+        local b = (servers.servers[y.name] or {}).region or ''
+        return a < b
+            or a == b and x.name < y.name
+    end,
+    conns = function(x,y)
+        if population[y.name] == nil then return false end
+        if population[x.name] == nil then return true end
+        return population[x.name] < population[y.name]
+            or population[x.name] == population[y.name] and x.name < y.name
+    end,
+    uplink = function(x,y)
+        local a = upstream[x.name] or ''
+        local b = upstream[y.name] or ''
+        return a < b or a == b and x.name < y.name
+    end,
+}
+
+local ordering = 'name'
+local descending = false
+
+local function add_column(text, name)
+    local active = name == ordering
+    if active then bold() end
+    add_button(text, function()
+        if ordering == name then
+            descending = not descending
+        else
+            ordering = name
+            descending = false
+        end
+    end, true)
+    if active then bold_() end
+end
+
 function M:render()
 
     local rows = {}
     for server,avg in pairs(tracker.detail) do
         table.insert(rows, {name=server,load=avg})
     end
-    table.sort(rows, function(x,y)
-        return x.name < y.name
-    end)
+
+    local orderimpl = orderings[ordering]
+    if descending then
+        local original = orderimpl
+        orderimpl = function(x,y) return original(y,x) end
+    end
+    table.sort(rows, orderimpl)
 
     local pad = math.max(tty_height - #rows - 2, 0)
 
@@ -44,7 +100,16 @@ function M:render()
     local next_color = 2
 
     ncurses.colorset(header_color)
-    mvaddstr(pad,0, string.format('          Server  1m    5m    15m  %-62s Mn  Region AF  Conns  Up', title))
+    mvaddstr(pad,0, '')
+    add_column('          Server', 'name')
+    add_column('    1m', 'load1')
+    add_column('    5m', 'load5')
+    add_column('   15m', 'load15')
+    addstr(string.format(' %-62s Mn', title))
+    add_column('  Region', 'region')
+    addstr(' AF')
+    add_column('  Conns', 'conns')
+    add_column('  Up', 'uplink')
     if servers.flags then addstr('  Flags') end
 
     normal()

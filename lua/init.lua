@@ -192,11 +192,11 @@ function add_click(y, lo, hi, action)
     end
 end
 
-function add_button(text, action)
+function add_button(text, action, plain)
     local y1,x1 = ncurses.getyx()
-    reversevideo()
+    if not plain then reversevideo() end
     addstr(text)
-    reversevideo_()
+    if not plain then reversevideo_() end
     local _, x2 = ncurses.getyx()
     add_click(y1, x1, x2, action)
 end
