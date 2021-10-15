@@ -100,6 +100,16 @@ function M.kline(ev)
     })
 end
 
+function M.kill(ev)
+    klines:insert('kill ' .. ev.nick, {
+        time = ev.time,
+        oper = ev.from,
+        reason = ev.reason,
+        mask = ev.nick,
+        kind = 'kill',
+    })
+end
+
 function M.kline_active(ev)
     local entry = klines:lookup('kline ' .. ev.mask)
     if entry then

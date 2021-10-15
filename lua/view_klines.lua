@@ -28,6 +28,7 @@ local palette = {
     expired = yellow,
     removed = green,
     inactive = normal,
+    kill = magenta,
 }
 
 local rotating_window = require 'rotating_window'
@@ -62,7 +63,7 @@ function M:render()
                 addstr(string.format('%6s ', pretty_duration(entry.duration) or ''))
             else
                 normal()
-                addstr(string.format('%-6.6s ', entry.kind))
+                addstr(string.format('%6.6s ', entry.kind))
             end
 
             if entry.kind == 'kline' then

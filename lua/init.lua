@@ -509,6 +509,7 @@ local function refresh_rotations()
 end
 
 if not rotations_timer then
+    refresh_rotations()
     rotations_timer = newtimer()
     rotations_timer:start(30000, function()
         refresh_rotations()

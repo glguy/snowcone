@@ -186,6 +186,23 @@ return function(time, server, str)
     end
 
     do
+        local nick, user, host, from, reason =
+            string.match(str, '^Received KILL message for (.-)!(.-)@(.-)%. From (%g+) Path: %g+ %((.*)%)$')
+        if nick then
+            return {
+                name = 'kill',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                from = from,
+                reason = scrub(reason),
+            }
+        end
+    end
+
+    do
         local nick, user, host, oper, token, arg =
             string.match(str, '^OPERSPY ([^!]+)!([^@]+)@([^{]+){([^}]*)} (%g+) (.*)$')
         if oper then
