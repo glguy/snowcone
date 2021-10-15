@@ -108,17 +108,17 @@ return function(time, server, str)
     do -- new format added in 430833dca2fc08ae6f423ff6bded4bffeb5d345a
         local nick, user, host, mask =
             string.match(str, '^Disconnecting K-Lined user (.-)%[(.-)@(.-)%] %((.*)%)$')
-            if nick then
-                return {
-                    name = 'kline_active',
-                    server = server,
-                    time = time,
-                    nick = nick,
-                    user = user,
-                    host = host,
-                    mask = mask,
-                }
-            end
+        if nick then
+            return {
+                name = 'kline_active',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                mask = mask,
+            }
+        end
     end
 
     do
