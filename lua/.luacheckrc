@@ -34,7 +34,7 @@ globals = {
     "Set", "tablex", "irc_authentication", "ncurses", "ip_org", "servers",
     "path", "file", "scrub",
 
-    "newtimer", "rotations_timer", "tick_timer", "setmodule",
-    "newwatcher", "reloader", "quit", "shutdown", "pton",
+    "newtimer", "setmodule",
+    "newwatcher", "quit", "shutdown", "pton", "uv_resources",
     },
 }

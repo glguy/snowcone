@@ -103,6 +103,7 @@ local defaults = {
     upstream = {},
     status_message = '',
     irc_state = {},
+    uv_resources = {},
 
     -- settings
     show_reasons = true,
@@ -506,17 +507,17 @@ local function refresh_rotations()
     end
 end
 
-if not rotations_timer then
+if not uv_resources.rotations_timer then
     refresh_rotations()
-    rotations_timer = newtimer()
-    rotations_timer:start(30000, function()
+    uv_resources.rotations_timer = newtimer()
+    uv_resources.rotations_timer:start(30000, function()
         refresh_rotations()
     end)
 end
 
-if not tick_timer then
-    tick_timer = newtimer()
-    tick_timer:start(1000, function()
+if not uv_resources.tick_timer then
+    uv_resources.tick_timer = newtimer()
+    uv_resources.tick_timer:start(1000, function()
         uptime = uptime + 1
         conn_tracker:tick()
         exit_tracker:tick()
@@ -526,18 +527,18 @@ if not tick_timer then
     end)
 end
 
-if not reloader then
-    reloader = newwatcher()
-    reloader:start(path.dirname(configuration.lua_filename), function()
+if not uv_resources.reloader then
+    uv_resources.reloader = newwatcher()
+    uv_resources.reloader:start(path.dirname(configuration.lua_filename), function()
         assert(loadfile(configuration.lua_filename))()
     end)
 end
 
 function quit()
     shutdown()
-    tick_timer:close()
-    reloader:close()
-    rotations_timer:close()
+    for _, handle in pairs(uv_resources) do
+        handle:close()
+    end
     send_irc 'QUIT\r\n'
 end
 
