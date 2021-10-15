@@ -88,14 +88,17 @@ function M:render()
                     else
                         xs[i] = k
                     end
-                    if i == 8 then break end
+                    if i == 50 then break end
                 end
                 if i < 8 then
                     normal()
                     addstr(table.concat(xs, ' ') .. ' ')
+                elseif i < 50 then
+                    magenta()
+                    addstr(string.format('affected %d ', i))
                 else
                     magenta()
-                    addstr(string.format('affected %d ', #nicks))
+                    addstr('affected >=50 ')
                 end
             end
 
