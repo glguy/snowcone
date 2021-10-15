@@ -7,7 +7,9 @@ local function render_entry(y, network, count, nest)
     if nest then
         mvaddstr(y, 0, string.format('%43s┘  ', network))
     else
+        bold()
         mvaddstr(y, 0, string.format('%44s  ', network))
+        bold_()
     end
     if count > 999 then
         bold()
@@ -52,7 +54,6 @@ function M:render()
     for name, tracker in sortpairs(net_trackers) do
         if y+1 >= tty_height then break end
 
-        bold()
         cyan()
         render_entry(y, name, tracker:count())
 
