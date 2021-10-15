@@ -35,7 +35,7 @@ local rotating_window = require 'rotating_window'
 
 function M:render()
 
-    local rows = math.max(0, tty_height - 1)
+    local rows = math.max(0, tty_height - 2)
     local window = rotating_window.build_window(klines, 'each', rows)
     local clear_string = string.rep(' ', tty_width)
 
@@ -92,6 +92,7 @@ function M:render()
             addstr(entry.reason or '')
         end
     end
+    draw_buttons()
     draw_global_load('CLICON', conn_tracker)
 end
 

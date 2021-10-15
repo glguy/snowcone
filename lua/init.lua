@@ -168,14 +168,12 @@ function entry_to_unkline(entry)
 end
 
 function kline_ready()
-    return (view == 1 or view == 3)
-       and staged_action ~= nil
+    return staged_action ~= nil
        and staged_action.action == 'kline'
 end
 
 function unkline_ready()
-    return (view == 1 or view == 3)
-        and staged_action ~= nil
+    return staged_action ~= nil
         and staged_action.action == 'unkline'
         and staged_action.mask ~= nil
 end
