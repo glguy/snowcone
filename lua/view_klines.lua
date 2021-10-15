@@ -81,8 +81,10 @@ function M:render()
             if nicks then
                 local xs = {}
                 local i = 0
+                local n = 0
                 for k,v in pairs(nicks) do
                     i = i + 1
+                    n = n + v
                     if v > 1 then
                         xs[i] = string.format('%s:%d', k, v)
                     else
@@ -95,10 +97,10 @@ function M:render()
                     addstr(table.concat(xs, ' ') .. ' ')
                 elseif i < 50 then
                     magenta()
-                    addstr(string.format('affected %d ', i))
+                    addstr(string.format('%d nicks %d hits ', i, n))
                 else
                     magenta()
-                    addstr('affected >=50 ')
+                    addstr('many affected ')
                 end
             end
 
