@@ -33,28 +33,29 @@ local orderings = {
         return x.name < y.name
     end,
     load1 = function(x,y)
-        return x.load[1] < y.load[1]
-            or x.load[1] == y.load[1] and x.name < y.name
+        local a = x.load[1]
+        local b = y.load[1]
+        return a < b or a == b and x.name < y.name
     end,
     load5 = function(x,y)
-        return x.load[5] < y.load[5]
-            or x.load[5] == y.load[5] and x.name < y.name
+        local a = x.load[5]
+        local b = y.load[5]
+        return a < b or a == b and x.name < y.name
     end,
     load15 = function(x,y)
-        return x.load[15] < y.load[15]
-            or x.load[15] == y.load[15] and x.name < y.name
+        local a = x.load[15]
+        local b = y.load[15]
+        return a < b or a == b and x.name < y.name
     end,
     region = function(x,y)
         local a = (servers.servers[x.name] or {}).region or ''
         local b = (servers.servers[y.name] or {}).region or ''
-        return a < b
-            or a == b and x.name < y.name
+        return a < b or a == b and x.name < y.name
     end,
     conns = function(x,y)
-        if population[y.name] == nil then return false end
-        if population[x.name] == nil then return true end
-        return population[x.name] < population[y.name]
-            or population[x.name] == population[y.name] and x.name < y.name
+        local a = population[x.name] or -1
+        local b = population[y.name] or -1
+        return a < b or a == b and x.name < y.name
     end,
     uplink = function(x,y)
         local a = upstream[x.name] or ''
