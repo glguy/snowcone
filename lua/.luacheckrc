@@ -25,7 +25,8 @@ stds = {
             "irc_state", "send_irc", "require_", "status_message", "views",
 
             "primary_hub", "uptime", "trust_uname", "show_reasons", "kline_duration",
-            "staged_action", "kline_reason", "scroll", "history", "mrs",
+            "staged_action", "kline_reason", "scroll", "history", "mrs", "server_ordering",
+            "server_descending",
 
             "links", "upstream", "population", "conn_tracker", "exit_tracker",
             "kline_tracker", "filter_tracker", "net_trackers",

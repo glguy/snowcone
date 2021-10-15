@@ -110,6 +110,8 @@ local defaults = {
     kline_duration = 1,
     kline_reason = 1,
     trust_uname = false,
+    server_ordering = 'name',
+    server_descending = false,
 }
 
 function initialize()

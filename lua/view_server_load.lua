@@ -64,18 +64,15 @@ local orderings = {
     end,
 }
 
-local ordering = 'name'
-local descending = false
-
 local function add_column(text, name)
-    local active = name == ordering
+    local active = name == server_ordering
     if active then bold() end
     add_button(text, function()
-        if ordering == name then
-            descending = not descending
+        if server_ordering == name then
+            server_descending = not server_descending
         else
-            ordering = name
-            descending = false
+            server_ordering = name
+            server_descending = false
         end
     end, true)
     if active then bold_() end
@@ -88,8 +85,8 @@ function M:render()
         table.insert(rows, {name=server,load=avg})
     end
 
-    local orderimpl = orderings[ordering]
-    if descending then
+    local orderimpl = orderings[server_ordering]
+    if server_descending then
         local original = orderimpl
         orderimpl = function(x,y) return original(y,x) end
     end
