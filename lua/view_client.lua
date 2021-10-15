@@ -102,6 +102,10 @@ function commands.sync()
     send_irc(counter_sync_commands())
 end
 
+function commands.reload()
+    assert(loadfile(configuration.lua_filename))()
+end
+
 function commands.eval(args)
     local chunk, message = load(args, '=(eval)', 't')
     if chunk then

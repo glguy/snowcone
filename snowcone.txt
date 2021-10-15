@@ -93,6 +93,7 @@ RAW CLIENT
                             using Lua pattern syntax
   /nettrack label address/prefix  Add a network to the F9 tracking view
   /quote raw_command        Send a raw IRC command
+  /reload                   Reload Lua files
 
 GEOIP SUPPORT
   Both legacy GeoIP and modern GeoIP Maxmind database are supported
