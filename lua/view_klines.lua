@@ -79,12 +79,23 @@ function M:render()
 
             local nicks = entry.nicks
             if nicks then
-                if #nicks > 7 then
+                local xs = {}
+                local i = 0
+                for k,v in pairs(nicks) do
+                    i = i + 1
+                    if v > 1 then
+                        xs[i] = string.format('%s:%d', k, v)
+                    else
+                        xs[i] = k
+                    end
+                    if i == 8 then break end
+                end
+                if i < 8 then
+                    normal()
+                    addstr(table.concat(xs, ' ') .. ' ')
+                else
                     magenta()
                     addstr(string.format('affected %d ', #nicks))
-                else
-                    normal()
-                    addstr(table.concat(entry.nicks, ' ') .. ' ')
                 end
             end
 

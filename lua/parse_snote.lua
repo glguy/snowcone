@@ -168,6 +168,39 @@ return function(time, server, str)
         end
     end
 
+    do -- old format
+        local nick, user, host, mask =
+            string.match(str, '^Rejecting K%-Lined user (%g-)%[(%g-)@(%g-)%] %[(%g+)%]$')
+        if nick then
+            return {
+                name = 'rejected',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                mask = mask,
+            }
+        end
+    end
+
+    do -- new format
+        local nick, user, host, ip, mask =
+            string.match(str, '^Rejecting K%-Lined user (%g-)%[(%g-)@(%g-)%] %[(%g+)%] %((.*)%)$')
+        if nick then
+            return {
+                name = 'rejected',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                mask = mask,
+                ip = ip,
+            }
+        end
+    end
+
     do
         local server1, server2, sid1, sid2, reason =
             string.match(str, '^Netsplit (%g+) <%-> (%g+) %((%g+) (%g+)%) %((.*)%)$')
