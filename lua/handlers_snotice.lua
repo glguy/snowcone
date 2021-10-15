@@ -166,4 +166,8 @@ function M.netsplit(ev)
     status_message = 'netsplit ' .. ev.server2 .. ' ('.. ev.reason .. ')'
 end
 
+function M.override(ev)
+    status_message = string.format('override %s %s %s', ev.oper, ev.kind, ev.target)
+end
+
 return M
