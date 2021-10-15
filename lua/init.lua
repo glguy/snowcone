@@ -106,7 +106,7 @@ local defaults = {
     uv_resources = {},
 
     -- settings
-    show_reasons = true,
+    show_reasons = 'reason',
     kline_duration = 1,
     kline_reason = 1,
     trust_uname = false,
@@ -283,9 +283,13 @@ function draw_buttons()
     bold()
 
     black()
-    add_button('[ REASON ]', function()
-        show_reasons = not show_reasons
-    end)
+    if show_reasons == 'reason' then
+        add_button('[ REASON ]', function() show_reasons = 'org' end)
+    elseif show_reasons == 'org' then
+        add_button('[  ORG   ]', function() show_reasons = 'ip' end)
+    else
+        add_button('[   IP   ]', function() show_reasons = 'reason' end)
+    end
     addstr ' '
 
     if filter then

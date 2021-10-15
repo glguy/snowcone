@@ -148,9 +148,9 @@ function M:render()
                 magenta()
             end
 
-            if show_reasons and entry.reason then
+            if show_reasons == 'reason' and entry.reason then
                 mvaddstr(y, 80, string.sub(entry.reason, 1, 39))
-            elseif entry.org then
+            elseif show_reasons ~= 'ip' and entry.org then
                 mvaddstr(y, 80, string.sub(entry.org, 1, 39))
             else
                 mvaddstr(y, 80, entry.ip)
