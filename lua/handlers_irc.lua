@@ -37,6 +37,13 @@ function M.NOTICE(irc)
     end
 end
 
+M.NICK = function(irc)
+    local nick = string.match(irc.source, '^(.-)!')
+    if nick and nick == irc_state.nick then
+        irc_state.nick = irc[1]
+    end
+end
+
 -- RPL_WELCOME
 M['001'] = function()
     irc_state.connected = true
