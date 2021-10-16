@@ -514,16 +514,15 @@ local function refresh_rotations()
 end
 
 if not uv_resources.rotations_timer then
-    refresh_rotations()
     uv_resources.rotations_timer = snowcone.newtimer()
-    uv_resources.rotations_timer:start(30000, function()
+    uv_resources.rotations_timer:start(0, 30000, function()
         refresh_rotations()
     end)
 end
 
 if not uv_resources.tick_timer then
     uv_resources.tick_timer = snowcone.newtimer()
-    uv_resources.tick_timer:start(1000, function()
+    uv_resources.tick_timer:start(1000, 1000, function()
         uptime = uptime + 1
         conn_tracker:tick()
         exit_tracker:tick()

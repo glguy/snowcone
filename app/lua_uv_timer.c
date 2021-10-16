@@ -36,19 +36,26 @@ static void on_timer(uv_timer_t *timer)
 static int l_start(lua_State *L)
 {
     uv_timer_t *timer = luaL_checkudata(L, 1, typename);
-    lua_Integer millis = luaL_checkinteger(L, 2);
-    luaL_checkany(L, 3);
-    lua_settop(L, 3);
+    lua_Integer start = luaL_checkinteger(L, 2);
+    lua_Integer repeat = luaL_checkinteger(L, 3);
+    luaL_checkany(L, 4);
+    lua_settop(L, 4);
 
     lua_setuservalue(L, 1);
-    int r = uv_timer_start(timer, on_timer, millis, millis);
+    int r = uv_timer_start(timer, on_timer, start, repeat);
     assert(0 == r);
     return 0;
+}
+
+static int l_stop(lua_State *L)
+{
+    uv_timer_t *timer = luaL_checkudata(L, 1, typename);
 }
 
 static luaL_Reg MT[] = {
     {"close", l_close},
     {"start", l_start},
+    {"stop", l_stop},
     {}
 };
 
