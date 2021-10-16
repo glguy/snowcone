@@ -48,6 +48,20 @@ end
 M['001'] = function()
     irc_state.connected = true
     status_message = 'connected'
+
+    local msg
+    if configuration.irc_oper_username and configuration.irc_challenge_key then
+        msg = 'CHALLENGE ' .. configuration.irc_oper_username .. '\r\n'
+        irc_state.challenge = {}
+    elseif configuration.irc_oper_username and configuration.irc_oper_password then
+        msg = 'OPER ' ..
+            configuration.irc_oper_username .. ' ' ..
+            configuration.irc_oper_password .. '\r\n'
+    else
+        irc_state.oper = true
+        msg = counter_sync_commands()
+    end
+    snowcone.send_irc(msg)
 end
 
 M['008'] = function(irc)
@@ -179,17 +193,29 @@ end
 
 -- RPL_SASLSUCCESS
 M['903'] = function()
-    status_message = 'SASL success'
+    if irc_state.sasl then
+        status_message = 'SASL success'
+        irc_state.sasl = nil
+        snowcone.send_irc 'CAP END\r\n'
+    end
 end
 
 -- ERR_SASLFAIL
 M['904'] = function()
-    status_message = 'SASL failed'
+    if irc_state.sasl then
+        status_message = 'SASL failed'
+        irc_state.sasl = nil
+        snowcone.send_irc 'QUIT\r\n'
+    end
 end
 
 -- RPL_SASLMECHS
 M['908'] = function()
-    status_message = 'bad SASL mechanism'
+    if irc_state.sasl then
+        status_message = 'bad SASL mechanism'
+        irc_state.sasl = nil
+        snowcone.send_irc 'QUIT\r\n'
+    end
 end
 
 return M

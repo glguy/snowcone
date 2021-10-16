@@ -453,19 +453,6 @@ local function irc_register()
     local user = configuration.irc_user or configuration.irc_nick
     local gecos = configuration.irc_gecos or configuration.irc_nick
 
-    local first
-    if configuration.irc_oper_username and configuration.irc_challenge_key then
-        first = 'CHALLENGE ' .. configuration.irc_oper_username .. '\r\n'
-        irc_state.challenge = {}
-    elseif configuration.irc_oper_username and configuration.irc_oper_password then
-        first = 'OPER ' ..
-            configuration.irc_oper_username .. ' ' ..
-            configuration.irc_oper_password .. '\r\n'
-    else
-        irc_state.oper = true
-        first = counter_sync_commands()
-    end
-
     local caps = {}
     if configuration.irc_capabilities then
         table.insert(caps, configuration.irc_capabilities)
@@ -475,27 +462,34 @@ local function irc_register()
     if configuration.irc_sasl_mechanism == "EXTERNAL" then
         table.insert(caps, 'sasl')
         auth = irc_authentication.sasl('EXTERNAL', '')
+        irc_state.sasl = true
     elseif configuration.irc_sasl_mechanism == "PLAIN" then
         table.insert(caps, 'sasl')
         auth = irc_authentication.sasl('PLAIN',
                 '\0' .. configuration.irc_sasl_username ..
                 '\0' .. configuration.irc_sasl_password)
+        irc_state.sasl = true
     end
 
     local capreq = ''
+    local capend = ''
     if next(caps) then
-        capreq = 'CAP REQ :' .. table.concat(caps, ' ') .. '\r\n'
+        capreq =
+            'CAP LS 302\r\n' ..
+            'CAP REQ :' .. table.concat(caps, ' ') .. '\r\n'
+        if not irc_state.sasl then
+            capend = 'CAP END\r\n'
+        end
     end
 
     snowcone.send_irc(
-        'CAP LS 302\r\n' ..
+        capreq ..
         pass ..
         'NICK ' .. configuration.irc_nick .. '\r\n' ..
         'USER ' .. user .. ' * * ' .. gecos .. '\r\n' ..
-        capreq ..
         auth ..
-        'CAP END\r\n' ..
-        first)
+        capend
+        )
 end
 
 -- Timers =============================================================
