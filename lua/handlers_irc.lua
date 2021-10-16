@@ -186,7 +186,7 @@ M['381'] = function()
     irc_state.oper = true
     snowcone.send_irc(
         counter_sync_commands() ..
-        'MODE ' .. irc_state.nick .. ' s BFknsx\r\n'
+        'MODE ' .. irc_state.nick .. ' s BFcknsx\r\n'
     )
     status_message = "you're oper"
 end
@@ -196,7 +196,11 @@ M['903'] = function()
     if irc_state.sasl then
         status_message = 'SASL success'
         irc_state.sasl = nil
-        snowcone.send_irc 'CAP END\r\n'
+
+        if irc_state.in_cap then
+            snowcone.send_irc 'CAP END\r\n'
+            irc_state.in_cap = nil
+        end
     end
 end
 
