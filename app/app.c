@@ -237,41 +237,33 @@ static void load_logic(lua_State *L, char const *filename)
 
 static void push_configuration(lua_State *L, struct configuration *cfg)
 {
-    lua_createtable(L, 0, 17);
-    lua_pushstring(L, cfg->console_node);
-    lua_setfield(L, -2, "console_node");
-    lua_pushstring(L, cfg->console_service);
-    lua_setfield(L, -2, "console_service");
-    lua_pushstring(L, cfg->lua_filename);
-    lua_setfield(L, -2, "lua_filename");
-    lua_pushstring(L, cfg->irc_socat);
-    lua_setfield(L, -2, "irc_socat");
-    lua_pushstring(L, cfg->irc_nick);
-    lua_setfield(L, -2, "irc_nick");
-    lua_pushstring(L, cfg->irc_pass);
-    lua_setfield(L, -2, "irc_pass");
-    lua_pushstring(L, cfg->irc_user);
-    lua_setfield(L, -2, "irc_user");
-    lua_pushstring(L, cfg->irc_gecos);
-    lua_setfield(L, -2, "irc_gecos");
-    lua_pushstring(L, cfg->irc_challenge_key);
-    lua_setfield(L, -2, "irc_challenge_key");
-    lua_pushstring(L, cfg->irc_challenge_password);
-    lua_setfield(L, -2, "irc_challenge_password");
-    lua_pushstring(L, cfg->irc_oper_username);
-    lua_setfield(L, -2, "irc_oper_username");
-    lua_pushstring(L, cfg->irc_oper_password);
-    lua_setfield(L, -2, "irc_oper_password");
-    lua_pushstring(L, cfg->irc_sasl_mechanism);
-    lua_setfield(L, -2, "irc_sasl_mechanism");
-    lua_pushstring(L, cfg->irc_sasl_username);
-    lua_setfield(L, -2, "irc_sasl_username");
-    lua_pushstring(L, cfg->irc_sasl_password);
-    lua_setfield(L, -2, "irc_sasl_password");
-    lua_pushstring(L, cfg->irc_capabilities);
-    lua_setfield(L, -2, "irc_capabilities");
-    lua_pushstring(L, cfg->network_filename);
-    lua_setfield(L, -2, "network_filename");
+    char const* const configs[][2] = {
+        {"console_node", cfg->console_node},
+        {"console_service", cfg->console_service},
+        {"lua_filename", cfg->lua_filename},
+        {"irc_socat", cfg->irc_socat},
+        {"irc_nick", cfg->irc_nick},
+        {"irc_pass", cfg->irc_pass},
+        {"irc_user", cfg->irc_user},
+        {"irc_gecos", cfg->irc_gecos},
+        {"irc_challenge_key", cfg->irc_challenge_key},
+        {"irc_challenge_password", cfg->irc_challenge_password},
+        {"irc_oper_username", cfg->irc_oper_username},
+        {"irc_oper_password", cfg->irc_oper_password},
+        {"irc_sasl_mechanism", cfg->irc_sasl_mechanism},
+        {"irc_sasl_username", cfg->irc_sasl_username},
+        {"irc_sasl_password", cfg->irc_sasl_password},
+        {"irc_capabilities", cfg->irc_capabilities},
+        {"network_filename", cfg->network_filename},
+    };
+
+    size_t const n = sizeof configs / sizeof *configs;
+    lua_createtable(L, 0, n);
+    for (size_t i = 0; i < n; i++)
+    {
+        lua_pushstring(L, configs[i][1]);
+        lua_setfield(L, -2, configs[i][0]);
+    }
 }
 
 static int l_newtimer(lua_State *L)

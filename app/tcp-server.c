@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include <uv.h>
+#include <ncurses.h>
 
 #include "app.h"
 #include "read-line.h"
@@ -27,6 +28,7 @@ int start_tcp_server(struct app *a)
     int res = uv_getaddrinfo(&a->loop, &req, NULL, a->cfg->console_node, a->cfg->console_service, &hints);
     if (res < 0)
     {
+        endwin();
         fprintf(stderr, "failed to resolve %s: %s\n", a->cfg->console_node, uv_strerror(res));
         return 1;
     }
@@ -59,6 +61,7 @@ int start_tcp_server(struct app *a)
         res = uv_tcp_bind(tcp, ai->ai_addr, 0);
         if (res < 0)
         {
+            endwin();
             fprintf(stderr, "failed to bind: %s\n", uv_strerror(res));
             goto teardown;
         } 
@@ -66,6 +69,7 @@ int start_tcp_server(struct app *a)
         res = uv_listen((uv_stream_t*)tcp, SOMAXCONN, &on_new_connection);
         if (res < 0)
         {
+            endwin();
             fprintf(stderr, "failed to listen: %s\n", uv_strerror(res));
             goto teardown;
         } 
