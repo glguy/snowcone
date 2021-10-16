@@ -80,7 +80,7 @@ local buffer = ""
 local commands = {}
 
 function commands.quote(args)
-    send_irc(args .. '\r\n')
+    snowcone.send_irc(args .. '\r\n')
 end
 
 function commands.nettrack(args)
@@ -99,7 +99,7 @@ function commands.filter(args)
 end
 
 function commands.sync()
-    send_irc(counter_sync_commands())
+    snowcone.send_irc(counter_sync_commands())
 end
 
 function commands.reload()

@@ -288,6 +288,18 @@ static int l_newwatcher(lua_State *L)
     return 1;
 }
 
+static luaL_Reg M[] = {
+    { "to_base64", app_to_base64 },
+    { "send_irc", l_writeirc },
+    { "dnslookup", l_dnslookup },
+    { "pton", l_pton },
+    { "shutdown", l_shutdown },
+    { "newtimer", l_newtimer },
+    { "newwatcher", l_newwatcher },
+    { "setmodule", l_setmodule },
+    {}
+};
+
 static void app_prepare_globals(struct app *a)
 {
     lua_State * const L = a->L;
@@ -298,24 +310,12 @@ static void app_prepare_globals(struct app *a)
     luaL_requiref(L, "mygeoip", luaopen_mygeoip, 1);
     lua_pop(L, 2);
 
-    lua_pushcfunction(L, app_to_base64);
-    lua_setglobal(L, "to_base64");
+    luaL_newlib(L, M);
+    lua_setglobal(L, "snowcone");
+
+    /* Overwrite the lualib print with the custom one */
     lua_pushcfunction(L, l_print);
     lua_setglobal(L, "print");
-    lua_pushcfunction(L, l_writeirc);
-    lua_setglobal(L, "send_irc");
-    lua_pushcfunction(L, l_dnslookup);
-    lua_setglobal(L, "dnslookup");
-    lua_pushcfunction(L, l_pton);
-    lua_setglobal(L, "pton");
-    lua_pushcfunction(L, l_shutdown);
-    lua_setglobal(L, "shutdown");
-    lua_pushcfunction(L, l_newtimer);
-    lua_setglobal(L, "newtimer");
-    lua_pushcfunction(L, l_newwatcher);
-    lua_setglobal(L, "newwatcher");
-    lua_pushcfunction(L, l_setmodule);
-    lua_setglobal(L, "setmodule");
 
     /* install configuration */
     push_configuration(L, a->cfg);

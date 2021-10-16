@@ -20,7 +20,7 @@ function M.sasl(mechanism, body)
 
     authenticate(mechanism)
 
-    body = to_base64(body)
+    body = snowcone.to_base64(body)
     while #body >= 400 do
         authenticate(string.sub(body, 1, 400))
         body = string.sub(body, 401)

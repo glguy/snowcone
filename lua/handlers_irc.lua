@@ -7,7 +7,7 @@ function M.ERROR()
 end
 
 function M.PING(irc)
-    send_irc('PONG ' .. irc[1] .. '\r\n')
+    snowcone.send_irc('PONG ' .. irc[1] .. '\r\n')
 end
 
 local parse_snote = require_ 'parse_snote'
@@ -151,7 +151,7 @@ M['741'] = function()
         local password      = configuration.irc_challenge_password
         local success, resp = pcall(irc_authentication.challenge, rsa_key, password, challenge)
         if success then
-            send_irc('CHALLENGE +' .. resp .. '\r\n')
+            snowcone.send_irc('CHALLENGE +' .. resp .. '\r\n')
             status_message = 'challenged'
         else
             io.stderr:write(resp,'\n')
@@ -163,7 +163,7 @@ end
 -- RPL_YOUREOPER
 M['381'] = function()
     irc_state.oper = true
-    send_irc(
+    snowcone.send_irc(
         counter_sync_commands() ..
         'MODE ' .. irc_state.nick .. ' s BFknsx\r\n'
     )

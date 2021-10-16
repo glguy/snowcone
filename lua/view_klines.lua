@@ -69,7 +69,7 @@ function M:render()
             if entry.kind == 'kline' then
                 local _, x = ncurses.getyx()
                 add_click(y, x, x + #entry.mask, function()
-                    send_irc('TESTLINE ' .. entry.mask .. '\r\n')
+                    snowcone.send_irc('TESTLINE ' .. entry.mask .. '\r\n')
                     staged_action = {action = 'unkline', entry = {nick = '*'}}
                 end)
             end

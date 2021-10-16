@@ -1,7 +1,14 @@
 return {
 ignore = { "212/self" },
-std = "lua53+snowcone+pl",
+std = "lua53+main+snowcone+pl",
 stds = {
+    snowcone = {
+        read_globals = {
+            snowcone = {
+              fields = {"to_base64", "send_irc", "dnslookup", "pton", "shutdown", "newtimer", "newwatcher", "setmodule",},
+            },
+        },
+    },
     pl = {
         globals = {
             path = {fields = {"isdir", "isfile", "getsize", "exists", "getatime", "getmtime", "getctime",
@@ -16,13 +23,10 @@ stds = {
             pretty = {fields = {"read", "load", "write", "dump", "number"}},
         },
     },
-    snowcone = {
-        read_globals = {"newtimer", "setmodule", "tty_height", "tty_width",
-            "configuration", "to_base64", "dnslookup", "mygeoip",
-            "newwatcher", "shutdown", "pton", "ncurses",
-            },
+    main = {
+        read_globals = {"tty_height", "tty_width", "configuration", "mygeoip", "ncurses" },
         globals = {
-            "irc_state", "send_irc", "require_", "status_message", "views",
+            "irc_state", "require_", "status_message", "views",
 
             "primary_hub", "uptime", "trust_uname", "show_reasons", "kline_duration",
             "staged_action", "kline_reason", "scroll", "history", "mrs", "server_ordering",

@@ -18,7 +18,7 @@ local handlers = {
     [string.byte('e')] = function() conn_filter = nil   end,
     [string.byte('k')] = function()
         if staged_action.action == 'kline' then
-            send_irc(
+            snowcone.send_irc(
                 string.format('KLINE %s %s :%s\r\n',
                     kline_durations[kline_duration][2],
                     staged_action.mask,

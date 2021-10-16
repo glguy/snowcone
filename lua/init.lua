@@ -158,7 +158,7 @@ function entry_to_kline(entry)
     local success, mask = pcall(compute_kline_mask, entry.user, entry.ip, entry.host, trust_uname)
     if success then
         staged_action = {action='kline', mask=mask, entry=entry}
-        send_irc('TESTMASK ' .. mask .. '\r\n')
+        snowcone.send_irc('TESTMASK ' .. mask .. '\r\n')
     else
         staged_action = nil
     end
@@ -166,7 +166,7 @@ end
 
 function entry_to_unkline(entry)
     local mask = entry.user .. '@' .. entry.ip
-    send_irc('TESTLINE ' .. mask .. '\r\n')
+    snowcone.send_irc('TESTLINE ' .. mask .. '\r\n')
     staged_action = {action = 'unkline', entry = entry}
 end
 
@@ -338,7 +338,7 @@ function draw_buttons()
             staged_action.entry.nick,
             staged_action.mask)
         add_button(klineText, function()
-            send_irc(
+            snowcone.send_irc(
                 string.format('KLINE %s %s :%s\r\n',
                     kline_durations[kline_duration][2],
                     staged_action.mask,
@@ -363,7 +363,7 @@ function draw_buttons()
             staged_action.mask or '?')
         add_button(klineText, function()
             if staged_action.mask then
-                send_irc(
+                snowcone.send_irc(
                     string.format('UNKLINE %s\r\n',
                         staged_action.mask
                     )
@@ -413,14 +413,14 @@ end
 
 function add_network_tracker(name, mask)
     local address, prefix = string.match(mask, '^([^/]*)/(%d+)$')
-    local b = pton(address)
+    local b = snowcone.pton(address)
     if not net_trackers[name] then
         net_trackers[name] = NetTracker()
     end
 
     net_trackers[name]:track(mask, b, math.tointeger(prefix))
     if irc_state.oper then
-        send_irc('TESTMASK *@' .. mask .. '\r\n')
+        snowcone.send_irc('TESTMASK *@' .. mask .. '\r\n')
     end
 end
 
@@ -487,7 +487,7 @@ local function irc_register()
         capreq = 'CAP REQ :' .. table.concat(caps, ' ') .. '\r\n'
     end
 
-    send_irc(
+    snowcone.send_irc(
         'CAP LS 302\r\n' ..
         pass ..
         'NICK ' .. configuration.irc_nick .. '\r\n' ..
@@ -502,7 +502,7 @@ end
 
 local function refresh_rotations()
     for label, entry in pairs(servers.regions or {}) do
-        dnslookup(entry.hostname, function(addrs, _, reason)
+        snowcone.dnslookup(entry.hostname, function(addrs, _, reason)
             if addrs then
                 mrs[label] = Set(addrs)
             else
@@ -515,14 +515,14 @@ end
 
 if not uv_resources.rotations_timer then
     refresh_rotations()
-    uv_resources.rotations_timer = newtimer()
+    uv_resources.rotations_timer = snowcone.newtimer()
     uv_resources.rotations_timer:start(30000, function()
         refresh_rotations()
     end)
 end
 
 if not uv_resources.tick_timer then
-    uv_resources.tick_timer = newtimer()
+    uv_resources.tick_timer = snowcone.newtimer()
     uv_resources.tick_timer:start(1000, function()
         uptime = uptime + 1
         conn_tracker:tick()
@@ -534,18 +534,18 @@ if not uv_resources.tick_timer then
 end
 
 if not uv_resources.reloader then
-    uv_resources.reloader = newwatcher()
+    uv_resources.reloader = snowcone.newwatcher()
     uv_resources.reloader:start(path.dirname(configuration.lua_filename), function()
         assert(loadfile(configuration.lua_filename))()
     end)
 end
 
 function quit()
-    shutdown()
+    snowcone.shutdown()
     for _, handle in pairs(uv_resources) do
         handle:close()
     end
-    send_irc 'QUIT\r\n'
+    snowcone.send_irc 'QUIT\r\n'
 end
 
 local keys = {
@@ -623,4 +623,4 @@ function M.on_disconnect()
     status_message = 'disconnected'
 end
 
-setmodule(M)
+snowcone.setmodule(M)

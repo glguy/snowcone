@@ -2,7 +2,7 @@
 
 local function count_ip(address, delta)
     if next(net_trackers) then
-        local baddr = pton(address)
+        local baddr = snowcone.pton(address)
         if baddr then
             for _, track in pairs(net_trackers) do
                 track:delta(baddr, delta)
@@ -169,12 +169,12 @@ function M.filter(ev)
 end
 
 function M.netjoin(ev)
-    send_irc(counter_sync_commands())
+    snowcone.send_irc(counter_sync_commands())
     status_message = 'netjoin ' .. ev.server2
 end
 
 function M.netsplit(ev)
-    send_irc(counter_sync_commands())
+    snowcone.send_irc(counter_sync_commands())
     status_message = 'netsplit ' .. ev.server2 .. ' ('.. ev.reason .. ')'
 end
 
