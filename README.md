@@ -18,7 +18,7 @@ How I run this:
 cmake -B build
 make -C build
 build/app/snowcone \
-   -h ::1 -p 6000 \
+   -l ::1 -p 6000 \
    -S OPENSSL:[::1]:7000,certificate=certificate.pem \
    -N glguy \
    -U glguy@snowcone/libera \
