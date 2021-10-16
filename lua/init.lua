@@ -475,7 +475,6 @@ local function irc_register()
     local capend = ''
     if next(caps) then
         capreq =
-            'CAP LS 302\r\n' ..
             'CAP REQ :' .. table.concat(caps, ' ') .. '\r\n'
         if not irc_state.sasl then
             capend = 'CAP END\r\n'
