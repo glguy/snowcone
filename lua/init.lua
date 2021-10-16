@@ -131,6 +131,9 @@ for server, _ in pairs(servers.servers or {}) do
     exit_tracker:track(server, 0)
 end
 
+
+--  Helper functions ==================================================
+
 local repls = {
     ['\x00'] = '␀', ['\x01'] = '␁', ['\x02'] = '␂', ['\x03'] = '␃',
     ['\x04'] = '␄', ['\x05'] = '␅', ['\x06'] = '␆', ['\x07'] = '␇',

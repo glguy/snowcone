@@ -7,7 +7,7 @@ function M.ERROR()
 end
 
 function M.PING(irc)
-    snowcone.send_irc('PONG ' .. irc[1] .. '\r\n')
+    snowcone.send_irc('PONG :' .. irc[1] .. '\r\n')
 end
 
 local parse_snote = require_ 'parse_snote'
@@ -55,7 +55,7 @@ M['001'] = function()
         irc_state.challenge = {}
     elseif configuration.irc_oper_username and configuration.irc_oper_password then
         msg = 'OPER ' ..
-            configuration.irc_oper_username .. ' ' ..
+            configuration.irc_oper_username .. ' :' ..
             configuration.irc_oper_password .. '\r\n'
     else
         irc_state.oper = true
