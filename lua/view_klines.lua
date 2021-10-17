@@ -35,6 +35,7 @@ local rotating_window = require 'rotating_window'
 
 function M:render()
 
+    local clear_line = string.rep(' ', tty_width)
     local rows = math.max(0, tty_height - 2)
     local window = rotating_window.build_window(klines, 'each', rows)
     local clear_string = string.rep(' ', tty_width)
@@ -106,6 +107,11 @@ function M:render()
 
             blue()
             addstr(entry.reason or '')
+
+            local y_end = ncurses.getyx()
+            for i = y+1,y_end do
+                mvaddstr(i, 0, clear_line)
+            end
         end
     end
     draw_buttons()

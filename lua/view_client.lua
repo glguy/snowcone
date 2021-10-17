@@ -157,7 +157,7 @@ function M:render()
 
     local rows = math.max(0, tty_height - 2)
     local window = rotating_window.build_window(messages, 'each', rows)
-    local clear_string = string.rep(' ', tty_width)
+    local clear_line = string.rep(' ', tty_width)
 
     for y = 0, rows - 1 do
         local entry = window[y]
@@ -166,11 +166,15 @@ function M:render()
             mvaddstr(y, 0, string.rep('·', tty_width))
             normal()
         else
-            mvaddstr(y, 0, clear_string)
             mvaddstr(y, 0, '')
             if window[y] then
                 render_irc(window[y])
             end
+        end
+
+        local y_end = ncurses.getyx()
+        for i = y+1,y_end do
+            mvaddstr(i, 0, clear_line)
         end
     end
     cyan()

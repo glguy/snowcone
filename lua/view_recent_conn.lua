@@ -39,6 +39,7 @@ function M:keypress(key)
 end
 
 function M:render()
+    local clear_line = string.rep(' ', tty_width)
     local skips = scroll or 0
     local last_time
     local n = 0
@@ -190,6 +191,11 @@ function M:render()
                     highlight = entry.mask
                     highlight_plain = true
                 end)
+            end
+
+            local y_end = ncurses.getyx()
+            for i = y+1,y_end do
+                mvaddstr(i, 0, clear_line)
             end
         end
     end
