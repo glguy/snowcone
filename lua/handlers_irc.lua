@@ -42,6 +42,9 @@ M.NICK = function(irc)
     if nick and nick == irc_state.nick then
         irc_state.nick = irc[1]
     end
+    if irc_state.altnick and irc[1] == configuration.irc_nick then
+        irc_state.altnick = nil
+    end
 end
 
 -- RPL_WELCOME
@@ -227,6 +230,7 @@ local function new_nickname()
     if irc_state.registration then
         local nick = string.format('%.10s-%05d', configuration.irc_nick, math.random(0,99999))
         irc_state.nick = nick
+        irc_state.altnick = true
         snowcone.send_irc('NICK ' .. nick .. '\r\n')
     end
 end
