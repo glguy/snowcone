@@ -123,13 +123,15 @@ function M.kline_active(ev)
 end
 
 function M.rejected(ev)
-    local entry = klines:lookup('kline ' .. ev.mask)
-    if entry then
-        local nicks = entry.nicks
-        if nicks then
-            nicks[ev.nick] = (nicks[ev.nick] or 0) + 1
-        else
-            entry.nicks = { [ev.nick] = 1 }
+    if ev.kind == 'k-line' then
+        local entry = klines:lookup('kline ' .. ev.mask)
+        if entry then
+            local nicks = entry.nicks
+            if nicks then
+                nicks[ev.nick] = (nicks[ev.nick] or 0) + 1
+            else
+                entry.nicks = { [ev.nick] = 1 }
+            end
         end
     end
 end

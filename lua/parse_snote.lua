@@ -169,8 +169,8 @@ return function(time, server, str)
     end
 
     do -- old format
-        local nick, user, host, mask =
-            string.match(str, '^Rejecting K%-Lined user (%g-)%[(%g-)@(%g-)%] %[(%g+)%]$')
+        local kind, nick, user, host, mask =
+            string.match(str, '^Rejecting (%g+)d user (%g-)%[(%g-)@(%g-)%] %[(%g+)%]$')
         if nick then
             return {
                 name = 'rejected',
@@ -180,13 +180,14 @@ return function(time, server, str)
                 user = user,
                 host = host,
                 mask = mask,
+                kind = string.lower(kind),
             }
         end
     end
 
     do -- new format
-        local nick, user, host, ip, mask =
-            string.match(str, '^Rejecting K%-Lined user (%g-)%[(%g-)@(%g-)%] %[(%g+)%] %((.*)%)$')
+        local kind, nick, user, host, ip, mask =
+            string.match(str, '^Rejecting (%g+)d user (%g-)%[(%g-)@(%g-)%] %[(%g+)%] %((.*)%)$')
         if nick then
             return {
                 name = 'rejected',
@@ -197,6 +198,7 @@ return function(time, server, str)
                 host = host,
                 mask = mask,
                 ip = ip,
+                kind = string.lower(kind), -- k-line, x-line
             }
         end
     end
