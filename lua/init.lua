@@ -486,6 +486,7 @@ local function irc_register()
         end
     end
 
+    irc_state.registration = true
     snowcone.send_irc(
         capreq ..
         pass ..

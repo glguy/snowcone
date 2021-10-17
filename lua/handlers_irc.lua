@@ -46,6 +46,7 @@ end
 
 -- RPL_WELCOME
 M['001'] = function()
+    irc_state.registration = nil
     irc_state.connected = true
     status_message = 'connected'
 
@@ -221,5 +222,20 @@ M['908'] = function()
         snowcone.send_irc 'QUIT\r\n'
     end
 end
+
+local function new_nickname()
+    if irc_state.registration then
+        local nick = string.format('%.10s-%05d', configuration.irc_nick, math.random(0,99999))
+        irc_state.nick = nick
+        snowcone.send_irc('NICK ' .. nick .. '\r\n')
+    end
+end
+
+-- ERR_ERRONEUSNICKNAME
+M['432'] = new_nickname
+-- ERR_NICKNAMEINUSE
+M['433'] = new_nickname
+-- ERR_UNAVAILRESOURCE
+M['437'] = new_nickname
 
 return M
