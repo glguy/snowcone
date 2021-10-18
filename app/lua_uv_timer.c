@@ -50,6 +50,8 @@ static int l_start(lua_State *L)
 static int l_stop(lua_State *L)
 {
     uv_timer_t *timer = luaL_checkudata(L, 1, typename);
+    uv_timer_stop(timer);
+    return 0;
 }
 
 static luaL_Reg MT[] = {
