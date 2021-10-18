@@ -13,7 +13,10 @@
 
 #include <ircmsg.h>
 #include <myncurses.h>
+
+#if HAS_GEOIP
 #include <mygeoip.h>
+#endif
 
 #include "app.h"
 #include "base64.h"
@@ -299,8 +302,12 @@ static void app_prepare_globals(struct app *a)
     /* setup libraries */
     luaL_openlibs(L);
     luaL_requiref(L, "ncurses", luaopen_myncurses, 1);
+    lua_pop(L, 1);
+
+    #if HAS_GEOIP
     luaL_requiref(L, "mygeoip", luaopen_mygeoip, 1);
-    lua_pop(L, 2);
+    lua_pop(L, 1);
+    #endif
 
     luaL_newlib(L, M);
     lua_setglobal(L, "snowcone");

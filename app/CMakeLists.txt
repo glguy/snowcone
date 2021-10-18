@@ -5,7 +5,11 @@ add_executable(snowcone
 
 target_link_libraries(snowcone PRIVATE
     PkgConfig::UV PkgConfig::NCURSESW PkgConfig::LUA
-    ircmsg mygeoip myncurses)
+    ircmsg myncurses)
+
+if(GEOIP_FOUND)
+target_link_libraries(snowcone PRIVATE mygeoip)
+endif()
 
 configure_file(config.h.in config.h @ONLY)
 target_include_directories(snowcone PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" include)
