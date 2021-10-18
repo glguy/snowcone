@@ -206,7 +206,7 @@ M['381'] = function()
     irc_state.oper = true
     snowcone.send_irc(
         counter_sync_commands() ..
-        'MODE ' .. irc_state.nick .. ' s BFcknsx\r\n'
+        'MODE ' .. irc_state.nick .. ' s BFZcknsx\r\n'
     )
     status_message = "you're oper"
 end
