@@ -226,7 +226,7 @@ function M:render()
         normal()
     end
     if server_filter ~= nil then
-        yellow() addstr('SERVER')
+        yellow() addstr(' SERVER')
         normal()
     end
 end
