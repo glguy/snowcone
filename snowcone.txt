@@ -102,6 +102,34 @@ SH RECENT CONNECTIONS
 
   The sixth column shows the SASL identified account name for the user,
   if applicable, as well as the GECOS field.
+SERVER LOAD
+  The server load views (for connections and disconnections) provide a
+  view of the load rates as well as the current state of the DNS
+  rotations. Each column heading can be clicked in order to chose a
+  sort order for this view.
+
+  The rotating bar graphs show the number of events per second for the
+  last minute. The bar graphs max out at 8 events per second.
+
+  The load averages give an approximation of the number of connections
+  per second in either the last 1, 5, or 15 minutes. These varying
+  time windows can help interpret the numbers as showing when rates
+  are increasing or decreasing over time and to help put spikes into
+  perspective.
+
+  The various columns full of 4 and 6 show which servers have known
+  IPv4 and IPv6 address. They turn yellow when that address is in
+  the DNS rotation corresponding to the column.
+
+  The Mn column shows the MAIN rotation. The region column shows the
+  region a server is in and if the server is in that region's DNS
+  rotation. The AF column shows the IPV4 and IPV6 rotations.
+
+  The Conns column shows the number number of connections for that
+  server.
+
+  The Up column shows the server this server is linked to in the
+  direction of the configured primary_hub.
 RAW CLIENT
   The raw client view (F8) is primarily intended for debugging. It exists
   to see what snowcone sees.
