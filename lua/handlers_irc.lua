@@ -128,21 +128,21 @@ end
 
 -- RPL_LINKS
 M['364'] = function(irc)
-    if not irc_state.in_links then
-        links = {}
-        irc_state.in_links = true
+    if not irc_state.links then
+        irc_state.links = {}
     end
 
     local server, linked = table.unpack(irc, 2, 3)
-    links[server] = Set{linked}
-    if links[linked] then
-        links[linked][server] = true
+    irc_state.links[server] = Set{linked}
+    if irc_state.links[linked] then
+        irc_state.links[linked][server] = true
     end
 end
 
 -- RPL_END_OF_LINKS
 M['365'] = function()
-    irc_state.in_links = nil
+    links = irc_state.links
+    irc_state.links = nil
 
     local primary_hub = servers.primary_hub
     if primary_hub then
