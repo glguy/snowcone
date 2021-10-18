@@ -1,5 +1,5 @@
 local has_mmdb, mmdb = pcall(require, 'mmdb')
-if not has_mmdb then
+if has_mmdb then
     local success, geoip = pcall(mmdb.open, 'GeoLite2-ASN.mmdb')
     if success then
         return function(addr)
