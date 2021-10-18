@@ -132,19 +132,19 @@ local function execute()
 end
 
 local keymap = {
-    [0x1b] = function() buffer = '' status_message = '' end, -- Esc
     [0x7f] = function() buffer = string.sub(buffer, 1, #buffer - 1) end, -- Del
     [-ncurses.KEY_BACKSPACE] = function() buffer = string.sub(buffer, 1, #buffer - 1) end,
     [0x12] = function() align = not align end, -- ^R
     [-ncurses.KEY_UP] = function() buffer = previous_buffer end,
     [0xd] = execute, -- Enter
+    [0x15] = function() buffer = '' end,
 }
 
 function M:keypress(key)
     local h = keymap[key]
     if h then
         h()
-    elseif 0x14 <= key then
+    elseif 0x20 <= key then
         buffer = buffer .. utf8.char(key)
     else
         buffer = string.format('%s[%d]', buffer, key)
@@ -160,16 +160,16 @@ function M:render()
     local window = rotating_window.build_window(messages, 'each', rows)
     local clear_line = string.rep(' ', tty_width)
 
-    for y = 0, rows - 1 do
-        local entry = window[y]
+    for y = 0, rows-1 do
+        local entry = window[y+1]
         if entry == 'divider' then
             yellow()
             mvaddstr(y, 0, string.rep('·', tty_width))
             normal()
         else
             mvaddstr(y, 0, '')
-            if window[y] then
-                render_irc(window[y])
+            if entry then
+                render_irc(entry)
             end
         end
 

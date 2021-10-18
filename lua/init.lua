@@ -547,7 +547,10 @@ function quit()
 end
 
 local keys = {
-    --[[Esc]][0x1b] = function() status_message = nil end,
+    --[[Esc]][0x1b] = function()
+        reset_filter()
+        status_message = nil
+    end,
     [-ncurses.KEY_F1] = function() view = 1 scroll = 0 end,
     [-ncurses.KEY_F2] = function() view = 2 end,
     [-ncurses.KEY_F3] = function() view = 3 scroll = 0 end,
