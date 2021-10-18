@@ -111,10 +111,15 @@ function commands.eval(args)
     local chunk, message = load(args, '=(eval)', 't')
     if chunk then
         local _, ret = pcall(chunk)
-        status_message = string.match(tostring(ret), '^[^\n]*')
-        normal()
+        if ret then
+            status_message = string.match(tostring(ret), '^%C*')
+        else
+            status_message = nil
+        end
     else
-        status_message = string.match(message, '^[^\n]*')
+        red()
+        status_message = string.match(message, '^%C*')
+        normal()
     end
 end
 
