@@ -72,6 +72,7 @@ end
 
 local M = {
     active = true,
+    title = 'console ',
 }
 
 local previous_buffer = ""

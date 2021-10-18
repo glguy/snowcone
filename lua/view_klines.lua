@@ -1,4 +1,4 @@
-local M = {}
+local M = { title = 'bans    ' }
 
 function M:keypress()
 end

@@ -1,5 +1,6 @@
-return function(title, label, history, tracker)
-local M = {}
+return function(title, heading, label, history, tracker)
+
+local M = { title = title }
 
 function M:keypress()
 end
@@ -16,7 +17,7 @@ function M:render()
     local y = math.max(tty_height - #rows - 3, 0)
 
     green()
-    mvaddstr(y, 0, string.format('%16s  1m    5m    15m  %s', title, history))
+    mvaddstr(y, 0, string.format('%16s  1m    5m    15m  %s', heading, history))
     normal()
     y = y + 1
 

@@ -248,7 +248,7 @@ end
 function draw_global_load(title, tracker)
     if kline_ready() then red () else white() end
     reversevideo()
-    mvaddstr(tty_height-1, 0, 'sn' .. spinner[uptime % #spinner + 1] .. 'wcone')
+    mvaddstr(tty_height-1, 0, views[view].title or 'sn' .. spinner[uptime % #spinner + 1] .. 'wcone')
     reversevideo_()
     addstr(' ')
     magenta()
@@ -392,9 +392,9 @@ views = {
     -- Server exits
     view_server_load('Disconnection History', 'CLIEXI', ncurses.red, exit_tracker),
     -- K-Line tracking
-    view_simple_load('K-Liner', 'KLINES', 'K-Line History', kline_tracker),
+    view_simple_load('banload ', 'K-Liner', 'KLINES', 'K-Line History', kline_tracker),
     -- Filter tracking
-    view_simple_load('Server', 'FILTERS', 'Filter History', filter_tracker),
+    view_simple_load('spamload', 'Server', 'FILTERS', 'Filter History', filter_tracker),
     -- Repeat connection tracking
     require_ 'view_reconnects',
     -- Raw IRC console
