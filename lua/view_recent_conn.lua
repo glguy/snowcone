@@ -180,18 +180,22 @@ function M:render()
 
             -- Click handlers
             if entry.reason == 'K-Lined' then
-                add_click(y, 0, tty_width, function()
+                add_click(y, 14, 79, function()
                     entry_to_unkline(entry)
                     highlight = entry.mask
                     highlight_plain = true
                 end)
             else
-                add_click(y, 0, tty_width, function()
+                add_click(y, 14, 79, function()
                     entry_to_kline(entry)
                     highlight = entry.mask
                     highlight_plain = true
                 end)
             end
+
+            add_click(y, 120, 122, function()
+                server_filter = entry.server
+            end)
 
             local y_end = ncurses.getyx()
             for i = y+1,y_end do
@@ -219,6 +223,10 @@ function M:render()
         else
             red() addstr(' DEAD')
         end
+        normal()
+    end
+    if server_filter ~= nil then
+        yellow() addstr('SERVER')
         normal()
     end
 end
