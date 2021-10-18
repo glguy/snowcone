@@ -7,10 +7,14 @@
 apt install libgeoip-dev liblua5.3-dev libuv1-dev lua-penlight check
 
 # Homebrew
-brew install lua geoip check libuv
+brew install lua geoip libuv check luarocks
+luarocks install penlight
 
 # OpenSUSE
-zypper install lua54-devel lua-penlight libuv-devel
+zypper install lua54-devel lua-penlight libuv-devel check
+
+# Optional OpenSSL support for challenge
+luarocks install openssl
 ```
 
 Penlight shows up in Lua as `pl`. If you get errors about finding things like `pl.app`, then Penlight isn't installed for the version of Lua you're building with.
