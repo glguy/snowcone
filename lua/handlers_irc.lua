@@ -110,16 +110,30 @@ end
 
 -- RPL_MAP
 M['015'] = function(irc)
+    if not irc_state.in_map then
+        population = {}
+        irc_state.in_map = true
+    end
+
     local server, count = string.match(irc[2], '(%g*)%[...%] %-* | Users: +(%d+)')
     if server then
         population[server] = math.tointeger(count)
     end
 end
 
+-- RPL_MAPEND
+M['017'] = function()
+    irc_state.in_map = nil
+end
+
 -- RPL_LINKS
 M['364'] = function(irc)
+    if not irc_state.in_links then
+        links = {}
+        irc_state.in_links = true
+    end
+
     local server, linked = table.unpack(irc, 2, 3)
-    if server == linked then links = {} end -- start
     links[server] = Set{linked}
     if links[linked] then
         links[linked][server] = true
@@ -128,6 +142,8 @@ end
 
 -- RPL_END_OF_LINKS
 M['365'] = function()
+    irc_state.in_links = nil
+
     local primary_hub = servers.primary_hub
     if primary_hub then
         upstream = {[primary_hub] = primary_hub}
