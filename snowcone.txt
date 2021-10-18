@@ -80,6 +80,28 @@ SH RECENT CONNECTIONS
   Esc   clear filters, reset scroll, clear status message
   PgUp  scroll up
   PgDn  scroll down
+
+  The first column shows when a user connected. It fades from white a
+  character per second to indicate the most recent connections. Times
+  are displayed in UTC.
+
+  The second column usually shows reconnection counts for that nickname.
+  When a client triggers a server-side filter, this counter will switch
+  to showing the number of times this connection has tripped a filter.
+  This is indicated with an exclamation point after the number.
+
+  The third column shows the nickname, username, and hostname of the
+  connected user. It will be green while the user is connected and turns
+  red when the user disconnects. It updates when a user changes nicknames.
+
+  The fourth column can show disconnect reasons, IP addresses, and GeoIP
+  ASN names (in that order of preference). You can override that preference
+  by cycling through modes using the first button in the toolbar.
+
+  The fifth column shows the server the user is connected to.
+
+  The sixth column shows the SASL identified account name for the user,
+  if applicable, as well as the GECOS field.
 RAW CLIENT
   The raw client view (F8) is primarily intended for debugging. It exists
   to see what snowcone sees.
