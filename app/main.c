@@ -37,7 +37,10 @@ static void on_stdin(uv_poll_t *handle, int status, int events)
         {
             MEVENT ev;
             getmouse(&ev);
-            do_mouse(a, ev.y, ev.x);
+            if (ev.bstate == BUTTON1_CLICKED)
+            {
+                do_mouse(a, ev.y, ev.x);
+            }
         } else if (KEY_RESIZE == key) {
         } else if (key > 0xff) {
             do_keyboard(a, -key);
