@@ -417,12 +417,12 @@ views = {
     -- Filter tracking
     view_simple_load('spamload', 'Server', 'FILTERS', 'Filter History', filter_tracker),
     -- Repeat connection tracking
-    require_ 'view.reconnects',
+    require_ 'view.repeats',
     -- Raw IRC console
-    require_ 'view.client',
+    require_ 'view.console',
     -- Counters for network masks
-    require_ 'view.net_trackers',
-    (require_ 'view.klines'),
+    require_ 'view.netcount',
+    (require_ 'view.bans'),
 }
 
 function draw()
