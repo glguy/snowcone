@@ -38,12 +38,19 @@ return function(time, server, str)
     end
 
     do
-        local nick, user, host, oper, duration, mask, reason =
+        local nick, user, host, oper, duration, kind, mask, reason =
             string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} \z
-                               added %g+ (%d+) min%. K%-Line for %[([^]]*)%] %[(.*)%]$')
+                               added %g+ (%d+) min%. (%g+) for %[([^]]*)%] %[(.*)%]$')
         if nick then
+            local names = {
+                ['K-Line'] = 'kline',
+                ['X-Line'] = 'xline',
+                ['D-Line'] = 'dline',
+                ['RESV'] = 'resv',
+            }
+
             return {
-                name = 'kline',
+                name = assert(names[kind]),
                 server = server,
                 time = time,
                 nick = nick,
@@ -265,25 +272,6 @@ return function(time, server, str)
                 user = user,
                 host = host,
                 from = from,
-                reason = scrub(reason),
-            }
-        end
-    end
-
-    do
-        local nick, user, host, oper, duration, ip, reason =
-            string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} added temporary (%d+) min. D%-Line for %[(.-)%] %[(.*)%]$')
-        if nick then
-            return {
-                name = 'dline',
-                server = server,
-                time = time,
-                nick = nick,
-                user = user,
-                host = host,
-                oper = oper,
-                duration = math.tointeger(duration),
-                ip = ip,
                 reason = scrub(reason),
             }
         end
