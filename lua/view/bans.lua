@@ -43,7 +43,7 @@ function M:render()
 
     bold()
     magenta()
-    addstr('time     operator   duration mask                           affected users and reason')
+    addstr('time     operator    duration mask                           affected users and reason')
     bold_()
 
     for y = 1, rows do
@@ -58,14 +58,23 @@ function M:render()
             mvaddstr(y, 0, clear_string)
             cyan()
             mvaddstr(y, 0, entry.time)
-            green()
-            addstr(string.format(' %-12s ', entry.oper or ''))
+
+            local oper
+            if entry.oper and string.match(entry.oper, '%.') then
+                yellow()
+                oper = string.match(entry.oper, '^(.-)%.')
+            else
+                green()
+                oper = entry.oper or ''
+            end
+            addstr(string.format(' %-12.12s ', oper))
+
             if entry.duration then
                 yellow()
-                addstr(string.format('%6s ', pretty_duration(entry.duration) or ''))
+                addstr(string.format('%7s ', pretty_duration(entry.duration) or ''))
             else
                 normal()
-                addstr(string.format('%6.6s ', entry.kind))
+                addstr(string.format('%7.7s ', entry.kind))
             end
 
             if entry.kind == 'kline' then
