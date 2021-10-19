@@ -318,6 +318,37 @@ return function(time, server, str)
     end
 
     do
+        local nick, user, host, target =
+            string.match(str, '^User (%g+) %(([^@]*)@([^)]*)%) trying to join (%g+) is a possible spambot$')
+        if nick then
+            return {
+                name = 'spambot',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                target = target,
+            }
+        end
+    end
+
+    do
+        local nick, user, host =
+            string.match(str, '^Excessive target change from (%g+) %((.-)@(.*)%)$')
+        if nick then
+            return {
+                name = 'targetchange',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+            }
+        end
+    end
+
+    do
         local nick, channel =
             string.match(str, '^(%g+) is creating new channel (%g+)$')
         if nick then
@@ -384,6 +415,36 @@ return function(time, server, str)
                 user = user,
                 host = host,
                 kind = kind,
+            }
+        end
+    end
+
+    do
+        if str == 'Filtering enabled.' then
+            return {
+                name = 'filteringenabled',
+                server = server,
+                time = time,
+            }
+        end
+    end
+
+    do
+        if str == 'Filtering disabled.' then
+            return {
+                name = 'filteringdisabled',
+                server = server,
+                time = time,
+            }
+        end
+    end
+
+    do
+        if str == 'New filters loaded.' then
+            return {
+                name = 'filtersloaded',
+                server = server,
+                time = time,
             }
         end
     end
