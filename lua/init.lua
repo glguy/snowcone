@@ -400,9 +400,9 @@ function draw_buttons()
     normal()
 end
 
-local view_recent_conn = require_ 'view_recent_conn'
-local view_server_load = require_ 'view_server_load'
-local view_simple_load = require_ 'view_simple_load'
+local view_recent_conn = require_ 'view.recent_conn'
+local view_server_load = require_ 'view.server_load'
+local view_simple_load = require_ 'view.simple_load'
 views = {
     -- Recent connections
     view_recent_conn(users, 'clicon_n', 'CLICON', conn_tracker),
@@ -417,12 +417,12 @@ views = {
     -- Filter tracking
     view_simple_load('spamload', 'Server', 'FILTERS', 'Filter History', filter_tracker),
     -- Repeat connection tracking
-    require_ 'view_reconnects',
+    require_ 'view.reconnects',
     -- Raw IRC console
-    require_ 'view_client',
+    require_ 'view.client',
     -- Counters for network masks
-    require_ 'view_net_trackers',
-    (require_ 'view_klines'),
+    require_ 'view.net_trackers',
+    (require_ 'view.klines'),
 }
 
 function draw()
@@ -605,7 +605,7 @@ function M.on_input(str)
     end
 end
 
-local irc_handlers = require_ 'handlers_irc'
+local irc_handlers = require_ 'handlers.irc'
 function M.on_irc(irc)
     messages:insert(true, irc)
 

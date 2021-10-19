@@ -11,7 +11,7 @@ function M.PING(irc)
 end
 
 local parse_snote = require_ 'parse_snote'
-local handlers = require_ 'handlers_snotice'
+local handlers = require_ 'handlers.snotice'
 function M.NOTICE(irc)
     if not string.match(irc.source, '@') and irc[1] == '*' then
         local note = string.match(irc[2], '^%*%*%* Notice %-%- (.*)$')
