@@ -1,3 +1,5 @@
+local tablex = require 'pl.tablex'
+
 local palette = {black, red, green, yellow, blue, magenta, cyan, white}
 local colormap =
   { black = ncurses.black, red = ncurses.red, green = ncurses.green,
@@ -167,6 +169,10 @@ function M:render()
             if in_rotation(flag, info.ipv4) or in_rotation(flag, info.ipv6) then
                 local color = colormap[servers.regions[flag].color]
                 if color then ncurses.colorset(color) end
+                addstr(' '..flag)
+                normal()
+            elseif tablex.find(info.expect or {}, flag) then
+                red()
                 addstr(' '..flag)
                 normal()
             end
