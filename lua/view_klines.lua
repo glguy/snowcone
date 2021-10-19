@@ -29,6 +29,7 @@ local palette = {
     removed = green,
     inactive = normal,
     kill = magenta,
+    dline = cyan,
 }
 
 local rotating_window = require 'rotating_window'

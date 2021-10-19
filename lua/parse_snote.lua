@@ -51,7 +51,7 @@ return function(time, server, str)
                 host = host,
                 oper = oper,
                 mask = mask,
-                duration = duration,
+                duration = math.tointeger(duration),
                 reason = scrub(reason),
             }
         end
@@ -268,6 +268,71 @@ return function(time, server, str)
                 reason = scrub(reason),
             }
         end
+    end
+
+    do
+        local nick, user, host, oper, duration, ip, reason =
+            string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} added temporary (%d+) min. D%-Line for %[(.-)%] %[(.*)%]$')
+        if nick then
+            return {
+                name = 'dline',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                oper = oper,
+                duration = math.tointeger(duration),
+                ip = ip,
+                reason = scrub(reason),
+            }
+        end
+    end
+
+    do
+        local clients = string.match(str, '^New Max Local Clients: (%d+)$')
+        if clients then
+            return {
+                name = 'newmaxlocal',
+                server = server,
+                time = time,
+                clients = math.tointeger(clients),
+            }
+        end
+    end
+
+    do
+        local nick, user, host, target =
+            string.match(str, '^Possible Flooder ([^[]+)%[([^@]+)@([^]]+)%] on %g+ target: (%g+)$')
+        if nick then
+            return {
+                name = 'flooder',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                target = target,
+            }
+        end
+    end
+
+    do
+        local nick, channel =
+            string.match(str, '^(%g+) is creating new channel (%g+)$')
+        if nick then
+            return {
+                name = 'create_channel',
+                server = server,
+                time = time,
+                nick = nick,
+                channel = channel,
+            }
+        end
+    end
+
+    do
+
     end
 
     do

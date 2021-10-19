@@ -108,6 +108,18 @@ function M.kline(ev)
     })
 end
 
+function M.dline(ev)
+    kline_tracker:track(ev.nick)
+    klines:insert('dline ' .. ev.ip, {
+        time = ev.time,
+        oper = ev.oper,
+        duration = ev.duration,
+        reason = ev.reason,
+        mask = ev.ip,
+        kind = 'dline',
+    })
+end
+
 function M.kill(ev)
     klines:insert('kill ' .. ev.nick, {
         time = ev.time,
