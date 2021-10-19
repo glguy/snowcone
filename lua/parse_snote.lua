@@ -351,10 +351,6 @@ return function(time, server, str)
     end
 
     do
-
-    end
-
-    do
         local nick, user, host, oper, token, arg =
             string.match(str, '^OPERSPY ([^!]+)!([^@]+)@([^{]+){([^}]*)} (%g+) (.*)$')
         if oper then
