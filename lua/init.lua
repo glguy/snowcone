@@ -46,6 +46,34 @@ local LoadTracker        = require_ 'LoadTracker'
 local OrderedMap         = require_ 'OrderedMap'
 local compute_kline_mask = require_ 'libera_masks'
 
+-- Validate configuration =============================================
+
+if string.match(configuration.irc_nick, '[ \n\r]') then
+    error 'Invalid character in nickname'
+end
+
+if configuration.irc_user and string.match(configuration.irc_user, '[ \n\r]') then
+    error 'Invalid character in username'
+end
+
+if configuration.irc_gecos and string.match(configuration.irc_gecos, '[\n\r]') then
+    error 'Invalid character in GECOS'
+end
+
+if configuration.irc_pass and string.match(configuration.irc_pass, '[\n\r]') then
+    error 'Invalid character in server password'
+end
+
+if configuration.irc_oper_username and string.match(configuration.irc_oper_username, '[ \n\r]') then
+    error 'Invalid character in operator username'
+end
+
+if configuration.irc_capabilities and string.match(configuration.irc_capabilities, '[\n\r]') then
+    error 'Invalid character in capabilities'
+end
+
+-- Load network configuration =========================================
+
 do
     servers = { servers = {}, regions = {},
         kline_reasons = { 'banned', "You are banned."} }
