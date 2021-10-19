@@ -160,7 +160,7 @@ kline_durations = {
 function entry_to_kline(entry)
     local success, mask = pcall(compute_kline_mask, entry.user, entry.ip, entry.host, trust_uname)
     if success then
-        staged_action = {action='kline', mask=mask, entry=entry}
+        staged_action = {action = 'kline', mask = mask, nick = entry.nick}
         snowcone.send_irc('TESTMASK ' .. mask .. '\r\n')
     else
         staged_action = nil
@@ -170,18 +170,24 @@ end
 function entry_to_unkline(entry)
     local mask = entry.user .. '@' .. entry.ip
     snowcone.send_irc('TESTLINE ' .. mask .. '\r\n')
-    staged_action = {action = 'unkline', entry = entry}
+    staged_action = {action = 'unkline', nick = entry.nick}
 end
 
-function kline_ready()
+local function kline_ready()
     return staged_action ~= nil
        and staged_action.action == 'kline'
 end
 
-function unkline_ready()
+local function undline_ready()
     return staged_action ~= nil
-        and staged_action.action == 'unkline'
-        and staged_action.mask ~= nil
+       and staged_action.action == 'undline'
+       and staged_action.mask ~= nil
+end
+
+local function unkline_ready()
+    return staged_action ~= nil
+       and staged_action.action == 'unkline'
+       and staged_action.mask ~= nil
 end
 
 -- Mouse logic ========================================================
@@ -338,7 +344,7 @@ function draw_buttons()
         red()
         local klineText = string.format('[ KLINE %s %s %s ]',
             staged_action.count and tostring(staged_action.count) or '?',
-            staged_action.entry.nick,
+            staged_action.nick,
             staged_action.mask)
         add_button(klineText, function()
             snowcone.send_irc(
@@ -362,7 +368,7 @@ function draw_buttons()
         addstr(' ')
         yellow()
         local klineText = string.format('[ UNKLINE %s %s ]',
-            staged_action.entry.nick,
+            staged_action.nick,
             staged_action.mask or '?')
         add_button(klineText, function()
             if staged_action.mask then
@@ -372,6 +378,21 @@ function draw_buttons()
                     )
                 )
             end
+            staged_action = nil
+        end)
+    elseif undline_ready() then
+        green()
+        add_button('[ CANCEL UNDLINE ]', function()
+            staged_action = nil
+        end)
+
+        addstr(' ')
+        yellow()
+        local dlineText = string.format('[ UNDLINE %s ]', staged_action.mask)
+        add_button(dlineText, function()
+            snowcone.send_irc(
+                string.format('UNDLINE %s\r\n', staged_action.mask)
+            )
             staged_action = nil
         end)
     end

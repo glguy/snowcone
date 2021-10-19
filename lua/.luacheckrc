@@ -39,7 +39,7 @@ stds = {
             "exits", "cliexit_n",
 
             "kline_reasons", "kline_durations", "entry_to_kline",
-            "unkline_ready", "show_entry", "kline_ready", "entry_to_unkline",
+            "show_entry", "entry_to_unkline",
 
             "conn_filter", "server_filter", "filter",
             "reset_filter", "initialize",
