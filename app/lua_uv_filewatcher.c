@@ -41,7 +41,7 @@ static int l_start(lua_State *L)
     lua_settop(L, 3);
     lua_setuservalue(L, 1);
 
-    int r = uv_fs_event_start(fs_event, on_file, dir, 0);
+    int r = uv_fs_event_start(fs_event, on_file, dir, UV_FS_EVENT_RECURSIVE);
     assert(0 == r);
 
     return 0;

@@ -436,13 +436,22 @@ end
 -- Network Tracker Logic ==============================================
 
 function add_network_tracker(name, mask)
-    local address, prefix = string.match(mask, '^([^/]*)/(%d+)$')
-    local b = snowcone.pton(address)
+    local address, prefix, b
+
+    address, prefix = string.match(mask, '^([^/]*)/(%d+)$')
+    if address then
+        b = assert(snowcone.pton(address))
+        prefix = math.tointeger(prefix)
+    else
+        b = assert(snowcone.pton(mask))
+        prefix = 8 * #b
+    end
+
     if not net_trackers[name] then
         net_trackers[name] = NetTracker()
     end
 
-    net_trackers[name]:track(mask, b, math.tointeger(prefix))
+    net_trackers[name]:track(mask, b, prefix)
     if irc_state.oper then
         snowcone.send_irc('TESTMASK *@' .. mask .. '\r\n')
     end
@@ -471,7 +480,7 @@ end
 local function irc_register()
     local pass = ''
     if configuration.irc_pass then
-        pass = 'PASS ' .. configuration.irc_pass .. '\r\n'
+        pass = 'PASS :' .. configuration.irc_pass .. '\r\n'
     end
 
     local user = configuration.irc_user or configuration.irc_nick
@@ -512,7 +521,7 @@ local function irc_register()
         capreq ..
         pass ..
         'NICK ' .. configuration.irc_nick .. '\r\n' ..
-        'USER ' .. user .. ' * * ' .. gecos .. '\r\n' ..
+        'USER ' .. user .. ' * * :' .. gecos .. '\r\n' ..
         auth ..
         capend
         )

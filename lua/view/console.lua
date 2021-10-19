@@ -117,9 +117,7 @@ function commands.eval(args)
             status_message = nil
         end
     else
-        red()
         status_message = string.match(message, '^%C*')
-        normal()
     end
 end
 
@@ -130,7 +128,11 @@ local function execute()
         previous_buffer = buffer
         buffer = ''
         status_message = ''
-        impl(args)
+
+        local success, message = pcall(impl, args)
+        if not success then
+            status_message = string.match(message, '^%C*')
+        end
     else
         status_message = 'unknown command'
     end
