@@ -3,20 +3,15 @@ local M = { title = 'bans    ' }
 function M:keypress()
 end
 
-local function fmt(n)
-    return string.gsub(string.format('%.2f', n), '%.?0*$', '')
-end
-
 local function pretty_duration(duration)
     local m = math.tointeger(duration)
     if m then
         if m >= 1440 then
-            return fmt(m/1440) .. 'd'
+            return string.format('%.1f d', m/1440)
         end
         if m >= 60 then
-            return fmt(m/60) .. 'h'
+            return string.format('%.1f h', m/60)
         end
-
         return duration .. 'm'
     else
         return duration
