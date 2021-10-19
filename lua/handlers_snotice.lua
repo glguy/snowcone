@@ -178,6 +178,18 @@ function M.removed(ev)
             mask = ev.mask,
             kind = 'removed'
         })
+    elseif ev.kind == 'd-line' then
+        local old = klines:lookup('dline ' .. ev.mask)
+        if old then
+            old.kind = 'inactive'
+        end
+
+        klines:insert(true, {
+            time = ev.time,
+            oper = ev.oper,
+            mask = ev.mask,
+            kind = 'removed'
+        })
     end
 end
 
