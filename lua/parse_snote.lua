@@ -253,6 +253,23 @@ return function(time, server, str)
         end
     end
 
+    do -- some kills don't have paths
+        local nick, user, host, from, reason =
+            string.match(str, '^Received KILL message for (.-)!(.-)@(.-)%. From (%g+) %((.*)%)$')
+        if nick then
+            return {
+                name = 'kill',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                from = from,
+                reason = scrub(reason),
+            }
+        end
+    end
+
     do
         local nick, user, host, oper, token, arg =
             string.match(str, '^OPERSPY ([^!]+)!([^@]+)@([^{]+){([^}]*)} (%g+) (.*)$')
