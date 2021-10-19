@@ -372,7 +372,7 @@ function draw_buttons()
         red()
         local klineText = string.format('[ KLINE %s %s %s ]',
             staged_action.count and tostring(staged_action.count) or '?',
-            staged_action.nick,
+            staged_action.nick or '*',
             staged_action.mask)
         add_button(klineText, function()
             snowcone.send_irc(

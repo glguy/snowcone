@@ -72,7 +72,7 @@ function M:render()
                 local _, x = ncurses.getyx()
                 add_click(y, x, x + #entry.mask, function()
                     snowcone.send_irc('TESTLINE ' .. entry.mask .. '\r\n')
-                    staged_action = {action = 'unkline', nick = '*'}
+                    staged_action = {action = 'unkline'}
                 end)
             elseif entry.kind == 'dline' then
                 local _, x = ncurses.getyx()
