@@ -13,7 +13,7 @@ end
 local parse_snote = require_ 'parse_snote'
 local handlers = require_ 'handlers.snotice'
 function M.NOTICE(irc)
-    if not string.match(irc.source, '@') and irc[1] == '*' then
+    if irc[1] == '*' and not string.match(irc.source, '@') then
         local note = string.match(irc[2], '^%*%*%* Notice %-%- (.*)$')
         if note then
             local time

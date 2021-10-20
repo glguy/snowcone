@@ -641,7 +641,7 @@ end
 local key_handlers = require_ 'handlers.keyboard'
 function M.on_keyboard(key)
     -- buffer text editing
-    if 0x20 <= key and buffer ~= '' then
+    if (0x20 <= key and (key < 0x7f or 0xa0 <= key)) and buffer ~= '' then
         buffer = buffer .. utf8.char(key)
         draw()
         return
