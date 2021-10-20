@@ -209,7 +209,7 @@ end
 
 function M.netsplit(ev)
     snowcone.send_irc(counter_sync_commands())
-    status_message = 'netsplit ' .. ev.server2 .. ' ('.. ev.reason .. ')'
+    status_message = 'netsplit ' .. ev.server2
 end
 
 function M.override(ev)
