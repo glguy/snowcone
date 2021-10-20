@@ -216,4 +216,8 @@ function M.override(ev)
     status_message = string.format('override %s %s %s', ev.oper, ev.kind, ev.target)
 end
 
+function M.operspy(ev)
+    status_message = string.format('operspy %s %s %s', ev.oper, ev.token, ev.arg)
+end
+
 return M
