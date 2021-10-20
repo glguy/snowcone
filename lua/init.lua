@@ -189,7 +189,7 @@ kline_durations = {
 function entry_to_kline(entry)
     local success, mask = pcall(compute_kline_mask, entry.user, entry.ip, entry.host, trust_uname)
     if success then
-        staged_action = {action = 'kline', mask = mask, nick = entry.nick}
+        staged_action = {action = 'kline', mask = mask, nick = entry.nick, entry = entry}
         snowcone.send_irc('TESTMASK ' .. mask .. '\r\n')
     else
         staged_action = nil
