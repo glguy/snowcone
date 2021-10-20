@@ -403,7 +403,7 @@ function draw_buttons()
         addstr(' ')
         yellow()
         local klineText = string.format('[ UNKLINE %s %s ]',
-            staged_action.nick,
+            staged_action.nick or '*',
             staged_action.mask or '?')
         add_button(klineText, function()
             if staged_action.mask then
