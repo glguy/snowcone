@@ -67,6 +67,7 @@ MODES
   F10  recent bans
   C-n  next view
   C-p  previous view
+  C-u  clear input buffer
 SH RECENT CONNECTIONS
   The recent connections view has a number of special features. Click on
   a connection to select it for kline or unkline. The buttons below will
@@ -135,8 +136,10 @@ RAW CLIENT
   to see what snowcone sees.
 
   C-r     Toggle raw/aligned message rendering
-  Esc     Erase input buffer
-  Enter   Execute IRC command
+COMMANDS
+  You can run client commands from any window. When you startup typing
+  a command with a '/' character, the input buffer will replace the last
+  line in the client.
 
   /eval luacode             Evaluate arbitrary Lua code
   /filter pattern           Update the recent connection filter
@@ -144,7 +147,7 @@ RAW CLIENT
   /nettrack label address/prefix  Add a network to the F9 tracking view
   /quote raw_command        Send a raw IRC command
   /reload                   Reload Lua files
-
+  /sync                     Manually refresh user counts
 GEOIP SUPPORT
   Both legacy GeoIP and modern GeoIP Maxmind database are supported
   and will be used if they are found at startup time.
