@@ -132,6 +132,7 @@ local defaults = {
     status_message = '',
     irc_state = {},
     uv_resources = {},
+    buffer = '',
 
     -- settings
     show_reasons = 'reason',
@@ -285,27 +286,33 @@ function draw_global_load(title, tracker)
     mvaddstr(tty_height-1, 0, views[view].title or 'sn' .. spinner[uptime % #spinner + 1] .. 'wcone')
     reversevideo_()
     addstr(' ')
-    magenta()
-    addstr(title .. ' ')
-    draw_load(tracker.global)
-    normal()
 
-    if view == 2 or view == 4 then
-        local n = 0
-        for _,v in pairs(population) do n = n + v end
-        addstr('              ')
+    if '' == buffer then
         magenta()
-        add_population(n)
+        addstr(title .. ' ')
+        draw_load(tracker.global)
         normal()
-    end
 
-    if status_message then
-        addstr(' ' .. status_message)
-    end
+        if view == 2 or view == 4 then
+            local n = 0
+            for _,v in pairs(population) do n = n + v end
+            addstr('              ')
+            magenta()
+            add_population(n)
+            normal()
+        end
 
-    add_click(tty_height-1, 0, 9, function()
-        view = view % #views + 1
-    end)
+        if status_message then
+            addstr(' ' .. status_message)
+        end
+
+        add_click(tty_height-1, 0, 9, function()
+            view = view % #views + 1
+        end)
+    else
+        cyan()
+        addstr(buffer)
+    end
 end
 
 function show_entry(entry)
@@ -604,27 +611,6 @@ function quit()
     snowcone.send_irc 'QUIT\r\n'
 end
 
-local keys = {
-    --[[Esc]][0x1b] = function()
-        reset_filter()
-        status_message = nil
-    end,
-    [-ncurses.KEY_F1] = function() view = 1 scroll = 0 end,
-    [-ncurses.KEY_F2] = function() view = 2 end,
-    [-ncurses.KEY_F3] = function() view = 3 scroll = 0 end,
-    [-ncurses.KEY_F4] = function() view = 4 end,
-    [-ncurses.KEY_F5] = function() view = 5 end,
-    [-ncurses.KEY_F6] = function() view = 6 end,
-    [-ncurses.KEY_F7] = function() view = 7 end,
-    [-ncurses.KEY_F8] = function() view = 8 end,
-    [-ncurses.KEY_F9] = function() view = 9 end,
-    [-ncurses.KEY_F10] = function() view = 10 end,
-
-    --[[^L]] [ 12] = function() ncurses.clear() end,
-    --[[^N]] [ 14] = function() view = view % #views + 1 end,
-    --[[^P]] [ 16] = function() view = (view - 2) % #views + 1 end,
-}
-
 -- Callback Logic =====================================================
 
 local M = {}
@@ -652,14 +638,25 @@ function M.on_irc(irc)
     end
 end
 
+local key_handlers = require_ 'handlers.keyboard'
 function M.on_keyboard(key)
-    local f = keys[key]
+    -- buffer text editing
+    if 0x20 <= key and buffer ~= '' then
+        buffer = buffer .. utf8.char(key)
+        draw()
+        return
+    end
+
+    -- global key handlers
+    local f = key_handlers[key]
     if f then
         f()
         draw()
-    else
-        views[view]:keypress(key)
+        return
     end
+
+    -- view-specific key handlers
+    views[view]:keypress(key)
 end
 
 function M.on_mouse(y, x)
