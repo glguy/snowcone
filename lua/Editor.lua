@@ -6,17 +6,19 @@ M._name = 'Editor'
 function M:_init()
     self.buffer = {}
     self.cursor = 1
-    self.rendered = ''
+    self:render()
 end
 
 function M:render()
-    self.rendered = utf8.char(table.unpack(self.buffer))
+    self.before_cursor = utf8.char(table.unpack(self.buffer, 1, self.cursor - 1))
+    self.at_cursor = utf8.char(table.unpack(self.buffer, self.cursor))
+    self.rendered = self.before_cursor .. self.at_cursor
 end
 
 function M:reset()
     self.buffer = {}
     self.cursor = 1
-    self.rendered = ''
+    self:render()
 end
 
 function M:is_empty()
@@ -50,21 +52,25 @@ end
 
 function M:move_to_beg()
     self.cursor = 1
+    self:render()
 end
 
 function M:move_to_end()
     self.cursor = #self.buffer + 1
+    self:render()
 end
 
 function M:left()
     if self.cursor > 1 then
         self.cursor = self.cursor - 1
+        self:render()
     end
 end
 
 function M:right()
     if self.cursor <= #self.buffer then
         self.cursor = self.cursor + 1
+        self:render()
     end
 end
 

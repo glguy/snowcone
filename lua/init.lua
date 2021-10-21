@@ -312,8 +312,10 @@ function draw_global_load(title, tracker)
         ncurses.cursset(0)
     else
         cyan()
-        addstr(editor.rendered)
-        ncurses.move(tty_height - 1, editor.cursor + 9)
+        addstr(editor.before_cursor)
+        local y,x = ncurses.getyx()
+        addstr(editor.at_cursor)
+        ncurses.move(y,x)
         ncurses.cursset(1)
     end
 end

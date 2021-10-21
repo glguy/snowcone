@@ -1,6 +1,6 @@
 local commands = require_ 'handlers.commands'
 local function execute()
-    local command, args = string.match(editor.buffer, '^ */(%g*) *(.*)$')
+    local command, args = string.match(editor.rendered, '^ */(%g*) *(.*)$')
     local impl = commands[command]
     if impl then
         editor:reset()
