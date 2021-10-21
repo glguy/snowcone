@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include <ncurses.h>
 
@@ -167,6 +168,17 @@ static int l_print(lua_State *L)
     return 0;
 }
 
+static int l_raise(lua_State *L)
+{
+    lua_Integer s = luaL_checkinteger(L, 1);
+    int r = raise(s);
+    if (r != 0)
+    {
+        return luaL_error(L, "raise: %s", strerror(errno));
+    }
+    return 0;
+}
+
 static int app_to_base64(lua_State *L)
 {
     size_t input_len;
@@ -292,6 +304,7 @@ static luaL_Reg M[] = {
     { "newtimer", l_newtimer },
     { "newwatcher", l_newwatcher },
     { "setmodule", l_setmodule },
+    { "raise", l_raise },
     {}
 };
 

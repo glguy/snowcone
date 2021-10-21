@@ -81,6 +81,7 @@ int main(int argc, char *argv[])
     use_default_colors();
     nodelay(stdscr, TRUE); /* nonblocking input reads */
     cbreak(); /* no input line buffering */
+    raw();
     noecho(); /* no echo input to screen */
     nonl(); /* no newline on pressing return */
     intrflush(stdscr, FALSE);

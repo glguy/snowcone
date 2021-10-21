@@ -51,10 +51,12 @@ local M = {
     [ctrl('E')] = function() editor:move_to_end() end,
     [ctrl('B')] = function() editor:left() end,
     [ctrl('F')] = function() editor:right() end,
-
+    [ctrl('Y')] = function() editor:paste() end,
     [-ncurses.KEY_LEFT] = function() editor:left() end,
     [-ncurses.KEY_RIGHT] = function() editor:right() end,
 
+    [ctrl('C')] = function() status_message = 'quitting' quit() end,
+    [ctrl('Z')] = function() snowcone.raise(18) end,
 }
 
 return M
