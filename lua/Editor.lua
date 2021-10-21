@@ -66,7 +66,38 @@ function M:kill_to_end()
         self.yank = tablex.sub(self.buffer, self.cursor, -1)
         self.yanking = true
     end
-    tablex.removevalues(self.buffer, self.cursor, -1)
+    tablex.removevalues(self.buffer, self.cursor, - 1)
+    self:render()
+end
+
+function M:kill_region()
+    local i = self.cursor - 1
+
+    -- pass over the spaces
+    while i > 0 and self.buffer[i] == 0x20 do
+        i = i - 1
+    end
+
+    -- pass over the non-spaces
+    while i > 0 and self.buffer[i] ~= 0x20 do
+        i = i - 1
+    end
+
+    -- point at the last non-space
+    i = i + 1
+
+    -- extract that region
+    local region = tablex.sub(self.buffer, i, self.cursor - 1)
+    tablex.removevalues(self.buffer, i, self.cursor - 1)
+
+    if self.yanking then
+        tablex.insertvalues(self.yank, 1, region)
+    else
+        self.yank = region
+        self.yanking = true
+    end
+
+    self.cursor = i
     self:render()
 end
 
@@ -100,6 +131,7 @@ end
 function M:paste()
     tablex.insertvalues(self.buffer, self.cursor, self.yank)
     self:move(self.cursor + #self.yank)
+    self.yanking = false
 end
 
 return M

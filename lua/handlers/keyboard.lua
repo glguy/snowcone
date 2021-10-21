@@ -49,6 +49,7 @@ local M = {
     [ctrl('K')] = function() editor:kill_to_end() end,
     [ctrl('A')] = function() editor:move_to_beg() end,
     [ctrl('E')] = function() editor:move_to_end() end,
+    [ctrl('W')] = function() editor:kill_region() end,
     [ctrl('B')] = function() editor:left() end,
     [ctrl('F')] = function() editor:right() end,
     [ctrl('Y')] = function() editor:paste() end,
