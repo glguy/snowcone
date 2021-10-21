@@ -6,44 +6,46 @@ M._name = 'Editor'
 function M:_init()
     self.buffer = {}
     self.cursor = 1
+    self.rendered = ''
 end
 
 function M:render()
-    return utf8.char(table.unpack(self.buffer))
+    self.rendered = utf8.char(table.unpack(self.buffer))
 end
 
 function M:reset()
     self.buffer = {}
     self.cursor = 1
+    self.rendered = ''
 end
 
 function M:is_empty()
-    return #self.buffer == 0
+    return self.rendered == ''
 end
 
 function M:backspace()
     if self.cursor > 1 then
         self.cursor = self.cursor - 1
         table.remove(self.buffer, self.cursor)
+        self:render()
     end
 end
 
 function M:kill_to_beg()
-    local t = {}
-    table.move(self.buffer, self.cursor, #self.buffer, 1, t)
-    self.buffer = t
+    self.buffer = {table.unpack(self.buffer, self.cursor)}
     self.cursor = 1
+    self:render()
 end
 
 function M:kill_to_end()
-    local t = {}
-    table.move(self.buffer, 1, self.cursor - 1, 1, t)
-    self.buffer = t
+    self.buffer = {table.unpack(self.buffer, 1, self.cursor - 1)}
+    self:render()
 end
 
 function M:add(code)
     table.insert(self.buffer, self.cursor, code)
     self.cursor = self.cursor + 1
+    self:render()
 end
 
 function M:move_to_beg()

@@ -312,7 +312,7 @@ function draw_global_load(title, tracker)
         ncurses.cursset(0)
     else
         cyan()
-        addstr(editor:render())
+        addstr(editor.rendered)
         ncurses.move(tty_height - 1, editor.cursor + 9)
         ncurses.cursset(1)
     end
