@@ -1,9 +1,9 @@
 local commands = require_ 'handlers.commands'
 local function execute()
-    local command, args = string.match(buffer, '^ */(%g*) *(.*)$')
+    local command, args = string.match(editor.buffer, '^ */(%g*) *(.*)$')
     local impl = commands[command]
     if impl then
-        buffer = ''
+        editor:reset()
         status_message = ''
 
         local success, message = pcall(impl, args)
@@ -36,16 +36,25 @@ local M = {
     [-ncurses.KEY_F9] = function() view = 9 end,
     [-ncurses.KEY_F10] = function() view = 10 end,
     [string.byte('/')] = function()
-        if buffer == '' then buffer = '/' end end,
+        if editor:is_empty() then editor:add(utf8.codepoint('/')) end end,
 
     [ctrl('L')] = function() ncurses.clear() end,
     [ctrl('N')] = function() view = view % #views + 1 end,
     [ctrl('P')] = function() view = (view - 2) % #views + 1 end,
 
-    [0x7f] = function() buffer = string.sub(buffer, 1, #buffer - 1) end, -- Del
-    [-ncurses.KEY_BACKSPACE] = function() buffer = string.sub(buffer, 1, #buffer - 1) end,
+    [0x7f] = function() editor:backspace() end, -- Del
+    [-ncurses.KEY_BACKSPACE] = function() editor:backspace() end,
     [ctrl('M')] = execute, -- Enter
-    [ctrl('U')] = function() buffer = '' end,
+    [ctrl('U')] = function() editor:kill_to_beg() end,
+    [ctrl('K')] = function() editor:kill_to_end() end,
+    [ctrl('A')] = function() editor:move_to_beg() end,
+    [ctrl('E')] = function() editor:move_to_end() end,
+    [ctrl('B')] = function() editor:left() end,
+    [ctrl('F')] = function() editor:right() end,
+
+    [-ncurses.KEY_LEFT] = function() editor:left() end,
+    [-ncurses.KEY_RIGHT] = function() editor:right() end,
+
 }
 
 return M

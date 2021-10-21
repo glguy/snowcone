@@ -106,6 +106,29 @@ static int l_colorset(lua_State *L)
     return 0;
 }
 
+static int l_move(lua_State *L)
+{
+    lua_Integer y = luaL_checkinteger(L, 1);
+    lua_Integer x = luaL_checkinteger(L, 2);
+    if (ERR == move(y, x))
+    {
+        return luaL_error(L, "move");
+    }
+    return 0;
+}
+
+static int l_cursset(lua_State *L)
+{
+    lua_Integer visibility = luaL_checkinteger(L, 1);
+    int previous = curs_set(visibility);
+    if (previous == ERR)
+    {
+        return luaL_error(L, "curs_set: invalid argument");
+    }
+    lua_pushinteger(L, previous);
+    return 1;
+}
+
 static luaL_Reg lib[] = {
     {"addstr", l_addstr},
     {"mvaddstr", l_mvaddstr},
@@ -119,6 +142,9 @@ static luaL_Reg lib[] = {
     {"attroff", l_attroff},
     {"attrset", l_attrset},
     {"colorset", l_colorset},
+
+    {"cursset", l_cursset},
+    {"move", l_move},
     {},
 };
 

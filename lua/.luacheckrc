@@ -5,7 +5,8 @@ stds = {
     snowcone = {
         read_globals = {
             snowcone = {
-              fields = {"to_base64", "send_irc", "dnslookup", "pton", "shutdown", "newtimer", "newwatcher", "setmodule",},
+              fields = {"to_base64", "send_irc", "dnslookup", "pton", "shutdown", "newtimer",
+                "newwatcher", "setmodule",},
             },
         },
     },
@@ -30,11 +31,11 @@ stds = {
 
             "primary_hub", "uptime", "trust_uname", "show_reasons", "kline_duration",
             "staged_action", "kline_reason", "scroll", "history", "mrs", "server_ordering",
-            "server_descending", "buffer",
+            "server_descending",
 
             "links", "upstream", "population", "conn_tracker", "exit_tracker",
             "kline_tracker", "filter_tracker", "net_trackers",
-            "messages", "messages_n", "klines",
+            "messages", "messages_n", "klines", "editor",
             "users", "clicon_n",
             "exits", "cliexit_n",
 

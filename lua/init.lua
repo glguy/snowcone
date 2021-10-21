@@ -41,7 +41,7 @@ end
 ip_org   = require_ 'ip_org'
 irc_authentication = require_ 'irc_authentication'
 NetTracker = require_ 'NetTracker'
-
+local Editor             = require_ 'Editor'
 local LoadTracker        = require_ 'LoadTracker'
 local OrderedMap         = require_ 'OrderedMap'
 local compute_kline_mask = require_ 'libera_masks'
@@ -132,7 +132,7 @@ local defaults = {
     status_message = '',
     irc_state = {},
     uv_resources = {},
-    buffer = '',
+    editor = Editor(),
 
     -- settings
     show_reasons = 'reason',
@@ -287,7 +287,7 @@ function draw_global_load(title, tracker)
     reversevideo_()
     addstr(' ')
 
-    if '' == buffer then
+    if editor:is_empty() then
         magenta()
         addstr(title .. ' ')
         draw_load(tracker.global)
@@ -309,9 +309,12 @@ function draw_global_load(title, tracker)
         add_click(tty_height-1, 0, 9, function()
             view = view % #views + 1
         end)
+        ncurses.cursset(0)
     else
         cyan()
-        addstr(buffer)
+        addstr(editor:render())
+        ncurses.move(tty_height - 1, editor.cursor + 9)
+        ncurses.cursset(1)
     end
 end
 
@@ -641,8 +644,8 @@ end
 local key_handlers = require_ 'handlers.keyboard'
 function M.on_keyboard(key)
     -- buffer text editing
-    if (0x20 <= key and (key < 0x7f or 0xa0 <= key)) and buffer ~= '' then
-        buffer = buffer .. utf8.char(key)
+    if (0x20 <= key and (key < 0x7f or 0xa0 <= key)) and not editor:is_empty() then
+        editor:add(key)
         draw()
         return
     end
