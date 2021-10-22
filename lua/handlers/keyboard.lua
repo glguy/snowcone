@@ -56,7 +56,7 @@ local M = {
     [-ncurses.KEY_LEFT] = function() editor:left() end,
     [-ncurses.KEY_RIGHT] = function() editor:right() end,
 
-    [ctrl('C')] = function() status_message = 'quitting' quit() end,
+    [ctrl('C')] = function() snowcone.raise(2) end,
     [ctrl('Z')] = function() snowcone.raise(18) end,
 }
 
