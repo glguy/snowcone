@@ -55,19 +55,19 @@ local M = {
     [ctrl('N')] = function() view = view % #views + 1 end,
     [ctrl('P')] = function() view = (view - 2) % #views + 1 end,
 
-    [0x7f] = function() editor:backspace() end, -- Del
-    [-ncurses.KEY_BACKSPACE] = function() editor:backspace() end,
-    [ctrl('M')] = function() execute[input_mode]() end, -- Enter
-    [ctrl('U')] = function() editor:kill_to_beg() end,
-    [ctrl('K')] = function() editor:kill_to_end() end,
-    [ctrl('A')] = function() editor:move_to_beg() end,
-    [ctrl('E')] = function() editor:move_to_end() end,
-    [ctrl('W')] = function() editor:kill_region() end,
-    [ctrl('B')] = function() editor:left() end,
-    [ctrl('F')] = function() editor:right() end,
-    [ctrl('Y')] = function() editor:paste() end,
-    [-ncurses.KEY_LEFT] = function() editor:left() end,
-    [-ncurses.KEY_RIGHT] = function() editor:right() end,
+    [0x7f] = function() if input_mode then editor:backspace() end end, -- Del
+    [-ncurses.KEY_BACKSPACE] = function() if input_mode then editor:backspace() end end,
+    [ctrl('M')] = function() if input_mode then execute[input_mode]() end end, -- Enter
+    [ctrl('U')] = function() if input_mode then editor:kill_to_beg() end end,
+    [ctrl('K')] = function() if input_mode then editor:kill_to_end() end end,
+    [ctrl('A')] = function() if input_mode then editor:move_to_beg() end end,
+    [ctrl('E')] = function() if input_mode then editor:move_to_end() end end,
+    [ctrl('W')] = function() if input_mode then editor:kill_region() end end,
+    [ctrl('B')] = function() if input_mode then editor:left() end end,
+    [ctrl('F')] = function() if input_mode then editor:right() end end,
+    [ctrl('Y')] = function() if input_mode then editor:paste() end end,
+    [-ncurses.KEY_LEFT] = function() if input_mode then editor:left() end end,
+    [-ncurses.KEY_RIGHT] = function() if input_mode then editor:right() end end,
 
     [ctrl('C')] = function() snowcone.raise(2) end,
     [ctrl('Z')] = function() snowcone.raise(18) end,
