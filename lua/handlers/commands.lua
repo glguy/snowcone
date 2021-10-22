@@ -46,4 +46,22 @@ function M.quit()
     quit()
 end
 
+function M.inject(arg)
+    local parse_snote = require 'parse_snote'
+    local time = os.date('!%H:%M:%S')
+    local server = 'INJECT.'
+    local event = parse_snote(time, server, arg)
+    if event then
+        local handlers = require 'handlers.snotice'
+        local handler = handlers[event.name]
+        if handler then
+            handler(event)
+        else
+            status_message = 'no handler'
+        end
+    else
+        status_message = 'parse failed'
+    end
+end
+
 return M

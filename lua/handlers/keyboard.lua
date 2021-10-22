@@ -2,6 +2,9 @@ local execute = {}
 
 function execute.filter()
     filter = editor.rendered
+    if filter == '' then
+        filter = nil
+    end
     editor:reset()
     input_mode = nil
 end
@@ -20,7 +23,11 @@ function execute.command()
             status_message = string.match(message, '^%C*')
         end
     else
-        status_message = 'unknown command'
+        if command ~= '' then
+            status_message = 'unknown command'
+        end
+        editor:reset()
+        input_mode = nil
     end
 end
 
