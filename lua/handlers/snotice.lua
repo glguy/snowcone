@@ -110,12 +110,12 @@ end
 
 function M.dline(ev)
     kline_tracker:track(ev.nick)
-    klines:insert('dline ' .. ev.ip, {
+    klines:insert('dline ' .. ev.mask, {
         time = ev.time,
         oper = ev.oper,
         duration = ev.duration,
         reason = ev.reason,
-        mask = ev.ip,
+        mask = ev.mask,
         kind = 'dline',
     })
 end
