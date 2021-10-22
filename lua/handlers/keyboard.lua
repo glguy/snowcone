@@ -46,10 +46,6 @@ local M = {
     [-ncurses.KEY_F8] = function() view = 8 end,
     [-ncurses.KEY_F9] = function() view = 9 end,
     [-ncurses.KEY_F10] = function() view = 10 end,
-    [string.byte('/')] = function()
-        editor:reset()
-        input_mode = 'command'
-    end,
 
     [ctrl('L')] = function() ncurses.clear() end,
     [ctrl('N')] = function() view = view % #views + 1 end,
@@ -68,6 +64,8 @@ local M = {
     [ctrl('Y')] = function() if input_mode then editor:paste() end end,
     [-ncurses.KEY_LEFT] = function() if input_mode then editor:left() end end,
     [-ncurses.KEY_RIGHT] = function() if input_mode then editor:right() end end,
+    [-ncurses.KEY_HOME] = function() if input_mode then editor:move_to_beg() end end,
+    [-ncurses.KEY_END] = function() if input_mode then editor:move_to_end() end end,
 
     [ctrl('C')] = function() snowcone.raise(2) end,
     [ctrl('Z')] = function() snowcone.raise(18) end,
@@ -75,6 +73,10 @@ local M = {
     [ctrl('S')] = function()
         editor:reset()
         input_mode = 'filter'
+    end,
+    [string.byte('/')] = function()
+        editor:reset()
+        input_mode = 'command'
     end,
 }
 
