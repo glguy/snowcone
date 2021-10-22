@@ -67,7 +67,14 @@ MODES
   F10  recent bans
   C-n  next view
   C-p  previous view
-  C-u  clear input buffer
+  C-s  live filtering mode
+  C-u  kill to beginning of buffer
+  C-k  kill to end of buffer
+  C-w  kill region
+  C-y  paste yanked region
+  C-a  move to beginning of buffer
+  C-e  move to end of buffer
+
 SH RECENT CONNECTIONS
   The recent connections view has a number of special features. Click on
   a connection to select it for kline or unkline. The buttons below will

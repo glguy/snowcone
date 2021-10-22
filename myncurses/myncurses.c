@@ -1,9 +1,9 @@
 #define _XOPEN_SOURCE 600
 
 #include <stdlib.h>
+#include <assert.h>
 
 #include <ncurses.h>
-
 #include "lua.h"
 #include "lauxlib.h"
 #include "lualib.h"
@@ -165,6 +165,48 @@ static inline void setup_color(lua_State *L, short i, short f, short b, char con
     lua_setfield(L, -2, name);
 }
 
+struct color
+{
+    char const* name;
+    short value;
+};
+
+static struct color colors[] = {
+    { "red", COLOR_RED },
+    { "green", COLOR_GREEN },
+    { "yellow", COLOR_YELLOW },
+    { "blue", COLOR_BLUE },
+    { "magenta", COLOR_MAGENTA },
+    { "cyan", COLOR_CYAN },
+    { "white", COLOR_WHITE },
+    { "black", COLOR_BLACK },
+};
+
+static void setup_colors(lua_State *L)
+{
+    int color = 1;
+    size_t n = sizeof colors / sizeof *colors;
+    for (size_t i = 0; i < n; i++)
+    {
+        assert(ERR != init_pair(color, colors[i].value, -1));
+        lua_pushinteger(L, color);
+        lua_setfield(L, -2, colors[i].name);
+        color++;
+    }
+
+    for (size_t f = 0; f < n; f++)
+    {
+        for (size_t b = 0; b < n; b++)
+        {
+            assert(ERR != init_pair(color, colors[f].value, colors[b].value));
+            lua_pushfstring(L, "%s_%s", colors[f].name, colors[b].name);
+            lua_pushinteger(L, color);
+            lua_rawset(L, -3);
+            color++;
+        }
+    }
+}
+
 #define LCURSES__SPLICE(_s, _t) _s##_t
 #define LCURSES_SPLICE(_s, _t) LCURSES__SPLICE(_s, _t)
 #define LCURSES__STR(_s) #_s
@@ -181,14 +223,7 @@ static inline void setup_color(lua_State *L, short i, short f, short b, char con
 int luaopen_myncurses(lua_State *L)
 {
     luaL_newlib(L, lib);
-    setup_color(L, 1, COLOR_RED, -1, "red");
-    setup_color(L, 2, COLOR_GREEN, -1, "green");
-    setup_color(L, 3, COLOR_YELLOW, -1, "yellow");
-    setup_color(L, 4, COLOR_BLUE, -1, "blue");
-    setup_color(L, 5, COLOR_MAGENTA, -1, "magenta");
-    setup_color(L, 6, COLOR_CYAN, -1, "cyan");
-    setup_color(L, 7, COLOR_WHITE, -1, "white");
-    setup_color(L, 8, COLOR_BLACK, -1, "black");
+    setup_colors(L);
 
 	/* attributes */
 	CC(WA_NORMAL);		CC(WA_STANDOUT);		CC(WA_UNDERLINE);

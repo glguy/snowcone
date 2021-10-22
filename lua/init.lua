@@ -285,9 +285,18 @@ function draw_global_load(title, tracker)
     reversevideo()
     mvaddstr(tty_height-1, 0, views[view].title or 'sn' .. spinner[uptime % #spinner + 1] .. 'wcone')
     reversevideo_()
-    addstr(' ')
 
-    if editor:is_empty() then
+    if input_mode then
+        ncurses.colorset(ncurses.white_blue)
+        addstr('' .. input_mode)
+        cyan()
+        addstr(' ' .. editor.before_cursor)
+        local y,x = ncurses.getyx()
+        addstr(editor.at_cursor)
+        ncurses.move(y,x)
+        ncurses.cursset(1)
+    else
+        addstr(' ')
         magenta()
         addstr(title .. ' ')
         draw_load(tracker.global)
@@ -310,21 +319,26 @@ function draw_global_load(title, tracker)
             view = view % #views + 1
         end)
         ncurses.cursset(0)
-    else
-        cyan()
-        addstr(editor.before_cursor)
-        local y,x = ncurses.getyx()
-        addstr(editor.at_cursor)
-        ncurses.move(y,x)
-        ncurses.cursset(1)
     end
 end
 
+local function safematch(str, pat)
+    local success, result = pcall(string.match, str, pat)
+    return success and result
+end
+
 function show_entry(entry)
+    local current_filter
+    if input_mode == 'filter' then
+        current_filter = editor.rendered
+    else
+        current_filter = filter
+    end
+
     return
     (server_filter == nil or server_filter == entry.server) and
     (conn_filter == nil or conn_filter == not entry.reason) and
-    (filter      == nil or string.match(entry.mask, filter))
+    (current_filter == nil or safematch(entry.mask, current_filter))
 end
 
 function draw_buttons()
@@ -646,7 +660,7 @@ end
 local key_handlers = require_ 'handlers.keyboard'
 function M.on_keyboard(key)
     -- buffer text editing
-    if (0x20 <= key and (key < 0x7f or 0xa0 <= key)) and not editor:is_empty() then
+    if input_mode and (0x20 <= key and (key < 0x7f or 0xa0 <= key)) then
         editor:add(key)
         draw()
         return

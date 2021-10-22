@@ -27,7 +27,7 @@ stds = {
     main = {
         read_globals = {"tty_height", "tty_width", "configuration", "mygeoip", "ncurses" },
         globals = {
-            "irc_state", "require_", "status_message", "views",
+            "irc_state", "require_", "status_message", "views", "input_mode",
 
             "primary_hub", "uptime", "trust_uname", "show_reasons", "kline_duration",
             "staged_action", "kline_reason", "scroll", "history", "mrs", "server_ordering",
