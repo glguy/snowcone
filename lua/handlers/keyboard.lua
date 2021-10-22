@@ -8,7 +8,7 @@ end
 
 local commands = require_ 'handlers.commands'
 function execute.command()
-    local command, args = string.match(editor.rendered, '^ */(%g*) *(.*)$')
+    local command, args = string.match(editor.rendered, '^ *(%g*) *(.*)$')
     local impl = commands[command]
     if impl then
         editor:reset()
@@ -47,7 +47,7 @@ local M = {
     [-ncurses.KEY_F9] = function() view = 9 end,
     [-ncurses.KEY_F10] = function() view = 10 end,
     [string.byte('/')] = function()
-        editor:add(utf8.codepoint('/'))
+        editor:reset()
         input_mode = 'command'
     end,
 
@@ -72,7 +72,10 @@ local M = {
     [ctrl('C')] = function() snowcone.raise(2) end,
     [ctrl('Z')] = function() snowcone.raise(18) end,
 
-    [ctrl('S')] = function() input_mode = 'filter' end,
+    [ctrl('S')] = function()
+        editor:reset()
+        input_mode = 'filter'
+    end,
 }
 
 return M

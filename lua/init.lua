@@ -289,7 +289,7 @@ function draw_global_load(title, tracker)
     if input_mode then
         ncurses.colorset(ncurses.white_blue)
         addstr('' .. input_mode)
-        cyan()
+        blue()
         addstr(' ' .. editor.before_cursor)
         local y,x = ncurses.getyx()
         addstr(editor.at_cursor)
