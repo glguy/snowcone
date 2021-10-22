@@ -97,7 +97,7 @@ function M.nick(ev)
 end
 
 function M.kline(ev)
-    kline_tracker:track(ev.nick)
+    kline_tracker:track(ev.oper)
     klines:insert('kline ' .. ev.mask, {
         time = ev.time,
         oper = ev.oper,
@@ -109,15 +109,18 @@ function M.kline(ev)
 end
 
 function M.dline(ev)
-    kline_tracker:track(ev.nick)
-    klines:insert('dline ' .. ev.mask, {
-        time = ev.time,
-        oper = ev.oper,
-        duration = ev.duration,
-        reason = ev.reason,
-        mask = ev.mask,
-        kind = 'dline',
-    })
+    local key = 'dline ' .. ev.mask
+    local entry = klines:lookup(key)
+    if not entry or entry.kind == 'dline' then
+        klines:insert(key, {
+            time = ev.time,
+            oper = ev.oper,
+            duration = ev.duration,
+            reason = ev.reason,
+            mask = ev.mask,
+            kind = 'dline',
+        })
+    end
 end
 
 function M.kill(ev)
