@@ -111,7 +111,7 @@ end
 function M.dline(ev)
     local key = 'dline ' .. ev.mask
     local entry = klines:lookup(key)
-    if not entry or entry.kind == 'dline' then
+    if not entry or entry.kind ~= 'dline' then
         klines:insert(key, {
             time = ev.time,
             oper = ev.oper,
