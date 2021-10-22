@@ -179,7 +179,7 @@ static int l_raise(lua_State *L)
     return 0;
 }
 
-static int app_to_base64(lua_State *L)
+static int l_to_base64(lua_State *L)
 {
     size_t input_len;
     char const* input = luaL_checklstring(L, 1, &input_len);
@@ -193,7 +193,7 @@ static int app_to_base64(lua_State *L)
     return 1;
 }
 
-static int l_writeirc(lua_State *L)
+static int l_send_irc(lua_State *L)
 {
     struct app * const a = *app_ref(L);
 
@@ -296,8 +296,8 @@ static int l_newwatcher(lua_State *L)
 }
 
 static luaL_Reg M[] = {
-    { "to_base64", app_to_base64 },
-    { "send_irc", l_writeirc },
+    { "to_base64", l_to_base64 },
+    { "send_irc", l_send_irc },
     { "dnslookup", l_dnslookup },
     { "pton", l_pton },
     { "shutdown", l_shutdown },
@@ -380,11 +380,6 @@ struct app *app_new(struct configuration *cfg)
 
     start_lua(a);
     return a;
-}
-
-void app_reload(struct app *a)
-{
-    load_logic(a->L, a->cfg->lua_filename);
 }
 
 void app_free(struct app *a)

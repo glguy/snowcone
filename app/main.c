@@ -80,8 +80,7 @@ int main(int argc, char *argv[])
     start_color();
     use_default_colors();
     nodelay(stdscr, TRUE); /* nonblocking input reads */
-    cbreak(); /* no input line buffering */
-    raw();
+    raw(); /* pass through all they keys */
     noecho(); /* no echo input to screen */
     nonl(); /* no newline on pressing return */
     intrflush(stdscr, FALSE);

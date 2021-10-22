@@ -42,4 +42,8 @@ function M.eval(args)
     end
 end
 
+function M.quit()
+    quit()
+end
+
 return M
