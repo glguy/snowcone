@@ -84,6 +84,67 @@ function M:render()
         y = y + 1
     end
 
+    y = y + 1 -- skip a line
+
+    if y+1 < tty_height then
+        green()
+        mvaddstr(y, 0, "Actions         Watch Mask")
+        y = y + 1
+    end
+
+    for i, watch in ipairs(watches) do
+        if y+1 >= tty_height then break end
+
+        ncurses.move(y,0)
+
+        red()
+        add_button('(x)', function()
+            table.remove(watches, i)
+        end)
+        addstr(' ')
+        if watch.active then
+            green()
+            add_button('(A)', function()
+                watch.active = nil
+            end)
+        else
+            yellow()
+            add_button('(a)', function()
+                watch.active = true
+            end)
+        end
+        addstr(' ')
+        if watch.beep then
+            green()
+            add_button('(B)', function()
+                watch.beep = nil
+            end)
+        else
+            yellow()
+            add_button('(b)', function()
+                watch.beep = true
+            end)
+        end
+        addstr(' ')
+        if watch.flash then
+            green()
+            add_button('(F)', function()
+                watch.flash = nil
+            end)
+        else
+            yellow()
+            add_button('(f)', function()
+                watch.flash = true
+            end)
+        end
+
+        addstr(string.format(' %3d ', i))
+        ncurses.colorset(watch.color or ncurses.red)
+        addstr('◆')
+        normal()
+        addstr(string.format(' %-40s', watch.mask))
+    end
+
     draw_global_load('CLICON', conn_tracker)
 end
 

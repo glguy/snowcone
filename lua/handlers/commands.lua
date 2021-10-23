@@ -72,6 +72,7 @@ end
 
 function M.addwatch(args)
     local watch = {}
+    local id
     for kind, token in lexer.scan(args) do
         if kind == 'iden' and token == 'beep' then
             watch.beep = true
@@ -81,17 +82,34 @@ function M.addwatch(args)
             watch.color = colormap[token]
         elseif kind == 'string' then
             watch.mask = token
+        elseif kind == 'number' and math.tointeger(token) then
+            id = math.tointeger(token)
+            if id < 1 or #watches < id then
+                status_message = "Watch index out of range"
+                return
+            end
         else
             status_message = "Unexpected token: " .. token
             return
         end
     end
 
-    if watch.mask == nil then
-        status_message = "No watch mask specified"
-    else
+    -- New watch
+    if id == nil then
+        if watch.mask == nil then
+            status_message = "No watch mask specified"
+            return
+        end
+
+        watch.active = true
+
         table.insert(watches, watch)
         status_message = "Added watch #" .. #watches
+
+    -- Updating an old watch
+    else
+        tablex.update(watches[id], watch)
+        status_message = "Updated watch #" .. id
     end
 end
 
