@@ -109,10 +109,6 @@ function M:render()
         current_filter = filter
     end
 
-    if not pcall(string.match, '', current_filter) then
-        current_filter = nil
-    end
-
     local show_irc
     if current_filter then
         show_irc = function(irc)
@@ -123,7 +119,9 @@ function M:render()
             else
                 haystack = irc.command .. ' ' .. table.concat(irc, ' ')
             end
-            return not not string.match(haystack, current_filter)
+
+            local ok, match = pcall(string.match, haystack, current_filter)
+            return not ok or match
         end
     end
 
