@@ -86,7 +86,7 @@ function M:render()
 
     y = y + 1 -- skip a line
 
-    if y+1 < tty_height then
+    if y+1 < tty_height and next(watches) then
         green()
         mvaddstr(y, 0, "Actions         Watch Mask")
         y = y + 1
