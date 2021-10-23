@@ -42,11 +42,13 @@ function M.connect(ev)
     end
 
     for _, watch in ipairs(watches) do
-        local success, match = pcall(string.match, entry.mask, watch.mask)
-        if success and match then
-            entry.mark = watch.color or ncurses.red
-            if watch.beep  then ncurses.beep () end
-            if watch.flash then ncurses.flash() end
+        if watch.active then
+            local success, match = pcall(string.match, entry.mask, watch.mask)
+            if success and match then
+                entry.mark = watch.color or ncurses.red
+                if watch.beep  then ncurses.beep () end
+                if watch.flash then ncurses.flash() end
+            end
         end
     end
 
