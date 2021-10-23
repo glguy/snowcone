@@ -129,6 +129,18 @@ static int l_cursset(lua_State *L)
     return 1;
 }
 
+static int l_flash(lua_State *L)
+{
+    flash();
+    return 0;
+}
+
+static int l_beep(lua_State *L)
+{
+    beep();
+    return 0;
+}
+
 static luaL_Reg lib[] = {
     {"addstr", l_addstr},
     {"mvaddstr", l_mvaddstr},
@@ -145,6 +157,8 @@ static luaL_Reg lib[] = {
 
     {"cursset", l_cursset},
     {"move", l_move},
+    {"beep", l_beep},
+    {"flash", l_flash},
     {},
 };
 
