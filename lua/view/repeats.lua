@@ -5,7 +5,7 @@ end
 
 function M:render()
     local nick_counts, mask_counts = {}, {}
-    for mask, user in users:each() do
+    for user, mask in users:each() do
         local nick, count = user.nick, user.count
         nick_counts[nick] = (nick_counts[nick] or 0) + 1
         mask_counts[mask] = count

@@ -49,7 +49,7 @@ function OrderedMap:each(offset)
         if i < t then
             i = i + 1
             local j = (n-i)%m+1
-            return self.keys[j], self.vals[j]
+            return self.vals[j], self.keys[j]
         end
     end
 

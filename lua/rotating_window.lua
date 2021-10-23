@@ -7,7 +7,7 @@ function M.build_window(source, rows, predicate)
     local n = 0
     local window = {}
 
-    for _, entry in source:each(scroll) do
+    for entry in source:each(scroll) do
         if n+1 >= rows then break end -- saves a row for divider
         if not predicate or predicate(entry) then
             window[(source.ticker-1-n) % rows + 1] = entry
