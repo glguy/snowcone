@@ -2,6 +2,25 @@ return function(data, label, tracker)
 
 local M = { active = true }
 
+local function safematch(str, pat)
+    local success, result = pcall(string.match, str, pat)
+    return not success or result
+end
+
+local function show_entry(entry)
+    local current_filter
+    if input_mode == 'filter' then
+        current_filter = editor.rendered
+    else
+        current_filter = filter
+    end
+
+    return
+    (server_filter == nil or server_filter == entry.server) and
+    (conn_filter == nil or conn_filter == not entry.reason) and
+    (current_filter == nil or safematch(entry.mask, current_filter))
+end
+
 local handlers = {
     [-ncurses.KEY_PPAGE] = function()
         scroll = scroll + math.max(1, tty_height - 2)

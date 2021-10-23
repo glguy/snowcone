@@ -113,14 +113,15 @@ local defaults = {
     -- state
     users = OrderedMap(1000),
     exits = OrderedMap(1000),
-    messages = OrderedMap(100),
-    klines = OrderedMap(100),
+    messages = OrderedMap(1000),
+    klines = OrderedMap(1000),
     kline_tracker = LoadTracker(),
     conn_tracker = LoadTracker(),
     exit_tracker = LoadTracker(),
     net_trackers = {},
     view = 1,
-    uptime = 0,
+    uptime = 0, -- seconds since startup
+    liveness = 0, -- timestamp of last irc receipt
     mrs = {},
     scroll = 0,
     filter_tracker = LoadTracker(),
@@ -288,7 +289,13 @@ function draw_global_load(title, tracker)
         ncurses.colorset(ncurses.white_blue)
         addstr('' .. input_mode)
         blue()
-        addstr(' ' .. editor.before_cursor)
+        addstr(' ')
+
+        if input_mode == 'filter' and not pcall(string.match, '', editor.rendered) then
+            red()
+        end
+
+        addstr(editor.before_cursor)
         local y,x = ncurses.getyx()
         addstr(editor.at_cursor)
         ncurses.move(y,x)
@@ -329,25 +336,6 @@ function draw_global_load(title, tracker)
         end)
         ncurses.cursset(0)
     end
-end
-
-local function safematch(str, pat)
-    local success, result = pcall(string.match, str, pat)
-    return success and result
-end
-
-function show_entry(entry)
-    local current_filter
-    if input_mode == 'filter' then
-        current_filter = editor.rendered
-    else
-        current_filter = filter
-    end
-
-    return
-    (server_filter == nil or server_filter == entry.server) and
-    (conn_filter == nil or conn_filter == not entry.reason) and
-    (current_filter == nil or safematch(entry.mask, current_filter))
 end
 
 function draw_buttons()
@@ -616,6 +604,10 @@ if not uv_resources.tick_timer then
     uv_resources.tick_timer = snowcone.newtimer()
     uv_resources.tick_timer:start(1000, 1000, function()
         uptime = uptime + 1
+        if uptime == liveness + 30 then
+            snowcone.send_irc 'PING snowcone\r\n'
+        end
+
         conn_tracker:tick()
         exit_tracker:tick()
         kline_tracker:tick()
@@ -659,7 +651,7 @@ end
 local irc_handlers = require_ 'handlers.irc'
 function M.on_irc(irc)
     messages:insert(true, irc)
-
+    liveness = uptime
     local f = irc_handlers[irc.command]
     if f then
         f(irc)

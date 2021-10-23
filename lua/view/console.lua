@@ -102,8 +102,34 @@ end
 
 function M:render()
 
+    local current_filter
+    if input_mode == 'filter' then
+        current_filter = editor.rendered
+    else
+        current_filter = filter
+    end
+
+    if not pcall(string.match, '', current_filter) then
+        current_filter = nil
+    end
+
+    local show_irc
+    if current_filter then
+        show_irc = function(irc)
+            local haystack
+            local source = irc.source
+            if source then
+                haystack = source .. ' ' .. irc.command .. ' ' .. table.concat(irc, ' ')
+            else
+                haystack = irc.command .. ' ' .. table.concat(irc, ' ')
+            end
+            return not not string.match(haystack, current_filter)
+        end
+    end
+
+
     local rows = math.max(0, tty_height - 1)
-    local window = rotating_window.build_window(messages, rows)
+    local window = rotating_window.build_window(messages, rows, show_irc)
     local clear_line = string.rep(' ', tty_width)
 
     for y = 0, rows-1 do
