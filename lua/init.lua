@@ -123,8 +123,6 @@ local defaults = {
     uptime = 0,
     mrs = {},
     scroll = 0,
-    clicon_n = 0,
-    cliexit_n = 0,
     filter_tracker = LoadTracker(),
     population = {},
     links = {},
@@ -470,11 +468,11 @@ local view_server_load = require_ 'view.server_load'
 local view_simple_load = require_ 'view.simple_load'
 views = {
     -- Recent connections
-    view_recent_conn(users, 'clicon_n', 'CLICON', conn_tracker),
+    view_recent_conn(users, 'CLICON', conn_tracker),
     -- Server connections
     view_server_load('Connection History', 'CLICON', ncurses.green, conn_tracker),
     -- Recent exists
-    view_recent_conn(exits, 'cliexit_n', 'CLIEXI', exit_tracker),
+    view_recent_conn(exits, 'CLIEXI', exit_tracker),
     -- Server exits
     view_server_load('Disconnection History', 'CLIEXI', ncurses.red, exit_tracker),
     -- K-Line tracking

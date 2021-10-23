@@ -35,9 +35,6 @@ function M.connect(ev)
     users:insert(key, entry)
 
     conn_tracker:track(server)
-    if show_entry(entry) then
-        clicon_n = clicon_n + 1
-    end
 
     local pop = population[ev.server]
     if pop then
@@ -62,7 +59,6 @@ function M.disconnect(ev)
         draw()
     end
 
-    cliexit_n = cliexit_n + 1
     exits:insert(true, {
         nick = ev.nick,
         user = ev.user,

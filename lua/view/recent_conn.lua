@@ -1,4 +1,4 @@
-return function(data, total_name, label, tracker)
+return function(data, label, tracker)
 
 local M = { active = true }
 
