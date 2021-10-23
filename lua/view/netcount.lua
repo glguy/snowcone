@@ -45,6 +45,21 @@ local function ordermask(v1, v2)
         or v1.network == v2.network and v1.tailbyte < v2.tailbyte)
 end
 
+local function toggle(watch, field, on, off)
+    addstr(' ')
+    if watch[field] then
+        green()
+        add_button(on, function()
+            watch[field] = nil
+        end)
+    else
+        yellow()
+        add_button(off, function()
+            watch[field] = true
+        end)
+    end
+end
+
 function M:render()
     green()
     mvaddstr(0,37, "Network  Count  Actions")
@@ -101,42 +116,10 @@ function M:render()
         add_button('(x)', function()
             table.remove(watches, i)
         end)
-        addstr(' ')
-        if watch.active then
-            green()
-            add_button('(A)', function()
-                watch.active = nil
-            end)
-        else
-            yellow()
-            add_button('(a)', function()
-                watch.active = true
-            end)
-        end
-        addstr(' ')
-        if watch.beep then
-            green()
-            add_button('(B)', function()
-                watch.beep = nil
-            end)
-        else
-            yellow()
-            add_button('(b)', function()
-                watch.beep = true
-            end)
-        end
-        addstr(' ')
-        if watch.flash then
-            green()
-            add_button('(F)', function()
-                watch.flash = nil
-            end)
-        else
-            yellow()
-            add_button('(f)', function()
-                watch.flash = true
-            end)
-        end
+
+        toggle(watch, 'active', '(A)', '(a)')
+        toggle(watch, 'beep',   '(B)', '(b)')
+        toggle(watch, 'flash',  '(F)', '(f)')
 
         addstr(string.format(' %3d ', i))
         ncurses.colorset(watch.color or ncurses.red)
