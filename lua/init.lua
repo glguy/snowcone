@@ -140,6 +140,7 @@ local defaults = {
     trust_uname = false,
     server_ordering = 'name',
     server_descending = false,
+    watches = {},
 }
 
 function initialize()
@@ -157,11 +158,6 @@ end
 for server, _ in pairs(servers.servers or {}) do
     conn_tracker:track(server, 0)
     exit_tracker:track(server, 0)
-end
-
-if watches == nil then
-    -- fields: mask, beep, flash
-    watches = {}
 end
 
 --  Helper functions ==================================================

@@ -45,6 +45,7 @@ function M.connect(ev)
         if watch.active then
             local success, match = pcall(string.match, entry.mask, watch.mask)
             if success and match then
+                watch.hits = watch.hits + 1
                 entry.mark = watch.color or ncurses.red
                 if watch.beep  then ncurses.beep () end
                 if watch.flash then ncurses.flash() end

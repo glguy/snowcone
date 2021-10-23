@@ -88,7 +88,7 @@ function M:render()
 
     if y+1 < tty_height and next(watches) then
         green()
-        mvaddstr(y, 0, "Actions         Watch Mask")
+        mvaddstr(y, 0, "Actions         Watch Hits Mask")
         y = y + 1
     end
 
@@ -141,6 +141,8 @@ function M:render()
         addstr(string.format(' %3d ', i))
         ncurses.colorset(watch.color or ncurses.red)
         addstr('◆')
+        blue()
+        addstr(string.format(' %4d', watch.hits))
         normal()
         addstr(string.format(' %-40s', watch.mask))
     end

@@ -102,6 +102,7 @@ function M.addwatch(args)
         end
 
         watch.active = true
+        watch.hits = 0
 
         table.insert(watches, watch)
         status_message = "Added watch #" .. #watches
