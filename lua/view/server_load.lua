@@ -162,7 +162,7 @@ function M:render()
             addstr('  '.. linktext .. ' ')
             normal()
         else
-            addstr('       ')
+            addstr('     ')
         end
 
         for _, flag in ipairs(servers.flags or {}) do
