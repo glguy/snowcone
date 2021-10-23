@@ -15,6 +15,11 @@ function OrderedMap:insert(key, val)
     self.keys[i] = key
     self.vals[i] = val
     self.index[key] = i
+
+    local p = self.predicate
+    if not p or p(val) then
+        self.ticker = self.ticker + 1
+    end
 end
 
 function OrderedMap:lookup(key)
@@ -52,6 +57,7 @@ function OrderedMap:_init(n)
     self.vals = {}
     self.n = 0
     self.max = n
+    self.ticker = 0
 end
 
 return OrderedMap
