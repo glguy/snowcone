@@ -75,19 +75,35 @@ local M = {
     title = 'console ',
 }
 
-local rotating_window = require 'rotating_window'
+local rotating_window = require_ 'rotating_window'
+
+local keys = {
+    [-ncurses.KEY_PPAGE] = function()
+        scroll = scroll + math.max(1, tty_height - 1)
+        scroll = math.min(scroll, messages.n - 1)
+        scroll = math.max(scroll, 0)
+    end,
+    [-ncurses.KEY_NPAGE] = function()
+        scroll = scroll - math.max(1, tty_height - 1)
+        scroll = math.max(scroll, 0)
+    end,
+    [0x12] = function () -- C-r
+        align = not align
+    end,
+}
 
 function M:keypress(key)
-    -- C-r
-    if key == 0x12 then
-        align = not align
+    local h = keys[key]
+    if h then
+        h()
+        draw()
     end
 end
 
 function M:render()
 
     local rows = math.max(0, tty_height - 1)
-    local window = rotating_window.build_window(messages, 'each', rows)
+    local window = rotating_window.build_window(messages, rows)
     local clear_line = string.rep(' ', tty_width)
 
     for y = 0, rows-1 do
@@ -96,16 +112,13 @@ function M:render()
             yellow()
             mvaddstr(y, 0, string.rep('·', tty_width))
             normal()
-        else
+        elseif entry then
             mvaddstr(y, 0, '')
-            if entry then
-                render_irc(entry)
+            render_irc(entry)
+            local y_end = ncurses.getyx()
+            for i = y+1,y_end do
+                mvaddstr(i, 0, clear_line)
             end
-        end
-
-        local y_end = ncurses.getyx()
-        for i = y+1,y_end do
-            mvaddstr(i, 0, clear_line)
         end
     end
     cyan()

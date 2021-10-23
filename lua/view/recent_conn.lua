@@ -37,45 +37,17 @@ function M:keypress(key)
     end
 end
 
+local rotating_window = require_ 'rotating_window'
+
 function M:render()
     local clear_line = string.rep(' ', tty_width)
-    local skips = scroll or 0
     local last_time
-    local n = 0
-    local rotating_view = scroll == 0 and conn_filter == nil
-    local total = _G[total_name]
     local rows = math.max(1, tty_height-2)
 
-    local window = {}
-    for _, entry in data:each() do
-        if show_entry(entry) then
-            local y
-            if rotating_view then
-                y = (total-1-n) % rows
-            else
-                y = rows-1-n
-            end
+    local window = rotating_window.build_window(data, rows, show_entry)
 
-            if skips == 0 then
-                window[y] = entry
-                n = n + 1
-                if rotating_view then
-                    if n >= rows-1 then break end
-                else
-                    if n >= rows then break end
-                end
-            else
-                skips = skips - 1
-            end
-        end
-    end
-
-    if rotating_view then
-        window[total % rows] = 'divider'
-    end
-
-    for y = 0,rows-1 do
-        local entry = window[y]
+    for y = 0, rows-1 do
+        local entry = window[y+1]
         if entry == 'divider' then
             yellow()
             mvaddstr(y, 0, os.date '!%H:%M:%S' .. string.rep('·', tty_width - 8))
@@ -207,26 +179,19 @@ function M:render()
 
     draw_global_load(label, tracker)
 
-    if scroll ~= 0 then
-        addstr(string.format(' scroll %d', scroll))
-    end
-    if filter ~= nil then
-        yellow()
-        addstr(' FILTER ')
-        normal()
-        addstr(string.format('%q', filter))
-    end
-    if conn_filter ~= nil then
-        if conn_filter then
-            green() addstr(' LIVE')
-        else
-            red() addstr(' DEAD')
+    if input_mode == nil then
+        if conn_filter ~= nil then
+            if conn_filter then
+                green() addstr(' LIVE')
+            else
+                red() addstr(' DEAD')
+            end
+            normal()
         end
-        normal()
-    end
-    if server_filter ~= nil then
-        yellow() addstr(' SERVER')
-        normal()
+        if server_filter ~= nil then
+            yellow() addstr(' SERVER')
+            normal()
+        end
     end
 end
 

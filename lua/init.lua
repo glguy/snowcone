@@ -315,6 +315,17 @@ function draw_global_load(title, tracker)
             addstr(' ' .. status_message)
         end
 
+        if scroll ~= 0 then
+            addstr(string.format(' SCROLL %d', scroll))
+        end
+
+        if filter ~= nil then
+            yellow()
+            addstr(' FILTER ')
+            normal()
+            addstr(string.format('%q', filter))
+        end
+
         add_click(tty_height-1, 0, 9, function()
             view = view % #views + 1
         end)

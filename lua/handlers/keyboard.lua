@@ -42,6 +42,7 @@ local M = {
         status_message = nil
         editor:reset()
         input_mode = nil
+        scroll = 0
     end,
     [-ncurses.KEY_F1] = function() view = 1 scroll = 0 end,
     [-ncurses.KEY_F2] = function() view = 2 end,

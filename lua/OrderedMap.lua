@@ -30,8 +30,8 @@ function OrderedMap:rekey(old, new)
     end
 end
 
-function OrderedMap:each()
-    local i = 0
+function OrderedMap:each(offset)
+    local i = offset or 0
     local n = self.n
     local m = self.max
     local t = math.min(n,m)

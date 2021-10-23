@@ -1,6 +1,23 @@
 local M = { title = 'bans    ' }
 
-function M:keypress()
+local keys = {
+    [-ncurses.KEY_PPAGE] = function()
+        scroll = scroll + math.max(1, tty_height - 3)
+        scroll = math.min(scroll, klines.n - 1)
+        scroll = math.max(scroll, 0)
+    end,
+    [-ncurses.KEY_NPAGE] = function()
+        scroll = scroll - math.max(1, tty_height - 3)
+        scroll = math.max(scroll, 0)
+    end,
+}
+
+function M:keypress(key)
+    local h = keys[key]
+    if h then
+        h()
+        draw()
+    end
 end
 
 local function pretty_duration(duration)
@@ -27,13 +44,13 @@ local palette = {
     dline = cyan,
 }
 
-local rotating_window = require 'rotating_window'
+local rotating_window = require_ 'rotating_window'
 
 function M:render()
 
     local clear_line = string.rep(' ', tty_width)
     local rows = math.max(0, tty_height - 3)
-    local window = rotating_window.build_window(klines, 'each', rows)
+    local window = rotating_window.build_window(klines, rows)
     local clear_string = string.rep(' ', tty_width)
 
     bold()
@@ -43,13 +60,11 @@ function M:render()
 
     for y = 1, rows do
         local entry = window[y]
-        if not entry then
-            break
-        elseif entry == 'divider' then
+        if entry == 'divider' then
             yellow()
             mvaddstr(y, 0, os.date('!%H:%M:%S') .. string.rep('·', tty_width-8))
             normal()
-        else
+        elseif entry then
             mvaddstr(y, 0, clear_string)
             cyan()
             mvaddstr(y, 0, entry.time)
