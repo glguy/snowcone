@@ -81,6 +81,12 @@ function M.addwatch(args)
         elseif kind == 'iden' and token == 'flash' then
             watch.flash = true
 
+        elseif kind == 'iden' and token == 'nobeep' then
+            watch.beep = false
+
+        elseif kind == 'iden' and token == 'noflash' then
+            watch.flash = false
+
         elseif kind == 'iden' and colormap[token] then
             watch.color = colormap[token]
 
