@@ -35,7 +35,7 @@ stds = {
 
             "links", "upstream", "population", "conn_tracker", "exit_tracker",
             "kline_tracker", "filter_tracker", "net_trackers",
-            "messages", "klines", "editor",
+            "messages", "klines", "editor", "watches",
             "users",
             "exits",
 

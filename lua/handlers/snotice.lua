@@ -41,6 +41,15 @@ function M.connect(ev)
         population[ev.server] = pop + 1
     end
 
+    for _, watch in ipairs(watches) do
+        local success, match = pcall(string.match, entry.mask, watch.mask)
+        if success and match then
+            entry.mark = watch.color or ncurses.red
+            if watch.beep  then ncurses.beep () end
+            if watch.flash then ncurses.flash() end
+        end
+    end
+
     count_ip(ev.ip, 1)
 end
 
@@ -59,7 +68,7 @@ function M.disconnect(ev)
         draw()
     end
 
-    exits:insert(true, {
+    exits:insert(nil, {
         nick = ev.nick,
         user = ev.user,
         host = ev.host,
@@ -171,7 +180,7 @@ function M.removed(ev)
             old.kind = 'inactive'
         end
 
-        klines:insert(true, {
+        klines:insert(nil, {
             time = ev.time,
             oper = ev.oper,
             mask = ev.mask,
@@ -183,7 +192,7 @@ function M.removed(ev)
             old.kind = 'inactive'
         end
 
-        klines:insert(true, {
+        klines:insert(nil, {
             time = ev.time,
             oper = ev.oper,
             mask = ev.mask,

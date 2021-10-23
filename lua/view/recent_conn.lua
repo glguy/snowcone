@@ -95,15 +95,24 @@ function M:render()
 
             local mask_color = entry.reason and ncurses.red or ncurses.green
 
+            -- FILTERS and RECONNECT counter
             if entry.filters then
                 ncurses.colorset(mask_color)
-                addstr(string.format(' %3d! ', entry.filters))
+                addstr(string.format(' %3d!', entry.filters))
             elseif entry.count then
                 if entry.count < 2 then
                     black()
                 end
-                addstr(string.format(" %4d ", entry.count))
+                addstr(string.format(" %4d", entry.count))
             end
+
+            if entry.mark then
+                if type(entry.mark) == 'number' then ncurses.colorset(entry.mark) end
+                addstr('◆')
+            else
+                addstr(' ')
+            end
+
             -- MASK
             if highlight and (
                 highlight_plain     and highlight == entry.mask or

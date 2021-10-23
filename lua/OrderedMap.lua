@@ -8,16 +8,21 @@ function OrderedMap:insert(key, val)
     local i = n%m + 1
     self.n = n + 1
 
+    -- Overwriting old entry, remove from index if needed
     if self.index[self.keys[i]] == i then
         self.index[self.keys[i]] = nil
     end
 
+    -- Remember new index
+    if key ~= nil then
+        self.index[key] = i
+    end
+
     self.keys[i] = key
     self.vals[i] = val
-    self.index[key] = i
 
     local p = self.predicate
-    if not p or p(val) then
+    if p == nil or p(val) then
         self.ticker = self.ticker + 1
     end
 end
@@ -28,7 +33,7 @@ end
 
 function OrderedMap:rekey(old, new)
     local i = self.index[old]
-    if i then
+    if i ~= nil then
         self.index[old] = nil
         self.keys[i] = new
         self.index[new] = i
