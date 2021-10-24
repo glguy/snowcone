@@ -132,6 +132,7 @@ local defaults = {
     irc_state = {},
     uv_resources = {},
     editor = Editor(),
+    versions = {},
 
     -- settings
     show_reasons = 'reason',
@@ -307,7 +308,7 @@ function draw_global_load(title, tracker)
     else
         addstr(' ')
         magenta()
-        addstr(title)
+        addstr(title .. ' ')
         draw_load(tracker.global)
         normal()
 

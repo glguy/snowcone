@@ -141,4 +141,19 @@ function M.delwatch(args)
     end
 end
 
+function M.stats()
+    view = 'stats'
+end
+
+function M.versions()
+    local n = 0
+    local commands = {}
+    for server, _ in pairs(links) do
+        n = n + 1
+        commands[n] = 'VERSION :' .. server .. '\r\n'
+    end
+    versions = {}
+    snowcone.send_irc(table.concat(commands))
+end
+
 return M

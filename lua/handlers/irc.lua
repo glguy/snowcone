@@ -126,6 +126,11 @@ M['017'] = function()
     irc_state.in_map = nil
 end
 
+-- RPL_VERSION
+M['351'] = function(irc)
+    versions[irc.source] = string.match(irc[2] or '', '%((.*)%)')
+end
+
 -- RPL_LINKS
 M['364'] = function(irc)
     if not irc_state.links then
