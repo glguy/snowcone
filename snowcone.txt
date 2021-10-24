@@ -156,6 +156,8 @@ COMMANDS
   /quote raw_command        Send a raw IRC command
   /reload                   Reload Lua files
   /sync                     Manually refresh user counts
+  /addwatch pattern         Add a new watch
+  /delwatch number          Remove watch by number
 GEOIP SUPPORT
   Both legacy GeoIP and modern GeoIP Maxmind database are supported
   and will be used if they are found at startup time.
