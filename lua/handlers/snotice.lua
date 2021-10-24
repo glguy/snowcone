@@ -183,24 +183,33 @@ function M.removed(ev)
             old.kind = 'inactive'
         end
 
-        klines:insert(nil, {
-            time = ev.time,
-            oper = ev.oper,
-            mask = ev.mask,
-            kind = 'removed'
-        })
+        local _, prev_key = klines:each()()
+        local key = 'unkline ' .. ev.mask
+        if prev_key ~= key then
+            klines:insert(nil, {
+                time = ev.time,
+                oper = ev.oper,
+                mask = ev.mask,
+                kind = 'removed'
+            })
+        end
+
     elseif ev.kind == 'd-line' then
         local old = klines:lookup('dline ' .. ev.mask)
         if old then
             old.kind = 'inactive'
         end
 
-        klines:insert(nil, {
-            time = ev.time,
-            oper = ev.oper,
-            mask = ev.mask,
-            kind = 'removed'
-        })
+        local _, prev_key = klines:each()()
+        local key = 'undline ' .. ev.mask
+        if prev_key ~= key then
+            klines:insert(key, {
+                time = ev.time,
+                oper = ev.oper,
+                mask = ev.mask,
+                kind = 'removed'
+            })
+        end
     end
 end
 
