@@ -74,6 +74,7 @@ MODES
   C-y  paste yanked region
   C-a  move to beginning of buffer
   C-e  move to end of buffer
+  C-t  swap characters
 
 SH RECENT CONNECTIONS
   The recent connections view has a number of special features. Click on

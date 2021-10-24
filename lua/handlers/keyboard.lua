@@ -70,6 +70,7 @@ local M = {
     [ctrl('B')] = function() if input_mode then editor:left() end end,
     [ctrl('F')] = function() if input_mode then editor:right() end end,
     [ctrl('Y')] = function() if input_mode then editor:paste() end end,
+    [ctrl('T')] = function() if input_mode then editor:swap() end end,
     [-ncurses.KEY_LEFT] = function() if input_mode then editor:left() end end,
     [-ncurses.KEY_RIGHT] = function() if input_mode then editor:right() end end,
     [-ncurses.KEY_HOME] = function() if input_mode then editor:move_to_beg() end end,

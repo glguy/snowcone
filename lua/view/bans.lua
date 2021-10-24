@@ -2,8 +2,9 @@ local M = { title = 'bans    ' }
 
 local keys = {
     [-ncurses.KEY_PPAGE] = function()
+        local elts = math.min(klines.n, klines.max)
         scroll = scroll + math.max(1, tty_height - 3)
-        scroll = math.min(scroll, klines.n - 1)
+        scroll = math.min(scroll, elts - tty_height + 3)
         scroll = math.max(scroll, 0)
     end,
     [-ncurses.KEY_NPAGE] = function()

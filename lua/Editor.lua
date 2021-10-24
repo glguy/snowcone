@@ -108,6 +108,22 @@ function M:add(code)
     self:render()
 end
 
+function M:swap()
+    local n = #self.buffer
+    if n > 1 then
+        if self.cursor == 1 then
+            self.cursor = 3
+        elseif self.cursor <= n then
+            self.cursor = self.cursor + 1
+        end
+        local t = self.buffer[self.cursor - 2]
+        self.buffer[self.cursor - 2] = self.buffer[self.cursor - 1]
+        self.buffer[self.cursor - 1] = t
+        self:render()
+        self.yanking = false
+    end
+end
+
 function M:move_to_beg()
     self:move(1)
 end
