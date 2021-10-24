@@ -103,7 +103,9 @@ function M:render()
     local pad = math.max(tty_height - #rows - 2, 0)
 
     local upcolor = {}
+    local vercolor = {}
     local next_color = 2
+    local next_vercolor = 2
 
     ncurses.colorset(header_color)
     mvaddstr(pad,0, '')
@@ -175,7 +177,14 @@ function M:render()
         end
 
         if has_versions then
-            addstr(string.format(' %-17.17s ', versions[name] or '?'))
+            local version = versions[name] or '?'
+            if vercolor[version] == nil then
+                vercolor[version] = palette[next_vercolor]
+                next_vercolor = next_vercolor % #palette + 1
+            end
+            vercolor[version]()
+            addstr(string.format(' %-17.17s ', version))
+            normal()
         end
 
         for _, flag in ipairs(servers.flags or {}) do
