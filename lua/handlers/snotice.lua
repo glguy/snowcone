@@ -186,7 +186,7 @@ function M.removed(ev)
         local _, prev_key = klines:each()()
         local key = 'unkline ' .. ev.mask
         if prev_key ~= key then
-            klines:insert(nil, {
+            klines:insert(key, {
                 time = ev.time,
                 oper = ev.oper,
                 mask = ev.mask,
