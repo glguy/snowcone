@@ -55,9 +55,9 @@ local M = {
     [-ncurses.KEY_F9] = function() view = 9 end,
     [-ncurses.KEY_F10] = function() view = 10 end,
 
-    [ctrl('L')] = function() ncurses.clear() end,
-    [ctrl('N')] = function() view = view % #views + 1 end,
-    [ctrl('P')] = function() view = (view - 2) % #views + 1 end,
+    [ctrl('L')] = ncurses.clear,
+    [ctrl('N')] = next_view,
+    [ctrl('P')] = prev_view,
 
     [0x7f] = function() if input_mode then editor:backspace() end end, -- Del
     [-ncurses.KEY_BACKSPACE] = function() if input_mode then editor:backspace() end end,

@@ -336,9 +336,7 @@ function draw_global_load(title, tracker)
             addstr(string.format('%q', filter))
         end
 
-        add_click(tty_height-1, 0, 9, function()
-            view = view % #views + 1
-        end)
+        add_click(tty_height-1, 0, 9, next_view)
         ncurses.cursset(0)
     end
 end
@@ -483,6 +481,22 @@ views = {
 
 -- hidden views not in main rotation
 views.stats = require_ 'view.stats'
+
+function next_view()
+    if type(view) == 'number' then
+        view = view % #views + 1
+    else
+        view = 1
+    end
+end
+
+function prev_view()
+    if type(view) == 'number' then
+        view = (view - 2) % #views + 1
+    else
+        view = 1
+    end
+end
 
 function draw()
     clicks = {}

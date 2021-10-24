@@ -31,7 +31,7 @@ stds = {
 
             "primary_hub", "uptime", "trust_uname", "show_reasons", "kline_duration",
             "staged_action", "kline_reason", "scroll", "history", "mrs", "server_ordering",
-            "server_descending", "liveness",
+            "server_descending", "liveness", "next_view", "prev_view",
 
             "links", "upstream", "population", "conn_tracker", "exit_tracker",
             "kline_tracker", "filter_tracker", "net_trackers",

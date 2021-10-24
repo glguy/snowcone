@@ -59,6 +59,11 @@ local orderings = {
         local b = population[y.name] or -1
         return a < b or a == b and x.name < y.name
     end,
+    version = function(x,y)
+        local a = versions[x.name] or ''
+        local b = versions[y.name] or ''
+        return a < b or a == b and x.name < y.name
+    end,
     uplink = function(x,y)
         local a = upstream[x.name] or ''
         local b = upstream[y.name] or ''
@@ -82,6 +87,7 @@ end
 
 function M:render()
 
+    local has_versions = next(versions) ~= nil
     local rows = {}
     for server,avg in pairs(tracker.detail) do
         table.insert(rows, {name=server,load=avg})
@@ -110,6 +116,9 @@ function M:render()
     addstr(' AF')
     add_column('  Conns', 'conns')
     add_column('  Up', 'uplink')
+    if has_versions then
+        add_column('  Version          ', 'version')
+    end
     if servers.flags then addstr('  Flags') end
 
     normal()
@@ -163,6 +172,10 @@ function M:render()
             normal()
         else
             addstr('     ')
+        end
+
+        if has_versions then
+            addstr(string.format(' %-17.17s ', versions[name] or '?'))
         end
 
         for _, flag in ipairs(servers.flags or {}) do
