@@ -282,7 +282,11 @@ end
 function draw_global_load(title, tracker)
     if kline_ready() then red () else white() end
     reversevideo()
-    mvaddstr(tty_height-1, 0, views[view].title or 'sn' .. spinner[uptime % #spinner + 1] .. 'wcone')
+    if views[view].title then
+        mvaddstr(tty_height-1, 0, string.format('%-8.8s', views[view].title))
+    else
+        mvaddstr(tty_height-1, 0, 'sn' .. spinner[uptime % #spinner + 1] .. 'wcone')
+    end
     reversevideo_()
 
     if input_mode then
@@ -303,7 +307,7 @@ function draw_global_load(title, tracker)
     else
         addstr(' ')
         magenta()
-        addstr(title .. ' ')
+        addstr(title)
         draw_load(tracker.global)
         normal()
 
@@ -464,7 +468,7 @@ views = {
     -- Server exits
     view_server_load('Disconnection History', 'CLIEXI', ncurses.red, exit_tracker),
     -- K-Line tracking
-    view_simple_load('banload ', 'K-Liner', 'KLINES', 'K-Line History', kline_tracker),
+    view_simple_load('banload', 'K-Liner', 'KLINES', 'K-Line History', kline_tracker),
     -- Filter tracking
     view_simple_load('spamload', 'Server', 'FILTERS', 'Filter History', filter_tracker),
     -- Repeat connection tracking
@@ -475,6 +479,9 @@ views = {
     require_ 'view.netcount',
     (require_ 'view.bans'),
 }
+
+-- hidden views not in main rotation
+views.stats = require_ 'view.stats'
 
 function draw()
     clicks = {}

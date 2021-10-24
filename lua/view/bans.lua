@@ -1,4 +1,4 @@
-local M = { title = 'bans    ' }
+local M = { title = 'bans' }
 
 local keys = {
     [-ncurses.KEY_PPAGE] = function()

@@ -1,4 +1,4 @@
-local M = { title = 'repeats '}
+local M = { title = 'repeats'}
 
 function M:keypress()
 end

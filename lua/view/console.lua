@@ -72,7 +72,7 @@ end
 
 local M = {
     active = true,
-    title = 'console ',
+    title = 'console',
 }
 
 local rotating_window = require_ 'rotating_window'
