@@ -1,7 +1,5 @@
 -- Logic for IRC messages
 
-local file = require 'pl.file'
-
 local M = {}
 
 function M.ERROR()
