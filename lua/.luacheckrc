@@ -5,7 +5,7 @@ stds = {
     snowcone = {
         read_globals = {
             snowcone = {
-              fields = {"to_base64", "send_irc", "dnslookup", "pton", "shutdown", "newtimer",
+              fields = {"to_base64", "from_base64", "send_irc", "dnslookup", "pton", "shutdown", "newtimer",
                 "newwatcher", "setmodule", "raise"},
             },
         },

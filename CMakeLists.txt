@@ -23,6 +23,7 @@ endif()
 
 add_subdirectory(ircmsg)
 add_subdirectory(myncurses)
+add_subdirectory(mybase64)
 add_subdirectory(app)
 
 if(BUILD_TESTING)

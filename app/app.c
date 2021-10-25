@@ -20,7 +20,7 @@
 #endif
 
 #include "app.h"
-#include "base64.h"
+#include "mybase64.h"
 #include "lua_uv_timer.h"
 #include "lua_uv_filewatcher.h"
 #include "safecall.h"
@@ -187,10 +187,33 @@ static int l_to_base64(lua_State *L)
     char *output = malloc(outlen);
     assert(output);
 
-    snowcone_base64(input, input_len, output);
+    mybase64_encode(input, input_len, output);
     lua_pushstring(L, output);
     free(output);
     return 1;
+}
+
+static int l_from_base64(lua_State *L)
+{
+    size_t input_len;
+    char const* input = luaL_checklstring(L, 1, &input_len);
+    size_t outlen = (input_len + 3) / 4 * 3;
+    char *output = malloc(outlen);
+    assert(output);
+
+    ssize_t len = mybase64_decode(input, input_len, output);
+    if (0 <= len)
+    {
+        lua_pushlstring(L, output, len);
+        free(output);
+        return 1;
+    }
+    else
+    {
+        lua_pushnil(L);
+        lua_pushstring(L, "base64 decoding error");
+        return 2;
+    }
 }
 
 static int l_send_irc(lua_State *L)
@@ -298,6 +321,7 @@ static int l_newwatcher(lua_State *L)
 
 static luaL_Reg M[] = {
     { "to_base64", l_to_base64 },
+    { "from_base64", l_from_base64 },
     { "send_irc", l_send_irc },
     { "dnslookup", l_dnslookup },
     { "pton", l_pton },

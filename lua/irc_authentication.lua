@@ -43,8 +43,7 @@ function M.decode_authenticate(payload)
     if payload == '+' then
         return ''
     else
-        local openssl = require 'openssl'
-        return assert(openssl.base64(payload, false, true), 'bad base64')
+        return assert(snowcone.from_base64(payload))
     end
 end
 

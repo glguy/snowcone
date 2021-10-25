@@ -1,11 +1,11 @@
 add_executable(snowcone
     main.c app.c socat.c configuration.c
-    irc.c tcp-server.c write.c read-line.c base64.c
+    irc.c tcp-server.c write.c read-line.c
     lua_uv_timer.c lua_uv_filewatcher.c safecall.c)
 
 target_link_libraries(snowcone PRIVATE
     PkgConfig::UV PkgConfig::NCURSESW PkgConfig::LUA
-    ircmsg myncurses)
+    ircmsg myncurses mybase64)
 
 if(GEOIP_FOUND)
 target_link_libraries(snowcone PRIVATE mygeoip)
