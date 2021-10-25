@@ -210,6 +210,7 @@ static int l_from_base64(lua_State *L)
     }
     else
     {
+        free(output);
         lua_pushnil(L);
         lua_pushstring(L, "base64 decoding error");
         return 2;
