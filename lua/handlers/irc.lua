@@ -1,5 +1,7 @@
 -- Logic for IRC messages
 
+local file = require 'pl.file'
+
 local M = {}
 
 function M.ERROR()
@@ -44,6 +46,31 @@ M.NICK = function(irc)
     end
     if irc_state.altnick and irc[1] == configuration.irc_nick then
         irc_state.altnick = nil
+    end
+end
+
+M.AUTHENTICATE = function(irc)
+    if irc_state.sasl == 'ECDSA-NIST256P-CHALLENGE 1' then
+        if irc[1] == '+' then
+            irc_state.sasl = 'ECDSA-NIST256P-CHALLENGE 2'
+        else
+            snowcone.send_irc('AUTHENTICATE *\r\n')
+            irc_state.sasl = 'aborted'
+        end
+    elseif irc_state.sasl == 'ECDSA-NIST256P-CHALLENGE 2' then
+        local success, message = pcall(function()
+            local key_der = assert(file.read(configuration.irc_sasl_ecdsa_key))
+            return irc_authentication.ecdsa_challenge(key_der, irc[1])
+        end)
+
+        if success then
+            snowcone.send_irc('AUTHENTICATE ' .. message .. '\r\n')
+            irc_state.sasl = 'ECDSA-NIST256P-CHALLENGE 3'
+        else
+            status_message = 'ECDSA failed: ' .. message
+            snowcone.send_irc('AUTHENTICATE *\r\n')
+            irc_state.sasl = 'aborted'
+        end
     end
 end
 

@@ -35,4 +35,13 @@ function M.sasl(mechanism, body)
     return table.concat(commands)
 end
 
+function M.ecdsa_challenge(key_der, challenge)
+    local openssl  = require 'openssl'
+    local key = openssl.ec.read(key_der)
+    local bytes = assert(openssl.base64(challenge, false, true), 'bad base64')
+    local signature = openssl.ec.sign(key, bytes)
+    local response = openssl.base64(signature, true, true)
+    return response
+end
+
 return M

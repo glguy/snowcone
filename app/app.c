@@ -270,6 +270,7 @@ static void push_configuration(lua_State *L, struct configuration *cfg)
         {"irc_sasl_password", cfg->irc_sasl_password},
         {"irc_capabilities", cfg->irc_capabilities},
         {"network_filename", cfg->network_filename},
+        {"irc_sasl_ecdsa_key", cfg->irc_sasl_ecdsa_key},
     };
 
     size_t const n = sizeof configs / sizeof *configs;

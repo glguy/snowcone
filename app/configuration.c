@@ -42,13 +42,14 @@ struct configuration load_configuration(int argc, char **argv)
     cfg.irc_oper_password = getenv("IRC_OPER_PASSWORD");
 
     int opt;
-    while ((opt = getopt(argc, argv, "f:hl:p:C:S:X:N:U:G:L:K:O:M:E:")) != -1) {
+    while ((opt = getopt(argc, argv, "f:hl:p:C:S:X:N:U:G:L:K:O:M:E:D:")) != -1) {
         switch (opt) {
         case 'h': usage();
         case 'f': cfg.network_filename = optarg; break;
         case 'l': cfg.console_node = optarg; break;
         case 'p': cfg.console_service = optarg; break;
         case 'C': cfg.irc_capabilities = optarg; break;
+        case 'D': cfg.irc_sasl_ecdsa_key = optarg; break;
         case 'E': cfg.irc_sasl_username = optarg; break;
         case 'G': cfg.irc_gecos = optarg; break;
         case 'K': cfg.irc_challenge_key = optarg; break;
@@ -82,9 +83,10 @@ struct configuration load_configuration(int argc, char **argv)
 
     if (NULL != cfg.irc_sasl_mechanism &&
         strcmp("PLAIN", cfg.irc_sasl_mechanism) &&
-        strcmp("EXTERNAL", cfg.irc_sasl_mechanism))
+        strcmp("EXTERNAL", cfg.irc_sasl_mechanism) &&
+        strcmp("ECDSA-NIST256P-CHALLENGE", cfg.irc_sasl_mechanism))
     {
-        fprintf(stderr, "SASL mechanism should be PLAIN or EXTERNAL (-M).\n");
+        fprintf(stderr, "SASL mechanism should be PLAIN, EXTERNAL or ECDSA-NIST256P-CHALLENGE (-M).\n");
         show_usage = 1;
     }
 

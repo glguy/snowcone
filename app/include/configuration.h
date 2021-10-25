@@ -20,6 +20,7 @@ struct configuration
     char const* irc_sasl_password;
     char const* irc_capabilities;
     char const* network_filename;
+    char const* irc_sasl_ecdsa_key;
 };
 
 struct configuration load_configuration(int argc, char **argv);
