@@ -11,14 +11,14 @@ function M.challenge(key_txt, password, challenge)
     return response
 end
 
-function M.sasl(mechanism, body)
+-- Takes a binary argument, base64 encodes it, and chunks it into multiple
+-- AUTHENTICATE commands
+function M.sasl(body)
     local commands = {}
 
     local function authenticate(msg)
         table.insert(commands, 'AUTHENTICATE ' .. msg .. '\r\n')
     end
-
-    authenticate(mechanism)
 
     body = snowcone.to_base64(body)
     while #body >= 400 do
@@ -36,12 +36,11 @@ function M.sasl(mechanism, body)
 end
 
 function M.ecdsa_challenge(key_der, challenge)
-    local openssl  = require 'openssl'
-    local key = openssl.ec.read(key_der)
-    local bytes = assert(openssl.base64(challenge, false, true), 'bad base64')
+    local openssl   = require 'openssl'
+    local key       = openssl.ec.read(key_der)
+    local bytes     = assert(openssl.base64(challenge, false, true), 'bad base64')
     local signature = openssl.ec.sign(key, bytes)
-    local response = openssl.base64(signature, true, true)
-    return response
+    return signature
 end
 
 return M

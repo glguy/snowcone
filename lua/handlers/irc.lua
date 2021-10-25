@@ -49,28 +49,50 @@ M.NICK = function(irc)
     end
 end
 
-M.AUTHENTICATE = function(irc)
-    if irc_state.sasl == 'ECDSA-NIST256P-CHALLENGE 1' then
-        if irc[1] == '+' then
-            irc_state.sasl = 'ECDSA-NIST256P-CHALLENGE 2'
-        else
-            snowcone.send_irc('AUTHENTICATE *\r\n')
-            irc_state.sasl = 'aborted'
-        end
-    elseif irc_state.sasl == 'ECDSA-NIST256P-CHALLENGE 2' then
+local authenticate_handlers = {
+    ['ECDSA-NIST256P-CHALLENGE 1'] = function()
+        snowcone.send_irc(
+            irc_authentication.sasl(configuration.irc_sasl_username))
+        irc_state.sasl = 'ECDSA-NIST256P-CHALLENGE 2'
+    end,
+
+    ['ECDSA-NIST256P-CHALLENGE 2'] = function(arg)
         local success, message = pcall(function()
             local key_der = assert(file.read(configuration.irc_sasl_ecdsa_key))
-            return irc_authentication.ecdsa_challenge(key_der, irc[1])
+            return irc_authentication.ecdsa_challenge(key_der, arg)
         end)
 
         if success then
-            snowcone.send_irc('AUTHENTICATE ' .. message .. '\r\n')
+            snowcone.send_irc(irc_authentication.sasl(message))
             irc_state.sasl = 'ECDSA-NIST256P-CHALLENGE 3'
         else
             status_message = 'ECDSA failed: ' .. message
             snowcone.send_irc('AUTHENTICATE *\r\n')
             irc_state.sasl = 'aborted'
         end
+    end,
+
+    ['EXTERNAL 1'] = function()
+        snowcone.send_irc(irc_authentication.sasl(''))
+        irc_state.sasl = 'EXTERNAL 2'
+    end,
+
+    ['PLAIN 1'] = function()
+        snowcone.send_irc(
+            irc_authentication.sasl(
+                '\0' .. configuration.irc_sasl_username ..
+                '\0' .. configuration.irc_sasl_password))
+        irc_state.sasl = 'PLAIN 2'
+    end,
+}
+
+M.AUTHENTICATE = function(irc)
+    local h = authenticate_handlers[irc_state.sasl]
+    if h then
+        h(irc[1])
+    else
+        snowcone.send_irc('AUTHENTICATE *\r\n')
+        irc_state.sasl = 'aborted'
     end
 end
 
@@ -260,6 +282,14 @@ end
 M['904'] = function()
     if irc_state.sasl then
         status_message = 'SASL failed'
+        irc_state.sasl = nil
+        snowcone.send_irc 'QUIT\r\n'
+    end
+end
+
+-- ERR_SASLABORTED
+M['906'] = function()
+    if irc_state.sasl then
         irc_state.sasl = nil
         snowcone.send_irc 'QUIT\r\n'
     end
