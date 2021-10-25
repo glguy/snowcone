@@ -47,7 +47,7 @@ M.NICK = function(irc)
     end
 end
 
-local authenticate_handlers = require 'handlers.authentication'
+local authenticate_handlers = require_ 'handlers.authentication'
 M.AUTHENTICATE = function(irc)
     local h = authenticate_handlers[irc_state.sasl]
     local response
