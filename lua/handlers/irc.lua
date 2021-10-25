@@ -49,35 +49,7 @@ M.NICK = function(irc)
     end
 end
 
-local authenticate_handlers = {
-    ['ECDSA-NIST256P-CHALLENGE 1'] = function()
-        return 'ECDSA-NIST256P-CHALLENGE 2', configuration.irc_sasl_username
-    end,
-
-    ['ECDSA-NIST256P-CHALLENGE 2'] = function(arg)
-        local success, message = pcall(function()
-            local key_der = assert(file.read(configuration.irc_sasl_ecdsa_key))
-            return irc_authentication.ecdsa_challenge(key_der, arg)
-        end)
-
-        if success then
-            return 'done', message
-        else
-            return 'aborted'
-        end
-    end,
-
-    ['EXTERNAL 1'] = function()
-        return 'done', ''
-    end,
-
-    ['PLAIN 1'] = function()
-        return 'done',
-            '\0' .. configuration.irc_sasl_username ..
-            '\0' .. configuration.irc_sasl_password
-    end,
-}
-
+local authenticate_handlers = require 'handlers.authentication'
 M.AUTHENTICATE = function(irc)
     local h = authenticate_handlers[irc_state.sasl]
     local response

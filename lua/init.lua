@@ -570,15 +570,15 @@ local function irc_register()
     if configuration.irc_sasl_mechanism == "EXTERNAL" then
         table.insert(caps, 'sasl')
         auth = 'AUTHENTICATE EXTERNAL\r\n'
-        irc_state.sasl = 'EXTERNAL 1'
+        irc_state.sasl = 'EXTERNAL'
     elseif configuration.irc_sasl_mechanism == "PLAIN" then
         table.insert(caps, 'sasl')
         auth = 'AUTHENTICATE PLAIN\r\n'
-        irc_state.sasl = 'PLAIN 1'
+        irc_state.sasl = 'PLAIN'
     elseif configuration.irc_sasl_mechanism == 'ECDSA-NIST256P-CHALLENGE' then
         table.insert(caps, 'sasl')
         auth = 'AUTHENTICATE ECDSA-NIST256P-CHALLENGE\r\n'
-        irc_state.sasl = 'ECDSA-NIST256P-CHALLENGE 1'
+        irc_state.sasl = 'ECDSA_NIST256P_CHALLENGE_1'
     end
 
     local capreq = ''
