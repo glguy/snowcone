@@ -13,7 +13,11 @@ end
 
 -- Takes a binary argument, base64 encodes it, and chunks it into multiple
 -- AUTHENTICATE commands
-function M.sasl(body)
+function M.encode_authenticate(body)
+    if body == nil then
+        return 'AUTHENTICATE *\r\n'
+    end
+
     local commands = {}
 
     local function authenticate(msg)
@@ -26,7 +30,7 @@ function M.sasl(body)
         body = string.sub(body, 401)
     end
 
-    if "" == body then
+    if '' == body then
         authenticate('+')
     else
         authenticate(body)
@@ -35,11 +39,19 @@ function M.sasl(body)
     return table.concat(commands)
 end
 
+function M.decode_authenticate(payload)
+    if payload == '+' then
+        return ''
+    else
+        local openssl = require 'openssl'
+        return assert(openssl.base64(payload, false, true), 'bad base64')
+    end
+end
+
 function M.ecdsa_challenge(key_der, challenge)
     local openssl   = require 'openssl'
     local key       = openssl.ec.read(key_der)
-    local bytes     = assert(openssl.base64(challenge, false, true), 'bad base64')
-    local signature = openssl.ec.sign(key, bytes)
+    local signature = openssl.ec.sign(key, challenge)
     return signature
 end
 

@@ -51,9 +51,7 @@ end
 
 local authenticate_handlers = {
     ['ECDSA-NIST256P-CHALLENGE 1'] = function()
-        snowcone.send_irc(
-            irc_authentication.sasl(configuration.irc_sasl_username))
-        irc_state.sasl = 'ECDSA-NIST256P-CHALLENGE 2'
+        return 'ECDSA-NIST256P-CHALLENGE 2', configuration.irc_sasl_username
     end,
 
     ['ECDSA-NIST256P-CHALLENGE 2'] = function(arg)
@@ -63,37 +61,32 @@ local authenticate_handlers = {
         end)
 
         if success then
-            snowcone.send_irc(irc_authentication.sasl(message))
-            irc_state.sasl = 'ECDSA-NIST256P-CHALLENGE 3'
+            return 'done', message
         else
-            status_message = 'ECDSA failed: ' .. message
-            snowcone.send_irc('AUTHENTICATE *\r\n')
-            irc_state.sasl = 'aborted'
+            return 'aborted'
         end
     end,
 
     ['EXTERNAL 1'] = function()
-        snowcone.send_irc(irc_authentication.sasl(''))
-        irc_state.sasl = 'EXTERNAL 2'
+        return 'done', ''
     end,
 
     ['PLAIN 1'] = function()
-        snowcone.send_irc(
-            irc_authentication.sasl(
-                '\0' .. configuration.irc_sasl_username ..
-                '\0' .. configuration.irc_sasl_password))
-        irc_state.sasl = 'PLAIN 2'
+        return 'done',
+            '\0' .. configuration.irc_sasl_username ..
+            '\0' .. configuration.irc_sasl_password
     end,
 }
 
 M.AUTHENTICATE = function(irc)
     local h = authenticate_handlers[irc_state.sasl]
+    local response
     if h then
-        h(irc[1])
+        irc_state.sasl, response = h(irc_authentication.decode_authenticate(irc[1]))
     else
-        snowcone.send_irc('AUTHENTICATE *\r\n')
         irc_state.sasl = 'aborted'
     end
+    snowcone.send_irc(irc_authentication.encode_authenticate(response))
 end
 
 -- RPL_WELCOME
