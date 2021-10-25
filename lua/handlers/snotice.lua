@@ -18,6 +18,7 @@ function M.connect(ev)
     local server = ev.server
 
     local prev = users:lookup(key)
+    local org, asn = ip_org(ev.ip)
     local entry = {
         server = ev.server,
         gecos = ev.gecos,
@@ -26,7 +27,8 @@ function M.connect(ev)
         nick = ev.nick,
         account = ev.account,
         ip = ev.ip,
-        org = ip_org(ev.ip),
+        org = org,
+        asn = math.tointeger(asn),
         time = ev.time,
         count = prev and prev.count+1 or 1,
         mask = ev.nick .. '!' .. ev.user .. '@' .. ev.host .. ' ' .. ev.gecos,

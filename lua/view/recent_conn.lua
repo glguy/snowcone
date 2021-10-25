@@ -18,7 +18,11 @@ local function show_entry(entry)
     return
     (server_filter == nil or server_filter == entry.server) and
     (conn_filter == nil or conn_filter == not entry.reason) and
-    (current_filter == nil or safematch(entry.mask, current_filter))
+    (current_filter == nil or
+     safematch(entry.mask, current_filter) or
+     safematch(entry.gecos, current_filter) or
+     entry.org and safematch(entry.org, current_filter) or
+     entry.asn and safematch('AS'..entry.asn, current_filter))
 end
 
 local handlers = {
@@ -151,6 +155,8 @@ function M:render()
 
             if show_reasons == 'reason' and entry.reason then
                 mvaddstr(y, 80, string.sub(entry.reason, 1, 39))
+            elseif show_reasons == 'asn' and entry.asn then
+                mvaddstr(y, 80, string.format("AS%-6d %-30.30s", entry.asn, entry.org or ''))
             elseif show_reasons ~= 'ip' and entry.org then
                 mvaddstr(y, 80, string.sub(entry.org, 1, 39))
             else

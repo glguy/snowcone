@@ -349,7 +349,9 @@ function draw_buttons()
     if show_reasons == 'reason' then
         add_button('[ REASON ]', function() show_reasons = 'org' end)
     elseif show_reasons == 'org' then
-        add_button('[  ORG   ]', function() show_reasons = 'ip' end)
+        add_button('[  ORG   ]', function() show_reasons = 'asn' end)
+    elseif show_reasons == 'asn' then
+        add_button('[  ASN   ]', function() show_reasons = 'ip' end)
     else
         add_button('[   IP   ]', function() show_reasons = 'reason' end)
     end

@@ -3,13 +3,14 @@ if has_mmdb then
     local success, geoip = pcall(mmdb.open, 'GeoLite2-ASN.mmdb')
     if success then
         return function(addr)
+            local result
             if string.match(addr, '%.') then
-                local result = geoip:search_ipv4(addr)
-                return result and result.autonomous_system_organization
+                result = geoip:search_ipv4(addr)
+            elseif string.match(addr, ':') then
+                result = geoip:search_ipv6(addr)
             end
-            if string.match(addr, ':') then
-                local result = geoip:search_ipv6(addr)
-                return result and result.autonomous_system_organization
+            if result then
+                return result.autonomous_system_organization, result.autonomous_system_number
             end
         end
     end
