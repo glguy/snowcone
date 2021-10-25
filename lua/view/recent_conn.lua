@@ -20,7 +20,7 @@ local function show_entry(entry)
     (conn_filter == nil or conn_filter == not entry.reason) and
     (current_filter == nil or
      safematch(entry.mask, current_filter) or
-     safematch(entry.gecos, current_filter) or
+     entry.gecos and safematch(entry.gecos, current_filter) or
      entry.org and safematch(entry.org, current_filter) or
      entry.asn and safematch('AS'..entry.asn, current_filter))
 end
