@@ -40,6 +40,7 @@ struct configuration load_configuration(int argc, char **argv)
     cfg.irc_challenge_password = getenv("IRC_CHALLENGE_PASSWORD");
     cfg.irc_sasl_password = getenv("IRC_SASL_PASSWORD");
     cfg.irc_oper_password = getenv("IRC_OPER_PASSWORD");
+    cfg.irc_sasl_ecdsa_password = getenv("IRC_SASL_ECDSA_PASSWORD");
 
     int opt;
     while ((opt = getopt(argc, argv, "f:hl:p:C:S:X:N:U:G:L:K:O:M:E:D:Z:")) != -1) {

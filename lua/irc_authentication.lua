@@ -49,8 +49,8 @@ end
 
 function M.ecdsa_challenge(key_der, challenge)
     local openssl   = require 'openssl'
-    local key       = openssl.ec.read(key_der)
-    local signature = openssl.ec.sign(key, challenge)
+    local key       = openssl.pkey.read(key_der, true, 'auto', configuration.irc_sasl_ecdsa_password)
+    local signature = key:sign(challenge)
     return signature
 end
 
