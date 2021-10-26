@@ -1,7 +1,14 @@
 local M = {}
 
 function M.ECDSA_NIST256P_CHALLENGE_1()
-    return 'ECDSA_NIST256P_CHALLENGE_2', configuration.irc_sasl_username
+    if configuration.irc_sasl_authzid then
+        return 'ECDSA_NIST256P_CHALLENGE_2',
+            configuration.irc_sasl_username .. '\0' ..
+            configuration.irc_sasl_authzid
+    else
+        return 'ECDSA_NIST256P_CHALLENGE_2',
+            configuration.irc_sasl_username
+    end
 end
 
 function M.ECDSA_NIST256P_CHALLENGE_2(arg)
@@ -18,13 +25,15 @@ function M.ECDSA_NIST256P_CHALLENGE_2(arg)
 end
 
 function M.EXTERNAL()
-    return 'done', ''
+    return 'done',
+        configuration.irc_sasl_authzid or ''
 end
 
 function M.PLAIN()
     return 'done',
-        '\0' .. configuration.irc_sasl_username ..
-        '\0' .. configuration.irc_sasl_password
+        (configuration.irc_sasl_authzid or '') .. '\0' ..
+        configuration.irc_sasl_username        .. '\0' ..
+        configuration.irc_sasl_password
 end
 
 return M

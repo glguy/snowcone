@@ -202,7 +202,8 @@ static void setup_colors(lua_State *L)
     size_t n = sizeof colors / sizeof *colors;
     for (size_t i = 0; i < n; i++)
     {
-        assert(ERR != init_pair(color, colors[i].value, -1));
+        int result = init_pair(color, colors[i].value, -1);
+        assert(ERR != result);
         lua_pushinteger(L, color);
         lua_setfield(L, -2, colors[i].name);
         color++;
@@ -212,7 +213,8 @@ static void setup_colors(lua_State *L)
     {
         for (size_t b = 0; b < n; b++)
         {
-            assert(ERR != init_pair(color, colors[f].value, colors[b].value));
+            int result = init_pair(color, colors[f].value, colors[b].value);
+            assert(ERR != result);
             lua_pushfstring(L, "%s_%s", colors[f].name, colors[b].name);
             lua_pushinteger(L, color);
             lua_rawset(L, -3);

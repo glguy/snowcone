@@ -42,7 +42,7 @@ struct configuration load_configuration(int argc, char **argv)
     cfg.irc_oper_password = getenv("IRC_OPER_PASSWORD");
 
     int opt;
-    while ((opt = getopt(argc, argv, "f:hl:p:C:S:X:N:U:G:L:K:O:M:E:D:")) != -1) {
+    while ((opt = getopt(argc, argv, "f:hl:p:C:S:X:N:U:G:L:K:O:M:E:D:Z:")) != -1) {
         switch (opt) {
         case 'h': usage();
         case 'f': cfg.network_filename = optarg; break;
@@ -60,6 +60,7 @@ struct configuration load_configuration(int argc, char **argv)
         case 'S': cfg.irc_socat = optarg; break;
         case 'U': cfg.irc_user = optarg; break;
         case 'X': cfg.irc_pass = optarg; break;
+        case 'Z': cfg.irc_sasl_authzid = optarg; break;
         default: usage();
         }
     }
