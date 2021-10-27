@@ -296,6 +296,8 @@ static void push_configuration(lua_State *L, struct configuration *cfg)
         {"network_filename", cfg->network_filename},
         {"irc_sasl_ecdsa_key", cfg->irc_sasl_ecdsa_key},
         {"irc_sasl_ecdsa_password", cfg->irc_sasl_ecdsa_password},
+        {"irc_sasl_ecdh_key", cfg->irc_sasl_ecdh_key},
+        {"irc_sasl_ecdh_password", cfg->irc_sasl_ecdh_password},
         {"irc_sasl_authzid", cfg->irc_sasl_authzid},
     };
 
@@ -322,6 +324,28 @@ static int l_newwatcher(lua_State *L)
     return 1;
 }
 
+static int l_xor_strings(lua_State *L)
+{
+    size_t l1, l2;
+    char const* s1 = luaL_checklstring(L, 1, &l1);
+    char const* s2 = luaL_checklstring(L, 2, &l2);
+
+    if (l1 != l2) {
+        return luaL_error(L, "xor_strings: length mismatch");
+    }
+
+    luaL_Buffer B;
+    char *output = luaL_buffinitsize(L, &B, l1);
+
+    for (size_t i = 0; i < l1; i++)
+    {
+        output[i] = s1[i] ^ s2[i];
+    }
+
+    luaL_pushresultsize(&B, l1);
+    return 1;
+}
+
 static luaL_Reg M[] = {
     { "to_base64", l_to_base64 },
     { "from_base64", l_from_base64 },
@@ -333,6 +357,7 @@ static luaL_Reg M[] = {
     { "newwatcher", l_newwatcher },
     { "setmodule", l_setmodule },
     { "raise", l_raise },
+    { "xor_strings", l_xor_strings },
     {}
 };
 

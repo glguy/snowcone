@@ -579,6 +579,10 @@ local function irc_register()
         table.insert(caps, 'sasl')
         auth = 'AUTHENTICATE ECDSA-NIST256P-CHALLENGE\r\n'
         irc_state.sasl = 'ECDSA_NIST256P_CHALLENGE_1'
+    elseif configuration.irc_sasl_mechanism == 'ECDH-X25519-CHALLENGE' then
+        table.insert(caps, 'sasl')
+        auth = 'AUTHENTICATE ECDH-X25519-CHALLENGE\r\n'
+        irc_state.sasl = 'ECDH_X25519_CHALLENGE_1'
     end
 
     local capreq = ''

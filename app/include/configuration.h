@@ -23,6 +23,8 @@ struct configuration
     char const* irc_sasl_ecdsa_key;
     char const* irc_sasl_ecdsa_password;
     char const* irc_sasl_authzid;
+    char const* irc_sasl_ecdh_key;
+    char const* irc_sasl_ecdh_password;
 };
 
 struct configuration load_configuration(int argc, char **argv);

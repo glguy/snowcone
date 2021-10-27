@@ -36,4 +36,28 @@ function M.PLAIN()
         configuration.irc_sasl_password
 end
 
+function M.ECDH_X25519_CHALLENGE_1()
+    if configuration.irc_sasl_authzid then
+        return 'ECDH_X25519_CHALLENGE_2',
+            configuration.irc_sasl_username .. '\0' ..
+            configuration.irc_sasl_authzid
+    else
+        return 'ECDH_X25519_CHALLENGE_2',
+            configuration.irc_sasl_username
+    end
+end
+
+function M.ECDH_X25519_CHALLENGE_2(server_response)
+    local success, message = pcall(function()
+        local client_secpem = assert(file.read(configuration.irc_sasl_ecdh_key))
+        return irc_authentication.ecdh_challenge(client_secpem, server_response)
+    end)
+
+    if success then
+        return 'done', message
+    else
+        return 'aborted'
+    end
+end
+
 return M

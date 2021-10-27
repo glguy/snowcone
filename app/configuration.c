@@ -41,9 +41,10 @@ struct configuration load_configuration(int argc, char **argv)
     cfg.irc_sasl_password = getenv("IRC_SASL_PASSWORD");
     cfg.irc_oper_password = getenv("IRC_OPER_PASSWORD");
     cfg.irc_sasl_ecdsa_password = getenv("IRC_SASL_ECDSA_PASSWORD");
+    cfg.irc_sasl_ecdh_password = getenv("IRC_SASL_ECDH_PASSWORD");
 
     int opt;
-    while ((opt = getopt(argc, argv, "f:hl:p:C:S:X:N:U:G:L:K:O:M:E:D:Z:")) != -1) {
+    while ((opt = getopt(argc, argv, "f:hl:p:C:S:X:N:U:G:H:L:K:O:M:E:D:Z:")) != -1) {
         switch (opt) {
         case 'h': usage();
         case 'f': cfg.network_filename = optarg; break;
@@ -53,6 +54,7 @@ struct configuration load_configuration(int argc, char **argv)
         case 'D': cfg.irc_sasl_ecdsa_key = optarg; break;
         case 'E': cfg.irc_sasl_username = optarg; break;
         case 'G': cfg.irc_gecos = optarg; break;
+        case 'H': cfg.irc_sasl_ecdh_key = optarg; break;
         case 'K': cfg.irc_challenge_key = optarg; break;
         case 'L': cfg.lua_filename = optarg; break;
         case 'N': cfg.irc_nick = optarg; break;
@@ -86,9 +88,10 @@ struct configuration load_configuration(int argc, char **argv)
     if (NULL != cfg.irc_sasl_mechanism &&
         strcmp("PLAIN", cfg.irc_sasl_mechanism) &&
         strcmp("EXTERNAL", cfg.irc_sasl_mechanism) &&
-        strcmp("ECDSA-NIST256P-CHALLENGE", cfg.irc_sasl_mechanism))
+        strcmp("ECDSA-NIST256P-CHALLENGE", cfg.irc_sasl_mechanism) &&
+        strcmp("ECDH-X25519-CHALLENGE", cfg.irc_sasl_mechanism))
     {
-        fprintf(stderr, "SASL mechanism should be PLAIN, EXTERNAL or ECDSA-NIST256P-CHALLENGE (-M).\n");
+        fprintf(stderr, "SASL mechanism should be PLAIN, EXTERNAL, ECDSA-NIST256P-CHALLENGE, or ECDH-X25519-CHALLENGE (-M).\n");
         show_usage = 1;
     }
 
