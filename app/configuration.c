@@ -40,21 +40,18 @@ struct configuration load_configuration(int argc, char **argv)
     cfg.irc_challenge_password = getenv("IRC_CHALLENGE_PASSWORD");
     cfg.irc_sasl_password = getenv("IRC_SASL_PASSWORD");
     cfg.irc_oper_password = getenv("IRC_OPER_PASSWORD");
-    cfg.irc_sasl_ecdsa_password = getenv("IRC_SASL_ECDSA_PASSWORD");
-    cfg.irc_sasl_ecdh_password = getenv("IRC_SASL_ECDH_PASSWORD");
 
     int opt;
-    while ((opt = getopt(argc, argv, "f:hl:p:C:S:X:N:U:G:H:L:K:O:M:E:D:Z:")) != -1) {
+    while ((opt = getopt(argc, argv, "f:hl:p:C:D:S:X:N:U:G:L:K:O:M:E:Z:")) != -1) {
         switch (opt) {
         case 'h': usage();
         case 'f': cfg.network_filename = optarg; break;
         case 'l': cfg.console_node = optarg; break;
         case 'p': cfg.console_service = optarg; break;
         case 'C': cfg.irc_capabilities = optarg; break;
-        case 'D': cfg.irc_sasl_ecdsa_key = optarg; break;
         case 'E': cfg.irc_sasl_username = optarg; break;
         case 'G': cfg.irc_gecos = optarg; break;
-        case 'H': cfg.irc_sasl_ecdh_key = optarg; break;
+        case 'D': cfg.irc_sasl_key = optarg; break;
         case 'K': cfg.irc_challenge_key = optarg; break;
         case 'L': cfg.lua_filename = optarg; break;
         case 'N': cfg.irc_nick = optarg; break;

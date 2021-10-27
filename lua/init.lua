@@ -578,19 +578,19 @@ local function irc_register()
     elseif configuration.irc_sasl_mechanism == 'ECDSA-NIST256P-CHALLENGE' then
         table.insert(caps, 'sasl')
         auth = 'AUTHENTICATE ECDSA-NIST256P-CHALLENGE\r\n'
-        local key_txt = assert(file.read(configuration.irc_sasl_ecdsa_key))
+        local key_txt = assert(file.read(configuration.irc_sasl_key))
         irc_state.sasl = require_('sasl.ecdsa')(
             configuration.irc_sasl_authzid,
             configuration.irc_sasl_username,
-            key_txt, configuration.irc_sasl_ecdsa_password)
+            key_txt, configuration.irc_sasl_password)
     elseif configuration.irc_sasl_mechanism == 'ECDH-X25519-CHALLENGE' then
         table.insert(caps, 'sasl')
         auth = 'AUTHENTICATE ECDH-X25519-CHALLENGE\r\n'
-        local key_txt = assert(file.read(configuration.irc_sasl_ecdh_key))
+        local key_txt = assert(file.read(configuration.irc_sasl_key))
         irc_state.sasl = require_('sasl.ecdh')(
             configuration.irc_sasl_authzid,
             configuration.irc_sasl_username,
-            key_txt, configuration.irc_sasl_ecdh_password)
+            key_txt, configuration.irc_sasl_password)
     elseif configuration.irc_sasl_mechanism == 'SCRAM-SHA-1' then
         table.insert(caps, 'sasl')
         auth = 'AUTHENTICATE SCRAM-SHA-1\r\n'
