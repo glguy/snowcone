@@ -570,40 +570,48 @@ local function irc_register()
     if configuration.irc_sasl_mechanism == "EXTERNAL" then
         table.insert(caps, 'sasl')
         auth = 'AUTHENTICATE EXTERNAL\r\n'
-        irc_state.sasl = 'EXTERNAL'
+        irc_state.sasl = require_('sasl.external')(configuration.irc_sasl_authzid)
     elseif configuration.irc_sasl_mechanism == "PLAIN" then
         table.insert(caps, 'sasl')
         auth = 'AUTHENTICATE PLAIN\r\n'
-        irc_state.sasl = 'PLAIN'
+        irc_state.sasl = require_('sasl.plain')(configuration.irc_sasl_authzid, configuration.irc_sasl_username, configuration.irc_sasl_password)
     elseif configuration.irc_sasl_mechanism == 'ECDSA-NIST256P-CHALLENGE' then
         table.insert(caps, 'sasl')
         auth = 'AUTHENTICATE ECDSA-NIST256P-CHALLENGE\r\n'
-        irc_state.sasl = 'ECDSA_NIST256P_CHALLENGE_1'
+        local key_txt = assert(file.read(configuration.irc_sasl_ecdsa_key))
+        irc_state.sasl = require_('sasl.ecdsa')(
+            configuration.irc_sasl_authzid,
+            configuration.irc_sasl_username,
+            key_txt, configuration.irc_sasl_ecdsa_password)
     elseif configuration.irc_sasl_mechanism == 'ECDH-X25519-CHALLENGE' then
         table.insert(caps, 'sasl')
         auth = 'AUTHENTICATE ECDH-X25519-CHALLENGE\r\n'
-        irc_state.sasl = 'ECDH_X25519_CHALLENGE_1'
+        local key_txt = assert(file.read(configuration.irc_sasl_ecdh_key))
+        irc_state.sasl = require_('sasl.ecdh')(
+            configuration.irc_sasl_authzid,
+            configuration.irc_sasl_username,
+            key_txt, configuration.irc_sasl_ecdh_password)
     elseif configuration.irc_sasl_mechanism == 'SCRAM-SHA-1' then
         table.insert(caps, 'sasl')
         auth = 'AUTHENTICATE SCRAM-SHA-1\r\n'
-        irc_state.sasl = 'SCRAM_1'
-        irc_state.scram = irc_authentication.Scram('sha1',
+        irc_state.sasl = require_('sasl.scram')(
+            'sha1',
             configuration.irc_sasl_authzid,
             configuration.irc_sasl_username,
             configuration.irc_sasl_password)
     elseif configuration.irc_sasl_mechanism == 'SCRAM-SHA-256' then
         table.insert(caps, 'sasl')
         auth = 'AUTHENTICATE SCRAM-SHA-256\r\n'
-        irc_state.sasl = 'SCRAM_1'
-        irc_state.scram = irc_authentication.Scram('sha256',
+        irc_state.sasl = require_('sasl.scram')(
+            'sha256',
             configuration.irc_sasl_authzid,
             configuration.irc_sasl_username,
             configuration.irc_sasl_password)
     elseif configuration.irc_sasl_mechanism == 'SCRAM-SHA-512' then
         table.insert(caps, 'sasl')
         auth = 'AUTHENTICATE SCRAM-SHA-512\r\n'
-        irc_state.sasl = 'SCRAM_1'
-        irc_state.scram = irc_authentication.Scram('sha512',
+        irc_state.sasl = require_('sasl.scram')(
+            'sha512',
             configuration.irc_sasl_authzid,
             configuration.irc_sasl_username,
             configuration.irc_sasl_password)

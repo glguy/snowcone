@@ -47,16 +47,18 @@ M.NICK = function(irc)
     end
 end
 
-local authenticate_handlers = require_ 'handlers.authentication'
 M.AUTHENTICATE = function(irc)
-    local h = authenticate_handlers[irc_state.sasl]
-    local response
-    if h then
-        irc_state.sasl, response = h(irc_authentication.decode_authenticate(irc[1]))
-    else
-        irc_state.sasl = 'aborted'
+    if irc_state.sasl then
+        local response
+        local success, message = coroutine.resume(irc_state.sasl, irc_authentication.decode_authenticate(irc[1]))
+        if success then
+            response = message
+        else
+            error(message)
+            irc_state.sasl = 'aborted'
+        end
+        snowcone.send_irc(irc_authentication.encode_authenticate(response))
     end
-    snowcone.send_irc(irc_authentication.encode_authenticate(response))
 end
 
 -- RPL_WELCOME
