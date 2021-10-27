@@ -1,3 +1,5 @@
+local openssl = require 'openssl'
+
 local function scram_encode_username(name)
     local table = {
         [','] = '=2C',
@@ -7,7 +9,6 @@ local function scram_encode_username(name)
 end
 
 local function hi(digest, secret, salt, iterations)
-    local openssl = require 'openssl'
     local acc = openssl.hmac.hmac(digest, salt .. '\0\0\0\1', secret, true)
     local result = acc
     for _ = 2,iterations do
@@ -17,14 +18,18 @@ local function hi(digest, secret, salt, iterations)
     return result
 end
 
+-- 128-bits of random data base64 encoded to avoid special characters
+local function make_nonce()
+    return openssl.base64(string.pack('l', math.random(0)) .. string.pack('l', math.random(0)), true, true)
+end
+
 return function(digest_name, authzid, authcid, password)
-    local openssl = require 'openssl'
     local digest = openssl.digest.get(digest_name)
 
     return coroutine.create(function()
         local gs2_header = 'n,' .. scram_encode_username(authzid or '') .. ','
         local cbind_input = openssl.base64(gs2_header, true, true)
-        local client_nonce = openssl.base64(string.pack('l', math.random(0)) .. string.pack('l', math.random(0)), true, true)
+        local client_nonce = make_nonce()
         local client_first_bare = 'n=' .. scram_encode_username(authcid) .. ',r=' .. client_nonce
         local client_first = gs2_header .. client_first_bare
 
