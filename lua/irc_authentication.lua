@@ -47,14 +47,25 @@ function M.decode_authenticate(payload)
     end
 end
 
-function M.ecdsa_challenge(key_der, challenge)
+function M.ecdsa_challenge(key_txt, key_password, challenge)
     local openssl   = require 'openssl'
-    local key       = openssl.pkey.read(key_der, true, 'auto', configuration.irc_sasl_ecdsa_password)
+    local key       = openssl.pkey.read(key_txt, true, 'auto', key_password)
     local signature = key:sign(challenge)
     return signature
 end
 
-function M.ecdh_challenge(key_txt, server_response)
+local function x25519_to_raw(pubkey)
+    return string.sub(pubkey:export('der'), 13, 44)
+end
+
+local function raw_to_x25519(raw)
+    local openssl = require 'openssl'
+    return openssl.pkey.read(
+        "\x30\x2a\x30\x05\x06\x03\x2b\x65\x6e\x03\x21\x00" .. raw,
+        false, 'der')
+end
+
+function M.ecdh_challenge(key_txt, key_password, server_response)
     assert(#server_response == 96)
 
     local openssl = require 'openssl'
@@ -65,14 +76,10 @@ function M.ecdh_challenge(key_txt, server_response)
         string.sub(server_response, 33, 64),
         string.sub(server_response, 65, 96)
 
-    local server_pubkey = assert(openssl.pkey.read(
-        "\x30\x2a\x30\x05\x06\x03\x2b\x65\x6e\x03\x21\x00" .. server_pubkey_raw,
-        false, 'der'
-    ))
-
-    local client_seckey = assert(openssl.pkey.read(key_txt, true, 'auto', configuration.irc_sasl_ecdh_password))
+    local server_pubkey = raw_to_x25519(server_pubkey_raw)
+    local client_seckey = assert(openssl.pkey.read(key_txt, true, 'auto', key_password))
     local client_pubkey = client_seckey:get_public()
-    local client_pubkey_raw = string.sub(client_pubkey:export('der'), 13, 44)
+    local client_pubkey_raw = x25519_to_raw(client_pubkey)
 
     local shared_secret = assert(client_seckey:derive(server_pubkey))
 

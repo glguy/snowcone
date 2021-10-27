@@ -13,8 +13,8 @@ end
 
 function M.ECDSA_NIST256P_CHALLENGE_2(arg)
     local success, message = pcall(function()
-        local key_der = assert(file.read(configuration.irc_sasl_ecdsa_key))
-        return irc_authentication.ecdsa_challenge(key_der, arg)
+        local key_txt = assert(file.read(configuration.irc_sasl_ecdsa_key))
+        return irc_authentication.ecdsa_challenge(key_txt, configuration.irc_sasl_ecdsa_password, arg)
     end)
 
     if success then
@@ -50,7 +50,7 @@ end
 function M.ECDH_X25519_CHALLENGE_2(server_response)
     local success, message = pcall(function()
         local client_secpem = assert(file.read(configuration.irc_sasl_ecdh_key))
-        return irc_authentication.ecdh_challenge(client_secpem, server_response)
+        return irc_authentication.ecdh_challenge(client_secpem, configuration.irc_sasl_ecdh_password, server_response)
     end)
 
     if success then
