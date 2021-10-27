@@ -54,7 +54,6 @@ M.AUTHENTICATE = function(irc)
         if success then
             response = message
         else
-            error(message)
             irc_state.sasl = 'aborted'
         end
         snowcone.send_irc(irc_authentication.encode_authenticate(response))
