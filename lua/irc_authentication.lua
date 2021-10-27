@@ -1,3 +1,5 @@
+local class = require 'pl.class'
+
 local M = {}
 
 function M.challenge(key_txt, password, challenge)
@@ -89,6 +91,87 @@ function M.ecdh_challenge(key_txt, key_password, server_response)
     local better_secret = openssl.hmac.hmac(sha256, "ECDH-X25519-CHALLENGE\1", prk, true)
 
     return snowcone.xor_strings(masked_challenge, better_secret)
+end
+
+M.Scram = class()
+M.Scram._name = "Scram"
+
+function M.Scram:_init(digest_name, authz, authc, password)
+    local openssl = require 'openssl'
+    self.digest = openssl.digest.get(digest_name)
+    self.authz = authz
+    self.authc = authc
+    self.nonce = openssl.base64(string.pack('l', math.random(0)) .. string.pack('l', math.random(0)), true, true)
+    self.password = password
+end
+
+local function scram_encode_username(name)
+    local table = {
+        [','] = '=2C',
+        ['='] = '=3D',
+    }
+    return string.gsub(name, '[,=]', table)
+end
+
+function M.Scram:client_first()
+    local openssl = require 'openssl'
+    local gs2_header = 'n,' .. scram_encode_username(self.authz or '') .. ','
+    self.cbind_input = openssl.base64(gs2_header, true, true)
+    self.client_first_bare = 'n=' .. scram_encode_username(self.authc) .. ',r=' .. self.nonce
+    return gs2_header .. self.client_first_bare
+end
+
+local function hi(digest, secret, salt, iterations)
+    local openssl = require 'openssl'
+    local acc = openssl.hmac.hmac(digest, salt .. '\0\0\0\1', secret, true)
+    local result = acc
+    for _ = 2,iterations do
+        acc = openssl.hmac.hmac(digest, acc, secret, true)
+        result = snowcone.xor_strings(result, acc)
+    end
+    return result
+end
+
+function M.Scram:do_crypto(salt, iterations, auth_message)
+    local openssl = require 'openssl'
+    local salted_password = hi(self.digest, self.password, salt, iterations)
+    local client_key = openssl.hmac.hmac(self.digest, 'Client Key', salted_password, true)
+    local server_key = openssl.hmac.hmac(self.digest, 'Server Key', salted_password, true)
+    local stored_key = self.digest:digest(client_key)
+    local client_signature = openssl.hmac.hmac(self.digest, auth_message, stored_key, true)
+    self.server_signature = openssl.hmac.hmac(self.digest, auth_message, server_key, true)
+    return snowcone.xor_strings(client_key, client_signature)
+end
+
+function M.Scram:client_final(server_first)
+    local openssl = require 'openssl'
+
+    local nonce, salt, iterations = string.match(server_first, '^r=([^,]*),s=([^,]*),i=([^,]*)')
+
+    salt = assert(openssl.base64(salt, false, true), 'bad salt')
+
+    assert(nonce ~= self.nonce)
+    assert(nonce:startswith(self.nonce))
+
+    iterations = math.tointeger(iterations)
+    assert(iterations)
+
+    local client_final_without_proof = 'c=' .. self.cbind_input .. ',r=' .. nonce
+    local auth_message =
+        self.client_first_bare .. ',' ..
+        server_first .. ',' ..
+        client_final_without_proof
+    local client_proof = self:do_crypto(salt, iterations, auth_message)
+    local proof = 'p=' .. openssl.base64(client_proof, true, true)
+    return client_final_without_proof .. ',' .. proof
+end
+
+function M.Scram:verify(server_final)
+    local openssl = require 'openssl'
+    local signature64 = assert(string.match(server_final, '^v=([^,]*)'), 'bad envelope')
+    local signature = assert(openssl.base64(signature64, false, true), 'bad base64')
+    assert(self.server_signature == signature)
+    return ''
 end
 
 return M

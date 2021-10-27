@@ -89,7 +89,10 @@ struct configuration load_configuration(int argc, char **argv)
         strcmp("PLAIN", cfg.irc_sasl_mechanism) &&
         strcmp("EXTERNAL", cfg.irc_sasl_mechanism) &&
         strcmp("ECDSA-NIST256P-CHALLENGE", cfg.irc_sasl_mechanism) &&
-        strcmp("ECDH-X25519-CHALLENGE", cfg.irc_sasl_mechanism))
+        strcmp("ECDH-X25519-CHALLENGE", cfg.irc_sasl_mechanism) &&
+        strcmp("SCRAM-SHA-1", cfg.irc_sasl_mechanism) &&
+        strcmp("SCRAM-SHA-256", cfg.irc_sasl_mechanism) &&
+        strcmp("SCRAM-SHA-512", cfg.irc_sasl_mechanism))
     {
         fprintf(stderr, "SASL mechanism should be PLAIN, EXTERNAL, ECDSA-NIST256P-CHALLENGE, or ECDH-X25519-CHALLENGE (-M).\n");
         show_usage = 1;

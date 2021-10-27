@@ -583,6 +583,30 @@ local function irc_register()
         table.insert(caps, 'sasl')
         auth = 'AUTHENTICATE ECDH-X25519-CHALLENGE\r\n'
         irc_state.sasl = 'ECDH_X25519_CHALLENGE_1'
+    elseif configuration.irc_sasl_mechanism == 'SCRAM-SHA-1' then
+        table.insert(caps, 'sasl')
+        auth = 'AUTHENTICATE SCRAM-SHA-1\r\n'
+        irc_state.sasl = 'SCRAM_1'
+        irc_state.scram = irc_authentication.Scram('sha1',
+            configuration.irc_sasl_authzid,
+            configuration.irc_sasl_username,
+            configuration.irc_sasl_password)
+    elseif configuration.irc_sasl_mechanism == 'SCRAM-SHA-256' then
+        table.insert(caps, 'sasl')
+        auth = 'AUTHENTICATE SCRAM-SHA-256\r\n'
+        irc_state.sasl = 'SCRAM_1'
+        irc_state.scram = irc_authentication.Scram('sha256',
+            configuration.irc_sasl_authzid,
+            configuration.irc_sasl_username,
+            configuration.irc_sasl_password)
+    elseif configuration.irc_sasl_mechanism == 'SCRAM-SHA-512' then
+        table.insert(caps, 'sasl')
+        auth = 'AUTHENTICATE SCRAM-SHA-512\r\n'
+        irc_state.sasl = 'SCRAM_1'
+        irc_state.scram = irc_authentication.Scram('sha512',
+            configuration.irc_sasl_authzid,
+            configuration.irc_sasl_username,
+            configuration.irc_sasl_password)
     end
 
     local capreq = ''
