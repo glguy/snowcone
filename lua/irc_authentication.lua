@@ -65,16 +65,16 @@ function M.ecdh_challenge(key_txt, server_response)
         string.sub(server_response, 33, 64),
         string.sub(server_response, 65, 96)
 
-    local server_pubkey = openssl.pkey.read(
+    local server_pubkey = assert(openssl.pkey.read(
         "\x30\x2a\x30\x05\x06\x03\x2b\x65\x6e\x03\x21\x00" .. server_pubkey_raw,
         false, 'der'
-    )
+    ))
 
     local client_seckey = assert(openssl.pkey.read(key_txt, true, 'auto', configuration.irc_sasl_ecdh_password))
     local client_pubkey = client_seckey:get_public()
     local client_pubkey_raw = string.sub(client_pubkey:export('der'), 13, 44)
 
-    local shared_secret = client_seckey:derive(server_pubkey)
+    local shared_secret = assert(client_seckey:derive(server_pubkey))
 
     -- ECDH_X25519_KDF()
     local ikm = sha256:digest(shared_secret .. client_pubkey_raw .. server_pubkey_raw)
