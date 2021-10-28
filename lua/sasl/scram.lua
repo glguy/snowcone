@@ -23,13 +23,13 @@ local function make_nonce()
     return openssl.base64(string.pack('l', math.random(0)) .. string.pack('l', math.random(0)), true, true)
 end
 
-return function(digest_name, authzid, authcid, password)
+return function(digest_name, authzid, authcid, password, nonce)
     local digest = openssl.digest.get(digest_name)
 
     return coroutine.create(function()
         local gs2_header = 'n,' .. scram_encode_username(authzid or '') .. ','
         local cbind_input = openssl.base64(gs2_header, true, true)
-        local client_nonce = make_nonce()
+        local client_nonce = nonce or make_nonce()
         local client_first_bare = 'n=' .. scram_encode_username(authcid) .. ',r=' .. client_nonce
         local client_first = gs2_header .. client_first_bare
 
