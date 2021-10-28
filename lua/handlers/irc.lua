@@ -1,5 +1,7 @@
 -- Logic for IRC messages
 
+local N = require_ 'numerics'
+
 local M = {}
 
 function M.ERROR()
@@ -58,8 +60,7 @@ M.AUTHENTICATE = function(irc)
     end
 end
 
--- RPL_WELCOME
-M['001'] = function()
+M[N.RPL_WELCOME] = function()
     irc_state.registration = nil
     irc_state.connected = true
     status_message = 'connected'
@@ -79,12 +80,11 @@ M['001'] = function()
     snowcone.send_irc(msg)
 end
 
-M['008'] = function(irc)
+M[N.RPL_SNOMASK] = function(irc)
     status_message = 'snomask ' .. irc[2]
 end
 
--- RPL_STATS_ILINE
-M['215'] = function()
+M[N.RPL_STATSILINE] = function()
     if staged_action ~= nil
     and staged_action.action == 'unkline'
     and staged_action.mask == nil
@@ -93,8 +93,7 @@ M['215'] = function()
     end
 end
 
--- RPL_TESTLINE
-M['725'] = function(irc)
+M[N.RPL_TESTLINE] = function(irc)
     if irc[2] == 'k'
     and staged_action ~= nil
     and staged_action.action == 'unkline'
@@ -104,8 +103,7 @@ M['725'] = function(irc)
     end
 end
 
--- RPL_TESTMASK_GECOS
-M['727'] = function(irc)
+M[N.RPL_TESTMASKGECOS] = function(irc)
     local loc, rem, mask, gecos = table.unpack(irc,2,5)
     local total = math.tointeger(loc) + math.tointeger(rem)
     if staged_action and '*' == gecos and '*!'..staged_action.mask == mask then
@@ -119,8 +117,7 @@ M['727'] = function(irc)
     end
 end
 
--- RPL_MAP
-M['015'] = function(irc)
+M[N.RPL_MAP] = function(irc)
     if not irc_state.in_map then
         population = {}
         irc_state.in_map = true
@@ -132,18 +129,15 @@ M['015'] = function(irc)
     end
 end
 
--- RPL_MAPEND
-M['017'] = function()
+M[N.RPL_MAPEND] = function()
     irc_state.in_map = nil
 end
 
--- RPL_VERSION
-M['351'] = function(irc)
+M[N.RPL_VERSION] = function(irc)
     versions[irc.source] = string.match(irc[2] or '', '%((.*)%)')
 end
 
--- RPL_LINKS
-M['364'] = function(irc)
+M[N.RPL_LINKS] = function(irc)
     if not irc_state.links then
         irc_state.links = {}
     end
@@ -155,8 +149,7 @@ M['364'] = function(irc)
     end
 end
 
--- RPL_END_OF_LINKS
-M['365'] = function()
+M[N.RPL_ENDOFLINKS] = function()
     links = irc_state.links
     irc_state.links = nil
 
@@ -175,28 +168,24 @@ M['365'] = function()
     end
 end
 
--- ERR_ERR_NOOPERHOST
-M['491'] = function()
+M[N.ERR_NOOPERHOST] = function()
     irc_state.challenge = nil
     status_message = 'no oper host'
 end
 
--- ERR_PASSWDMISMATCH
-M['464'] = function()
+M[N.ERR_PASSWDMISMATCH] = function()
     irc_state.challenge = nil
     status_message = 'oper password mismatch'
 end
 
--- RPL_RSACHALLENGE2
-M['740'] = function(irc)
+M[N.RPL_RSACHALLENGE2] = function(irc)
     local challenge = irc_state.challenge
     if challenge then
         table.insert(challenge, irc[2])
     end
 end
 
--- RPL_ENDOFRSACHALLENGE2
-M['741'] = function()
+M[N.RPL_ENDOFRSACHALLENGE2] = function()
     -- remember and clear the challenge buffer now before failures below
     local challenge = irc_state.challenge
     if challenge then
@@ -217,8 +206,7 @@ M['741'] = function()
     end
 end
 
--- RPL_YOUREOPER
-M['381'] = function()
+M[N.RPL_YOUREOPER] = function()
     irc_state.oper = true
     snowcone.send_irc(
         counter_sync_commands() ..
@@ -227,8 +215,7 @@ M['381'] = function()
     status_message = "you're oper"
 end
 
--- RPL_SASLSUCCESS
-M['903'] = function()
+M[N.RPL_SASLSUCCESS] = function()
     if irc_state.sasl then
         status_message = 'SASL success'
         irc_state.sasl = nil
@@ -239,8 +226,7 @@ M['903'] = function()
     end
 end
 
--- ERR_SASLFAIL
-M['904'] = function()
+M[N.ERR_SASLFAIL] = function()
     if irc_state.sasl then
         status_message = 'SASL failed'
         irc_state.sasl = nil
@@ -248,16 +234,14 @@ M['904'] = function()
     end
 end
 
--- ERR_SASLABORTED
-M['906'] = function()
+M[N.ERR_SASLABORTED] = function()
     if irc_state.sasl then
         irc_state.sasl = nil
         snowcone.send_irc 'QUIT\r\n'
     end
 end
 
--- RPL_SASLMECHS
-M['908'] = function()
+M[N.RPL_SASLMECHS] = function()
     if irc_state.sasl then
         status_message = 'bad SASL mechanism'
         irc_state.sasl = nil
@@ -274,11 +258,8 @@ local function new_nickname()
     end
 end
 
--- ERR_ERRONEUSNICKNAME
-M['432'] = new_nickname
--- ERR_NICKNAMEINUSE
-M['433'] = new_nickname
--- ERR_UNAVAILRESOURCE
-M['437'] = new_nickname
+M[N.ERR_ERRONEUSNICKNAME] = new_nickname
+M[N.ERR_NICKNAMEINUSE] = new_nickname
+M[N.ERR_UNAVAILRESOURCE] = new_nickname
 
 return M

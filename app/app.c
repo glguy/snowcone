@@ -52,7 +52,13 @@ static void pushircmsg(lua_State *L, struct ircmsg const* msg)
     lua_pushstring(L, msg->source);
     lua_setfield(L, -2, "source");
 
-    lua_pushstring(L, msg->command);
+    char *end;
+    long code = strtol(msg->command, &end, 10);
+    if (*end == '\0') {
+        lua_pushinteger(L, code);
+    } else {
+        lua_pushstring(L, msg->command);
+    }
     lua_setfield(L, -2, "command");
 
     for (int i = 0; i < msg->args_n; i++)
