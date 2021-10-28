@@ -1,5 +1,6 @@
+local openssl = require 'openssl'
+
 return function(authzid, authcid, key_txt, key_password)
-    local openssl = require 'openssl'
     local key = assert(openssl.pkey.read(key_txt, true, 'auto', key_password))
 
     return coroutine.create(function()

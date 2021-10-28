@@ -49,14 +49,12 @@ end
 
 M.AUTHENTICATE = function(irc)
     if irc_state.sasl then
-        local response
-        local success, message = coroutine.resume(irc_state.sasl, irc_authentication.decode_authenticate(irc[1]))
-        if success then
-            response = message
-        else
-            irc_state.sasl = 'aborted'
+        local payload = irc_authentication.decode_authenticate(irc[1])
+        local success, message = coroutine.resume(irc_state.sasl, payload)
+        if not success then
+            message = nil
         end
-        snowcone.send_irc(irc_authentication.encode_authenticate(response))
+        snowcone.send_irc(irc_authentication.encode_authenticate(message))
     end
 end
 
