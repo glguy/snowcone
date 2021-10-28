@@ -233,9 +233,8 @@ M['903'] = function()
         status_message = 'SASL success'
         irc_state.sasl = nil
 
-        if irc_state.in_cap then
+        if irc_state.registration then
             snowcone.send_irc 'CAP END\r\n'
-            irc_state.in_cap = nil
         end
     end
 end

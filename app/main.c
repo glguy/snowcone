@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (start_irc(a))
+    if (*cfg.irc_socat != '\0' && start_irc(a))
     {
         goto cleanup;
     }
