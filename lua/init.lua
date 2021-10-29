@@ -1,9 +1,9 @@
 -- Library imports
-Set    = require 'pl.Set'
-tablex = require 'pl.tablex'
-pretty = require 'pl.pretty'
-path   = require 'pl.path'
-file   = require 'pl.file'
+local Set    = require 'pl.Set'
+local tablex = require 'pl.tablex'
+local pretty = require 'pl.pretty'
+local path   = require 'pl.path'
+local file   = require 'pl.file'
 
 if not uptime then
     require 'pl.stringx'.import()
@@ -38,9 +38,7 @@ end
 
 -- Local modules ======================================================
 
-ip_org   = require_ 'ip_org'
-irc_authentication = require_ 'irc_authentication'
-NetTracker = require_ 'NetTracker'
+local NetTracker         = require_ 'NetTracker'
 local Editor             = require_ 'Editor'
 local LoadTracker        = require_ 'LoadTracker'
 local OrderedMap         = require_ 'OrderedMap'
@@ -603,21 +601,19 @@ local function irc_register()
         table.insert(caps, configuration.irc_capabilities)
     end
 
-    local auth = ''
+    local postreg = ''
     local mech = configuration.irc_sasl_mechanism
     if mech then
         irc_state.sasl = assert(mechs[mech], 'Unknown SASL mechanism')()
         table.insert(caps, 'sasl')
-        auth = 'AUTHENTICATE ' .. mech .. '\r\n'
+        postreg = 'AUTHENTICATE ' .. mech .. '\r\n'
     end
 
     local capreq = ''
-    local capend = ''
     if next(caps) then
-        capreq =
-            'CAP REQ :' .. table.concat(caps, ' ') .. '\r\n'
+        capreq = 'CAP REQ :' .. table.concat(caps, ' ') .. '\r\n'
         if not irc_state.sasl then
-            capend = 'CAP END\r\n'
+            postreg = 'CAP END\r\n'
         end
     end
 
@@ -627,8 +623,7 @@ local function irc_register()
         pass ..
         'NICK ' .. configuration.irc_nick .. '\r\n' ..
         'USER ' .. user .. ' * * :' .. gecos .. '\r\n' ..
-        auth ..
-        capend
+        postreg
         )
 end
 

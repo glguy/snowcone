@@ -1,4 +1,5 @@
 -- Logic for parsed snotices
+local ip_org = require_ 'ip_org'
 
 local function count_ip(address, delta)
     if next(net_trackers) then

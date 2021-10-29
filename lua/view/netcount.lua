@@ -1,3 +1,5 @@
+local tablex = require 'pl.tablex'
+
 local M = { title = 'netcount'}
 
 function M:keypress()

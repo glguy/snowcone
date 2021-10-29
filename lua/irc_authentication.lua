@@ -14,26 +14,27 @@ end
 -- Takes a binary argument, base64 encodes it, and chunks it into multiple
 -- AUTHENTICATE commands
 function M.encode_authenticate(body)
-    if body == nil then
-        return 'AUTHENTICATE *\r\n'
-    end
-
     local commands = {}
+    local n = 0
 
     local function authenticate(msg)
-        table.insert(commands, 'AUTHENTICATE ' .. msg .. '\r\n')
+        n = n + 1
+        commands[n] = 'AUTHENTICATE ' .. msg .. '\r\n'
     end
 
-    body = snowcone.to_base64(body)
-    while #body >= 400 do
-        authenticate(string.sub(body, 1, 400))
-        body = string.sub(body, 401)
-    end
+    if body then
+        body = snowcone.to_base64(body)
+        while #body >= 400 do
+            authenticate(string.sub(body, 1, 400))
+            body = string.sub(body, 401)
+        end
 
-    if '' == body then
-        authenticate('+')
-    else
+        if '' == body then
+            body = '+'
+        end
         authenticate(body)
+    else
+        authenticate '*'
     end
 
     return table.concat(commands)

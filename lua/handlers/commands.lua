@@ -1,3 +1,4 @@
+local tablex = require 'pl.tablex'
 local lexer = require 'pl.lexer'
 
 local colormap =

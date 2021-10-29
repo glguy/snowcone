@@ -1,6 +1,7 @@
 -- Logic for IRC messages
-
+local Set = require 'pl.Set'
 local N = require_ 'numerics'
+local irc_authentication = require_ 'irc_authentication'
 
 local M = {}
 
