@@ -13,30 +13,51 @@ stds = {
     main = {
         read_globals = {"tty_height", "tty_width", "configuration", "mygeoip", "ncurses" },
         globals = {
-            "irc_state", "require_", "status_message", "input_mode", "servers",
-            "view", "views", "uptime", "trust_uname", "show_reasons", "kline_duration",
-            "staged_action", "kline_reason", "scroll", "history", "mrs", "server_ordering",
-            "server_descending", "liveness", "next_view", "prev_view",
+            -- general functionality
+            "require_", "next_view", "prev_view", "entry_to_kline",
+            "add_network_tracker", "scrub", "quit", "entry_to_unkline",
+            "reset_filter", "initialize", "counter_sync_commands",
 
-            "links", "upstream", "population", "conn_tracker", "exit_tracker",
-            "kline_tracker", "filter_tracker", "net_trackers",
-            "messages", "klines", "editor", "watches", "versions",
+            -- global client state
+            "irc_state",  "status_message", "input_mode", "servers",
+            "view", "views", "uptime", "liveness", "scroll", "editor",
+            "uv_resources", "filter",
+
+            -- global load bar state
+            "trust_uname", "show_reasons", "kline_duration",
+            "staged_action", "kline_reason", "kline_reasons", "kline_durations",
+
+            -- connection tracking view
             "users", "exits",
+            "conn_filter", "server_filter", "highlight", "highlight_plain",
 
-            "kline_reasons", "kline_durations", "entry_to_kline",
-            "show_entry", "entry_to_unkline",
+            -- server tracking view
+            "links", "upstream", "population", "conn_tracker", "exit_tracker", "versions",
+            "server_ordering", "server_descending", "mrs",
 
-            "conn_filter", "server_filter", "filter", "reset_filter", "initialize",
-            "highlight", "highlight_plain",
+            -- kline load view
+            "kline_tracker",
 
+            -- filter load view
+            "filter_tracker",
+
+            -- network tracker view
+            "net_trackers",
+
+            -- IRC console view
+            "messages",
+
+            -- Bans list view
+            "klines", "watches",
+
+            -- Rendering
             "draw_load", "add_click", "add_button", "draw_buttons", "draw_global_load",
-            "add_population", "draw", "counter_sync_commands",
+            "add_population", "draw",
 
+            -- ncurses helpers
             "addstr", "mvaddstr",
             "bold", "bold_", "underline", "underline_", "normal", "reversevideo", "reversevideo_",
             "red", "green", "cyan", "black", "yellow", "magenta", "white", "blue",
-
-            "add_network_tracker", "scrub", "quit", "uv_resources",
             },
         },
     },
