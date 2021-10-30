@@ -144,6 +144,40 @@ function M:right()
     end
 end
 
+function M:next_word()
+    local i = self.cursor
+    local b = self.buffer
+    local n = #b
+
+    if i <= n then
+        i = i + 1
+    end
+
+    while i <= n and b[i] == 0x20 do
+        i = i + 1
+    end
+    while i <= n and b[i] ~= 0x20 do
+        i = i + 1
+    end
+    self:move(i)
+end
+
+function M:prev_word()
+    local i = self.cursor
+    local b = self.buffer
+
+    if 1 < i then
+        i = i - 1
+    end
+    while 1 < i and b[i-1] == 0x20 do
+        i = i - 1
+    end
+    while 1 < i and b[i-1] ~= 0x20 do
+        i = i - 1
+    end
+    self:move(i)
+end
+
 function M:paste()
     tablex.insertvalues(self.buffer, self.cursor, self.yank)
     self:move(self.cursor + #self.yank)

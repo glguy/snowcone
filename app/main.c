@@ -33,7 +33,14 @@ static void on_stdin(uv_poll_t *handle, int status, int events)
 
     while(ERR != (key = getch()))
     {
-        if (KEY_MOUSE == key)
+        if (key == '\e') {
+            key = getch();
+            if (ERR == key) {
+                do_keyboard(a, '\e');    
+            } else {
+                do_keyboard(a, -key);
+            }
+        } else if (KEY_MOUSE == key)
         {
             MEVENT ev;
             getmouse(&ev);

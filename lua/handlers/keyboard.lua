@@ -32,7 +32,11 @@ function execute.command()
 end
 
 local function ctrl(x)
-    return 0x1f & string.byte(x,1)
+    return 0x1f & string.byte(x)
+end
+
+local function meta(x)
+    return -string.byte(x)
 end
 
 -- Global keyboard mapping - can be overriden by views
@@ -55,22 +59,24 @@ local M = {
     [-ncurses.KEY_F9] = function() view = 9 end,
     [-ncurses.KEY_F10] = function() view = 10 end,
 
-    [ctrl('L')] = ncurses.clear,
-    [ctrl('N')] = next_view,
-    [ctrl('P')] = prev_view,
+    [ctrl 'L'] = ncurses.clear,
+    [ctrl 'N'] = next_view,
+    [ctrl 'P'] = prev_view,
 
     [0x7f] = function() if input_mode then editor:backspace() end end, -- Del
     [-ncurses.KEY_BACKSPACE] = function() if input_mode then editor:backspace() end end,
-    [ctrl('M')] = function() if input_mode then execute[input_mode]() end end, -- Enter
-    [ctrl('U')] = function() if input_mode then editor:kill_to_beg() end end,
-    [ctrl('K')] = function() if input_mode then editor:kill_to_end() end end,
-    [ctrl('A')] = function() if input_mode then editor:move_to_beg() end end,
-    [ctrl('E')] = function() if input_mode then editor:move_to_end() end end,
-    [ctrl('W')] = function() if input_mode then editor:kill_region() end end,
-    [ctrl('B')] = function() if input_mode then editor:left() end end,
-    [ctrl('F')] = function() if input_mode then editor:right() end end,
-    [ctrl('Y')] = function() if input_mode then editor:paste() end end,
-    [ctrl('T')] = function() if input_mode then editor:swap() end end,
+    [ctrl 'M'] = function() if input_mode then execute[input_mode]() end end, -- Enter
+    [ctrl 'U'] = function() if input_mode then editor:kill_to_beg() end end,
+    [ctrl 'K'] = function() if input_mode then editor:kill_to_end() end end,
+    [ctrl 'A'] = function() if input_mode then editor:move_to_beg() end end,
+    [ctrl 'E'] = function() if input_mode then editor:move_to_end() end end,
+    [ctrl 'W'] = function() if input_mode then editor:kill_region() end end,
+    [ctrl 'B'] = function() if input_mode then editor:left() end end,
+    [ctrl 'F'] = function() if input_mode then editor:right() end end,
+    [ctrl 'Y'] = function() if input_mode then editor:paste() end end,
+    [ctrl 'T'] = function() if input_mode then editor:swap() end end,
+    [meta 'f'] = function() if input_mode then editor:next_word() end end,
+    [meta 'b'] = function() if input_mode then editor:prev_word() end end,
     [-ncurses.KEY_LEFT] = function() if input_mode then editor:left() end end,
     [-ncurses.KEY_RIGHT] = function() if input_mode then editor:right() end end,
     [-ncurses.KEY_HOME] = function() if input_mode then editor:move_to_beg() end end,

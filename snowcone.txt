@@ -78,6 +78,8 @@ MODES
   C-a  move to beginning of buffer
   C-e  move to end of buffer
   C-t  swap characters
+  M-f  next word
+  M-b  previous word
 
 SH RECENT CONNECTIONS
   The recent connections view has a number of special features. Click on
