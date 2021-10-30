@@ -7,27 +7,35 @@ M._name = 'Editor'
 function M:_init()
     self.buffer = {}
     self.cursor = 1
+    self.first = 1
     self.yank = {}
     self.yanking = false
     self:render()
 end
 
-function M:move(x)
+function M:move(x, yanking)
     self.cursor = x
-    self.yanking = false
+    if self.first > self.cursor then
+        self.first = self.cursor
+    end
+    self.yanking = yanking or false
     self:render()
 end
 
 function M:render()
-    self.before_cursor = utf8.char(table.unpack(self.buffer, 1, self.cursor - 1))
+    self.before_cursor = utf8.char(table.unpack(self.buffer, self.first, self.cursor - 1))
     self.at_cursor = utf8.char(table.unpack(self.buffer, self.cursor))
     self.rendered = self.before_cursor .. self.at_cursor
 end
 
+function M:overflow()
+    self.first = math.max(1, self.cursor - 12)
+    self:render()
+end
+
 function M:reset()
     self.buffer = {}
-    self.cursor = 1
-    self.yanking = false
+    self:move(1)
     self:render()
 end
 
@@ -37,10 +45,8 @@ end
 
 function M:backspace()
     if self.cursor > 1 then
-        self.cursor = self.cursor - 1
         table.remove(self.buffer, self.cursor)
-        self.yanking = false
-        self:render()
+        self:move(self.cursor - 1)
     end
 end
 
@@ -55,8 +61,8 @@ function M:kill_to_beg()
     end
 
     self.buffer = tablex.sub(self.buffer, self.cursor, -1)
-    self.cursor = 1
-    self:render()
+
+    self:move(1, true)
 end
 
 function M:kill_to_end()
@@ -85,8 +91,7 @@ function M:kill_prev_word()
         self.yanking = true
     end
 
-    self.cursor = i
-    self:render()
+    self:move(i, true)
 end
 
 
@@ -105,30 +110,27 @@ function M:kill_next_word()
         self.yanking = true
     end
 
-    self.cursor = i
-    self:render()
+    self:move(i, true)
 end
 
 function M:add(code)
     table.insert(self.buffer, self.cursor, code)
-    self.cursor = self.cursor + 1
-    self.yanking = false
-    self:render()
+    self:move(self.cursor + 1)
 end
 
 function M:swap()
     local n = #self.buffer
+    local i = self.cursor
     if n > 1 then
-        if self.cursor == 1 then
-            self.cursor = 3
-        elseif self.cursor <= n then
-            self.cursor = self.cursor + 1
+        if i == 1 then
+            i = 3
+        elseif i <= n then
+            i = i + 1
         end
-        local t = self.buffer[self.cursor - 2]
-        self.buffer[self.cursor - 2] = self.buffer[self.cursor - 1]
-        self.buffer[self.cursor - 1] = t
-        self:render()
-        self.yanking = false
+        local t = self.buffer[i - 2]
+        self.buffer[i - 2] = self.buffer[i - 1]
+        self.buffer[i - 1] = t
+        self:move(i)
     end
 end
 
@@ -191,7 +193,6 @@ end
 function M:paste()
     tablex.insertvalues(self.buffer, self.cursor, self.yank)
     self:move(self.cursor + #self.yank)
-    self.yanking = false
 end
 
 return M

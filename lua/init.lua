@@ -279,29 +279,62 @@ function draw_load(avg)
 end
 
 function draw_global_load(title, tracker)
-    if kline_ready() then red () else white() end
-    reversevideo()
-    if views[view].title then
-        mvaddstr(tty_height-1, 0, string.format('%-8.8s', views[view].title))
+    local codered = kline_ready()
+
+    if codered then
+        ncurses.colorset(ncurses.black_red)
     else
-        mvaddstr(tty_height-1, 0, 'sn' .. spinner[uptime % #spinner + 1] .. 'wcone')
+        ncurses.colorset(ncurses.black_white)
     end
-    reversevideo_()
+
+    local label
+    if views[view].title then
+        label = string.format('%-8.8s', views[view].title)
+    else
+        label = 'sn' .. spinner[uptime % #spinner + 1] .. 'wcone'
+    end
+    mvaddstr(tty_height-1, 0, label)
 
     if input_mode then
+        if codered then
+            ncurses.colorset(ncurses.red_blue)
+        else
+            ncurses.colorset(ncurses.white_blue)
+        end
+        addstr('')
         ncurses.colorset(ncurses.white_blue)
-        addstr('' .. input_mode)
+        addstr(input_mode)
         blue()
-        addstr(' ')
+        addstr('')
+
+        if 1 < editor.first then
+            yellow()
+            addstr('…')
+            blue()
+        else
+            addstr(' ')
+        end
 
         if input_mode == 'filter' and not pcall(string.match, '', editor.rendered) then
             red()
         end
 
+        local y0, x0 = ncurses.getyx()
         addstr(editor.before_cursor)
-        local y,x = ncurses.getyx()
+
+        -- cursor overflow: clear and redraw
+        local y1, x1 = ncurses.getyx()
+        if x1 == tty_width - 1 then
+            yellow()
+            mvaddstr(y0, x0-1, '…' .. string.rep(' ', tty_width)) -- erase line
+            blue()
+            editor:overflow()
+            mvaddstr(y0, x0, editor.before_cursor)
+            y1, x1 = ncurses.getyx()
+        end
+
         addstr(editor.at_cursor)
-        ncurses.move(y,x)
+        ncurses.move(y1, x1)
         ncurses.cursset(1)
     else
         addstr(' ')
