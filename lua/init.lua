@@ -337,6 +337,11 @@ function draw_global_load(title, tracker)
         ncurses.move(y1, x1)
         ncurses.cursset(1)
     else
+        if codered then
+            red()
+        else
+            white()
+        end
         addstr(' ')
         magenta()
         addstr(title .. ' ')

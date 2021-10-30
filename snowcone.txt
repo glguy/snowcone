@@ -83,6 +83,11 @@ MODES
   C-t  swap characters
   M-f  next word
   M-b  previous word
+  UP   older command history
+  DOWN  newer command history
+  PgUp  scroll up
+  PgDn  scroll down
+  Esc   clear filters, reset scroll, clear status message
 
 SH RECENT CONNECTIONS
   The recent connections view has a number of special features. Click on
@@ -94,9 +99,6 @@ SH RECENT CONNECTIONS
   W     only dead connections
   E     all connections
   K     issue kline
-  Esc   clear filters, reset scroll, clear status message
-  PgUp  scroll up
-  PgDn  scroll down
 
   The first column shows when a user connected. It fades from white a
   character per second to indicate the most recent connections. Times

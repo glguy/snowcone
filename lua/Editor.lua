@@ -5,11 +5,14 @@ local M = class()
 M._name = 'Editor'
 
 function M:_init()
-    self.buffer = {}
-    self.cursor = 1
-    self.first = 1
-    self.yank = {}
-    self.yanking = false
+    self.buffer = {}        -- Array[Code]
+    self.history = {}       -- Array[Array[Code]]
+    self.cursor = 1         -- Index into buffer
+    self.first = 1          -- Index into buffer
+    self.retrospect = nil   -- Index into history
+    self.stash = nil        -- Original buffer when retrospect ~= nil
+    self.yank = {}          -- Array[Code]
+    self.yanking = false    -- boolean
     self:render()
 end
 
@@ -35,8 +38,69 @@ end
 
 function M:reset()
     self.buffer = {}
+    self.retrospect = nil
+    self.stash = nil
     self:move(1)
     self:render()
+end
+
+function M:confirm()
+    local n = #self.history
+    if n == 0 or not tablex.compare_no_order(self.history[n], self.buffer) then
+        self.history[n+1] = self.buffer
+    end
+    self:reset()
+end
+
+function M:older_history()
+    local r = self.retrospect
+    local h = self.history
+
+    if r ~= nil and 1 < r then
+        if self.buffer[1] ~= nil then
+            h[r] = self.buffer
+        else
+            table.remove(h, r)
+        end
+        r = r - 1
+
+        self.buffer = tablex.copy(h[r])
+        self.retrospect = r
+        self:move_to_end()
+    elseif r == nil and h[1] ~= nil then
+        r = #h
+        self.stash = self.buffer
+        self.buffer = tablex.copy(h[r])
+        self.retrospect = r
+        self:move_to_end()
+    end
+end
+
+function M:newer_history()
+    local r = self.retrospect
+    local h = self.history
+
+    if r == nil then
+        return
+    end
+
+    if self.buffer[1] ~= nil then
+        h[r] = self.buffer
+        r = r + 1
+    else
+        table.remove(h, r)
+    end
+
+    if h[r] == nil then
+        self.buffer = self.stash
+        self.stash = nil
+        self.retrospect = nil
+    else
+        self.buffer = tablex.copy(h[r])
+        self.retrospect = r
+    end
+
+    self:move_to_end()
 end
 
 function M:is_empty()
@@ -44,9 +108,10 @@ function M:is_empty()
 end
 
 function M:backspace()
-    if self.cursor > 1 then
-        table.remove(self.buffer, self.cursor)
-        self:move(self.cursor - 1)
+    local i = self.cursor
+    if 1 < i then
+        table.remove(self.buffer, i - 1)
+        self:move(i - 1)
     end
 end
 
