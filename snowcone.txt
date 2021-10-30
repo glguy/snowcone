@@ -73,10 +73,13 @@ MODES
   C-s  live filtering mode
   C-u  kill to beginning of buffer
   C-k  kill to end of buffer
-  C-w  kill region
+  C-w  kill previous word
+  M-d  kill next word
   C-y  paste yanked region
   C-a  move to beginning of buffer
   C-e  move to end of buffer
+  C-f  move right
+  C-b  move left
   C-t  swap characters
   M-f  next word
   M-b  previous word

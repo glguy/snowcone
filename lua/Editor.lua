@@ -70,28 +70,36 @@ function M:kill_to_end()
     self:render()
 end
 
-function M:kill_region()
-    local i = self.cursor - 1
-
-    -- pass over the spaces
-    while i > 0 and self.buffer[i] == 0x20 do
-        i = i - 1
-    end
-
-    -- pass over the non-spaces
-    while i > 0 and self.buffer[i] ~= 0x20 do
-        i = i - 1
-    end
-
-    -- point at the last non-space
-    i = i + 1
+function M:kill_prev_word()
+    local i = self:search_prev_word()
+    local j = self.cursor - 1
 
     -- extract that region
-    local region = tablex.sub(self.buffer, i, self.cursor - 1)
-    tablex.removevalues(self.buffer, i, self.cursor - 1)
+    local region = tablex.sub(self.buffer, i, j)
+    tablex.removevalues(self.buffer, i, j)
 
     if self.yanking then
         tablex.insertvalues(self.yank, 1, region)
+    else
+        self.yank = region
+        self.yanking = true
+    end
+
+    self.cursor = i
+    self:render()
+end
+
+
+function M:kill_next_word()
+    local i = self.cursor
+    local j = self:search_next_word() - 1
+
+    -- extract that region
+    local region = tablex.sub(self.buffer, i, j)
+    tablex.removevalues(self.buffer, i, j)
+
+    if self.yanking then
+        tablex.insertvalues(self.yank, #self.yank + 1, region)
     else
         self.yank = region
         self.yanking = true
@@ -132,50 +140,52 @@ function M:move_to_end()
     self:move(#self.buffer + 1)
 end
 
-function M:left()
+function M:move_left()
     if self.cursor > 1 then
         self:move(self.cursor - 1)
     end
 end
 
-function M:right()
+function M:move_right()
     if self.cursor <= #self.buffer then
         self:move(self.cursor + 1)
     end
 end
 
-function M:next_word()
+function M:move_next_word()
+    self:move(self:search_next_word())
+end
+
+function M:move_prev_word()
+    self:move(self:search_prev_word())
+end
+
+function M:search_next_word()
     local i = self.cursor
     local b = self.buffer
     local n = #b
-
     if i <= n then
         i = i + 1
+        while i <= n and (b[i-1] == 0x20 or b[i] ~= 0x20) do
+            i = i + 1
+        end
     end
-
-    while i <= n and b[i] == 0x20 do
-        i = i + 1
-    end
-    while i <= n and b[i] ~= 0x20 do
-        i = i + 1
-    end
-    self:move(i)
+    return i
 end
 
-function M:prev_word()
+function M:search_prev_word()
     local i = self.cursor
     local b = self.buffer
-
     if 1 < i then
         i = i - 1
     end
-    while 1 < i and b[i-1] == 0x20 do
+    while 1 < i and b[i] == 0x20 do
         i = i - 1
     end
     while 1 < i and b[i-1] ~= 0x20 do
         i = i - 1
     end
-    self:move(i)
+    return i
 end
 
 function M:paste()
