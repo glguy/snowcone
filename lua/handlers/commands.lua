@@ -146,6 +146,18 @@ function M.stats()
     view = 'stats'
 end
 
+function M.repeats()
+    view = 'repeats'
+end
+
+function M.banload()
+    view = 'banload'
+end
+
+function M.spamload()
+    view = 'spamload'
+end
+
 function M.versions()
     local n = 0
     local commands = {}

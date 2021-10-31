@@ -62,12 +62,9 @@ MODES
   F2  server connection load
   F3  recent exits
   F4  server exit load
-  F5  kline load
-  F6  filter load
-  F7  reconnecting nicknames
-  F8  raw IRC console
-  F9  network-mask connection tracker
-  F10  recent bans
+  F5  bans
+  F6  network-mask connection tracker
+  F7  raw IRC console
   C-n  next view
   C-p  previous view
   C-s  live filtering mode
@@ -168,6 +165,10 @@ COMMANDS
   /sync                     Manually refresh user counts
   /addwatch pattern         Add a new watch
   /delwatch number          Remove watch by number
+  /banload                  Load meters for kline setting
+  /spamload                 Load meters for filter events
+  /repeats                  List of repeated connections by nicknames and masks
+  /stats                    Internal client metrics
 GEOIP SUPPORT
   Both legacy GeoIP and modern GeoIP Maxmind database are supported
   and will be used if they are found at startup time.

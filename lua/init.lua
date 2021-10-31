@@ -117,7 +117,7 @@ local defaults = {
     conn_tracker = LoadTracker(),
     exit_tracker = LoadTracker(),
     net_trackers = {},
-    view = 1,
+    view = 'cliconn',
     uptime = 0, -- seconds since startup
     liveness = 0, -- timestamp of last irc receipt
     mrs = {},
@@ -496,43 +496,36 @@ local view_recent_conn = require_ 'view.recent_conn'
 local view_server_load = require_ 'view.server_load'
 local view_simple_load = require_ 'view.simple_load'
 views = {
-    -- Recent connections
-    view_recent_conn(users, 'CLICON', conn_tracker),
-    -- Server connections
-    view_server_load('Connection History', 'CLICON', ncurses.green, conn_tracker),
-    -- Recent exists
-    view_recent_conn(exits, 'CLIEXI', exit_tracker),
-    -- Server exits
-    view_server_load('Disconnection History', 'CLIEXI', ncurses.red, exit_tracker),
-    -- K-Line tracking
-    view_simple_load('banload', 'K-Liner', 'KLINES', 'K-Line History', kline_tracker),
-    -- Filter tracking
-    view_simple_load('spamload', 'Server', 'FILTERS', 'Filter History', filter_tracker),
-    -- Repeat connection tracking
-    require_ 'view.repeats',
-    -- Raw IRC console
-    require_ 'view.console',
-    -- Counters for network masks
-    require_ 'view.netcount',
-    (require_ 'view.bans'),
+    cliconn = view_recent_conn(users, 'CLICON', conn_tracker),
+    connload = view_server_load('Connection History', 'CLICON', ncurses.green, conn_tracker),
+    cliexit = view_recent_conn(exits, 'CLIEXI', exit_tracker),
+    exitload = view_server_load('Disconnection History', 'CLIEXI', ncurses.red, exit_tracker),
+    netcount = require_ 'view.netcount',
+    bans = require_ 'view.bans',
+    stats = require_ 'view.stats',
+    repeats = require_ 'view.repeats',
+    banload = view_simple_load('banload', 'K-Liner', 'KLINES', 'K-Line History', kline_tracker),
+    spamload = view_simple_load('spamload', 'Server', 'FILTERS', 'Filter History', filter_tracker),
+    console = require_ 'view.console',
 }
 
--- hidden views not in main rotation
-views.stats = require_ 'view.stats'
+main_views = {'cliconn', 'connload', 'cliexit', 'exitload', 'bans', 'netcount', 'console'}
 
 function next_view()
-    if type(view) == 'number' then
-        view = view % #views + 1
+    local current = tablex.find(main_views, view)
+    if current then
+        view = main_views[current % #main_views + 1]
     else
-        view = 1
+        view = main_views[1]
     end
 end
 
 function prev_view()
-    if type(view) == 'number' then
-        view = (view - 2) % #views + 1
+    local current = tablex.find(main_views, view)
+    if current then
+        view = main_views[(current - 2) % #main_views + 1]
     else
-        view = 1
+        view = main_views[1]
     end
 end
 
