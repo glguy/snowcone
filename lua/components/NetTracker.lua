@@ -3,7 +3,7 @@ local class = require 'pl.class'
 local M = class()
 M._name = 'NetTracker'
 
-local MaskTracker = require_ 'MaskTracker'
+local MaskTracker = require_ 'components.MaskTracker'
 
 function M:_init()
     self.masks = {}

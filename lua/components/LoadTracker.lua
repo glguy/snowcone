@@ -1,5 +1,5 @@
 local class = require 'pl.class'
-local LoadAverage = require 'LoadAverage'
+local LoadAverage = require 'components.LoadAverage'
 local LoadTracker = class()
 LoadTracker._name = 'LoadTracker'
 

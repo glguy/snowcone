@@ -38,10 +38,10 @@ end
 
 -- Local modules ======================================================
 
-local NetTracker         = require_ 'NetTracker'
-local Editor             = require_ 'Editor'
-local LoadTracker        = require_ 'LoadTracker'
-local OrderedMap         = require_ 'OrderedMap'
+local NetTracker         = require_ 'components.NetTracker'
+local Editor             = require_ 'components.Editor'
+local LoadTracker        = require_ 'components.LoadTracker'
+local OrderedMap         = require_ 'components.OrderedMap'
 local compute_kline_mask = require_ 'libera_masks'
 
 -- Validate configuration =============================================

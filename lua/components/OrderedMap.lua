@@ -1,6 +1,6 @@
 local class = require 'pl.class'
 local OrderedMap = class()
-OrderedMap._name = 'OrderedMap'
+OrderedMap._name = 'components.OrderedMap'
 
 function OrderedMap:insert(key, val)
     local m = self.max
