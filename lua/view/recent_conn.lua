@@ -68,7 +68,7 @@ function M:render()
     local last_time
     local rows = math.max(1, tty_height-2)
 
-    local window = rotating_window.build_window(data, rows, show_entry)
+    local window = rotating_window(data, rows, show_entry)
 
     for y = 0, rows-1 do
         local entry = window[y+1]

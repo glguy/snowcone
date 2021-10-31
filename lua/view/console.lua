@@ -128,7 +128,7 @@ function M:render()
 
 
     local rows = math.max(0, tty_height - 1)
-    local window = rotating_window.build_window(messages, rows, show_irc)
+    local window = rotating_window(messages, rows, show_irc)
     local clear_line = string.rep(' ', tty_width)
 
     for y = 0, rows-1 do

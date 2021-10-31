@@ -1,6 +1,4 @@
-local M = {}
-
-function M.build_window(source, rows, predicate)
+return function(source, rows, predicate)
     source.predicate = predicate
     if rows <= 0 then return {} end
 
@@ -18,5 +16,3 @@ function M.build_window(source, rows, predicate)
     window[source.ticker % rows + 1] = 'divider'
     return window
 end
-
-return M

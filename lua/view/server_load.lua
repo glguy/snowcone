@@ -99,7 +99,6 @@ local function make_colors(things)
 end
 
 function M:render()
-
     local has_versions = next(versions) ~= nil
     local vercolor = make_colors(tablex.values(versions))
     local upcolor = make_colors(tablex.values(upstream))
@@ -141,13 +140,20 @@ function M:render()
         local name = row.name
         local short = string.gsub(name, '%..*', '', 1)
         local info = servers.servers[name] or {}
-        local in_main = in_rotation('MAIN', info.ipv4, info.ipv6)
-        if in_main then yellow() end
+
+        if in_rotation('MAIN', info.ipv4, info.ipv6) then
+            yellow()
+        end
+
+        -- Name column
         mvaddstr(pad+i,0, string.format('%16s ', short))
-        -- Main rotation info
+
+        -- Sparkline
         draw_load(avg)
         normal()
         addstr(' ')
+
+        -- Main rotation
         render_mrs('MAIN', info.ipv4, '4')
         render_mrs('MAIN', info.ipv6, '6')
 

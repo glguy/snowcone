@@ -51,7 +51,7 @@ function M:render()
 
     local clear_line = string.rep(' ', tty_width)
     local rows = math.max(0, tty_height - 3)
-    local window = rotating_window.build_window(klines, rows)
+    local window = rotating_window(klines, rows)
     local clear_string = string.rep(' ', tty_width)
 
     bold()
