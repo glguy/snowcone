@@ -85,9 +85,25 @@ local function add_column(text, name)
     if active then bold_() end
 end
 
+local function make_colors(things)
+        table.sort(things)
+        local assignment = {[''] = black}
+        local i = 2
+        for _, v in ipairs(things) do
+            if not assignment[v] then
+                assignment[v] = palette[i]
+                i = i % #palette + 1
+            end
+        end
+        return assignment
+end
+
 function M:render()
 
     local has_versions = next(versions) ~= nil
+    local vercolor = make_colors(tablex.values(versions))
+    local upcolor = make_colors(tablex.values(upstream))
+
     local rows = {}
     for server,avg in pairs(tracker.detail) do
         table.insert(rows, {name=server,load=avg})
@@ -101,11 +117,6 @@ function M:render()
     table.sort(rows, orderimpl)
 
     local pad = math.max(tty_height - #rows - 2, 0)
-
-    local upcolor = {}
-    local vercolor = {}
-    local next_color = 2
-    local next_vercolor = 2
 
     ncurses.colorset(header_color)
     mvaddstr(pad,0, '')
@@ -162,13 +173,7 @@ function M:render()
 
         local link = upstream[name]
         if link then
-            local color = upcolor[link]
-            if not color then
-                color = palette[next_color]
-                upcolor[link] = color
-                next_color = next_color % #palette + 1
-            end
-            color()
+            upcolor[link]()
             local linktext = (servers.servers[link] or {}).alias or link
             addstr('  '.. linktext .. ' ')
             normal()
@@ -177,13 +182,9 @@ function M:render()
         end
 
         if has_versions then
-            local version = versions[name] or '?'
-            if vercolor[version] == nil then
-                vercolor[version] = palette[next_vercolor]
-                next_vercolor = next_vercolor % #palette + 1
-            end
-            vercolor[version]()
-            addstr(string.format(' %-17.17s ', version))
+            local version = versions[name]
+            vercolor[version or '']()
+            addstr(string.format(' %-17.17s ', version or '?'))
             normal()
         end
 
