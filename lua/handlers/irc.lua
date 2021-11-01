@@ -4,6 +4,10 @@ local N = require_ 'numerics'
 local challenge = require_ 'challenge'
 local sasl = require_ 'sasl'
 
+local function parse_source(source)
+    return string.match(source, '^(.-)!(.-)@(.*)$')
+end
+
 local M = {}
 
 function M.ERROR()
@@ -42,12 +46,12 @@ function M.NOTICE(irc)
 end
 
 M.NICK = function(irc)
-    local nick = string.match(irc.source, '^(.-)!')
+    local nick = parse_source(irc.source)
     if nick and nick == irc_state.nick then
         irc_state.nick = irc[1]
-    end
-    if irc_state.altnick and irc[1] == configuration.irc_nick then
-        irc_state.altnick = nil
+        if irc_state.target_nick == irc_state.nick then
+            irc_state.target_nick = nil
+        end
     end
 end
 
@@ -234,6 +238,7 @@ M[N.ERR_SASLFAIL] = function()
         status_message = 'SASL failed'
         irc_state.sasl = nil
         snowcone.send_irc 'QUIT\r\n'
+        snowcone.send_irc(nil)
     end
 end
 
@@ -241,6 +246,7 @@ M[N.ERR_SASLABORTED] = function()
     if irc_state.sasl then
         irc_state.sasl = nil
         snowcone.send_irc 'QUIT\r\n'
+        snowcone.send_irc(nil)
     end
 end
 
@@ -249,6 +255,7 @@ M[N.RPL_SASLMECHS] = function()
         status_message = 'bad SASL mechanism'
         irc_state.sasl = nil
         snowcone.send_irc 'QUIT\r\n'
+        snowcone.send_irc(nil)
     end
 end
 
@@ -256,7 +263,7 @@ local function new_nickname()
     if irc_state.registration then
         local nick = string.format('%.10s-%05d', configuration.irc_nick, math.random(0,99999))
         irc_state.nick = nick
-        irc_state.altnick = true
+        irc_state.target_nick = configuration.irc_nick
         snowcone.send_irc('NICK ' .. nick .. '\r\n')
     end
 end

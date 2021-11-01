@@ -90,8 +90,8 @@ function M.disconnect(ev)
 
     count_ip(ev.ip, -1)
 
-    if irc_state.altnick and ev.nick == configuration.irc_nick then
-        snowcone.send_irc('NICK ' .. configuration.irc_nick .. '\r\n')
+    if irc_state.target_nick == ev.nick then
+        snowcone.send_irc('NICK ' .. irc_state.target_nick .. '\r\n')
     end
 end
 
@@ -102,8 +102,8 @@ function M.nick(ev)
         users:rekey(ev.old, ev.new)
     end
 
-    if irc_state.altnick and ev.old == configuration.irc_nick then
-        snowcone.send_irc('NICK ' .. configuration.irc_nick .. '\r\n')
+    if irc_state.target_nick == ev.old then
+        snowcone.send_irc('NICK ' .. irc_state.target_nick .. '\r\n')
     end
 end
 

@@ -223,19 +223,36 @@ static int l_from_base64(lua_State *L)
     }
 }
 
+static void on_shutdown(uv_shutdown_t *req, int status)
+{
+    free(req);
+}
+
 static int l_send_irc(lua_State *L)
 {
     struct app * const a = *app_ref(L);
 
     size_t len;
-    char const* cmd = luaL_checklstring(L, 1, &len);
+    char const* cmd = luaL_optlstring(L, 1, NULL, &len);
 
     if (NULL == a->irc)
     {
         return luaL_error(L, "IRC not connected");
     }
 
-    to_write(a->irc, cmd, len);
+    if (NULL == cmd)
+    {
+        uv_shutdown_t *shutdown = malloc(sizeof *shutdown);
+        assert(shutdown);
+        int res = uv_shutdown(shutdown, a->irc, on_shutdown);
+        assert(0 == res);
+        a->irc = NULL;
+    }
+    else
+    {
+        to_write(a->irc, cmd, len);
+    }
+
     return 0;
 }
 

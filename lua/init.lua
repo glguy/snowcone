@@ -678,6 +678,7 @@ function quit()
         handle:close()
     end
     snowcone.send_irc 'QUIT\r\n'
+    snowcone.send_irc(nil)
 end
 
 -- Callback Logic =====================================================
@@ -710,7 +711,7 @@ end
 local key_handlers = require_ 'handlers.keyboard'
 function M.on_keyboard(key)
     -- buffer text editing
-    if input_mode and (0x20 <= key and (key < 0x7f or 0xa0 <= key)) then
+    if input_mode and 0x20 <= key and (key < 0x7f or 0xa0 <= key) then
         editor:add(key)
         draw()
         return
@@ -733,7 +734,6 @@ function M.on_mouse(y, x)
         if button.lo <= x and x < button.hi then
             button.action()
             draw()
-            return
         end
     end
 end
