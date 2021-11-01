@@ -1,7 +1,8 @@
 -- Logic for IRC messages
 local Set = require 'pl.Set'
 local N = require_ 'numerics'
-local irc_authentication = require_ 'irc_authentication'
+local challenge = require_ 'challenge'
+local sasl = require_ 'sasl'
 
 local M = {}
 
@@ -52,12 +53,13 @@ end
 
 M.AUTHENTICATE = function(irc)
     if irc_state.sasl then
-        local payload = irc_authentication.decode_authenticate(irc[1])
+        local payload = sasl.decode_authenticate(irc[1])
         local success, message = coroutine.resume(irc_state.sasl, payload)
         if not success then
+            error (message)
             message = nil
         end
-        snowcone.send_irc(irc_authentication.encode_authenticate(message))
+        snowcone.send_irc(sasl.encode_authenticate(message))
     end
 end
 
@@ -188,15 +190,15 @@ end
 
 M[N.RPL_ENDOFRSACHALLENGE2] = function()
     -- remember and clear the challenge buffer now before failures below
-    local challenge = irc_state.challenge
+    local challenge_text = irc_state.challenge
     if challenge then
         irc_state.challenge = nil
-        challenge = table.concat(challenge)
+        challenge_text = table.concat(challenge_text)
 
         local file          = require 'pl.file'
         local rsa_key       = assert(file.read(configuration.irc_challenge_key))
         local password      = configuration.irc_challenge_password
-        local success, resp = pcall(irc_authentication.challenge, rsa_key, password, challenge)
+        local success, resp = pcall(challenge, rsa_key, password, challenge_text)
         if success then
             snowcone.send_irc('CHALLENGE +' .. resp .. '\r\n')
             status_message = 'challenged'

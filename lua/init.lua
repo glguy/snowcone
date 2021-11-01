@@ -43,6 +43,7 @@ local Editor             = require_ 'components.Editor'
 local LoadTracker        = require_ 'components.LoadTracker'
 local OrderedMap         = require_ 'components.OrderedMap'
 local compute_kline_mask = require_ 'libera_masks'
+local sasl               = require_ 'sasl'
 
 -- Validate configuration =============================================
 
@@ -581,43 +582,6 @@ function counter_sync_commands()
     return table.concat(commands)
 end
 
-local function start_scram(digest)
-    return require_ 'sasl.scram' (
-        digest,
-        configuration.irc_sasl_authzid,
-        configuration.irc_sasl_username,
-        configuration.irc_sasl_password)
-end
-
-local mechs = {
-    ['PLAIN'] = function()
-        return require_ 'sasl.plain' (
-            configuration.irc_sasl_authzid,
-            configuration.irc_sasl_username,
-            configuration.irc_sasl_password)
-    end,
-    ['EXTERNAL'] = function()
-        return require_ 'sasl.external' (configuration.irc_sasl_authzid)
-    end,
-    ['ECDSA-NIST256P-CHALLENGE'] = function()
-        local key_txt = assert(file.read(configuration.irc_sasl_key))
-        return require_ 'sasl.ecdsa' (
-            configuration.irc_sasl_authzid,
-            configuration.irc_sasl_username,
-            key_txt, configuration.irc_sasl_password)
-    end,
-    ['ECDH-X25519-CHALLENGE'] = function()
-        local key_txt = assert(file.read(configuration.irc_sasl_key))
-        return require_ 'sasl.ecdh' (
-            configuration.irc_sasl_authzid,
-            configuration.irc_sasl_username,
-            key_txt, configuration.irc_sasl_password)
-    end,
-    ['SCRAM-SHA-1'  ] = function() return start_scram 'sha1'   end,
-    ['SCRAM-SHA-256'] = function() return start_scram 'sha256' end,
-    ['SCRAM-SHA-512'] = function() return start_scram 'sha512' end,
-}
-
 local function irc_register()
     local pass = ''
     if configuration.irc_pass then
@@ -635,9 +599,14 @@ local function irc_register()
     local postreg = ''
     local mech = configuration.irc_sasl_mechanism
     if mech then
-        irc_state.sasl = assert(mechs[mech], 'Unknown SASL mechanism')()
+        postreg, irc_state.sasl = sasl.start(
+            configuration.irc_sasl_mechanism,
+            configuration.irc_sasl_username,
+            configuration.irc_sasl_password,
+            configuration.irc_sasl_key,
+            configuration.irc_sasl_authzid
+        )
         table.insert(caps, 'sasl')
-        postreg = 'AUTHENTICATE ' .. mech .. '\r\n'
     end
 
     local capreq = ''
