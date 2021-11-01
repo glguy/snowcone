@@ -349,7 +349,7 @@ function draw_global_load(title, tracker)
         draw_load(tracker.global)
         normal()
 
-        if view == 2 or view == 4 then
+        if view == 'connload' or view == 'exitload' then
             local n = 0
             for _,v in pairs(population) do n = n + v end
             addstr('              ')
