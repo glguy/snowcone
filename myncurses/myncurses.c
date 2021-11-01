@@ -98,8 +98,10 @@ static int l_getyx(lua_State *L)
 
 static int l_colorset(lua_State *L)
 {
-    int color = luaL_checkinteger(L, 1);
-    if (ERR == color_set(color, NULL)) 
+    lua_Integer fore = luaL_optinteger(L, 1, 0);
+    lua_Integer back = luaL_optinteger(L, 2, 0);
+
+    if (ERR == color_set(back << 4 | fore, NULL)) 
     {
         return luaL_error(L, "color_set: ncurses error");
     }
@@ -172,13 +174,6 @@ void l_ncurses_resize(lua_State *L)
     lua_setglobal(L, "tty_height");
 }
 
-static inline void setup_color(lua_State *L, short i, short f, short b, char const* name)
-{
-    init_pair(i, f, b);
-    lua_pushinteger(L, i);
-    lua_setfield(L, -2, name);
-}
-
 struct color
 {
     char const* name;
@@ -186,6 +181,8 @@ struct color
 };
 
 static struct color colors[] = {
+    { "default", -1},
+    { "black", COLOR_BLACK },
     { "red", COLOR_RED },
     { "green", COLOR_GREEN },
     { "yellow", COLOR_YELLOW },
@@ -193,33 +190,25 @@ static struct color colors[] = {
     { "magenta", COLOR_MAGENTA },
     { "cyan", COLOR_CYAN },
     { "white", COLOR_WHITE },
-    { "black", COLOR_BLACK },
 };
 
 static void setup_colors(lua_State *L)
 {
-    int color = 1;
+    // avoids reassigning the special 0 color
     size_t n = sizeof colors / sizeof *colors;
-    for (size_t i = 0; i < n; i++)
+    for (short f = 0; f < n; f++)
     {
-        int result = init_pair(color, colors[i].value, -1);
-        assert(ERR != result);
-        lua_pushinteger(L, color);
-        lua_setfield(L, -2, colors[i].name);
-        color++;
+        for (short b = f == 0 ? 1 : 0; b < n; b++)
+        {
+            int result = init_pair(f | b << 4, colors[f].value, colors[b].value);
+            assert(ERR != result);
+        }
     }
 
-    for (size_t f = 0; f < n; f++)
+    for (int i = 1; i < n; i++)
     {
-        for (size_t b = 0; b < n; b++)
-        {
-            int result = init_pair(color, colors[f].value, colors[b].value);
-            assert(ERR != result);
-            lua_pushfstring(L, "%s_%s", colors[f].name, colors[b].name);
-            lua_pushinteger(L, color);
-            lua_rawset(L, -3);
-            color++;
-        }
+        lua_pushinteger(L, i);
+        lua_setfield(L, -2, colors[i].name);
     }
 }
 

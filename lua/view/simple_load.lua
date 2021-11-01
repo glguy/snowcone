@@ -36,7 +36,7 @@ function M:render()
         draw_load(load)
         y = y + 1
     end
-    draw_global_load('CLICON', conn_tracker)
+    draw_global_load('cliconn', conn_tracker)
 end
 
 return M

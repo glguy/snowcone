@@ -132,7 +132,7 @@ function M:render()
         addstr(string.format(' %-40s', watch.mask))
     end
 
-    draw_global_load('CLICON', conn_tracker)
+    draw_global_load('cliconn', conn_tracker)
 end
 
 return M

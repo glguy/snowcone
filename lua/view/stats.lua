@@ -39,7 +39,7 @@ function M:render()
 
     mvaddstr(10, 0, string.format('uptime: %8d    msg-idle: %8d', uptime, uptime - liveness))
 
-    draw_global_load('CLICON', conn_tracker)
+    draw_global_load('cliconn', conn_tracker)
 end
 
 return M

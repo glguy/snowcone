@@ -45,7 +45,7 @@ function M:render()
             normal()
         end
     end
-    draw_global_load('CLICON', conn_tracker)
+    draw_global_load('cliconn', conn_tracker)
 end
 
 return M

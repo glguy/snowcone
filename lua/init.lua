@@ -283,9 +283,9 @@ function draw_global_load(title, tracker)
     local codered = kline_ready()
 
     if codered then
-        ncurses.colorset(ncurses.black_red)
+        ncurses.colorset(ncurses.black, ncurses.red)
     else
-        ncurses.colorset(ncurses.black_white)
+        ncurses.colorset(ncurses.black, ncurses.white)
     end
 
     local label
@@ -298,12 +298,12 @@ function draw_global_load(title, tracker)
 
     if input_mode then
         if codered then
-            ncurses.colorset(ncurses.red_blue)
+            ncurses.colorset(ncurses.red, ncurses.blue)
         else
-            ncurses.colorset(ncurses.white_blue)
+            ncurses.colorset(ncurses.white, ncurses.blue)
         end
         addstr('')
-        ncurses.colorset(ncurses.white_blue)
+        ncurses.colorset(ncurses.white, ncurses.blue)
         addstr(input_mode)
         blue()
         addstr('')
@@ -343,9 +343,9 @@ function draw_global_load(title, tracker)
         else
             white()
         end
-        addstr(' ')
+        addstr('')
         magenta()
-        addstr(title .. ' ')
+        addstr(title .. '')
         draw_load(tracker.global)
         normal()
 
@@ -384,6 +384,7 @@ function draw_buttons()
 
     black()
     if show_reasons == 'reason' then
+
         add_button('[ REASON ]', function() show_reasons = 'org' end)
     elseif show_reasons == 'org' then
         add_button('[  ORG   ]', function() show_reasons = 'asn' end)
@@ -497,10 +498,10 @@ local view_recent_conn = require_ 'view.recent_conn'
 local view_server_load = require_ 'view.server_load'
 local view_simple_load = require_ 'view.simple_load'
 views = {
-    cliconn = view_recent_conn(users, 'CLICON', conn_tracker),
-    connload = view_server_load('Connection History', 'CLICON', ncurses.green, conn_tracker),
-    cliexit = view_recent_conn(exits, 'CLIEXI', exit_tracker),
-    exitload = view_server_load('Disconnection History', 'CLIEXI', ncurses.red, exit_tracker),
+    cliconn = view_recent_conn(users, 'cliconn', conn_tracker),
+    connload = view_server_load('Connection History', 'cliconn', ncurses.green, conn_tracker),
+    cliexit = view_recent_conn(exits, 'cliexit', exit_tracker),
+    exitload = view_server_load('Disconnection History', 'cliexit', ncurses.red, exit_tracker),
     netcount = require_ 'view.netcount',
     bans = require_ 'view.bans',
     stats = require_ 'view.stats',
