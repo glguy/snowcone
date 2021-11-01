@@ -280,13 +280,12 @@ function draw_load(avg)
 end
 
 function draw_global_load(title, tracker)
-    local codered = kline_ready()
-
-    if codered then
-        ncurses.colorset(ncurses.black, ncurses.red)
-    else
-        ncurses.colorset(ncurses.black, ncurses.white)
+    local titlecolor = ncurses.white
+    if kline_ready() then
+        titlecolor = ncurses.red
     end
+
+    ncurses.colorset(ncurses.black, titlecolor)
 
     local label
     if views[view].title then
@@ -297,11 +296,7 @@ function draw_global_load(title, tracker)
     mvaddstr(tty_height-1, 0, label)
 
     if input_mode then
-        if codered then
-            ncurses.colorset(ncurses.red, ncurses.blue)
-        else
-            ncurses.colorset(ncurses.white, ncurses.blue)
-        end
+        ncurses.colorset(titlecolor, ncurses.blue)
         addstr('')
         ncurses.colorset(ncurses.white, ncurses.blue)
         addstr(input_mode)
@@ -338,11 +333,7 @@ function draw_global_load(title, tracker)
         ncurses.move(y1, x1)
         ncurses.cursset(1)
     else
-        if codered then
-            red()
-        else
-            white()
-        end
+        ncurses.colorset(titlecolor)
         addstr('')
         magenta()
         addstr(title .. '')

@@ -228,6 +228,11 @@ end
 function M.netjoin(ev)
     snowcone.send_irc(counter_sync_commands())
     status_message = 'netjoin ' .. ev.server2
+
+    if versions[ev.server2] ~= nil then
+        versions[ev.server2] = nil
+        snowcone.send_irc('VERSION ' .. ev.server2 .. '\r\n')
+    end
 end
 
 function M.netsplit(ev)
