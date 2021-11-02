@@ -186,9 +186,9 @@ M[N.ERR_PASSWDMISMATCH] = function()
 end
 
 M[N.RPL_RSACHALLENGE2] = function(irc)
-    local challenge = irc_state.challenge
-    if challenge then
-        table.insert(challenge, irc[2])
+    local challenge_text = irc_state.challenge
+    if challenge_text then
+        table.insert(challenge_text, irc[2])
     end
 end
 
