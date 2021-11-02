@@ -72,6 +72,7 @@ local M = {
     [-ncurses.KEY_HOME     ] = function() if input_mode then editor:move_to_beg() end end,
     [-ncurses.KEY_END      ] = function() if input_mode then editor:move_to_end() end end,
     [-ncurses.KEY_BACKSPACE] = function() if input_mode then editor:backspace() end end,
+    [-ncurses.KEY_DC       ] = function() if input_mode then editor:delete() end end,
     [-ncurses.KEY_UP       ] = function() if input_mode then editor:older_history() end end,
     [-ncurses.KEY_DOWN     ] = function() if input_mode then editor:newer_history() end end,
 

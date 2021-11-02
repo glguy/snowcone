@@ -115,6 +115,12 @@ function M:backspace()
     end
 end
 
+function M:delete()
+    table.remove(self.buffer, self.cursor)
+    self.yanking = false
+    self:render()
+end
+
 function M:kill_to_beg()
     if self.yanking then
         local t = tablex.sub(self.buffer, 1, self.cursor - 1)
