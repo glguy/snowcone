@@ -15,7 +15,7 @@ stds = {
         globals = {
             -- general functionality
             "require_", "next_view", "prev_view", "entry_to_kline",
-            "add_network_tracker", "scrub", "quit", "entry_to_unkline",
+            "add_network_tracker", "quit", "entry_to_unkline",
             "reset_filter", "initialize", "counter_sync_commands",
 
             -- global client state

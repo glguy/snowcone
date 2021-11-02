@@ -1,3 +1,5 @@
+local scrub = require 'utils.scrub'
+
 local align = true
 local palette = {
     PRIVMSG = blue,
@@ -75,7 +77,7 @@ local M = {
     title = 'console',
 }
 
-local rotating_window = require_ 'rotating_window'
+local rotating_window = require_ 'utils.rotating_window'
 
 local keys = {
     [-ncurses.KEY_PPAGE] = function()

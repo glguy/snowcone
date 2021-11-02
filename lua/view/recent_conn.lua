@@ -61,7 +61,7 @@ function M:keypress(key)
     end
 end
 
-local rotating_window = require_ 'rotating_window'
+local rotating_window = require_ 'utils.rotating_window'
 
 function M:render()
     local clear_line = string.rep(' ', tty_width)

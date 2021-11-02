@@ -1,5 +1,7 @@
 -- Logic for breaking down server notices into semantic notice objects
 
+local scrub = require 'utils.scrub'
+
 return function(time, server, str)
     do
         local nick, user, host, ip, class, account, gecos =

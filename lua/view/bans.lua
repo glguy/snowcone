@@ -1,5 +1,3 @@
-local tablex = require 'pl.tablex'
-
 local M = { title = 'bans' }
 
 local keys = {
@@ -47,7 +45,7 @@ local palette = {
     dline = cyan,
 }
 
-local rotating_window = require_ 'rotating_window'
+local rotating_window = require_ 'utils.rotating_window'
 
 local function safematch(str, pat)
     local success, result = pcall(string.match, str, pat)

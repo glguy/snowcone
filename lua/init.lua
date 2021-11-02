@@ -42,7 +42,7 @@ local NetTracker         = require_ 'components.NetTracker'
 local Editor             = require_ 'components.Editor'
 local LoadTracker        = require_ 'components.LoadTracker'
 local OrderedMap         = require_ 'components.OrderedMap'
-local compute_kline_mask = require_ 'libera_masks'
+local libera_masks       = require_ 'utils.libera_masks'
 local sasl               = require_ 'sasl'
 
 -- Validate configuration =============================================
@@ -162,21 +162,6 @@ end
 
 --  Helper functions ==================================================
 
-local repls = {
-    ['\x00'] = '␀', ['\x01'] = '␁', ['\x02'] = '␂', ['\x03'] = '␃',
-    ['\x04'] = '␄', ['\x05'] = '␅', ['\x06'] = '␆', ['\x07'] = '␇',
-    ['\x08'] = '␈', ['\x09'] = '␉', ['\x0a'] = '␤', ['\x0b'] = '␋',
-    ['\x0c'] = '␌', ['\x0d'] = '␍', ['\x0e'] = '␎', ['\x0f'] = '␏',
-    ['\x10'] = '␐', ['\x11'] = '␑', ['\x12'] = '␒', ['\x13'] = '␓',
-    ['\x14'] = '␔', ['\x15'] = '␕', ['\x16'] = '␖', ['\x17'] = '␗',
-    ['\x18'] = '␘', ['\x19'] = '␙', ['\x1a'] = '␚', ['\x1b'] = '␛',
-    ['\x1c'] = '␜', ['\x1d'] = '␝', ['\x1e'] = '␞', ['\x1f'] = '␟',
-    ['\x7f'] = '␡',
-}
-function scrub(str)
-    return string.gsub(str, '%c', repls)
-end
-
 -- Kline logic ========================================================
 
 kline_durations = {
@@ -186,7 +171,7 @@ kline_durations = {
 }
 
 function entry_to_kline(entry)
-    local success, mask = pcall(compute_kline_mask, entry.user, entry.ip, entry.host, trust_uname)
+    local success, mask = pcall(libera_masks, entry.user, entry.ip, entry.host, trust_uname)
     if success then
         staged_action = {action = 'kline', mask = mask, nick = entry.nick, entry = entry}
         snowcone.send_irc('TESTMASK ' .. mask .. '\r\n')

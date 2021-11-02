@@ -1,8 +1,9 @@
 -- Logic for IRC messages
-local Set = require 'pl.Set'
-local N = require_ 'numerics'
-local challenge = require_ 'challenge'
-local sasl = require_ 'sasl'
+local Set         = require 'pl.Set'
+local N           = require_ 'utils.numerics'
+local challenge   = require_ 'utils.challenge'
+local sasl        = require_ 'sasl'
+local parse_snote = require_ 'utils.parse_snote'
 
 local function parse_source(source)
     return string.match(source, '^(.-)!(.-)@(.*)$')
@@ -18,7 +19,6 @@ function M.PING(irc)
     snowcone.send_irc('PONG :' .. irc[1] .. '\r\n')
 end
 
-local parse_snote = require_ 'parse_snote'
 local handlers = require_ 'handlers.snotice'
 function M.NOTICE(irc)
     if irc[1] == '*' and not string.match(irc.source, '@') then
