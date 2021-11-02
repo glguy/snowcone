@@ -1,3 +1,5 @@
+local tablex = require 'pl.tablex'
+
 local M = { title = 'bans' }
 
 local keys = {
@@ -47,11 +49,42 @@ local palette = {
 
 local rotating_window = require_ 'rotating_window'
 
+local function safematch(str, pat)
+    local success, result = pcall(string.match, str, pat)
+    return not success or result
+end
+
+local function match_key(t, pat)
+    if t then
+        for k, _ in pairs(t) do
+            if safematch(k, pat) then
+                return true
+            end
+        end
+    end
+end
+
+local function show_entry(entry)
+    local current_filter
+    if input_mode == 'filter' then
+        current_filter = editor.rendered
+    else
+        current_filter = filter
+    end
+
+    return
+    (server_filter == nil or server_filter == entry.server) and
+    (conn_filter == nil or conn_filter == not entry.reason) and
+    (current_filter == nil or
+     safematch(entry.mask, current_filter) or
+     match_key(entry.nicks, current_filter))
+end
+
 function M:render()
 
     local clear_line = string.rep(' ', tty_width)
     local rows = math.max(0, tty_height - 3)
-    local window = rotating_window(klines, rows)
+    local window = rotating_window(klines, rows, show_entry)
     local clear_string = string.rep(' ', tty_width)
 
     bold()
