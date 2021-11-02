@@ -138,7 +138,7 @@ function M:render()
         add_column('  Version          ', 'version')
     end
     if has_uptimes then
-        add_column('  Startup          ', 'uptime')
+        add_column('  Startup           ', 'uptime')
     end
     if servers.flags then addstr('  Flags') end
 
@@ -187,24 +187,20 @@ function M:render()
         add_population(population[name])
 
         local link = upstream[name]
-        if link then
-            upcolor[link]()
-            local linktext = (servers.servers[link] or {}).alias or link
-            addstr('  '.. linktext .. ' ')
-            normal()
-        else
-            addstr('     ')
-        end
+        upcolor[link or '']()
+        local linktext = (servers.servers[link] or {}).alias or link or '?'
+        addstr(string.format('  %-2.2s', linktext))
+        normal()
 
         if has_versions then
             local version = versions[name]
             vercolor[version or '']()
-            addstr(string.format(' %-17.17s ', version or '?'))
+            addstr(string.format('  %-17.17s', version or '?'))
             normal()
         end
 
         if has_uptimes then
-            addstr(string.format(' %-19.19s ', uptimes[name] or '?'))
+            addstr(string.format('  %-19.19s', uptimes[name] or '?'))
         end
 
         for _, flag in ipairs(servers.flags or {}) do
