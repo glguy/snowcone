@@ -175,6 +175,14 @@ M[N.RPL_ENDOFLINKS] = function()
     end
 end
 
+M[N.RPL_STATSUPTIME] = function(irc)
+    local days, h, m, s = string.match(irc[2], ' (%d+) days, (%d+):(%d+):(%d+)$')
+    local now = os.time()
+    local startup = now - 86400 * days - 3600 * h - 60 * m - s
+    local text = os.date('!%Y-%m-%d %H:%M:%S', startup)
+    uptimes[irc.source] = text
+end
+
 M[N.ERR_NOOPERHOST] = function()
     irc_state.challenge = nil
     status_message = 'no oper host'

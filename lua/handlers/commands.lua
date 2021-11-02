@@ -169,4 +169,15 @@ function M.versions()
     snowcone.send_irc(table.concat(commands))
 end
 
+function M.uptimes()
+    local n = 0
+    local commands = {}
+    for server, _ in pairs(links) do
+        n = n + 1
+        commands[n] = 'STATS u :' .. server .. '\r\n'
+    end
+    uptimes = {}
+    snowcone.send_irc(table.concat(commands))
+end
+
 return M

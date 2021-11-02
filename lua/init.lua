@@ -132,6 +132,7 @@ local defaults = {
     uv_resources = {},
     editor = Editor(),
     versions = {},
+    uptimes = {},
 
     -- settings
     show_reasons = 'reason',

@@ -64,6 +64,11 @@ local orderings = {
         local b = versions[y.name] or ''
         return a < b or a == b and x.name < y.name
     end,
+    uptime = function(x,y)
+        local a = uptimes[x.name] or ''
+        local b = uptimes[y.name] or ''
+        return a < b or a == b and x.name < y.name
+    end,
     uplink = function(x,y)
         local a = upstream[x.name] or ''
         local b = upstream[y.name] or ''
@@ -100,6 +105,7 @@ end
 
 function M:render()
     local has_versions = next(versions) ~= nil
+    local has_uptimes = next(uptimes) ~= nil
     local vercolor = make_colors(tablex.values(versions))
     local upcolor = make_colors(tablex.values(upstream))
 
@@ -130,6 +136,9 @@ function M:render()
     add_column('  Up', 'uplink')
     if has_versions then
         add_column('  Version          ', 'version')
+    end
+    if has_uptimes then
+        add_column('  Startup          ', 'uptime')
     end
     if servers.flags then addstr('  Flags') end
 
@@ -192,6 +201,10 @@ function M:render()
             vercolor[version or '']()
             addstr(string.format(' %-17.17s ', version or '?'))
             normal()
+        end
+
+        if has_uptimes then
+            addstr(string.format(' %-19.19s ', uptimes[name] or '?'))
         end
 
         for _, flag in ipairs(servers.flags or {}) do

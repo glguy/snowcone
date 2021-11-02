@@ -238,6 +238,7 @@ end
 function M.netsplit(ev)
     snowcone.send_irc(counter_sync_commands())
     status_message = 'netsplit ' .. ev.server2
+    uptimes[ev.server2] = nil
 end
 
 function M.override(ev)

@@ -169,6 +169,8 @@ COMMANDS
   /spamload                 Load meters for filter events
   /repeats                  List of repeated connections by nicknames and masks
   /stats                    Internal client metrics
+  /versions                 Populate the server list version column
+  /uptimes                  Populate the server list startup column
 GEOIP SUPPORT
   Both legacy GeoIP and modern GeoIP Maxmind database are supported
   and will be used if they are found at startup time.

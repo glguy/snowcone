@@ -33,7 +33,7 @@ stds = {
 
             -- server tracking view
             "links", "upstream", "population", "conn_tracker", "exit_tracker", "versions",
-            "server_ordering", "server_descending", "mrs",
+            "server_ordering", "server_descending", "mrs", "uptimes",
 
             -- kline load view
             "kline_tracker",
