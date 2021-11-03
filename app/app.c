@@ -28,7 +28,7 @@
 
 static char logic_module;
 
-static void lua_callback(lua_State *L, char const *key, int args);
+static void lua_callback(lua_State *L, char const *key);
 static void do_dns(struct app *a, struct addrinfo const* ai);
 
 static void pushircmsg(lua_State *L, struct ircmsg const* msg)
@@ -471,24 +471,24 @@ static int lua_callback_worker(lua_State *L)
     int module_ty = lua_rawgetp(L, LUA_REGISTRYINDEX, &logic_module);
     if (module_ty != LUA_TNIL)
     {
-        lua_rotate(L, 1, -1);
-        lua_gettable(L, -2);
-        lua_rotate(L, 1, 1);
-        lua_pop(L, 1);
+        /* args key module */
+        lua_insert(L, -2); /* args module key */
+        lua_gettable(L, -2); /* args module cb */
+        lua_remove(L, -2); /* args cb */
+        lua_insert(L, 1); /* cb args */ 
         int args = lua_gettop(L) - 1;
         lua_call(L, args, 0);
     }
     return 0;
 }
 
-static void lua_callback(lua_State *L, char const *key, int args)
+static void lua_callback(lua_State *L, char const *key)
 {
     /* args */
     lua_pushcfunction(L, lua_callback_worker); /* args f */
-    lua_pushstring(L, key); /* args f key */
-    lua_rotate(L, -2-args, -args); /* eh f key args */
-
-    safecall(L, key, 1+args);
+    lua_insert(L, 1); /* f args */
+    lua_pushstring(L, key); /* f args key */
+    safecall(L, key, lua_gettop(L) - 1);
 }
 
 void do_command(
@@ -518,7 +518,7 @@ void do_command(
     else
     {
         lua_pushstring(a->L, line);
-        lua_callback(a->L, "on_input", 1);
+        lua_callback(a->L, "on_input");
     }
     
     a->console = NULL;
@@ -527,19 +527,19 @@ void do_command(
 void do_keyboard(struct app *a, long key)
 {
     lua_pushinteger(a->L, key);
-    lua_callback(a->L, "on_keyboard", 1);
+    lua_callback(a->L, "on_keyboard");
 }
 
 void app_set_irc(struct app *a, uv_stream_t *irc)
 {
     a->irc = irc;
-    lua_callback(a->L, "on_connect", 0);
+    lua_callback(a->L, "on_connect");
 }
 
 void app_clear_irc(struct app *a)
 {
     a->irc = NULL;
-    lua_callback(a->L, "on_disconnect", 0);
+    lua_callback(a->L, "on_disconnect");
 }
 
 void app_set_window_size(struct app *a)
@@ -586,12 +586,12 @@ static void do_dns(struct app *a, struct addrinfo const* ai)
 void do_irc(struct app *a, struct ircmsg const* msg)
 {
     pushircmsg(a->L, msg);
-    lua_callback(a->L, "on_irc", 1);
+    lua_callback(a->L, "on_irc");
 }
 
 void do_mouse(struct app *a, int y, int x)
 {
     lua_pushinteger(a->L, y);
     lua_pushinteger(a->L, x);
-    lua_callback(a->L, "on_mouse", 2);
+    lua_callback(a->L, "on_mouse");
 }
