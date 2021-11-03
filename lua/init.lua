@@ -44,6 +44,7 @@ local LoadTracker        = require_ 'components.LoadTracker'
 local OrderedMap         = require_ 'components.OrderedMap'
 local libera_masks       = require_ 'utils.libera_masks'
 local sasl               = require_ 'sasl'
+local addircstr          = require_ 'utils.irc_formatting'
 
 -- Validate configuration =============================================
 
@@ -302,6 +303,7 @@ function draw_global_load(title, tracker)
         end
 
         local y0, x0 = ncurses.getyx()
+
         addstr(editor.before_cursor)
 
         -- cursor overflow: clear and redraw
@@ -336,7 +338,7 @@ function draw_global_load(title, tracker)
         end
 
         if status_message then
-            addstr(' ' .. status_message)
+            addircstr(' ' .. status_message)
         end
 
         if scroll ~= 0 then

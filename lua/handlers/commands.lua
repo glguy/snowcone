@@ -40,12 +40,12 @@ function M.eval(args)
     if chunk then
         local _, ret = pcall(chunk)
         if ret then
-            status_message = string.match(tostring(ret), '^%C*')
+            status_message = tostring(ret)
         else
             status_message = nil
         end
     else
-        status_message = string.match(message, '^%C*')
+        status_message = message
     end
 end
 

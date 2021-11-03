@@ -1,3 +1,5 @@
+local addircstr = require 'utils.irc_formatting'
+
 return function(data, label, tracker)
 
 local M = { active = true }
@@ -174,14 +176,16 @@ function M:render()
 
             -- GECOS or ACCOUNT
             normal()
-            if entry.account and entry.account ~= '*' then
+            if entry.account == '*' then
+                cyan()
+                addstr('· ')
+            elseif entry.account then
                 cyan()
                 addstr(entry.account .. ' ')
-		        normal()
             end
 
             if entry.gecos then
-                addstr(entry.gecos)
+                addircstr(entry.gecos)
             end
 
             -- Click handlers

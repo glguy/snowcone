@@ -1,4 +1,4 @@
-local scrub = require 'utils.scrub'
+local addircstr = require_ 'utils.irc_formatting'
 
 local align = true
 local palette = {
@@ -33,7 +33,7 @@ local function render_irc(irc)
             cyan()
             addstr(':')
             normal()
-            addstr(scrub(string.sub(irc[2], 15)))
+            addircstr(string.sub(irc[2], 15))
             return
         end
 
@@ -65,9 +65,9 @@ local function render_irc(irc)
             cyan()
             addstr(' :')
             normal()
-            addstr(scrub(arg))
+            addircstr(arg)
         else
-            addstr(' '..scrub(arg))
+            addircstr(' '..arg)
         end
     end
 end
