@@ -1,7 +1,5 @@
 -- Logic for breaking down server notices into semantic notice objects
 
-local scrub = require 'utils.scrub'
-
 return function(time, server, str)
     do
         local nick, user, host, ip, class, account, gecos =
@@ -15,7 +13,7 @@ return function(time, server, str)
                 user = user,
                 host = host,
                 ip = ip,
-                gecos = scrub(gecos),
+                gecos = gecos,
                 class = class,
                 account = account,
             }
@@ -33,7 +31,7 @@ return function(time, server, str)
                 nick = nick,
                 user = user,
                 host = host,
-                reason = scrub(reason),
+                reason = reason,
                 ip = ip,
             }
         end
@@ -61,7 +59,7 @@ return function(time, server, str)
                 oper = oper,
                 mask = mask,
                 duration = math.tointeger(duration),
-                reason = scrub(reason),
+                reason = reason,
             }
         end
     end
@@ -224,7 +222,7 @@ return function(time, server, str)
                 server2 = server2,
                 sid1 = sid1,
                 sid2 = sid2,
-                reason = scrub(reason),
+                reason = reason,
             }
         end
     end
@@ -257,7 +255,7 @@ return function(time, server, str)
                 user = user,
                 host = host,
                 from = from,
-                reason = scrub(reason),
+                reason = reason,
             }
         end
     end
@@ -274,7 +272,7 @@ return function(time, server, str)
                 user = user,
                 host = host,
                 from = from,
-                reason = scrub(reason),
+                reason = reason,
             }
         end
     end
@@ -448,7 +446,7 @@ return function(time, server, str)
                 user = user,
                 host = host,
                 ip = ip,
-                gecos = scrub(gecos),
+                gecos = gecos,
                 class = class,
             }
         end

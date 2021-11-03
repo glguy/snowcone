@@ -1,4 +1,5 @@
 local addircstr = require 'utils.irc_formatting'
+local scrub = require 'utils.scrub'
 
 return function(data, label, tracker)
 
@@ -156,7 +157,7 @@ function M:render()
             end
 
             if show_reasons == 'reason' and entry.reason then
-                mvaddstr(y, 80, string.sub(entry.reason, 1, 39))
+                mvaddstr(y, 80, string.sub(scrub(entry.reason), 1, 39))
             elseif show_reasons == 'asn' and entry.asn then
                 mvaddstr(y, 80, string.format("AS%-6d %-30.30s", entry.asn, entry.org or ''))
             elseif show_reasons ~= 'ip' and entry.org then

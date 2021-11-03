@@ -1,3 +1,5 @@
+local scrub = require 'utils.scrub'
+
 local M = { title = 'bans' }
 
 local keys = {
@@ -163,7 +165,9 @@ function M:render()
             end
 
             blue()
-            addstr(entry.reason or '')
+            if entry.reason then
+                addstr(scrub(entry.reason))
+            end
 
             local y_end = ncurses.getyx()
             for i = y+1,y_end do
