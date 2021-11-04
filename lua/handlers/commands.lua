@@ -158,6 +158,10 @@ function M.spamload()
     view = 'spamload'
 end
 
+function M.channels()
+    view = 'channels'
+end
+
 function M.versions()
     local n = 0
     local commands = {}

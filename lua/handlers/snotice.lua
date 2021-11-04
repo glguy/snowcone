@@ -1,5 +1,6 @@
 -- Logic for parsed snotices
 local ip_org = require_ 'utils.ip_org'
+local tablex = require 'pl.tablex'
 
 local function count_ip(address, delta)
     if next(net_trackers) then
@@ -247,6 +248,26 @@ end
 
 function M.operspy(ev)
     status_message = string.format('operspy %s %s %s', ev.oper, ev.token, ev.arg)
+end
+
+function M.create_channel(ev)
+    local mask
+    for entry in users:each() do
+        if entry.nick == ev.nick then
+            mask = entry.mask
+        end
+    end
+
+    if mask == nil then return end
+
+    local channel = ev.channel
+    local list = new_channels:lookup(mask)
+    if list == nil then
+        list = {mask = mask, nick = ev.nick, channels = {ev.channel}}
+        new_channels:insert(mask, list)
+    elseif tablex.find(list, channel) == nil then
+        table.insert(list.channels, channel)
+    end
 end
 
 return M
