@@ -75,6 +75,7 @@ end
 local M = {
     active = true,
     title = 'console',
+    draw_status = function() end,
 }
 
 local rotating_window = require_ 'utils.rotating_window'
@@ -148,7 +149,6 @@ function M:render()
             end
         end
     end
-    cyan()
     draw_global_load('cliconn', conn_tracker)
 end
 

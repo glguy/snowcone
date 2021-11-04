@@ -1,9 +1,10 @@
 return function(title, heading, label, history, tracker)
 
-local M = { title = title }
-
-function M:keypress()
-end
+local M = {
+    title = title,
+    keypress = function() end,
+    draw_status = function() end,
+}
 
 function M:render()
     local rows = {}

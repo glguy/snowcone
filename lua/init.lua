@@ -29,8 +29,6 @@ function magenta()      ncurses.colorset(ncurses.magenta)       end
 function yellow()       ncurses.colorset(ncurses.yellow)        end
 function white()        ncurses.colorset(ncurses.white)         end
 
-local spinner = {'◴','◷','◶','◵'}
-
 function require_(name)
     package.loaded[name] = nil
     return require(name)
@@ -115,6 +113,7 @@ local defaults = {
     exits = OrderedMap(1000),
     messages = OrderedMap(1000),
     klines = OrderedMap(1000),
+    new_channels = OrderedMap(100),
     kline_tracker = LoadTracker(),
     conn_tracker = LoadTracker(),
     exit_tracker = LoadTracker(),
@@ -278,7 +277,7 @@ function draw_global_load(title, tracker)
     if views[view].title then
         label = string.format('%-8.8s', views[view].title)
     else
-        label = 'sn' .. spinner[uptime % #spinner + 1] .. 'wcone'
+        label = 'snowcone'
     end
     mvaddstr(tty_height-1, 0, label)
 
@@ -328,14 +327,7 @@ function draw_global_load(title, tracker)
         draw_load(tracker.global)
         normal()
 
-        if view == 'connload' or view == 'exitload' then
-            local n = 0
-            for _,v in pairs(population) do n = n + v end
-            addstr('              ')
-            magenta()
-            add_population(n)
-            normal()
-        end
+        views[view]:draw_status()
 
         if status_message then
             addircstr(' ' .. status_message)
@@ -488,6 +480,7 @@ views = {
     banload = view_simple_load('banload', 'K-Liner', 'KLINES', 'K-Line History', kline_tracker),
     spamload = view_simple_load('spamload', 'Server', 'FILTERS', 'Filter History', filter_tracker),
     console = require_ 'view.console',
+    channels = require_ 'view.channels',
 }
 
 main_views = {'cliconn', 'connload', 'cliexit', 'exitload', 'bans', 'netcount', 'console'}

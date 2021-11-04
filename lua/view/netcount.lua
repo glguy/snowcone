@@ -1,9 +1,10 @@
 local tablex = require 'pl.tablex'
 
-local M = { title = 'netcount'}
-
-function M:keypress()
-end
+local M = {
+    title = 'netcount',
+    keypress = function() end,
+    draw_status = function() end,
+}
 
 local function render_entry(y, network, count, nest)
     if nest then

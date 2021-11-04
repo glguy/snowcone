@@ -1,7 +1,8 @@
-local M = { title = 'repeats'}
-
-function M:keypress()
-end
+local M = {
+    title = 'repeats',
+    keypress = function() end,
+    draw_status = function() end,
+}
 
 function M:render()
     local nick_counts, mask_counts = {}, {}

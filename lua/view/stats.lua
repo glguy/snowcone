@@ -1,9 +1,10 @@
 local pretty = require 'pl.pretty'
 
-local M = { title = 'stats' }
-
-function M:keypress()
-end
+local M = {
+    title = 'stats',
+    keypress = function() end,
+    draw_status = function() end,
+}
 
 local function list_stats(name, data)
     addstr(string.format('%10s %10d %10d', name, data.n, data.max))

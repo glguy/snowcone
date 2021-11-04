@@ -3,7 +3,10 @@ local scrub = require 'utils.scrub'
 
 return function(data, label, tracker)
 
-local M = { active = true }
+local M = {
+    active = true,
+    draw_status = function() end,
+}
 
 local function safematch(str, pat)
     local success, result = pcall(string.match, str, pat)

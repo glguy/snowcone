@@ -1,6 +1,9 @@
 local scrub = require 'utils.scrub'
 
-local M = { title = 'bans' }
+local M = {
+    title = 'bans',
+    draw_status = function() end,
+}
 
 local keys = {
     [-ncurses.KEY_PPAGE] = function()

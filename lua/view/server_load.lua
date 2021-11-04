@@ -25,9 +25,17 @@ end
 
 return function(title, label, header_color, tracker)
 
-local M = {}
+local M = {
+    keypress = function() end,
+}
 
-function M:keypress()
+function M:draw_status()
+    local n = 0
+    for _,v in pairs(population) do n = n + v end
+    addstr('              ')
+    magenta()
+    add_population(n)
+    normal()
 end
 
 local orderings = {
