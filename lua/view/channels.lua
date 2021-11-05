@@ -12,7 +12,7 @@ function M:render()
 
     magenta()
     bold()
-    addstr('nickname                 channels (')
+    addstr('nickname         channels (')
     bold_()
     yellow()
     addstr(' * create')
@@ -29,7 +29,7 @@ function M:render()
             normal()
         elseif entry then
             green()
-            mvaddstr(y, 0, string.format('%-24.24s', entry.nick))
+            mvaddstr(y, 0, string.format('%-16.16s', entry.nick))
 
             local n = #entry.channels
             local limit = 4
