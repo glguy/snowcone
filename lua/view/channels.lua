@@ -13,13 +13,13 @@ function M:render()
     magenta()
     bold()
     addstr('nickname         channels (')
-    bold_()
     yellow()
     addstr(' * create')
     red()
     addstr(' † flood')
     magenta()
     addstr(' )')
+    bold_()
 
     for y = 1, rows do
         local entry = window[y]
@@ -32,12 +32,12 @@ function M:render()
             mvaddstr(y, 0, string.format('%-16.16s', entry.nick))
 
             local n = #entry.channels
-            local limit = 4
+            local limit = 5
             local s = math.max(1, n-limit+1)
             if n > limit then
                 red()
                 bold()
-                addstr('+'..(n-limit) .. ' ')
+                addstr(' +'..(n-limit))
                 bold_()
             end
             cyan()
