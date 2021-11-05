@@ -63,8 +63,9 @@ MODES
   F3  recent exits
   F4  server exit load
   F5  bans
-  F6  network-mask connection tracker
-  F7  raw IRC console
+  F6  channel creates and floods
+  F7  network-mask connection tracker
+  F8  raw IRC console
   C-n  next view
   C-p  previous view
   C-s  live filtering mode

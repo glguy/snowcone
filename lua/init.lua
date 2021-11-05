@@ -483,7 +483,7 @@ views = {
     channels = require_ 'view.channels',
 }
 
-main_views = {'cliconn', 'connload', 'cliexit', 'exitload', 'bans', 'netcount', 'console'}
+main_views = {'cliconn', 'connload', 'cliexit', 'exitload', 'bans', 'channels', 'netcount', 'console'}
 
 function next_view()
     local current = tablex.find(main_views, view)
