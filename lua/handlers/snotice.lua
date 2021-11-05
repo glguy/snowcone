@@ -250,24 +250,28 @@ function M.operspy(ev)
     status_message = string.format('operspy %s %s %s', ev.oper, ev.token, ev.arg)
 end
 
-function M.create_channel(ev)
-    local mask
-    for entry in users:each() do
-        if entry.nick == ev.nick then
-            mask = entry.mask
+local function channel_flag(nick, channel, flag)
+    local list = new_channels:lookup(nick)
+    if list == nil then
+        list = {nick = nick, channels = {channel}, flags = {flag}}
+        new_channels:insert(nick, list)
+    else
+        local i = tablex.find(list.channels, channel)
+        if i then
+            list.flags[i] = list.flags[i] | flag
+        else
+            table.insert(list.channels, channel)
+            table.insert(list.flags, flag)
         end
     end
+end
 
-    if mask == nil then return end
+function M.create_channel(ev)
+    channel_flag(ev.nick, ev.channel, 1)
+end
 
-    local channel = ev.channel
-    local list = new_channels:lookup(mask)
-    if list == nil then
-        list = {mask = mask, nick = ev.nick, channels = {ev.channel}}
-        new_channels:insert(mask, list)
-    elseif tablex.find(list, channel) == nil then
-        table.insert(list.channels, channel)
-    end
+function M.flooder(ev)
+    channel_flag(ev.nick, ev.target, 2)
 end
 
 return M

@@ -12,8 +12,14 @@ function M:render()
 
     magenta()
     bold()
-    addstr('nickname                 channels')
+    addstr('nickname                 channels (')
     bold_()
+    yellow()
+    addstr(' * create')
+    red()
+    addstr(' † flood')
+    magenta()
+    addstr(' )')
 
     for y = 1, rows do
         local entry = window[y]
@@ -23,7 +29,7 @@ function M:render()
             normal()
         elseif entry then
             green()
-            mvaddstr(y, 0, string.format('%-24.24s ', entry.nick))
+            mvaddstr(y, 0, string.format('%-24.24s', entry.nick))
 
             local n = #entry.channels
             local limit = 4
@@ -36,7 +42,24 @@ function M:render()
             end
             cyan()
 
-            addstr(table.concat(entry.channels, ' ', s))
+            local channels = entry.channels
+            local flags = entry.flags
+
+            for i = s, n do
+                local flag = flags[i]
+                cyan()
+                addstr(' '..channels[i])
+
+                if flag & 1 == 1 then
+                    yellow()
+                    addstr('*')
+                end
+
+                if flag & 2 == 2 then
+                    red()
+                    addstr('†')
+                end
+            end
         end
     end
 

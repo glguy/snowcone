@@ -54,7 +54,7 @@ function M.quit()
 end
 
 function M.inject(arg)
-    local parse_snote = require 'parse_snote'
+    local parse_snote = require 'utils.parse_snote'
     local time = os.date('!%H:%M:%S')
     local server = 'INJECT.'
     local event = parse_snote(time, server, arg)
