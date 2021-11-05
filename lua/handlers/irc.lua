@@ -87,6 +87,26 @@ M[N.RPL_WELCOME] = function()
     snowcone.send_irc(msg)
 end
 
+M[N.RPL_ISUPPORT] = function(irc)
+    local isupport = irc_state.isupport
+    if isupport == nil then
+        isupport = {}
+        irc_state.isupport = isupport
+    end
+
+    for i = 2, #irc - 1 do
+        local token = irc[i]
+        local minus, key, equals, val = string.match(token, '^(%-?)(%w+)(=?)(.*)$')
+        if minus == '-' then
+            isupport[key] = nil
+        elseif equals == '' then
+            isupport[key] = true
+        else
+            isupport[key] = val
+        end
+    end
+end
+
 M[N.RPL_SNOMASK] = function(irc)
     status_message = 'snomask ' .. irc[2]
 end
