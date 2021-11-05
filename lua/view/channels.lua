@@ -6,9 +6,40 @@ local M = {
     draw_status = function() end,
 }
 
+
+local function safematch(str, pat)
+    local success, result = pcall(string.match, str, pat)
+    return not success or result
+end
+
+local function match_any(t, pat)
+    if t then
+        for _, v in ipairs(t) do
+            if safematch(v, pat) then
+                return true
+            end
+        end
+    end
+end
+
+local function show_entry(entry)
+    local current_filter
+    if input_mode == 'filter' then
+        current_filter = editor.rendered
+    else
+        current_filter = filter
+    end
+
+    return
+        (current_filter == nil or
+        safematch(entry.nick, current_filter) or
+        match_any(entry.channels, current_filter)
+        )
+end
+
 function M:render()
     local rows = math.max(1, tty_height - 2)
-    local window = rotating_window(new_channels, rows)
+    local window = rotating_window(new_channels, rows, show_entry)
 
     magenta()
     bold()
