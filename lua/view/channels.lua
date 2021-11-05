@@ -62,21 +62,31 @@ function M:render()
             green()
             mvaddstr(y, 0, string.format('%-16.16s', entry.nick))
 
-            local n = #entry.channels
-            local limit = 5
-            local s = math.max(1, n-limit+1)
-            if n > limit then
-                red()
-                bold()
-                addstr(' +'..(n-limit))
-                bold_()
-            end
-            cyan()
-
             local channels = entry.channels
             local flags = entry.flags
 
-            for i = s, n do
+            local n = #channels
+            local limit = 5
+            local s = math.max(0, n-limit)
+
+            if n > limit then
+                local creates, floods = 0, 0
+                for i = 1, s do
+                    if flags[i] & 1 == 1 then creates = creates + 1 end
+                    if flags[i] & 2 == 2 then floods = floods + 1 end
+                end
+
+                if creates > 0 then
+                    yellow() addstr(' ' .. creates .. '*')
+                end
+
+                if floods > 0 then
+                    red() addstr(' ' .. floods .. '†')
+                end
+            end
+            cyan()
+
+            for i = s+1, n do
                 local flag = flags[i]
                 cyan()
                 addstr(' '..channels[i])
