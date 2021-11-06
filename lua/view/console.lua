@@ -1,4 +1,6 @@
 local addircstr = require_ 'utils.irc_formatting'
+local parse_snote = require 'utils.parse_snote'
+
 local palette = {
     PRIVMSG = blue,
     NOTICE = cyan,
@@ -18,19 +20,28 @@ local function pretty_source(source)
     normal()
 end
 
-local function render_irc(irc)
+local function match_snotice(irc)
     if irc.source and irc.command == 'NOTICE'
     and irc[1] == '*' and #irc == 2
     and irc[2]:startswith '*** Notice -- ' then
+        return string.sub(irc[2], 15)
+    end
+end
+
+local function render_irc(irc)
+    local snote_text = match_snotice(irc)
+    if snote_text ~= nil then
         pretty_source(irc.source)
         magenta()
         bold()
-        add_button('SNOW ', function() focus = irc end, true)
+        add_button('SNOW ', function()
+            focus = { mode = 'irc', irc = irc }
+        end, true)
         bold_()
         cyan()
         addstr(':')
         normal()
-        addircstr(string.sub(irc[2], 15))
+        addircstr(snote_text)
         return
     end
 
@@ -43,7 +54,9 @@ local function render_irc(irc)
     local color = palette[irc.command]
     if color then color() end
     bold()
-    add_button(string.format('%4.4s', irc.command), function() focus=irc end, true)
+    add_button(string.format('%4.4s', irc.command), function()
+        focus = { mode = 'irc', irc = irc }
+    end, true)
     normal()
 
     local n = #irc
@@ -88,6 +101,31 @@ function M:keypress(key)
     end
 end
 
+local function draw_snotice(snotice)
+    blue()
+    addstr(string.format('%10s: ', 'name'))
+    magenta()
+    addstr(snotice.name .. '\n')
+
+    for k, v in pairs(snotice) do
+        if k ~= 'name' then
+            blue()
+            addstr(string.format('%10s: ', k))
+            normal()
+            addstr(v .. '\n')
+        end
+    end
+
+    addstr('─')
+    add_button('[CLOSE]', function() focus = nil end)
+    addstr('─')
+    blue()
+    add_button('[IRC]', function() focus.snotice = nil end)
+    normal()
+    local _, x = ncurses.getyx()
+    addstr(string.rep('─', tty_width - x))
+end
+
 local function draw_focus(irc)
     if irc.tags ~= nil then
         blue()
@@ -129,6 +167,20 @@ local function draw_focus(irc)
     end
     addstr('─')
     add_button('[CLOSE]', function() focus = nil end)
+    addstr('─')
+
+    local snote_text = match_snotice(irc)
+    if snote_text ~= nil then
+        local note = parse_snote(nil, irc.source, snote_text)
+        if note ~= nil then
+            magenta()
+            add_button('[SNOTE]', function()
+                focus.snotice = note
+            end)
+            normal()
+        end
+    end
+
     local _, x = ncurses.getyx()
     addstr(string.rep('─', tty_width - x))
 end
@@ -182,7 +234,11 @@ end
 
 function M:render()
     if focus ~= nil then
-        draw_focus(focus)
+        if focus.snotice then
+            draw_snotice(focus.snotice)
+        elseif focus.irc then
+            draw_focus(focus.irc)
+        end
     end
     draw_messages()
     draw_global_load('cliconn', conn_tracker)
