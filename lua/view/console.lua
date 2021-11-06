@@ -1,5 +1,4 @@
 local addircstr = require_ 'utils.irc_formatting'
-local align = true
 local palette = {
     PRIVMSG = blue,
     NOTICE = cyan,
@@ -20,43 +19,32 @@ local function pretty_source(source)
 end
 
 local function render_irc(irc)
-    if align then
-        if irc.source and irc.command == 'NOTICE'
-        and irc[1] == '*' and #irc == 2
-        and irc[2]:startswith '*** Notice -- ' then
-            pretty_source(irc.source)
-            magenta()
-            bold()
-            add_button('SNOW ', function() focus = irc end, true)
-            bold_()
-            cyan()
-            addstr(':')
-            normal()
-            addircstr(string.sub(irc[2], 15))
-            return
-        end
-
-        if irc.source then
-            pretty_source(irc.source)
-        else
-            addstr(string.rep(' ', 17))
-        end
-
-        local color = palette[irc.command]
-        if color then color() end
+    if irc.source and irc.command == 'NOTICE'
+    and irc[1] == '*' and #irc == 2
+    and irc[2]:startswith '*** Notice -- ' then
+        pretty_source(irc.source)
+        magenta()
         bold()
-        add_button(string.format('%4.4s', irc.command), function() focus=irc end, true)
+        add_button('SNOW ', function() focus = irc end, true)
+        bold_()
+        cyan()
+        addstr(':')
         normal()
-    else
-        if irc.source then
-            addstr(irc.source .. ' ')
-        end
-        bold()
-        local color = palette[irc.command]
-        if color then color() end
-        addstr(irc.command)
-        normal()
+        addircstr(string.sub(irc[2], 15))
+        return
     end
+
+    if irc.source then
+        pretty_source(irc.source)
+    else
+        addstr(string.rep(' ', 17))
+    end
+
+    local color = palette[irc.command]
+    if color then color() end
+    bold()
+    add_button(string.format('%4.4s', irc.command), function() focus=irc end, true)
+    normal()
 
     local n = #irc
     for i,arg in ipairs(irc) do
@@ -90,9 +78,6 @@ local keys = {
         scroll = scroll - math.max(1, tty_height - 1)
         scroll = math.max(scroll, 0)
     end,
-    [0x12] = function () -- C-r
-        align = not align
-    end,
 }
 
 function M:keypress(key)
@@ -104,10 +89,6 @@ function M:keypress(key)
 end
 
 local function draw_focus(irc)
-    add_button('[CLOSE]', function() focus = nil end)
-
-    ncurses.move(1, 0)
-
     if irc.tags ~= nil then
         blue()
         addstr('tags:\n')
@@ -146,17 +127,13 @@ local function draw_focus(irc)
         addircstr(v)
         addstr('\n')
     end
-
-    draw_global_load('cliconn', conn_tracker)
+    addstr('─')
+    add_button('[CLOSE]', function() focus = nil end)
+    local _, x = ncurses.getyx()
+    addstr(string.rep('─', tty_width - x))
 end
 
-function M:render()
-
-    if focus ~= nil then
-        draw_focus(focus)
-        return
-    end
-
+local function draw_messages()
     local current_filter
     if input_mode == 'filter' then
         current_filter = editor.rendered
@@ -180,13 +157,14 @@ function M:render()
         end
     end
 
-
-    local rows = math.max(0, tty_height - 1)
+    local start = ncurses.getyx()
+    local rows = math.max(0, tty_height - 1 - start)
     local window = rotating_window(messages, rows, show_irc)
     local clear_line = string.rep(' ', tty_width)
 
-    for y = 0, rows-1 do
-        local entry = window[y+1]
+    for j = 1, rows do
+        local entry = window[j]
+        local y = start + j - 1
         if entry == 'divider' then
             yellow()
             mvaddstr(y, 0, string.rep('·', tty_width))
@@ -200,6 +178,13 @@ function M:render()
             end
         end
     end
+end
+
+function M:render()
+    if focus ~= nil then
+        draw_focus(focus)
+    end
+    draw_messages()
     draw_global_load('cliconn', conn_tracker)
 end
 

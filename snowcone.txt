@@ -37,6 +37,7 @@ OPTIONS
   -l host          Binding host for Lua console
   -p port          Binding TCP port for Lua console
   -h               print this usage information
+
 ENVIRONMENT
   Sensitive arguments are passed using environment variables to keep them
   out of the process list.
@@ -44,6 +45,7 @@ ENVIRONMENT
   IRC_PASSWORD       IRC password (PASS)
   IRC_SASL_PASSWORD  IRC account password
   IRC_OPER_PASSWORD  IRC operator password (OPER)
+
 SOCAT ADDRESSES
   Check the socat(1) man page for an exhaustive set of connection
   addresses, but these will be the most commonly used:
@@ -51,12 +53,14 @@ SOCAT ADDRESSES
   TCP:server:6667  Connect to a plain-text IRC server
   OPENSSL:server:6697,certificate=cert.pem  
     Connect to a TLS-enabled IRC server using a client-side certificate
+
 LUA CONSOLE
   When a Lua console port is specified, snowcone will listen for
   connections on that port and provide a Lua console with access
   to snowcone's internal state. This can be useful for developing
   snowcone or adding custom logic at runtime. Calls to print from
   inside a console will be piped back to that console.
+
 MODES
   F1  recent connections
   F2  server connection load
@@ -119,6 +123,7 @@ SH RECENT CONNECTIONS
 
   The sixth column shows the SASL identified account name for the user,
   if applicable, as well as the GECOS field.
+
 SERVER LOAD
   The server load views (for connections and disconnections) provide a
   view of the load rates as well as the current state of the DNS
@@ -147,11 +152,12 @@ SERVER LOAD
 
   The Up column shows the server this server is linked to in the
   direction of the configured primary_hub.
+
 RAW CLIENT
   The raw client view (F8) is primarily intended for debugging. It exists
-  to see what snowcone sees.
+  to see what snowcone sees. To see details about any one message, click
+  on its command text.
 
-  C-r     Toggle raw/aligned message rendering
 COMMANDS
   You can run client commands from any window. When you startup typing
   a command with a '/' character, the input buffer will replace the last
@@ -160,7 +166,7 @@ COMMANDS
   /eval luacode             Evaluate arbitrary Lua code
   /filter pattern           Update the recent connection filter
                             using Lua pattern syntax
-  /nettrack label address/prefix  Add a network to the F9 tracking view
+  /nettrack label address/prefix  Add a network to the F7 tracking view
   /quote raw_command        Send a raw IRC command
   /reload                   Reload Lua files
   /sync                     Manually refresh user counts
