@@ -1,5 +1,4 @@
 local addircstr = require_ 'utils.irc_formatting'
-
 local align = true
 local palette = {
     PRIVMSG = blue,
@@ -28,7 +27,7 @@ local function render_irc(irc)
             pretty_source(irc.source)
             magenta()
             bold()
-            addstr 'SNOW '
+            add_button('SNOW ', function() focus = irc end, true)
             bold_()
             cyan()
             addstr(':')
@@ -46,7 +45,7 @@ local function render_irc(irc)
         local color = palette[irc.command]
         if color then color() end
         bold()
-        addstr(string.format('%4.4s', irc.command))
+        add_button(string.format('%4.4s', irc.command), function() focus=irc end, true)
         normal()
     else
         if irc.source then
@@ -104,7 +103,59 @@ function M:keypress(key)
     end
 end
 
+local function draw_focus(irc)
+    add_button('[CLOSE]', function() focus = nil end)
+
+    ncurses.move(1, 0)
+
+    if irc.tags ~= nil then
+        blue()
+        addstr('tags:\n')
+
+        for k,v in pairs(irc.tags) do
+            cyan()
+            addstr('  ' .. k)
+            if type(v) == 'string' then
+                addstr(': ')
+                yellow()
+                addstr(v)
+            end
+            addstr '\n'
+        end
+    end
+
+    if irc.source then
+        blue()
+        addstr('source: ')
+        normal()
+        addstr(irc.source..'\n')
+    end
+
+    blue()
+    addstr('command: ')
+    local cmd_color = palette[irc.command] or function() end
+    cmd_color()
+    bold()
+    addstr(irc.command .. '\n')
+    bold_()
+
+    for i, v in ipairs(irc) do
+        blue()
+        addstr(i .. ': ')
+        normal()
+        addircstr(v)
+        addstr('\n')
+    end
+
+    draw_global_load('cliconn', conn_tracker)
+end
+
 function M:render()
+
+    if focus ~= nil then
+        draw_focus(focus)
+        return
+    end
 
     local current_filter
     if input_mode == 'filter' then

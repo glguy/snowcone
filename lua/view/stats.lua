@@ -38,7 +38,10 @@ function M:render()
     ncurses.move(8, 0)
     list_stats('messages', messages)
 
-    mvaddstr(10, 0, string.format('uptime: %8d    msg-idle: %8d', uptime, uptime - liveness))
+    ncurses.move(9, 0)
+    list_stats('channels', new_channels)
+
+    mvaddstr(11, 0, string.format('uptime: %8d    msg-idle: %8d', uptime, uptime - liveness))
 
     draw_global_load('cliconn', conn_tracker)
 end
