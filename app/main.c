@@ -94,6 +94,7 @@ int main(int argc, char *argv[])
     keypad(stdscr, TRUE); /* process keyboard input escape sequences */
     curs_set(0); /* no cursor */
     mousemask(BUTTON1_CLICKED, NULL);
+    set_escdelay(25);
     endwin();
 
     struct app *a = app_new(&cfg);
