@@ -234,12 +234,13 @@ function M:move_prev_word()
 end
 
 function M:search_next_word()
+    local p = snowcone.isalnum
     local i = self.cursor
     local b = self.buffer
     local n = #b
     if i <= n then
         i = i + 1
-        while i <= n and (b[i-1] == 0x20 or b[i] ~= 0x20) do
+        while i <= n and (not p(b[i-1]) or p(b[i])) do
             i = i + 1
         end
     end
@@ -247,15 +248,16 @@ function M:search_next_word()
 end
 
 function M:search_prev_word()
+    local p = snowcone.isalnum
     local i = self.cursor
     local b = self.buffer
     if 1 < i then
         i = i - 1
     end
-    while 1 < i and b[i] == 0x20 do
+    while 1 < i and not p(b[i]) do
         i = i - 1
     end
-    while 1 < i and b[i-1] ~= 0x20 do
+    while 1 < i and p(b[i-1]) do
         i = i - 1
     end
     return i

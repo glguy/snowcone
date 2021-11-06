@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <ctype.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -366,6 +367,13 @@ static int l_xor_strings(lua_State *L)
     return 1;
 }
 
+static int l_isalnum(lua_State *L)
+{
+    lua_Integer i = luaL_checkinteger(L, 1);
+    lua_pushboolean(L, isalnum(i));
+    return 1;
+}
+
 static luaL_Reg M[] = {
     { "to_base64", l_to_base64 },
     { "from_base64", l_from_base64 },
@@ -378,6 +386,7 @@ static luaL_Reg M[] = {
     { "setmodule", l_setmodule },
     { "raise", l_raise },
     { "xor_strings", l_xor_strings },
+    { "isalnum", l_isalnum },
     {}
 };
 
