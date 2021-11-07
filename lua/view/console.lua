@@ -1,6 +1,7 @@
 local addircstr = require_ 'utils.irc_formatting'
 local parse_snote = require 'utils.parse_snote'
 local drawing = require 'utils.drawing'
+local hide_snow = false
 
 local palette = {
     PRIVMSG = blue,
@@ -96,6 +97,7 @@ local keys = {
         scroll = scroll - math.max(1, tty_height - 1)
         scroll = math.max(scroll, 0)
     end,
+    [-string.byte('h')] = function() hide_snow = not hide_snow end,
 }
 
 function M:keypress(key)
@@ -193,6 +195,8 @@ local function draw_messages()
             local ok, match = pcall(string.match, haystack, current_filter)
             return not ok or match
         end
+    elseif hide_snow then
+        show_irc = function(irc) return irc.command ~= 'NOTICE' or irc[1] ~= '*' end
     end
 
     local start = ncurses.getyx()
