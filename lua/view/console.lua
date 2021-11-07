@@ -38,6 +38,8 @@ local function set_focus(irc)
 end
 
 local function render_irc(irc)
+    addstr ' '
+
     local snote_text = match_snotice(irc)
     if snote_text ~= nil then
         pretty_source(irc.source)
