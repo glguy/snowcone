@@ -78,8 +78,9 @@ function M.draw_rotation(start, rows, data, show_entry, draw)
         local y = start + i - 1
 
         if entry == 'divider' then
+            last_time = os.date '!%H:%M:%S'
             yellow()
-            mvaddstr(y, 0, os.date('!%H:%M:%S') .. string.rep('·', tty_width-8))
+            mvaddstr(y, 0, last_time .. string.rep('·', tty_width-8))
             normal()
         elseif entry then
             mvaddstr(y, 0, clear_string)
