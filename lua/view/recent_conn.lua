@@ -81,6 +81,8 @@ function M:render()
         elseif entry.count then
             if entry.count < 2 then
                 black()
+            else
+                normal()
             end
             addstr(string.format(" %4d", entry.count))
         end
