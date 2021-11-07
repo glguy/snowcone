@@ -24,14 +24,7 @@ function M.NOTICE(irc)
     if irc[1] == '*' and not string.match(irc.source, '@') then
         local note = string.match(irc[2], '^%*%*%* Notice %-%- (.*)$')
         if note then
-            local time
-            if irc.tags.time then
-                time = string.match(irc.tags.time, '^%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d%d%dZ$')
-            else
-                time = os.date '!%H:%M:%S'
-            end
-
-            local event = parse_snote(time, irc.source, note)
+            local event = parse_snote(irc.time, irc.source, note)
             if event then
                 local h = handlers[event.name]
                 if h then
