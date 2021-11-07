@@ -49,4 +49,51 @@ function M.draw_load(avg)
     addstr(']')
 end
 
+local function rotating_window(source, rows, predicate)
+    source.predicate = predicate
+    if rows <= 0 then return {} end
+
+    local n = 0
+    local window = {}
+
+    for entry in source:each(scroll) do
+        if n+1 >= rows then break end -- saves a row for divider
+        if not predicate or predicate(entry) then
+            window[(source.ticker-1-n) % rows + 1] = entry
+            n = n + 1
+        end
+    end
+
+    window[source.ticker % rows + 1] = 'divider'
+    return window
+end
+
+function M.draw_rotation(start, rows, data, show_entry, draw)
+    local window = rotating_window(data, rows, show_entry)
+    local clear_string = string.rep(' ', tty_width)
+
+    local last_time
+    for i = 1, rows do
+        local entry = window[i]
+        local y = start + i - 1
+
+        if entry == 'divider' then
+            yellow()
+            mvaddstr(y, 0, os.date('!%H:%M:%S') .. string.rep('·', tty_width-8))
+            normal()
+        elseif entry then
+            mvaddstr(y, 0, clear_string)
+            ncurses.move(y, 0)
+            local time = entry.time
+            if time == last_time then
+                addstr('        ')
+            else
+                last_time = time
+                M.fade_time(entry.timestamp or 0, entry.time)
+            end
+            draw(entry)
+        end
+    end
+end
+
 return M

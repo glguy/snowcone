@@ -1,5 +1,6 @@
 local addircstr = require_ 'utils.irc_formatting'
 local parse_snote = require 'utils.parse_snote'
+local drawing = require 'utils.drawing'
 
 local palette = {
     PRIVMSG = blue,
@@ -81,8 +82,6 @@ local M = {
     title = 'console',
     draw_status = function() end,
 }
-
-local rotating_window = require_ 'utils.rotating_window'
 
 local keys = {
     [-ncurses.KEY_PPAGE] = function()
@@ -196,25 +195,7 @@ local function draw_messages()
 
     local start = ncurses.getyx()
     local rows = math.max(0, tty_height - 1 - start)
-    local window = rotating_window(messages, rows, show_irc)
-    local clear_line = string.rep(' ', tty_width)
-
-    for j = 1, rows do
-        local entry = window[j]
-        local y = start + j - 1
-        if entry == 'divider' then
-            yellow()
-            mvaddstr(y, 0, string.rep('·', tty_width))
-            normal()
-        elseif entry then
-            mvaddstr(y, 0, '')
-            render_irc(entry)
-            local y_end = ncurses.getyx()
-            for i = y+1,y_end do
-                mvaddstr(i, 0, clear_line)
-            end
-        end
-    end
+    drawing.draw_rotation(start, rows, messages, show_irc, render_irc)
 end
 
 function M:render()

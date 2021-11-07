@@ -638,6 +638,16 @@ end
 
 local irc_handlers = require_ 'handlers.irc'
 function M.on_irc(irc)
+    local time
+    if irc.tags.time then
+        time = string.match(irc.tags.time, '^%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d%d%dZ$')
+    end
+    if time == nil then
+        time = os.date '!%H:%M:%S'
+    end
+    irc.time = time
+    irc.timestamp = uptime
+
     messages:insert(true, irc)
     liveness = uptime
     local f = irc_handlers[irc.command]

@@ -51,8 +51,6 @@ local palette = {
     dline = cyan,
 }
 
-local rotating_window = require_ 'utils.rotating_window'
-
 local function safematch(str, pat)
     local success, result = pcall(string.match, str, pat)
     return not success or result
@@ -85,107 +83,80 @@ local function show_entry(entry)
 end
 
 function M:render()
-
-    local clear_line = string.rep(' ', tty_width)
-    local rows = math.max(0, tty_height - 3)
-    local window = rotating_window(klines, rows, show_entry)
-    local clear_string = string.rep(' ', tty_width)
-
     bold()
     magenta()
     addstr('time     operator    duration mask                           affected users and reason')
     bold_()
 
-    local last_time
-    for y = 1, rows do
-        local entry = window[y]
-        if entry == 'divider' then
+    local rows = math.max(0, tty_height - 3)
+    drawing.draw_rotation(1, rows, klines, show_entry, function(entry)
+        local oper
+        if entry.oper and string.match(entry.oper, '%.') then
             yellow()
-            mvaddstr(y, 0, os.date('!%H:%M:%S') .. string.rep('·', tty_width-8))
+            oper = string.match(entry.oper, '^(.-)%.')
+        else
+            green()
+            oper = entry.oper or ''
+        end
+        addstr(string.format(' %-12.12s ', oper))
+
+        if entry.duration then
+            yellow()
+            addstr(string.format('%7s ', pretty_duration(entry.duration) or ''))
+        else
             normal()
-        elseif entry then
-            mvaddstr(y, 0, clear_string)
-            ncurses.move(y, 0)
-            local time = entry.time
-            if time == last_time then
-                addstr('        ')
-            else
-                last_time = time
-                drawing.fade_time(entry.timestamp or 0, entry.time)
-            end
+            addstr(string.format('%7.7s ', entry.kind))
+        end
 
-            local oper
-            if entry.oper and string.match(entry.oper, '%.') then
-                yellow()
-                oper = string.match(entry.oper, '^(.-)%.')
-            else
-                green()
-                oper = entry.oper or ''
-            end
-            addstr(string.format(' %-12.12s ', oper))
+        if entry.kind == 'kline' then
+            local y, x = ncurses.getyx()
+            add_click(y, x, x + #entry.mask, function()
+                snowcone.send_irc('TESTLINE ' .. entry.mask .. '\r\n')
+                staged_action = {action = 'unkline'}
+            end)
+        elseif entry.kind == 'dline' then
+            local y, x = ncurses.getyx()
+            add_click(y, x, x + #entry.mask, function()
+                staged_action = {action = 'undline', mask = entry.mask}
+            end)
+        end
 
-            if entry.duration then
-                yellow()
-                addstr(string.format('%7s ', pretty_duration(entry.duration) or ''))
-            else
-                normal()
-                addstr(string.format('%7.7s ', entry.kind))
-            end
+        palette[entry.kind]()
+        addstr(string.format('%-30s ', entry.mask))
 
-            if entry.kind == 'kline' then
-                local _, x = ncurses.getyx()
-                add_click(y, x, x + #entry.mask, function()
-                    snowcone.send_irc('TESTLINE ' .. entry.mask .. '\r\n')
-                    staged_action = {action = 'unkline'}
-                end)
-            elseif entry.kind == 'dline' then
-                local _, x = ncurses.getyx()
-                add_click(y, x, x + #entry.mask, function()
-                    staged_action = {action = 'undline', mask = entry.mask}
-                end)
-            end
-
-            palette[entry.kind]()
-            addstr(string.format('%-30s ', entry.mask))
-
-            local nicks = entry.nicks
-            if nicks then
-                local xs = {}
-                local i = 0
-                local n = 0
-                for k,v in pairs(nicks) do
-                    i = i + 1
-                    n = n + v
-                    if v > 1 then
-                        xs[i] = string.format('%s:%d', k, v)
-                    else
-                        xs[i] = k
-                    end
-                    if i == 50 then break end
-                end
-                if i < 8 then
-                    normal()
-                    addstr(table.concat(xs, ' ') .. ' ')
-                elseif i < 50 then
-                    magenta()
-                    addstr(string.format('%d nicks %d hits ', i, n))
+        local nicks = entry.nicks
+        if nicks then
+            local xs = {}
+            local i = 0
+            local n = 0
+            for k,v in pairs(nicks) do
+                i = i + 1
+                n = n + v
+                if v > 1 then
+                    xs[i] = string.format('%s:%d', k, v)
                 else
-                    magenta()
-                    addstr('many affected ')
+                    xs[i] = k
                 end
+                if i == 50 then break end
             end
-
-            blue()
-            if entry.reason then
-                addstr(scrub(entry.reason))
-            end
-
-            local y_end = ncurses.getyx()
-            for i = y+1,y_end do
-                mvaddstr(i, 0, clear_line)
+            if i < 8 then
+                normal()
+                addstr(table.concat(xs, ' ') .. ' ')
+            elseif i < 50 then
+                magenta()
+                addstr(string.format('%d nicks %d hits ', i, n))
+            else
+                magenta()
+                addstr('many affected ')
             end
         end
-    end
+
+        blue()
+        if entry.reason then
+            addstr(scrub(entry.reason))
+        end
+    end)
+
     draw_buttons()
     draw_global_load('cliconn', conn_tracker)
 end
