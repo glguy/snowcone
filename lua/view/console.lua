@@ -116,6 +116,8 @@ local function draw_focus(irc, snotice)
                 addstr(': ')
                 normal()
                 addstr(v .. '\n')
+            else
+                addstr('\n')
             end
         end
     end
