@@ -1,4 +1,5 @@
 local rotating_window = require 'utils.rotating_window'
+local drawing = require_ 'utils.drawing'
 
 local M = {
     title = "channels",
@@ -43,7 +44,7 @@ function M:render()
 
     magenta()
     bold()
-    addstr('nickname         channels (')
+    addstr('time     nickname         channels (')
     yellow()
     addstr(' * create')
     red()
@@ -52,15 +53,27 @@ function M:render()
     addstr(' )')
     bold_()
 
+    local last_time
     for y = 1, rows do
+        ncurses.move(y, 0)
         local entry = window[y]
+
         if entry == 'divider' then
             yellow()
-            mvaddstr(y, 0, string.rep('·', tty_width))
+            addstr(os.date '!%H:%M:%S' .. string.rep('·', tty_width - 8))
             normal()
+
         elseif entry then
+            local time = entry.time
+            if time == last_time then
+                addstr('        ')
+            else
+                last_time = time
+                drawing.fade_time(entry.timestamp, time)
+            end
+
             green()
-            mvaddstr(y, 0, string.format('%-16.16s', entry.nick))
+            addstr(string.format(' %-16.16s', entry.nick))
 
             local channels = entry.channels
             local flags = entry.flags

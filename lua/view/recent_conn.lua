@@ -1,5 +1,6 @@
 local addircstr = require 'utils.irc_formatting'
 local scrub = require 'utils.scrub'
+local drawing = require 'utils.drawing'
 
 return function(data, label, tracker)
 
@@ -77,10 +78,11 @@ function M:render()
     local window = rotating_window(data, rows, show_entry)
 
     for y = 0, rows-1 do
+        ncurses.move(y, 0)
         local entry = window[y+1]
         if entry == 'divider' then
             yellow()
-            mvaddstr(y, 0, os.date '!%H:%M:%S' .. string.rep('·', tty_width - 8))
+            addstr(os.date '!%H:%M:%S' .. string.rep('·', tty_width - 8))
             normal()
             last_time = nil
         elseif entry then
@@ -90,18 +92,7 @@ function M:render()
                 mvaddstr(y, 0, '        ')
             else
                 last_time = time
-
-                local age = uptime - (entry.timestamp or 0)
-                if age < 8 then
-                    white()
-                    mvaddstr(y, 0, string.sub(time, 1, 8-age))
-                    cyan()
-                    addstr(string.sub(time, 9-age, 8))
-                else
-                    cyan()
-                    mvaddstr(y, 0, time)
-                end
-                normal()
+                drawing.fade_time(entry.timestamp, time)
             end
 
             local mask_color = entry.reason and ncurses.red or ncurses.green

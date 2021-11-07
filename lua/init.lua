@@ -43,6 +43,7 @@ local OrderedMap         = require_ 'components.OrderedMap'
 local libera_masks       = require_ 'utils.libera_masks'
 local sasl               = require_ 'sasl'
 local addircstr          = require_ 'utils.irc_formatting'
+local drawing            = require_ 'utils.drawing'
 
 -- Validate configuration =============================================
 
@@ -229,42 +230,6 @@ end
 
 -- Screen rendering ===================================================
 
-function add_population(pop)
-    if pop then
-        if pop < 1000 then
-            addstr(string.format('  %5d', pop))
-        else
-            bold()
-            addstr(string.format('  %2d', pop // 1000))
-            bold_()
-            addstr(string.format('%03d', pop % 1000))
-        end
-    else
-        addstr('      ?')
-    end
-end
-
-local function draw_load_1(avg, i)
-    if avg.n >= 60*i then
-        bold()
-        addstr(string.format('%5.2f ', avg[i]))
-        bold_()
-    else
-        addstr(string.format('%5.2f ', avg[i]))
-    end
-end
-
-function draw_load(avg)
-    draw_load_1(avg, 1)
-    draw_load_1(avg, 5)
-    draw_load_1(avg,15)
-    addstr('[')
-    underline()
-    addstr(avg:graph())
-    underline_()
-    addstr(']')
-end
-
 function draw_global_load(title, tracker)
     local titlecolor = ncurses.white
     if kline_ready() then
@@ -324,7 +289,7 @@ function draw_global_load(title, tracker)
         addstr('')
         magenta()
         addstr(title .. '')
-        draw_load(tracker.global)
+        drawing.draw_load(tracker.global)
         normal()
 
         views[view]:draw_status()

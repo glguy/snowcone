@@ -111,6 +111,7 @@ end
 function M.kline(ev)
     kline_tracker:track(ev.oper)
     klines:insert('kline ' .. ev.mask, {
+        timestamp = uptime,
         time = ev.time,
         oper = ev.oper,
         duration = ev.duration,
@@ -125,6 +126,7 @@ function M.dline(ev)
     local entry = klines:lookup(key)
     if not entry or entry.kind ~= 'dline' then
         klines:insert(key, {
+            timestamp = uptime,
             time = ev.time,
             oper = ev.oper,
             duration = ev.duration,
@@ -137,6 +139,7 @@ end
 
 function M.kill(ev)
     klines:insert('kill ' .. ev.nick, {
+        timestamp = uptime,
         time = ev.time,
         oper = ev.from,
         reason = ev.reason,
@@ -191,6 +194,7 @@ function M.removed(ev)
         local key = 'unkline ' .. ev.mask
         if prev_key ~= key then
             klines:insert(key, {
+                timestamp = uptime,
                 time = ev.time,
                 oper = ev.oper,
                 mask = ev.mask,
@@ -208,6 +212,7 @@ function M.removed(ev)
         local key = 'undline ' .. ev.mask
         if prev_key ~= key then
             klines:insert(key, {
+                timestamp = uptime,
                 time = ev.time,
                 oper = ev.oper,
                 mask = ev.mask,
@@ -250,28 +255,30 @@ function M.operspy(ev)
     status_message = string.format('operspy %s %s %s', ev.oper, ev.token, ev.arg)
 end
 
-local function channel_flag(nick, channel, flag)
-    local list = new_channels:lookup(nick)
-    if list == nil then
-        list = {nick = nick, channels = {channel}, flags = {flag}}
-        new_channels:insert(nick, list)
+local function channel_flag(time, nick, channel, flag)
+    local entry = new_channels:each()()
+    if entry == nil or entry.nick ~= nick then
+        entry = { time = time, timestamp = uptime, nick = nick, channels = {channel}, flags = {flag} }
+        new_channels:insert(nil, entry)
     else
-        local i = tablex.find(list.channels, channel)
+        entry.time = time
+        entry.timestamp = uptime
+        local i = tablex.find(entry.channels, channel)
         if i then
-            list.flags[i] = list.flags[i] | flag
+            entry.flags[i] = entry.flags[i] | flag
         else
-            table.insert(list.channels, channel)
-            table.insert(list.flags, flag)
+            table.insert(entry.channels, channel)
+            table.insert(entry.flags, flag)
         end
     end
 end
 
 function M.create_channel(ev)
-    channel_flag(ev.nick, ev.channel, 1)
+    channel_flag(ev.time, ev.nick, ev.channel, 1)
 end
 
 function M.flooder(ev)
-    channel_flag(ev.nick, ev.target, 2)
+    channel_flag(ev.time, ev.nick, ev.target, 2)
 end
 
 return M

@@ -1,3 +1,5 @@
+local drawing = require 'utils.drawing'
+
 return function(title, heading, label, history, tracker)
 
 local M = {
@@ -25,7 +27,7 @@ function M:render()
     if 3 <= tty_height then
         blue()
         mvaddstr(tty_height-2, 0, string.format('%16s ', label))
-        draw_load(tracker.global)
+        drawing.draw_load(tracker.global)
         normal()
     end
 
@@ -34,7 +36,7 @@ function M:render()
         local load = row.load
         local name = row.name
         mvaddstr(y, 0, string.format('%16s ', name))
-        draw_load(load)
+        drawing.draw_load(load)
         y = y + 1
     end
     draw_global_load('cliconn', conn_tracker)

@@ -1,4 +1,5 @@
 local tablex = require 'pl.tablex'
+local drawing = require 'utils.drawing'
 
 local palette = {black, red, green, yellow, blue, magenta, cyan, white}
 local colormap =
@@ -34,7 +35,7 @@ function M:draw_status()
     for _,v in pairs(population) do n = n + v end
     addstr('              ')
     magenta()
-    add_population(n)
+    drawing.add_population(n)
     normal()
 end
 
@@ -166,7 +167,7 @@ function M:render()
         mvaddstr(pad+i,0, string.format('%16s ', short))
 
         -- Sparkline
-        draw_load(avg)
+        drawing.draw_load(avg)
         normal()
         addstr(' ')
 
@@ -192,7 +193,7 @@ function M:render()
         render_mrs('IPV4', info.ipv4, '4')
         render_mrs('IPV6', info.ipv6, '6')
 
-        add_population(population[name])
+        drawing.add_population(population[name])
 
         local link = upstream[name]
         upcolor[link or '']()

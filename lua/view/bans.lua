@@ -1,4 +1,5 @@
 local scrub = require 'utils.scrub'
+local drawing = require 'utils.drawing'
 
 local M = {
     title = 'bans',
@@ -95,6 +96,7 @@ function M:render()
     addstr('time     operator    duration mask                           affected users and reason')
     bold_()
 
+    local last_time
     for y = 1, rows do
         local entry = window[y]
         if entry == 'divider' then
@@ -103,8 +105,14 @@ function M:render()
             normal()
         elseif entry then
             mvaddstr(y, 0, clear_string)
-            cyan()
-            mvaddstr(y, 0, entry.time)
+            ncurses.move(y, 0)
+            local time = entry.time
+            if time == last_time then
+                addstr('        ')
+            else
+                last_time = time
+                drawing.fade_time(entry.timestamp or 0, entry.time)
+            end
 
             local oper
             if entry.oper and string.match(entry.oper, '%.') then
