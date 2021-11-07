@@ -108,29 +108,27 @@ end
 local function draw_focus(irc, snotice)
     if irc.tags ~= nil then
         blue()
-        addstr('tags:\n')
-
-        for k,v in pairs(irc.tags) do
+        addstr('      tags:')
+        for k, v in pairs(irc.tags) do
             cyan()
-            addstr('  ' .. k)
+            mvaddstr(ncurses.getyx(), 12, k)
             if type(v) == 'string' then
                 addstr(': ')
-                yellow()
-                addstr(v)
+                normal()
+                addstr(v .. '\n')
             end
-            addstr '\n'
         end
     end
 
     if irc.source then
         blue()
-        addstr('source: ')
+        addstr('    source: ')
         normal()
         addstr(irc.source..'\n')
     end
 
     blue()
-    addstr('command: ')
+    addstr('   command: ')
     local cmd_color = palette[irc.command] or function() end
     cmd_color()
     bold()
@@ -139,7 +137,7 @@ local function draw_focus(irc, snotice)
 
     for i, v in ipairs(irc) do
         blue()
-        addstr(i .. ': ')
+        addstr(string.format('%10d: ', i))
         normal()
         addircstr(v)
         addstr('\n')

@@ -121,18 +121,19 @@ function M:delete()
     self:render()
 end
 
-function M:kill_to_beg()
+function M:add_yank_left(lo, hi)
+    local t = tablex.sub(self.buffer, lo, hi)
     if self.yanking then
-        local t = tablex.sub(self.buffer, 1, self.cursor - 1)
-        table.move(self.yank, 1, #self.yank, #t + 1, t)
-        self.yank = t
+        tablex.insertvalues(self.yank, 1, t)
     else
-        self.yank = tablex.sub(self.buffer, 1, self.cursor - 1)
+        self.yank = t
         self.yanking = true
     end
+end
 
+function M:kill_to_beg()
+    self:add_yank_left(1, self.cursor - 1)
     self.buffer = tablex.sub(self.buffer, self.cursor, -1)
-
     self:move(1, true)
 end
 
@@ -151,17 +152,8 @@ function M:kill_prev_word()
     local i = self:search_prev_word()
     local j = self.cursor - 1
 
-    -- extract that region
-    local region = tablex.sub(self.buffer, i, j)
+    self:add_yank_left(i, j)
     tablex.removevalues(self.buffer, i, j)
-
-    if self.yanking then
-        tablex.insertvalues(self.yank, 1, region)
-    else
-        self.yank = region
-        self.yanking = true
-    end
-
     self:move(i, true)
 end
 
