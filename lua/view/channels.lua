@@ -47,6 +47,8 @@ function M:render()
     addstr(' * create')
     red()
     addstr(' † flood')
+    white()
+    addstr(' ◆ spambot')
     magenta()
     addstr(' )')
     bold_()
@@ -63,10 +65,11 @@ function M:render()
         local s = math.max(0, n-limit)
 
         if n > limit then
-            local creates, floods = 0, 0
+            local creates, floods, spambot = 0, 0, 0
             for i = 1, s do
                 if flags[i] & 1 == 1 then creates = creates + 1 end
                 if flags[i] & 2 == 2 then floods = floods + 1 end
+                if flags[i] & 4 == 4 then spambot = spambot + 1 end
             end
 
             if creates > 0 then
@@ -75,6 +78,10 @@ function M:render()
 
             if floods > 0 then
                 red() addstr(' ' .. floods .. '†')
+            end
+
+            if spambot > 0 then
+                white() addstr(' ' .. spambot .. '◆')
             end
         end
         cyan()
@@ -92,6 +99,11 @@ function M:render()
             if flag & 2 == 2 then
                 red()
                 addstr('†')
+            end
+
+            if flags & 4 == 4 then
+                white()
+                addstr('◆')
             end
         end
     end)

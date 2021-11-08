@@ -281,4 +281,8 @@ function M.flooder(ev)
     channel_flag(ev.time, ev.nick, ev.target, 2)
 end
 
+function M.spambot(ev)
+    channel_flag(ev.time, ev.nick, ev.target, 4)
+end
+
 return M
