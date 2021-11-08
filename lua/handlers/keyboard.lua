@@ -11,37 +11,35 @@ end
 
 local commands = require_ 'handlers.commands'
 function execute.command()
-    local command, args = string.match(editor.rendered, '^ *(%g*) *(.*)$')
-    local impl = commands[command]
-    if impl then
+
+    local text = editor.rendered
+    input_mode = nil
+
+    if string.match(text, '^%s*$') then
+        editor:reset()
+        return
+    else
         editor:confirm()
+    end
+
+    local command, args = string.match(editor.rendered, '^ *(%g*) *(.*)$')
+    local entry = commands[command]
+    if entry then
         input_mode = nil
         status_message = ''
 
         local params = {}
-        if impl.pattern(args, params) then
-            local success, message = pcall(impl.implementation, table.unpack(params))
+        if entry.pattern(args, params) then
+            local success, message = pcall(entry.func, table.unpack(params))
             if not success then
                 status_message = message
             end
         else
-            status_message = 'bad command arguments, expected: ' .. impl.spec
+            status_message = 'bad command arguments, expected: ' .. entry.spec
         end
     else
-        if command ~= '' then
-            status_message = 'unknown command'
-        end
-        editor:reset()
-        input_mode = nil
+        status_message = 'unknown command'
     end
-end
-
-local function ctrl(x)
-    return 0x1f & string.byte(x)
-end
-
-local function meta(x)
-    return -string.byte(x)
 end
 
 -- Global keyboard mapping - can be overriden by views

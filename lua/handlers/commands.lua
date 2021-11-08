@@ -26,11 +26,11 @@ p         a path name
 sip.custom_pattern('g', '(%g+)')
 sip.custom_pattern('R', '(.*)')
 
-local function add_command(name, spec, implementation)
+local function add_command(name, spec, func)
     M[name] = {
         spec = spec,
         pattern = assert(sip.compile(spec)),
-        implementation = implementation,
+        func = func,
     }
 end
 

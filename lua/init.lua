@@ -164,6 +164,14 @@ end
 
 --  Helper functions ==================================================
 
+function ctrl(x)
+    return 0x1f & string.byte(x)
+end
+
+function meta(x)
+    return -string.byte(x)
+end
+
 -- Kline logic ========================================================
 
 kline_durations = {

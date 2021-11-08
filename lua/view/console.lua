@@ -97,7 +97,7 @@ local keys = {
         scroll = scroll - math.max(1, tty_height - 1)
         scroll = math.max(scroll, 0)
     end,
-    [-string.byte('h')] = function() hide_snow = not hide_snow end,
+    [meta 'h'] = function() hide_snow = not hide_snow end,
 }
 
 function M:keypress(key)
