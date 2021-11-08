@@ -231,14 +231,14 @@ int luaopen_myncurses(lua_State *L)
     setup_colors(L);
 
 	/* attributes */
-	CC(WA_NORMAL);		CC(WA_STANDOUT);		CC(WA_UNDERLINE);
-	CC(WA_REVERSE);		CC(WA_BLINK);		CC(WA_DIM);
+	CC(WA_NORMAL);      CC(WA_STANDOUT);    CC(WA_UNDERLINE);
+	CC(WA_REVERSE);     CC(WA_BLINK);       CC(WA_DIM);
 	CC(WA_BOLD);        CC(WA_ALTCHARSET);
 
-	CC(KEY_DOWN);		CC(KEY_UP);         CC(KEY_END);
-	CC(KEY_LEFT);		CC(KEY_RIGHT);		CC(KEY_HOME);
+	CC(KEY_DOWN);       CC(KEY_UP);         CC(KEY_END);
+	CC(KEY_LEFT);       CC(KEY_RIGHT);      CC(KEY_HOME);
 	CC(KEY_BACKSPACE);  CC(KEY_PPAGE);      CC(KEY_NPAGE);
-    CC(KEY_DC);
+    CC(KEY_DC);         CC(KEY_BTAB);
 
 	CF( 1); CF( 2); CF( 3); CF( 4); CF( 5); CF( 6); CF( 7); 
     CF( 8); CF( 9); CF(10); CF(11); CF(12);

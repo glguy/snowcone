@@ -79,10 +79,10 @@ local M = {
     [-ncurses.KEY_UP       ] = function() if input_mode then editor:older_history() end end,
     [-ncurses.KEY_DOWN     ] = function() if input_mode then editor:newer_history() end end,
 
-    [ctrl('C')] = function() snowcone.raise(2) end,
-    [ctrl('Z')] = function() snowcone.raise(18) end,
+    [ctrl 'C'] = function() snowcone.raise(2) end,
+    [ctrl 'Z'] = function() snowcone.raise(18) end,
 
-    [ctrl('S')] = function()
+    [ctrl 'S'] = function()
         editor:reset()
         input_mode = 'filter'
     end,

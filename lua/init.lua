@@ -683,6 +683,7 @@ function M.on_keyboard(key)
 
     -- view-specific key handlers
     views[view]:keypress(key)
+    status_message = key
 end
 
 function M.on_mouse(y, x)
