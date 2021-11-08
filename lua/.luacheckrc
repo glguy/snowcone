@@ -52,8 +52,8 @@ stds = {
             "klines", "watches",
 
             -- Rendering
-            "draw_load", "add_click", "add_button", "draw_buttons", "draw_global_load",
-            "add_population", "draw",
+            "add_click", "add_button", "draw_buttons", "draw_global_load",
+            "draw",
 
             -- ncurses helpers
             "addstr", "mvaddstr",

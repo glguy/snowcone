@@ -1,5 +1,6 @@
 local tablex = require 'pl.tablex'
 local lexer = require 'pl.lexer'
+local sip = require 'pl.sip'
 
 local colormap =
   { black = ncurses.black, red = ncurses.red, green = ncurses.green,
@@ -8,34 +9,56 @@ local colormap =
 
 local M = {}
 
-function M.quote(args)
+--[[
+Type      Meaning
+v         identifier
+i         possibly signed integer
+f         floating-point number
+r         rest of line
+q         quoted string (quoted using either ' or ")
+p         a path name
+(         anything inside balanced parentheses
+[         anything inside balanced brackets
+{         anything inside balanced curly brackets
+<         anything inside balanced angle brackets
+]]
+
+sip.custom_pattern('g', '(%g+)')
+sip.custom_pattern('R', '(.*)')
+
+local function add_command(name, spec, implementation)
+    M[name] = {
+        spec = spec,
+        pattern = assert(sip.compile(spec)),
+        implementation = implementation,
+    }
+end
+
+add_command('quote', '$r', function(args)
     snowcone.send_irc(args .. '\r\n')
-end
+end)
 
-function M.nettrack(args)
-    local name, mask = string.match(args, '(%g+) +(%g+)')
-    if name then
-        add_network_tracker(name, mask)
-    end
-end
+add_command('nettrack', '$g $g', function(name, mask)
+    add_network_tracker(name, mask)
+end)
 
-function M.filter(args)
+add_command('filter', '$R', function(args)
     if args == '' then
         filter = nil
     else
         filter = args
     end
-end
+end)
 
-function M.sync()
+add_command('sync', '', function()
     snowcone.send_irc(counter_sync_commands())
-end
+end)
 
-function M.reload()
+add_command('reload', '', function()
     assert(loadfile(configuration.lua_filename))()
-end
+end)
 
-function M.eval(args)
+add_command('eval', '$r', function(args)
     local chunk, message = load(args, '=(eval)', 't')
     if chunk then
         local _, ret = pcall(chunk)
@@ -47,13 +70,11 @@ function M.eval(args)
     else
         status_message = message
     end
-end
+end)
 
-function M.quit()
-    quit()
-end
+add_command('quit', '', quit)
 
-function M.inject(arg)
+add_command('inject', '$r', function(arg)
     local parse_snote = require 'utils.parse_snote'
     local time = os.date('!%H:%M:%S')
     local server = 'INJECT.'
@@ -69,9 +90,9 @@ function M.inject(arg)
     else
         status_message = 'parse failed'
     end
-end
+end)
 
-function M.addwatch(args)
+add_command('addwatch', '$r', function(args)
     local watch = {}
     local id
     for kind, token in lexer.scan(args) do
@@ -129,10 +150,9 @@ function M.addwatch(args)
             status_message = "So such watch"
         end
     end
-end
+end)
 
-function M.delwatch(args)
-    local i = math.tointeger(args)
+add_command('delwatch', '$i', function(i)
     if watches[i] then
         table.remove(watches, i)
     elseif i == nil then
@@ -140,29 +160,29 @@ function M.delwatch(args)
     else
         status_message = 'delwatch index out of range'
     end
-end
+end)
 
-function M.stats()
+add_command('stats', '', function()
     view = 'stats'
-end
+end)
 
-function M.repeats()
+add_command('repeats', '', function()
     view = 'repeats'
-end
+end)
 
-function M.banload()
+add_command('banload', '', function()
     view = 'banload'
-end
+end)
 
-function M.spamload()
+add_command('spamload', '', function()
     view = 'spamload'
-end
+end)
 
-function M.channels()
+add_command('channels', '', function()
     view = 'channels'
-end
+end)
 
-function M.versions()
+add_command('versions', '', function()
     local n = 0
     local commands = {}
     for server, _ in pairs(links) do
@@ -171,9 +191,9 @@ function M.versions()
     end
     versions = {}
     snowcone.send_irc(table.concat(commands))
-end
+end)
 
-function M.uptimes()
+add_command('uptimes', '', function()
     local n = 0
     local commands = {}
     for server, _ in pairs(links) do
@@ -182,6 +202,16 @@ function M.uptimes()
     end
     uptimes = {}
     snowcone.send_irc(table.concat(commands))
-end
+end)
+
+-- Pretending to be an IRC client
+
+add_command('msg', '$g $r', function(target, message)
+    snowcone.send_irc('PRIVMSG ' .. target .. ' :' .. message .. '\r\n')
+end)
+
+add_command('notice', '$g $r', function(target, message)
+    snowcone.send_irc('NOTICE ' .. target .. ' :' .. message .. '\r\n')
+end)
 
 return M

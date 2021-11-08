@@ -18,9 +18,14 @@ function execute.command()
         input_mode = nil
         status_message = ''
 
-        local success, message = pcall(impl, args)
-        if not success then
-            status_message = string.match(message, '^%C*')
+        local params = {}
+        if impl.pattern(args, params) then
+            local success, message = pcall(impl.implementation, table.unpack(params))
+            if not success then
+                status_message = message
+            end
+        else
+            status_message = 'bad command arguments, expected: ' .. impl.spec
         end
     else
         if command ~= '' then
