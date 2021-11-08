@@ -64,7 +64,8 @@ local function toggle(watch, field, on, off)
 end
 
 function M:render()
-    green()
+    magenta()
+    bold()
     mvaddstr(0,37, "Network  Count  Actions")
     normal()
 
