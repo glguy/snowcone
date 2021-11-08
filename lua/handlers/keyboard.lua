@@ -22,7 +22,7 @@ function execute.command()
         editor:confirm()
     end
 
-    local command, args = string.match(editor.rendered, '^ *(%g*) *(.*)$')
+    local command, args = string.match(text, '^ *(%g*) *(.*)$')
     local entry = commands[command]
     if entry then
         input_mode = nil
