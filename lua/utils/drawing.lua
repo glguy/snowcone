@@ -76,13 +76,13 @@ function M.draw_rotation(start, rows, data, show_entry, draw)
     for i = 1, rows do
         local entry = window[i]
         local y = start + i - 1
-
         if entry == 'divider' then
             last_time = os.date '!%H:%M:%S'
             yellow()
             mvaddstr(y, 0, last_time .. string.rep('·', tty_width-8))
             normal()
         elseif entry then
+            normal()
             mvaddstr(y, 0, clear_string)
             ncurses.move(y, 0)
             local time = entry.time
