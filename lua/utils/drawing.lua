@@ -93,6 +93,9 @@ function M.draw_rotation(start, rows, data, show_entry, draw)
                 M.fade_time(entry.timestamp or 0, entry.time)
             end
             draw(entry)
+        else
+            normal()
+            mvaddstr(y, 0, clear_string)
         end
     end
 end
