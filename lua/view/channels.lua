@@ -101,7 +101,7 @@ function M:render()
                 addstr('†')
             end
 
-            if flags & 4 == 4 then
+            if flag & 4 == 4 then
                 white()
                 addstr('◆')
             end
