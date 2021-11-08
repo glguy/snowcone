@@ -70,7 +70,7 @@ end
 
 function M:render()
     local rows = math.max(1, tty_height-2)
-    drawing.draw_rotation(0, rows, users, show_entry, function(entry)
+    drawing.draw_rotation(0, rows, data, show_entry, function(entry)
         local y = ncurses.getyx()
         local mask_color = entry.reason and ncurses.red or ncurses.green
 
