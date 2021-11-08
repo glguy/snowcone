@@ -21,6 +21,9 @@ p         a path name
 [         anything inside balanced brackets
 {         anything inside balanced curly brackets
 <         anything inside balanced angle brackets
+
+g         any non-empty printable sequence
+R         rest of line (allowing empty)
 ]]
 
 sip.custom_pattern('g', '(%g+)')
@@ -29,7 +32,7 @@ sip.custom_pattern('R', '(.*)')
 local function add_command(name, spec, func)
     M[name] = {
         spec = spec,
-        pattern = assert(sip.compile(spec)),
+        pattern = assert(sip.compile(spec, {at_start=true})),
         func = func,
     }
 end
