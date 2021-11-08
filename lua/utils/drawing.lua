@@ -16,15 +16,15 @@ end
 function M.add_population(pop)
     if pop then
         if pop < 1000 then
-            addstr(string.format('  %5d', pop))
+            addstr(string.format('%5d', pop))
         else
             bold()
-            addstr(string.format('  %2d', pop // 1000))
+            addstr(string.format('%2d', pop // 1000))
             bold_()
             addstr(string.format('%03d', pop % 1000))
         end
     else
-        addstr('      ?')
+        addstr('    ?')
     end
 end
 

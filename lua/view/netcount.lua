@@ -1,4 +1,5 @@
 local tablex = require 'pl.tablex'
+local drawing = require 'utils.drawing'
 
 local M = {
     title = 'netcount',
@@ -14,14 +15,8 @@ local function render_entry(y, network, count, nest)
         mvaddstr(y, 0, string.format('%44s  ', network))
         bold_()
     end
-    if count > 999 then
-        bold()
-        addstr(string.format('%2d', count//1000))
-        bold_()
-        addstr(string.format('%03d  ', count%1000))
-    else
-        addstr(string.format('%5d  ', count))
-    end
+    drawing.add_population(count)
+    addstr ' '
 end
 
 local function sortpairs(t, f)

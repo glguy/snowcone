@@ -33,7 +33,7 @@ local M = {
 function M:draw_status()
     local n = 0
     for _,v in pairs(population) do n = n + v end
-    addstr('              ')
+    addstr('                ')
     magenta()
     drawing.add_population(n)
     normal()
@@ -193,6 +193,7 @@ function M:render()
         render_mrs('IPV4', info.ipv4, '4')
         render_mrs('IPV6', info.ipv6, '6')
 
+        addstr '  '
         drawing.add_population(population[name])
 
         local link = upstream[name]
