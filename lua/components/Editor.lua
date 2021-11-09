@@ -12,16 +12,18 @@ function M:_init()
     self.retrospect = nil   -- Index into history
     self.stash = nil        -- Original buffer when retrospect ~= nil
     self.yank = {}          -- Array[Code]
-    self.yanking = false    -- boolean
+    self.state = nil        -- edit(nil), kill, tab
+    self.tablist = nil
+    self.tabix = nil
     self:render()
 end
 
-function M:move(x, yanking)
+function M:move(x, state)
     self.cursor = x
     if self.first > self.cursor then
         self.first = self.cursor
     end
-    self.yanking = yanking or false
+    self.state = state
     self:render()
 end
 
@@ -41,7 +43,6 @@ function M:reset()
     self.retrospect = nil
     self.stash = nil
     self:move(1)
-    self:render()
 end
 
 function M:confirm()
@@ -117,32 +118,32 @@ end
 
 function M:delete()
     table.remove(self.buffer, self.cursor)
-    self.yanking = false
+    self.state = nil
     self:render()
 end
 
 function M:add_yank_left(lo, hi)
     local t = tablex.sub(self.buffer, lo, hi)
-    if self.yanking then
+    if self.state == 'kill' then
         tablex.insertvalues(self.yank, 1, t)
     else
         self.yank = t
-        self.yanking = true
+        self.state = 'kill'
     end
 end
 
 function M:kill_to_beg()
     self:add_yank_left(1, self.cursor - 1)
     self.buffer = tablex.sub(self.buffer, self.cursor, -1)
-    self:move(1, true)
+    self:move(1, 'kill')
 end
 
 function M:kill_to_end()
-    if self.yanking then
+    if self.state == 'kill' then
         table.move(self.buffer, self.cursor, #self.buffer, #self.yank + 1, self.yank)
     else
         self.yank = tablex.sub(self.buffer, self.cursor, -1)
-        self.yanking = true
+        self.state = 'kill'
     end
     tablex.removevalues(self.buffer, self.cursor, - 1)
     self:render()
@@ -154,7 +155,7 @@ function M:kill_prev_word()
 
     self:add_yank_left(i, j)
     tablex.removevalues(self.buffer, i, j)
-    self:move(i, true)
+    self:move(i, 'kill')
 end
 
 
@@ -166,14 +167,14 @@ function M:kill_next_word()
     local region = tablex.sub(self.buffer, i, j)
     tablex.removevalues(self.buffer, i, j)
 
-    if self.yanking then
+    if self.state == 'kill' then
         tablex.insertvalues(self.yank, #self.yank + 1, region)
     else
         self.yank = region
-        self.yanking = true
+        self.state = 'kill'
     end
 
-    self:move(i, true)
+    self:move(i, 'kill')
 end
 
 function M:add(code)
@@ -258,6 +259,31 @@ end
 function M:paste()
     tablex.insertvalues(self.buffer, self.cursor, self.yank)
     self:move(self.cursor + #self.yank)
+end
+
+function M:tab(dir, mklist)
+    local cur = self.cursor
+    local i
+
+    if self.state == 'tab' then
+        i = cur - #self.tablist[self.tabix]
+        self.tabix = (self.tabix + dir - 1) % #self.tablist + 1
+    else
+        i = self:search_prev_word()
+        local str = utf8.char(table.unpack(self.buffer, i, cur - 1))
+        self.tabix, self.tablist = mklist(str)
+        if self.tablist == nil then
+            return
+        end
+        for x = 1, #self.tablist do
+            self.tablist[x] = table.pack(utf8.codepoint(self.tablist[x], 1, -1))
+        end
+    end
+
+    tablex.removevalues(self.buffer, i, cur - 1)        
+    local new = self.tablist[self.tabix]
+    tablex.insertvalues(self.buffer, i, new)
+    self:move(i + #new, 'tab')
 end
 
 return M

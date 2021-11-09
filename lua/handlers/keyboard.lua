@@ -42,6 +42,23 @@ function execute.command()
     end
 end
 
+local function do_tab(dir)
+    if input_mode then
+        editor:tab(dir, function(prefix)
+            local t = {}
+            for k, _ in pairs(commands) do
+                if k:startswith(prefix) then
+                    table.insert(t, k)
+                end
+            end
+            if next(t) then
+                table.sort(t)
+                return 1, t
+            end
+        end)
+    end
+end
+
 -- Global keyboard mapping - can be overriden by views
 local M = {
     --[[Esc]][0x1b] = function()
@@ -78,6 +95,9 @@ local M = {
     [-ncurses.KEY_DC       ] = function() if input_mode then editor:delete() end end,
     [-ncurses.KEY_UP       ] = function() if input_mode then editor:older_history() end end,
     [-ncurses.KEY_DOWN     ] = function() if input_mode then editor:newer_history() end end,
+
+    [ctrl 'I'] = function() return do_tab(1) end,
+    [-ncurses.KEY_BTAB] = function() return do_tab(-1) end,
 
     [ctrl 'C'] = function() snowcone.raise(2) end,
     [ctrl 'Z'] = function() snowcone.raise(18) end,
