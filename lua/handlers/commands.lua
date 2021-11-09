@@ -30,9 +30,16 @@ sip.custom_pattern('g', '(%g+)')
 sip.custom_pattern('R', '(.*)')
 
 local function add_command(name, spec, func)
+    local pattern
+    if spec == '' then
+        pattern = function(args) return args == '' end
+    else
+        pattern = assert(sip.compile(spec, {at_start=true}))
+    end
+
     M[name] = {
         spec = spec,
-        pattern = assert(sip.compile(spec, {at_start=true})),
+        pattern = pattern,
         func = func,
     }
 end
