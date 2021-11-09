@@ -280,7 +280,7 @@ function M:tab(dir, mklist)
         end
     end
 
-    tablex.removevalues(self.buffer, i, cur - 1)        
+    tablex.removevalues(self.buffer, i, cur - 1)
     local new = self.tablist[self.tabix]
     tablex.insertvalues(self.buffer, i, new)
     self:move(i + #new, 'tab')
