@@ -16,7 +16,7 @@ local function render_entry(y, network, count, nest)
         bold_()
     end
     drawing.add_population(count)
-    addstr ' '
+    addstr '  '
 end
 
 local function sortpairs(t, f)
