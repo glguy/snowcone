@@ -192,7 +192,7 @@ end
 
 function entry_to_unkline(entry)
     local mask = entry.user .. '@' .. entry.ip
-    snowcone.send_irc('TESTLINE ' .. mask .. '\r\n')
+    snowcone.send_irc('TESTKLINE ' .. mask .. '\r\n')
     staged_action = {action = 'unkline', nick = entry.nick}
 end
 

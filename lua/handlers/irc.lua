@@ -104,7 +104,7 @@ M[N.RPL_SNOMASK] = function(irc)
     status_message = 'snomask ' .. irc[2]
 end
 
-M[N.RPL_STATSILINE] = function()
+M[N.RPL_NOTESTLINE] = function()
     if staged_action ~= nil
     and staged_action.action == 'unkline'
     and staged_action.mask == nil
