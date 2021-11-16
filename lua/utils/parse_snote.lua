@@ -5,6 +5,7 @@ return function(time, server, str)
         local nick, user, host, ip, class, account, gecos =
             string.match(str, '^Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {([^}]*)} <([^>]*)> %[(.*)%]$')
         if nick then
+            if ip == '0' then ip = nil end
             return {
                 name = 'connect',
                 server = server,
@@ -24,6 +25,7 @@ return function(time, server, str)
         local nick, user, host, reason, ip =
             string.match(str, '^Client exiting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] %[(.*)%]$')
         if nick then
+            if ip == '0' then ip = nil end
             return {
                 name = 'disconnect',
                 server = server,
@@ -84,6 +86,7 @@ return function(time, server, str)
         local nick, user, host, ip =
             string.match(str, '^FILTER: ([^!]+)!([^@]+)@([^ ]+) %[(.*)%]$')
         if nick then
+            if ip == '0' then ip = nil end
             return {
                 name = 'filter',
                 server = server,
@@ -196,6 +199,7 @@ return function(time, server, str)
         local kind, nick, user, host, ip, mask =
             string.match(str, '^Rejecting (%g+)d user (%g-)%[(%g-)@(%g-)%] %[(%g+)%] %((.*)%)$')
         if nick then
+            if ip == '0' then ip = nil end
             return {
                 name = 'rejected',
                 server = server,
@@ -438,6 +442,7 @@ return function(time, server, str)
         local nick, user, host, ip, class, gecos =
             string.match(str, '^Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {([^}]*)} %[(.*)%]$')
         if nick then
+            if ip == '0' then ip = nil end
             return {
                 name = 'connect',
                 server = server,

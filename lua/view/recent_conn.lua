@@ -137,8 +137,10 @@ function M:render()
             mvaddstr(y, 80, string.format("AS%-6d %-30.30s", entry.asn, entry.org or ''))
         elseif show_reasons ~= 'ip' and entry.org then
             mvaddstr(y, 80, string.sub(entry.org, 1, 39))
-        else
+        elseif entry.ip then
             mvaddstr(y, 80, entry.ip)
+        else
+            mvaddstr(y, 80, '·')
         end
 
         -- SERVER

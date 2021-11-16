@@ -20,7 +20,13 @@ function M.connect(ev)
     local server = ev.server
 
     local prev = users:lookup(key)
-    local org, asn = ip_org(ev.ip)
+
+    local org, asn
+    if ev.ip then
+        org, asn = ip_org(ev.ip)
+        count_ip(ev.ip, 1)
+    end
+
     local entry = {
         server = ev.server,
         gecos = ev.gecos,
@@ -56,8 +62,6 @@ function M.connect(ev)
             end
         end
     end
-
-    count_ip(ev.ip, 1)
 end
 
 function M.disconnect(ev)
@@ -75,6 +79,12 @@ function M.disconnect(ev)
         draw()
     end
 
+    local org, asn
+    if ev.ip then
+        org, asn = ip_org(ev.ip)
+        count_ip(ev.ip, -1)
+    end
+
     exits:insert(nil, {
         nick = ev.nick,
         user = ev.user,
@@ -84,12 +94,11 @@ function M.disconnect(ev)
         timestamp = uptime,
         time = ev.time,
         server = ev.server,
-        org = ip_org(ev.ip),
+        org = org,
+        asn = asn,
         mask = ev.nick .. '!' .. ev.user .. '@' .. ev.host,
         gecos = (entry or {}).gecos,
     })
-
-    count_ip(ev.ip, -1)
 
     if irc_state.target_nick == ev.nick then
         snowcone.send_irc('NICK ' .. irc_state.target_nick .. '\r\n')
