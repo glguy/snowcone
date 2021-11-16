@@ -29,7 +29,9 @@ local function show_entry(entry)
      safematch(entry.mask, current_filter) or
      entry.gecos and safematch(entry.gecos, current_filter) or
      entry.org and safematch(entry.org, current_filter) or
-     entry.asn and safematch('AS'..entry.asn, current_filter))
+     entry.asn and safematch('AS'..entry.asn, current_filter) or
+     entry.reason and safematch(entry.reason, current_filter)
+    )
 end
 
 local handlers = {

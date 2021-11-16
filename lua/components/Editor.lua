@@ -266,23 +266,26 @@ function M:tab(dir, mklist)
     local i
 
     if self.state == 'tab' then
-        i = cur - #self.tablist[self.tabix]
-        self.tabix = (self.tabix + dir - 1) % #self.tablist + 1
+        local tabix = self.tabix
+        local tablist = self.tablist
+        self.tabix = (tabix + dir - 1) % #tablist + 1
+        i = cur - #tablist[tabix]
     else
         i = self:search_prev_word()
-        local str = utf8.char(table.unpack(self.buffer, i, cur - 1))
-        self.tabix, self.tablist = mklist(str)
+        local seed = utf8.char(table.unpack(self.buffer, i, cur - 1))
+        self.tabix, self.tablist = mklist(seed)
         if self.tablist == nil then
             return
         end
-        for x = 1, #self.tablist do
-            self.tablist[x] = table.pack(utf8.codepoint(self.tablist[x], 1, -1))
+        for ix, str in ipairs(self.tablist) do
+            self.tablist[ix] = table.pack(utf8.codepoint(str, 1, -1))
         end
     end
 
-    tablex.removevalues(self.buffer, i, cur - 1)
+    local buffer = self.buffer
+    tablex.removevalues(buffer, i, cur - 1)
     local new = self.tablist[self.tabix]
-    tablex.insertvalues(self.buffer, i, new)
+    tablex.insertvalues(buffer, i, new)
     self:move(i + #new, 'tab')
 end
 
