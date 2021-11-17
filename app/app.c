@@ -598,6 +598,12 @@ void do_irc(struct app *a, struct ircmsg const* msg)
     lua_callback(a->L, "on_irc");
 }
 
+void do_irc_err(struct app *a, char const* msg)
+{
+    lua_pushstring(a->L, msg);
+    lua_callback(a->L, "on_irc_err");
+}
+
 void do_mouse(struct app *a, int y, int x)
 {
     lua_pushinteger(a->L, y);

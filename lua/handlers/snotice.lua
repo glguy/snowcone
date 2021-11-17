@@ -242,7 +242,7 @@ end
 
 function M.netjoin(ev)
     snowcone.send_irc(counter_sync_commands())
-    status_message = 'netjoin ' .. ev.server2
+    status('netjoin %s', ev.server2)
 
     if versions[ev.server2] ~= nil then
         versions[ev.server2] = nil
@@ -252,16 +252,16 @@ end
 
 function M.netsplit(ev)
     snowcone.send_irc(counter_sync_commands())
-    status_message = 'netsplit ' .. ev.server2
+    status('netsplit %s', ev.server2)
     uptimes[ev.server2] = nil
 end
 
 function M.override(ev)
-    status_message = string.format('override %s %s %s', ev.oper, ev.kind, ev.target)
+    status('override %s %s %s', ev.oper, ev.kind, ev.target)
 end
 
 function M.operspy(ev)
-    status_message = string.format('operspy %s %s %s', ev.oper, ev.token, ev.arg)
+    status('operspy %s %s %s', ev.oper, ev.token, ev.arg)
 end
 
 local function channel_flag(time, nick, channel, flag)

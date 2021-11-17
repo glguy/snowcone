@@ -31,6 +31,7 @@ void app_clear_irc(struct app *a);
 void app_set_window_size(struct app *a);
 void do_command(struct app *a, char const* line, uv_stream_t *console);
 void do_irc(struct app *a, struct ircmsg const*);
+void do_irc_err(struct app *a, char const*);
 void do_keyboard(struct app *, long);
 void do_mouse(struct app *, int x, int y);
 

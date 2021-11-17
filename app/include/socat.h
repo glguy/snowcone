@@ -3,6 +3,6 @@
 
 #include <uv.h>
 
-uv_stream_t * socat_wrapper(uv_loop_t *loop, char const* socat_arg);
+int socat_wrapper(uv_loop_t *loop, char const* socat, uv_stream_t **irc_stream, uv_stream_t **error_stream);
 
 #endif

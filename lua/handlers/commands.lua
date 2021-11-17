@@ -73,12 +73,12 @@ add_command('eval', '$r', function(args)
     if chunk then
         local _, ret = pcall(chunk)
         if ret then
-            status_message = tostring(ret)
+            status('%s', ret)
         else
             status_message = nil
         end
     else
-        status_message = message
+        status('%s', message)
     end
 end)
 
@@ -95,10 +95,10 @@ add_command('inject', '$r', function(arg)
         if handler then
             handler(event)
         else
-            status_message = 'no handler'
+            status 'no handler'
         end
     else
-        status_message = 'parse failed'
+        status 'parse failed'
     end
 end)
 
@@ -132,7 +132,7 @@ add_command('addwatch', '$r', function(args)
             id = math.tointeger(token)
 
         else
-            status_message = "Unexpected token: " .. token
+            status('Unexpected token: %s', token)
             return
         end
     end
@@ -140,7 +140,7 @@ add_command('addwatch', '$r', function(args)
     -- New watch
     if id == nil then
         if watch.mask == nil then
-            status_message = "No watch mask specified"
+            status 'No watch mask specified'
             return
         end
 
@@ -148,16 +148,16 @@ add_command('addwatch', '$r', function(args)
         watch.hits = 0
 
         table.insert(watches, watch)
-        status_message = "Added watch #" .. #watches
+        status('Added watch #%d', #watches)
 
     -- Updating an old watch
     else
         local previous = watches[id]
         if previous then
             tablex.update(previous, watch)
-            status_message = "Updated watch #" .. id
+            status('Updated watch #%d', id)
         else
-            status_message = "So such watch"
+            status 'So such watch'
         end
     end
 end)
@@ -166,9 +166,9 @@ add_command('delwatch', '$i', function(i)
     if watches[i] then
         table.remove(watches, i)
     elseif i == nil then
-        status_message = 'delwatch requires integer argument'
+        status 'delwatch requires integer argument'
     else
-        status_message = 'delwatch index out of range'
+        status 'delwatch index out of range'
     end
 end)
 
@@ -190,6 +190,10 @@ end)
 
 add_command('channels', '', function()
     view = 'channels'
+end)
+
+add_command('status', '', function()
+    view = 'status'
 end)
 
 add_command('versions', '', function()

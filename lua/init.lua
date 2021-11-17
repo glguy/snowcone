@@ -113,6 +113,7 @@ local defaults = {
     users = OrderedMap(1000),
     exits = OrderedMap(1000),
     messages = OrderedMap(1000),
+    status_messages = OrderedMap(100),
     klines = OrderedMap(1000),
     new_channels = OrderedMap(100),
     kline_tracker = LoadTracker(),
@@ -170,6 +171,15 @@ end
 
 function meta(x)
     return -string.byte(x)
+end
+
+function status(fmt, ...)
+    local text = string.format(fmt, ...)
+    status_messages:insert(nil, {
+        time = os.date("!%H:%M:%S"),
+        text = text,
+    })
+    status_message = text
 end
 
 -- Kline logic ========================================================
@@ -454,6 +464,7 @@ views = {
     spamload = view_simple_load('spamload', 'Server', 'FILTERS', 'Filter History', filter_tracker),
     console = require_ 'view.console',
     channels = require_ 'view.channels',
+    status = require_ 'view.status',
 }
 
 main_views = {'cliconn', 'connload', 'cliexit', 'exitload', 'bans', 'channels', 'netcount', 'console'}
@@ -582,7 +593,7 @@ local function refresh_rotations()
                 mrs[label] = Set(addrs)
             else
                 mrs[label] = nil
-                status_message = entry.hostname .. ' - ' .. reason
+                status('%s - %s', entry.hostname, reason)
             end
         end)
     end
@@ -664,6 +675,10 @@ function M.on_irc(irc)
     end
 end
 
+function M.on_irc_err(msg)
+    status('socat error: %s', msg)
+end
+
 local key_handlers = require_ 'handlers.keyboard'
 function M.on_keyboard(key)
     -- buffer text editing
@@ -696,13 +711,13 @@ end
 
 function M.on_connect()
     irc_state = { nick = configuration.irc_nick }
-    status_message = 'connecting'
+    status 'connecting'
     irc_register()
 end
 
 function M.on_disconnect()
     irc_state = {}
-    status_message = 'disconnected'
+    status 'disconnected'
 end
 
 snowcone.setmodule(M)

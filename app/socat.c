@@ -9,22 +9,26 @@
 static void socat_exit(uv_process_t *process, int64_t exit_status, int term_signal);
 static void free_handle(uv_handle_t *handle);
 
-uv_stream_t * socat_wrapper(uv_loop_t *loop, char const* socat)
+int socat_wrapper(uv_loop_t *loop, char const* socat, uv_stream_t **irc_stream, uv_stream_t **error_stream)
 {
     int r;
     char const* argv[] = {"socat", "FD:3", socat, NULL};
 
-    uv_pipe_t *stream = malloc(sizeof *stream);
-    assert(stream);
+    uv_pipe_t *irc_pipe = malloc(sizeof *irc_pipe);
+    assert(irc_pipe);
+    r = uv_pipe_init(loop, irc_pipe, 0);
+    assert(0 == r);
 
-    r = uv_pipe_init(loop, stream, 0);
+    uv_pipe_t *error_pipe = malloc(sizeof *irc_pipe);
+    assert(error_pipe);
+    r = uv_pipe_init(loop, error_pipe, 0);
     assert(0 == r);
 
     uv_stdio_container_t containers[] = {
         {.flags = UV_IGNORE},
         {.flags = UV_IGNORE},
-        {.flags = UV_INHERIT_FD, .data.fd = STDERR_FILENO},
-        {.flags = UV_CREATE_PIPE | UV_READABLE_PIPE | UV_WRITABLE_PIPE, .data.stream = (uv_stream_t*)stream}
+        {.flags = UV_CREATE_PIPE | UV_WRITABLE_PIPE, .data.stream = (uv_stream_t*)error_pipe},
+        {.flags = UV_CREATE_PIPE | UV_READABLE_PIPE | UV_WRITABLE_PIPE, .data.stream = (uv_stream_t*)irc_pipe}
     };
 
     uv_process_options_t options = {
@@ -42,11 +46,14 @@ uv_stream_t * socat_wrapper(uv_loop_t *loop, char const* socat)
     if (0 != r) {
         fprintf(stderr, "Failed to spawn socat: %s\n", uv_strerror(r));
         free(process);
-        uv_close((uv_handle_t*)stream, free_handle);
-        return NULL;
+        uv_close((uv_handle_t*)irc_stream, free_handle);
+        uv_close((uv_handle_t*)error_stream, free_handle);
+        return 1;
     }
 
-    return (uv_stream_t*)stream;
+    *irc_stream = (uv_stream_t*)irc_pipe;
+    *error_stream = (uv_stream_t*)error_pipe;
+    return 0;
 }
 
 static void free_handle(uv_handle_t *handle)

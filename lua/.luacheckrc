@@ -17,13 +17,13 @@ stds = {
             "require_", "next_view", "prev_view", "entry_to_kline",
             "add_network_tracker", "quit", "entry_to_unkline",
             "reset_filter", "initialize", "counter_sync_commands",
-            "ctrl", "meta",
+            "ctrl", "meta", "status",
 
             -- global client state
             "irc_state",  "status_message", "input_mode", "servers",
             "view", "views", "uptime", "liveness", "scroll", "editor",
             "uv_resources", "filter", "main_views", "new_channels",
-            "focus",
+            "focus", "status_messages",
 
             -- global load bar state
             "trust_uname", "show_reasons", "kline_duration",

@@ -26,19 +26,19 @@ function execute.command()
     local entry = commands[command]
     if entry then
         input_mode = nil
-        status_message = ''
+        status_message = nil
 
         local params = {}
         if entry.pattern(args, params) then
             local success, message = pcall(entry.func, table.unpack(params))
             if not success then
-                status_message = message
+                status('%s', message)
             end
         else
-            status_message = 'bad command arguments, expected: ' .. entry.spec
+            status('bad command arguments, expected: %s', entry.spec)
         end
     else
-        status_message = 'unknown command'
+        status 'unknown command'
     end
 end
 
@@ -100,7 +100,6 @@ local M = {
     [-ncurses.KEY_BTAB] = function() return do_tab(-1) end,
 
     [ctrl 'C'] = function() snowcone.raise(2) end,
-    [ctrl 'Z'] = function() snowcone.raise(18) end,
 
     [ctrl 'S'] = function()
         editor:reset()

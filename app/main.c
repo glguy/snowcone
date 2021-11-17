@@ -83,7 +83,19 @@ int main(int argc, char *argv[])
     
     /* Configure ncurses */
     setlocale(LC_ALL, "");
-    initscr(); 
+
+    FILE *tty = fopen("/dev/tty", "r+");
+    if (NULL == tty) {
+        perror("fopen");
+        return 1;
+    }
+
+    SCREEN *scr = newterm(NULL, tty, stdin);
+    if (NULL == scr) {
+        fprintf(stderr, "newterm: Failed to initialize ncurses\n");
+        return 1;
+    }
+
     start_color();
     use_default_colors();
     nodelay(stdscr, TRUE); /* nonblocking input reads */
