@@ -172,29 +172,9 @@ add_command('delwatch', '$i', function(i)
     end
 end)
 
-add_command('stats', '', function()
-    view = 'stats'
-end)
-
-add_command('repeats', '', function()
-    view = 'repeats'
-end)
-
-add_command('banload', '', function()
-    view = 'banload'
-end)
-
-add_command('spamload', '', function()
-    view = 'spamload'
-end)
-
-add_command('channels', '', function()
-    view = 'channels'
-end)
-
-add_command('status', '', function()
-    view = 'status'
-end)
+for k, _ in pairs(views) do
+    add_command(k, '', function() view = k end)
+end
 
 add_command('versions', '', function()
     local n = 0
@@ -226,6 +206,18 @@ end)
 
 add_command('notice', '$g $r', function(target, message)
     snowcone.send_irc('NOTICE ' .. target .. ' :' .. message .. '\r\n')
+end)
+
+add_command('umode', '$R', function(args)
+    snowcone.send_irc('MODE ' .. irc_state.nick .. ' ' .. args .. '\r\n')
+end)
+
+add_command('whois', '$g', function(nick)
+    snowcone.send_irc('WHOIS ' .. nick .. ' ' .. nick .. '\r\n')
+end)
+
+add_command('whowas', '$g', function(nick)
+    snowcone.send_irc('WHOWAS ' .. nick .. '\r\n')
 end)
 
 return M

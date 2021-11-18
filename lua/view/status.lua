@@ -1,4 +1,5 @@
 local drawing = require 'utils.drawing'
+local addircstr = require 'utils.irc_formatting'
 
 local M = {
     title = 'status',
@@ -46,7 +47,7 @@ function M:render()
     local rows = math.max(0, tty_height - 1)
     drawing.draw_rotation(0, rows, status_messages, show_entry, function(entry)
         normal()
-        addstr(' ' .. entry.text)
+        addircstr(' ' .. entry.text)
     end)
     draw_global_load('cliconn', conn_tracker)
 end
