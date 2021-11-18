@@ -216,7 +216,7 @@ end
 M[N.RPL_ENDOFRSACHALLENGE2] = function()
     -- remember and clear the challenge buffer now before failures below
     local challenge_text = irc_state.challenge
-    if challenge then
+    if challenge_text then
         irc_state.challenge = nil
         challenge_text = table.concat(challenge_text)
 
