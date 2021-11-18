@@ -63,7 +63,7 @@ end
 M[N.RPL_WELCOME] = function()
     irc_state.registration = nil
     irc_state.connected = true
-    status 'connected'
+    status('irc', 'connected')
 
     local msg
     if configuration.irc_oper_username and configuration.irc_challenge_key then
@@ -101,7 +101,7 @@ M[N.RPL_ISUPPORT] = function(irc)
 end
 
 M[N.RPL_SNOMASK] = function(irc)
-    status('snomask %s', irc[2])
+    status('irc', 'snomask %s', irc[2])
 end
 
 M[N.RPL_NOTESTLINE] = function()
@@ -198,12 +198,12 @@ end
 
 M[N.ERR_NOOPERHOST] = function()
     irc_state.challenge = nil
-    status 'no oper host'
+    status('irc', 'no oper host')
 end
 
 M[N.ERR_PASSWDMISMATCH] = function()
     irc_state.challenge = nil
-    status 'oper password mismatch'
+    status('irc', 'oper password mismatch')
 end
 
 M[N.RPL_RSACHALLENGE2] = function(irc)
@@ -226,10 +226,10 @@ M[N.RPL_ENDOFRSACHALLENGE2] = function()
         local success, resp = pcall(challenge, rsa_key, password, challenge_text)
         if success then
             snowcone.send_irc('CHALLENGE +' .. resp .. '\r\n')
-            status 'challenged'
+            status('irc', 'challenged')
         else
             io.stderr:write(resp,'\n')
-            status 'challenge failed - see stderr'
+            status('irc', 'challenge failed - see stderr')
         end
     end
 end
@@ -240,12 +240,12 @@ M[N.RPL_YOUREOPER] = function()
         counter_sync_commands() ..
         'MODE ' .. irc_state.nick .. ' s BFZbcklnsx\r\n'
     )
-    status "you're oper"
+    status('irc', "you're oper")
 end
 
 M[N.RPL_SASLSUCCESS] = function()
     if irc_state.sasl then
-        status 'SASL success'
+        status('irc', 'SASL success')
         irc_state.sasl = nil
 
         if irc_state.registration then
@@ -256,7 +256,7 @@ end
 
 M[N.ERR_SASLFAIL] = function()
     if irc_state.sasl then
-        status 'SASL failed'
+        status('irc', 'SASL failed')
         irc_state.sasl = nil
         snowcone.send_irc 'QUIT\r\n'
         snowcone.send_irc(nil)
@@ -273,7 +273,7 @@ end
 
 M[N.RPL_SASLMECHS] = function()
     if irc_state.sasl then
-        status 'bad SASL mechanism'
+        status('irc', 'bad SASL mechanism')
         irc_state.sasl = nil
         snowcone.send_irc 'QUIT\r\n'
         snowcone.send_irc(nil)

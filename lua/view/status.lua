@@ -46,8 +46,10 @@ end
 function M:render()
     local rows = math.max(0, tty_height - 1)
     drawing.draw_rotation(0, rows, status_messages, show_entry, function(entry)
+        blue()
+        addstr(string.format(' %-10.10s ', entry.category or '-'))
         normal()
-        addircstr(' ' .. entry.text)
+        addircstr(entry.text)
     end)
     draw_global_load('cliconn', conn_tracker)
 end

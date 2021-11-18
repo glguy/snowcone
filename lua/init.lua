@@ -173,11 +173,12 @@ function meta(x)
     return -string.byte(x)
 end
 
-function status(fmt, ...)
+function status(category, fmt, ...)
     local text = string.format(fmt, ...)
     status_messages:insert(nil, {
         time = os.date("!%H:%M:%S"),
         text = text,
+        category = category,
     })
     status_message = text
 end
@@ -255,14 +256,7 @@ function draw_global_load(title, tracker)
     end
 
     ncurses.colorset(ncurses.black, titlecolor)
-
-    local label
-    if views[view].title then
-        label = string.format('%-8.8s', views[view].title)
-    else
-        label = 'snowcone'
-    end
-    mvaddstr(tty_height-1, 0, label)
+    mvaddstr(tty_height-1, 0, string.format('%-8.8s', view))
 
     if input_mode then
         ncurses.colorset(titlecolor, ncurses.blue)
@@ -593,7 +587,7 @@ local function refresh_rotations()
                 mrs[label] = Set(addrs)
             else
                 mrs[label] = nil
-                status('%s - %s', entry.hostname, reason)
+                status('dns', '%s: %s', entry.hostname, reason)
             end
         end)
     end
@@ -676,7 +670,7 @@ function M.on_irc(irc)
 end
 
 function M.on_irc_err(msg)
-    status('socat error: %s', msg)
+    status('socat', '%s', msg)
 end
 
 local key_handlers = require_ 'handlers.keyboard'
@@ -711,13 +705,13 @@ end
 
 function M.on_connect()
     irc_state = { nick = configuration.irc_nick }
-    status 'connecting'
+    status('irc', 'connecting')
     irc_register()
 end
 
 function M.on_disconnect()
     irc_state = {}
-    status 'disconnected'
+    status('irc', 'disconnected')
 end
 
 snowcone.setmodule(M)

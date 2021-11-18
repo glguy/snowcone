@@ -73,12 +73,12 @@ add_command('eval', '$r', function(args)
     if chunk then
         local _, ret = pcall(chunk)
         if ret then
-            status('%s', ret)
+            status('eval', '%s', ret)
         else
             status_message = nil
         end
     else
-        status('%s', message)
+        status('eval', '%s', message)
     end
 end)
 
@@ -95,10 +95,10 @@ add_command('inject', '$r', function(arg)
         if handler then
             handler(event)
         else
-            status 'no handler'
+            status('inject', 'no handler')
         end
     else
-        status 'parse failed'
+        status('inject', 'parse failed')
     end
 end)
 
@@ -132,7 +132,7 @@ add_command('addwatch', '$r', function(args)
             id = math.tointeger(token)
 
         else
-            status('Unexpected token: %s', token)
+            status('addwatch', 'Unexpected token: %s', token)
             return
         end
     end
@@ -140,7 +140,7 @@ add_command('addwatch', '$r', function(args)
     -- New watch
     if id == nil then
         if watch.mask == nil then
-            status 'No watch mask specified'
+            status('addwatch', 'No watch mask specified')
             return
         end
 
@@ -155,9 +155,9 @@ add_command('addwatch', '$r', function(args)
         local previous = watches[id]
         if previous then
             tablex.update(previous, watch)
-            status('Updated watch #%d', id)
+            status('addwatch', 'Updated watch #%d', id)
         else
-            status 'So such watch'
+            status('addwatch', 'So such watch')
         end
     end
 end)
@@ -166,9 +166,9 @@ add_command('delwatch', '$i', function(i)
     if watches[i] then
         table.remove(watches, i)
     elseif i == nil then
-        status 'delwatch requires integer argument'
+        status('delwatch', 'delwatch requires integer argument')
     else
-        status 'delwatch index out of range'
+        status('delwatch', 'delwatch index out of range')
     end
 end)
 

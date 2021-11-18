@@ -32,13 +32,13 @@ function execute.command()
         if entry.pattern(args, params) then
             local success, message = pcall(entry.func, table.unpack(params))
             if not success then
-                status('%s', message)
+                status('error', '%s', message)
             end
         else
-            status('bad command arguments, expected: %s', entry.spec)
+            status('error', '%s requires: %s', command, entry.spec)
         end
     else
-        status 'unknown command'
+        status('error', 'unknown command: %s', command)
     end
 end
 
