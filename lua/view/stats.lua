@@ -7,41 +7,56 @@ local M = {
 }
 
 local function list_stats(name, data)
-    addstr(string.format('%10s %10d %10d', name, data.n, data.max))
+    addstr(string.format('%10s %10d %10d\n', name, data.n, data.max))
 end
 
 
 function M:render()
     green()
-    mvaddstr(0, 0,'          -= stats =-')
+    addstr('          -= stats =-\n')
     normal()
 
-    mvaddstr(2, 0, "collectgarbage 'count': ")
+    addstr '\n'
+
+    addstr('Lua version:  ')
     bold()
-    addstr(string.format('%10s ', pretty.number(collectgarbage 'count' * 1024, 'M')))
+    addstr(_VERSION)
+    bold_()
+    addstr '\n'
+
+    addstr("Lua memory:   ")
+    bold()
+    addstr(string.format('%-10s ', pretty.number(collectgarbage 'count' * 1024, 'M')))
     bold_()
     add_button('[GC]', function() collectgarbage() end)
+    addstr '\n'
+
+    addstr('Uptime:       ')
+    bold()
+    addstr(uptime)
+    bold_()
+    addstr '\n'
+
+    addstr('Idle:         ')
+    bold()
+    addstr(uptime - liveness)
+    bold_()
+    addstr '\n'
+
+    addstr '\n'
 
     green()
-    mvaddstr(4, 0,'   dataset         .n       .max')
+    addstr('   dataset         .n       .max\n')
+
     normal()
-
-    ncurses.move(5, 0)
     list_stats('users', users)
-
-    ncurses.move(6, 0)
     list_stats('exits', exits)
-
-    ncurses.move(7, 0)
     list_stats('klines', klines)
-
-    ncurses.move(8, 0)
     list_stats('messages', messages)
-
-    ncurses.move(9, 0)
     list_stats('channels', new_channels)
+    list_stats('status', status_messages)
 
-    mvaddstr(11, 0, string.format('uptime: %8d    msg-idle: %8d', uptime, uptime - liveness))
+    addstr '\n'
 
     draw_global_load('cliconn', conn_tracker)
 end
