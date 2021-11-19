@@ -27,7 +27,7 @@ How I run this:
 
 ```sh
 cmake -B build
-make -C build
+cmake --build build
 build/app/snowcone \
    -l ::1 -p 6000 \
    -S OPENSSL:[::1]:7000,certificate=certificate.pem \

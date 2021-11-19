@@ -53,7 +53,7 @@ M.AUTHENTICATE = function(irc)
         local payload = sasl.decode_authenticate(irc[1])
         local success, message = coroutine.resume(irc_state.sasl, payload)
         if not success then
-            error (message)
+            status('sasl', '%s', message)
             message = nil
         end
         snowcone.send_irc(sasl.encode_authenticate(message))
@@ -63,7 +63,7 @@ end
 M[N.RPL_WELCOME] = function()
     irc_state.registration = nil
     irc_state.connected = true
-    status('irc', 'connected')
+    status('irc', 'connected to %s', irc.source)
 
     local msg
     if configuration.irc_oper_username and configuration.irc_challenge_key then
