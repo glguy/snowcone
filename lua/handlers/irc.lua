@@ -60,7 +60,7 @@ M.AUTHENTICATE = function(irc)
     end
 end
 
-M[N.RPL_WELCOME] = function()
+M[N.RPL_WELCOME] = function(irc)
     irc_state.registration = nil
     irc_state.connected = true
     status('irc', 'connected to %s', irc.source)

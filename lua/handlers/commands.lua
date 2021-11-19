@@ -220,4 +220,8 @@ add_command('whowas', '$g', function(nick)
     snowcone.send_irc('WHOWAS ' .. nick .. '\r\n')
 end)
 
+add_command('nick', '$g', function(nick)
+    snowcone.send_irc('NICK ' .. nick .. '\r\n')
+end)
+
 return M
