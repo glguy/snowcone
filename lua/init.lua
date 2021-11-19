@@ -604,7 +604,7 @@ if not uv_resources.tick_timer then
     uv_resources.tick_timer = snowcone.newtimer()
     uv_resources.tick_timer:start(1000, 1000, function()
         uptime = uptime + 1
-        if uptime == liveness + 30 then
+        if irc_state.connected and uptime == liveness + 30 then
             snowcone.send_irc 'PING snowcone\r\n'
         end
 
