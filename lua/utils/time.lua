@@ -16,7 +16,6 @@ function M.pretty_duration(duration)
 end
 
 local units = {
-    [''] = 1,
     m = 1,
     h = 60,
     d = 1440,
@@ -31,7 +30,7 @@ function M.parse_duration(str)
         acc = acc + n * units[u]
         return ''
     end
-    local leftover = string.gsub(str, ' *(%-?%d+) *([mhdwMY]?) *', f)
+    local leftover = string.gsub(str, ' *(%-?%d+) *([mhdwMY]) *', f)
     if '' == leftover then
         return acc
     end
