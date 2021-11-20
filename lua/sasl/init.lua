@@ -31,14 +31,6 @@ function M.encode_authenticate(body)
     return table.concat(commands)
 end
 
-function M.decode_authenticate(payload)
-    if payload == '+' then
-        return ''
-    else
-        return assert(snowcone.from_base64(payload))
-    end
-end
-
 function M.start(mechanism, authcid, password, key, authzid)
     local co
     if mechanism == 'PLAIN' then

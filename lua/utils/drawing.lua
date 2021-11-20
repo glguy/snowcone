@@ -92,6 +92,7 @@ function M.draw_rotation(start, rows, data, show_entry, draw)
                 last_time = time
                 M.fade_time(entry.timestamp or 0, entry.time)
             end
+            normal()
             draw(entry)
         else
             normal()

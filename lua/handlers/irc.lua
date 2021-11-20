@@ -49,14 +49,31 @@ M.NICK = function(irc)
 end
 
 M.AUTHENTICATE = function(irc)
-    if irc_state.sasl then
-        local payload = sasl.decode_authenticate(irc[1])
-        local success, message = coroutine.resume(irc_state.sasl, payload)
-        if not success then
-            status('sasl', '%s', message)
-            message = nil
+    local chunk = irc[1]
+    if chunk == '+' then chunk = '' end
+
+    if irc_state.authenticate == nil then
+        irc_state.authenticate = {chunk}
+    else
+        table.insert(irc_state.authenticate, chunk)
+    end
+
+    if #chunk < 400 then
+        local reply
+
+        local full = table.concat(irc_state.authenticate)
+        irc_state.authenticate = nil
+        local payload = assert(snowcone.from_base64(full))
+
+        if payload ~= nil and irc_state.sasl ~= nil then
+            local success, message = coroutine.resume(irc_state.sasl, payload)
+            if success then
+                reply = message
+            else
+                status('sasl', '%s', message)
+            end
         end
-        snowcone.send_irc(sasl.encode_authenticate(message))
+        snowcone.send_irc(sasl.encode_authenticate(reply))
     end
 end
 
