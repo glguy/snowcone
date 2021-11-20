@@ -148,7 +148,7 @@ add_command('addwatch', '$r', function(args)
         watch.hits = 0
 
         table.insert(watches, watch)
-        status('Added watch #%d', #watches)
+        status('addwatch', 'Added watch #%d', #watches)
 
     -- Updating an old watch
     else
