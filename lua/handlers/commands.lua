@@ -1,7 +1,7 @@
 local tablex = require 'pl.tablex'
 local lexer = require 'pl.lexer'
 local sip = require 'pl.sip'
-local time = require 'utils.time'
+local utils_time = require 'utils.time'
 
 local colormap =
   { black = ncurses.black, red = ncurses.red, green = ncurses.green,
@@ -200,7 +200,7 @@ add_command('uptimes', '', function()
 end)
 
 add_command('duration', '$r', function(arg)
-    local n = time.parse_duration(arg)
+    local n = utils_time.parse_duration(arg)
     arg = string.gsub(arg, ' +', '')
     if n and n > 0 then
         kline_duration = arg

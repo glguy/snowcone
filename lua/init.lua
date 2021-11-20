@@ -44,7 +44,7 @@ local libera_masks       = require_ 'utils.libera_masks'
 local sasl               = require_ 'sasl'
 local addircstr          = require_ 'utils.irc_formatting'
 local drawing            = require_ 'utils.drawing'
-local time               = require_ 'utils.time'
+local utils_time         = require_ 'utils.time'
 
 -- Validate configuration =============================================
 
@@ -389,7 +389,7 @@ function draw_buttons()
         add_button(klineText, function()
             snowcone.send_irc(
                 string.format('KLINE %s %s :%s\r\n',
-                    time.parse_duration(kline_duration),
+                    utils_time.parse_duration(kline_duration),
                     staged_action.mask,
                     servers.kline_reasons[kline_reason][2]
                 )
