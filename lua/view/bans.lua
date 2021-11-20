@@ -1,5 +1,6 @@
 local scrub = require 'utils.scrub'
 local drawing = require 'utils.drawing'
+local time = require 'utils.time'
 
 local M = {
     title = 'bans',
@@ -24,21 +25,6 @@ function M:keypress(key)
     if h then
         h()
         draw()
-    end
-end
-
-local function pretty_duration(duration)
-    local m = math.tointeger(duration)
-    if m then
-        if m >= 1440 then
-            return string.format('%.1f d', m/1440)
-        end
-        if m >= 60 then
-            return string.format('%.1f h', m/60)
-        end
-        return duration .. 'm'
-    else
-        return duration
     end
 end
 
@@ -102,7 +88,7 @@ function M:render()
 
         if entry.duration then
             yellow()
-            addstr(string.format('%7s ', pretty_duration(entry.duration) or ''))
+            addstr(string.format('%7s ', time.pretty_duration(entry.duration) or ''))
         else
             normal()
             addstr(string.format('%7.7s ', entry.kind))

@@ -44,8 +44,13 @@ local function show_entry(entry)
 end
 
 function M:render()
-    local rows = math.max(0, tty_height - 1)
-    drawing.draw_rotation(0, rows, status_messages, show_entry, function(entry)
+    magenta()
+    bold()
+    addstr('time     category   message')
+    bold_()
+
+    local rows = math.max(0, tty_height - 2)
+    drawing.draw_rotation(1, rows, status_messages, show_entry, function(entry)
         blue()
         addstr(string.format(' %-10.10s ', entry.category or '-'))
         normal()

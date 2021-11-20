@@ -44,6 +44,7 @@ local libera_masks       = require_ 'utils.libera_masks'
 local sasl               = require_ 'sasl'
 local addircstr          = require_ 'utils.irc_formatting'
 local drawing            = require_ 'utils.drawing'
+local time               = require_ 'utils.time'
 
 -- Validate configuration =============================================
 
@@ -138,7 +139,7 @@ local defaults = {
 
     -- settings
     show_reasons = 'reason',
-    kline_duration = 1,
+    kline_duration = '1d',
     kline_reason = 1,
     trust_uname = false,
     server_ordering = 'name',
@@ -185,11 +186,7 @@ end
 
 -- Kline logic ========================================================
 
-kline_durations = {
-    {'4h','240'},
-    {'1d','1400'},
-    {'3d','4320'}
-}
+kline_durations = {'4h','1d','3d'}
 
 function entry_to_kline(entry)
     local success, mask = pcall(libera_masks, entry.user, entry.ip, entry.host, trust_uname)
@@ -352,8 +349,9 @@ function draw_buttons()
     end
 
     cyan()
-    add_button('[ ' .. kline_durations[kline_duration][1] .. ' ]', function()
-        kline_duration = kline_duration % #kline_durations + 1
+    add_button('[ ' .. kline_duration .. ' ]', function()
+        local i = tablex.find(kline_durations, kline_duration) or 0
+        kline_duration = kline_durations[i % #kline_durations + 1]
     end)
     addstr ' '
 
@@ -391,7 +389,7 @@ function draw_buttons()
         add_button(klineText, function()
             snowcone.send_irc(
                 string.format('KLINE %s %s :%s\r\n',
-                    kline_durations[kline_duration][2],
+                    time.parse_duration(kline_duration),
                     staged_action.mask,
                     servers.kline_reasons[kline_reason][2]
                 )

@@ -37,8 +37,8 @@ end
 local handlers = {
     [-ncurses.KEY_PPAGE] = function()
         local elts = math.min(data.max, data.n)
-        scroll = scroll + math.max(1, tty_height - 2)
-        scroll = math.min(scroll, elts - tty_height + 2)
+        scroll = scroll + math.max(1, tty_height - 3)
+        scroll = math.min(scroll, elts - tty_height + 3)
         scroll = math.max(scroll, 0)
     end,
     [-ncurses.KEY_NPAGE] = function()

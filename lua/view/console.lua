@@ -89,8 +89,8 @@ local M = {
 local keys = {
     [-ncurses.KEY_PPAGE] = function()
         local elts = math.min(messages.max, messages.n)
-        scroll = scroll + math.max(1, tty_height - 1)
-        scroll = math.min(scroll, elts - tty_height + 1)
+        scroll = scroll + math.max(1, tty_height - 2)
+        scroll = math.min(scroll, elts - tty_height + 2)
         scroll = math.max(scroll, 0)
     end,
     [-ncurses.KEY_NPAGE] = function()

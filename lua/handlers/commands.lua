@@ -1,6 +1,7 @@
 local tablex = require 'pl.tablex'
 local lexer = require 'pl.lexer'
 local sip = require 'pl.sip'
+local time = require 'utils.time'
 
 local colormap =
   { black = ncurses.black, red = ncurses.red, green = ncurses.green,
@@ -196,6 +197,16 @@ add_command('uptimes', '', function()
     end
     uptimes = {}
     snowcone.send_irc(table.concat(commands))
+end)
+
+add_command('duration', '$r', function(arg)
+    local n = time.parse_duration(arg)
+    arg = string.gsub(arg, ' +', '')
+    if n and n > 0 then
+        kline_duration = arg
+    else
+        status('error', 'bad duration: %s', arg)
+    end
 end)
 
 -- Pretending to be an IRC client
