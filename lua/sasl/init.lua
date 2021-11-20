@@ -38,11 +38,15 @@ function M.start(mechanism, authcid, password, key, authzid)
     elseif mechanism == 'EXTERNAL' then
         co = require_ 'sasl.external' (configuration.irc_sasl_authzid)
     elseif mechanism == 'ECDSA-NIST256P-CHALLENGE' then
+        local openssl = require 'openssl'
         key = assert(file.read(key))
-        co = require_ 'sasl.ecdsa' (authzid, authcid, key, password)
+        key = assert(openssl.pkey.read(key, true, 'auto', password))
+        co = require_ 'sasl.ecdsa' (authzid, authcid, key)
     elseif mechanism == 'ECDH-X25519-CHALLENGE' then
+        local openssl = require 'openssl'
         key = assert(file.read(key))
-        co = require_ 'sasl.ecdh' (authzid, authcid, key, password)
+        key = assert(openssl.pkey.read(key, true, 'auto', password))
+        co = require_ 'sasl.ecdh' (authzid, authcid, key)
     elseif mechanism == 'SCRAM-SHA-1'   then
         co = require_ 'sasl.scram' ('sha1', authzid, authcid, password)
     elseif mechanism == 'SCRAM-SHA-256' then

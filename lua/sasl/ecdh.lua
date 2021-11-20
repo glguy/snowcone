@@ -11,9 +11,7 @@ local function raw_to_x25519(raw)
         false, 'der')
 end
 
-return function(authzid, authcid, key_txt, key_password)
-    local client_seckey = assert(openssl.pkey.read(key_txt, true, 'auto', key_password))
-
+return function(authzid, authcid, client_seckey)
     return coroutine.create(function()
         local first = authcid
         if authzid then

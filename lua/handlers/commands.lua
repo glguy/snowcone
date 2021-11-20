@@ -200,8 +200,8 @@ add_command('uptimes', '', function()
 end)
 
 add_command('duration', '$r', function(arg)
-    local n = utils_time.parse_duration(arg)
     arg = string.gsub(arg, ' +', '')
+    local n = utils_time.parse_duration(arg)
     if n and n > 0 then
         kline_duration = arg
     else

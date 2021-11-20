@@ -20,6 +20,8 @@ noreturn static void usage(void)
     "         [-K challenge_key]\n"
     "         [-M sasl_mechanism]\n"
     "         [-E sasl_username]\n"
+    "         [-D sasl_keyfile]\n"
+    "         [-Z sasl_authzid]\n"
     "         [-C capabilities]\n"
     "         [-L init.lua]\n"
     "         [-f network.lua]\n"

@@ -50,7 +50,9 @@ end
 
 M.AUTHENTICATE = function(irc)
     local chunk = irc[1]
-    if chunk == '+' then chunk = '' end
+    if chunk == '+' then
+        chunk = ''
+    end
 
     if irc_state.authenticate == nil then
         irc_state.authenticate = {chunk}
@@ -63,9 +65,13 @@ M.AUTHENTICATE = function(irc)
 
         local full = table.concat(irc_state.authenticate)
         irc_state.authenticate = nil
-        local payload = assert(snowcone.from_base64(full))
+        local payload = snowcone.from_base64(full)
 
-        if payload ~= nil and irc_state.sasl ~= nil then
+        if payload == nil then
+            status('sasl', 'bad authenticate base64')
+        elseif irc_state.sasl == nil then
+            status('sasl', 'no sasl session active')
+        else
             local success, message = coroutine.resume(irc_state.sasl, payload)
             if success then
                 reply = message
@@ -73,6 +79,7 @@ M.AUTHENTICATE = function(irc)
                 status('sasl', '%s', message)
             end
         end
+
         snowcone.send_irc(sasl.encode_authenticate(reply))
     end
 end
