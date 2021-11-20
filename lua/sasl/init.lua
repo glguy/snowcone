@@ -31,6 +31,14 @@ function M.encode_authenticate(body)
     return table.concat(commands)
 end
 
+local function load_key(key, password)
+    local openssl = require 'openssl'
+    assert(key, "key file not specified (-D)")
+    key = assert(file.read(key))
+    key = assert(openssl.pkey.read(key, true, 'auto', password))
+    return key
+end
+
 function M.start(mechanism, authcid, password, key, authzid)
     local co
     if mechanism == 'PLAIN' then
@@ -38,14 +46,10 @@ function M.start(mechanism, authcid, password, key, authzid)
     elseif mechanism == 'EXTERNAL' then
         co = require_ 'sasl.external' (configuration.irc_sasl_authzid)
     elseif mechanism == 'ECDSA-NIST256P-CHALLENGE' then
-        local openssl = require 'openssl'
-        key = assert(file.read(key))
-        key = assert(openssl.pkey.read(key, true, 'auto', password))
+        key = load_key(key, password)
         co = require_ 'sasl.ecdsa' (authzid, authcid, key)
     elseif mechanism == 'ECDH-X25519-CHALLENGE' then
-        local openssl = require 'openssl'
-        key = assert(file.read(key))
-        key = assert(openssl.pkey.read(key, true, 'auto', password))
+        key = load_key(key, password)
         co = require_ 'sasl.ecdh' (authzid, authcid, key)
     elseif mechanism == 'SCRAM-SHA-1'   then
         co = require_ 'sasl.scram' ('sha1', authzid, authcid, password)

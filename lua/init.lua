@@ -548,14 +548,20 @@ local function irc_register()
     local postreg = ''
     local mech = configuration.irc_sasl_mechanism
     if mech then
-        postreg, irc_state.sasl = sasl.start(
+        local success
+        success, postreg, irc_state.sasl = pcall(sasl.start,
             configuration.irc_sasl_mechanism,
             configuration.irc_sasl_username,
             configuration.irc_sasl_password,
             configuration.irc_sasl_key,
             configuration.irc_sasl_authzid
         )
-        table.insert(caps, 'sasl')
+        if success then
+            table.insert(caps, 'sasl')
+        else
+            status('error', '%s', postreg)
+            postreg = ''
+        end
     end
 
     local capreq = ''
