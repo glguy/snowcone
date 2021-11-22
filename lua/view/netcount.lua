@@ -61,7 +61,7 @@ end
 function M:render()
     magenta()
     bold()
-    mvaddstr(0,37, "Network  Count  Actions")
+    addstr 'Network  Count  Actions'
     normal()
 
     local y = 1
@@ -127,6 +127,8 @@ function M:render()
         addstr(string.format(' %4d', watch.hits))
         normal()
         addstr(string.format(' %-40s', watch.mask))
+
+        y = y + 1
     end
 
     draw_global_load('cliconn', conn_tracker)
