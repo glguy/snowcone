@@ -3,7 +3,7 @@
 return function(time, server, str)
     do
         local nick, user, host, ip, class, account, gecos =
-            string.match(str, '^Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {([^}]*)} <([^>]*)> %[(.*)%]$')
+            string.match(str, '^Client connecting: (%S+) %(([^@ ]+)@([^) ]+)%) %[(.*)%] {(%S*)} <(%S*)> %[(.*)%]$')
         if nick then
             if ip == '0' then ip = nil end
             return {
@@ -23,7 +23,7 @@ return function(time, server, str)
 
     do
         local nick, user, host, reason, ip =
-            string.match(str, '^Client exiting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] %[(.*)%]$')
+            string.match(str, '^Client exiting: (%S+) %(([^@ ]+)@([^) ]+)%) %[(.*)%] %[(.*)%]$')
         if nick then
             if ip == '0' then ip = nil end
             return {
@@ -42,7 +42,7 @@ return function(time, server, str)
     do
         local nick, user, host, oper, duration, kind, mask, reason =
             string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} \z
-                               added %g+ (%d+) min%. (%g+) for %[([^]]*)%] %[(.*)%]$')
+                               added %S+ (%d+) min%. (%S+) for %[(%S*)%] %[(.*)%]$')
         if nick then
             local names = {
                 ['K-Line'] = 'kline',
@@ -68,7 +68,7 @@ return function(time, server, str)
 
     do
         local old, new, user, host =
-            string.match(str, '^Nick change: From (%g+) to (%g+) %[(%g+)@(%g+)%]$')
+            string.match(str, '^Nick change: From (%S+) to (%S+) %[([^@ ]+)@(%S+)%]$')
         if old then
             return {
                 name = 'nick',
@@ -84,7 +84,7 @@ return function(time, server, str)
 
     do
         local nick, user, host, ip =
-            string.match(str, '^FILTER: ([^!]+)!([^@]+)@([^ ]+) %[(.*)%]$')
+            string.match(str, '^FILTER: ([^! ]+)!([^@ ]+)@(%S+) %[(.*)%]$')
         if nick then
             if ip == '0' then ip = nil end
             return {
@@ -101,7 +101,7 @@ return function(time, server, str)
 
     do
         local nick, user, host, mask =
-            string.match(str, '^KLINE active for (.-)%[(.-)@(.-)%] %((.*)%)$')
+            string.match(str, '^KLINE active for (%S+)%[([^@ ]+)@(%S+)%] %((.*)%)$')
             if nick then
                 return {
                     name = 'kline_active',
@@ -117,7 +117,7 @@ return function(time, server, str)
 
     do -- new format added in 430833dca2fc08ae6f423ff6bded4bffeb5d345a
         local nick, user, host, mask =
-            string.match(str, '^Disconnecting K%-Lined user (%g-)%[(%g-)@(%g-)%] %((.*)%)$')
+            string.match(str, '^Disconnecting K%-Lined user (%S+)%[([^@ ]+)@(%S+)%] %((.*)%)$')
         if nick then
             return {
                 name = 'kline_active',
@@ -133,7 +133,7 @@ return function(time, server, str)
 
     do
         local kind, mask =
-            string.match(str, '^Temporary (%g+) for %[(.*)%] expired$')
+            string.match(str, '^Temporary (%S+) for %[(.*)%] expired$')
         if kind then
             return {
                 name = 'expired',
@@ -161,8 +161,8 @@ return function(time, server, str)
 
     do
         local nick, user, host, oper, kind, mask =
-            string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} \z
-                               has removed the %g+ (%g+) for: %[(.*)%]$')
+            string.match(str, '^([^! ]+)!([^@ ]+)@([^{ ]+){(%S*)} \z
+                               has removed the %S+ (%S+) for: %[(.*)%]$')
         if nick then
             return {
                 name = 'removed',
@@ -180,7 +180,7 @@ return function(time, server, str)
 
     do -- old format
         local kind, nick, user, host, mask =
-            string.match(str, '^Rejecting (%g+)d user (%g-)%[(%g-)@(%g-)%] %[(%g+)%]$')
+            string.match(str, '^Rejecting (%S+)d user (%S+)%[([^@ ]+)@(%S+)%] %[(.*)%]$')
         if nick then
             return {
                 name = 'rejected',
@@ -197,7 +197,7 @@ return function(time, server, str)
 
     do -- new format
         local kind, nick, user, host, ip, mask =
-            string.match(str, '^Rejecting (%g+)d user (%g-)%[(%g-)@(%g-)%] %[(%g+)%] %((.*)%)$')
+            string.match(str, '^Rejecting (%S+)d user (%S+)%[([^@ ]+)@(%S+)%] %[(%S*)%] %((.*)%)$')
         if nick then
             if ip == '0' then ip = nil end
             return {
@@ -216,7 +216,7 @@ return function(time, server, str)
 
     do
         local server1, server2, sid1, sid2, reason =
-            string.match(str, '^Netsplit (%g+) <%-> (%g+) %((%g+) (%g+)%) %((.*)%)$')
+            string.match(str, '^Netsplit (%S+) <%-> (%S+) %((%S+) (%S+)%) %((.*)%)$')
         if server1 then
             return {
                 name = 'netsplit',
@@ -233,7 +233,7 @@ return function(time, server, str)
 
     do
         local server1, server2, sid1, sid2 =
-            string.match(str, '^Netjoin (%g+) <%-> (%g+) %((%g+) (%g+)%)$')
+            string.match(str, '^Netjoin (%S+) <%-> (%S+) %((%S+) (%S+)%)$')
         if server1 then
             return {
                 name = 'netjoin',
@@ -249,7 +249,7 @@ return function(time, server, str)
 
     do
         local nick, user, host, from, reason =
-            string.match(str, '^Received KILL message for (.-)!(.-)@(.-)%. From (%g+) Path: %g+ %((.*)%)$')
+            string.match(str, '^Received KILL message for ([^! ]+)!([^@ ]+)@(%S+)%. From (%S+) Path: %S+ %((.*)%)$')
         if nick then
             return {
                 name = 'kill',
@@ -266,7 +266,7 @@ return function(time, server, str)
 
     do -- some kills don't have paths
         local nick, user, host, from, reason =
-            string.match(str, '^Received KILL message for (.-)!(.-)@(.-)%. From (%g+) %((.*)%)$')
+            string.match(str, '^Received KILL message for ([^! ]+)!([^@ ]+)@(%S+)%. From (%S+) %((.*)%)$')
         if nick then
             return {
                 name = 'kill',
@@ -295,7 +295,7 @@ return function(time, server, str)
 
     do
         local nick, user, host, target =
-            string.match(str, '^Possible Flooder (%g%g-)%[([^@]+)@([^]]+)%] on %g+ target: (%g+)$')
+            string.match(str, '^Possible Flooder (%S+)%[([^@ ]+)@(%S+)%] on %S+ target: (%S+)$')
         if nick then
             return {
                 name = 'flooder',
@@ -311,7 +311,7 @@ return function(time, server, str)
 
     do
         local nick, user, host, target =
-            string.match(str, '^User (%g+) %(([^@]*)@([^)]*)%) trying to join (%g+) is a possible spambot$')
+            string.match(str, '^User (%S+) %(([^@ ]+)@(%S*)%) trying to join (%S+) is a possible spambot$')
         if nick then
             return {
                 name = 'spambot',
@@ -327,7 +327,7 @@ return function(time, server, str)
 
     do
         local nick, user, host =
-            string.match(str, '^Excessive target change from (%g+) %((.-)@(.*)%)$')
+            string.match(str, '^Excessive target change from (%S+) %(([^@ ]+)@(.*)%)$')
         if nick then
             return {
                 name = 'targetchange',
@@ -342,7 +342,7 @@ return function(time, server, str)
 
     do
         local nick, channel =
-            string.match(str, '^(%g+) is creating new channel (%g+)$')
+            string.match(str, '^(%S+) is creating new channel (%S+)$')
         if nick then
             return {
                 name = 'create_channel',
@@ -356,7 +356,7 @@ return function(time, server, str)
 
     do
         local nick, user, host, oper, token, arg =
-            string.match(str, '^OPERSPY ([^!]+)!([^@]+)@([^{]+){([^}]*)} (%g+) (.*)$')
+            string.match(str, '^OPERSPY ([^! ]+)!([^@ ]+)@([^{ ]+){([^} ]*)} (%S+) (.*)$')
         if oper then
             return {
                 name = 'operspy',
@@ -374,8 +374,8 @@ return function(time, server, str)
 
     do
         local nick, user, host, oper, target, kind =
-            string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} \z
-                               is using oper%-override on (%g+) %((.*)%)$')
+            string.match(str, '^([^! ]+)!([^@ ]+)@([^{]+){([^}]*)} \z
+                               is using oper%-override on (%S+) %((.*)%)$')
         if nick then
             return {
                 name = 'override',
@@ -393,7 +393,7 @@ return function(time, server, str)
 
     do -- old format
         local kind, nick, user, host =
-            string.match(str, '^Too many (%g+) connections for ([^!]+)!([^@]+)@(.+)$')
+            string.match(str, '^Too many (%S+) connections for ([^! ]+)!([^@ ]+)@(%S+)$')
         if kind then
             return {
                 name = 'toomany',
@@ -409,7 +409,7 @@ return function(time, server, str)
 
     do -- new format bd38559fedcdfded4d9acbcbf988e4a8f5057eeb
         local kind, nick, user, host, ip =
-        string.match(str, '^Too many (%g+) connections for (%g%g-)%[([^@]+)@([^]]+)%] %[(.*)%]$')
+        string.match(str, '^Too many (%S+) connections for (%S+)%[([^@ ]+)@(%S+)%] %[(.*)%]$')
         if ip == '0' then ip = nil end
         if kind then
             return {
@@ -458,7 +458,7 @@ return function(time, server, str)
     -- Previous implementation, useful for oftc-hybrid
     do
         local nick, user, host, ip, class, gecos =
-            string.match(str, '^Client connecting: (%g+) %(([^@]+)@([^)]+)%) %[(.*)%] {([^}]*)} %[(.*)%]$')
+            string.match(str, '^Client connecting: (%S+) %(([^@ ]+)@(%S+)%) %[(%S*)%] {(%S*)} %[(.*)%]$')
         if nick then
             if ip == '0' then ip = nil end
             return {
