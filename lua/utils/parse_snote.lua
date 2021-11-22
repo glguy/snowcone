@@ -295,7 +295,7 @@ return function(time, server, str)
 
     do
         local nick, user, host, target =
-            string.match(str, '^Possible Flooder ([^[]+)%[([^@]+)@([^]]+)%] on %g+ target: (%g+)$')
+            string.match(str, '^Possible Flooder (%g%g-)%[([^@]+)@([^]]+)%] on %g+ target: (%g+)$')
         if nick then
             return {
                 name = 'flooder',
@@ -391,7 +391,7 @@ return function(time, server, str)
         end
     end
 
-    do
+    do -- old format
         local kind, nick, user, host =
             string.match(str, '^Too many (%g+) connections for ([^!]+)!([^@]+)@(.+)$')
         if kind then
@@ -403,6 +403,24 @@ return function(time, server, str)
                 user = user,
                 host = host,
                 kind = kind,
+            }
+        end
+    end
+
+    do -- new format bd38559fedcdfded4d9acbcbf988e4a8f5057eeb
+        local kind, nick, user, host, ip =
+        string.match(str, '^Too many (%g+) connections for (%g%g-)%[([^@]+)@([^]]+)%] %[(.*)%]$')
+        if ip == '0' then ip = nil end
+        if kind then
+            return {
+                name = 'toomany',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                kind = kind,
+                ip = ip,
             }
         end
     end
