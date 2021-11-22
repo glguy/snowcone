@@ -24,6 +24,19 @@ function M:render()
     bold_()
     addstr '\n'
 
+    addstr('OSSL version: ')
+    local has_openssl, openssl = pcall(require, 'openssl')
+    bold()
+    if has_openssl then
+        local lib_version, _, ossl_version = openssl.version()
+        addstr(lib_version .. ' / ' .. ossl_version)
+    else
+        red()
+        addstr('none')
+    end
+    normal()
+    addstr '\n'
+
     addstr("Lua memory:   ")
     bold()
     addstr(string.format('%-10s ', pretty.number(collectgarbage 'count' * 1024, 'M')))
