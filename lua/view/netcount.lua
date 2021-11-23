@@ -61,7 +61,7 @@ end
 function M:render()
     magenta()
     bold()
-    addstr 'Network  Count  Actions'
+    mvaddstr(0, 37, 'Network  Count  Actions')
     normal()
 
     local y = 1
