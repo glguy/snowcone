@@ -1,5 +1,6 @@
 -- Logic for breaking down server notices into semantic notice objects
 
+-- luacheck: ignore 631
 return function(time, server, str)
     do
         local nick, user, host, ip, class, account, gecos =
@@ -41,8 +42,7 @@ return function(time, server, str)
 
     do
         local nick, user, host, oper, duration, kind, mask, reason =
-            string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} \z
-                               added %S+ (%d+) min%. (%S+) for %[(%S*)%] %[(.*)%]$')
+            string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} added %S+ (%d+) min%. (%S+) for %[(%S*)%] %[(.*)%]$')
         if nick then
             local names = {
                 ['K-Line'] = 'kline',
@@ -161,8 +161,7 @@ return function(time, server, str)
 
     do
         local nick, user, host, oper, kind, mask =
-            string.match(str, '^([^! ]+)!([^@ ]+)@([^{ ]+){(%S*)} \z
-                               has removed the %S+ (%S+) for: %[(.*)%]$')
+            string.match(str, '^([^! ]+)!([^@ ]+)@([^{ ]+){(%S*)} has removed the %S+ (%S+) for: %[(.*)%]$')
         if nick then
             return {
                 name = 'removed',
@@ -374,8 +373,7 @@ return function(time, server, str)
 
     do
         local nick, user, host, oper, target, kind =
-            string.match(str, '^([^! ]+)!([^@ ]+)@([^{]+){([^}]*)} \z
-                               is using oper%-override on (%S+) %((.*)%)$')
+            string.match(str, '^([^! ]+)!([^@ ]+)@([^{]+){([^}]*)} is using oper%-override on (%S+) %((.*)%)$')
         if nick then
             return {
                 name = 'override',
