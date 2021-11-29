@@ -455,6 +455,38 @@ return function(time, server, str)
         end
     end
 
+    do -- SASL login failure
+        local count, account, host =
+            string.match(str, '^Warning: \x02([^\x02]+)\x02 failed login attempts to \x02([^\x02]+)\x02%. Last attempt received from \x02<Unknown user on %S+ %(via SASL%):([^\x02]+)>\x02')
+        if count then
+            return {
+                name = 'badlogin',
+                server = server,
+                time = time,
+                count = tonumber(count),
+                account = account,
+                host = host,
+            }
+        end
+    end
+
+    do -- NickServ login failure
+        local count, account, nick, user, host =
+            string.match(str, '^Warning: \x02([^\x02]+)\x02 failed login attempts to \x02([^\x02]+)\x02%. Last attempt received from \x02([^!]+)!([^@]+)@([^\x02]+)\x02')
+        if count then
+            return {
+                name = 'badlogin',
+                server = server,
+                time = time,
+                count = tonumber(count),
+                account = account,
+                host = host,
+                nick = nick,
+                user = user,
+            }
+        end
+    end
+
     -- Previous implementation, useful for oftc-hybrid
     do
         local nick, user, host, ip, class, gecos =
