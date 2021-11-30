@@ -1,5 +1,13 @@
 -- Logic for breaking down server notices into semantic notice objects
 
+local simple = {
+    ['Filtering enabled.'] = 'filtering_enabled',
+    ['Filtering disabled.'] = 'filtering_disabled',
+    ['New filters loaded.'] = 'filtering_loaded',
+    ['Got signal SIGUSR1, reloading ircd motd file'] = 'rehash_motd',
+    ['Got signal SIGHUP, reloading ircd conf. file'] = 'rehash_config',
+}
+
 -- luacheck: ignore 631
 return function(time, server, str)
     do
@@ -423,36 +431,6 @@ return function(time, server, str)
         end
     end
 
-    do
-        if str == 'Filtering enabled.' then
-            return {
-                name = 'filteringenabled',
-                server = server,
-                time = time,
-            }
-        end
-    end
-
-    do
-        if str == 'Filtering disabled.' then
-            return {
-                name = 'filteringdisabled',
-                server = server,
-                time = time,
-            }
-        end
-    end
-
-    do
-        if str == 'New filters loaded.' then
-            return {
-                name = 'filtersloaded',
-                server = server,
-                time = time,
-            }
-        end
-    end
-
     do -- SASL login failure
         local count, account, host =
             string.match(str, '^Warning: \x02([^\x02]+)\x02 failed login attempts to \x02([^\x02]+)\x02%. Last attempt received from \x02<Unknown user on %S+ %(via SASL%):([^\x02]+)>\x02')
@@ -485,6 +463,21 @@ return function(time, server, str)
         end
     end
 
+    do
+        local nick, user, host =
+            string.match(str, '^(%S+) %(([^@ ]*)@(%S*)%) is now an operator$')
+        if nick then
+            return {
+                name = 'oper',
+                server = server,
+                time = time,
+                host = host,
+                nick = nick,
+                user = user,
+            }
+        end
+    end
+
     -- Previous implementation, useful for oftc-hybrid
     do
         local nick, user, host, ip, class, gecos =
@@ -501,6 +494,17 @@ return function(time, server, str)
                 ip = ip,
                 gecos = gecos,
                 class = class,
+            }
+        end
+    end
+
+    do
+        local name = simple[str]
+        if name then
+            return {
+                name = name,
+                server = server,
+                time = time,
             }
         end
     end
