@@ -2,6 +2,7 @@ local addircstr = require_ 'utils.irc_formatting'
 local parse_snote = require 'utils.parse_snote'
 local drawing = require 'utils.drawing'
 local hide_snow = false
+local show_raw = false
 
 local palette = {
     PRIVMSG = blue,
@@ -98,6 +99,7 @@ local keys = {
         scroll = math.max(scroll, 0)
     end,
     [meta 'h'] = function() hide_snow = not hide_snow end,
+    [meta 'r'] = function() show_raw = not show_raw end,
 }
 
 function M:keypress(key)
@@ -106,6 +108,25 @@ function M:keypress(key)
         h()
         draw()
     end
+end
+
+local escapes = {
+    ['"'] = '\\"',
+    ['\\'] = '\\\\',
+    ['\a'] = '\\a',
+    ['\b'] = '\\b',
+    ['\f'] = '\\f',
+    ['\n'] = '\\n',
+    ['\r'] = '\\r',
+    ['\t'] = '\\t',
+    ['\v'] = '\\v',
+}
+
+local function rawstr(str)
+    str = string.gsub(str, '[\x00-\x1f"\\\x7f-\xff]', function(c)
+        return escapes[c] or string.format('\\x%02x', string.byte(c))
+    end)
+    return '"' .. str .. '"'
 end
 
 local function draw_focus(irc, snotice)
@@ -144,7 +165,11 @@ local function draw_focus(irc, snotice)
         blue()
         addstr(string.format('%10d: ', i))
         normal()
-        addircstr(v)
+        if show_raw then
+            addstr(rawstr(v))
+        else
+            addircstr(v)
+        end
         addstr('\n')
     end
 
