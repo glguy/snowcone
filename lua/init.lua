@@ -4,6 +4,7 @@ local tablex = require 'pl.tablex'
 local pretty = require 'pl.pretty'
 local path   = require 'pl.path'
 local file   = require 'pl.file'
+local dir    = require 'pl.dir'
 
 if not uptime then
     require 'pl.stringx'.import()
@@ -74,15 +75,16 @@ end
 
 -- Load network configuration =========================================
 
+local xdgconf = os.getenv 'XDG_CONFIG_HOME'
+if not xdgconf then
+    xdgconf = path.join(os.getenv 'HOME', '.config')
+end
+
 do
     servers = { servers = {}, regions = {},
         kline_reasons = { 'banned', "You are banned."} }
     local conf = configuration.network_filename
     if not conf then
-        local xdgconf = os.getenv 'XDG_CONFIG_HOME'
-        if not xdgconf then
-            xdgconf = path.join(os.getenv 'HOME', '.config')
-        end
         conf = path.join(xdgconf, "snowcone", "servers.lua")
     end
     local txt, file_err = file.read(conf)
@@ -671,6 +673,13 @@ function M.on_irc(irc)
     if f then
         f(irc)
     end
+
+    for _, plugin in ipairs(plugins) do
+        local h = plugin.irc
+        if h then
+            h(irc)
+        end
+    end
 end
 
 function M.on_irc_err(msg)
@@ -719,3 +728,34 @@ function M.on_disconnect()
 end
 
 snowcone.setmodule(M)
+
+do
+    plugins = {}
+    local plugin_dir = path.join(xdgconf, 'snowcone', 'plugins')
+    local success, paths = pcall(dir.getfiles, plugin_dir, '*.lua')
+
+    if success then
+        for _, plugin_path in ipairs(paths) do
+            local plugin, load_error = loadfile(plugin_path)
+
+            local state_path = plugin_path .. ".dat"
+            local state_body = file.read(state_path)
+            local state = state_body and pretty.read(state_body)
+
+            local function save(new_state)
+                file.write(state_path, pretty.write(new_state))
+            end
+
+            if plugin then
+                local started, result = pcall(plugin, state, save)
+                if started then
+                    table.insert(plugins, result)
+                else
+                    status('plugin', 'startup: %s', result)
+                end
+            else
+                status('plugin', 'loadfile: %s', load_error)
+            end
+        end
+    end
+end

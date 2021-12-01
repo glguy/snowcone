@@ -24,6 +24,14 @@ function execute.command()
 
     local command, args = string.match(text, '^ *(%g*) *(.*)$')
     local entry = commands[command]
+
+    if entry == nil then
+        for _, plugin in ipairs(plugins) do
+            entry = plugin.commands and plugin.commands[command]
+            if entry ~= nil then break end
+        end
+    end
+
     if entry then
         input_mode = nil
         status_message = nil

@@ -56,6 +56,19 @@ function M:render()
     bold_()
     addstr '\n'
 
+    addstr('Plugins:      ')
+    bold()
+    for i, plugin in ipairs(plugins) do
+        if i > 1 then
+            bold_()
+            addstr(', ')
+            bold()
+        end
+        addstr(plugin.name)
+    end
+    bold_()
+    addstr '\n'
+
     addstr '\n'
 
     green()

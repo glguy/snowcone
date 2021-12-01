@@ -26,12 +26,24 @@ function M.NOTICE(irc)
         if note then
             local event = parse_snote(irc.time, irc.source, note)
             if event then
+                local handled = false
+
                 local h = handlers[event.name]
                 if h then
                     h(event)
-                    if views[view].active then
-                        draw()
+                    handled = true
+                end
+
+                for _, plugin in ipairs(plugins) do
+                    h = plugin.snotice
+                    if h then
+                        h(event)
+                        handled = true
                     end
+                end
+
+                if handled and views[view].active then
+                    draw()
                 end
             end
         end

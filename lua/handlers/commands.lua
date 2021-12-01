@@ -2,6 +2,7 @@ local tablex = require 'pl.tablex'
 local lexer = require 'pl.lexer'
 local sip = require 'pl.sip'
 local utils_time = require 'utils.time'
+local mkcommand = require 'utils.mkcommand'
 
 local colormap =
   { black = ncurses.black, red = ncurses.red, green = ncurses.green,
@@ -31,18 +32,7 @@ sip.custom_pattern('g', '(%g+)')
 sip.custom_pattern('R', '(.*)')
 
 local function add_command(name, spec, func)
-    local pattern
-    if spec == '' then
-        pattern = function(args) return args == '' end
-    else
-        pattern = assert(sip.compile(spec, {at_start=true}))
-    end
-
-    M[name] = {
-        spec = spec,
-        pattern = pattern,
-        func = func,
-    }
+    M[name] = mkcommand(spec, func)
 end
 
 add_command('quote', '$r', function(args)
