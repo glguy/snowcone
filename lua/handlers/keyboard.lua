@@ -1,3 +1,5 @@
+local tablex = require 'pl.tablex'
+
 local execute = {}
 
 function execute.filter()
@@ -10,6 +12,11 @@ function execute.filter()
 end
 
 local commands = require_ 'handlers.commands'
+
+for _, plugin in ipairs(plugins) do
+    tablex.update(commands, plugin.commands)
+end
+
 function execute.command()
 
     local text = editor.rendered
@@ -24,13 +31,6 @@ function execute.command()
 
     local command, args = string.match(text, '^ *(%g*) *(.*)$')
     local entry = commands[command]
-
-    if entry == nil then
-        for _, plugin in ipairs(plugins) do
-            entry = plugin.commands and plugin.commands[command]
-            if entry ~= nil then break end
-        end
-    end
 
     if entry then
         input_mode = nil

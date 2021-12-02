@@ -240,8 +240,8 @@ function M:search_next_word()
     return i
 end
 
-function M:search_prev_word()
-    local p = snowcone.isalnum
+function M:search_prev_word(p)
+    p = p or snowcone.isalnum
     local i = self.cursor
     local b = self.buffer
     if 1 < i then
@@ -271,7 +271,7 @@ function M:tab(dir, mklist)
         self.tabix = (tabix + dir - 1) % #tablist + 1
         i = cur - #tablist[tabix]
     else
-        i = self:search_prev_word()
+        i = self:search_prev_word(function(c) return c ~= ' ' end)
         local seed = utf8.char(table.unpack(self.buffer, i, cur - 1))
         self.tabix, self.tablist = mklist(seed)
         if self.tablist == nil then
