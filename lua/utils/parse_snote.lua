@@ -478,6 +478,59 @@ return function(time, server, str)
         end
     end
 
+    do
+        local nick, user, host, oper, target, privset =
+        string.match(str, '^([^! ]+)!([^@ ]+)@([^{]+){([^}]*)} is opering (%S+) with privilege set (%S+)$')
+        if oper then
+            return {
+                name = 'grant',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                oper = oper,
+                target = target,
+                privset = privset,
+            }
+        end
+    end
+
+    do
+        local nick, user, host, oper, target, privset =
+        string.match(str, '^([^! ]+)!([^@ ]+)@([^{]+){([^}]*)} is changing the privilege set of (%S+) to (%S+)$')
+        if oper then
+            return {
+                name = 'grant',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                oper = oper,
+                target = target,
+                privset = privset,
+            }
+        end
+    end
+
+    do
+        local nick, user, host, oper, target =
+        string.match(str, '^([^! ]+)!([^@ ]+)@([^{]+){([^}]*)} is deopering (%S+)%.$')
+        if oper then
+            return {
+                name = 'ungrant',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                oper = oper,
+                target = target,
+            }
+        end
+    end
+
     -- Previous implementation, useful for oftc-hybrid
     do
         local nick, user, host, ip, class, gecos =

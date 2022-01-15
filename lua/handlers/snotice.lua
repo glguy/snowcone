@@ -264,6 +264,14 @@ function M.operspy(ev)
     status('snote', 'operspy %s %s %s', ev.oper, ev.token, ev.arg)
 end
 
+function M.grant(ev)
+    status('snote', 'grant by %s for %s to %s', ev.oper, ev.target, ev.privset)
+end
+
+function M.ungrant(ev)
+    status('snote', 'ungrant by %s for %s', ev.oper, ev.target)
+end
+
 local function channel_flag(time, nick, channel, flag)
     local entry = new_channels:each()()
     if entry == nil or entry.nick ~= nick then
