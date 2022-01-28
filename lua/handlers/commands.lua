@@ -1,6 +1,5 @@
 local tablex = require 'pl.tablex'
 local lexer = require 'pl.lexer'
-local sip = require 'pl.sip'
 local utils_time = require 'utils.time'
 local mkcommand = require 'utils.mkcommand'
 
@@ -10,26 +9,6 @@ local colormap =
     cyan = ncurses.cyan, white = ncurses.white, }
 
 local M = {}
-
---[[
-Type      Meaning
-v         identifier
-i         possibly signed integer
-f         floating-point number
-r         rest of line
-q         quoted string (quoted using either ' or ")
-p         a path name
-(         anything inside balanced parentheses
-[         anything inside balanced brackets
-{         anything inside balanced curly brackets
-<         anything inside balanced angle brackets
-
-g         any non-empty printable sequence
-R         rest of line (allowing empty)
-]]
-
-sip.custom_pattern('g', '(%g+)')
-sip.custom_pattern('R', '(.*)')
 
 local function add_command(name, spec, func)
     M[name] = mkcommand(spec, func)
