@@ -2,6 +2,7 @@ local tablex = require 'pl.tablex'
 local lexer = require 'pl.lexer'
 local utils_time = require 'utils.time'
 local mkcommand = require 'utils.mkcommand'
+local send = require 'utils.send'
 
 local colormap =
   { black = ncurses.black, red = ncurses.red, green = ncurses.green,
@@ -181,11 +182,11 @@ end)
 -- Pretending to be an IRC client
 
 add_command('msg', '$g $r', function(target, message)
-    snowcone.send_irc('PRIVMSG ' .. target .. ' :' .. message .. '\r\n')
+    send('PRIVMSG', target, message)
 end)
 
 add_command('notice', '$g $r', function(target, message)
-    snowcone.send_irc('NOTICE ' .. target .. ' :' .. message .. '\r\n')
+    send('NOTICE', target, message)
 end)
 
 add_command('umode', '$R', function(args)
@@ -193,15 +194,15 @@ add_command('umode', '$R', function(args)
 end)
 
 add_command('whois', '$g', function(nick)
-    snowcone.send_irc('WHOIS ' .. nick .. ' ' .. nick .. '\r\n')
+    send('WHOIS', nick, nick)
 end)
 
 add_command('whowas', '$g', function(nick)
-    snowcone.send_irc('WHOWAS ' .. nick .. '\r\n')
+    send('WHOWAS', nick)
 end)
 
 add_command('nick', '$g', function(nick)
-    snowcone.send_irc('NICK ' .. nick .. '\r\n')
+    send('NICK', nick)
 end)
 
 return M

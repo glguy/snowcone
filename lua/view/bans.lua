@@ -1,6 +1,7 @@
 local scrub = require 'utils.scrub'
 local drawing = require 'utils.drawing'
 local time = require 'utils.time'
+local send = require 'utils.send'
 
 local M = {
     title = 'bans',
@@ -97,7 +98,7 @@ function M:render()
         if entry.kind == 'kline' then
             local y, x = ncurses.getyx()
             add_click(y, x, x + #entry.mask, function()
-                snowcone.send_irc('TESTLINE ' .. entry.mask .. '\r\n')
+                send('TESTLINE', entry.mask)
                 staged_action = {action = 'unkline'}
             end)
         elseif entry.kind == 'dline' then

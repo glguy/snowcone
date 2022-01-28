@@ -4,6 +4,7 @@ local N           = require_ 'utils.numerics'
 local challenge   = require_ 'utils.challenge'
 local sasl        = require_ 'sasl'
 local parse_snote = require_ 'utils.parse_snote'
+local send        = require 'utils.send'
 
 local function parse_source(source)
     return string.match(source, '^(.-)!(.-)@(.*)$')
@@ -16,7 +17,7 @@ function M.ERROR()
 end
 
 function M.PING(irc)
-    snowcone.send_irc('PONG :' .. irc[1] .. '\r\n')
+    send('PONG', irc[1])
 end
 
 local handlers = require_ 'handlers.snotice'
@@ -261,7 +262,7 @@ M[N.RPL_ENDOFRSACHALLENGE2] = function()
         local password      = configuration.irc_challenge_password
         local success, resp = pcall(challenge, rsa_key, password, challenge_text)
         if success then
-            snowcone.send_irc('CHALLENGE +' .. resp .. '\r\n')
+            send('CHALLENGE',  '+' .. resp)
             status('irc', 'challenged')
         else
             io.stderr:write(resp,'\n')
@@ -285,7 +286,7 @@ M[N.RPL_SASLSUCCESS] = function()
         irc_state.sasl = nil
 
         if irc_state.registration then
-            snowcone.send_irc 'CAP END\r\n'
+            send('CAP', 'END')
         end
     end
 end
@@ -294,7 +295,7 @@ M[N.ERR_SASLFAIL] = function()
     if irc_state.sasl then
         status('irc', 'SASL failed')
         irc_state.sasl = nil
-        snowcone.send_irc 'QUIT\r\n'
+        send('QUIT')
         snowcone.send_irc(nil)
     end
 end
@@ -302,7 +303,7 @@ end
 M[N.ERR_SASLABORTED] = function()
     if irc_state.sasl then
         irc_state.sasl = nil
-        snowcone.send_irc 'QUIT\r\n'
+        send('QUIT')
         snowcone.send_irc(nil)
     end
 end
@@ -311,7 +312,7 @@ M[N.RPL_SASLMECHS] = function()
     if irc_state.sasl then
         status('irc', 'bad SASL mechanism')
         irc_state.sasl = nil
-        snowcone.send_irc 'QUIT\r\n'
+        send('QUIT')
         snowcone.send_irc(nil)
     end
 end
@@ -321,7 +322,7 @@ local function new_nickname()
         local nick = string.format('%.10s-%05d', configuration.irc_nick, math.random(0,99999))
         irc_state.nick = nick
         irc_state.target_nick = configuration.irc_nick
-        snowcone.send_irc('NICK ' .. nick .. '\r\n')
+        send('NICK', nick)
     end
 end
 

@@ -1,6 +1,7 @@
 -- Logic for parsed snotices
 local ip_org = require_ 'utils.ip_org'
 local tablex = require 'pl.tablex'
+local send = require 'utils.send'
 
 local function count_ip(address, delta)
     if next(net_trackers) then
@@ -101,7 +102,7 @@ function M.disconnect(ev)
     })
 
     if irc_state.target_nick == ev.nick then
-        snowcone.send_irc('NICK ' .. irc_state.target_nick .. '\r\n')
+        send('NICK', irc_state.target_nick)
     end
 end
 
@@ -113,7 +114,7 @@ function M.nick(ev)
     end
 
     if irc_state.target_nick == ev.old then
-        snowcone.send_irc('NICK ' .. irc_state.target_nick .. '\r\n')
+        send('NICK', irc_state.target_nick)
     end
 end
 
@@ -246,7 +247,7 @@ function M.netjoin(ev)
 
     if versions[ev.server2] ~= nil then
         versions[ev.server2] = nil
-        snowcone.send_irc('VERSION ' .. ev.server2 .. '\r\n')
+        send('VERSION', ev.server2)
     end
 end
 

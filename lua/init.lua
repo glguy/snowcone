@@ -46,6 +46,7 @@ local sasl               = require_ 'sasl'
 local addircstr          = require_ 'utils.irc_formatting'
 local drawing            = require_ 'utils.drawing'
 local utils_time         = require_ 'utils.time'
+local send               = require_ 'utils.send'
 
 -- Validate configuration =============================================
 
@@ -194,7 +195,7 @@ function entry_to_kline(entry)
     local success, mask = pcall(libera_masks, entry.user, entry.ip, entry.host, trust_uname)
     if success then
         staged_action = {action = 'kline', mask = mask, nick = entry.nick, entry = entry}
-        snowcone.send_irc('TESTMASK ' .. mask .. '\r\n')
+        send('TESTMASK', mask)
     else
         staged_action = nil
     end
@@ -202,7 +203,7 @@ end
 
 function entry_to_unkline(entry)
     local mask = entry.user .. '@' .. entry.ip
-    snowcone.send_irc('TESTKLINE ' .. mask .. '\r\n')
+    send('TESTKLINE', mask)
     staged_action = {action = 'unkline', nick = entry.nick}
 end
 
@@ -389,12 +390,10 @@ function draw_buttons()
             staged_action.nick or '*',
             staged_action.mask)
         add_button(klineText, function()
-            snowcone.send_irc(
-                string.format('KLINE %s %s :%s\r\n',
-                    utils_time.parse_duration(kline_duration),
-                    staged_action.mask,
-                    servers.kline_reasons[kline_reason][2]
-                )
+            send('KLINE',
+                utils_time.parse_duration(kline_duration),
+                staged_action.mask,
+                servers.kline_reasons[kline_reason][2]
             )
             staged_action = nil
         end)
@@ -414,11 +413,7 @@ function draw_buttons()
             staged_action.mask or '?')
         add_button(klineText, function()
             if staged_action.mask then
-                snowcone.send_irc(
-                    string.format('UNKLINE %s\r\n',
-                        staged_action.mask
-                    )
-                )
+                send('UNKLINE', staged_action.mask)
             end
             staged_action = nil
         end)
@@ -432,9 +427,7 @@ function draw_buttons()
         yellow()
         local dlineText = string.format('[ UNDLINE %s ]', staged_action.mask)
         add_button(dlineText, function()
-            snowcone.send_irc(
-                string.format('UNDLINE %s\r\n', staged_action.mask)
-            )
+            send('UNDLINE', staged_action.mask)
             staged_action = nil
         end)
     end
@@ -509,7 +502,7 @@ function add_network_tracker(name, mask)
 
     net_trackers[name]:track(mask, b, prefix)
     if irc_state.oper then
-        snowcone.send_irc('TESTMASK *@' .. mask .. '\r\n')
+        send('TESTMASK', '*@' .. mask)
     end
 end
 
@@ -611,7 +604,7 @@ if not uv_resources.tick_timer then
     uv_resources.tick_timer:start(1000, 1000, function()
         uptime = uptime + 1
         if irc_state.connected and uptime == liveness + 30 then
-            snowcone.send_irc 'PING snowcone\r\n'
+            send('PING', 'snowcone')
         end
 
         conn_tracker:tick()
@@ -634,7 +627,7 @@ function quit()
     for _, handle in pairs(uv_resources) do
         handle:close()
     end
-    snowcone.send_irc 'QUIT\r\n'
+    send('QUIT')
     snowcone.send_irc(nil)
 end
 
