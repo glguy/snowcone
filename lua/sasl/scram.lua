@@ -23,6 +23,7 @@ local function make_nonce()
     return openssl.base64(string.pack('l', math.random(0)) .. string.pack('l', math.random(0)), true, true)
 end
 
+-- luacheck: ignore 631
 return function(digest_name, authzid, authcid, password, nonce)
     local digest = openssl.digest.get(digest_name)
 
@@ -35,12 +36,11 @@ return function(digest_name, authzid, authcid, password, nonce)
 
         --------------------------------------------------
         local server_first = coroutine.yield(client_first)
-        local server_nonce, salt, iterations = string.match(server_first, '^r=([^,]*),s=([^,]*),i=([^,]*)$')
+        local server_nonce, salt, iterations = assert(string.match(server_first, '^r=([!-+--~]*),s=([%w+/]*=?=?),i=(%d+)$'), 'bad server first')
         salt = assert(openssl.base64(salt, false, true), 'bad salt')
         assert(server_nonce ~= client_nonce)
         assert(server_nonce:startswith(client_nonce))
-        iterations = math.tointeger(iterations)
-        assert(iterations)
+        iterations = assert(math.tointeger(iterations), 'bad iteration count')
 
         local client_final_without_proof = 'c=' .. cbind_input .. ',r=' .. server_nonce
         local auth_message = client_first_bare .. ',' .. server_first .. ',' .. client_final_without_proof
@@ -56,7 +56,7 @@ return function(digest_name, authzid, authcid, password, nonce)
 
         --------------------------------------------------
         local server_final = coroutine.yield(client_final)
-        local sig64 = assert(string.match(server_final, '^v=([^,]*)$'), 'bad envelope')
+        local sig64 = assert(string.match(server_final, '^v=([%w+/]*=?=?)$'), 'bad server final')
         local sig = assert(openssl.base64(sig64, false, true), 'bad base64')
         assert(server_signature == sig)
         return ''
