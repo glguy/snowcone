@@ -35,7 +35,7 @@ return function(digest_name, authzid, authcid, password, nonce)
 
         --------------------------------------------------
         local server_first = coroutine.yield(client_first)
-        local server_nonce, salt, iterations = string.match(server_first, '^r=([^,]*),s=([^,]*),i=([^,]*)')
+        local server_nonce, salt, iterations = string.match(server_first, '^r=([^,]*),s=([^,]*),i=([^,]*)$')
         salt = assert(openssl.base64(salt, false, true), 'bad salt')
         assert(server_nonce ~= client_nonce)
         assert(server_nonce:startswith(client_nonce))
@@ -56,7 +56,7 @@ return function(digest_name, authzid, authcid, password, nonce)
 
         --------------------------------------------------
         local server_final = coroutine.yield(client_final)
-        local sig64 = assert(string.match(server_final, '^v=([^,]*)'), 'bad envelope')
+        local sig64 = assert(string.match(server_final, '^v=([^,]*)$'), 'bad envelope')
         local sig = assert(openssl.base64(sig64, false, true), 'bad base64')
         assert(server_signature == sig)
         return ''
