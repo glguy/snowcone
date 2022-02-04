@@ -2,6 +2,7 @@ local addircstr = require 'utils.irc_formatting'
 local scrub = require 'utils.scrub'
 local drawing = require 'utils.drawing'
 local send = require 'utils.send'
+local utils_time = require 'utils.time'
 
 return function(data, label, tracker)
 
@@ -52,9 +53,9 @@ local handlers = {
     [string.byte('k')] = function()
         if staged_action.action == 'kline' then
             send('KLINE',
-                kline_durations[kline_duration][2],
+                utils_time.parse_duration(kline_duration),
                 staged_action.mask,
-                kline_reasons[kline_reason][2]
+                servers.kline_reasons[kline_reason][2]
             )
             staged_action = nil
         end
