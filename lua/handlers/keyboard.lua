@@ -14,7 +14,10 @@ end
 local commands = require_ 'handlers.commands'
 
 for _, plugin in ipairs(plugins) do
-    tablex.update(commands, plugin.commands)
+    local plugin_commands = plugin.commands
+    if plugin_commands ~= nil then
+        tablex.update(commands, plugin_commands)
+    end
 end
 
 function execute.command()
