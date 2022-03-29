@@ -452,6 +452,7 @@ views = {
     console = require_ 'view.console',
     channels = require_ 'view.channels',
     status = require_ 'view.status',
+    plugins = require_ 'view.plugins',
 }
 
 main_views = {'cliconn', 'connload', 'cliexit', 'exitload', 'bans', 'channels', 'netcount', 'console'}
