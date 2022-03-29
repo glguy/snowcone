@@ -21,7 +21,7 @@ function M:render()
         local widgets = plugin.widgets
         if widgets ~= nil then
             for _, entry in ipairs(widgets) do
-
+                normal()
                 if type(entry) == 'function' then
                     local success, result = pcall(entry)
                     if success then
@@ -30,6 +30,8 @@ function M:render()
                         red()
                     end
                     entry = result
+                else
+                    green()
                 end
 
                 if type(entry) == 'table' then
