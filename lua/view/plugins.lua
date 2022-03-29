@@ -14,6 +14,7 @@ function M:render()
     for i, plugin in ipairs(plugins) do
         local name = plugin.name or '#' .. tostring(i)
 
+        normal()
         bold()
         addstr(name .. '\n')
         normal()
@@ -21,7 +22,6 @@ function M:render()
         local widgets = plugin.widgets
         if widgets ~= nil then
             for _, entry in ipairs(widgets) do
-                normal()
                 if type(entry) == 'function' then
                     local success, result = pcall(entry)
                     if success then
