@@ -22,26 +22,25 @@ function M:render()
         local widgets = plugin.widgets
         if widgets ~= nil then
             for _, entry in ipairs(widgets) do
+                addstr('    ')
                 if type(entry) == 'function' then
                     local success, result = pcall(entry)
                     if success then
-                        green()
+                        normal()
                     else
                         red()
+                        addstr(tostring(result))
                     end
-                    entry = result
-                else
-                    green()
-                end
-
-                if type(entry) == 'table' then
+                elseif type(entry) == 'table' then
                     entry = pretty.write(entry)
+                    entry = entry:gsub('\n', '\n    ')
+                    addstr('    ' .. entry)
                 else
                     entry = tostring(entry)
+                    entry = entry:gsub('\n', '\n    ')
+                    addstr('    ' .. entry)
                 end
-
-                entry = entry:gsub('\n', '\n    ')
-                addstr('    ' .. entry .. '\n')
+                addstr '\n'
             end
         end
     end
