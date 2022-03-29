@@ -38,7 +38,10 @@ function M.NOTICE(irc)
                 for _, plugin in ipairs(plugins) do
                     h = plugin.snotice
                     if h then
-                        h(event)
+                        local success, err = pcall(h, event)
+                        if not success then
+                            status(plugin.name, 'snotice handler error: ' .. tostring(err))
+                        end
                         handled = true
                     end
                 end

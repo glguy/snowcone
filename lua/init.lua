@@ -704,7 +704,10 @@ function M.on_irc(irc)
     for _, plugin in ipairs(plugins) do
         local h = plugin.irc
         if h then
-            h(irc)
+            local success, err = pcall(h, irc)
+            if not success then
+                status(plugin.name, 'irc handler error: ' .. tostring(err))
+            end
         end
     end
 end
