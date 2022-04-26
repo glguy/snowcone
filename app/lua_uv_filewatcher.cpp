@@ -1,16 +1,21 @@
 
 #include <assert.h>
 
-#include "app.h"
-#include "lua_uv_filewatcher.h"
+extern "C" {
 #include "lauxlib.h"
-#include "safecall.h"
+}
 
-static char const* const typename = "uv_fs_event";
+#include "app.hpp"
+#include "lua_uv_filewatcher.hpp"
+#include "safecall.hpp"
+
+static char const* const type_name = "uv_fs_event";
+
+template<> char const* udata_name<uv_fs_event_t> = "uv_fs_event";
 
 static void on_close(uv_handle_t *handle)
 {
-    struct app * const a = handle->loop->data;
+    auto const a = static_cast<app*>(handle->loop->data);
     lua_State * const L = a->L;
     lua_pushnil(L);
     lua_rawsetp(L, LUA_REGISTRYINDEX, handle);
@@ -18,14 +23,14 @@ static void on_close(uv_handle_t *handle)
 
 static int l_close(lua_State *L)
 {
-    uv_fs_event_t *fs_event = luaL_checkudata(L, 1, typename);
+    auto fs_event = check_udata<uv_fs_event_t>(L, 1);
     uv_close((uv_handle_t*)fs_event, on_close);
     return 0;
 }
 
 void on_file(uv_fs_event_t *handle, const char *filename, int events, int status)
 {
-    struct app * const a = handle->loop->data;
+    auto const a = static_cast<app*>(handle->loop->data);
     lua_State * const L = a->L;
     lua_rawgetp(L, LUA_REGISTRYINDEX, handle);
     lua_getuservalue(L, -1);
@@ -35,7 +40,7 @@ void on_file(uv_fs_event_t *handle, const char *filename, int events, int status
 
 static int l_start(lua_State *L)
 {
-    uv_fs_event_t *fs_event = luaL_checkudata(L, 1, typename);
+    auto fs_event = check_udata<uv_fs_event_t>(L, 1);
     char const* dir = luaL_checkstring(L, 2);
     luaL_checkany(L, 3);
     lua_settop(L, 3);
@@ -55,14 +60,11 @@ static luaL_Reg MT[] = {
 
 void push_new_fs_event(lua_State *L, uv_loop_t *loop)
 {
-    uv_fs_event_t *fs_event = lua_newuserdata(L, sizeof *fs_event);
-
-    if (luaL_newmetatable(L, typename)) {
+    auto fs_event = new_udata<uv_fs_event_t>(L, [L]() {
         luaL_setfuncs(L, MT, 0);
         lua_pushvalue(L, -1);
         lua_setfield(L, -2, "__index");
-    }
-    lua_setmetatable(L, -2);
+    });
 
     lua_pushvalue(L, -1);
     lua_rawsetp(L, LUA_REGISTRYINDEX, fs_event);

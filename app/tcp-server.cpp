@@ -4,24 +4,24 @@
 #include <uv.h>
 #include <ncurses.h>
 
-#include "app.h"
-#include "read-line.h"
-#include "tcp-server.h"
-#include "write.h"
+#include <memory>
+
+#include "app.hpp"
+#include "read-line.hpp"
+#include "tcp-server.hpp"
+#include "write.hpp"
+
 
 /* TCP SERVER ********************************************************/
 
 static void on_new_connection(uv_stream_t *server, int status);
-static void on_line(uv_stream_t *, char *);
-static void free_handle(uv_handle_t *handle);
 
 int start_tcp_server(struct app *a)
 {
-    struct addrinfo const hints = {
-        .ai_flags = AI_PASSIVE,
-        .ai_family = PF_UNSPEC,
-        .ai_socktype = SOCK_STREAM,
-    };
+    struct addrinfo hints {};
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_family = PF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
 
     // Resolve the addresses
     uv_getaddrinfo_t req;
@@ -41,9 +41,7 @@ int start_tcp_server(struct app *a)
     }
 
     // Allocate temporary storage for tracking all the inprogress sockets
-    a->listeners = calloc(n, sizeof a->listeners[0]);
-    assert(a->listeners);
-    a->listeners_len = n;
+    a->listeners.resize(n);
 
     // Allocate all tcp streams
     size_t i = 0;
@@ -82,7 +80,7 @@ teardown:
     uv_freeaddrinfo(req.addrinfo);
     for (i = 0; i < n; i++)
     {
-        uv_close((uv_handle_t*)&a->listeners[i], NULL);
+        uv_close((uv_handle_t*)&a->listeners[i], nullptr);
     }
     return 1;
 }
@@ -95,13 +93,7 @@ static void on_new_connection(uv_stream_t *server, int status)
         return;
     }
 
-    struct readline_data *data = calloc(1, sizeof *data);
-    assert(data);
-    data->line_cb = on_line;
-
-    uv_tcp_t *client = malloc(sizeof *client);
-    assert(client);
-    client->data = data;
+    auto client = new uv_tcp_t;
 
     int res = uv_tcp_init(server->loop, client);
     assert(0 == res);
@@ -109,15 +101,11 @@ static void on_new_connection(uv_stream_t *server, int status)
     res = uv_accept(server, (uv_stream_t*)client);
     assert(0 == res);
 
-    res = uv_read_start((uv_stream_t *)client, readline_alloc, readline_cb);
+    res = readline_start(reinterpret_cast<uv_stream_t *>(client), [](uv_stream_t *stream, char *msg) {
+        if (msg) {
+            auto a = static_cast<app*>(stream->loop->data);
+            do_command(a, msg, stream);
+        }
+    });
     assert(0 == res);
-}
-
-static void on_line(uv_stream_t *stream, char *msg)
-{
-    if (msg)
-    {
-        struct app *a = stream->loop->data;
-        do_command(a, msg, stream);
-    }
 }

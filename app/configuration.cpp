@@ -4,8 +4,8 @@
 #include <stdnoreturn.h>
 #include <unistd.h>
 
-#include "configuration.h"
-#include "config.h"
+#include "config.hpp"
+#include "configuration.hpp"
 
 noreturn static void usage(void) 
 {

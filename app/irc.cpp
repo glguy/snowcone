@@ -4,12 +4,12 @@
 
 #include <uv.h>
 
-#include "app.h"
-#include "configuration.h"
-#include "irc.h"
-#include "read-line.h"
-#include "write.h"
-#include "socat.h"
+#include "app.hpp"
+#include "configuration.hpp"
+#include "irc.hpp"
+#include "read-line.hpp"
+#include "socat.hpp"
+#include "write.hpp"
 
 static void on_line(uv_stream_t *, char *msg);
 static void on_err_line(uv_stream_t *stream, char *line);
@@ -25,20 +25,12 @@ int start_irc(struct app *a)
     {
         return 1;
     }
- 
-    struct readline_data *irc_data = calloc(1, sizeof *irc_data);
-    assert(irc_data);
-    irc_data->line_cb = on_line;
-    irc->data = irc_data;
+
     app_set_irc(a, irc);
-    r = uv_read_start(irc, readline_alloc, readline_cb);
+    r = readline_start(irc, on_line);
     assert(0 == r);
 
-    struct readline_data *err_data = calloc(1, sizeof *err_data);
-    assert(err_data);
-    err_data->line_cb = on_err_line;
-    err->data = err_data;
-    r = uv_read_start(err, readline_alloc, readline_cb);
+    r = readline_start(err, on_err_line);
     assert(0 == r);
 
 
@@ -47,7 +39,7 @@ int start_irc(struct app *a)
 
 static void on_err_line(uv_stream_t *stream, char *line)
 {
-    struct app * const a = stream->loop->data;
+    auto const a = static_cast<app*>(stream->loop->data);
 
     if (line)
     {
@@ -57,7 +49,7 @@ static void on_err_line(uv_stream_t *stream, char *line)
 
 static void on_line(uv_stream_t *stream, char *line)
 {
-    struct app * const a = stream->loop->data;
+    auto const a = static_cast<app*>(stream->loop->data);
     int r;
 
     if (line)
@@ -74,7 +66,7 @@ static void on_line(uv_stream_t *stream, char *line)
 
         if (!a->closing)
         {
-            uv_timer_t *timer = malloc(sizeof *timer);
+            auto timer = new uv_timer_t;
             assert(timer);
 
             r = uv_timer_init(&a->loop, timer);
@@ -88,7 +80,7 @@ static void on_line(uv_stream_t *stream, char *line)
 
 static void on_reconnect(uv_timer_t *timer)
 {
-    struct app * const a = timer->loop->data;
-    free(timer);
+    auto  const a = static_cast<app*>(timer->loop->data);
+    delete timer;
     start_irc(a);
 }

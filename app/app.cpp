@@ -7,25 +7,27 @@
 #include <unistd.h>
 #include <signal.h>
 
+#include <vector>
+
 #include <ncurses.h>
 
-#include "lua.h"
+extern "C" {
 #include "lauxlib.h"
 #include "lualib.h"
 
 #include <ircmsg.h>
 #include <myncurses.h>
-
 #if HAS_GEOIP
 #include <mygeoip.h>
 #endif
-
-#include "app.h"
 #include "mybase64.h"
-#include "lua_uv_timer.h"
-#include "lua_uv_filewatcher.h"
-#include "safecall.h"
-#include "write.h"
+}
+
+#include "app.hpp"
+#include "lua_uv_filewatcher.hpp"
+#include "lua_uv_timer.hpp"
+#include "safecall.hpp"
+#include "write.hpp"
 
 static char logic_module;
 
@@ -103,13 +105,13 @@ static int l_pton(lua_State *L)
 static void
 on_dnslookup(uv_getaddrinfo_t *req, int status, struct addrinfo *res)
 {
-    struct app * const a = req->loop->data;
+    auto const a = static_cast<app*>(req->loop->data);
     lua_State * const L = a->L;
 
     lua_rawgetp(L, LUA_REGISTRYINDEX, req);
     lua_pushnil(L);
     lua_rawsetp(L, LUA_REGISTRYINDEX, req);
-    free(req);
+    delete req;
 
     if (0 == status) {
         do_dns(a, res); // pushes two arrays
@@ -132,14 +134,13 @@ l_dnslookup(lua_State *L)
     luaL_checkany(L, 2);
     lua_settop(L, 2);
 
-    uv_getaddrinfo_t *req = malloc(sizeof *req);
-    assert(req);
+    auto req = new uv_getaddrinfo_t;
 
     struct addrinfo const hints = { .ai_socktype = SOCK_STREAM };
-    int r = uv_getaddrinfo(&a->loop, req, on_dnslookup, hostname, NULL, &hints);
+    int r = uv_getaddrinfo(&a->loop, req, on_dnslookup, hostname, nullptr, &hints);
     if (0 != r)
     {
-        free(req);
+        delete req;
         return luaL_error(L, "dnslookup: %s", uv_strerror(r));
     }
 
@@ -160,7 +161,7 @@ static int l_print(lua_State *L)
         luaL_buffinit(L, &b);
 
         for (int i = 1; i <= n; i++) {
-                (void)luaL_tolstring(L, i, NULL); // leaves string on stack
+                (void)luaL_tolstring(L, i, nullptr); // leaves string on stack
                 luaL_addvalue(&b); // consumes string
                 if (i<n) luaL_addchar(&b, '\t');
         }
@@ -191,12 +192,12 @@ static int l_to_base64(lua_State *L)
     size_t input_len;
     char const* input = luaL_checklstring(L, 1, &input_len);
     size_t outlen = (input_len + 2) / 3 * 4 + 1;
-    char *output = malloc(outlen);
+    char *output = new char[outlen];
     assert(output);
 
     mybase64_encode(input, input_len, output);
     lua_pushstring(L, output);
-    free(output);
+    delete [] output;
     return 1;
 }
 
@@ -205,28 +206,21 @@ static int l_from_base64(lua_State *L)
     size_t input_len;
     char const* input = luaL_checklstring(L, 1, &input_len);
     size_t outlen = (input_len + 3) / 4 * 3;
-    char *output = malloc(outlen);
-    assert(output);
+    
+    std::vector<char> output(outlen);
 
-    ssize_t len = mybase64_decode(input, input_len, output);
+    ssize_t len = mybase64_decode(input, input_len, output.data());
     if (0 <= len)
     {
-        lua_pushlstring(L, output, len);
-        free(output);
+        lua_pushlstring(L, output.data(), len);
         return 1;
     }
     else
     {
-        free(output);
         lua_pushnil(L);
         lua_pushstring(L, "base64 decoding error");
         return 2;
     }
-}
-
-static void on_shutdown(uv_shutdown_t *req, int status)
-{
-    free(req);
 }
 
 static int l_send_irc(lua_State *L)
@@ -234,20 +228,19 @@ static int l_send_irc(lua_State *L)
     struct app * const a = *app_ref(L);
 
     size_t len;
-    char const* cmd = luaL_optlstring(L, 1, NULL, &len);
+    char const* cmd = luaL_optlstring(L, 1, nullptr, &len);
 
-    if (NULL == a->irc)
+    if (nullptr == a->irc)
     {
         return luaL_error(L, "IRC not connected");
     }
 
-    if (NULL == cmd)
+    if (nullptr == cmd)
     {
-        uv_shutdown_t *shutdown = malloc(sizeof *shutdown);
-        assert(shutdown);
-        int res = uv_shutdown(shutdown, a->irc, on_shutdown);
+        auto shutdown = new uv_shutdown_t;
+        int res = uv_shutdown(shutdown, a->irc, [](auto req, auto stat) { delete req; });
         assert(0 == res);
-        a->irc = NULL;
+        a->irc = nullptr;
     }
     else
     {
@@ -259,16 +252,15 @@ static int l_send_irc(lua_State *L)
 
 static int l_shutdown(lua_State *L)
 {
-    struct app * const a = *app_ref(L);
+    auto const a = *app_ref(L);
     a->closing = true;
 
-    for (size_t i = 0; i < a->listeners_len; i++)
-    {
-        uv_close((uv_handle_t*)&a->listeners[i], NULL);
+    for (auto &l : a->listeners) {
+        uv_close(reinterpret_cast<uv_handle_t*>(&l), nullptr);
     }
 
-    uv_close((uv_handle_t*)&a->input, NULL);
-    uv_close((uv_handle_t*)&a->winch, NULL);
+    uv_close(reinterpret_cast<uv_handle_t*>(&a->input), nullptr);
+    uv_close(reinterpret_cast<uv_handle_t*>(&a->winch), nullptr);
     return 0;
 }
 
@@ -443,23 +435,7 @@ static void start_lua(struct app *a)
 
 struct app *app_new(struct configuration *cfg)
 {
-    struct app *a = malloc(sizeof *a);
-    assert(a);
-
-    *a = (struct app) {
-        .cfg = cfg,
-        .loop.data = a,
-    };
-
-    int r = uv_loop_init(&a->loop);
-    assert(0 == r);
-
-    r = uv_poll_init(&a->loop, &a->input, STDIN_FILENO);
-    assert(0 == r);
-
-    r = uv_signal_init(&a->loop, &a->winch);
-    assert(0 == r);
-
+    auto a = new app(cfg);
     start_lua(a);
     return a;
 }
@@ -468,10 +444,8 @@ void app_free(struct app *a)
 {
     if (a)
     {
-        uv_loop_close(&a->loop);
-        free(a->listeners);
         lua_close(a->L);
-        free(a);
+        delete a;
     }
 }
 
@@ -530,7 +504,7 @@ void do_command(
         lua_callback(a->L, "on_input");
     }
     
-    a->console = NULL;
+    a->console = nullptr;
 }
 
 void do_keyboard(struct app *a, long key)
@@ -547,7 +521,7 @@ void app_set_irc(struct app *a, uv_stream_t *irc)
 
 void app_clear_irc(struct app *a)
 {
-    a->irc = NULL;
+    a->irc = nullptr;
     lua_callback(a->L, "on_disconnect");
 }
 
@@ -564,7 +538,7 @@ static void do_dns(struct app *a, struct addrinfo const* ai)
     lua_newtable(L);
     lua_Integer i = 0;
     while (ai) {
-        int r = getnameinfo(ai->ai_addr, ai->ai_addrlen, buffer, sizeof buffer, NULL, 0, NI_NUMERICHOST);
+        int r = getnameinfo(ai->ai_addr, ai->ai_addrlen, buffer, sizeof buffer, nullptr, 0, NI_NUMERICHOST);
         if (0 == r){
             i++;
             lua_pushstring(L, buffer);
@@ -609,4 +583,9 @@ void do_mouse(struct app *a, int y, int x)
     lua_pushinteger(a->L, y);
     lua_pushinteger(a->L, x);
     lua_callback(a->L, "on_mouse");
+}
+
+inline struct app **app_ref(lua_State *L)
+{
+    return static_cast<app**>(lua_getextraspace(L));
 }

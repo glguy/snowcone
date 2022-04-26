@@ -13,12 +13,12 @@
 #include <curses.h>
 #include <uv.h>
 
-#include "app.h"
-#include "configuration.h"
-#include "irc.h"
-#include "read-line.h"
-#include "tcp-server.h"
-#include "write.h"
+#include "app.hpp"
+#include "configuration.hpp"
+#include "irc.hpp"
+#include "read-line.hpp"
+#include "tcp-server.hpp"
+#include "write.hpp"
 
 static void on_winch(uv_signal_t* handle, int signum);
 
@@ -26,7 +26,7 @@ static void on_winch(uv_signal_t* handle, int signum);
 
 static void on_stdin(uv_poll_t *handle, int status, int events)
 {
-    struct app *a = handle->loop->data;
+    struct app *a = static_cast<app *>(handle->loop->data);
 
     int key;
     mbstate_t ps = {};
@@ -68,7 +68,7 @@ static void on_stdin(uv_poll_t *handle, int status, int events)
 
 static void on_winch(uv_signal_t* handle, int signum)
 {
-    struct app *a = handle->loop->data;
+    struct app *a = static_cast<app*>(handle->loop->data);
     endwin();
     refresh();
     app_set_window_size(a);
