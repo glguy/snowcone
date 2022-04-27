@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "read-line.hpp"
+#include "uv.hpp"
 
 namespace {
 void alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
@@ -17,7 +18,7 @@ void read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
     if (nread < 0)
     {
         d->cb(stream, NULL);
-        uv_close(reinterpret_cast<uv_handle_t*>(stream), [](auto handle) {
+        uv_close_xx(stream, [](auto handle) {
             delete static_cast<readline_data*>(handle->data);
             delete handle;
         });
@@ -40,7 +41,7 @@ void read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 }
 }
 
-int readline_start(uv_stream_t *stream, line_cb *on_line) {
+auto readline_start(uv_stream_t *stream, line_cb *on_line) -> void {
     stream->data = new readline_data(on_line);
-    return uv_read_start(stream, alloc_cb, read_cb);
+    uvok(uv_read_start(stream, alloc_cb, read_cb));
 }

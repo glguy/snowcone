@@ -13,7 +13,7 @@ extern "C" {
 #include <ircmsg.h>
 }
 
-#include "uverror.hpp"
+#include "uv.hpp"
 #include "configuration.hpp"
 
 struct uv_loop_xx : public ::uv_loop_t {
@@ -21,7 +21,6 @@ struct uv_loop_xx : public ::uv_loop_t {
         uvok(uv_loop_init(this));
     }
     ~uv_loop_xx() {
-        uv_print_all_handles(this, stdout);
         uvok(uv_loop_close(this));
     }
 };

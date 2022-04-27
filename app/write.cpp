@@ -5,6 +5,7 @@
 #include <uv.h>
 #include <vector>
 
+#include "uv.hpp"
 #include "write.hpp"
 
 struct Request {
@@ -13,25 +14,17 @@ struct Request {
     uv_buf_t buf;
 
     Request(char const* msg, size_t n)
-    : write()    
+    : write {}    
     , body(msg, msg+n)
-    , buf()
-    {
-        buf.base = body.data();
-        buf.len = n; 
-    }
+    , buf {body.data(), n}
+    {}
 };
-
-static void write_done(uv_write_t *write, int status);
 
 void to_write(uv_stream_t *stream, char const* msg, size_t n)
 {
     auto req = new Request(msg, n);
-    int res = uv_write(&req->write, stream, &req->buf, 1, write_done);
-    assert(0 == res);
-}
-
-static void write_done(uv_write_t *write, int status)
-{
-    delete reinterpret_cast<Request*>(write);
+    req->write.data = req;
+    uvok(uv_write(&req->write, stream, &req->buf, 1, [](auto write, auto status){
+        delete static_cast<Request*>(write->data);
+    }));
 }

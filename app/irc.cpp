@@ -13,9 +13,6 @@
 
 static void on_line(uv_stream_t *, char *msg);
 static void on_err_line(uv_stream_t *stream, char *line);
-static void on_connect(uv_connect_t* req, int status);
-static void on_close(void *data);
-static void on_reconnect(uv_timer_t *timer);
 
 int start_irc(struct app *a)
 {
@@ -27,12 +24,8 @@ int start_irc(struct app *a)
     }
 
     app_set_irc(a, irc);
-    r = readline_start(irc, on_line);
-    assert(0 == r);
-
-    r = readline_start(err, on_err_line);
-    assert(0 == r);
-
+    readline_start(irc, on_line);
+    readline_start(err, on_err_line);
 
     return 0;
 }
@@ -67,20 +60,12 @@ static void on_line(uv_stream_t *stream, char *line)
         if (!a->closing)
         {
             auto timer = new uv_timer_t;
-            assert(timer);
-
-            r = uv_timer_init(&a->loop, timer);
-            assert(0 == r);
-
-            r = uv_timer_start(timer, on_reconnect, 5000, 0);
-            assert(0 == r);
+            uvok(uv_timer_init(&a->loop, timer));
+            uvok(uv_timer_start(timer, [](auto timer) {
+                auto const a = static_cast<app*>(timer->loop->data);
+                delete timer;
+                start_irc(a);
+            }, 5000, 0));
         }
     }
-}
-
-static void on_reconnect(uv_timer_t *timer)
-{
-    auto  const a = static_cast<app*>(timer->loop->data);
-    delete timer;
-    start_irc(a);
 }

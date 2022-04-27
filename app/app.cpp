@@ -8,6 +8,7 @@
 #include <signal.h>
 
 #include <vector>
+#include <iostream>
 
 #include <ncurses.h>
 
@@ -24,6 +25,7 @@ extern "C" {
 }
 
 #include "app.hpp"
+#include "uv.hpp"
 #include "lua_uv_filewatcher.hpp"
 #include "lua_uv_timer.hpp"
 #include "safecall.hpp"
@@ -255,12 +257,23 @@ static int l_shutdown(lua_State *L)
     auto const a = *app_ref(L);
     a->closing = true;
 
-    for (auto &l : a->listeners) {
-        uv_close(reinterpret_cast<uv_handle_t*>(&l), nullptr);
+    for (auto &&l : a->listeners) {
+        uv_close_xx(&l);
     }
+    
+    uv_poll_stop(&a->input);
+    uv_signal_stop(&a->winch);
+    
+    auto t = new uv_timer_t;
+    uv_timer_init(&a->loop, t);
+    uv_timer_start(t, [](auto t) {
+        auto const a = static_cast<app*>(t->loop->data);
+        uv_close_xx(&a->winch);
+        uv_close_xx(&a->input);
+        uv_close_xx(t, [](auto t){ delete t; });
 
-    uv_close(reinterpret_cast<uv_handle_t*>(&a->input), nullptr);
-    uv_close(reinterpret_cast<uv_handle_t*>(&a->winch), nullptr);
+    }, 0, 0);
+
     return 0;
 }
 

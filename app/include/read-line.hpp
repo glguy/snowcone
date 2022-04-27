@@ -24,6 +24,6 @@ struct readline_data
 };
 }
 
-int readline_start(uv_stream_t *stream, line_cb *on_line);
+void readline_start(uv_stream_t *stream, line_cb *on_line);
 
 #endif

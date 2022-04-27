@@ -5,6 +5,7 @@
 #include <ncurses.h>
 
 #include <memory>
+#include <iostream>
 
 #include "app.hpp"
 #include "read-line.hpp"
@@ -64,7 +65,7 @@ int start_tcp_server(struct app *a)
             goto teardown;
         } 
 
-        res = uv_listen((uv_stream_t*)tcp, SOMAXCONN, &on_new_connection);
+        res = uv_listen(reinterpret_cast<uv_stream_t*>(tcp), SOMAXCONN, &on_new_connection);
         if (res < 0)
         {
             endwin();
@@ -78,9 +79,8 @@ int start_tcp_server(struct app *a)
 
 teardown:
     uv_freeaddrinfo(req.addrinfo);
-    for (i = 0; i < n; i++)
-    {
-        uv_close((uv_handle_t*)&a->listeners[i], nullptr);
+    for (auto && x : a->listeners) {
+        uv_close_xx(&x);
     }
     return 1;
 }
@@ -89,23 +89,19 @@ static void on_new_connection(uv_stream_t *server, int status)
 {
     if (status < 0) {
         fprintf(stderr, "New connection error %s\n", uv_strerror(status));
-        uv_close((uv_handle_t*)server, NULL);
+        uv_close_xx(server);
         return;
     }
 
     auto client = new uv_tcp_t;
+    uvok(uv_tcp_init(server->loop, client));
 
-    int res = uv_tcp_init(server->loop, client);
-    assert(0 == res);
+    uvok(uv_accept(server, reinterpret_cast<uv_stream_t*>(client)));
 
-    res = uv_accept(server, (uv_stream_t*)client);
-    assert(0 == res);
-
-    res = readline_start(reinterpret_cast<uv_stream_t *>(client), [](uv_stream_t *stream, char *msg) {
+    readline_start(reinterpret_cast<uv_stream_t *>(client), [](uv_stream_t *stream, char *msg) {
         if (msg) {
             auto a = static_cast<app*>(stream->loop->data);
             do_command(a, msg, stream);
         }
     });
-    assert(0 == res);
 }
