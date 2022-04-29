@@ -22,9 +22,9 @@ int socat_wrapper(uv_loop_t *loop, char const* socat, uv_pipe_t **irc_stream, uv
         {},
         {},
         {uv_stdio_flags(UV_CREATE_PIPE | UV_WRITABLE_PIPE),
-         reinterpret_cast<uv_stream_t*>(error_pipe)},
+         {reinterpret_cast<uv_stream_t*>(error_pipe)}},
         {uv_stdio_flags(UV_CREATE_PIPE | UV_READABLE_PIPE | UV_WRITABLE_PIPE),
-         reinterpret_cast<uv_stream_t*>(irc_pipe)},
+         {reinterpret_cast<uv_stream_t*>(irc_pipe)}},
     };
 
     uv_process_options_t options {};

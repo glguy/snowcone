@@ -46,7 +46,7 @@ luaL_Reg const MT[] = {
 
     {"stop", [](auto L) {
         auto timer = check_udata<uv_timer_t>(L, 1);
-        uv_timer_stop(timer);
+        uvok(uv_timer_stop(timer));
         return 0;
     }},
 
@@ -65,6 +65,5 @@ void push_new_uv_timer(lua_State *L, uv_loop_t *loop)
     lua_pushvalue(L, -1);
     lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
 
-    int r = uv_timer_init(loop, timer);
-    assert(0 == r);
+    uvok(uv_timer_init(loop, timer));
 }

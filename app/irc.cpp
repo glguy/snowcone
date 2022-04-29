@@ -43,7 +43,6 @@ static void on_err_line(uv_stream_t *stream, char *line)
 static void on_line(uv_stream_t *stream, char *line)
 {
     auto const a = static_cast<app*>(stream->loop->data);
-    int r;
 
     if (line)
     {
