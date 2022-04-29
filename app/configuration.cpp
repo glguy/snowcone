@@ -7,7 +7,7 @@
 #include "config.hpp"
 #include "configuration.hpp"
 
-noreturn static void usage(void) 
+[[noreturn]] static void usage(void) 
 {
     fprintf(stderr,
     "usage: snowcone\n"

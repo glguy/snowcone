@@ -16,14 +16,14 @@ static void on_err_line(uv_stream_t *stream, char *line);
 
 int start_irc(struct app *a)
 {
-    uv_stream_t *irc, *err;
+    uv_pipe_t *irc, *err;
     int r = socat_wrapper(&a->loop, a->cfg->irc_socat, &irc, &err);
     if (0 != r)
     {
         return 1;
     }
 
-    app_set_irc(a, irc);
+    app_set_irc(a, reinterpret_cast<uv_stream_t*>(irc));
     readline_start(irc, on_line);
     readline_start(err, on_err_line);
 

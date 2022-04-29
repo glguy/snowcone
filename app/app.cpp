@@ -270,7 +270,9 @@ static int l_shutdown(lua_State *L)
         auto const a = static_cast<app*>(t->loop->data);
         uv_close_xx(&a->winch);
         uv_close_xx(&a->input);
-        uv_close_xx(t, [](auto t){ delete t; });
+        uv_close_xx(t, [](auto t){
+            delete reinterpret_cast<uv_timer_t*>(t);
+        });
 
     }, 0, 0);
 
@@ -449,6 +451,9 @@ static void start_lua(struct app *a)
 struct app *app_new(struct configuration *cfg)
 {
     auto a = new app(cfg);
+    uvok(uv_loop_init(&a->loop));
+    uvok(uv_poll_init(&a->loop, &a->input, STDIN_FILENO));
+    uvok(uv_signal_init(&a->loop, &a->winch));
     start_lua(a);
     return a;
 }
@@ -458,6 +463,7 @@ void app_free(struct app *a)
     if (a)
     {
         lua_close(a->L);
+        uvok(uv_loop_close(&a->loop));
         delete a;
     }
 }

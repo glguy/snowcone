@@ -7,7 +7,7 @@
 #include "socat.hpp"
 #include "uv.hpp"
 
-int socat_wrapper(uv_loop_t *loop, char const* socat, uv_stream_t **irc_stream, uv_stream_t **error_stream)
+int socat_wrapper(uv_loop_t *loop, char const* socat, uv_pipe_t **irc_stream, uv_pipe_t **error_stream)
 {
     int r;
     char const* argv[] = {"socat", "FD:3", socat, nullptr};
@@ -30,7 +30,11 @@ int socat_wrapper(uv_loop_t *loop, char const* socat, uv_stream_t **irc_stream, 
     uv_process_options_t options {};
     options.file = "socat";
     options.args = const_cast<char**>(argv); // libuv doesn't actually write to these
-    options.exit_cb = [](auto process, auto status, auto signal){ delete process; };
+    options.exit_cb = [](auto process, auto status, auto signal){
+        uv_close_xx(process, [](auto handle) {
+            delete reinterpret_cast<uv_process_t*>(handle);
+        });
+    };
     options.stdio_count = sizeof containers / sizeof *containers;
     options.stdio = containers;
 
@@ -39,12 +43,12 @@ int socat_wrapper(uv_loop_t *loop, char const* socat, uv_stream_t **irc_stream, 
     if (0 != r) {
         fprintf(stderr, "Failed to spawn socat: %s\n", uv_strerror(r));
         delete process;
-        uv_close_xx(irc_pipe, [](auto h) { delete h; });
-        uv_close_xx(error_pipe, [](auto h) { delete h; });
+        uv_close_xx(irc_pipe, [](auto h) { delete reinterpret_cast<uv_pipe_t*>(h); });
+        uv_close_xx(error_pipe, [](auto h) { delete reinterpret_cast<uv_pipe_t*>(h); });
         return 1;
     }
 
-    *irc_stream = reinterpret_cast<uv_stream_t*>(irc_pipe);
-    *error_stream = reinterpret_cast<uv_stream_t*>(error_pipe);
+    *irc_stream = irc_pipe;
+    *error_stream = error_pipe;
     return 0;
 }

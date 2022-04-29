@@ -4,14 +4,13 @@
 #include <uv.h>
 #include <ncurses.h>
 
-#include <memory>
 #include <iostream>
 
 #include "app.hpp"
 #include "read-line.hpp"
 #include "tcp-server.hpp"
+#include "uvaddrinfo.hpp"
 #include "write.hpp"
-
 
 /* TCP SERVER ********************************************************/
 
@@ -19,14 +18,14 @@ static void on_new_connection(uv_stream_t *server, int status);
 
 int start_tcp_server(struct app *a)
 {
-    struct addrinfo hints {};
+    addrinfo hints {0};
     hints.ai_flags = AI_PASSIVE;
     hints.ai_family = PF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
     // Resolve the addresses
     uv_getaddrinfo_t req;
-    int res = uv_getaddrinfo(&a->loop, &req, NULL, a->cfg->console_node, a->cfg->console_service, &hints);
+    int res = uv_getaddrinfo(&a->loop, &req, nullptr, a->cfg->console_node, a->cfg->console_service, &hints);
     if (res < 0)
     {
         endwin();
@@ -34,30 +33,23 @@ int start_tcp_server(struct app *a)
         return 1;
     }
     
+    AddrInfo const ais {req.addrinfo};
+
     // Count the addresses
     size_t n = 0;
-    for (struct addrinfo *ai = req.addrinfo; ai; ai = ai->ai_next)
-    {
+    for (auto const& ai : ais) {
         n++;
     }
 
-    // Allocate temporary storage for tracking all the inprogress sockets
-    a->listeners.resize(n);
-
-    // Allocate all tcp streams
-    size_t i = 0;
-    for (struct addrinfo *ai = req.addrinfo; ai; ai = ai->ai_next, i++)
-    {
-        res = uv_tcp_init(&a->loop, &a->listeners[i]);
-        assert(0 == res);
-    }
+    a->listeners.reserve(n);
 
     // Bind all of the addresses
-    i = 0;
-    for (struct addrinfo *ai = req.addrinfo; ai; ai = ai->ai_next, i++)
+    for (auto const& ai : ais)
     {
-        uv_tcp_t *tcp = &a->listeners[i];
-        res = uv_tcp_bind(tcp, ai->ai_addr, 0);
+        auto tcp = &a->listeners.emplace_back();
+        uvok(uv_tcp_init(&a->loop, tcp));
+
+        res = uv_tcp_bind(tcp, ai.ai_addr, 0);
         if (res < 0)
         {
             endwin();
@@ -74,11 +66,9 @@ int start_tcp_server(struct app *a)
         } 
     }
 
-    uv_freeaddrinfo(req.addrinfo);
     return 0;
 
 teardown:
-    uv_freeaddrinfo(req.addrinfo);
     for (auto && x : a->listeners) {
         uv_close_xx(&x);
     }
@@ -98,7 +88,7 @@ static void on_new_connection(uv_stream_t *server, int status)
 
     uvok(uv_accept(server, reinterpret_cast<uv_stream_t*>(client)));
 
-    readline_start(reinterpret_cast<uv_stream_t *>(client), [](uv_stream_t *stream, char *msg) {
+    readline_start(client, [](uv_stream_t *stream, char *msg) {
         if (msg) {
             auto a = static_cast<app*>(stream->loop->data);
             do_command(a, msg, stream);

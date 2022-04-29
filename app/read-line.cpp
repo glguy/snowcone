@@ -3,15 +3,14 @@
 #include "read-line.hpp"
 #include "uv.hpp"
 
-namespace {
-void alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
+void readline_alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
     auto const d = static_cast<readline_data*>(handle->data);
     buf->base = d->buffer + d->used;
     buf->len = sizeof d->buffer - d->used - 1; // always save a byte for NUL
 }
 
-void read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
+void readline_read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 {
     auto const d = static_cast<readline_data*>(stream->data);
 
@@ -38,10 +37,4 @@ void read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 
     d->used = strlen(start);
     memmove(d->buffer, start, d->used);
-}
-}
-
-auto readline_start(uv_stream_t *stream, line_cb *on_line) -> void {
-    stream->data = new readline_data(on_line);
-    uvok(uv_read_start(stream, alloc_cb, read_cb));
 }

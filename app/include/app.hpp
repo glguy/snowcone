@@ -16,22 +16,13 @@ extern "C" {
 #include "uv.hpp"
 #include "configuration.hpp"
 
-struct uv_loop_xx : public ::uv_loop_t {
-    uv_loop_xx() {
-        uvok(uv_loop_init(this));
-    }
-    ~uv_loop_xx() {
-        uvok(uv_loop_close(this));
-    }
-};
-
 struct app
 {
     lua_State *L;
     struct configuration *cfg;
     uv_stream_t *console;
     uv_stream_t *irc;
-    uv_loop_xx loop;
+    uv_loop_t loop;
     uv_poll_t input;
     uv_signal_t winch;
     std::vector<uv_tcp_t> listeners;
@@ -48,8 +39,6 @@ struct app
     , closing(false)
     {
         loop.data = this;
-        uvok(uv_poll_init(&loop, &input, STDIN_FILENO));
-        uvok(uv_signal_init(&loop, &winch));
     }
 };
 
