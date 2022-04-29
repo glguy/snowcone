@@ -1,5 +1,3 @@
-local pretty = require 'pl.pretty'
-
 local M = {
     title = 'plugins',
     keypress = function() end,
