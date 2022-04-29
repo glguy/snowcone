@@ -2,6 +2,8 @@
 #define _XOPEN_SOURCE_EXTENDED
 #define _DARWIN_C_SOURCE
 
+#include <iostream>
+
 #include <assert.h>
 #include <locale.h>
 #include <netdb.h>
@@ -13,12 +15,12 @@
 #include <curses.h>
 #include <uv.h>
 
-#include "app.h"
-#include "configuration.h"
-#include "irc.h"
-#include "read-line.h"
-#include "tcp-server.h"
-#include "write.h"
+#include "app.hpp"
+#include "configuration.hpp"
+#include "irc.hpp"
+#include "read-line.hpp"
+#include "tcp-server.hpp"
+#include "write.hpp"
 
 static void on_winch(uv_signal_t* handle, int signum);
 
@@ -26,7 +28,7 @@ static void on_winch(uv_signal_t* handle, int signum);
 
 static void on_stdin(uv_poll_t *handle, int status, int events)
 {
-    struct app *a = handle->loop->data;
+    struct app *a = static_cast<app *>(handle->loop->data);
 
     int key;
     mbstate_t ps = {};
@@ -68,7 +70,7 @@ static void on_stdin(uv_poll_t *handle, int status, int events)
 
 static void on_winch(uv_signal_t* handle, int signum)
 {
-    struct app *a = handle->loop->data;
+    struct app *a = static_cast<app*>(handle->loop->data);
     endwin();
     refresh();
     app_set_window_size(a);
@@ -78,7 +80,6 @@ static void on_winch(uv_signal_t* handle, int signum)
 
 int main(int argc, char *argv[])
 {
-    int r;
     struct configuration cfg = load_configuration(argc, argv);
     
     /* Configure ncurses */
@@ -111,11 +112,8 @@ int main(int argc, char *argv[])
 
     struct app *a = app_new(&cfg);
 
-    r = uv_poll_start(&a->input, UV_READABLE, on_stdin);
-    assert(0 == r);
-
-    r = uv_signal_start(&a->winch, on_winch, SIGWINCH);
-    assert(0 == r);
+    uvok(uv_poll_start(&a->input, UV_READABLE, on_stdin));
+    uvok(uv_signal_start(&a->winch, on_winch, SIGWINCH));
 
     /* start up networking */
     if (cfg.console_service != NULL)
@@ -132,8 +130,7 @@ int main(int argc, char *argv[])
     }
 
     // returns non-zero if stopped while handles are active
-    r = uv_run(&a->loop, UV_RUN_DEFAULT);
-    assert(0 == r);
+    uv_run(&a->loop, UV_RUN_DEFAULT);
 
 cleanup:
     endwin();

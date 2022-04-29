@@ -3,12 +3,18 @@
 
 #include <netdb.h>
 #include <stdlib.h>
-#include <stdbool.h>
+#include <unistd.h>
 #include <uv.h>
-#include <lua.h>
 
-#include "ircmsg.h"
-#include "configuration.h"
+#include <vector>
+
+extern "C" {
+#include <lua.h>
+#include <ircmsg.h>
+}
+
+#include "uv.hpp"
+#include "configuration.hpp"
 
 struct app
 {
@@ -19,9 +25,21 @@ struct app
     uv_loop_t loop;
     uv_poll_t input;
     uv_signal_t winch;
-    uv_tcp_t *listeners;
-    size_t listeners_len;
+    std::vector<uv_tcp_t> listeners;
     bool closing;
+
+    app(configuration * cfg)
+    : cfg(cfg)
+    , console(nullptr)
+    , irc(nullptr)
+    , loop()
+    , input()
+    , winch()
+    , listeners()
+    , closing(false)
+    {
+        loop.data = this;
+    }
 };
 
 struct app *app_new(struct configuration *cfg);
@@ -35,9 +53,6 @@ void do_irc_err(struct app *a, char const*);
 void do_keyboard(struct app *, long);
 void do_mouse(struct app *, int x, int y);
 
-static inline struct app **app_ref(lua_State *L)
-{
-    return lua_getextraspace(L);
-}
+struct app **app_ref(lua_State *L);
 
 #endif
