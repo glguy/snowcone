@@ -25,7 +25,7 @@ int safecall(lua_State *L, char const* location, int args)
     if (LUA_OK == status) {
         lua_pop(L, 1);
     } else {
-        struct app * const a = *app_ref(L);
+        auto const a = *app_ref(L);
         size_t len;
         char const* err = lua_tolstring(L, -1, &len);
         if (a->console) {

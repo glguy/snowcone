@@ -604,7 +604,7 @@ void do_mouse(struct app *a, int y, int x)
     lua_callback(a->L, "on_mouse");
 }
 
-inline struct app **app_ref(lua_State *L)
+struct app **app_ref(lua_State *L)
 {
     return static_cast<app**>(lua_getextraspace(L));
 }
