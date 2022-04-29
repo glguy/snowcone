@@ -11,7 +11,7 @@ stds = {
         },
     },
     main = {
-        read_globals = {"tty_height", "tty_width", "configuration", "mygeoip", "ncurses" },
+        read_globals = {"tty_height", "tty_width", "configuration", "mygeoip", "ncurses"},
         globals = {
             -- general functionality
             "require_", "next_view", "prev_view", "entry_to_kline",

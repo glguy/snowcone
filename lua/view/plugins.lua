@@ -19,28 +19,14 @@ function M:render()
         addstr(name .. '\n')
         normal()
 
-        local widgets = plugin.widgets
-        if widgets ~= nil then
-            for _, entry in ipairs(widgets) do
-                addstr('    ')
-                if type(entry) == 'function' then
-                    local success, result = pcall(entry)
-                    if success then
-                        normal()
-                    else
-                        red()
-                        addstr(tostring(result))
-                    end
-                elseif type(entry) == 'table' then
-                    entry = pretty.write(entry)
-                    entry = entry:gsub('\n', '\n    ')
-                    addstr('    ' .. entry)
-                else
-                    entry = tostring(entry)
-                    entry = entry:gsub('\n', '\n    ')
-                    addstr('    ' .. entry)
-                end
-                addstr '\n'
+        local widget = plugin.widget
+        if widget ~= nil then
+            local success, result = pcall(widget)
+            if success then
+                normal()
+            else
+                red()
+                addstr(tostring(result))
             end
         end
     end
