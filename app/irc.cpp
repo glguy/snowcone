@@ -63,7 +63,7 @@ static void on_line(uv_stream_t *stream, char *line)
             uvok(uv_timer_init(&a->loop, timer));
             uvok(uv_timer_start(timer, [](auto timer) {
                 auto const a = static_cast<app*>(timer->loop->data);
-                delete timer;
+                uv_close_xx(timer, [](auto handle) { delete reinterpret_cast<uv_timer_t*>(handle); });
                 start_irc(a);
             }, 5000, 0));
         }
