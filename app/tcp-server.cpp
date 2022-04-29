@@ -4,7 +4,7 @@
 #include <uv.h>
 #include <ncurses.h>
 
-#include <iostream>
+#include <ranges>
 
 #include "app.hpp"
 #include "read-line.hpp"
@@ -35,13 +35,7 @@ int start_tcp_server(struct app *a)
     
     AddrInfo const ais {req.addrinfo};
 
-    // Count the addresses
-    size_t n = 0;
-    for (auto const& ai : ais) {
-        n++;
-    }
-
-    a->listeners.reserve(n);
+    a->listeners.reserve(std::ranges::distance(ais));
 
     // Bind all of the addresses
     for (auto const& ai : ais)

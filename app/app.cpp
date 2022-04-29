@@ -240,8 +240,9 @@ static int l_send_irc(lua_State *L)
     if (nullptr == cmd)
     {
         auto shutdown = new uv_shutdown_t;
-        int res = uv_shutdown(shutdown, a->irc, [](auto req, auto stat) { delete req; });
-        assert(0 == res);
+        uvok(uv_shutdown(shutdown, a->irc, [](auto req, auto stat) {
+            delete reinterpret_cast<uv_shutdown_t*>(req);
+        }));
         a->irc = nullptr;
     }
     else
