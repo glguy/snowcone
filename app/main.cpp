@@ -110,7 +110,8 @@ int main(int argc, char *argv[])
     set_escdelay(25);
     endwin();
 
-    struct app *a = app_new(&cfg);
+    auto a = new app(&cfg);
+    a->init();
 
     uvok(uv_poll_start(&a->input, UV_READABLE, on_stdin));
     uvok(uv_signal_start(&a->winch, on_winch, SIGWINCH));
@@ -134,6 +135,8 @@ int main(int argc, char *argv[])
 
 cleanup:
     endwin();
-    app_free(a);
+    a->destroy();
+    delete a;
+
     return 0;
 }

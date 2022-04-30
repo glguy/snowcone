@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <cstdlib>
 
 #include "socat.hpp"
 #include "uv.hpp"
@@ -12,10 +13,10 @@ int socat_wrapper(uv_loop_t *loop, char const* socat, uv_pipe_t **irc_stream, uv
     int r;
     char const* argv[] = {"socat", "FD:3", socat, nullptr};
 
-    auto irc_pipe = new uv_pipe_t;
+    auto irc_pipe = static_cast<uv_pipe_t*>(calloc(1, sizeof (uv_pipe_t)));
     uvok(uv_pipe_init(loop, irc_pipe, 0));
 
-    auto error_pipe = new uv_pipe_t;
+    auto error_pipe = static_cast<uv_pipe_t*>(calloc(1, sizeof (uv_pipe_t)));
     uvok(uv_pipe_init(loop, error_pipe, 0));
 
     uv_stdio_container_t containers[] {

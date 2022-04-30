@@ -8,7 +8,7 @@
 #include <signal.h>
 
 #include <vector>
-#include <iostream>
+#include <stdexcept>
 
 #include <ncurses.h>
 
@@ -194,28 +194,29 @@ static int l_to_base64(lua_State *L)
 {
     size_t input_len;
     char const* input = luaL_checklstring(L, 1, &input_len);
-    size_t outlen = (input_len + 2) / 3 * 4 + 1;
-    char *output = new char[outlen];
-    assert(output);
-
+    size_t outlen = (input_len + 2) / 3 * 4;
+    
+    luaL_Buffer B;
+    auto output = luaL_buffinitsize(L, &B, outlen);
     mybase64_encode(input, input_len, output);
-    lua_pushstring(L, output);
-    delete [] output;
+    luaL_pushresultsize(&B, outlen);
+
     return 1;
 }
 
 static int l_from_base64(lua_State *L)
 {
     size_t input_len;
-    char const* input = luaL_checklstring(L, 1, &input_len);
-    size_t outlen = (input_len + 3) / 4 * 3;
+    auto input = luaL_checklstring(L, 1, &input_len);
+    auto outlen = (input_len + 3) / 4 * 3;
     
-    std::vector<char> output(outlen);
+    luaL_Buffer B;
+    auto output = luaL_buffinitsize(L, &B, outlen);
+    auto len = mybase64_decode(input, input_len, output);
 
-    ssize_t len = mybase64_decode(input, input_len, output.data());
     if (0 <= len)
     {
-        lua_pushlstring(L, output.data(), len);
+        luaL_pushresultsize(&B, len);
         return 1;
     }
     else
@@ -433,40 +434,25 @@ static void app_prepare_globals(struct app *a)
     l_ncurses_resize(L);
 }
 
-static void start_lua(struct app *a)
+void app::init()
 {
-    if (a->L)
-    {
-        lua_close(a->L);
-    }
+    uvok(uv_loop_init(&loop));
+    uvok(uv_poll_init(&loop, &input, STDIN_FILENO));
+    uvok(uv_signal_init(&loop, &winch));
+    
+    L = luaL_newstate();
+    if (nullptr == L) throw std::runtime_error("unable to start lua");
 
-    a->L = luaL_newstate();
-    assert(a->L);
+    app_ref(L) = this;
 
-    app_ref(a->L) = a;
-
-    app_prepare_globals(a);
-    load_logic(a->L, a->cfg->lua_filename);
+    app_prepare_globals(this);
+    load_logic(L, cfg->lua_filename);
 }
 
-struct app *app_new(struct configuration *cfg)
+void app::destroy()
 {
-    auto a = new app(cfg);
-    uvok(uv_loop_init(&a->loop));
-    uvok(uv_poll_init(&a->loop, &a->input, STDIN_FILENO));
-    uvok(uv_signal_init(&a->loop, &a->winch));
-    start_lua(a);
-    return a;
-}
-
-void app_free(struct app *a)
-{
-    if (a)
-    {
-        lua_close(a->L);
-        uvok(uv_loop_close(&a->loop));
-        delete a;
-    }
+    lua_close(L);
+    uvok(uv_loop_close(&loop));
 }
 
 static int lua_callback_worker(lua_State *L)
@@ -507,10 +493,6 @@ void do_command(
         if (!strcmp(line, "reload"))
         {
             load_logic(a->L, a->cfg->lua_filename);
-        }
-        else if (!strcmp(line, "restart"))
-        {
-            start_lua(a);
         }
         else
         {

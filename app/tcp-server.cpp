@@ -75,7 +75,7 @@ static void on_new_connection(uv_stream_t *server, int status)
         return;
     }
 
-    auto client = new uv_tcp_t;
+    auto client = static_cast<uv_tcp_t*>(calloc(1, sizeof (uv_tcp_t)));
     uvok(uv_tcp_init(server->loop, client));
 
     uvok(uv_accept(server, reinterpret_cast<uv_stream_t*>(client)));
