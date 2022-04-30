@@ -108,7 +108,7 @@ static void
 on_dnslookup(uv_getaddrinfo_t *req, int status, struct addrinfo *res)
 {
     auto const a = static_cast<app*>(req->loop->data);
-    lua_State * const L = a->L;
+    auto const L = a->L;
 
     lua_rawgetp(L, LUA_REGISTRYINDEX, req);
     lua_pushnil(L);
@@ -131,14 +131,15 @@ on_dnslookup(uv_getaddrinfo_t *req, int status, struct addrinfo *res)
 static int
 l_dnslookup(lua_State *L)
 {
-    struct app * const a = *app_ref(L);
-    char const* hostname = luaL_checkstring(L, 1);
+    auto const a = app_ref(L);
+    auto hostname = luaL_checkstring(L, 1);
     luaL_checkany(L, 2);
     lua_settop(L, 2);
 
-    auto req = new uv_getaddrinfo_t;
+    addrinfo hints {};
+    hints.ai_socktype = SOCK_STREAM;
 
-    struct addrinfo const hints = { .ai_socktype = SOCK_STREAM };
+    auto req = new uv_getaddrinfo_t;
     int r = uv_getaddrinfo(&a->loop, req, on_dnslookup, hostname, nullptr, &hints);
     if (0 != r)
     {
@@ -153,7 +154,7 @@ l_dnslookup(lua_State *L)
 
 static int l_print(lua_State *L)
 {
-    struct app * const a = *app_ref(L);
+    auto const a = app_ref(L);
 
     if (a->console)
     {
@@ -227,7 +228,7 @@ static int l_from_base64(lua_State *L)
 
 static int l_send_irc(lua_State *L)
 {
-    struct app * const a = *app_ref(L);
+    auto const a = app_ref(L);
 
     size_t len;
     char const* cmd = luaL_optlstring(L, 1, nullptr, &len);
@@ -255,7 +256,7 @@ static int l_send_irc(lua_State *L)
 
 static int l_shutdown(lua_State *L)
 {
-    auto const a = *app_ref(L);
+    auto const a = app_ref(L);
     a->closing = true;
 
     for (auto &&l : a->listeners) {
@@ -292,7 +293,7 @@ static void load_logic(lua_State *L, char const *filename)
     if (LUA_OK == r) {
         safecall(L, "load_logic:call", 0);
     } else {
-        struct app * const a = *app_ref(L);
+        auto const a = app_ref(L);
         size_t len;
         char const* err = lua_tolstring(L, -1, &len);
         if (a->console) {
@@ -341,14 +342,14 @@ static void push_configuration(lua_State *L, struct configuration *cfg)
 
 static int l_newtimer(lua_State *L)
 {
-    struct app * const a = *app_ref(L);
+    auto const a = app_ref(L);
     push_new_uv_timer(L, &a->loop);
     return 1;
 }
 
 static int l_newwatcher(lua_State *L)
 {
-    struct app * const a = *app_ref(L);
+    auto const a = app_ref(L);
     push_new_fs_event(L, &a->loop);
     return 1;
 }
@@ -442,8 +443,7 @@ static void start_lua(struct app *a)
     a->L = luaL_newstate();
     assert(a->L);
 
-    struct app **aptr = app_ref(a->L);
-    *aptr = a;
+    app_ref(a->L) = a;
 
     app_prepare_globals(a);
     load_logic(a->L, a->cfg->lua_filename);
