@@ -1,3 +1,4 @@
+#pragma once
 #ifndef APP_H
 #define APP_H
 
@@ -53,6 +54,8 @@ void do_irc_err(struct app *a, char const*);
 void do_keyboard(struct app *, long);
 void do_mouse(struct app *, int x, int y);
 
-struct app **app_ref(lua_State *L);
-
+inline struct app **app_ref(lua_State *L)
+{
+    return static_cast<app**>(lua_getextraspace(L));
+}
 #endif

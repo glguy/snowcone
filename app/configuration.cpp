@@ -31,9 +31,9 @@
     exit(EXIT_FAILURE);
 }
 
-struct configuration load_configuration(int argc, char **argv)
+configuration load_configuration(int argc, char **argv)
 {
-    struct configuration cfg = {};
+    configuration cfg {};
 
     cfg.lua_filename = DATAROOTDIR "/snowcone/lua/init.lua";
 
