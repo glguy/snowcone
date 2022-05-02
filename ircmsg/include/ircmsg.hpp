@@ -6,6 +6,8 @@ struct tag
 {
     char const* key;
     char const* val;
+
+    tag(char const* key, char const* val) : key(key), val(val) {}
 };
 
 struct ircmsg
