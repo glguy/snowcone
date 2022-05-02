@@ -16,7 +16,7 @@ void readline_read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 
     if (nread < 0)
     {
-        d->cb(stream, NULL);
+        d->cb(stream, nullptr);
         uv_close_xx(stream, [](auto handle) {
             delete static_cast<readline_data*>(handle->data);
             delete handle;
@@ -30,7 +30,7 @@ void readline_read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
     char *cursor = d->buffer;
     char *start;
 
-    while(start = strsep(&cursor, "\n"), NULL != cursor)
+    while(start = strsep(&cursor, "\n"), nullptr != cursor)
     {
         d->cb(stream, start);
     }

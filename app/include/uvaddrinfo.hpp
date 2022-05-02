@@ -4,6 +4,7 @@
 
 #include <iterator>
 #include <memory>
+#include <ranges>
 
 class AddrInfo {
     struct Deleter { void operator()(addrinfo* ai) const { uv_freeaddrinfo(ai); } };
@@ -54,3 +55,5 @@ public:
     auto begin() const { return const_iterator{ai.get()}; }
     auto end() const { return const_iterator{}; }
 };
+
+static_assert(std::ranges::input_range<AddrInfo>);

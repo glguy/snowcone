@@ -1,5 +1,5 @@
 add_executable(snowcone
-    main.cpp app.cpp socat.cpp configuration.cpp
+    main.cpp app.cpp applib.cpp socat.cpp configuration.cpp
     irc.cpp tcp-server.cpp write.cpp read-line.cpp
     lua_uv_timer.cpp lua_uv_filewatcher.cpp safecall.cpp)
 

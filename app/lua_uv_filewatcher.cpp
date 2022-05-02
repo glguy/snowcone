@@ -11,7 +11,9 @@ extern "C" {
 
 template<> char const* udata_name<uv_fs_event_t> = "uv_fs_event";
 
-static int l_close(lua_State *L)
+namespace {
+
+int l_close(lua_State *L)
 {
     auto fs_event = check_udata<uv_fs_event_t>(L, 1);
     uv_close_xx(fs_event, [](auto handle) {
@@ -33,7 +35,7 @@ void on_file(uv_fs_event_t *handle, const char *filename, int events, int status
     safecall(L, "fs_event", 0);
 }
 
-static int l_start(lua_State *L)
+int l_start(lua_State *L)
 {
     auto fs_event = check_udata<uv_fs_event_t>(L, 1);
     auto dir = luaL_checkstring(L, 2);
@@ -46,10 +48,12 @@ static int l_start(lua_State *L)
     return 0;
 }
 
-static luaL_Reg MT[] = {
+luaL_Reg const MT[] = {
     {"close", l_close},
     {"start", l_start},
     {}
+};
+
 };
 
 void push_new_fs_event(lua_State *L, uv_loop_t *loop)

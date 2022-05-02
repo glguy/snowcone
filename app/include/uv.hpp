@@ -29,6 +29,14 @@ UV_HANDLE_TYPE_MAP(XX)
 
 template<typename T>
 requires IsHandle<T>
-auto uv_close_xx(T* handle, uv_close_cb cb = nullptr) {
+inline auto uv_close_xx(T* handle, uv_close_cb cb = nullptr) -> void {
     uv_close(reinterpret_cast<uv_handle_t*>(handle), cb);
+}
+
+template<typename T>
+requires IsHandle<T>
+inline auto uv_close_delete(T* handle) -> void {
+    uv_close_xx(handle, [](auto handle) {
+        delete reinterpret_cast<T*>(handle);
+    });
 }

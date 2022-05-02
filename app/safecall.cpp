@@ -12,7 +12,7 @@ extern "C" {
 int safecall(lua_State *L, char const* location, int args)
 {
     lua_pushcfunction(L, [](auto L){
-        auto msg = luaL_tolstring(L, 1, NULL);
+        auto msg = luaL_tolstring(L, 1, nullptr);
         luaL_traceback(L, L, msg, 1);
         return 1;
     });
@@ -25,7 +25,7 @@ int safecall(lua_State *L, char const* location, int args)
     if (LUA_OK == status) {
         lua_pop(L, 1);
     } else {
-        auto const a = *app_ref(L);
+        auto const a = app_ref(L);
         size_t len;
         char const* err = lua_tolstring(L, -1, &len);
         if (a->console) {

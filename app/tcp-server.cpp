@@ -12,7 +12,30 @@
 
 /* TCP SERVER ********************************************************/
 
-static void on_new_connection(uv_stream_t *server, int status);
+namespace {
+
+void on_new_connection(uv_stream_t *server, int status)
+{
+    if (status < 0) {
+        fprintf(stderr, "New connection error %s\n", uv_strerror(status));
+        uv_close_xx(server);
+        return;
+    }
+
+    auto client = new uv_tcp_t;
+    uvok(uv_tcp_init(server->loop, client));
+
+    uvok(uv_accept(server, reinterpret_cast<uv_stream_t*>(client)));
+
+    readline_start(client, [](uv_stream_t *stream, char *msg) {
+        if (msg) {
+            auto a = static_cast<app*>(stream->loop->data);
+            a->do_command(msg, stream);
+        }
+    });
+}
+
+}
 
 int start_tcp_server(struct app *a)
 {
@@ -30,7 +53,7 @@ int start_tcp_server(struct app *a)
         fprintf(stderr, "failed to resolve %s: %s\n", a->cfg->console_node, uv_strerror(res));
         return 1;
     }
-    
+
     AddrInfo const ais {req.addrinfo};
 
     a->listeners.reserve(std::distance(ais.begin(), ais.end()));
@@ -65,25 +88,4 @@ teardown:
         uv_close_xx(&x);
     }
     return 1;
-}
-
-static void on_new_connection(uv_stream_t *server, int status)
-{
-    if (status < 0) {
-        fprintf(stderr, "New connection error %s\n", uv_strerror(status));
-        uv_close_xx(server);
-        return;
-    }
-
-    auto client = new uv_tcp_t;
-    uvok(uv_tcp_init(server->loop, client));
-
-    uvok(uv_accept(server, reinterpret_cast<uv_stream_t*>(client)));
-
-    readline_start(client, [](uv_stream_t *stream, char *msg) {
-        if (msg) {
-            auto a = static_cast<app*>(stream->loop->data);
-            do_command(a, msg, stream);
-        }
-    });
 }

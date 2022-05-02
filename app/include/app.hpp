@@ -1,5 +1,4 @@
-#ifndef APP_H
-#define APP_H
+#pragma once
 
 #include <netdb.h>
 #include <stdlib.h>
@@ -28,6 +27,7 @@ struct app
     std::vector<uv_tcp_t> listeners;
     bool closing;
 
+public:
     app(configuration * cfg)
     : cfg(cfg)
     , console(nullptr)
@@ -40,19 +40,25 @@ struct app
     {
         loop.data = this;
     }
+
+    app(app const&) = delete;
+    app& operator=(app const&) = delete;
+
+    void init();
+    void destroy();
+
+    void do_command(char const* line, uv_stream_t* console);
+    void do_mouse(int x, int y);
+    void do_keyboard(long);
+    void set_irc(uv_stream_t* stream);
+    void clear_irc();
+    void set_window_size();
+    void do_irc(ircmsg const*);
+    void do_irc_err(char const*);
+
+    void do_dns(addrinfo const* ai);
 };
 
-struct app *app_new(struct configuration *cfg);
-void app_free(struct app *a);
-void app_set_irc(struct app *a, uv_stream_t *stream);
-void app_clear_irc(struct app *a);
-void app_set_window_size(struct app *a);
-void do_command(struct app *a, char const* line, uv_stream_t *console);
-void do_irc(struct app *a, struct ircmsg const*);
-void do_irc_err(struct app *a, char const*);
-void do_keyboard(struct app *, long);
-void do_mouse(struct app *, int x, int y);
-
-struct app **app_ref(lua_State *L);
-
-#endif
+inline app*& app_ref(lua_State *L) {
+    return *static_cast<app**>(lua_getextraspace(L));
+}

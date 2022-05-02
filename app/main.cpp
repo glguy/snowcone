@@ -35,12 +35,12 @@ static void on_stdin(uv_poll_t *handle, int status, int events)
 
     while(ERR != (key = getch()))
     {
-        if (key == '\e') {
+        if (key == '\x1b') {
             key = getch();
             if (ERR == key) {
-                do_keyboard(a, '\e');    
+                a->do_keyboard('\x1b');    
             } else {
-                do_keyboard(a, -key);
+                a->do_keyboard(-key);
             }
         } else if (KEY_MOUSE == key)
         {
@@ -48,19 +48,19 @@ static void on_stdin(uv_poll_t *handle, int status, int events)
             getmouse(&ev);
             if (ev.bstate == BUTTON1_CLICKED)
             {
-                do_mouse(a, ev.y, ev.x);
+                a->do_mouse(ev.y, ev.x);
             }
         } else if (KEY_RESIZE == key) {
         } else if (key > 0xff) {
-            do_keyboard(a, -key);
+            a->do_keyboard(-key);
         } else if (key < 0x80) {
-            do_keyboard(a, key);
+            a->do_keyboard(key);
         } else {
             char c = key;
             wchar_t code;
             size_t r = mbrtowc(&code, &c, 1, &ps);
             if (r < (size_t)-2) {
-                do_keyboard(a, code);
+                a->do_keyboard(code);
             }
         }
     }
@@ -73,7 +73,7 @@ static void on_winch(uv_signal_t* handle, int signum)
     struct app *a = static_cast<app*>(handle->loop->data);
     endwin();
     refresh();
-    app_set_window_size(a);
+    a->set_window_size();
 }
 
 /* MAIN **************************************************************/
@@ -86,13 +86,13 @@ int main(int argc, char *argv[])
     setlocale(LC_ALL, "");
 
     FILE *tty = fopen("/dev/tty", "r+");
-    if (NULL == tty) {
+    if (nullptr == tty) {
         perror("fopen");
         return 1;
     }
 
-    SCREEN *scr = newterm(NULL, tty, stdin);
-    if (NULL == scr) {
+    SCREEN *scr = newterm(nullptr, tty, stdin);
+    if (nullptr == scr) {
         fprintf(stderr, "newterm: Failed to initialize ncurses\n");
         return 1;
     }
@@ -106,34 +106,35 @@ int main(int argc, char *argv[])
     intrflush(stdscr, FALSE);
     keypad(stdscr, TRUE); /* process keyboard input escape sequences */
     curs_set(0); /* no cursor */
-    mousemask(BUTTON1_CLICKED, NULL);
+    mousemask(BUTTON1_CLICKED, nullptr);
     set_escdelay(25);
     endwin();
 
-    struct app *a = app_new(&cfg);
+    app a {&cfg};
+    a.init();
 
-    uvok(uv_poll_start(&a->input, UV_READABLE, on_stdin));
-    uvok(uv_signal_start(&a->winch, on_winch, SIGWINCH));
+    uvok(uv_poll_start(&a.input, UV_READABLE, on_stdin));
+    uvok(uv_signal_start(&a.winch, on_winch, SIGWINCH));
 
     /* start up networking */
-    if (cfg.console_service != NULL)
+    if (cfg.console_service != nullptr)
     {
-        if (start_tcp_server(a))
+        if (start_tcp_server(&a))
         {
             goto cleanup;
         }
     }
 
-    if (*cfg.irc_socat != '\0' && start_irc(a))
+    if (*cfg.irc_socat != '\0' && start_irc(&a))
     {
         goto cleanup;
     }
 
     // returns non-zero if stopped while handles are active
-    uv_run(&a->loop, UV_RUN_DEFAULT);
+    uv_run(&a.loop, UV_RUN_DEFAULT);
 
 cleanup:
     endwin();
-    app_free(a);
+    a.destroy();
     return 0;
 }

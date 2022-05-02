@@ -31,9 +31,9 @@
     exit(EXIT_FAILURE);
 }
 
-struct configuration load_configuration(int argc, char **argv)
+configuration load_configuration(int argc, char** argv)
 {
-    struct configuration cfg = {};
+    configuration cfg {};
 
     cfg.lua_filename = DATAROOTDIR "/snowcone/lua/init.lua";
 
@@ -42,27 +42,30 @@ struct configuration load_configuration(int argc, char **argv)
     cfg.irc_sasl_password = getenv("IRC_SASL_PASSWORD");
     cfg.irc_oper_password = getenv("IRC_OPER_PASSWORD");
 
+    char const* const flags = ":C:D:E:f:G:hK:l:L:M:N:O:p:S:U:X:Z:";
     int opt;
-    while ((opt = getopt(argc, argv, "f:hl:p:C:D:S:X:N:U:G:L:K:O:M:E:Z:")) != -1) {
+    while ((opt = getopt(argc, argv, flags)) != -1) {
         switch (opt) {
+        default: abort();
+        case '?': fprintf(stderr, "Unknown flag: %c\n", optopt); usage();
+        case ':': fprintf(stderr, "Missing flag argument: %c\n", optopt); usage();
         case 'h': usage();
-        case 'f': cfg.network_filename = optarg; break;
-        case 'l': cfg.console_node = optarg; break;
-        case 'p': cfg.console_service = optarg; break;
-        case 'C': cfg.irc_capabilities = optarg; break;
-        case 'E': cfg.irc_sasl_username = optarg; break;
-        case 'G': cfg.irc_gecos = optarg; break;
-        case 'D': cfg.irc_sasl_key = optarg; break;
-        case 'K': cfg.irc_challenge_key = optarg; break;
-        case 'L': cfg.lua_filename = optarg; break;
-        case 'N': cfg.irc_nick = optarg; break;
-        case 'M': cfg.irc_sasl_mechanism = optarg; break;
-        case 'O': cfg.irc_oper_username = optarg; break;
-        case 'S': cfg.irc_socat = optarg; break;
-        case 'U': cfg.irc_user = optarg; break;
-        case 'X': cfg.irc_pass = optarg; break;
-        case 'Z': cfg.irc_sasl_authzid = optarg; break;
-        default: usage();
+        case 'C': cfg.irc_capabilities      = optarg; break;
+        case 'D': cfg.irc_sasl_key          = optarg; break;
+        case 'E': cfg.irc_sasl_username     = optarg; break;
+        case 'f': cfg.network_filename      = optarg; break;
+        case 'G': cfg.irc_gecos             = optarg; break;
+        case 'K': cfg.irc_challenge_key     = optarg; break;
+        case 'l': cfg.console_node          = optarg; break;
+        case 'L': cfg.lua_filename          = optarg; break;
+        case 'M': cfg.irc_sasl_mechanism    = optarg; break;
+        case 'N': cfg.irc_nick              = optarg; break;
+        case 'O': cfg.irc_oper_username     = optarg; break;
+        case 'p': cfg.console_service       = optarg; break;
+        case 'S': cfg.irc_socat             = optarg; break;
+        case 'U': cfg.irc_user              = optarg; break;
+        case 'X': cfg.irc_pass              = optarg; break;
+        case 'Z': cfg.irc_sasl_authzid      = optarg; break;
         }
     }
 
@@ -71,19 +74,17 @@ struct configuration load_configuration(int argc, char **argv)
 
     int show_usage = 0;
 
-    if (NULL == cfg.irc_nick)
-    {
+    if (nullptr == cfg.irc_nick) {
         fprintf(stderr, "IRC nickname required (-N).\n");
         show_usage = 1;
     }
 
-    if (NULL == cfg.irc_socat)
-    {
+    if (nullptr == cfg.irc_socat) {
         fprintf(stderr, "socat connection argument required (-S).\n");
         show_usage = 1;
     }
 
-    if (NULL != cfg.irc_sasl_mechanism &&
+    if (nullptr != cfg.irc_sasl_mechanism &&
         strcmp("PLAIN", cfg.irc_sasl_mechanism) &&
         strcmp("EXTERNAL", cfg.irc_sasl_mechanism) &&
         strcmp("ECDSA-NIST256P-CHALLENGE", cfg.irc_sasl_mechanism) &&
@@ -96,8 +97,7 @@ struct configuration load_configuration(int argc, char **argv)
         show_usage = 1;
     }
 
-    if (0 != argc)
-    {
+    if (0 != argc) {
         fprintf(stderr, "Unexpected positional argument (use -L for lua path).\n");
         show_usage = 1;
     }

@@ -23,7 +23,7 @@ int start_irc(struct app *a)
         return 1;
     }
 
-    app_set_irc(a, reinterpret_cast<uv_stream_t*>(irc));
+    a->set_irc(reinterpret_cast<uv_stream_t*>(irc));
     readline_start(irc, on_line);
     readline_start(err, on_err_line);
 
@@ -36,7 +36,7 @@ static void on_err_line(uv_stream_t *stream, char *line)
 
     if (line)
     {
-        do_irc_err(a, line);
+        a->do_irc_err(line);
     }
 }
 
@@ -51,10 +51,10 @@ static void on_line(uv_stream_t *stream, char *line)
 
         if (0 == parse_irc_message(msg, &irc))
         {
-            do_irc(a, &irc);
+            a->do_irc(&irc);
         }
     } else {
-        app_clear_irc(a);
+        a->clear_irc();
 
         if (!a->closing)
         {
@@ -62,7 +62,7 @@ static void on_line(uv_stream_t *stream, char *line)
             uvok(uv_timer_init(&a->loop, timer));
             uvok(uv_timer_start(timer, [](auto timer) {
                 auto const a = static_cast<app*>(timer->loop->data);
-                uv_close_xx(timer, [](auto handle) { delete reinterpret_cast<uv_timer_t*>(handle); });
+                uv_close_delete(timer);
                 start_irc(a);
             }, 5000, 0));
         }
