@@ -3,6 +3,6 @@
 
 #include "app.hpp"
 
-int start_tcp_server(struct app *);
+int start_tcp_server(app *);
 
 #endif

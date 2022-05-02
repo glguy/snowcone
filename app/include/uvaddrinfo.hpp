@@ -33,7 +33,6 @@ public:
         reference operator*() const { return *ai; }
         pointer operator->() const { return ai; }
         bool operator==(iterator_impl rhs) const { return ai == rhs.ai; }
-        bool operator!=(iterator_impl rhs) const { return ai != rhs.ai; }
         iterator_impl& operator++() { next(); return *this; }
         iterator_impl operator++(int) { auto tmp = *this; next(); return tmp; }
     };

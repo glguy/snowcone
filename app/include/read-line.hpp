@@ -20,9 +20,7 @@ struct readline_data
   : cb(cb)
   , used(0)
   , buffer()
-  {
-
-  }
+  {}
 };
 }
 
@@ -31,11 +29,12 @@ void readline_read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf);
 
 template <typename T>
 concept IsStream =
-  std::same_as<T, uv_tcp_t> ||
-  std::same_as<T, uv_pipe_t> ||
-  std::same_as<T, uv_tty_t> ||
+  std::same_as<T, uv_tcp_t   > ||
+  std::same_as<T, uv_pipe_t  > ||
+  std::same_as<T, uv_tty_t   > ||
   std::same_as<T, uv_stream_t>;
 
+// stream must be allocated with malloc since readline won't know what type to delete it at.
 template <typename T> requires IsStream<T>
 auto readline_start(T* stream, line_cb *on_line) -> void {
     stream->data = new readline_data(on_line);

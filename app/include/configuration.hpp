@@ -24,6 +24,6 @@ struct configuration
     char const* irc_sasl_key;
 };
 
-struct configuration load_configuration(int argc, char **argv);
+configuration load_configuration(int argc, char **argv);
 
 #endif
