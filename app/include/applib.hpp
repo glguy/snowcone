@@ -5,7 +5,7 @@
 extern "C" {
 #include "lauxlib.h"
 #include "lualib.h"
-#include <ircmsg.h>
+#include <ircmsg.hpp>
 }
 
 void load_logic(lua_State* L, char const* filename);

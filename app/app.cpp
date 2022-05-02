@@ -15,13 +15,14 @@ extern "C" {
 #include "lauxlib.h"
 #include "lualib.h"
 
-#include <ircmsg.h>
 #include <myncurses.h>
 #if HAS_GEOIP
 #include <mygeoip.h>
 #endif
 #include "mybase64.h"
 }
+
+#include <ircmsg.hpp>
 
 #include "app.hpp"
 #include "applib.hpp"

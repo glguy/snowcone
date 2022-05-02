@@ -374,10 +374,10 @@ void lua_callback(lua_State* L, char const* key)
 
 void pushircmsg(lua_State* L, ircmsg const* msg)
 {
-    lua_createtable(L, msg->args_n, 3);
+    lua_createtable(L, msg->args.size(), 3);
 
-    lua_createtable(L, 0, msg->tags_n);
-    for (int i = 0; i < msg->tags_n; i++) {
+    lua_createtable(L, 0, msg->tags.size());
+    for (int i = 0; i < msg->tags.size(); i++) {
         if (msg->tags[i].val)
         {
             lua_pushstring(L, msg->tags[i].val);
@@ -402,7 +402,7 @@ void pushircmsg(lua_State* L, ircmsg const* msg)
     }
     lua_setfield(L, -2, "command");
 
-    for (int i = 0; i < msg->args_n; i++)
+    for (int i = 0; i < msg->args.size(); i++)
     {
         lua_pushstring(L, msg->args[i]);
         lua_rawseti(L, -2, i+1);

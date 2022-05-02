@@ -9,8 +9,8 @@
 
 extern "C" {
 #include <lua.h>
-#include <ircmsg.h>
 }
+#include <ircmsg.hpp>
 
 #include "uv.hpp"
 #include "configuration.hpp"
