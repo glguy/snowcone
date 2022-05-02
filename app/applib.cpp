@@ -18,6 +18,8 @@ extern "C" {
 #include "safecall.hpp"
 #include "write.hpp"
 
+#include <iterator>
+
 namespace { // lua support for app
 
 char logic_module;
@@ -288,16 +290,14 @@ void push_configuration(lua_State* L, configuration* cfg)
         {"irc_sasl_authzid", cfg->irc_sasl_authzid},
     };
 
-    size_t const n = sizeof configs / sizeof *configs;
-    lua_createtable(L, 0, n);
-    for (size_t i = 0; i < n; i++)
-    {
-        lua_pushstring(L, configs[i][1]);
-        lua_setfield(L, -2, configs[i][0]);
+    lua_createtable(L, 0, std::size(configs));
+    for (auto && x : configs) {
+        lua_pushstring(L, x[1]);
+        lua_setfield(L, -2, x[0]);
     }
 }
 
-luaL_Reg const applib_module[13] = {
+luaL_Reg const applib_module[] = {
     { "to_base64", l_to_base64 },
     { "from_base64", l_from_base64 },
     { "send_irc", l_send_irc },
@@ -372,40 +372,37 @@ void lua_callback(lua_State* L, char const* key)
     safecall(L, key, lua_gettop(L) - 1);
 }
 
-void pushircmsg(lua_State* L, ircmsg const* msg)
+void pushircmsg(lua_State* L, ircmsg const& msg)
 {
-    lua_createtable(L, msg->args.size(), 3);
+    lua_createtable(L, msg.args.size(), 3);
 
-    lua_createtable(L, 0, msg->tags.size());
-    for (int i = 0; i < msg->tags.size(); i++) {
-        if (msg->tags[i].val)
-        {
-            lua_pushstring(L, msg->tags[i].val);
-        }
-        else
-        {
+    lua_createtable(L, 0, msg.tags.size());
+    for (auto && tag : msg.tags) {
+        if (tag.val) {
+            lua_pushstring(L, tag.val);
+        } else {
             lua_pushboolean(L, 1);
         }
-        lua_setfield(L, -2, msg->tags[i].key);
+        lua_setfield(L, -2, tag.key);
     }
     lua_setfield(L, -2, "tags");
 
-    lua_pushstring(L, msg->source);
+    lua_pushstring(L, msg.source);
     lua_setfield(L, -2, "source");
 
     char *end;
-    long code = strtol(msg->command, &end, 10);
+    long code = strtol(msg.command, &end, 10);
     if (*end == '\0') {
         lua_pushinteger(L, code);
     } else {
-        lua_pushstring(L, msg->command);
+        lua_pushstring(L, msg.command);
     }
     lua_setfield(L, -2, "command");
 
-    for (int i = 0; i < msg->args.size(); i++)
-    {
-        lua_pushstring(L, msg->args[i]);
-        lua_rawseti(L, -2, i+1);
+    int argix = 1;
+    for (auto arg : msg.args) {
+        lua_pushstring(L, arg);
+        lua_rawseti(L, -2, argix++);
     }
 }
 

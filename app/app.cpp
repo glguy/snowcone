@@ -136,7 +136,7 @@ void app::do_dns(addrinfo const* ai)
     }
 }
 
-void app::do_irc(ircmsg const* msg)
+void app::do_irc(ircmsg const& msg)
 {
     pushircmsg(L, msg);
     lua_callback(L, "on_irc");

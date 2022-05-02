@@ -53,7 +53,7 @@ public:
     void set_irc(uv_stream_t* stream);
     void clear_irc();
     void set_window_size();
-    void do_irc(ircmsg const*);
+    void do_irc(ircmsg const&);
     void do_irc_err(char const*);
 
     void do_dns(addrinfo const* ai);

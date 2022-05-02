@@ -51,7 +51,7 @@ static void on_line(uv_stream_t *stream, char *line)
 
         try {
             auto irc = parse_irc_message(msg);
-            a->do_irc(&irc);
+            a->do_irc(irc);
         } catch (irc_parse_error const& e) {}
     } else {
         a->clear_irc();
