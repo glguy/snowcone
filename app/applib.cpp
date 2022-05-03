@@ -1,6 +1,7 @@
-#include "applib.hpp"
 #include <ncurses.h>
 #include <ctype.h>
+#include <cstring>
+#include <cstdio>
 
 extern "C" {
 #include <myncurses.h>
@@ -17,8 +18,6 @@ extern "C" {
 #include "lua_uv_timer.hpp"
 #include "safecall.hpp"
 #include "write.hpp"
-
-#include <iterator>
 
 namespace { // lua support for app
 
