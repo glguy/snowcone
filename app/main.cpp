@@ -28,6 +28,8 @@ static void on_winch(uv_signal_t* handle, int signum);
 
 static void on_stdin(uv_poll_t *handle, int status, int events)
 {
+    if (status != 0) return;
+
     struct app *a = static_cast<app *>(handle->loop->data);
 
     int key;

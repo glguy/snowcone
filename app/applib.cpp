@@ -200,17 +200,8 @@ int l_shutdown(lua_State* L)
         uv_close_xx(&l);
     }
     
-    uv_poll_stop(&a->input);
-    uv_signal_stop(&a->winch);
-    
-    auto t = new uv_timer_t;
-    uv_timer_init(&a->loop, t);
-    uv_timer_start(t, [](auto t) {
-        auto const a = static_cast<app*>(t->loop->data);
-        uv_close_xx(&a->winch);
-        uv_close_xx(&a->input);
-        uv_close_delete(t);
-    }, 0, 0);
+    uv_close_xx(&a->winch);
+    uv_close_xx(&a->input);
 
     return 0;
 }
