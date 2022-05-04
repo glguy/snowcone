@@ -3,6 +3,6 @@
 
 #include "app.hpp"
 
-int start_irc(struct app *);
+int start_irc(app*);
 
 #endif

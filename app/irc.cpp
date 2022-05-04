@@ -1,57 +1,33 @@
-#include <assert.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <uv.h>
+#include "irc.hpp"
 
 #include "app.hpp"
 #include "configuration.hpp"
-#include "irc.hpp"
 #include "read-line.hpp"
 #include "socat.hpp"
 #include "write.hpp"
 
-static void on_line(uv_stream_t *, char *msg);
-static void on_err_line(uv_stream_t *stream, char *line);
+#include <uv.h>
 
-int start_irc(struct app *a)
+#include <cstring>
+
+namespace {
+
+void on_err_line(uv_stream_t* stream, char* line)
 {
-    uv_pipe_t *irc, *err;
-    int r = socat_wrapper(&a->loop, a->cfg->irc_socat, &irc, &err);
-    if (0 != r)
-    {
-        return 1;
-    }
-
-    a->set_irc(reinterpret_cast<uv_stream_t*>(irc));
-    readline_start(irc, on_line);
-    readline_start(err, on_err_line);
-
-    return 0;
-}
-
-static void on_err_line(uv_stream_t *stream, char *line)
-{
-    auto const a = static_cast<app*>(stream->loop->data);
-
-    if (line)
-    {
+    if (line) {
+        auto const a = static_cast<app*>(stream->loop->data);
         a->do_irc_err(line);
     }
 }
 
-static void on_line(uv_stream_t *stream, char *line)
+void on_line(uv_stream_t* stream, char* line)
 {
     auto const a = static_cast<app*>(stream->loop->data);
 
-    if (line)
-    {
-        struct ircmsg irc;
-        char *msg = strsep(&line, "\r\n");
-
+    if (line) {
+        auto msg = strsep(&line, "\r\n");
         try {
-            auto irc = parse_irc_message(msg);
-            a->do_irc(irc);
+            a->do_irc(parse_irc_message(msg));
         } catch (irc_parse_error const& e) {}
     } else {
         a->clear_irc();
@@ -66,5 +42,20 @@ static void on_line(uv_stream_t *stream, char *line)
                 start_irc(a);
             }, 5000, 0));
         }
+    }
+}
+
+} // namespace
+
+int start_irc(app* a)
+{
+    if (auto pipes = socat_wrapper(&a->loop, a->cfg->irc_socat)) {
+        auto [irc,err] = *pipes;
+        a->set_irc(reinterpret_cast<uv_stream_t*>(irc));
+        readline_start(irc, on_line);
+        readline_start(err, on_err_line);
+        return 0;
+    } else {
+        return 1;
     }
 }

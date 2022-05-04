@@ -1,8 +1,11 @@
-#ifndef SOCAT_H
-#define SOCAT_H
+#pragma once
 
 #include <uv.h>
+#include <optional>
 
-int socat_wrapper(uv_loop_t *loop, char const* socat, uv_pipe_t **irc_stream, uv_pipe_t **error_stream);
+struct socat_pipes {
+    uv_pipe_t *irc;
+    uv_pipe_t *err;
+};
 
-#endif
+std::optional<socat_pipes> socat_wrapper(uv_loop_t *loop, char const* socat);

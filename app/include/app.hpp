@@ -42,7 +42,9 @@ public:
     }
 
     app(app const&) = delete;
+    app(app&&) = delete;
     app& operator=(app const&) = delete;
+    app& operator=(app &&) = delete;
 
     void init();
     void destroy();
@@ -59,6 +61,6 @@ public:
     void do_dns(addrinfo const* ai);
 };
 
-inline app*& app_ref(lua_State *L) {
+inline app*& app_ref(lua_State* L) {
     return *static_cast<app**>(lua_getextraspace(L));
 }

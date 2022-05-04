@@ -32,9 +32,12 @@ public:
 
         reference operator*() const { return *ai; }
         pointer operator->() const { return ai; }
-        bool operator==(iterator_impl rhs) const { return ai == rhs.ai; }
         iterator_impl& operator++() { next(); return *this; }
         iterator_impl operator++(int) { auto tmp = *this; next(); return tmp; }
+
+        friend bool operator==(iterator_impl lhs, iterator_impl rhs) {
+            return lhs.ai == rhs.ai;
+        }
     };
 
     using iterator = iterator_impl<addrinfo>;

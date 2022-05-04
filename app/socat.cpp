@@ -8,7 +8,7 @@
 #include "socat.hpp"
 #include "uv.hpp"
 
-int socat_wrapper(uv_loop_t *loop, char const* socat, uv_pipe_t **irc_stream, uv_pipe_t **error_stream)
+std::optional<socat_pipes> socat_wrapper(uv_loop_t* loop, char const* socat)
 {
     int r;
     char const* argv[] = {"socat", "FD:3", socat, nullptr};
@@ -44,10 +44,8 @@ int socat_wrapper(uv_loop_t *loop, char const* socat, uv_pipe_t **irc_stream, uv
         delete process;
         uv_close_delete(irc_pipe);
         uv_close_delete(error_pipe);
-        return 1;
+        return {};
     }
 
-    *irc_stream = irc_pipe;
-    *error_stream = error_pipe;
-    return 0;
+    return {{irc_pipe, error_pipe}};
 }
