@@ -1,13 +1,12 @@
+#include "lua_uv_filewatcher.hpp"
 
-#include <assert.h>
+#include "app.hpp"
+#include "safecall.hpp"
+#include "userdata.hpp"
 
 extern "C" {
 #include "lauxlib.h"
 }
-
-#include "app.hpp"
-#include "lua_uv_filewatcher.hpp"
-#include "safecall.hpp"
 
 template<> char const* udata_name<uv_fs_event_t> = "uv_fs_event";
 

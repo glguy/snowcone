@@ -1,5 +1,4 @@
-#ifndef CONFIGURATION_H
-#define CONFIGURATION_H
+#pragma once
 
 struct configuration
 {
@@ -25,5 +24,3 @@ struct configuration
 };
 
 configuration load_configuration(int argc, char **argv);
-
-#endif

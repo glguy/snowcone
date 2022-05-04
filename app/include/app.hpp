@@ -1,19 +1,17 @@
 #pragma once
 
-#include <netdb.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <uv.h>
+#include "uv.hpp"
+#include "configuration.hpp"
 
-#include <vector>
+#include <ircmsg.hpp>
 
 extern "C" {
 #include <lua.h>
 }
-#include <ircmsg.hpp>
+#include <uv.h>
 
-#include "uv.hpp"
-#include "configuration.hpp"
+#include <cstdlib>
+#include <vector>
 
 struct app
 {

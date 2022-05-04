@@ -1,15 +1,15 @@
-#ifndef READ_LINE_H
-#define READ_LINE_H
+#pragma once
+
+#include "app.hpp"
 
 #include <uv.h>
 
 #include <concepts>
 
-#include "app.hpp"
-
-typedef void line_cb(uv_stream_t *, char*);
+using line_cb = void(uv_stream_t*, char*);
 
 namespace {
+
 struct readline_data
 {
   line_cb *cb;
@@ -40,5 +40,3 @@ auto readline_start(T* stream, line_cb *on_line) -> void {
     stream->data = new readline_data(on_line);
     uvok(uv_read_start(reinterpret_cast<uv_stream_t*>(stream), readline_alloc_cb, readline_read_cb));
 }
-
-#endif

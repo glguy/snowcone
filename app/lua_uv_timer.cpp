@@ -1,13 +1,12 @@
-#include <assert.h>
+#include "lua_uv_timer.hpp"
+
+#include "app.hpp"
+#include "safecall.hpp"
+#include "userdata.hpp"
 
 extern "C" {
 #include "lauxlib.h"
 }
-
-#include "app.hpp"
-#include "lua_uv_timer.hpp"
-#include "safecall.hpp"
-#include "userdata.hpp"
 
 template<> char const* udata_name<uv_timer_t> = "uv_timer";
 

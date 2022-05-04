@@ -1,8 +1,5 @@
-#ifndef TCP_SERVER_H
-#define TCP_SERVER_H
+#pragma once
 
 #include "app.hpp"
 
-int start_tcp_server(app *);
-
-#endif
+int start_tcp_server(app*);

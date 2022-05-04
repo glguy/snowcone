@@ -2,10 +2,10 @@
 
 #include "app.hpp"
 
-extern "C" {
-#include "lauxlib.h"
-#include "lualib.h"
 #include <ircmsg.hpp>
+
+extern "C" {
+#include "lualib.h"
 }
 
 void load_logic(lua_State* L, char const* filename);

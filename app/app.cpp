@@ -1,33 +1,32 @@
-#include <assert.h>
-#include <ctype.h>
-#include <netdb.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <signal.h>
+#include "app.hpp"
 
-#include <ncurses.h>
-
-#include <stdexcept>
+#include "applib.hpp"
+#include "uv.hpp"
+#include "write.hpp"
 
 extern "C" {
-#include "lauxlib.h"
-#include "lualib.h"
-
 #include <myncurses.h>
 #if HAS_GEOIP
 #include <mygeoip.h>
 #endif
-#include "mybase64.h"
+#include <mybase64.h>
+
+#include "lauxlib.h"
+#include "lualib.h"
 }
 
 #include <ircmsg.hpp>
 
-#include "app.hpp"
-#include "applib.hpp"
-#include "uv.hpp"
-#include "write.hpp"
+#include <ncurses.h>
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <locale>
+#include <netdb.h>
+#include <signal.h>
+#include <stdexcept>
+#include <unistd.h>
 
 void app::init()
 {

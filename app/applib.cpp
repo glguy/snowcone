@@ -1,23 +1,27 @@
-#include <ncurses.h>
-#include <ctype.h>
-#include <cstring>
-#include <cstdio>
+#include "applib.hpp"
+
+#include "app.hpp"
+#include "lua_uv_filewatcher.hpp"
+#include "lua_uv_timer.hpp"
+#include "safecall.hpp"
+#include "uv.hpp"
+#include "write.hpp"
 
 extern "C" {
 #include <myncurses.h>
 #if HAS_GEOIP
 #include <mygeoip.h>
 #endif
-#include "mybase64.h"
+#include <mybase64.h>
+
+#include "lauxlib.h"
 }
 
-#include "app.hpp"
-#include "applib.hpp"
-#include "uv.hpp"
-#include "lua_uv_filewatcher.hpp"
-#include "lua_uv_timer.hpp"
-#include "safecall.hpp"
-#include "write.hpp"
+#include <ncurses.h>
+
+#include <cstdio>
+#include <cstring>
+#include <locale>
 
 namespace { // lua support for app
 

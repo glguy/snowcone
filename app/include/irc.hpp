@@ -1,8 +1,5 @@
-#ifndef IRC_H
-#define IRC_H
+#pragma once
 
 #include "app.hpp"
 
 int start_irc(app*);
-
-#endif

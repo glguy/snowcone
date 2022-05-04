@@ -1,7 +1,8 @@
-#include <string.h>
-
 #include "read-line.hpp"
+
 #include "uv.hpp"
+
+#include <cstring>
 
 void readline_alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {

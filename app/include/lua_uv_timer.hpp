@@ -1,5 +1,4 @@
-#ifndef MY_UV_TIMER_H
-#define MY_UV_TIMER_H
+#pragma once
 
 extern "C" {
 #include "lua.h"
@@ -8,5 +7,3 @@ extern "C" {
 #include <uv.h>
 
 void push_new_uv_timer(lua_State *L, uv_loop_t *);
-
-#endif

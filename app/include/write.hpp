@@ -1,9 +1,7 @@
-#ifndef WRITE_H
-#define WRITE_H
+#pragma once
 
-#include <stdlib.h>
 #include <uv.h>
 
-void to_write(uv_stream_t *data, char const* msg, size_t n);
+#include <cstdlib>
 
-#endif
+void to_write(uv_stream_t* data, char const* msg, size_t n);

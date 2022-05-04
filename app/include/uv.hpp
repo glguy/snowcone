@@ -1,9 +1,9 @@
 #pragma once
 
+#include <uv.h>
+
 #include <concepts>
 #include <exception>
-
-#include <uv.h>
 
 struct UV_error : public std::exception {
     uv_errno_t e;

@@ -2,25 +2,23 @@
 #define _XOPEN_SOURCE_EXTENDED
 #define _DARWIN_C_SOURCE
 
-#include <iostream>
-
-#include <assert.h>
-#include <locale.h>
-#include <netdb.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
-#include <curses.h>
-#include <uv.h>
-
 #include "app.hpp"
 #include "configuration.hpp"
 #include "irc.hpp"
 #include "read-line.hpp"
 #include "tcp-server.hpp"
 #include "write.hpp"
+
+#include <curses.h>
+#include <uv.h>
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <locale>
+#include <netdb.h>
+#include <unistd.h>
 
 static void on_winch(uv_signal_t* handle, int signum);
 
