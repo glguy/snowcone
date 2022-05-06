@@ -79,7 +79,7 @@ void
 on_dnslookup(uv_getaddrinfo_t* req, int status, addrinfo* res)
 {
     auto const a = static_cast<app*>(req->loop->data);
-    lua_State * const L = a->L;
+    auto const L = a->L;
 
     lua_rawgetp(L, LUA_REGISTRYINDEX, req);
     lua_pushnil(L);
@@ -89,7 +89,6 @@ on_dnslookup(uv_getaddrinfo_t* req, int status, addrinfo* res)
     if (0 == status) {
         a->do_dns(res); // pushes two arrays
         lua_pushnil(L);
-        uv_freeaddrinfo(res);
     } else {
         lua_pushnil(L);
         lua_pushnil(L);

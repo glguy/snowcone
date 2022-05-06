@@ -56,7 +56,7 @@ public:
     void do_irc(ircmsg const&);
     void do_irc_err(char const*);
 
-    void do_dns(addrinfo const* ai);
+    void do_dns(addrinfo* ai);
 };
 
 inline app*& app_ref(lua_State* L) {
