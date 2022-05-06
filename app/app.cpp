@@ -4,6 +4,8 @@
 #include "uv.hpp"
 #include "write.hpp"
 
+#include <ircmsg.hpp>
+
 extern "C" {
 #include <myncurses.h>
 #if HAS_GEOIP
@@ -15,13 +17,12 @@ extern "C" {
 #include "lualib.h"
 }
 
-#include <ircmsg.hpp>
-
 #include <ncurses.h>
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <locale>
 #include <netdb.h>
 #include <signal.h>
@@ -49,9 +50,7 @@ void app::destroy()
     uvok(uv_loop_close(&loop));
 }
 
-void app::do_command(
-    char const* line,
-    uv_stream_t *console)
+void app::do_command(char const* line, uv_stream_t* console)
 {
     this->console = console;
 
@@ -129,7 +128,7 @@ void app::do_dns(addrinfo const* ai)
             lua_rawseti(L, -2, i);
         } else {
             // I don't know when this could actually fail
-            fprintf(stderr, "getnameinfo: %s\n", gai_strerror(r));
+            std::cerr << "getnameinfo: " << gai_strerror(r) << std::endl;
         }
         ai = ai->ai_next;
     }

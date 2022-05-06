@@ -1,24 +1,26 @@
-#include <assert.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <uv.h>
-#include <vector>
+#include "write.hpp"
 
 #include "uv.hpp"
-#include "write.hpp"
+
+#include <uv.h>
+
+#include <algorithm>
+#include <cstdlib>
+#include <iterator>
+#include <memory>
 
 struct Request {
     uv_write_t write;
-    std::vector<char> body;
+    std::unique_ptr<char[]> body;
     uv_buf_t const buf;
 
     Request(char const* msg, size_t n)
     : write {}    
-    , body(msg, msg+n)
-    , buf {body.data(), n}
+    , body(std::make_unique<char[]>(n))
+    , buf {body.get(), n}
     {
         write.data = this;
+        std::copy_n(msg, n, body.get());
     }
 };
 

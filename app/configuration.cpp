@@ -1,14 +1,16 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include "configuration.hpp"
 
 #include "config.hpp"
-#include "configuration.hpp"
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <unistd.h>
 
 [[noreturn]] static void usage(void) 
 {
-    fprintf(stderr,
+    std::cerr <<
     "usage: snowcone\n"
     "         -S socat_address\n"
     "         -N nick\n"
@@ -26,8 +28,7 @@
     "         [-f network.lua]\n"
     "         [-l console_host]\n"
     "         [-p console_port]\n"
-    "         [-h]\n"
-    );
+    "         [-h]\n";
     exit(EXIT_FAILURE);
 }
 
@@ -47,8 +48,8 @@ configuration load_configuration(int argc, char** argv)
     while ((opt = getopt(argc, argv, flags)) != -1) {
         switch (opt) {
         default: abort();
-        case '?': fprintf(stderr, "Unknown flag: %c\n", optopt); usage();
-        case ':': fprintf(stderr, "Missing flag argument: %c\n", optopt); usage();
+        case '?': std::cerr << "Unknown flag: " << char(optopt) << std::endl; usage();
+        case ':': std::cerr << "Missing flag argument: " << char(optopt) << std::endl; usage();
         case 'h': usage();
         case 'C': cfg.irc_capabilities      = optarg; break;
         case 'D': cfg.irc_sasl_key          = optarg; break;
@@ -72,34 +73,34 @@ configuration load_configuration(int argc, char** argv)
     argv += optind;
     argc -= optind;
 
-    int show_usage = 0;
+    bool show_usage = false;
 
     if (nullptr == cfg.irc_nick) {
-        fprintf(stderr, "IRC nickname required (-N).\n");
-        show_usage = 1;
+        std::cerr << "IRC nickname required (-N).\n";
+        show_usage = true;
     }
 
     if (nullptr == cfg.irc_socat) {
-        fprintf(stderr, "socat connection argument required (-S).\n");
-        show_usage = 1;
+        std::cerr << "socat connection argument required (-S).\n";
+        show_usage = true;
     }
 
     if (nullptr != cfg.irc_sasl_mechanism &&
-        strcmp("PLAIN", cfg.irc_sasl_mechanism) &&
-        strcmp("EXTERNAL", cfg.irc_sasl_mechanism) &&
-        strcmp("ECDSA-NIST256P-CHALLENGE", cfg.irc_sasl_mechanism) &&
-        strcmp("ECDH-X25519-CHALLENGE", cfg.irc_sasl_mechanism) &&
-        strcmp("SCRAM-SHA-1", cfg.irc_sasl_mechanism) &&
-        strcmp("SCRAM-SHA-256", cfg.irc_sasl_mechanism) &&
-        strcmp("SCRAM-SHA-512", cfg.irc_sasl_mechanism))
+        0 != strcmp("PLAIN", cfg.irc_sasl_mechanism) &&
+        0 != strcmp("EXTERNAL", cfg.irc_sasl_mechanism) &&
+        0 != strcmp("ECDSA-NIST256P-CHALLENGE", cfg.irc_sasl_mechanism) &&
+        0 != strcmp("ECDH-X25519-CHALLENGE", cfg.irc_sasl_mechanism) &&
+        0 != strcmp("SCRAM-SHA-1", cfg.irc_sasl_mechanism) &&
+        0 != strcmp("SCRAM-SHA-256", cfg.irc_sasl_mechanism) &&
+        0 != strcmp("SCRAM-SHA-512", cfg.irc_sasl_mechanism))
     {
-        fprintf(stderr, "SASL mechanism should be PLAIN, EXTERNAL, ECDSA-NIST256P-CHALLENGE, or ECDH-X25519-CHALLENGE (-M).\n");
-        show_usage = 1;
+        std::cerr << "SASL mechanism should be PLAIN, EXTERNAL, ECDSA-NIST256P-CHALLENGE, or ECDH-X25519-CHALLENGE (-M).\n";
+        show_usage = true;
     }
 
     if (0 != argc) {
-        fprintf(stderr, "Unexpected positional argument (use -L for lua path).\n");
-        show_usage = 1;
+        std::cerr << "Unexpected positional argument (use -L for lua path).\n";
+        show_usage = true;
     }
 
     if (show_usage) {

@@ -21,6 +21,7 @@ extern "C" {
 
 #include <cstdio>
 #include <cstring>
+#include <iostream>
 #include <locale>
 
 namespace { // lua support for app
@@ -351,7 +352,7 @@ void load_logic(lua_State* L, char const* filename)
             to_write(a->console, "\n", 1);
         } else {
             endwin();
-            fprintf(stderr, "error in %s: %s\n", "load_logic:load", err);
+            std::cerr << "error in load_logic:load: " << err << std::endl;
         }
         lua_pop(L, 1);
     }

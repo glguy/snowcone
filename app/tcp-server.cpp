@@ -1,30 +1,30 @@
-#include <assert.h>
-#include <stdlib.h>
-
-#include <uv.h>
-#include <ncurses.h>
+#include "tcp-server.hpp"
 
 #include "app.hpp"
 #include "read-line.hpp"
-#include "tcp-server.hpp"
 #include "uvaddrinfo.hpp"
 #include "write.hpp"
+
+#include <ncurses.h>
+#include <uv.h>
+
+#include <cstdlib>
+#include <iostream>
 
 /* TCP SERVER ********************************************************/
 
 namespace {
 
-void on_new_connection(uv_stream_t *server, int status)
+void on_new_connection(uv_stream_t* server, int status)
 {
     if (status < 0) {
-        fprintf(stderr, "New connection error %s\n", uv_strerror(status));
+        std::cerr << "New connection error " << uv_strerror(status) << std::endl;
         uv_close_xx(server);
         return;
     }
 
     auto client = new uv_tcp_t;
     uvok(uv_tcp_init(server->loop, client));
-
     uvok(uv_accept(server, reinterpret_cast<uv_stream_t*>(client)));
 
     readline_start(client, [](uv_stream_t *stream, char *msg) {
@@ -50,7 +50,7 @@ int start_tcp_server(struct app *a)
     if (res < 0)
     {
         endwin();
-        fprintf(stderr, "failed to resolve %s: %s\n", a->cfg->console_node, uv_strerror(res));
+        std::cerr << "failed to resolve " << a->cfg->console_node << ": " << uv_strerror(res) << std::endl;
         return 1;
     }
 
@@ -68,17 +68,17 @@ int start_tcp_server(struct app *a)
         if (res < 0)
         {
             endwin();
-            fprintf(stderr, "failed to bind: %s\n", uv_strerror(res));
+            std::cerr << "failed to bind: " << uv_strerror(res) << std::endl;
             goto teardown;
-        } 
+        }
 
         res = uv_listen(reinterpret_cast<uv_stream_t*>(tcp), SOMAXCONN, &on_new_connection);
         if (res < 0)
         {
             endwin();
-            fprintf(stderr, "failed to listen: %s\n", uv_strerror(res));
+            std::cerr << "failed to listen: " << uv_strerror(res) << std::endl;
             goto teardown;
-        } 
+        }
     }
 
     return 0;

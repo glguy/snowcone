@@ -20,7 +20,7 @@ void readline_read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
         d->cb(stream, nullptr);
         uv_close_xx(stream, [](auto handle) {
             delete static_cast<readline_data*>(handle->data);
-            free(handle);
+            delete handle;
         });
         return;
     }

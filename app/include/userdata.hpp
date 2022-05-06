@@ -23,6 +23,6 @@ T * new_udata(lua_State *L, std::invocable auto k) {
 }
 
 template <typename T>
-T * check_udata(lua_State *L, int ud) {
+T* check_udata(lua_State *L, int ud) {
     return static_cast<T*>(luaL_checkudata(L, ud, udata_name<T>));
 }

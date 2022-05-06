@@ -17,7 +17,6 @@
 #include <cstring>
 #include <iostream>
 #include <locale>
-#include <netdb.h>
 #include <unistd.h>
 
 static void on_winch(uv_signal_t* handle, int signum);
@@ -93,7 +92,7 @@ int main(int argc, char *argv[])
 
     SCREEN *scr = newterm(nullptr, tty, stdin);
     if (nullptr == scr) {
-        fprintf(stderr, "newterm: Failed to initialize ncurses\n");
+        std::cerr << "newterm: Failed to initialize ncurses\n";
         return 1;
     }
 

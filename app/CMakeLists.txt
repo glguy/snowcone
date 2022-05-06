@@ -1,3 +1,4 @@
+# set(CMAKE_CXX_CLANG_TIDY /usr/local/opt/llvm/bin/clang-tidy -checks=-*,readability-*)
 add_executable(snowcone
     main.cpp app.cpp applib.cpp socat.cpp configuration.cpp
     irc.cpp tcp-server.cpp write.cpp read-line.cpp
