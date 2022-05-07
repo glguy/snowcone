@@ -2,13 +2,15 @@
 
 #include "uv.hpp"
 
+#include <algorithm>
 #include <cstring>
+#include <iterator>
 
 void readline_alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
     auto const d = static_cast<readline_data*>(handle->data);
-    buf->base = d->buffer + d->used;
-    buf->len = sizeof d->buffer - d->used - 1; // always save a byte for NUL
+    buf->base = d->end;
+    buf->len = std::distance(d->end, std::end(d->buffer));
 }
 
 void readline_read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
@@ -25,17 +27,17 @@ void readline_read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
         return;
     }
 
-    d->used += nread;
-    d->buffer[d->used] = '\0';
+    d->end += nread;
 
     char *cursor = d->buffer;
-    char *start;
+    char *nl;
 
-    while(start = strsep(&cursor, "\n"), nullptr != cursor)
+    while(d->end != (nl = std::find(cursor, d->end, '\n')))
     {
-        d->cb(stream, start);
+        *nl = '\0';
+        d->cb(stream, cursor);
+        cursor = nl+1;
     }
 
-    d->used = strlen(start);
-    memmove(d->buffer, start, d->used);
+    d->end = std::copy(cursor, d->end, d->buffer);
 }

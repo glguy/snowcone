@@ -13,12 +13,12 @@ namespace {
 struct readline_data
 {
   line_cb *cb;
-  size_t used;
+  char *end;
   char buffer[65000];
 
   readline_data(line_cb *cb)
   : cb(cb)
-  , used(0)
+  , end(buffer)
   , buffer()
   {}
 };
