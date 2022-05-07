@@ -27,17 +27,16 @@ void readline_read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
         return;
     }
 
-    d->end += nread;
-
-    char *cursor = d->buffer;
-    char *nl;
-
-    while(d->end != (nl = std::find(cursor, d->end, '\n')))
-    {
-        *nl = '\0';
-        d->cb(stream, cursor);
-        cursor = nl+1;
+    std::advance(d->end, nread);
+    auto cursor = std::begin(d->buffer);
+    auto nl = std::find(cursor, d->end, '\n');
+    if (d->end != nl) {
+        do {
+            *nl = '\0';
+            d->cb(stream, cursor);
+            cursor = std::next(nl);
+            nl = std::find(cursor, d->end, '\n');
+        } while (d->end != nl);
+        d->end = std::copy(cursor, d->end, std::begin(d->buffer));
     }
-
-    d->end = std::copy(cursor, d->end, d->buffer);
 }
