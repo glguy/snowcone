@@ -2,9 +2,12 @@
 
 #include <uv.h>
 
+#include <chrono>
 #include <concepts>
 #include <exception>
+#include <memory>
 
+using namespace std::chrono_literals;
 struct UV_error : public std::exception {
     uv_errno_t e;
     UV_error(uv_errno_t e) : e(e) {}
@@ -39,4 +42,25 @@ inline auto uv_close_delete(T* handle) -> void {
     uv_close_xx(handle, [](auto handle) {
         delete reinterpret_cast<T*>(handle);
     });
+}
+
+template<IsHandle T>
+struct HandleDeleter {
+    inline void operator()(T* x) { uv_close_delete(x); }
+};
+
+template <IsHandle T>
+using HandlePointer = std::unique_ptr<T, HandleDeleter<T>>;
+
+HandlePointer<uv_tcp_t> make_tcp(uv_loop_t* loop);
+HandlePointer<uv_pipe_t> make_pipe(uv_loop_t* loop, int ipc);
+HandlePointer<uv_timer_t> make_timer(uv_loop_t* loop);
+
+inline void uv_timer_start_xx(
+    uv_timer_t *handle,
+    std::chrono::milliseconds timeout,
+    std::chrono::milliseconds repeat,
+    uv_timer_cb cb)
+{
+    uvok(uv_timer_start(handle, cb, timeout.count(), repeat.count()));
 }

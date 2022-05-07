@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cstring>
 #include <iterator>
+#include <string_view>
+#include <fstream>
 
 void readline_alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
@@ -13,17 +15,16 @@ void readline_alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf
     buf->len = std::distance(d->end, std::end(d->buffer));
 }
 
-void readline_read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
+void readline_read_cb(uv_stream_t* stream, ssize_t nread, uv_buf_t const* buf)
 {
+    auto const a = static_cast<app*>(stream->loop->data);
     auto const d = static_cast<readline_data*>(stream->data);
 
     if (nread < 0)
     {
-        d->cb(stream, nullptr);
-        uv_close_xx(stream, [](auto handle) {
-            delete static_cast<readline_data*>(handle->data);
-            delete handle;
-        });
+        delete d;
+        uv_close_delete(stream);
+        d->cb(a, nullptr);
         return;
     }
 
@@ -33,7 +34,7 @@ void readline_read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
     if (d->end != nl) {
         do {
             *nl = '\0';
-            d->cb(stream, cursor);
+            d->cb(a, cursor);
             cursor = std::next(nl);
             nl = std::find(cursor, d->end, '\n');
         } while (d->end != nl);

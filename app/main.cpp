@@ -6,7 +6,6 @@
 #include "configuration.hpp"
 #include "irc.hpp"
 #include "read-line.hpp"
-#include "tcp-server.hpp"
 #include "write.hpp"
 
 #include <curses.h>
@@ -114,15 +113,6 @@ int main(int argc, char *argv[])
 
     uvok(uv_poll_start(&a.input, UV_READABLE, on_stdin));
     uvok(uv_signal_start(&a.winch, on_winch, SIGWINCH));
-
-    /* start up networking */
-    if (cfg.console_service != nullptr)
-    {
-        if (start_tcp_server(&a))
-        {
-            goto cleanup;
-        }
-    }
 
     if (*cfg.irc_socat != '\0' && start_irc(&a))
     {

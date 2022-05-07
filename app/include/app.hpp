@@ -17,23 +17,20 @@ struct app
 {
     lua_State *L;
     struct configuration *cfg;
-    uv_stream_t *console;
     uv_stream_t *irc;
     uv_loop_t loop;
     uv_poll_t input;
     uv_signal_t winch;
-    std::vector<uv_tcp_t> listeners;
+    uv_timer_t reconnect;
     bool closing;
 
 public:
     app(configuration * cfg)
     : cfg(cfg)
-    , console(nullptr)
     , irc(nullptr)
     , loop()
     , input()
     , winch()
-    , listeners()
     , closing(false)
     {
         loop.data = this;
@@ -47,7 +44,6 @@ public:
     void init();
     void destroy();
 
-    void do_command(char const* line, uv_stream_t* console);
     void do_mouse(int x, int y);
     void do_keyboard(long);
     void set_irc(uv_stream_t* stream);

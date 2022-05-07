@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <iterator>
 #include <iostream>
+#include <memory>
 #include <unistd.h>
 
 std::optional<socat_pipes> socat_wrapper(uv_loop_t* loop, char const* socat)
@@ -15,19 +16,16 @@ std::optional<socat_pipes> socat_wrapper(uv_loop_t* loop, char const* socat)
 
     char const* argv[] = {name, "FD:3", socat, nullptr};
 
-    auto irc_pipe = new uv_pipe_t;
-    uvok(uv_pipe_init(loop, irc_pipe, 0));
-
-    auto error_pipe = new uv_pipe_t;
-    uvok(uv_pipe_init(loop, error_pipe, 0));
+    auto irc_pipe = make_pipe(loop, 0);
+    auto error_pipe = make_pipe(loop, 0);
 
     uv_stdio_container_t containers[] {
         {},
         {},
         {uv_stdio_flags(UV_CREATE_PIPE | UV_WRITABLE_PIPE),
-         {reinterpret_cast<uv_stream_t*>(error_pipe)}},
+         {reinterpret_cast<uv_stream_t*>(error_pipe.get())}},
         {uv_stdio_flags(UV_CREATE_PIPE | UV_READABLE_PIPE | UV_WRITABLE_PIPE),
-         {reinterpret_cast<uv_stream_t*>(irc_pipe)}},
+         {reinterpret_cast<uv_stream_t*>(irc_pipe.get())}},
     };
 
     uv_process_options_t options {};
@@ -42,12 +40,10 @@ std::optional<socat_pipes> socat_wrapper(uv_loop_t* loop, char const* socat)
     auto process = new uv_process_t;
     r = uv_spawn(loop, process, &options);
     if (0 != r) {
+        delete process;
         std::cerr << "Failed to spawn socat: " << uv_strerror(r) << std::endl;
-        uv_close_delete(process);
-        uv_close_delete(irc_pipe);
-        uv_close_delete(error_pipe);
         return {};
     }
 
-    return {{irc_pipe, error_pipe}};
+    return {{irc_pipe.release(), error_pipe.release()}};
 }

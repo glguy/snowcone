@@ -12,18 +12,15 @@
 
 namespace {
 
-void on_err_line(uv_stream_t* stream, char* line)
+void on_err_line(app* a, char* line)
 {
     if (line) {
-        auto const a = static_cast<app*>(stream->loop->data);
         a->do_irc_err(line);
     }
 }
 
-void on_line(uv_stream_t* stream, char* line)
+void on_line(app* a, char* line)
 {
-    auto const a = static_cast<app*>(stream->loop->data);
-
     if (line) {
         auto msg = strsep(&line, "\r\n");
         try {
@@ -32,15 +29,11 @@ void on_line(uv_stream_t* stream, char* line)
     } else {
         a->clear_irc();
 
-        if (!a->closing)
-        {
-            auto timer = new uv_timer_t;
-            uvok(uv_timer_init(&a->loop, timer));
-            uvok(uv_timer_start(timer, [](auto timer) {
+        if (!a->closing) {
+            uv_timer_start_xx(&a->reconnect, 5s, 0s, [](auto timer) {
                 auto const a = static_cast<app*>(timer->loop->data);
-                uv_close_delete(timer);
                 start_irc(a);
-            }, 5000, 0));
+            });
         }
     }
 }

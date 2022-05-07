@@ -43,7 +43,7 @@ configuration load_configuration(int argc, char** argv)
     cfg.irc_sasl_password = getenv("IRC_SASL_PASSWORD");
     cfg.irc_oper_password = getenv("IRC_OPER_PASSWORD");
 
-    char const* const flags = ":C:D:E:f:G:hK:l:L:M:N:O:p:S:U:X:Z:";
+    char const* const flags = ":C:D:E:f:G:hK:L:M:N:O:S:U:X:Z:";
     int opt;
     while ((opt = getopt(argc, argv, flags)) != -1) {
         switch (opt) {
@@ -57,12 +57,10 @@ configuration load_configuration(int argc, char** argv)
         case 'f': cfg.network_filename      = optarg; break;
         case 'G': cfg.irc_gecos             = optarg; break;
         case 'K': cfg.irc_challenge_key     = optarg; break;
-        case 'l': cfg.console_node          = optarg; break;
         case 'L': cfg.lua_filename          = optarg; break;
         case 'M': cfg.irc_sasl_mechanism    = optarg; break;
         case 'N': cfg.irc_nick              = optarg; break;
         case 'O': cfg.irc_oper_username     = optarg; break;
-        case 'p': cfg.console_service       = optarg; break;
         case 'S': cfg.irc_socat             = optarg; break;
         case 'U': cfg.irc_user              = optarg; break;
         case 'X': cfg.irc_pass              = optarg; break;

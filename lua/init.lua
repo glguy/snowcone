@@ -757,4 +757,8 @@ function M.on_disconnect()
     status('irc', 'disconnected')
 end
 
+function M.print(str)
+    status('print', str)
+end
+
 snowcone.setmodule(M)

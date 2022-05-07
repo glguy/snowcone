@@ -30,13 +30,8 @@ int safecall(lua_State* L, char const* location, int args)
         auto const a = app_ref(L);
         size_t len;
         char const* err = lua_tolstring(L, -1, &len);
-        if (a->console) {
-            to_write(a->console, err, len);
-            to_write(a->console, "\n", 1);
-        } else {
-            endwin();
-            std::cerr << "error in " << location << ": " << err << std::endl;
-        }
+        endwin();
+        std::cerr << "error in " << location << ": " << err << std::endl;
         lua_pop(L, 2); /* error string, handler */
     }
     return status;

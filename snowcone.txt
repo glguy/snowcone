@@ -34,8 +34,6 @@ OPTIONS
   -C capabilities  Extra space-delimited capabilities to request upon connect (CAP REQ)
   -L initfile      Path to Lua logic entry point
   -f filename      Path to Lua network configuration
-  -l host          Binding host for Lua console
-  -p port          Binding TCP port for Lua console
   -h               print this usage information
 
 ENVIRONMENT
@@ -53,13 +51,6 @@ SOCAT ADDRESSES
   TCP:server:6667  Connect to a plain-text IRC server
   OPENSSL:server:6697,certificate=cert.pem  
     Connect to a TLS-enabled IRC server using a client-side certificate
-
-LUA CONSOLE
-  When a Lua console port is specified, snowcone will listen for
-  connections on that port and provide a Lua console with access
-  to snowcone's internal state. This can be useful for developing
-  snowcone or adding custom logic at runtime. Calls to print from
-  inside a console will be piped back to that console.
 
 MODES
   F1  recent connections

@@ -35,6 +35,7 @@ void app::init()
     uvok(uv_loop_init(&loop));
     uvok(uv_poll_init(&loop, &input, STDIN_FILENO));
     uvok(uv_signal_init(&loop, &winch));
+    uvok(uv_timer_init(&loop, &reconnect));
 
     L = luaL_newstate();
     if (nullptr == L) throw std::runtime_error("failed to create lua");
@@ -49,32 +50,6 @@ void app::destroy()
 {
     lua_close(L);
     uvok(uv_loop_close(&loop));
-}
-
-void app::do_command(char const* line, uv_stream_t* console)
-{
-    this->console = console;
-
-    if (*line == '/')
-    {
-        line++;
-        if (!strcmp(line, "reload"))
-        {
-            load_logic(L, cfg->lua_filename);
-        }
-        else
-        {
-            char const* msg = "Unknown command\n";
-            to_write(console, msg, strlen(msg));
-        }
-    }
-    else
-    {
-        lua_pushstring(L, line);
-        lua_callback(L, "on_input");
-    }
-    
-    this->console = nullptr;
 }
 
 void app::do_keyboard(long key)

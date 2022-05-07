@@ -105,12 +105,13 @@ int l_dnslookup(lua_State* L)
     luaL_checkany(L, 2);
     lua_settop(L, 2);
 
-    auto req = new uv_getaddrinfo_t;
 
-    struct addrinfo const hints = { .ai_socktype = SOCK_STREAM };
+    addrinfo hints {};
+    hints.ai_socktype = SOCK_STREAM;
+
+    auto req = new uv_getaddrinfo_t;
     int r = uv_getaddrinfo(&a->loop, req, on_dnslookup, hostname, nullptr, &hints);
-    if (0 != r)
-    {
+    if (0 != r) {
         delete req;
         return luaL_error(L, "dnslookup: %s", uv_strerror(r));
     }
@@ -199,13 +200,10 @@ int l_shutdown(lua_State* L)
 {
     auto const a = app_ref(L);
     a->closing = true;
-
-    for (auto &&l : a->listeners) {
-        uv_close_xx(&l);
-    }
     
     uv_close_xx(&a->winch);
     uv_close_xx(&a->input);
+    uv_close_xx(&a->reconnect);
 
     return 0;
 }
@@ -263,8 +261,6 @@ int l_isalnum(lua_State* L)
 void push_configuration(lua_State* L, configuration* cfg)
 {
     char const* const configs[][2] = {
-        {"console_node", cfg->console_node},
-        {"console_service", cfg->console_service},
         {"lua_filename", cfg->lua_filename},
         {"irc_socat", cfg->irc_socat},
         {"irc_nick", cfg->irc_nick},
@@ -311,26 +307,22 @@ int l_print(lua_State* L)
 {
     auto const a = app_ref(L);
 
-    if (a->console)
-    {
-        int n = lua_gettop(L);  /* number of arguments */
+    int n = lua_gettop(L);  /* number of arguments */
 
-        luaL_Buffer b;
-        luaL_buffinit(L, &b);
+    luaL_Buffer b;
+    luaL_buffinit(L, &b);
 
-        for (int i = 1; i <= n; i++) {
-                (void)luaL_tolstring(L, i, nullptr); // leaves string on stack
-                luaL_addvalue(&b); // consumes string
-                if (i<n) luaL_addchar(&b, '\t');
-        }
-        luaL_addchar(&b, '\n');
-        luaL_pushresult(&b);
-        size_t msglen;
-        char const* msg = lua_tolstring(L, -1, &msglen);
-    
-        to_write(a->console, msg, msglen);
+    for (int i = 1; i <= n; i++) {
+            (void)luaL_tolstring(L, i, nullptr); // leaves string on stack
+            luaL_addvalue(&b); // consumes string
+            if (i<n) luaL_addchar(&b, '\t');
     }
-
+    
+    luaL_pushresult(&b);
+    lua_replace(L, 1);
+    lua_settop(L, 1);
+    
+    lua_callback(L, "print");
     return 0;
 }
 
@@ -346,13 +338,8 @@ void load_logic(lua_State* L, char const* filename)
         auto const a = app_ref(L);
         size_t len;
         char const* err = lua_tolstring(L, -1, &len);
-        if (a->console) {
-            to_write(a->console, err, len);
-            to_write(a->console, "\n", 1);
-        } else {
-            endwin();
-            std::cerr << "error in load_logic:load: " << err << std::endl;
-        }
+        endwin();
+        std::cerr << "error in load_logic:load: " << err << std::endl;
         lua_pop(L, 1);
     }
 }
