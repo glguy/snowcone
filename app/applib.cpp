@@ -21,8 +21,11 @@ extern "C" {
 
 #include <ncurses.h>
 
+#include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <iostream>
 #include <locale>
 
@@ -51,99 +54,41 @@ int l_pton(lua_State* L)
     char const* p = luaL_checkstring(L, 1);
     bool ipv6 = strchr(p, ':');
 
-    union {
-        struct in_addr a4;
-        struct in6_addr a6;
-    } dst;
+    size_t len;
+    int af;
+    char buffer[16];
 
-    int res = inet_pton(ipv6 ? AF_INET6 : AF_INET, p, &dst);
+    if (ipv6) {
+        af = AF_INET6;
+        len = 16;
+    } else {
+        af = AF_INET;
+        len = 4;
+    }
 
-    if (res == 1)
-    {
-        lua_pushlstring(L, (char*)&dst, ipv6 ? sizeof (struct in6_addr) : sizeof (struct in_addr));
+    switch (inet_pton(af, p, buffer)) {
+    case 1:
+        lua_pushlstring(L, buffer, len);
         return 1;
-    }
-    else if (res < 0)
-    {
-        lua_pushnil(L);
-        lua_pushfstring(L, "pton: %s", strerror(errno));
-        return 2;
-    }
-    else
-    {
+    case 0:
         lua_pushnil(L);
         lua_pushstring(L, "pton: bad address");
         return 2;
-    }
-}
-
-void push_addrinfos(lua_State* L, uv_loop_t* loop, addrinfo* ai)
-{
-    AddrInfo addrinfos {ai};
-    size_t n = std::distance(addrinfos.begin(), addrinfos.end());
-
-    lua_createtable(L, n, 0); // printable addresses
-    lua_Integer i = 1;
-
-    for (auto const& a : addrinfos) {
-        uv_getnameinfo_t req;
-        uvok(uv_getnameinfo(loop, &req, nullptr, a.ai_addr, NI_NUMERICHOST));
-        lua_pushstring(L, req.host);
-        lua_rawseti(L, -2, i++);
-    }
-}
-
-void on_dnslookup(uv_getaddrinfo_t* req, int status, addrinfo* res)
-{
-    auto const a = static_cast<app*>(req->loop->data);
-    auto const L = a->L;
-
-    lua_rawgetp(L, LUA_REGISTRYINDEX, req);
-    lua_pushnil(L);
-    lua_rawsetp(L, LUA_REGISTRYINDEX, req);
-    delete req;
-
-    if (0 == status) {
-        push_addrinfos(L, &a->loop, res);
+    default: {
+        int e = errno;
         lua_pushnil(L);
-    } else {
-        lua_pushnil(L);
-        lua_pushstring(L, uv_strerror(status));
+        lua_pushfstring(L, "pton: %s", strerror(e));
+        return 2;
     }
-
-    safecall(L, "dnslookup callback", 2);
-}
-
-int l_dnslookup(lua_State* L)
-{
-    auto const a = app_ref(L);
-    char const* hostname = luaL_checkstring(L, 1);
-    luaL_checkany(L, 2);
-    lua_settop(L, 2);
-
-
-    addrinfo hints {};
-    hints.ai_socktype = SOCK_STREAM;
-
-    auto req = new uv_getaddrinfo_t;
-    int r = uv_getaddrinfo(&a->loop, req, on_dnslookup, hostname, nullptr, &hints);
-    if (0 != r) {
-        delete req;
-        return luaL_error(L, "dnslookup: %s", uv_strerror(r));
     }
-
-    lua_rawsetp(L, LUA_REGISTRYINDEX, req);
-
-    return 0;
 }
 
 int l_raise(lua_State* L)
 {
     lua_Integer s = luaL_checkinteger(L, 1);
-    int r = raise(s);
-    if (r != 0)
-    {
-        return luaL_error(L, "raise: %s", strerror(errno));
+    if (0 != raise(s)) {
+        int e = errno;
+        return luaL_error(L, "raise: %s", strerror(e));
     }
     return 0;
 }
@@ -171,17 +116,12 @@ int l_from_base64(lua_State* L)
     luaL_Buffer B;
     auto output = luaL_buffinitsize(L, &B, outlen);
     ssize_t len = mybase64_decode(input, input_len, output);
-    if (0 <= len)
-    {
+    if (0 <= len) {
         luaL_pushresultsize(&B, len);
-        return 1;
-    }
-    else
-    {
+    } else {
         lua_pushnil(L);
-        lua_pushstring(L, "base64 decoding error");
-        return 2;
     }
+    return 1;
 }
 
 int l_send_irc(lua_State* L)
@@ -257,10 +197,7 @@ int l_xor_strings(lua_State* L)
     luaL_Buffer B;
     char *output = luaL_buffinitsize(L, &B, l1);
 
-    for (size_t i = 0; i < l1; i++)
-    {
-        output[i] = s1[i] ^ s2[i];
-    }
+    std::transform(s1, s1+l1, s2, output, std::bit_xor());
 
     luaL_pushresultsize(&B, l1);
     return 1;
