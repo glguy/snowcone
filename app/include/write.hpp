@@ -2,6 +2,7 @@
 
 #include <uv.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <memory>
 

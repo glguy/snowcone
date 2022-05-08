@@ -21,7 +21,7 @@ struct readline_data
 
     readline_data(line_cb *cb)
     : cb(cb)
-    , end(buffer.begin())
+    , end(std::begin(buffer))
     {}
 };
 
