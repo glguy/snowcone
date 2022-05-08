@@ -86,7 +86,6 @@ void push_addrinfos(lua_State* L, uv_loop_t *loop, addrinfo* ai)
 
     for (auto const& a : addrinfos) {
         uv_getnameinfo_t req;
-        std::ofstream("dns.log", std::ios_base::app) << ">" << a.ai_canonname << std::endl;
         uvok(uv_getnameinfo(loop, &req, nullptr, a.ai_addr, NI_NUMERICHOST));
         lua_pushstring(L, req.host);
         lua_rawseti(L, -2, i++);
