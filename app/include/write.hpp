@@ -15,7 +15,7 @@ struct Request {
 
     Request(size_t n)
     : write {}    
-    , body(std::make_unique_for_overwrite<char[]>(n))
+    , body(std::make_unique<char[]>(n))
     , buf {body.get(), n}
     {
         write.data = this;
