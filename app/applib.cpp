@@ -5,6 +5,7 @@
 #include "lua_uv_timer.hpp"
 #include "safecall.hpp"
 #include "uv.hpp"
+#include "uvaddrinfo.hpp"
 #include "write.hpp"
 
 extern "C" {
@@ -75,6 +76,23 @@ int l_pton(lua_State* L)
     }
 }
 
+void push_addrinfos(lua_State* L, uv_loop_t *loop, addrinfo* ai)
+{
+    AddrInfo addrinfos {ai};
+    size_t n = std::distance(addrinfos.begin(), addrinfos.end());
+
+    lua_createtable(L, n, 0); // printable addresses
+    lua_Integer i = 1;
+
+    for (auto const& a : addrinfos) {
+        uv_getnameinfo_t req;
+        std::ofstream("dns.log", std::ios_base::app) << ">" << a.ai_canonname << std::endl;
+        uvok(uv_getnameinfo(loop, &req, nullptr, a.ai_addr, NI_NUMERICHOST));
+        lua_pushstring(L, req.host);
+        lua_rawseti(L, -2, i++);
+    }
+}
+
 void
 on_dnslookup(uv_getaddrinfo_t* req, int status, addrinfo* res)
 {
@@ -87,15 +105,14 @@ on_dnslookup(uv_getaddrinfo_t* req, int status, addrinfo* res)
     delete req;
 
     if (0 == status) {
-        a->do_dns(res); // pushes two arrays
+        push_addrinfos(L, &a->loop, res);
         lua_pushnil(L);
     } else {
-        lua_pushnil(L);
         lua_pushnil(L);
         lua_pushstring(L, uv_strerror(status));
     }
 
-    safecall(L, "dnslookup callback", 3);
+    safecall(L, "dnslookup callback", 2);
 }
 
 int l_dnslookup(lua_State* L)
@@ -183,8 +200,8 @@ int l_send_irc(lua_State* L)
     if (nullptr == cmd)
     {
         auto shutdown = new uv_shutdown_t;
-        uvok(uv_shutdown(shutdown, a->irc, [](auto req, auto stat) {
-            delete reinterpret_cast<uv_shutdown_t*>(req);
+        uvok(uv_shutdown(shutdown, a->irc, [](uv_shutdown_t* req, auto stat) {
+            delete req;
         }));
         a->irc = nullptr;
     }

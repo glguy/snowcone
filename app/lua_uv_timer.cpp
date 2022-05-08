@@ -14,7 +14,7 @@ namespace {
 luaL_Reg const MT[] = {
     {"close", [](auto L) {
         auto timer = check_udata<uv_timer_t>(L, 1);
-        if (!uv_is_closing(reinterpret_cast<uv_handle_t*>(timer))) {
+        if (!uv_is_closing(handle_cast(timer))) {
             uv_close_xx(timer, [](auto handle) {
                 auto const L = static_cast<app*>(handle->loop->data)->L;
                 lua_pushnil(L);
@@ -31,7 +31,7 @@ luaL_Reg const MT[] = {
         luaL_checkany(L, 4);
         lua_settop(L, 4);
 
-        if (uv_is_closing(reinterpret_cast<uv_handle_t*>(timer))) {
+        if (uv_is_closing(handle_cast(timer))) {
             return luaL_error(L, "Attempted to start a closed timer");
         }
 
@@ -52,7 +52,7 @@ luaL_Reg const MT[] = {
     {"stop", [](auto L) {
         auto timer = check_udata<uv_timer_t>(L, 1);
 
-        if (uv_is_closing(reinterpret_cast<uv_handle_t*>(timer))) {
+        if (uv_is_closing(handle_cast(timer))) {
             return luaL_error(L, "Attempted to stop a closed timer");
         }
 

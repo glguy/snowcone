@@ -44,7 +44,7 @@ int start_irc(app* a)
 {
     if (auto pipes = socat_wrapper(&a->loop, a->cfg->irc_socat)) {
         auto [irc,err] = *pipes;
-        a->set_irc(reinterpret_cast<uv_stream_t*>(irc));
+        a->set_irc(stream_cast(irc));
         readline_start(irc, on_line);
         readline_start(err, on_err_line);
         return 0;

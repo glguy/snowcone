@@ -20,12 +20,12 @@ std::optional<socat_pipes> socat_wrapper(uv_loop_t* loop, char const* socat)
     auto error_pipe = make_pipe(loop, 0);
 
     uv_stdio_container_t containers[] {
-        {},
-        {},
+        {UV_IGNORE},
+        {UV_IGNORE},
         {uv_stdio_flags(UV_CREATE_PIPE | UV_WRITABLE_PIPE),
-         {reinterpret_cast<uv_stream_t*>(error_pipe.get())}},
+         {stream_cast(error_pipe.get())}},
         {uv_stdio_flags(UV_CREATE_PIPE | UV_READABLE_PIPE | UV_WRITABLE_PIPE),
-         {reinterpret_cast<uv_stream_t*>(irc_pipe.get())}},
+         {stream_cast(irc_pipe.get())}},
     };
 
     uv_process_options_t options {};

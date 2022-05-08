@@ -31,13 +31,30 @@ UV_HANDLE_TYPE_MAP(XX)
 >;
 
 template<typename T>
-requires IsHandle<T>
-inline auto uv_close_xx(T* handle, uv_close_cb cb = nullptr) -> void {
-    uv_close(reinterpret_cast<uv_handle_t*>(handle), cb);
+concept IsRequest = IsAnyOf<T
+#define XX(_, name) , uv_##name##_t
+UV_REQ_TYPE_MAP(XX)
+#undef XX
+>;
+
+template <typename T>
+concept IsStream = IsAnyOf<T, uv_tcp_t, uv_pipe_t, uv_tty_t, uv_stream_t>;
+
+template <IsHandle T>
+inline uv_handle_t* handle_cast(T* ptr) { return reinterpret_cast<uv_handle_t*>(ptr); }
+
+template <IsStream T>
+inline uv_stream_t* stream_cast(T* ptr) { return reinterpret_cast<uv_stream_t*>(ptr); }
+
+template <IsRequest T>
+inline uv_req_t* req_cast(T* ptr) { return reinterpret_cast<uv_req_t*>(ptr); }
+
+template<IsHandle T>
+inline auto uv_close_xx(T* ptr, uv_close_cb cb = nullptr) -> void {
+    uv_close(handle_cast(ptr), cb);
 }
 
-template<typename T>
-requires IsHandle<T>
+template<IsHandle T>
 inline auto uv_close_delete(T* handle) -> void {
     uv_close_xx(handle, [](auto handle) {
         delete reinterpret_cast<T*>(handle);

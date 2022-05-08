@@ -51,8 +51,6 @@ public:
     void set_window_size();
     void do_irc(ircmsg const&);
     void do_irc_err(char const*);
-
-    void do_dns(addrinfo* ai);
 };
 
 inline app*& app_ref(lua_State* L) {

@@ -28,7 +28,7 @@ void on_file(uv_fs_event_t *handle, const char *filename, int events, int status
 luaL_Reg const MT[] = {
     {"close", [](lua_State *L) -> int {
         auto fs_event = check_udata<uv_fs_event_t>(L, 1);
-        if (!uv_is_closing(reinterpret_cast<uv_handle_t*>(fs_event))) {
+        if (!uv_is_closing(handle_cast(fs_event))) {
             uv_close_xx(fs_event, [](auto handle) {
                 auto const a = static_cast<app*>(handle->loop->data);
                 auto const L = a->L;
@@ -46,7 +46,7 @@ luaL_Reg const MT[] = {
         lua_settop(L, 3);
         lua_setuservalue(L, 1);
 
-        if (uv_is_closing(reinterpret_cast<uv_handle_t*>(fs_event))) {
+        if (uv_is_closing(handle_cast(fs_event))) {
             return luaL_error(L, "Attempted to start a closed fs_event");
         }
 
@@ -58,7 +58,7 @@ luaL_Reg const MT[] = {
     {"stop", [](lua_State* L) -> int {
         auto fs_event = check_udata<uv_fs_event_t>(L, 1);
 
-        if (uv_is_closing(reinterpret_cast<uv_handle_t*>(fs_event))) {
+        if (uv_is_closing(handle_cast(fs_event))) {
             return luaL_error(L, "Attempted to stop a closed fs_event");
         }
 

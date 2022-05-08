@@ -75,39 +75,6 @@ void app::set_window_size()
     l_ncurses_resize(L);
 }
 
-void app::do_dns(addrinfo* ai)
-{
-    AddrInfo addrinfos {ai};
-    lua_newtable(L); // raw addresses
-    lua_newtable(L); // printable addresses
-    lua_Integer i = 0;
-
-    for (auto const& a : addrinfos) {
-        uv_getnameinfo_t req;
-        uvok(uv_getnameinfo(&loop, &req, nullptr, a.ai_addr, NI_NUMERICHOST));
-
-        i++;
-        
-        lua_pushstring(L, req.host);
-        lua_rawseti(L, -3, i);
-
-        switch (a.ai_family) {
-            default: lua_pushstring(L, ""); break;
-            case PF_INET: {
-                auto sin = reinterpret_cast<sockaddr_in const*>(a.ai_addr);
-                lua_pushlstring(L, reinterpret_cast<char const*>(&sin->sin_addr), sizeof sin->sin_addr);
-                break;
-            }
-            case PF_INET6: {
-                auto sin6 = reinterpret_cast<sockaddr_in6 const*>(a.ai_addr);
-                lua_pushlstring(L, reinterpret_cast<char const*>(&sin6->sin6_addr), sizeof sin6->sin6_addr);
-                break;
-            }
-        }
-        lua_rawseti(L, -2, i);
-    }
-}
-
 void app::do_irc(ircmsg const& msg)
 {
     pushircmsg(L, msg);

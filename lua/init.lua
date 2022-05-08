@@ -582,11 +582,9 @@ end
 
 local function refresh_rotations()
     for label, entry in pairs(servers.regions or {}) do
-        snowcone.dnslookup(entry.hostname, function(addrs, _, reason)
-            if addrs then
-                mrs[label] = Set(addrs)
-            else
-                mrs[label] = nil
+        snowcone.dnslookup(entry.hostname, function(addrs, reason)
+            mrs[label] = Set(addrs)
+            if reason then
                 status('dns', '%s: %s', entry.hostname, reason)
             end
         end)
