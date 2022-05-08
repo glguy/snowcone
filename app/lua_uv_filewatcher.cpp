@@ -12,18 +12,6 @@ template<> char const* udata_name<uv_fs_event_t> = "uv_fs_event";
 
 namespace {
 
-int l_close(lua_State *L)
-{
-    auto fs_event = check_udata<uv_fs_event_t>(L, 1);
-    uv_close_xx(fs_event, [](auto handle) {
-        auto const a = static_cast<app*>(handle->loop->data);
-        auto const L = a->L;
-        lua_pushnil(L);
-        lua_rawsetp(L, LUA_REGISTRYINDEX, handle);
-    });
-    return 0;
-}
-
 void on_file(uv_fs_event_t *handle, const char *filename, int events, int status)
 {
     auto const a = static_cast<app*>(handle->loop->data);
@@ -31,29 +19,57 @@ void on_file(uv_fs_event_t *handle, const char *filename, int events, int status
     lua_rawgetp(L, LUA_REGISTRYINDEX, handle);
     lua_getuservalue(L, -1);
     lua_remove(L, -2);
-    safecall(L, "fs_event", 0);
-}
 
-int l_start(lua_State *L)
-{
-    auto fs_event = check_udata<uv_fs_event_t>(L, 1);
-    auto dir = luaL_checkstring(L, 2);
-    luaL_checkany(L, 3);
-    lua_settop(L, 3);
-    lua_setuservalue(L, 1);
-
-    uvok(uv_fs_event_start(fs_event, on_file, dir, UV_FS_EVENT_RECURSIVE));
-
-    return 0;
+    lua_pushstring(L, filename);
+    lua_pushinteger(L, events);
+    safecall(L, "fs_event", 2);
 }
 
 luaL_Reg const MT[] = {
-    {"close", l_close},
-    {"start", l_start},
-    {}
+    {"close", [](lua_State *L) -> int {
+        auto fs_event = check_udata<uv_fs_event_t>(L, 1);
+        if (!uv_is_closing(reinterpret_cast<uv_handle_t*>(fs_event))) {
+            uv_close_xx(fs_event, [](auto handle) {
+                auto const a = static_cast<app*>(handle->loop->data);
+                auto const L = a->L;
+                lua_pushnil(L);
+                lua_rawsetp(L, LUA_REGISTRYINDEX, handle);
+            });
+        }
+        return 0;
+    }},
+
+    {"start", [](lua_State* L) -> int {
+        auto fs_event = check_udata<uv_fs_event_t>(L, 1);
+        auto dir = luaL_checkstring(L, 2);
+        luaL_checkany(L, 3);
+        lua_settop(L, 3);
+        lua_setuservalue(L, 1);
+
+        if (uv_is_closing(reinterpret_cast<uv_handle_t*>(fs_event))) {
+            return luaL_error(L, "Attempted to start a closed fs_event");
+        }
+
+        uvok(uv_fs_event_start(fs_event, on_file, dir, UV_FS_EVENT_RECURSIVE));
+
+        return 0;
+    }},
+
+    {"stop", [](lua_State* L) -> int {
+        auto fs_event = check_udata<uv_fs_event_t>(L, 1);
+
+        if (uv_is_closing(reinterpret_cast<uv_handle_t*>(fs_event))) {
+            return luaL_error(L, "Attempted to stop a closed fs_event");
+        }
+
+        uvok(uv_fs_event_stop(fs_event));
+        return 0;
+    }},
+
+    {} // MT terminator
 };
 
-};
+} // namespace
 
 void push_new_fs_event(lua_State *L, uv_loop_t *loop)
 {

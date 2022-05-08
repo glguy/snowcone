@@ -618,7 +618,7 @@ end
 
 if not uv_resources.reloader then
     uv_resources.reloader = snowcone.newwatcher()
-    uv_resources.reloader:start(path.dirname(configuration.lua_filename), function()
+    uv_resources.reloader:start(path.dirname(configuration.lua_filename), function(name, events)
         assert(loadfile(configuration.lua_filename))()
     end)
 end
