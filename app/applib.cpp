@@ -1,6 +1,7 @@
 #include "applib.hpp"
 
 #include "app.hpp"
+#include "lua_uv_dnslookup.hpp"
 #include "lua_uv_filewatcher.hpp"
 #include "lua_uv_timer.hpp"
 #include "safecall.hpp"
@@ -76,7 +77,7 @@ int l_pton(lua_State* L)
     }
 }
 
-void push_addrinfos(lua_State* L, uv_loop_t *loop, addrinfo* ai)
+void push_addrinfos(lua_State* L, uv_loop_t* loop, addrinfo* ai)
 {
     AddrInfo addrinfos {ai};
     size_t n = std::distance(addrinfos.begin(), addrinfos.end());
@@ -92,8 +93,7 @@ void push_addrinfos(lua_State* L, uv_loop_t *loop, addrinfo* ai)
     }
 }
 
-void
-on_dnslookup(uv_getaddrinfo_t* req, int status, addrinfo* res)
+void on_dnslookup(uv_getaddrinfo_t* req, int status, addrinfo* res)
 {
     auto const a = static_cast<app*>(req->loop->data);
     auto const L = a->L;

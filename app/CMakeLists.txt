@@ -2,7 +2,8 @@
 add_executable(snowcone
     main.cpp app.cpp applib.cpp socat.cpp configuration.cpp
     irc.cpp write.cpp read-line.cpp uv.cpp
-    lua_uv_timer.cpp lua_uv_filewatcher.cpp safecall.cpp)
+    lua_uv_timer.cpp lua_uv_filewatcher.cpp lua_uv_dnslookup.cpp
+    safecall.cpp)
 
 target_link_libraries(snowcone PRIVATE
     PkgConfig::UV PkgConfig::NCURSESW PkgConfig::LUA
