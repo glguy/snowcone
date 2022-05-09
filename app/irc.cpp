@@ -9,32 +9,33 @@
 #include <uv.h>
 
 #include <cstring>
+#include <sstream>
 
 namespace {
 
-void on_err_line(app* a, char* line)
-{
-    if (line) {
-        a->do_irc_err(line);
-    }
+void on_err_line(app* a, char* line) {
+    a->do_irc_err(line);
 }
 
 void on_line(app* a, char* line)
 {
-    if (line) {
-        auto msg = strsep(&line, "\r\n");
-        try {
-            a->do_irc(parse_irc_message(msg));
-        } catch (irc_parse_error const& e) {}
-    } else {
-        a->clear_irc();
+    try {
+        a->do_irc(parse_irc_message(line));
+    } catch (irc_parse_error const& e) {
+        std::stringstream msg("parse_irc_message failed: ");
+        msg << e.code;
+        a->do_irc_err(msg.str().c_str());
+    }
+}
 
-        if (!a->closing) {
-            uv_timer_start_xx(&a->reconnect, 5s, 0s, [](auto timer) {
-                auto const a = static_cast<app*>(timer->loop->data);
-                start_irc(a);
-            });
-        }
+void on_done(app* a) {
+    a->clear_irc();
+
+    if (!a->closing) {
+        uv_timer_start_xx(&a->reconnect, 5s, 0s, [](auto timer) {
+            auto const a = static_cast<app*>(timer->loop->data);
+            start_irc(a);
+        });
     }
 }
 
@@ -45,8 +46,8 @@ int start_irc(app* a)
     if (auto pipes = socat_wrapper(&a->loop, a->cfg->irc_socat)) {
         auto [irc,err] = *pipes;
         a->set_irc(stream_cast(irc));
-        readline_start(irc, on_line);
-        readline_start(err, on_err_line);
+        readline_start(irc, on_line, on_done);
+        readline_start(err, on_err_line, [](app*){});
         return 0;
     } else {
         return 1;
