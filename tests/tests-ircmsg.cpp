@@ -2,6 +2,8 @@
 
 #include "ircmsg.hpp"
 
+namespace {
+
 TEST(Irc, NoArgs) {
   char input[] = "cmd";
   EXPECT_EQ(
@@ -195,6 +197,8 @@ TEST(Irc, Empty) {
 TEST(Irc, Spaces) {
   char input[] = "   ";
   EXPECT_ANY_THROW(parse_irc_message(input));
+}
+
 }
 
 int main(int argc, char **argv) {
