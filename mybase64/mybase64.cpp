@@ -1,14 +1,14 @@
-#include <stdint.h>
+#include "mybase64.hpp"
 
-#include "mybase64.h"
+#include <cstdint>
 
-void mybase64_encode(char const* input, size_t len, char *output)
+void mybase64_encode(char const* input, std::size_t len, char* output)
 {
   char const* const alphabet =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     "abcdefghijklmnopqrstuvwxyz"
     "0123456789+/";
-  size_t i;
+  std::size_t i;
 
   for (i = 0; i + 3 <= len; i += 3)
   {
@@ -63,13 +63,13 @@ static int8_t alphabet_values[256] = {
     ['/'] =                                           0x3f,
 };
 
-ssize_t mybase64_decode(char const* input, size_t len, char *output)
+bool mybase64_decode(char const* input, std::size_t len, char* output, std::size_t* outlen)
 {
     uint32_t buffer = 0;
     unsigned counter = 0;
-    size_t length = 0;
+    std::size_t length = 0;
 
-    for (size_t i = 0; i < len; i++) {
+    for (std::size_t i = 0; i < len; i++) {
         int8_t const value = alphabet_values[input[i]];
         if (0 <= value) {
             buffer = (buffer << 6) | value;
@@ -89,16 +89,18 @@ ssize_t mybase64_decode(char const* input, size_t len, char *output)
 
     switch (counter)
     {
-        default: return -1;
-        case 0: return length;
+        default: return false;
+        case 0: *outlen = length; return true;
         case 2:
             buffer <<= 6*2;
             output[length + 0] = buffer >> (8*2);
-            return length + 1;
+            *outlen = length + 1;
+            return true;
         case 3:
             buffer <<= 6*1;
             output[length + 0] = buffer >> (8*2);
             output[length + 1] = buffer >> (8*1);
-            return length + 2;
+            *outlen = length + 2;
+            return true;
     }
 }

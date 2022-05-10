@@ -14,10 +14,9 @@ extern "C" {
 #if HAS_GEOIP
 #include <mygeoip.h>
 #endif
-#include <mybase64.h>
-
 #include "lauxlib.h"
 }
+#include <mybase64.hpp>
 
 #include <ncurses.h>
 
@@ -116,8 +115,8 @@ int l_from_base64(lua_State* L)
     
     luaL_Buffer B;
     auto output = luaL_buffinitsize(L, &B, outlen);
-    ssize_t len = mybase64_decode(input, input_len, output);
-    if (0 <= len) {
+    size_t len;
+    if (mybase64_decode(input, input_len, output, &len)) {
         luaL_pushresultsize(&B, len);
     } else {
         lua_pushnil(L);

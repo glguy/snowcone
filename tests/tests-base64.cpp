@@ -1,11 +1,10 @@
-extern "C" {
-#include "mybase64.h"
-}
+#include <mybase64.hpp>
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
 #include <cstddef>
+#include <limits>
 #include <string_view>
 
 namespace {
@@ -39,48 +38,50 @@ TEST(Base64, EncodeFoobar)
 
 TEST(Base64, DecodeFoobar)
 {
-    ssize_t len;
+    size_t len;
     char buffer[6];
 
-    len = mybase64_decode("", 0, buffer);
-    EXPECT_EQ(len, 0);
+    ASSERT_TRUE(mybase64_decode("", 0, buffer, &len));
+    ASSERT_EQ(len, 0);
 
-    len = mybase64_decode("Zg==", 4, buffer);
-    EXPECT_EQ(len, 1);
+    ASSERT_TRUE(mybase64_decode("Zg==", 4, buffer, &len));
+    ASSERT_EQ(len, 1);
     EXPECT_EQ(std::string_view(buffer, len), "f");
 
-    len = mybase64_decode("Zm8=", 4, buffer);
-    EXPECT_EQ(len, 2);
+    ASSERT_TRUE(mybase64_decode("Zm8=", 4, buffer, &len));
+    ASSERT_EQ(len, 2);
     EXPECT_EQ(std::string_view(buffer, len), "fo");
 
-    len = mybase64_decode("Zm9v", 4, buffer);
-    EXPECT_EQ(len, 3);
+    ASSERT_TRUE(mybase64_decode("Zm9v", 4, buffer, &len));
+    ASSERT_EQ(len, 3);
     EXPECT_EQ(std::string_view(buffer, len), "foo");
 
-    len = mybase64_decode("Zm9vYg==", 8, buffer);
-    EXPECT_EQ(len, 4);
+    ASSERT_TRUE(mybase64_decode("Zm9vYg==", 8, buffer, &len));
+    ASSERT_EQ(len, 4);
     EXPECT_EQ(std::string_view(buffer, len), "foob");
 
-    len = mybase64_decode("Zm9vYmE=", 8, buffer);
-    EXPECT_EQ(len, 5);
+    ASSERT_TRUE(mybase64_decode("Zm9vYmE=", 8, buffer, &len));
+    ASSERT_EQ(len, 5);
     EXPECT_EQ(std::string_view(buffer, len), "fooba");
 
-    len = mybase64_decode("Zm9vYmFy", 8, buffer);
-    EXPECT_EQ(len, 6);
+    ASSERT_TRUE(mybase64_decode("Zm9vYmFy", 8, buffer, &len));
+    ASSERT_EQ(len, 6);
     EXPECT_EQ(std::string_view(buffer, len), "foobar");
 }
 
 TEST(Base64, Exhaust1)
 {
-    for (int i = 0; i < 256; i++)
+    for (int i = std::numeric_limits<char>::min();
+         i <= std::numeric_limits<char>::max();
+         i++)
     {
-        uint8_t input = i;
+        char input = i;
         char output64[5];
-        uint8_t recovered;
+        char recovered;
+        size_t len;
 
-        mybase64_encode((char*)&input, 1, output64);
-        ssize_t len = mybase64_decode(output64, strlen(output64), (char*)&recovered);
-
+        mybase64_encode(&input, 1, output64);
+        ASSERT_TRUE(mybase64_decode(output64, strlen(output64), &recovered, &len));
         EXPECT_EQ(len, 1);
         EXPECT_EQ(recovered, input);
     }
