@@ -68,9 +68,9 @@ void unescape_tag_value(char *val)
     *write = '\0';
 }
 
-std::vector<tag> parse_tags(char* str)
+std::vector<irctag> parse_tags(char* str)
 {
-    std::vector<tag> tags;
+    std::vector<irctag> tags;
 
     do {
         auto val = strsep(&str, ";");
@@ -80,9 +80,10 @@ std::vector<tag> parse_tags(char* str)
         }
         if (nullptr != val) {
             unescape_tag_value(val);
+            tags.emplace_back(key, val);
+        } else {
+            tags.emplace_back(key, std::string_view{});
         }
-
-        tags.emplace_back(key, val);
     } while(nullptr != str);
 
     return tags;

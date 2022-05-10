@@ -22,6 +22,7 @@ extern "C" {
 #include <ncurses.h>
 
 #include <algorithm>
+#include <charconv>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -312,30 +313,30 @@ void pushircmsg(lua_State* L, ircmsg const& msg)
 
     lua_createtable(L, 0, msg.tags.size());
     for (auto && tag : msg.tags) {
-        if (tag.val) {
-            lua_pushstring(L, tag.val);
+        if (tag.val.data() != nullptr) {
+            lua_pushlstring(L, tag.val.data(), tag.val.size());
         } else {
             lua_pushboolean(L, 1);
         }
-        lua_setfield(L, -2, tag.key);
+        lua_setfield(L, -2, tag.key.data());
     }
     lua_setfield(L, -2, "tags");
 
-    lua_pushstring(L, msg.source);
+    lua_pushlstring(L, msg.source.data(), msg.source.size());
     lua_setfield(L, -2, "source");
 
-    char *end;
-    long code = strtol(msg.command, &end, 10);
-    if (*end == '\0') {
+    int code;
+    auto res = std::from_chars(msg.command.begin(), msg.command.end(), code);
+    if (*res.ptr == '\0') {
         lua_pushinteger(L, code);
     } else {
-        lua_pushstring(L, msg.command);
+        lua_pushlstring(L, msg.command.data(), msg.command.size());
     }
     lua_setfield(L, -2, "command");
 
     int argix = 1;
     for (auto arg : msg.args) {
-        lua_pushstring(L, arg);
+        lua_pushlstring(L, arg.data(), arg.size());
         lua_rawseti(L, -2, argix++);
     }
 }

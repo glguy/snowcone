@@ -1,33 +1,38 @@
 #pragma once
 
+#include <string_view>
 #include <vector>
 
-struct tag
+struct irctag
 {
-    char const* key;
-    char const* val;
+    std::string_view key;
+    std::string_view val;
 
-    tag(char const* key, char const* val) : key(key), val(val) {}
+    irctag(std::string_view key, std::string_view val) : key(key), val(val) {}
+    
+    friend bool operator==(irctag const&, irctag const&) = default;
 };
 
 struct ircmsg
 {
-    std::vector<tag> tags;
-    std::vector<char const*> args;
-    char const* source;
-    char const* command;
+    std::vector<irctag> tags;
+    std::vector<std::string_view> args;
+    std::string_view source;
+    std::string_view command;
 
     ircmsg() : tags(), args(), source(), command() {}
 
     ircmsg(
-        std::vector<tag> tags,
-        char const* source,
-        char const* command,
-        std::vector<char const*> args)
+        std::vector<irctag> tags,
+        std::string_view source,
+        std::string_view command,
+        std::vector<std::string_view> args)
     : tags(std::move(tags)),
       args(std::move(args)),
       command(command),
       source(source) {}
+
+      friend bool operator==(ircmsg const&, ircmsg const&) = default;
 };
 
 struct irc_parse_error : public std::exception {
