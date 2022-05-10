@@ -45,9 +45,11 @@ int start_irc(app* a)
 {
     if (auto pipes = socat_wrapper(&a->loop, a->cfg->irc_socat)) {
         auto [irc,err] = *pipes;
+        auto delete_pipe = [](uv_handle_t* h) { delete reinterpret_cast<uv_pipe_t*>(h); };
+
         a->set_irc(stream_cast(irc));
-        readline_start(irc, on_line, on_done);
-        readline_start(err, on_err_line, [](app*){});
+        readline_start(stream_cast(irc), on_line, on_done, delete_pipe);
+        readline_start(stream_cast(err), on_err_line, [](app*){}, delete_pipe);
         return 0;
     } else {
         return 1;

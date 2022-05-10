@@ -1,3 +1,10 @@
+/**
+ * @file applib.hpp
+ * @author Eric Mertens (emertens@gmail.com)
+ * @brief Application Lua environment primitives and setup
+ * 
+ */
+
 #pragma once
 
 #include "app.hpp"

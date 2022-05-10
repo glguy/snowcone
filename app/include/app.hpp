@@ -1,3 +1,10 @@
+/**
+ * @file app.hpp
+ * @author Eric Mertens (emertens@gmail.com)
+ * @brief Core application state
+ * 
+ */
+
 #pragma once
 
 #include "uv.hpp"

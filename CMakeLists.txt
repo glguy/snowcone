@@ -25,6 +25,7 @@ add_subdirectory(ircmsg)
 add_subdirectory(myncurses)
 add_subdirectory(mybase64)
 add_subdirectory(app)
+add_subdirectory(docs)
 
 if(BUILD_TESTING)
 add_subdirectory(tests)

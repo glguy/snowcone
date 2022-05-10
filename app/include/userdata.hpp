@@ -1,3 +1,10 @@
+/**
+ * @file userdata.hpp
+ * @author Eric Mertens (emertens@gmail.com)
+ * @brief Helpers for using Lua userdata
+ * 
+ */
+
 #pragma once
 
 extern "C" {

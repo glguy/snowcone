@@ -65,15 +65,11 @@ int l_dnslookup(lua_State* L)
     addrinfo hints {};
     hints.ai_socktype = SOCK_STREAM;
 
-    auto req = new uv_getaddrinfo_t;
-    int r = uv_getaddrinfo(&a->loop, req, on_dnslookup, hostname, nullptr, &hints);
-    if (0 != r) {
-        delete req;
-        return luaL_error(L, "dnslookup: %s", uv_strerror(r));
-    }
+    auto req = std::make_unique<uv_getaddrinfo_t>();
+    uvok(uv_getaddrinfo(&a->loop, req.get(), on_dnslookup, hostname, nullptr, &hints));
 
     // save callback function into the registry
-    lua_rawsetp(L, LUA_REGISTRYINDEX, req);
+    lua_rawsetp(L, LUA_REGISTRYINDEX, req.release());
 
     return 0;
 }

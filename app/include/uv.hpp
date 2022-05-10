@@ -1,3 +1,10 @@
+/**
+ * @file uv.hpp
+ * @author Eric Mertens (emertens@gmail.com)
+ * @brief Helpers for using libuv from C++
+ * 
+ */
+
 #pragma once
 
 #include <uv.h>

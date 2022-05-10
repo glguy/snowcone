@@ -1,3 +1,10 @@
+/**
+ * @file configuration.hpp
+ * @author Eric Mertens (emertens@gmail.com)
+ * @brief Command-line application configuration
+ * 
+ */
+
 #pragma once
 
 struct configuration
@@ -21,4 +28,15 @@ struct configuration
     char const* irc_sasl_key;
 };
 
+/**
+ * @brief Process command-line arguments.
+ * 
+ * This function consumes the command-line arguments.
+ * 
+ * On error this function prints usage and terminates the process.
+ * 
+ * @param argc Number of arguments
+ * @param argv Pointer to arguments
+ * @return configuration Populated configuration value.
+ */
 configuration load_configuration(int argc, char **argv);
