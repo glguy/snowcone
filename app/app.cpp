@@ -12,7 +12,7 @@ extern "C" {
 #if HAS_GEOIP
 #include <mygeoip.h>
 #endif
-#include <mybase64.h>
+#include <mybase64.hpp>
 
 #include "lauxlib.h"
 #include "lualib.h"
