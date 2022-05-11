@@ -87,6 +87,36 @@ TEST(Base64, Exhaust1)
     }
 }
 
+TEST(Base64, Zeros) {
+    size_t len;
+    char buffer[6];
+
+    ASSERT_TRUE(mybase64_decode("AA==", 4, buffer, &len));
+    ASSERT_EQ(len, 1);
+    EXPECT_EQ(std::string_view(buffer, len), std::string_view("\0", 1));
+
+    ASSERT_TRUE(mybase64_decode("AAA=", 4, buffer, &len));
+    ASSERT_EQ(len, 2);
+    EXPECT_EQ(std::string_view(buffer, len), std::string_view("\0\0", 2));
+
+    ASSERT_TRUE(mybase64_decode("AAAA", 4, buffer, &len));
+    ASSERT_EQ(len, 3);
+    EXPECT_EQ(std::string_view(buffer, len), std::string_view("\0\0\0", 3));
+}
+
+TEST(Base64, Junk) {
+    size_t len;
+    char buffer[6];
+
+    char input[] = "AAAAAA";
+    input[2] = -128;
+    input[4] = 0;
+
+    ASSERT_TRUE(mybase64_decode(input, 6, buffer, &len));
+    ASSERT_EQ(len, 3);
+    EXPECT_EQ(std::string_view(buffer, len), std::string_view("\0\0\0", 3));
+}
+
 } // namespace
 
 int main(int argc, char **argv) {

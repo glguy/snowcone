@@ -1,7 +1,6 @@
 #include "mybase64.hpp"
 
 #include <cstdint>
-#include <locale>
 #include <string_view>
 
 void mybase64_encode(char const* input, std::size_t len, char* output)
@@ -10,14 +9,14 @@ void mybase64_encode(char const* input, std::size_t len, char* output)
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     "abcdefghijklmnopqrstuvwxyz"
     "0123456789+/";
-  std::size_t i;
+  auto cursor = reinterpret_cast<uint8_t const*>(input);
+  auto const end = cursor + len;
 
-  for (i = 0; i + 2 < len; i += 3)
+  while (end - cursor >= 3)
   {
-    uint32_t const buffer
-      = (uint32_t)(unsigned char)input[i + 0] << 8 * 2
-      | (uint32_t)(unsigned char)input[i + 1] << 8 * 1
-      | (uint32_t)(unsigned char)input[i + 2] << 8 * 0;
+    uint32_t buffer = *cursor++;
+    buffer <<= 8; buffer |= *cursor++;
+    buffer <<= 8; buffer |= *cursor++;
 
     *output++ = alphabet[(buffer >> 6 * 3) % 64];
     *output++ = alphabet[(buffer >> 6 * 2) % 64];
@@ -25,15 +24,14 @@ void mybase64_encode(char const* input, std::size_t len, char* output)
     *output++ = alphabet[(buffer >> 6 * 0) % 64];
   }
 
-  if (i < len)
+  if (cursor < end)
   {
-    uint32_t buffer = (uint32_t)(unsigned char)input[i + 0] << (8 * 2);
-    if (i + 1 < len)
-      buffer |= (uint32_t)(unsigned char)input[i + 1] << (8 * 1);
+    uint32_t buffer = uint32_t(*cursor++) << (8 * 2);
+    if (cursor < end) buffer |= uint32_t(*cursor) << (8 * 1);
 
     *output++ = alphabet[(buffer >> 6 * 3) % 64];
     *output++ = alphabet[(buffer >> 6 * 2) % 64];
-    *output++ = i + 1 < len ? alphabet[(buffer >> 6 * 1) % 64] : '=';
+    *output++ = cursor < end ? alphabet[(buffer >> 6 * 1) % 64] : '=';
     *output++ = '=';
   }
   *output = '\0';
@@ -41,7 +39,7 @@ void mybase64_encode(char const* input, std::size_t len, char* output)
 
 bool mybase64_decode(char const* input, std::size_t len, char* output, std::size_t* outlen)
 {
-    static constexpr int8_t const alphabet_values[128] = {
+    static constexpr int8_t const alphabet_values[] = {
         -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
         -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
         -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
@@ -58,50 +56,49 @@ bool mybase64_decode(char const* input, std::size_t len, char* output, std::size
       0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,
       0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30,
       0x31, 0x32, 0x33,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
     };
 
-    uint32_t buffer = 0;
-    unsigned counter = 0;
-    std::size_t length = 0;
+    uint32_t buffer = 1;
+    char* cursor = output;
 
     for (char c : std::string_view {input, len}) {
-        if (!isascii(c)) continue;
-
-        int8_t const value = alphabet_values[c];
+        int8_t const value = alphabet_values[uint8_t(c)];
         if (-1 == value) continue;
 
-        buffer <<= 6;
-        buffer |= value;
+        buffer <<= 6; buffer |= value;
 
-        counter++;
-
-        if (counter == 4) {
-            output[length + 0] = buffer >> (8*2);
-            output[length + 1] = buffer >> (8*1);
-            output[length + 2] = buffer >> (8*0);
-            length += 3;
-            counter = 0;
-            buffer = 0;
+        if (buffer >= 1<<24) {
+            *cursor++ = buffer >> (8*2);
+            *cursor++ = buffer >> (8*1);
+            *cursor++ = buffer >> (8*0);
+            buffer = 1;
         }
     }
 
-    switch (counter)
-    {
-        default:
-            return false;
-        case 0:
-            *outlen = length;
-            return true;
-        case 2:
-            buffer <<= 6*2;
-            output[length + 0] = buffer >> (8*2);
-            *outlen = length + 1;
-            return true;
-        case 3:
-            buffer <<= 6*1;
-            output[length + 0] = buffer >> (8*2);
-            output[length + 1] = buffer >> (8*1);
-            *outlen = length + 2;
-            return true;
+    if (buffer >= 1<<18) {
+      *cursor++ = buffer >> 10;
+      *cursor++ = buffer >> 2;
+    } else if (buffer >= 1<<12) {
+      *cursor++ = buffer >> 4;
+    } else if (buffer != 1) {
+      return false;
     }
+    *outlen = cursor - output;
+    return true;
 }
