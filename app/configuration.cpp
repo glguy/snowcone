@@ -26,8 +26,6 @@
     "         [-C capabilities]\n"
     "         [-L init.lua]\n"
     "         [-f network.lua]\n"
-    "         [-l console_host]\n"
-    "         [-p console_port]\n"
     "         [-h]\n";
     exit(EXIT_FAILURE);
 }
