@@ -49,6 +49,7 @@ public:
     app& operator=(app &&) = delete;
 
     void init();
+    void shutdown();
     void destroy();
 
     void do_mouse(int x, int y);

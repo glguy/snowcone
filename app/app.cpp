@@ -46,6 +46,14 @@ void app::init()
     load_logic(L, cfg->lua_filename);
 }
 
+void app::shutdown()
+{
+    closing = true;
+    uv_close(handle_cast(&winch), nullptr);
+    uv_close(handle_cast(&input), nullptr);
+    uv_close(handle_cast(&reconnect), nullptr);
+}
+
 void app::destroy()
 {
     lua_close(L);

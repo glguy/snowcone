@@ -155,12 +155,7 @@ int l_send_irc(lua_State* L)
 int l_shutdown(lua_State* L)
 {
     auto const a = app_ref(L);
-    a->closing = true;
-    
-    uv_close_xx(&a->winch);
-    uv_close_xx(&a->input);
-    uv_close_xx(&a->reconnect);
-
+    a->shutdown();
     return 0;
 }
 

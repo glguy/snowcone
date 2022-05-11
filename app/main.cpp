@@ -18,18 +18,16 @@
 #include <locale>
 #include <unistd.h>
 
-static void on_winch(uv_signal_t* handle, int signum);
-
 /* Main Input ********************************************************/
 
-static void on_stdin(uv_poll_t *handle, int status, int events)
+static void on_stdin(uv_poll_t* handle, int status, int events)
 {
     if (status != 0) return;
 
-    struct app *a = static_cast<app *>(handle->loop->data);
+    app* a = static_cast<app*>(handle->loop->data);
 
     int key;
-    mbstate_t ps = {};
+    mbstate_t ps {};
 
     while(ERR != (key = getch()))
     {
@@ -68,7 +66,7 @@ static void on_stdin(uv_poll_t *handle, int status, int events)
 
 static void on_winch(uv_signal_t* handle, int signum)
 {
-    struct app *a = static_cast<app*>(handle->loop->data);
+    auto a = static_cast<app*>(handle->loop->data);
     endwin();
     refresh();
     a->set_window_size();
@@ -78,18 +76,18 @@ static void on_winch(uv_signal_t* handle, int signum)
 
 int main(int argc, char *argv[])
 {
-    struct configuration cfg = load_configuration(argc, argv);
+    configuration cfg = load_configuration(argc, argv);
     
     /* Configure ncurses */
     setlocale(LC_ALL, "");
 
-    FILE *tty = fopen("/dev/tty", "r+");
+    FILE* tty = fopen("/dev/tty", "r+");
     if (nullptr == tty) {
         perror("fopen");
         return 1;
     }
 
-    SCREEN *scr = newterm(nullptr, tty, stdin);
+    SCREEN* scr = newterm(nullptr, tty, stdin);
     if (nullptr == scr) {
         std::cerr << "newterm: Failed to initialize ncurses\n";
         return 1;
