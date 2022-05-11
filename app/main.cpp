@@ -39,7 +39,7 @@ Ncurses initialize_terminal() {
 
     setlocale(LC_ALL, "");
 
-    result.tty = decltype(result.tty)(fopen("/dev/tty", "r+"));
+    result.tty = decltype(result.tty)(fopen("/dev/tty", "w"));
     if (!result.tty) {
         throw std::system_error(errno, std::generic_category());
     }

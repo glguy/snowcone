@@ -126,22 +126,28 @@ int l_from_base64(lua_State* L)
 
 int l_send_irc(lua_State* L)
 {
-    auto const a = app_ref(L);
+    auto const a = app::from_lua(L);
 
     size_t len;
     char const* cmd = luaL_optlstring(L, 1, nullptr, &len);
+    bool result;
 
-    if (!a->send_irc(cmd, len)) {
-        return luaL_error(L, "IRC not connected");
+    if (cmd == nullptr) {
+        result = a->close_irc();
+    } else {
+        result = a->send_irc({cmd, len});
     }
+
+    if (!result) {
+        return luaL_error(L, "IRC not connected");
+    }    
 
     return 0;
 }
 
 int l_shutdown(lua_State* L)
 {
-    auto const a = app_ref(L);
-    a->shutdown();
+    app::from_lua(L)->shutdown();
     return 0;
 }
 
@@ -153,14 +159,14 @@ int l_setmodule(lua_State* L)
 
 int l_newtimer(lua_State* L)
 {
-    auto const a = app_ref(L);
+    auto const a = app::from_lua(L);
     push_new_uv_timer(L, &a->loop);
     return 1;
 }
 
 int l_newwatcher(lua_State* L)
 {
-    auto const a = app_ref(L);
+    auto const a = app::from_lua(L);
     push_new_fs_event(L, &a->loop);
     return 1;
 }
@@ -239,7 +245,7 @@ luaL_Reg const applib_module[] = {
 
 int l_print(lua_State* L)
 {
-    auto const a = app_ref(L);
+    auto const a = app::from_lua(L);
 
     int n = lua_gettop(L);  /* number of arguments */
 
@@ -269,7 +275,7 @@ void load_logic(lua_State* L, char const* filename)
     if (LUA_OK == r) {
         safecall(L, "load_logic:call", 0);
     } else {
-        auto const a = app_ref(L);
+        auto const a = app::from_lua(L);
         size_t len;
         char const* err = lua_tolstring(L, -1, &len);
         endwin();

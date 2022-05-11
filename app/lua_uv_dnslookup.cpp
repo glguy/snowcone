@@ -57,7 +57,7 @@ void on_dnslookup(uv_getaddrinfo_t* req, int status, addrinfo* res)
 
 int l_dnslookup(lua_State* L)
 {
-    auto const a = app_ref(L);
+    auto const a = app::from_lua(L);
     char const* hostname = luaL_checkstring(L, 1);
     luaL_checkany(L, 2);
     lua_settop(L, 2);

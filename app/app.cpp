@@ -101,7 +101,7 @@ void app::init()
     L = luaL_newstate();
     if (nullptr == L) throw std::runtime_error("failed to create lua");
 
-    app_ref(L) = this;
+    to_lua(L);
 
     prepare_globals(L, cfg);
     load_logic(L, cfg->lua_filename);
@@ -154,27 +154,32 @@ void app::do_irc(ircmsg const& msg)
     lua_callback(L, "on_irc");
 }
 
-bool app::send_irc(char const* cmd, size_t len) {
+bool app::close_irc() {
     if (nullptr == irc) {
         return false;
     }
 
-    if (nullptr == cmd) {
-        auto shutdown = new uv_shutdown_t;
-        uvok(uv_shutdown(shutdown, irc, [](uv_shutdown_t* req, auto stat) {
-            delete req;
-        }));
-        irc = nullptr;
-    } else {
-        to_write(irc, cmd, len);
-    }
+    auto shutdown = std::make_unique<uv_shutdown_t>();
+    uvok(uv_shutdown(shutdown.get(), irc, [](uv_shutdown_t* req, auto stat) {
+        delete req;
+    }));
+    shutdown.release();
 
+    irc = nullptr;
     return true;
 }
 
-void app::do_irc_err(char const* msg)
+bool app::send_irc(std::string_view cmd) {
+    if (nullptr == irc) {
+        return false;
+    }
+    to_write(irc, cmd.data(), cmd.size());
+    return true;
+}
+
+void app::do_irc_err(std::string_view msg)
 {
-    lua_pushstring(L, msg);
+    lua_pushlstring(L, msg.begin(), msg.size());
     lua_callback(L, "on_irc_err");
 }
 

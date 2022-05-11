@@ -18,6 +18,7 @@ extern "C" {
 #include <uv.h>
 
 #include <cstdlib>
+#include <string_view>
 #include <vector>
 
 struct app
@@ -33,12 +34,13 @@ struct app
 
 public:
     app(configuration * cfg)
-    : cfg(cfg)
-    , irc(nullptr)
-    , loop()
-    , input()
-    , winch()
-    , closing(false)
+    : L {}
+    , cfg {cfg}
+    , irc {}
+    , loop {}
+    , input {}
+    , winch {}
+    , closing {false}
     {
         loop.data = this;
     }
@@ -52,21 +54,24 @@ public:
     void shutdown();
     void destroy();
 
-    void do_mouse(int x, int y);
-    void do_keyboard(long);
+    void do_mouse(int y, int x);
+    void do_keyboard(long key);
     void set_irc(uv_stream_t* stream);
     void clear_irc();
     void set_window_size();
     void do_irc(ircmsg const&);
-    void do_irc_err(char const*);
-    bool send_irc(char const*, size_t len);
+    void do_irc_err(std::string_view);
+    bool send_irc(std::string_view);
+    bool close_irc();
     void run();
 
     static app* from_loop(uv_loop_t* loop) {
         return reinterpret_cast<app*>(loop->data);
     }
+    static app* from_lua(lua_State* L) {
+        return *static_cast<app**>(lua_getextraspace(L));
+    }
+    void to_lua(lua_State* L) {
+        *static_cast<app**>(lua_getextraspace(L)) = this;
+    }
 };
-
-inline app*& app_ref(lua_State* L) {
-    return *static_cast<app**>(lua_getextraspace(L));
-}
