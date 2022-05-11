@@ -33,6 +33,17 @@ namespace { // lua support for app
 
 char logic_module;
 
+/**
+ * @brief Push string_view value onto Lua stack
+ * 
+ * @param L Lua
+ * @param str string
+ * @return char const* string in Lua memory 
+ */
+char const* push_stringview(lua_State* L, std::string_view str) {
+    return lua_pushlstring(L, str.data(), str.size());
+}
+
 int lua_callback_worker(lua_State* L)
 {
     int module_ty = lua_rawgetp(L, LUA_REGISTRYINDEX, &logic_module);
@@ -299,16 +310,17 @@ void pushircmsg(lua_State* L, ircmsg const& msg)
 
     lua_createtable(L, 0, msg.tags.size());
     for (auto && tag : msg.tags) {
+        push_stringview(L, tag.key);
         if (tag.val.data() != nullptr) {
-            lua_pushlstring(L, tag.val.data(), tag.val.size());
+            push_stringview(L, tag.val);
         } else {
             lua_pushboolean(L, 1);
         }
-        lua_setfield(L, -2, tag.key.data());
+        lua_settable(L, -3);
     }
     lua_setfield(L, -2, "tags");
 
-    lua_pushlstring(L, msg.source.data(), msg.source.size());
+    push_stringview(L, msg.source);
     lua_setfield(L, -2, "source");
 
     int code;
@@ -316,13 +328,13 @@ void pushircmsg(lua_State* L, ircmsg const& msg)
     if (*res.ptr == '\0') {
         lua_pushinteger(L, code);
     } else {
-        lua_pushlstring(L, msg.command.data(), msg.command.size());
+        push_stringview(L, msg.command);
     }
     lua_setfield(L, -2, "command");
 
     int argix = 1;
     for (auto arg : msg.args) {
-        lua_pushlstring(L, arg.data(), arg.size());
+        push_stringview(L, arg);
         lua_rawseti(L, -2, argix++);
     }
 }
