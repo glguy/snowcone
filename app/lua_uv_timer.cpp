@@ -16,7 +16,7 @@ luaL_Reg const MT[] = {
         auto timer = check_udata<uv_timer_t>(L, 1);
         if (!uv_is_closing(handle_cast(timer))) {
             uv_close_xx(timer, [](auto handle) {
-                auto const L = static_cast<app*>(handle->loop->data)->L;
+                auto const L = app::from_loop(handle->loop)->L;
                 lua_pushnil(L);
                 lua_rawsetp(L, LUA_REGISTRYINDEX, handle);
             });

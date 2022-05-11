@@ -16,81 +16,37 @@
 #include <cstring>
 #include <iostream>
 #include <locale>
+#include <memory>
+#include <stdexcept>
 #include <unistd.h>
 
-/* Main Input ********************************************************/
+namespace {
 
-static void on_stdin(uv_poll_t* handle, int status, int events)
-{
-    if (status != 0) return;
+struct FILECloser {
+    void operator()(FILE* file) { fclose(file); }
+};
+struct SCREENCloser {
+    void operator()(SCREEN* scr) { delscreen(scr); }
+};
 
-    app* a = static_cast<app*>(handle->loop->data);
+struct Ncurses {
+    std::unique_ptr<FILE, FILECloser> tty;
+    std::unique_ptr<SCREEN, SCREENCloser> scr;
+};
 
-    int key;
-    mbstate_t ps {};
+Ncurses initialize_terminal() {
+    Ncurses result {};
 
-    while(ERR != (key = getch()))
-    {
-        if (key == '\x1b') {
-            key = getch();
-            if (ERR == key) {
-                a->do_keyboard('\x1b');    
-            } else {
-                a->do_keyboard(-key);
-            }
-        } else if (KEY_MOUSE == key)
-        {
-            MEVENT ev;
-            getmouse(&ev);
-            if (ev.bstate == BUTTON1_CLICKED)
-            {
-                a->do_mouse(ev.y, ev.x);
-            }
-        } else if (KEY_RESIZE == key) {
-        } else if (key > 0xff) {
-            a->do_keyboard(-key);
-        } else if (key < 0x80) {
-            a->do_keyboard(key);
-        } else {
-            char c = key;
-            wchar_t code;
-            size_t r = mbrtowc(&code, &c, 1, &ps);
-            if (r < (size_t)-2) {
-                a->do_keyboard(code);
-            }
-        }
-    }
-}
-
-/* Window size changes ***********************************************/
-
-static void on_winch(uv_signal_t* handle, int signum)
-{
-    auto a = static_cast<app*>(handle->loop->data);
-    endwin();
-    refresh();
-    a->set_window_size();
-}
-
-/* MAIN **************************************************************/
-
-int main(int argc, char *argv[])
-{
-    configuration cfg = load_configuration(argc, argv);
-    
-    /* Configure ncurses */
     setlocale(LC_ALL, "");
 
-    FILE* tty = fopen("/dev/tty", "r+");
-    if (nullptr == tty) {
-        perror("fopen");
-        return 1;
+    result.tty = decltype(result.tty)(fopen("/dev/tty", "r+"));
+    if (!result.tty) {
+        throw std::system_error(errno, std::generic_category());
     }
 
-    SCREEN* scr = newterm(nullptr, tty, stdin);
-    if (nullptr == scr) {
-        std::cerr << "newterm: Failed to initialize ncurses\n";
-        return 1;
+    result.scr = decltype(result.scr)(newterm(nullptr, result.tty.get(), stdin));
+    if (!result.scr) {
+        throw std::runtime_error("newterm");
     }
 
     start_color();
@@ -106,21 +62,28 @@ int main(int argc, char *argv[])
     set_escdelay(25);
     endwin();
 
+    return result;
+}
+
+} // namespace
+
+/* MAIN **************************************************************/
+
+int main(int argc, char *argv[])
+{
+    configuration cfg = load_configuration(argc, argv);
+
+    auto nc = initialize_terminal();
+
     app a {&cfg};
     a.init();
 
-    uvok(uv_poll_start(&a.input, UV_READABLE, on_stdin));
-    uvok(uv_signal_start(&a.winch, on_winch, SIGWINCH));
-
-    if (*cfg.irc_socat != '\0' && start_irc(&a))
-    {
-        goto cleanup;
+    if (*cfg.irc_socat != '\0') {
+        start_irc(&a);
     }
+    
+    a.run();
 
-    // returns non-zero if stopped while handles are active
-    uv_run(&a.loop, UV_RUN_DEFAULT);
-
-cleanup:
     endwin();
     a.destroy();
     return 0;

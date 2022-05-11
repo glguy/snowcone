@@ -30,6 +30,7 @@ struct socat_pipes {
  * 
  * @param loop Current libuv loop
  * @param socat Connection string
- * @return std::optional<socat_pipes> On success returns network pipe and stderr pipe
+ * @return network pipe and stderr pipe
+ * @throws UV_error failed to spawn process
  */
-std::optional<socat_pipes> socat_wrapper(uv_loop_t *loop, char const* socat);
+socat_pipes socat_wrapper(uv_loop_t *loop, char const* socat);

@@ -14,7 +14,7 @@ namespace {
 
 void on_file(uv_fs_event_t *handle, const char *filename, int events, int status)
 {
-    auto const a = static_cast<app*>(handle->loop->data);
+    auto const a = app::from_loop(handle->loop);
     auto const L = a->L;
     lua_rawgetp(L, LUA_REGISTRYINDEX, handle);
     lua_getuservalue(L, -1);
@@ -30,7 +30,7 @@ luaL_Reg const MT[] = {
         auto fs_event = check_udata<uv_fs_event_t>(L, 1);
         if (!uv_is_closing(handle_cast(fs_event))) {
             uv_close_xx(fs_event, [](auto handle) {
-                auto const a = static_cast<app*>(handle->loop->data);
+                auto const a = app::from_loop(handle->loop);
                 auto const L = a->L;
                 lua_pushnil(L);
                 lua_rawsetp(L, LUA_REGISTRYINDEX, handle);

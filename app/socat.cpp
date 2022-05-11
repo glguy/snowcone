@@ -8,7 +8,7 @@
 #include <memory>
 #include <unistd.h>
 
-std::optional<socat_pipes> socat_wrapper(uv_loop_t* loop, char const* socat)
+socat_pipes socat_wrapper(uv_loop_t* loop, char const* socat)
 {
     int r;
     char const* name = getenv("SOCAT");
@@ -37,13 +37,9 @@ std::optional<socat_pipes> socat_wrapper(uv_loop_t* loop, char const* socat)
     options.stdio_count = std::size(containers);
     options.stdio = containers;
 
-    auto process = new uv_process_t;
-    r = uv_spawn(loop, process, &options);
-    if (0 != r) {
-        delete process;
-        std::cerr << "Failed to spawn socat: " << uv_strerror(r) << std::endl;
-        return {};
-    }
+    HandlePointer<uv_process_t> process {new uv_process_t};
+    uvok(uv_spawn(loop, process.get(), &options));
+    process.release();
 
-    return {{irc_pipe.release(), error_pipe.release()}};
+    return {irc_pipe.release(), error_pipe.release()};
 }

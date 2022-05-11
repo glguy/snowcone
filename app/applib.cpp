@@ -131,22 +131,8 @@ int l_send_irc(lua_State* L)
     size_t len;
     char const* cmd = luaL_optlstring(L, 1, nullptr, &len);
 
-    if (nullptr == a->irc)
-    {
+    if (!a->send_irc(cmd, len)) {
         return luaL_error(L, "IRC not connected");
-    }
-
-    if (nullptr == cmd)
-    {
-        auto shutdown = new uv_shutdown_t;
-        uvok(uv_shutdown(shutdown, a->irc, [](uv_shutdown_t* req, auto stat) {
-            delete req;
-        }));
-        a->irc = nullptr;
-    }
-    else
-    {
-        to_write(a->irc, cmd, len);
     }
 
     return 0;

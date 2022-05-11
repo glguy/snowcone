@@ -11,7 +11,5 @@
 
 /**
  * @brief Starts the connection for the app
- * 
- * @return int 0 on success, 1 on failure
  */
-int start_irc(app*);
+void start_irc(app*);

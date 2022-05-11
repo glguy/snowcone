@@ -59,6 +59,12 @@ public:
     void set_window_size();
     void do_irc(ircmsg const&);
     void do_irc_err(char const*);
+    bool send_irc(char const*, size_t len);
+    void run();
+
+    static app* from_loop(uv_loop_t* loop) {
+        return reinterpret_cast<app*>(loop->data);
+    }
 };
 
 inline app*& app_ref(lua_State* L) {
