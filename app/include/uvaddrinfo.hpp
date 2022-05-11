@@ -11,7 +11,6 @@
 
 #include <iterator>
 #include <memory>
-#include <ranges>
 
 /**
  * @brief Container of addrinfo
@@ -77,5 +76,3 @@ public:
     const_iterator begin() const { return cbegin(); }
     const_iterator end() const { return cend(); }
 };
-
-static_assert(std::ranges::input_range<AddrInfo>);
