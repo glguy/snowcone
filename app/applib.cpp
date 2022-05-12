@@ -9,14 +9,15 @@
 #include "uvaddrinfo.hpp"
 #include "write.hpp"
 
-extern "C" {
 #include <myncurses.h>
 #if HAS_GEOIP
 #include <mygeoip.h>
 #endif
+#include <mybase64.hpp>
+
+extern "C" {
 #include "lauxlib.h"
 }
-#include <mybase64.hpp>
 
 #include <ncurses.h>
 

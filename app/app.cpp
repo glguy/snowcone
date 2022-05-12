@@ -5,15 +5,14 @@
 #include "uvaddrinfo.hpp"
 #include "write.hpp"
 
+#include <mybase64.hpp>
 #include <ircmsg.hpp>
-
-extern "C" {
-#include <myncurses.h>
 #if HAS_GEOIP
 #include <mygeoip.h>
 #endif
-#include <mybase64.hpp>
+#include <myncurses.h>
 
+extern "C" {
 #include "lauxlib.h"
 #include "lualib.h"
 }
@@ -47,13 +46,8 @@ void on_stdin(uv_poll_t* handle, int status, int events)
     {
         if (key == '\x1b') {
             key = getch();
-            if (ERR == key) {
-                a->do_keyboard('\x1b');    
-            } else {
-                a->do_keyboard(-key);
-            }
-        } else if (KEY_MOUSE == key)
-        {
+            a->do_keyboard(ERR == key ? '\x1b' : -key);
+        } else if (KEY_MOUSE == key) {
             MEVENT ev;
             getmouse(&ev);
             if (ev.bstate == BUTTON1_CLICKED)
@@ -63,7 +57,7 @@ void on_stdin(uv_poll_t* handle, int status, int events)
         } else if (KEY_RESIZE == key) {
         } else if (key > 0xff) {
             a->do_keyboard(-key);
-        } else if (key < 0x80) {
+        } else if (isascii(key)) {
             a->do_keyboard(key);
         } else {
             char c = key;

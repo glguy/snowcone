@@ -24,7 +24,7 @@ extern "C" {
 struct app
 {
     lua_State *L;
-    struct configuration *cfg;
+    configuration *cfg;
     uv_stream_t *irc;
     uv_loop_t loop;
     uv_poll_t input;
