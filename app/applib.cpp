@@ -6,8 +6,6 @@
 #include "lua_uv_timer.hpp"
 #include "safecall.hpp"
 #include "uv.hpp"
-#include "uvaddrinfo.hpp"
-#include "write.hpp"
 
 #include <myncurses.h>
 #if HAS_GEOIP
@@ -147,7 +145,9 @@ int l_send_irc(lua_State* L)
     if (cmd == nullptr) {
         result = a->close_irc();
     } else {
-        result = a->send_irc({cmd, len});
+        lua_pushvalue(L, 1);
+        int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        result = a->send_irc(cmd, len, ref);
     }
 
     if (!result) {

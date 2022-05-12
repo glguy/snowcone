@@ -4,7 +4,6 @@
 #include "configuration.hpp"
 #include "read-line.hpp"
 #include "socat.hpp"
-#include "write.hpp"
 
 #include <uv.h>
 

@@ -2,8 +2,6 @@
 
 #include "applib.hpp"
 #include "uv.hpp"
-#include "uvaddrinfo.hpp"
-#include "write.hpp"
 
 #include <mybase64.hpp>
 #include <ircmsg.hpp>
@@ -167,12 +165,36 @@ bool app::close_irc() {
     return true;
 }
 
-bool app::send_irc(std::string_view cmd) {
+namespace {
+    class R {
+        uv_write_t write;
+        lua_State* L;
+        int ref;
+    public:
+        R(lua_State* L, int ref) : L(L), ref(ref) { write.data = this; }
+        ~R() { luaL_unref(L, LUA_REGISTRYINDEX, ref); }
+        uv_write_t *to_write() { return &write; }
+        static R* from_write(uv_write_t* write) { return reinterpret_cast<R*>(write->data); }
+    };
+}
+
+bool app::send_irc(char const* cmd, std::size_t n, int ref) {
     if (nullptr == irc) {
+        luaL_unref(L, LUA_REGISTRYINDEX, ref);
         return false;
     }
-    to_write(irc, cmd.data(), cmd.size());
-    return true;
+
+    auto req = std::make_unique<R>(L, ref);
+    uv_buf_t const buf = {const_cast<char*>(cmd), n};
+
+    auto cb = [](uv_write_t* write, int status){ delete R::from_write(write); };
+    bool success = 0 == uv_write(req->to_write(), irc, &buf, 1, cb);
+
+    if (success) {
+        req.release();
+    }
+
+    return success;
 }
 
 void app::do_irc_err(std::string_view msg)

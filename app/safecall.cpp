@@ -1,7 +1,6 @@
 #include "safecall.hpp"
 
 #include "app.hpp"
-#include "write.hpp"
 
 extern "C" {
 #include "lauxlib.h"

@@ -6,7 +6,6 @@
 #include "configuration.hpp"
 #include "irc.hpp"
 #include "read-line.hpp"
-#include "write.hpp"
 
 #include <curses.h>
 #include <uv.h>

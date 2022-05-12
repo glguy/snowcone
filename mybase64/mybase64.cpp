@@ -3,13 +3,16 @@
 #include <cstdint>
 #include <string_view>
 
+static_assert(CHAR_BIT == 8);
+
 void mybase64_encode(char const* input, std::size_t len, char* output)
 {
   static char const* const alphabet =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     "abcdefghijklmnopqrstuvwxyz"
     "0123456789+/";
-  auto cursor = reinterpret_cast<uint8_t const*>(input);
+
+  auto cursor = reinterpret_cast<unsigned char const*>(input);
   auto const end = cursor + len;
 
   while (end - cursor >= 3)
@@ -26,12 +29,12 @@ void mybase64_encode(char const* input, std::size_t len, char* output)
 
   if (cursor < end)
   {
-    uint32_t buffer = uint32_t(*cursor++) << (8 * 2);
-    if (cursor < end) buffer |= uint32_t(*cursor) << (8 * 1);
+    uint32_t buffer = *cursor++; buffer <<= 8;
+    if (cursor < end) buffer |= *cursor; buffer <<= 2;
 
-    *output++ = alphabet[(buffer >> 6 * 3) % 64];
-    *output++ = alphabet[(buffer >> 6 * 2) % 64];
-    *output++ = cursor < end ? alphabet[(buffer >> 6 * 1) % 64] : '=';
+    *output++ = alphabet[(buffer >> 12) % 64];
+    *output++ = alphabet[(buffer >> 6) % 64];
+    *output++ = cursor < end ? alphabet[(buffer % 64)] : '=';
     *output++ = '=';
   }
   *output = '\0';

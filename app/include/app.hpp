@@ -61,7 +61,7 @@ public:
     void set_window_size();
     void do_irc(ircmsg const&);
     void do_irc_err(std::string_view);
-    bool send_irc(std::string_view);
+    bool send_irc(char const*, std::size_t, int ref);
     bool close_irc();
     void run();
 
