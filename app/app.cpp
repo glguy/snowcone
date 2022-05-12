@@ -127,8 +127,12 @@ void app::do_keyboard(long key)
 
 void app::set_irc(uv_stream_t *irc)
 {
-    this->irc = irc;
-    lua_callback(L, "on_connect");
+    if (closing) {
+        uv_close(handle_cast(irc), nullptr);
+    } else {
+        this->irc = irc;
+        lua_callback(L, "on_connect");
+    }
 }
 
 void app::clear_irc()
