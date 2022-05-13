@@ -32,7 +32,7 @@ void push_addrinfos(lua_State* L, uv_loop_t* loop, addrinfo* ai)
 
 void on_dnslookup(uv_getaddrinfo_t* req, int status, addrinfo* res)
 {
-    auto const a = static_cast<app*>(req->loop->data);
+    auto const a = app::from_loop(req->loop);
     auto const L = a->L;
 
     // recover the callback function from the registry

@@ -52,7 +52,7 @@ struct readline_data
 
 inline void readline_read_cb(uv_stream_t* stream, ssize_t nread, uv_buf_t const* buf)
 {
-    auto const a = static_cast<app*>(stream->loop->data);
+    auto const a = app::from_loop(stream->loop);
     auto const d = static_cast<readline_data*>(stream->data);
 
     if (nread < 0)

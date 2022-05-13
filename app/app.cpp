@@ -32,7 +32,7 @@ void on_stdin(uv_poll_t* handle, int status, int events)
 {
     if (status != 0) return;
 
-    app* a = static_cast<app*>(handle->loop->data);
+    auto a = app::from_loop(handle->loop);
 
     int key;
     mbstate_t ps {};
@@ -69,7 +69,7 @@ void on_stdin(uv_poll_t* handle, int status, int events)
 
 void on_winch(uv_signal_t* handle, int signum)
 {
-    auto a = static_cast<app*>(handle->loop->data);
+    auto a = app::from_loop(handle->loop);
     endwin();
     refresh();
     a->set_window_size();
