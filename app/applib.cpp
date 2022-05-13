@@ -1,6 +1,7 @@
 #include "applib.hpp"
 
 #include "app.hpp"
+#include "configuration.hpp"
 #include "lua_uv_dnslookup.hpp"
 #include "lua_uv_filewatcher.hpp"
 #include "lua_uv_timer.hpp"
@@ -8,12 +9,16 @@
 #include "uv.hpp"
 
 #include <myncurses.h>
+#include <ircmsg.hpp>
+
 #if HAS_GEOIP
 #include <mygeoip.h>
 #endif
 #include <mybase64.hpp>
 
 extern "C" {
+#include "lua.h"
+#include "lualib.h"
 #include "lauxlib.h"
 }
 
@@ -21,11 +26,10 @@ extern "C" {
 
 #include <algorithm>
 #include <charconv>
-#include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <locale>
 
 namespace { // lua support for app

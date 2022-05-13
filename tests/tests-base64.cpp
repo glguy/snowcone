@@ -4,6 +4,7 @@
 #include <gmock/gmock.h>
 
 #include <cstddef>
+#include <cstring>
 #include <limits>
 #include <string_view>
 

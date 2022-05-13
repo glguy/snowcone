@@ -1,9 +1,9 @@
 #include "app.hpp"
 
 #include "applib.hpp"
+#include "configuration.hpp"
 #include "uv.hpp"
 
-#include <mybase64.hpp>
 #include <ircmsg.hpp>
 #if HAS_GEOIP
 #include <mygeoip.h>
@@ -11,19 +11,16 @@
 #include <myncurses.h>
 
 extern "C" {
+#include "lua.h"
 #include "lauxlib.h"
-#include "lualib.h"
 }
 
 #include <ncurses.h>
 
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <iostream>
+#include <cwchar>
 #include <locale>
-#include <netdb.h>
-#include <signal.h>
+#include <memory>
 #include <stdexcept>
 #include <unistd.h>
 

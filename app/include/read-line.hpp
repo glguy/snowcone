@@ -8,6 +8,7 @@
 #pragma once
 
 #include "app.hpp"
+#include "uv.hpp"
 
 #include <uv.h>
 

@@ -2,6 +2,9 @@
 
 #include "ircmsg.hpp"
 
+#include <string_view>
+#include <vector>
+
 namespace {
 class parser {
     char *msg;

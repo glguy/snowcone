@@ -7,19 +7,16 @@
 
 #pragma once
 
-#include "uv.hpp"
-#include "configuration.hpp"
-
-#include <ircmsg.hpp>
+struct configuration;
+struct ircmsg;
 
 extern "C" {
-#include <lua.h>
+#include "lua.h"
 }
 #include <uv.h>
 
-#include <cstdlib>
+#include <cstddef>
 #include <string_view>
-#include <vector>
 
 struct app
 {

@@ -3,6 +3,7 @@
 #include "app.hpp"
 
 extern "C" {
+#include "lua.h"
 #include "lauxlib.h"
 }
 #include <ncurses.h>

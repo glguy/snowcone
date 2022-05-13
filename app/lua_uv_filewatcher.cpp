@@ -3,8 +3,10 @@
 #include "app.hpp"
 #include "safecall.hpp"
 #include "userdata.hpp"
+#include "uv.hpp"
 
 extern "C" {
+#include "lua.h"
 #include "lauxlib.h"
 }
 

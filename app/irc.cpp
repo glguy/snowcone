@@ -4,10 +4,12 @@
 #include "configuration.hpp"
 #include "read-line.hpp"
 #include "socat.hpp"
+#include "uv.hpp"
+
+#include <ircmsg.hpp>
 
 #include <uv.h>
 
-#include <cstring>
 #include <sstream>
 
 namespace {

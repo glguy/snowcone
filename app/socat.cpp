@@ -4,9 +4,7 @@
 
 #include <cstdlib>
 #include <iterator>
-#include <iostream>
 #include <memory>
-#include <unistd.h>
 
 socat_pipes socat_wrapper(uv_loop_t* loop, char const* socat)
 {

@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "app.hpp"
+struct app;
 
 /**
  * @brief Starts the connection for the app

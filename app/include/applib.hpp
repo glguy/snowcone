@@ -7,12 +7,11 @@
 
 #pragma once
 
-#include "app.hpp"
-
-#include <ircmsg.hpp>
+struct ircmsg;
+struct configuration;
 
 extern "C" {
-#include "lualib.h"
+#include "lua.h"
 }
 
 void load_logic(lua_State* L, char const* filename);

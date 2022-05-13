@@ -5,18 +5,15 @@
 #include "app.hpp"
 #include "configuration.hpp"
 #include "irc.hpp"
-#include "read-line.hpp"
 
-#include <curses.h>
-#include <uv.h>
+#include <ncurses.h>
 
+#include <clocale>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <iostream>
-#include <locale>
 #include <memory>
 #include <stdexcept>
+#include <sys/errno.h>
+#include <system_error>
 #include <unistd.h>
 
 namespace {

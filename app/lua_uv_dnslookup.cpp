@@ -11,7 +11,7 @@ extern "C" {
 #include <uv.h>
 
 #include <iterator>
-
+#include <memory>
 namespace {
 
 void push_addrinfos(lua_State* L, uv_loop_t* loop, addrinfo* ai)

@@ -8,8 +8,6 @@
 
 #include <uv.h>
 
-#include <optional>
-
 /**
  * @brief Pipes for communicating with socat
  */
