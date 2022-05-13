@@ -105,6 +105,21 @@ TEST(Base64, Zeros) {
     EXPECT_EQ(std::string_view(buffer, len), std::string_view("\0\0\0", 3));
 }
 
+TEST(Base64, Ones) {
+    uint32_t buffer {UINT32_C(0xffffffff)};
+    char output[9];
+
+    mybase64_encode(reinterpret_cast<char const*>(&buffer), sizeof(buffer), output);
+    EXPECT_STREQ(output, "/////w==");
+
+    uint32_t decoded {};
+    size_t outlen;
+    ASSERT_TRUE(mybase64_decode(output, 8, reinterpret_cast<char*>(&decoded), &outlen));
+    ASSERT_EQ(outlen, sizeof(decoded));
+    
+    ASSERT_EQ(decoded, UINT32_C(0xffffffff));
+}
+
 TEST(Base64, Junk) {
     size_t len;
     char buffer[6];

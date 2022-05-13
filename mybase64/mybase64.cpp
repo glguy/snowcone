@@ -18,9 +18,9 @@ void mybase64_encode(char const* input, std::size_t len, char* output)
 
   while (end - cursor >= 3)
   {
-    uint32_t buffer = *cursor++ % 256;
-    buffer <<= 8; buffer |= *cursor++ % 256;
-    buffer <<= 8; buffer |= *cursor++ % 256;
+    uint32_t buffer = uint8_t(*cursor++);
+    buffer <<= 8; buffer |= uint8_t(*cursor++);
+    buffer <<= 8; buffer |= uint8_t(*cursor++);
 
     *output++ = alphabet[(buffer >> 6 * 3) % 64];
     *output++ = alphabet[(buffer >> 6 * 2) % 64];
@@ -30,8 +30,8 @@ void mybase64_encode(char const* input, std::size_t len, char* output)
 
   if (cursor < end)
   {
-    uint32_t buffer = *cursor++; buffer <<= 8;
-    if (cursor < end) buffer |= *cursor; buffer <<= 2;
+    uint32_t buffer = uint8_t(*cursor++) << 10;
+    if (cursor < end) buffer |= uint8_t(*cursor) << 2;
 
     *output++ = alphabet[(buffer >> 12) % 64];
     *output++ = alphabet[(buffer >> 6) % 64];
@@ -85,22 +85,22 @@ bool mybase64_decode(char const* input, std::size_t len, char* output, std::size
         int8_t const value = alphabet_values[uint8_t(c)];
         if (-1 == value) continue;
 
-        buffer <<= 6; buffer |= value;
+        buffer = (buffer << 6) | value;
 
-        if (buffer >= 1<<24) {
-            *cursor++ = buffer >> (8*2);
-            *cursor++ = buffer >> (8*1);
-            *cursor++ = buffer >> (8*0);
+        if (buffer & 1<<6*4) {
+            *cursor++ = buffer >> 8*2;
+            *cursor++ = buffer >> 8*1;
+            *cursor++ = buffer >> 8*0;
             buffer = 1;
         }
     }
 
-    if (buffer >= 1<<18) {
+    if (buffer & 1<<6*3) {
       *cursor++ = buffer >> 10;
       *cursor++ = buffer >> 2;
-    } else if (buffer >= 1<<12) {
+    } else if (buffer & 1<<6*2) {
       *cursor++ = buffer >> 4;
-    } else if (buffer != 1) {
+    } else if (buffer & 1<<6*1) {
       return false;
     }
     *outlen = cursor - output;
