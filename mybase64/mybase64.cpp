@@ -1,5 +1,6 @@
 #include "mybase64.hpp"
 
+#include <climits>
 #include <cstdint>
 #include <string_view>
 
