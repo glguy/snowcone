@@ -63,7 +63,7 @@ public:
     void run();
 
     static app* from_loop(uv_loop_t* loop) {
-        return reinterpret_cast<app*>(loop->data);
+        return static_cast<app*>(loop->data);
     }
     static app* from_lua(lua_State* L) {
         return *static_cast<app**>(lua_getextraspace(L));

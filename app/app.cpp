@@ -171,7 +171,7 @@ namespace {
         R(lua_State* L, int ref) : L(L), ref(ref) { write.data = this; }
         ~R() { luaL_unref(L, LUA_REGISTRYINDEX, ref); }
         uv_write_t *to_write() { return &write; }
-        static R* from_write(uv_write_t* write) { return reinterpret_cast<R*>(write->data); }
+        static R* from_write(uv_write_t* write) { return static_cast<R*>(write->data); }
     };
 }
 

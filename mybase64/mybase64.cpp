@@ -13,14 +13,14 @@ void mybase64_encode(char const* input, std::size_t len, char* output)
     "abcdefghijklmnopqrstuvwxyz"
     "0123456789+/";
 
-  auto cursor = reinterpret_cast<unsigned char const*>(input);
+  auto cursor = input;
   auto const end = cursor + len;
 
   while (end - cursor >= 3)
   {
-    uint32_t buffer = *cursor++;
-    buffer <<= 8; buffer |= *cursor++;
-    buffer <<= 8; buffer |= *cursor++;
+    uint32_t buffer = *cursor++ % 256;
+    buffer <<= 8; buffer |= *cursor++ % 256;
+    buffer <<= 8; buffer |= *cursor++ % 256;
 
     *output++ = alphabet[(buffer >> 6 * 3) % 64];
     *output++ = alphabet[(buffer >> 6 * 2) % 64];
