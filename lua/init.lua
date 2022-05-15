@@ -667,19 +667,6 @@ end
 
 local M = {}
 
-function M.on_input(str)
-    local chunk, err = load(str, '=(load)', 't')
-    if chunk then
-        local returns = {chunk()}
-        if #returns > 0 then
-            print(table.unpack(returns))
-        end
-        draw()
-    else
-        print(err)
-    end
-end
-
 local irc_handlers = require_ 'handlers.irc'
 function M.on_irc(irc)
     local time

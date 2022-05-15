@@ -33,7 +33,7 @@ void on_done(app* a) {
     a->clear_irc();
 
     if (!a->closing) {
-        uv_timer_start_xx(&a->reconnect, 5s, 0s, [](auto timer) {
+        uv_timer_start_xx(&a->reconnect, a->next_delay(), 0s, [](auto timer) {
             start_irc(app::from_loop(timer->loop));
         });
     }

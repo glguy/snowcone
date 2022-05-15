@@ -243,6 +243,11 @@ void push_configuration(lua_State* L, configuration* cfg)
     }
 }
 
+int l_reset_delay(lua_State* L) {
+    app::from_lua(L)->reset_delay();
+    return 0;
+}
+
 luaL_Reg const applib_module[] = {
     { "to_base64", l_to_base64 },
     { "from_base64", l_from_base64 },
@@ -256,6 +261,7 @@ luaL_Reg const applib_module[] = {
     { "raise", l_raise },
     { "xor_strings", l_xor_strings },
     { "isalnum", l_isalnum },
+    { "reset_delay", l_reset_delay },
     {}
 };
 

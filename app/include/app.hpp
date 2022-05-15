@@ -15,8 +15,11 @@ extern "C" {
 }
 #include <uv.h>
 
+#include <chrono>
 #include <cstddef>
 #include <string_view>
+
+using namespace std::chrono_literals;
 
 struct app
 {
@@ -28,6 +31,7 @@ struct app
     uv_signal_t winch;
     uv_timer_t reconnect;
     bool closing;
+    std::chrono::seconds reconnect_delay;
 
 public:
     app(configuration * cfg)
@@ -38,6 +42,7 @@ public:
     , input {}
     , winch {}
     , closing {false}
+    , reconnect_delay(0s)
     {
         loop.data = this;
     }
@@ -61,6 +66,8 @@ public:
     bool send_irc(char const*, std::size_t, int ref);
     bool close_irc();
     void run();
+    std::chrono::seconds next_delay();
+    void reset_delay();
 
     static app* from_loop(uv_loop_t* loop) {
         return static_cast<app*>(loop->data);

@@ -118,6 +118,7 @@ M[N.RPL_WELCOME] = function(irc)
         msg = counter_sync_commands()
     end
     snowcone.send_irc(msg)
+    snowcone.reset_delay()
 end
 
 M[N.RPL_ISUPPORT] = function(irc)

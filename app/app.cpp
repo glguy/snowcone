@@ -206,3 +206,13 @@ void app::do_mouse(int y, int x)
     lua_pushinteger(L, x);
     lua_callback(L, "on_mouse");
 }
+
+std::chrono::seconds app::next_delay() {
+    auto result = reconnect_delay;
+    if (reconnect_delay < 10s) reconnect_delay += 5s;
+    return result;
+}
+
+void app::reset_delay() {
+    reconnect_delay = 0s;
+}
