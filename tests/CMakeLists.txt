@@ -1,6 +1,6 @@
 find_package(GTest)
 
-if (GTest_FOUND)
+if (GTest_FOUND AND GMock_FOUND)
 add_executable(tests-ircmsg tests-ircmsg.cpp)
 target_link_libraries(tests-ircmsg PRIVATE ircmsg GTest::gtest_main)
 gtest_discover_tests(tests-ircmsg)
