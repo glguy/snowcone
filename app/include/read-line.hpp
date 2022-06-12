@@ -58,9 +58,9 @@ inline void readline_read_cb(uv_stream_t* stream, ssize_t nread, uv_buf_t const*
     if (nread < 0)
     {
         auto on_delete = d->on_delete;
-        delete d;
         uv_close(handle_cast(stream), on_delete);
         d->on_done(a);
+        delete d;
     } else {
         // remember start of this chunk; there should be no newline before it
         auto chunk = d->end;
