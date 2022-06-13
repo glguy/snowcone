@@ -40,9 +40,10 @@ ENVIRONMENT
   Sensitive arguments are passed using environment variables to keep them
   out of the process list.
 
-  IRC_PASSWORD       IRC password (PASS)
-  IRC_SASL_PASSWORD  IRC account password
-  IRC_OPER_PASSWORD  IRC operator password (OPER)
+  IRC_PASSWORD            IRC password (PASS)
+  IRC_SASL_PASSWORD       IRC account password
+  IRC_OPER_PASSWORD       IRC operator password (OPER)
+  IRC_CHALLENGE_PASSWORD  Challenge private key password (CHALLENGE)
 
 SOCAT ADDRESSES
   Check the socat(1) man page for an exhaustive set of connection
