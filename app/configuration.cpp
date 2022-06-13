@@ -15,7 +15,6 @@
     "         -N nick\n"
     "         [-U user]\n"
     "         [-G gecos]\n"
-    "         [-X password]\n"
     "         [-O oper_username]\n"
     "         [-K challenge_key]\n"
     "         [-M sasl_mechanism]\n"
@@ -40,7 +39,7 @@ configuration load_configuration(int argc, char** argv)
     cfg.irc_sasl_password = getenv("IRC_SASL_PASSWORD");
     cfg.irc_oper_password = getenv("IRC_OPER_PASSWORD");
 
-    char const* const flags = ":C:D:E:f:G:hK:L:M:N:O:S:U:X:Z:";
+    char const* const flags = ":C:D:E:f:G:hK:L:M:N:O:S:U:Z:";
     int opt;
     while ((opt = getopt(argc, argv, flags)) != -1) {
         switch (opt) {
@@ -60,7 +59,6 @@ configuration load_configuration(int argc, char** argv)
         case 'O': cfg.irc_oper_username     = optarg; break;
         case 'S': cfg.irc_socat             = optarg; break;
         case 'U': cfg.irc_user              = optarg; break;
-        case 'X': cfg.irc_pass              = optarg; break;
         case 'Z': cfg.irc_sasl_authzid      = optarg; break;
         }
     }

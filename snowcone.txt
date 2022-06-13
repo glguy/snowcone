@@ -1,11 +1,11 @@
 NAME
   snowcone - solanum server notice console
 SYNOPSIS
-  snowcone -S address -N nick [-U user] [-G gecos] [-X password]
+  snowcone -S address -N nick [-U user] [-G gecos]
            [-O opername] [-K challenge] [-M mechanism]
            [-E sasluser] [-D saslkey] [-Z saslauthzid]
            [-C capabilities] [-L initfile]
-           [-f filename] [-l host] [-p port] [-h]
+           [-f filename] [-h]
 DESCRIPTION
   snowcone provides a live view of server notices focused on awareness
   of recent connections and disconnections to the network. It can show
@@ -23,7 +23,6 @@ OPTIONS
   -N nick          IRC nickname (NICK)
   -U user          IRC username (USER)
   -G gecos         IRC gecos/realname (USER)
-  -X password      IRC password (PASS)
   -O opername      IRC operator username (OPER and CHALLENGE)
   -K challenge     Path to RSA key for CHALLENGE. Challenge support requires
                    you to install an extra Lua dependency with: luarocks install openssl
