@@ -190,6 +190,7 @@ add_command('notice', '$g $r', function(target, message)
 end)
 
 add_command('umode', '$R', function(args)
+    -- raw send_irc hack to allow args to contain spaces
     snowcone.send_irc('MODE ' .. irc_state.nick .. ' ' .. args .. '\r\n')
 end)
 

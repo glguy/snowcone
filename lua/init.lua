@@ -42,11 +42,11 @@ local Editor             = require_ 'components.Editor'
 local LoadTracker        = require_ 'components.LoadTracker'
 local OrderedMap         = require_ 'components.OrderedMap'
 local libera_masks       = require_ 'utils.libera_masks'
-local sasl               = require_ 'sasl'
 local addircstr          = require_ 'utils.irc_formatting'
 local drawing            = require_ 'utils.drawing'
 local utils_time         = require_ 'utils.time'
 local send               = require_ 'utils.send'
+local irc_registration   = require_ 'utils.irc_registration'
 
 -- Validate configuration =============================================
 
@@ -527,57 +527,6 @@ function counter_sync_commands()
     return table.concat(commands)
 end
 
-local function irc_register()
-    local pass = ''
-    if configuration.irc_pass then
-        pass = 'PASS :' .. configuration.irc_pass .. '\r\n'
-    end
-
-    local user = configuration.irc_user or configuration.irc_nick
-    local gecos = configuration.irc_gecos or configuration.irc_nick
-
-    local caps = {}
-    if configuration.irc_capabilities then
-        table.insert(caps, configuration.irc_capabilities)
-    end
-
-    local postreg = ''
-    local mech = configuration.irc_sasl_mechanism
-    if mech then
-        local success
-        success, postreg, irc_state.sasl = pcall(sasl.start,
-            configuration.irc_sasl_mechanism,
-            configuration.irc_sasl_username,
-            configuration.irc_sasl_password,
-            configuration.irc_sasl_key,
-            configuration.irc_sasl_authzid
-        )
-        if success then
-            table.insert(caps, 'sasl')
-        else
-            status('error', '%s', postreg)
-            postreg = ''
-        end
-    end
-
-    local capreq = ''
-    if next(caps) then
-        capreq = 'CAP REQ :' .. table.concat(caps, ' ') .. '\r\n'
-        if not irc_state.sasl then
-            postreg = 'CAP END\r\n'
-        end
-    end
-
-    irc_state.registration = true
-    snowcone.send_irc(
-        capreq ..
-        pass ..
-        'NICK ' .. configuration.irc_nick .. '\r\n' ..
-        'USER ' .. user .. ' * * :' .. gecos .. '\r\n' ..
-        postreg
-        )
-end
-
 -- Timers =============================================================
 
 local function refresh_rotations()
@@ -734,7 +683,7 @@ end
 function M.on_connect()
     irc_state = { nick = configuration.irc_nick }
     status('irc', 'connecting')
-    irc_register()
+    irc_registration()
 end
 
 function M.on_disconnect()

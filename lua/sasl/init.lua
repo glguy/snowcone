@@ -10,7 +10,7 @@ function M.encode_authenticate(body)
 
     local function authenticate(msg)
         n = n + 1
-        commands[n] = 'AUTHENTICATE ' .. msg .. '\r\n'
+        commands[n] = {'AUTHENTICATE', {content=msg, secret=true}}
     end
 
     if body then
@@ -28,7 +28,7 @@ function M.encode_authenticate(body)
         authenticate '*'
     end
 
-    return table.concat(commands)
+    return commands
 end
 
 local function load_key(key, password)
@@ -60,7 +60,7 @@ function M.start(mechanism, authcid, password, key, authzid)
     else
         error 'bad mechanism'
     end
-    return 'AUTHENTICATE ' .. mechanism .. '\r\n', co
+    return {'AUTHENTICATE', mechanism}, co
 end
 
 return M

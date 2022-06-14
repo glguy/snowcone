@@ -96,7 +96,9 @@ M.AUTHENTICATE = function(irc)
             end
         end
 
-        snowcone.send_irc(sasl.encode_authenticate(reply))
+        for _, cmd in ipairs(sasl.encode_authenticate(reply)) do
+            send(table.unpack(cmd))
+        end
     end
 end
 
@@ -105,19 +107,16 @@ M[N.RPL_WELCOME] = function(irc)
     irc_state.connected = true
     status('irc', 'connected to %s', irc.source)
 
-    local msg
     if configuration.irc_oper_username and configuration.irc_challenge_key then
-        msg = 'CHALLENGE ' .. configuration.irc_oper_username .. '\r\n'
+        send('CHALLENGE', configuration.irc_oper_username)
         irc_state.challenge = {}
     elseif configuration.irc_oper_username and configuration.irc_oper_password then
-        msg = 'OPER ' ..
-            configuration.irc_oper_username .. ' :' ..
-            configuration.irc_oper_password .. '\r\n'
+        send('OPER', configuration.irc_oper_username,
+            {content=configuration.irc_oper_password, secret=true})
     else
         irc_state.oper = true
-        msg = counter_sync_commands()
+        snowcone.send_irc(counter_sync_commands())
     end
-    snowcone.send_irc(msg)
     snowcone.reset_delay()
 end
 
@@ -277,10 +276,8 @@ end
 
 M[N.RPL_YOUREOPER] = function()
     irc_state.oper = true
-    snowcone.send_irc(
-        counter_sync_commands() ..
-        'MODE ' .. irc_state.nick .. ' s BFZbcklnsx\r\n'
-    )
+    snowcone.send_irc(counter_sync_commands())
+    send('MODE', irc_state.nick, 's', 'BFZbcklnsx')
     status('irc', "you're oper")
 end
 
