@@ -13,13 +13,18 @@ local palette = {
 }
 
 local function pretty_source(source)
-    local head, kind = string.match(source, '^(.-)([.!])')
-    if kind == '!' then
-        cyan()
+    if source == '>>>' then
+        red()
     else
-        yellow()
+        local head, kind = string.match(source, '^(.-)([.!])')
+        source = head or source
+        if kind == '!' then
+            cyan()
+        else
+            yellow()
+        end
     end
-    addstr(string.format('%16.16s ', head or source))
+    addstr(string.format('%16.16s ', source))
     normal()
 end
 
