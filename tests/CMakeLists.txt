@@ -11,7 +11,7 @@ gtest_discover_tests(tests-base64)
 endif()
 
 find_program(LUACHECK luacheck)
-if(NOT ${LUACHECK} EQUAL "LUACHECK-NOTFOUND")
+if(NOT ${LUACHECK} STREQUAL "LUACHECK-NOTFOUND")
 message("luacheck was " ${LUACHECK})
 add_test(NAME luacheck
   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/lua"
