@@ -1,14 +1,15 @@
 #pragma once
 
+#include <optional>
 #include <string_view>
 #include <vector>
 
 struct irctag
 {
     std::string_view key;
-    std::string_view val;
+    std::optional<std::string_view> val;
 
-    irctag(std::string_view key, std::string_view val) : key(key), val(val) {}
+    irctag(std::string_view key, std::optional<std::string_view> val) : key(key), val(val) {}
     
     friend bool operator==(irctag const&, irctag const&) = default;
 };
@@ -17,14 +18,14 @@ struct ircmsg
 {
     std::vector<irctag> tags;
     std::vector<std::string_view> args;
-    std::string_view source;
+    std::optional<std::string_view> source;
     std::string_view command;
 
     ircmsg() : tags(), args(), source(), command() {}
 
     ircmsg(
         std::vector<irctag> tags,
-        std::string_view source,
+        std::optional<std::string_view> source,
         std::string_view command,
         std::vector<std::string_view> args)
     : tags(std::move(tags)),

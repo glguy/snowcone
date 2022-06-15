@@ -85,7 +85,7 @@ std::vector<irctag> parse_tags(char* str)
             unescape_tag_value(val);
             tags.emplace_back(key, val);
         } else {
-            tags.emplace_back(key, std::string_view{});
+            tags.emplace_back(key, std::optional<std::string_view>{});
         }
     } while(nullptr != str);
 

@@ -1,6 +1,7 @@
 return function(cmd, ...)
 
     local msg = {
+        tags = {},
         command = cmd,
         source = ">>>",
         timestamp = uptime,
