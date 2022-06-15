@@ -51,20 +51,37 @@ end
 
 local function rotating_window(source, rows, predicate)
     source.predicate = predicate
+
+    -- When we're scrolling the rolling buffer doesn't add anything
+    -- so the divider line is forced to the bottom of the screen
+    -- the value of ticker is memorized when scroll starts so that
+    -- the viewport stays fixed in place while scrolling
+    local offset, divider
+    if scroll > 0 then
+        local pin = source.pin or source.ticker
+        source.pin = pin
+        offset = scroll + source.ticker - pin
+        divider = rows - 1
+    else
+        source.pin = nil
+        divider = source.ticker
+        offset = 0
+    end
+
     if rows <= 0 then return {} end
 
     local n = 0
     local window = {}
 
-    for entry in source:each(scroll) do
+    for entry in source:each(offset) do
         if n+1 >= rows then break end -- saves a row for divider
         if not predicate or predicate(entry) then
-            window[(source.ticker-1-n) % rows + 1] = entry
+            window[(divider-1-n) % rows + 1] = entry
             n = n + 1
         end
     end
 
-    window[source.ticker % rows + 1] = 'divider'
+    window[divider % rows + 1] = 'divider'
     return window
 end
 
