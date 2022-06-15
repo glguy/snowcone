@@ -242,7 +242,7 @@ function M.filter(ev)
 end
 
 function M.netjoin(ev)
-    snowcone.send_irc(counter_sync_commands())
+    counter_sync_commands()
     status('snote', 'netjoin %s', ev.server2)
 
     if versions[ev.server2] ~= nil then
@@ -252,7 +252,7 @@ function M.netjoin(ev)
 end
 
 function M.netsplit(ev)
-    snowcone.send_irc(counter_sync_commands())
+    counter_sync_commands()
     status('snote', 'netsplit %s', ev.server2)
     uptimes[ev.server2] = nil
 end

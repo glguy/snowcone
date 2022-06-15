@@ -518,13 +518,13 @@ end
 -- IRC Registration Logic =============================================
 
 function counter_sync_commands()
-    local commands = {'MAP\r\nLINKS\r\n'}
+    send('MAP')
+    send('LINKS')
     for _, entry in pairs(net_trackers) do
         for label, _ in pairs(entry.masks) do
-            table.insert(commands, 'TESTMASK *@' .. label .. '\r\n')
+            send('TESTMASK', '*@' .. label)
         end
     end
-    return table.concat(commands)
 end
 
 -- Timers =============================================================

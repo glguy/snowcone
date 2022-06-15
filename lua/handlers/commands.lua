@@ -32,7 +32,7 @@ add_command('filter', '$R', function(args)
 end)
 
 add_command('sync', '', function()
-    snowcone.send_irc(counter_sync_commands())
+    counter_sync_commands()
 end)
 
 add_command('reload', '', function()

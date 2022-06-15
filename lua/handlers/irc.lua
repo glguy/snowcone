@@ -115,7 +115,7 @@ M[N.RPL_WELCOME] = function(irc)
             {content=configuration.irc_oper_password, secret=true})
     else
         irc_state.oper = true
-        snowcone.send_irc(counter_sync_commands())
+        counter_sync_commands()
     end
     snowcone.reset_delay()
 end
@@ -276,7 +276,7 @@ end
 
 M[N.RPL_YOUREOPER] = function()
     irc_state.oper = true
-    snowcone.send_irc(counter_sync_commands())
+    counter_sync_commands()
     send('MODE', irc_state.nick, 's', 'BFZbcklnsx')
     status('irc', "you're oper")
 end
