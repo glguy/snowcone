@@ -135,7 +135,7 @@ local function rawstr(str)
 end
 
 local function draw_focus(irc, snotice)
-    if irc.tags ~= nil then
+    if irc.tags ~= nil and next(irc.tags) then
         blue()
         addstr('      tags:')
         for k, v in pairs(irc.tags) do
