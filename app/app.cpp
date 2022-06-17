@@ -185,13 +185,10 @@ bool app::send_irc(char const* cmd, std::size_t n, int ref) {
     uv_buf_t const buf = {const_cast<char*>(cmd), n};
 
     auto cb = [](uv_write_t* write, int status){ delete R::from_write(write); };
-    bool success = 0 == uv_write(req->to_write(), irc, &buf, 1, cb);
+    uvok(uv_write(req->to_write(), irc, &buf, 1, cb));
+    req.release();
 
-    if (success) {
-        req.release();
-    }
-
-    return success;
+    return true;
 }
 
 void app::do_irc_err(std::string_view msg)
