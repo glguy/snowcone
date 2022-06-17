@@ -11,16 +11,16 @@ return function(cmd, ...)
     local parts = {cmd}
 
     for i, v in ipairs({...}) do
-        if type(v) == 'string' then
-            msg[i] = v
-            parts[i+1] = v
-        else
+        if type(v) == 'table' then
             parts[i+1] = v.content
             if v.secret then
                 msg[i] = '********'
             else
                 msg[i] = v.content
             end
+        else
+            msg[i] = v
+            parts[i+1] = v
         end
     end
 
