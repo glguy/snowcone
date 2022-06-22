@@ -24,7 +24,12 @@ return function()
         end
     end
 
+    if configuration.irc_capabilities then
+        table.insert(caps, configuration.irc_capabilities)
+    end
+
     if next(caps) then
+        send('CAP', 'LS', '302')
         send('CAP', 'REQ', table.concat(caps, ' '))
         if not postreg then
             postreg = {'CAP', 'END'}
@@ -37,10 +42,6 @@ return function()
 
     local user = configuration.irc_user or configuration.irc_nick
     local gecos = configuration.irc_gecos or configuration.irc_nick
-
-    if configuration.irc_capabilities then
-        table.insert(caps, configuration.irc_capabilities)
-    end
 
     irc_state.registration = true
     send('NICK', configuration.irc_nick)
