@@ -12,6 +12,7 @@
 
 #include <uv.h>
 
+#include <algorithm>
 #include <array>
 #include <concepts>
 #include <iterator>
