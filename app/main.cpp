@@ -40,6 +40,9 @@ Ncurses initialize_terminal() {
         throw std::system_error(errno, std::generic_category());
     }
 
+    fprintf(result.tty.get(), "%s", "\x1b[?2004h");
+    fflush(result.tty.get());
+
     result.scr = decltype(result.scr)(newterm(nullptr, result.tty.get(), stdin));
     if (!result.scr) {
         throw std::runtime_error("newterm");
@@ -57,6 +60,9 @@ Ncurses initialize_terminal() {
     mousemask(BUTTON1_CLICKED, nullptr);
     set_escdelay(25);
     endwin();
+
+    define_key("\x1b[200~", 01000);
+    define_key("\x1b[201~", 01001);
 
     return result;
 }
@@ -82,5 +88,9 @@ int main(int argc, char *argv[])
 
     endwin();
     a.destroy();
+
+    fprintf(nc.tty.get(), "%s", "\x1b[?2004l");
+    fflush(nc.tty.get());
+
     return 0;
 }

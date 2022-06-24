@@ -17,6 +17,8 @@ extern "C" {
 
 #include <chrono>
 #include <cstddef>
+#include <optional>
+#include <string>
 #include <string_view>
 
 using namespace std::chrono_literals;
@@ -32,6 +34,7 @@ struct app
     uv_timer_t reconnect;
     bool closing;
     std::chrono::seconds reconnect_delay;
+    std::optional<std::string> paste;
 
 public:
     app(configuration * cfg)
@@ -43,6 +46,7 @@ public:
     , winch {}
     , closing {false}
     , reconnect_delay(0s)
+    , paste {}
     {
         loop.data = this;
     }
@@ -58,6 +62,7 @@ public:
 
     void do_mouse(int y, int x);
     void do_keyboard(long key);
+    void do_paste();
     void set_irc(uv_stream_t* stream);
     void clear_irc();
     void set_window_size();

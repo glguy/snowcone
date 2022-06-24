@@ -139,6 +139,7 @@ local defaults = {
     editor = Editor(),
     versions = {},
     uptimes = {},
+    draw_suspend = 'no', -- no: draw normally; eligible: don't draw; suspended: a draw is needed
 
     -- settings
     show_reasons = 'reason',
@@ -476,6 +477,10 @@ function prev_view()
 end
 
 function draw()
+    if draw_suspend ~= 'no' then
+        draw_suspend = 'suspended'
+        return
+    end
     clicks = {}
     ncurses.erase()
     normal()
@@ -669,6 +674,17 @@ function M.on_keyboard(key)
 
     -- view-specific key handlers
     views[view]:keypress(key)
+end
+
+function M.on_paste(paste)
+    draw_suspend = 'eligible'
+    for _, c in utf8.codes(paste) do
+        M.on_keyboard(c)
+    end
+    if draw_suspend == 'suspended' then
+        draw_suspend = 'no'
+        draw()
+    end
 end
 
 function M.on_mouse(y, x)

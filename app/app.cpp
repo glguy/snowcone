@@ -39,7 +39,14 @@ void on_stdin(uv_poll_t* handle, int status, int events)
 
     while(ERR != (key = getch()))
     {
-        if (key == '\x1b') {
+        if (a->paste) {
+            if (key == 01001) {
+                a->do_paste();
+                a->paste.reset();
+            } else {
+                a->paste->push_back(key);
+            }
+        } else if (key == '\x1b') {
             key = getch();
             a->do_keyboard(ERR == key ? '\x1b' : -key);
         } else if (KEY_MOUSE == key) {
@@ -50,6 +57,8 @@ void on_stdin(uv_poll_t* handle, int status, int events)
                 a->do_mouse(ev.y, ev.x);
             }
         } else if (KEY_RESIZE == key) {
+        } else if (01000 == key) {
+            a->paste = "";
         } else if (key > 0xff) {
             a->do_keyboard(-key);
         } else if (isascii(key)) {
@@ -118,6 +127,12 @@ void app::do_keyboard(long key)
 {
     lua_pushinteger(L, key);
     lua_callback(L, "on_keyboard");
+}
+
+void app::do_paste()
+{
+    lua_pushlstring(L, paste->data(), paste->size());
+    lua_callback(L, "on_paste");
 }
 
 void app::set_irc(uv_stream_t *irc)

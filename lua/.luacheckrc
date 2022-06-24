@@ -17,7 +17,7 @@ stds = {
             "require_", "next_view", "prev_view", "entry_to_kline",
             "add_network_tracker", "quit", "entry_to_unkline",
             "reset_filter", "initialize", "counter_sync_commands",
-            "ctrl", "meta", "status", "plugins",
+            "ctrl", "meta", "status", "plugins", "draw_suspend",
 
             -- global client state
             "irc_state",  "status_message", "input_mode", "servers",

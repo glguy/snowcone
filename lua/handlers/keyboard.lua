@@ -21,8 +21,7 @@ for _, plugin in ipairs(plugins) do
 end
 
 function execute.command()
-
-    local text = editor.rendered
+    local text = editor:content()
     input_mode = nil
 
     if string.match(text, '^%s*$') then

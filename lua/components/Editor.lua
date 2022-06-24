@@ -18,6 +18,10 @@ function M:_init()
     self:render()
 end
 
+function M:content()
+    return utf8.char(table.unpack(self.buffer))
+end
+
 function M:move(x, state)
     self.cursor = x
     if self.first > self.cursor then
