@@ -1,10 +1,23 @@
 -- Logic for IRC messages
 local Set         = require 'pl.Set'
+local tablex      = require 'pl.tablex'
 local N           = require_ 'utils.numerics'
 local challenge   = require_ 'utils.challenge'
 local sasl        = require_ 'sasl'
 local parse_snote = require_ 'utils.parse_snote'
 local send        = require 'utils.send'
+
+-- irc_state variables
+-- .caps_available - create in LS - consume at end of LS
+-- .caps_wanted    - create before LS - consume after ACK/NAK
+-- .caps_enabled   - create before LS - consume at quit
+-- .want_sasl      - create before REQ - consume at ACK
+-- .registration   - create on connect - consume at 001
+-- .connected      - create on 001     - consume at ERROR
+-- .sasl           - coroutine for AUTHENTICATE commands
+-- .authenticate   - array of strings - accumulated chunks of AUTHENTICATE
+-- .nick           - current nickname
+-- .target_nick    - desired nickname - consumed when target nick recovered
 
 local function parse_source(source)
     return string.match(source, '^(.-)!(.-)@(.*)$')
@@ -51,6 +64,97 @@ function M.NOTICE(irc)
                 end
             end
         end
+    end
+end
+
+-- install SASL state machine based on configuration values
+-- and send the first AUTHENTICATE command
+local function start_sasl()
+    local success, auth_cmd
+    success, auth_cmd, irc_state.sasl = pcall(sasl.start,
+        configuration.irc_sasl_mechanism,
+        configuration.irc_sasl_username,
+        configuration.irc_sasl_password,
+        configuration.irc_sasl_key,
+        configuration.irc_sasl_authzid
+    )
+    if success then
+        send(table.unpack(auth_cmd))
+    else
+        status('sasl', 'startup failed: %s', auth_cmd)
+    end
+end
+
+local cap_cmds = {}
+
+cap_cmds.LS = function(x, y)
+    -- CAP * LS * :x y z    -- continuation
+    -- CAP * LS :x y z      -- final
+    local last_ls = x ~= '*'
+
+    if irc_state.caps_available == nil then
+        irc_state.caps_available = {}
+    end
+
+    -- Track all available caps
+    local capsarg
+    if last_ls then capsarg = x else capsarg = y end
+    for cap in capsarg:gmatch '([^ =]+)=?(%S*)' do
+        irc_state.caps_available[cap] = true
+    end
+
+    if last_ls then
+        if irc_state.caps_wanted ~= nil and not Set.isempty(irc_state.caps_wanted) then
+            local missing = Set.difference(irc_state.caps_wanted, irc_state.caps_available)
+            if Set.isempty(missing) then
+                send('CAP', 'REQ', table.concat(tablex.keys(irc_state.caps_wanted), ' '))
+            else
+                status('cap', 'caps not available: ' .. table.concat(Set.values(missing), ', '))
+            end
+        end
+        irc_state.caps_available = nil
+    end
+end
+
+cap_cmds.ACK = function(capsarg)
+    for minus, cap in capsarg:gmatch '(%-?)([^ =]+)' do
+        irc_state.caps_wanted[cap] = nil
+        if minus == '-' then
+            irc_state.caps_enabled[cap] = nil
+        else
+            irc_state.caps_enabled[cap] = true
+        end
+    end
+
+    -- once all the requested caps have been ACKd clear up the request
+    if Set.isempty(irc_state.caps_wanted) then
+        irc_state.caps_wanted = nil
+        if irc_state.caps_enabled.sasl and irc_state.want_sasl then
+            irc_state.want_sasl = nil
+            start_sasl()
+        else
+            if irc_state.registration then
+                send('CAP', 'END')
+            end
+        end
+    end
+end
+
+cap_cmds.NAK = function(capsarg)
+    status('cap', "caps nak'd: %s", capsarg)
+end
+
+cap_cmds.DEL = function(capsarg)
+    for cap in capsarg:gmatch '%S+' do
+        irc_state.caps_enabled[cap] = nil
+    end
+end
+
+M.CAP = function(irc)
+    -- irc[1] is a nickname or *
+    local h = cap_cmds[irc[2]]
+    if h then
+        h(table.unpack(irc, 3))
     end
 end
 

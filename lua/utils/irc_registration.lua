@@ -1,53 +1,39 @@
-local sasl = require_ 'sasl'
 local send = require_ 'utils.send'
+local Set = require 'pl.Set'
 
 return function()
 
-    local caps = {}
+    local caps_wanted = Set{}
+    irc_state.caps_enabled = Set{}
 
-    local postreg
-    local mech = configuration.irc_sasl_mechanism
-    if mech then
-        local success
-        success, postreg, irc_state.sasl = pcall(sasl.start,
-            configuration.irc_sasl_mechanism,
-            configuration.irc_sasl_username,
-            configuration.irc_sasl_password,
-            configuration.irc_sasl_key,
-            configuration.irc_sasl_authzid
-        )
-        if success then
-            table.insert(caps, 'sasl')
-        else
-            status('error', '%s', postreg)
-            postreg = nil
-        end
+    -- always request sasl cap when sasl is configured
+    if configuration.irc_sasl_mechanism then
+        caps_wanted.sasl = true
+        irc_state.want_sasl = true
     end
 
+    -- add in all the manually requested caps
     if configuration.irc_capabilities then
-        table.insert(caps, configuration.irc_capabilities)
+        for cap in configuration.irc_capabilities:gmatch '%S+' do
+            caps_wanted[cap] = true
+        end
     end
 
-    if next(caps) then
+    if not Set.isempty(caps_wanted) then
         send('CAP', 'LS', '302')
-        send('CAP', 'REQ', table.concat(caps, ' '))
-        if not postreg then
-            postreg = {'CAP', 'END'}
-        end
+        irc_state.caps_wanted = caps_wanted
     end
 
     if configuration.irc_pass then
         send('PASS', {content=configuration.irc_pass, secret=true})
     end
 
+    local nick = configuration.irc_nick
     local user = configuration.irc_user or configuration.irc_nick
     local gecos = configuration.irc_gecos or configuration.irc_nick
 
+    irc_state.nick = nick
     irc_state.registration = true
-    send('NICK', configuration.irc_nick)
+    send('NICK', nick)
     send('USER', user, '*', '*', gecos)
-
-    if postreg then
-        send(table.unpack(postreg))
-    end
 end
