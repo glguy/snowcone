@@ -7,64 +7,20 @@ local sasl        = require_ 'sasl'
 local parse_snote = require_ 'utils.parse_snote'
 local send        = require 'utils.send'
 
--- irc_state variables
--- .caps_available - create in LS - consume at end of LS
--- .caps_wanted    - create before LS - consume after ACK/NAK
--- .caps_enabled   - create before LS - consume at quit
--- .want_sasl      - create before REQ - consume at ACK
--- .registration   - create on connect - consume at 001
--- .connected      - create on 001     - consume at ERROR
--- .sasl           - coroutine for AUTHENTICATE commands
--- .authenticate   - array of strings - accumulated chunks of AUTHENTICATE
--- .nick           - current nickname
--- .target_nick    - desired nickname - consumed when target nick recovered
+-- irc_state
+-- .caps_available - set of string   - create in LS - consume at end of LS
+-- .caps_wanted    - set of string   - create before LS - consume after ACK/NAK
+-- .caps_enabled   - set of string   - create before LS - consume at quit
+-- .want_sasl      - boolean         - consume at ACK to trigger SASL session
+-- .registration   - boolean         - create on connect - consume at 001
+-- .connected      - boolean         - create on 001     - consume at ERROR
+-- .sasl           - coroutine       - AUTHENTICATE state machine
+-- .authenticate   - array of string - accumulated chunks of AUTHENTICATE
+-- .nick           - string          - current nickname
+-- .target_nick    - string          - consumed when target nick recovered
 
 local function parse_source(source)
     return string.match(source, '^(.-)!(.-)@(.*)$')
-end
-
-local M = {}
-
-function M.ERROR()
-    irc_state.connected = nil
-end
-
-function M.PING(irc)
-    send('PONG', irc[1])
-end
-
-local handlers = require_ 'handlers.snotice'
-function M.NOTICE(irc)
-    if irc[1] == '*' and not string.match(irc.source, '@') then
-        local note = string.match(irc[2], '^%*%*%* Notice %-%- (.*)$')
-        if note then
-            local event = parse_snote(irc.time, irc.source, note)
-            if event then
-                local handled = false
-
-                local h = handlers[event.name]
-                if h then
-                    h(event)
-                    handled = true
-                end
-
-                for _, plugin in ipairs(plugins) do
-                    h = plugin.snotice
-                    if h then
-                        local success, err = pcall(h, event)
-                        if not success then
-                            status(plugin.name, 'snotice handler error: ' .. tostring(err))
-                        end
-                        handled = true
-                    end
-                end
-
-                if handled and views[view].active then
-                    draw()
-                end
-            end
-        end
-    end
 end
 
 -- install SASL state machine based on configuration values
@@ -93,13 +49,13 @@ cap_cmds.LS = function(x, y)
     local last_ls = x ~= '*'
 
     if irc_state.caps_available == nil then
-        irc_state.caps_available = {}
+        irc_state.caps_available = Set{}
     end
 
     -- Track all available caps
     local capsarg
     if last_ls then capsarg = x else capsarg = y end
-    for cap in capsarg:gmatch '([^ =]+)=?(%S*)' do
+    for cap in capsarg:gmatch '([^ =]+)(=?)(%S*)' do
         irc_state.caps_available[cap] = true
     end
 
@@ -147,6 +103,50 @@ end
 cap_cmds.DEL = function(capsarg)
     for cap in capsarg:gmatch '%S+' do
         irc_state.caps_enabled[cap] = nil
+    end
+end
+
+local M = {}
+
+function M.ERROR()
+    irc_state.connected = nil
+end
+
+function M.PING(irc)
+    send('PONG', irc[1])
+end
+
+local handlers = require_ 'handlers.snotice'
+function M.NOTICE(irc)
+    if irc[1] == '*' and not string.match(irc.source, '@') then
+        local note = string.match(irc[2], '^%*%*%* Notice %-%- (.*)$')
+        if note then
+            local event = parse_snote(irc.time, irc.source, note)
+            if event then
+                local handled = false
+
+                local h = handlers[event.name]
+                if h then
+                    h(event)
+                    handled = true
+                end
+
+                for _, plugin in ipairs(plugins) do
+                    h = plugin.snotice
+                    if h then
+                        local success, err = pcall(h, event)
+                        if not success then
+                            status(plugin.name, 'snotice handler error: ' .. tostring(err))
+                        end
+                        handled = true
+                    end
+                end
+
+                if handled and views[view].active then
+                    draw()
+                end
+            end
+        end
     end
 end
 

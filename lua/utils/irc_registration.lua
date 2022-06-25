@@ -3,8 +3,13 @@ local Set = require 'pl.Set'
 
 return function()
 
+    irc_state = {
+        nick = configuration.irc_nick,
+        registration = true,
+        caps_enabled = Set{},
+    }
+
     local caps_wanted = Set{}
-    irc_state.caps_enabled = Set{}
 
     -- always request sasl cap when sasl is configured
     if configuration.irc_sasl_mechanism then
@@ -32,8 +37,6 @@ return function()
     local user = configuration.irc_user or configuration.irc_nick
     local gecos = configuration.irc_gecos or configuration.irc_nick
 
-    irc_state.nick = nick
-    irc_state.registration = true
     send('NICK', nick)
     send('USER', user, '*', '*', gecos)
 end

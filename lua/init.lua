@@ -697,7 +697,6 @@ function M.on_mouse(y, x)
 end
 
 function M.on_connect()
-    irc_state = { nick = configuration.irc_nick }
     status('irc', 'connecting')
     irc_registration()
 end
