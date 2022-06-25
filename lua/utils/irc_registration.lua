@@ -19,7 +19,7 @@ return function()
 
     -- add in all the manually requested caps
     if configuration.irc_capabilities then
-        for cap in configuration.irc_capabilities:gmatch '%S+' do
+        for cap in configuration.irc_capabilities:gmatch '[%w%-./]+' do
             caps_wanted[cap] = true
         end
     end
