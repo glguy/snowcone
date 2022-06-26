@@ -11,6 +11,7 @@ local send        = require 'utils.send'
 -- .caps_available - set of string   - create in LS - consume at end of LS
 -- .caps_wanted    - set of string   - create before LS - consume after ACK/NAK
 -- .caps_enabled   - set of string   - create before LS - consume at quit
+-- .caps_list      - array of string - list of enabled caps - consume after LIST
 -- .want_sasl      - boolean         - consume at ACK to trigger SASL session
 -- .registration   - boolean         - create on connect - consume at 001
 -- .connected      - boolean         - create on 001     - consume at ERROR
@@ -46,20 +47,19 @@ local cap_cmds = {}
 cap_cmds.LS = function(x, y)
     -- CAP * LS * :x y z    -- continuation
     -- CAP * LS :x y z      -- final
-    local last_ls = x ~= '*'
 
     if irc_state.caps_available == nil then
         irc_state.caps_available = Set{}
     end
 
-    -- Track all available caps
+    local last = x ~= '*'
     local capsarg
-    if last_ls then capsarg = x else capsarg = y end
+    if last then capsarg = x else capsarg = y end
     for cap in capsarg:gmatch '([^ =]+)(=?)(%S*)' do
         irc_state.caps_available[cap] = true
     end
 
-    if last_ls then
+    if last then
         if irc_state.caps_wanted ~= nil and not Set.isempty(irc_state.caps_wanted) then
             local missing = Set.difference(irc_state.caps_wanted, irc_state.caps_available)
             if Set.isempty(missing) then
@@ -72,9 +72,29 @@ cap_cmds.LS = function(x, y)
     end
 end
 
+cap_cmds.LIST = function(x,y)
+    if irc_state.caps_list == nil then
+        irc_state.caps_list = {}
+    end
+
+    local last = x ~= '*'
+    local capsarg
+    if last then capsarg = x else capsarg = y end
+    for cap in capsarg:gmatch '%S+' do
+        table.insert(irc_state.caps_list, cap)
+    end
+
+    if last then
+        status('cap', 'client caps: %s', table.concat(irc_state.caps_list, ', '))
+        irc_state.caps_list = nil
+    end
+end
+
 cap_cmds.ACK = function(capsarg)
     for minus, cap in capsarg:gmatch '(%-?)([^ =]+)' do
-        irc_state.caps_wanted[cap] = nil
+        if irc_state.caps_wanted ~= nil then
+            irc_state.caps_wanted[cap] = nil
+        end
         if minus == '-' then
             irc_state.caps_enabled[cap] = nil
         else
@@ -83,7 +103,7 @@ cap_cmds.ACK = function(capsarg)
     end
 
     -- once all the requested caps have been ACKd clear up the request
-    if Set.isempty(irc_state.caps_wanted) then
+    if irc_state.caps_wanted ~= nil and Set.isempty(irc_state.caps_wanted) then
         irc_state.caps_wanted = nil
         if irc_state.caps_enabled.sasl and irc_state.want_sasl then
             irc_state.want_sasl = nil
