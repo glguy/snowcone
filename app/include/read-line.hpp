@@ -31,67 +31,63 @@ using done_cb = void(app*);
 
 namespace {
 
-struct readline_data
+class readline_data
 {
-    using buffer_type = std::array<char, 32768>;
+    using buffer_type = std::array<char, 32000>;
+    buffer_type buffer;
+    buffer_type::iterator end = std::begin(buffer);
 
     line_cb* on_line;
     done_cb* on_done;
     uv_close_cb on_delete;
-    buffer_type::iterator end;
-    buffer_type buffer;
 
-    readline_data(line_cb *on_line, done_cb *on_done, uv_close_cb on_delete)
-    : on_line(on_line), on_done(on_done), on_delete(on_delete)
-    , end(std::begin(buffer))
-    {}
+public:
+    readline_data(line_cb* on_line, done_cb* on_done, uv_close_cb on_delete) noexcept
+    : on_line {on_line}, on_done {on_done}, on_delete {on_delete} {}
 
-    uv_buf_t allocate() const {
-      return uv_buf_init(end, std::end(buffer) - end);
+    uv_buf_t allocate() const noexcept {
+        return uv_buf_init(end, std::end(buffer) - end);
     }
-};
-
-inline void readline_read_cb(uv_stream_t* stream, ssize_t nread, uv_buf_t const* buf)
-{
-    auto const a = app::from_loop(stream->loop);
-    auto const d = static_cast<readline_data*>(stream->data);
-
-    if (nread < 0)
+    
+    void read_cb(uv_stream_t* stream, ssize_t nread, uv_buf_t const* buf) noexcept
     {
-        auto on_delete = d->on_delete;
-        uv_close(handle_cast(stream), on_delete);
-        d->on_done(a);
-        delete d;
-    } else {
-        // remember start of this chunk; there should be no newline before it
-        auto chunk = d->end;
+        auto const a = app::from_loop(stream->loop);
 
-        // advance end iterator to end of current chunk
-        std::advance(d->end, nread);
+        if (nread < 0) {
+            uv_close(handle_cast(stream), on_delete);
+            on_done(a);
+            delete this;
+        } else {
+            // remember start of this chunk; there should be no newline before it
+            auto chunk = end;
 
-        auto cursor = std::begin(d->buffer);
-        auto nl = std::find(chunk, d->end, '\n');
-        if (d->end != nl) {
-            do {
-                // detect and support carriage return before newline
-                if (cursor < nl) {
-                    auto cr = std::prev(nl);
-                    if ('\r' == *cr) {
-                        *cr = '\0';
+            // advance end iterator to end of current chunk
+            std::advance(end, nread);
+
+            auto nl = std::find(chunk, end, '\n');
+            if (end != nl) {
+                auto cursor = std::begin(buffer);
+                do {
+                    // detect and support carriage return before newline
+                    if (cursor < nl) {
+                        auto cr = std::prev(nl);
+                        if ('\r' == *cr) {
+                            *cr = '\0';
+                        }
                     }
-                }
 
-                *nl = '\0';
-                d->on_line(a, cursor);
-                cursor = std::next(nl);
-                nl = std::find(cursor, d->end, '\n');
-            } while (d->end != nl);
+                    *nl = '\0';
+                    on_line(a, cursor);
+                    cursor = std::next(nl);
+                    nl = std::find(cursor, end, '\n');
+                } while (end != nl);
 
-            // move remaining incomplete line to the front of the buffer
-            d->end = std::copy(cursor, d->end, std::begin(d->buffer));
+                // move remaining incomplete line to the front of the buffer
+                end = std::copy(cursor, end, std::begin(buffer));
+            }
         }
     }
-}
+};
 
 } // namespace
 
@@ -105,7 +101,7 @@ inline void readline_read_cb(uv_stream_t* stream, ssize_t nread, uv_buf_t const*
  * @param on_done Callback for stream close event
  * @param on_delete Deallocation callback
  */
-inline void readline_start(uv_stream_t* stream, line_cb *on_line, done_cb *on_done, uv_close_cb on_delete) {
+inline void readline_start(uv_stream_t* stream, line_cb* on_line, done_cb* on_done, uv_close_cb on_delete) {
     stream->data = new readline_data(on_line, on_done, on_delete);
     uvok(uv_read_start(
         stream,
@@ -114,5 +110,8 @@ inline void readline_start(uv_stream_t* stream, line_cb *on_line, done_cb *on_do
             *buf = static_cast<readline_data*>(handle->data)->allocate();
         },
     
-        readline_read_cb));
+        [](uv_stream_t* stream, ssize_t nread, uv_buf_t const* buf) {
+            auto const d = static_cast<readline_data*>(stream->data);
+            d->read_cb(stream, nread, buf);
+        }));
 }
