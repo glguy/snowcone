@@ -51,7 +51,7 @@ local handlers = {
     [string.byte('w')] = function() conn_filter = false end,
     [string.byte('e')] = function() conn_filter = nil   end,
     [string.byte('k')] = function()
-        if staged_action.action == 'kline' then
+        if staged_action ~= nil and staged_action.action == 'kline' then
             send('KLINE',
                 utils_time.parse_duration(kline_duration),
                 staged_action.mask,
