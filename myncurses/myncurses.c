@@ -98,11 +98,31 @@ static int l_getyx(lua_State *L)
 
 static int l_colorset(lua_State *L)
 {
-    lua_Integer fore = luaL_optinteger(L, 1, 0);
-    lua_Integer back = luaL_optinteger(L, 2, 0);
+    // map [fore][back] to a pair number - zero for unassigned (except for [-1][-1])
+    static int color_map[9][9]; // colors range from -1 to 7
+    static int assigned = 1;
 
-    if (ERR == color_set(back << 4 | fore, NULL)) 
-    {
+    lua_Integer fore = luaL_optinteger(L, 1, -1);
+    lua_Integer back = luaL_optinteger(L, 2, -1);
+
+    if (fore < -1 || fore > 7) {
+        return luaL_error(L, "color_set: foreground out of range");
+    }
+    
+    if (back < -1 || back > 7) {
+        return luaL_error(L, "color_set: background out of range");
+    }
+
+    int* pair = &color_map[fore+1][back+1];
+    if (0 == *pair && (fore >= 0 || back >= 0)) {
+        if (assigned < COLOR_PAIRS) {
+            *pair = assigned++;
+            int result = init_pair(*pair, fore, back);
+            assert(ERR != result);
+        }
+    }
+
+    if (ERR == color_set(*pair, NULL)) {
         return luaL_error(L, "color_set: ncurses error");
     }
     return 0;
@@ -194,20 +214,9 @@ static struct color colors[] = {
 
 static void setup_colors(lua_State *L)
 {
-    // avoids reassigning the special 0 color
-    size_t n = sizeof colors / sizeof *colors;
-    for (short f = 0; f < n; f++)
+    for (int i = 1; i < 9; i++)
     {
-        for (short b = f == 0 ? 1 : 0; b < n; b++)
-        {
-            int result = init_pair(f | b << 4, colors[f].value, colors[b].value);
-            assert(ERR != result);
-        }
-    }
-
-    for (int i = 1; i < n; i++)
-    {
-        lua_pushinteger(L, i);
+        lua_pushinteger(L, colors[i].value);
         lua_setfield(L, -2, colors[i].name);
     }
 }
