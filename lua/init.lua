@@ -198,6 +198,7 @@ function entry_to_kline(entry)
         staged_action = {action = 'kline', mask = mask, nick = entry.nick, entry = entry}
         send('TESTMASK', mask)
     else
+        status('kline', '%s', mask)
         staged_action = nil
     end
 end
