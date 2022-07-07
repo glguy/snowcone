@@ -103,15 +103,10 @@ static int l_colorset(lua_State *L)
     static int assigned = 1;
 
     lua_Integer fore = luaL_optinteger(L, 1, -1);
-    lua_Integer back = luaL_optinteger(L, 2, -1);
+    luaL_argcheck(L, -1 <= fore && fore <= 7, 1, "out of range");
 
-    if (fore < -1 || fore > 7) {
-        return luaL_error(L, "color_set: foreground out of range");
-    }
-    
-    if (back < -1 || back > 7) {
-        return luaL_error(L, "color_set: background out of range");
-    }
+    lua_Integer back = luaL_optinteger(L, 2, -1);
+    luaL_argcheck(L, -1 <= back && back <= 7, 2, "out of range");
 
     int* pair = &color_map[fore+1][back+1];
     if (0 == *pair && (fore >= 0 || back >= 0)) {
@@ -125,6 +120,7 @@ static int l_colorset(lua_State *L)
     if (ERR == color_set(*pair, NULL)) {
         return luaL_error(L, "color_set: ncurses error");
     }
+
     return 0;
 }
 
