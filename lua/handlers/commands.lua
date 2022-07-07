@@ -148,25 +148,17 @@ for k, _ in pairs(views) do
 end
 
 add_command('versions', '', function()
-    local n = 0
-    local commands = {}
     for server, _ in pairs(links) do
-        n = n + 1
-        commands[n] = 'VERSION :' .. server .. '\r\n'
+        send('VERSION', server)
     end
     versions = {}
-    snowcone.send_irc(table.concat(commands))
 end)
 
 add_command('uptimes', '', function()
-    local n = 0
-    local commands = {}
     for server, _ in pairs(links) do
-        n = n + 1
-        commands[n] = 'STATS u :' .. server .. '\r\n'
+        send('STATS', 'u', server)
     end
     uptimes = {}
-    snowcone.send_irc(table.concat(commands))
 end)
 
 add_command('duration', '$r', function(arg)
