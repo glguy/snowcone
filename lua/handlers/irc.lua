@@ -455,4 +455,68 @@ M[N.ERR_ERRONEUSNICKNAME] = new_nickname
 M[N.ERR_NICKNAMEINUSE] = new_nickname
 M[N.ERR_UNAVAILRESOURCE] = new_nickname
 
+-- K-Line by nickname chase logic =====================================
+
+M[N.RPL_WHOSPCRPL] = function(irc)
+    if '696' == irc[2] then
+        local nick = snowcone.irccase(irc[6])
+        if irc_state.kline_hunt[nick] then
+            prepare_kline(irc[6], irc[3], irc[5], irc[4])
+            irc_state.kline_hunt[nick] = nil
+        end
+    end
+end
+
+M[N.RPL_ENDOFWHO] = function(irc)
+    local nick = snowcone.irccase(irc[2])
+    if irc_state.kline_hunt[nick] then
+        send('WHOWAS', irc[2], 1)
+    end
+end
+
+M[N.RPL_WHOWASUSER] = function(irc)
+    local nick = snowcone.irccase(irc[2])
+    local hunt = irc_state.kline_hunt[nick]
+    if hunt then
+        hunt.user = irc[3]
+        hunt.host = irc[4]
+        hunt.gecos = irc[6]
+    end
+end
+
+M[N.ERR_WASNOSUCHNICK] = function(irc)
+    local nick = snowcone.irccase(irc[2])
+    local hunt = irc_state.kline_hunt[nick]
+    if hunt then
+        status('kline', 'Failed to find %s', irc[2])
+        irc_state.kline_hunt[nick] = nil
+    end
+end
+
+M[N.RPL_ENDOFWHOWAS] = function(irc)
+    local nick = snowcone.irccase(irc[2])
+    local hunt = irc_state.kline_hunt[nick]
+    if hunt then
+        if hunt.user and hunt.host and hunt.gecos then
+            prepare_kline(irc[2], hunt.user, hunt.host, '255.255.255.255')
+        else
+            status('kline', 'Failed to find %s', irc[2])
+        end
+        irc_state.kline_hunt[nick] = nil
+    end
+end
+
+M[N.RPL_WHOISACTUALLY] = function(irc)
+    local nick = snowcone.irccase(irc[2])
+    local hunt = irc_state.kline_hunt[nick]
+    if hunt then
+        if hunt.user and hunt.host and hunt.gecos then
+            prepare_kline(irc[2], hunt.user, hunt.host, irc[3])
+        else
+            status('kline', 'Missing 314 response for ' .. irc[2])
+        end
+        irc_state.kline_hunt[nick] = nil
+    end
+end
+
 return M

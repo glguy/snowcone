@@ -6,7 +6,8 @@ stds = {
         read_globals = {
             snowcone = {
               fields = {"to_base64", "from_base64", "send_irc", "dnslookup", "pton", "shutdown", "newtimer",
-                "newwatcher", "setmodule", "raise", "xor_strings", "isalnum", "reset_delay" },
+                "newwatcher", "setmodule", "raise", "xor_strings", "isalnum", "reset_delay",
+                "irccase" },
             },
         },
     },
@@ -18,6 +19,7 @@ stds = {
             "add_network_tracker", "quit", "entry_to_unkline",
             "reset_filter", "initialize", "counter_sync_commands",
             "ctrl", "meta", "status", "plugins", "draw_suspend",
+            "prepare_kline",
 
             -- global client state
             "irc_state",  "status_message", "input_mode", "servers",

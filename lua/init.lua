@@ -193,9 +193,20 @@ end
 kline_durations = {'4h','1d','3d'}
 
 function entry_to_kline(entry)
-    local success, mask = pcall(libera_masks, entry.user, entry.ip, entry.host, trust_uname)
+    prepare_kline(entry.nick, entry.user, entry.host, entry.ip)
+end
+
+function prepare_kline(nick, user, host, ip)
+    local success, mask = pcall(libera_masks, user, ip, host, trust_uname)
     if success then
-        staged_action = {action = 'kline', mask = mask, nick = entry.nick, entry = entry}
+        staged_action = {
+            action = 'kline',
+            mask = mask,
+            nick = nick,
+            user = user,
+            host = host,
+            ip = ip,
+        }
         send('TESTMASK', mask)
     else
         status('kline', '%s', mask)
@@ -364,7 +375,7 @@ function draw_buttons()
     add_button(trust_uname and '[ ~ ]' or '[ = ]', function()
         trust_uname = not trust_uname
         if staged_action and staged_action.action == 'kline' then
-            entry_to_kline(staged_action.entry)
+            prepare_kline(staged_action.nick, staged_action.user, staged_action.host, staged_action.ip)
         end
     end)
     addstr ' '
@@ -567,13 +578,6 @@ if not uv_resources.tick_timer then
         kline_tracker:tick()
         filter_tracker:tick()
         draw()
-    end)
-end
-
-if not uv_resources.reloader then
-    uv_resources.reloader = snowcone.newwatcher()
-    uv_resources.reloader:start(path.dirname(configuration.lua_filename), function()
-        assert(loadfile(configuration.lua_filename))()
     end)
 end
 

@@ -7,6 +7,7 @@ return function()
         nick = configuration.irc_nick,
         registration = true,
         caps_enabled = Set{},
+        kline_hunt = Set{},
     }
 
     local caps_wanted = Set{}
@@ -33,9 +34,9 @@ return function()
         send('PASS', {content=configuration.irc_pass, secret=true})
     end
 
-    local nick = configuration.irc_nick
-    local user = configuration.irc_user or configuration.irc_nick
-    local gecos = configuration.irc_gecos or configuration.irc_nick
+    local nick  = configuration.irc_nick
+    local user  = configuration.irc_user  or nick
+    local gecos = configuration.irc_gecos or nick
 
     send('NICK', nick)
     send('USER', user, '*', '*', gecos)

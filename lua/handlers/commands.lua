@@ -198,4 +198,9 @@ add_command('nick', '$g', function(nick)
     send('NICK', nick)
 end)
 
+add_command('kline_nick', '$g', function(nick)
+    irc_state.kline_hunt[snowcone.irccase(nick)] = {}
+    send('WHO', nick, '%tuihn,696')
+end)
+
 return M

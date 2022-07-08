@@ -12,13 +12,15 @@ return function(cmd, ...)
 
     for i, v in ipairs({...}) do
         if type(v) == 'table' then
-            parts[i+1] = v.content
+            local txt = tostring(v.content)
+            parts[i+1] = txt
             if v.secret then
                 msg[i] = '********'
             else
-                msg[i] = v.content
+                msg[i] = txt
             end
         else
+            v = tostring(v)
             msg[i] = v
             parts[i+1] = v
         end
