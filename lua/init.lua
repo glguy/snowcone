@@ -455,6 +455,7 @@ views = {
     channels = require_ 'view.channels',
     status = require_ 'view.status',
     plugins = require_ 'view.plugins',
+    help = require_ 'view.help',
 }
 
 main_views = {'cliconn', 'connload', 'cliexit', 'exitload', 'bans', 'channels', 'netcount', 'console'}
@@ -615,6 +616,17 @@ do
                 status('plugin', 'loadfile: %s', load_error)
             end
         end
+    end
+end
+
+-- Command handlers ===================================================
+
+commands = require_ 'handlers.commands'
+
+for _, plugin in ipairs(plugins) do
+    local plugin_commands = plugin.commands
+    if plugin_commands ~= nil then
+        tablex.update(commands, plugin_commands)
     end
 end
 

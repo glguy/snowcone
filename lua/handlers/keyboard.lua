@@ -1,5 +1,3 @@
-local tablex = require 'pl.tablex'
-
 local execute = {}
 
 function execute.filter()
@@ -9,15 +7,6 @@ function execute.filter()
     end
     editor:reset()
     input_mode = nil
-end
-
-local commands = require_ 'handlers.commands'
-
-for _, plugin in ipairs(plugins) do
-    local plugin_commands = plugin.commands
-    if plugin_commands ~= nil then
-        tablex.update(commands, plugin_commands)
-    end
 end
 
 function execute.command()
