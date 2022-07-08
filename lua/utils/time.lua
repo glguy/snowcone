@@ -27,7 +27,7 @@ local units = {
 function M.parse_duration(str)
     local acc = 0
     local function f(n, u)
-        acc = acc + n * units[u]
+        acc = acc + math.tointeger(n) * units[u]
         return ''
     end
     local leftover = string.gsub(str, ' *(%-?%d+) *([mhdwMY]) *', f)
