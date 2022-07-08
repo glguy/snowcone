@@ -199,8 +199,13 @@ add_command('nick', '$g', function(nick)
 end)
 
 add_command('kline_nick', '$g', function(nick)
-    irc_state.kline_hunt[snowcone.irccase(nick)] = {}
-    send('WHO', nick, '%tuihn,696')
+    local entry = users:lookup(nick)
+    if entry then
+        entry_to_kline(entry)
+    else
+        irc_state.kline_hunt[snowcone.irccase(nick)] = {}
+        send('WHO', nick, '%tuihn,696')
+    end
 end)
 
 return M

@@ -1,9 +1,5 @@
 local function compute_kline_mask(username, ipaddress, hostname, trust_uname)
 
-    if ipaddress == nil then
-        error('K-line failed: Missing IP address', 0)
-    end
-
     if hostname:startswith 'gateway/' or hostname:startswith 'nat/' then
 
         if hostname:endswith '/session' then
@@ -12,6 +8,10 @@ local function compute_kline_mask(username, ipaddress, hostname, trust_uname)
 
         -- Cloaked gateway-account bans ignore ident
         return '*@' .. hostname
+    end
+
+    if ipaddress == nil then
+        error('K-line failed: Missing IP address', 0)
     end
 
     -- Either I missed a case or I'm trying to k-line staff

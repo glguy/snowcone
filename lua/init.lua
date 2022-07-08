@@ -114,12 +114,12 @@ end
 
 local defaults = {
     -- state
-    users = OrderedMap(1000),
-    exits = OrderedMap(1000),
+    users = OrderedMap(1000, snowcone.irccase),
+    exits = OrderedMap(1000, snowcone.irccase),
     messages = OrderedMap(1000),
     status_messages = OrderedMap(100),
     klines = OrderedMap(1000),
-    new_channels = OrderedMap(100),
+    new_channels = OrderedMap(100, snowcone.irccase),
     kline_tracker = LoadTracker(),
     conn_tracker = LoadTracker(),
     exit_tracker = LoadTracker(),
