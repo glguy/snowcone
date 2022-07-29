@@ -6,6 +6,7 @@ local challenge   = require_ 'utils.challenge'
 local sasl        = require_ 'sasl'
 local parse_snote = require_ 'utils.parse_snote'
 local send        = require 'utils.send'
+local split_nuh   = require_ 'utils.split_nick_user_host'
 
 -- irc_state
 -- .caps_available - set of string   - create in LS - consume at end of LS
@@ -134,6 +135,23 @@ end
 
 function M.PING(irc)
     send('PONG', irc[1])
+end
+
+local ctcp_handlers = require_ 'handlers.ctcp'
+function M.PRIVMSG(irc)
+    local target, message = irc[1], irc[2]
+    local ctcp, ctcp_args = message:match '^\x01(%S+) ?([^\x01]*)\x01?$'
+    if ctcp and not target:startswith '#' and irc.tags['solanum.chat/oper'] then
+        ctcp = ctcp:upper()
+        local nick = split_nuh(irc.source)
+        local h = ctcp_handlers[ctcp]
+        if h then
+            local response = h(ctcp_args)
+            if response then
+                send('NOTICE', nick, '\x01' .. ctcp .. ' ' .. response .. '\x01')
+            end
+        end
+    end
 end
 
 local handlers = require_ 'handlers.snotice'
