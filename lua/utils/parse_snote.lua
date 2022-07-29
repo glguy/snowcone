@@ -140,6 +140,22 @@ return function(time, server, str)
     end
 
     do
+        local nick, user, host, mask =
+            string.match(str, '^Disconnecting D%-Lined user (%S+)%[([^@ ]+)@(%S+)%] %((.*)%)$')
+        if nick then
+            return {
+                name = 'dline_active',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                mask = mask,
+            }
+        end
+    end
+
+    do
         local kind, mask =
             string.match(str, '^Temporary (%S+) for %[(.*)%] expired$')
         if kind then
