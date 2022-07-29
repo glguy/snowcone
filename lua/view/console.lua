@@ -1,6 +1,7 @@
 local addircstr = require_ 'utils.irc_formatting'
 local parse_snote = require 'utils.parse_snote'
 local drawing = require 'utils.drawing'
+local tablex = require 'pl.tablex'
 local hide_snow = false
 local show_raw = false
 
@@ -138,7 +139,7 @@ local function draw_focus(irc, snotice)
     if next(irc.tags) then
         blue()
         addstr('      tags:')
-        for k, v in pairs(irc.tags) do
+        for k, v in tablex.sort(irc.tags) do
             cyan()
             mvaddstr(ncurses.getyx(), 12, k)
             if type(v) == 'string' then
@@ -185,7 +186,7 @@ local function draw_focus(irc, snotice)
         magenta()
         addstr(snotice.name .. '\n')
 
-        for k, v in pairs(snotice) do
+        for k, v in tablex.sort(snotice) do
             if k ~= 'name' then
                 blue()
                 addstr(string.format('%10s: ', k))
