@@ -2,7 +2,7 @@ local tablex = require 'pl.tablex'
 
 local M = {}
 
-function M.CLIENTINFO(args)
+function M.CLIENTINFO()
     local commands = tablex.keys(M)
     table.sort(commands)
     return table.concat(commands, ' ')
@@ -12,11 +12,11 @@ function M.PING(args)
     return args
 end
 
-function M.SOURCE(args)
+function M.SOURCE()
     return 'https://github.com/glguy/snowcone'
 end
 
-function M.TIME(args)
+function M.TIME()
     return os.date('!%c')
 end
 
