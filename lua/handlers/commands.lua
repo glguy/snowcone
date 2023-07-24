@@ -190,6 +190,14 @@ add_command('whois', '$g', function(nick)
     send('WHOIS', nick, nick)
 end)
 
+add_command('masktrace', '$g', function(mask)
+    send('MASKTRACE', mask)
+end)
+
+add_command('testline', '$g', function(mask)
+    send('TESTLINE', mask)
+end)
+
 add_command('whowas', '$g', function(nick)
     send('WHOWAS', nick)
 end)
