@@ -9,8 +9,8 @@ struct irctag
     std::string_view key;
     std::optional<std::string_view> val;
 
-    irctag(std::string_view key, std::optional<std::string_view> val) : key(key), val(val) {}
-    
+    irctag(std::string_view key, std::optional<std::string_view> val = {}) : key{key}, val{val} {}
+
     friend bool operator==(irctag const&, irctag const&) = default;
 };
 
@@ -45,7 +45,7 @@ struct irc_parse_error : public std::exception {
  * Parses the given IRC message into a structured format.
  * The original message is mangled to store string fragments
  * that are pointed to by the structured message type.
- * 
+ *
  * Returns zero for success, non-zero for parse error.
  */
 ircmsg parse_irc_message(char* msg);
