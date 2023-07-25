@@ -361,8 +361,8 @@ void pushircmsg(lua_State* L, ircmsg const& msg)
     lua_createtable(L, 0, msg.tags.size());
     for (auto && tag : msg.tags) {
         push_stringview(L, tag.key);
-        if (auto val = tag.val) {
-            push_stringview(L, *val);
+        if (tag.hasval()) {
+            push_stringview(L, tag.val);
         } else {
             lua_pushboolean(L, 1);
         }
@@ -370,8 +370,8 @@ void pushircmsg(lua_State* L, ircmsg const& msg)
     }
     lua_setfield(L, -2, "tags");
 
-    if (auto source = msg.source) {
-        push_stringview(L, *source);
+    if (msg.hassource()) {
+        push_stringview(L, msg.source);
         lua_setfield(L, -2, "source");
     }
 

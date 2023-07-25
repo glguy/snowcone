@@ -2,7 +2,7 @@
  * @file read-line.hpp
  * @author Eric Mertens (emertens@gmail.com)
  * @brief Line-oriented buffer for reading from libuv streams
- * 
+ *
  */
 
 #pragma once
@@ -19,13 +19,13 @@
 
 /**
  * @brief Callback type for complete lines with newline stripped.
- * 
+ *
  */
 using line_cb = void(app*, char*);
 
 /**
  * @brief Callback type on end of stream
- * 
+ *
  */
 using done_cb = void(app*);
 
@@ -48,7 +48,7 @@ public:
     uv_buf_t allocate() const noexcept {
         return uv_buf_init(end, std::end(buffer) - end);
     }
-    
+
     void read_cb(uv_stream_t* stream, ssize_t nread, uv_buf_t const* buf) noexcept
     {
         auto const a = app::from_loop(stream->loop);
@@ -105,11 +105,11 @@ inline void readline_start(uv_stream_t* stream, line_cb* on_line, done_cb* on_do
     stream->data = new readline_data(on_line, on_done, on_delete);
     uvok(uv_read_start(
         stream,
-      
+
         [](uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
             *buf = static_cast<readline_data*>(handle->data)->allocate();
         },
-    
+
         [](uv_stream_t* stream, ssize_t nread, uv_buf_t const* buf) {
             auto const d = static_cast<readline_data*>(stream->data);
             d->read_cb(stream, nread, buf);

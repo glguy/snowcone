@@ -161,7 +161,9 @@ TEST(Irc, TagLoneSemi) {
 
 TEST(Irc, EmptyPrefix) {
   char input[] = ": command";
-  EXPECT_ANY_THROW(parse_irc_message(input));
+  EXPECT_EQ(
+    parse_irc_message(input),
+    ircmsg({}, "", "command", {}));
 }
 
 TEST(Irc, TagNoKey) {

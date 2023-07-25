@@ -21,7 +21,12 @@ void on_err_line(app* a, char* line) {
 void on_line(app* a, char* line)
 {
     try {
-        a->do_irc(parse_irc_message(line));
+        while (*line == ' ') {
+            line++;
+        }
+        if (*line != '\0') {
+            a->do_irc(parse_irc_message(line));
+        }
     } catch (irc_parse_error const& e) {
         std::stringstream msg;
         msg << "parse_irc_message failed: " << e.code;

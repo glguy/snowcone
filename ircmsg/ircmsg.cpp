@@ -1,9 +1,7 @@
 #include <cstring>
+#include <optional>
 
 #include "ircmsg.hpp"
-
-#include <string_view>
-#include <vector>
 
 namespace {
 class parser {
@@ -26,9 +24,6 @@ public:
     char* word() {
         auto const start = msg_;
         while (*msg_ != '\0' && *msg_ != ' ') msg_++;
-        if (start == msg_) {
-            throw irc_parse_error(6);
-        }
         if (*msg_ != '\0') { // prepare for next token
             *msg_++ = '\0';
             trim();
@@ -53,15 +48,15 @@ public:
     }
 };
 
-void unescape_tag_value(char *val)
+std::string_view unescape_tag_value(char* const val)
 {
     // only start copying at the first escape character
     // skip everything before that
-    val = strchr(val, '\\');
-    if (val == nullptr) { return; }
+    auto cursor = strchr(val, '\\');
+    if (cursor == nullptr) { return {val}; }
 
-    char *write = val;
-    for (char *cursor = val; *cursor; cursor++)
+    auto write = cursor;
+    for (; *cursor; cursor++)
     {
         if (*cursor == '\\')
         {
@@ -73,7 +68,7 @@ void unescape_tag_value(char *val)
                 case 's' : *write++ = ' '    ; break;
                 case 'r' : *write++ = '\r'   ; break;
                 case 'n' : *write++ = '\n'   ; break;
-                case '\0': *write   = '\0'   ; return;
+                case '\0': return {val, write};
             }
         }
         else
@@ -81,7 +76,7 @@ void unescape_tag_value(char *val)
             *write++ = *cursor;
         }
     }
-    *write = '\0';
+    return {val, write};
 }
 
 std::vector<irctag> parse_tags(char* str)
@@ -92,13 +87,12 @@ std::vector<irctag> parse_tags(char* str)
         auto val = strsep(&str, ";");
         auto key = strsep(&val, "=");
         if ('\0' == *key) {
-            throw irc_parse_error(1);
+            throw irc_parse_error(irc_error_code::MISSING_TAG);
         }
         if (nullptr == val) {
             tags.emplace_back(key);
         } else {
-            unescape_tag_value(val);
-            tags.emplace_back(key, val);
+            tags.emplace_back(std::string_view{key, val-1}, unescape_tag_value(val));
         }
     } while(nullptr != str);
 
@@ -106,6 +100,10 @@ std::vector<irctag> parse_tags(char* str)
 }
 
 } // namespace
+
+bool irctag::hasval() const {
+    return val.data() != nullptr;
+}
 
 ircmsg parse_irc_message(char* msg)
 {
@@ -124,6 +122,9 @@ ircmsg parse_irc_message(char* msg)
 
     /* MESSAGE COMMANDS */
     out.command = p.word();
+    if (out.command.empty()) {
+        throw irc_parse_error{irc_error_code::MISSING_COMMAND};
+    }
 
     /* MESSAGE ARGUMENTS */
     while (!p.isempty()) {
@@ -135,4 +136,15 @@ ircmsg parse_irc_message(char* msg)
     }
 
     return out;
+}
+
+bool ircmsg::hassource() const {
+    return source.data() != nullptr;
+}
+
+std::ostream& operator<<(std::ostream& out, irc_error_code code) {
+    switch(code) {
+        case irc_error_code::MISSING_COMMAND: out << "MISSING COMMAND"; return out;
+        case irc_error_code::MISSING_TAG: out << "MISSING TAG"; return out;
+    }
 }
