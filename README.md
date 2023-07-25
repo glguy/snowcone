@@ -29,28 +29,11 @@ How I run this:
 cmake -B build
 cmake --build build
 build/app/snowcone \
-   -l ::1 -p 6000 \
    -S OPENSSL:[::1]:7000,certificate=certificate.pem \
    -N glguy \
    -U glguy@snowcone/libera \
    -X x \
    -L lua/init.lua
-```
-
-## Lua console
-
-Snowcone supports running an interactive Lua prompt on a network port that can be used to inspect the live Lua environment and set parameters that don't have a UI exposed yet.
-
-By adding a listener on port 6000 I get a Lua console that I can use to inspect the program state. The `rlwrap` program is handy for getting a nicer text input to `nc`.
-
-```
-$ snowcone ... -h ::1 -p 6000 ...
-
-$ rlwrap nc ::1 6000
-filter='!~' -- set the filter to match connections without ident
-print(filter) -- print the current filter
-!~
-filter=nil -- reset the filter
 ```
 
 ## Known working clients
