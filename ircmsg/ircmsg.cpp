@@ -37,7 +37,6 @@ public:
     }
 
     bool match(char c) {
-        assert(c != 0);
         if (c == *msg_) {
             msg_++;
             return true;
