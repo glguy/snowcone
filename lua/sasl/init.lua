@@ -44,7 +44,7 @@ function M.start(mechanism, authcid, password, key, authzid)
     if mechanism == 'PLAIN' then
         co = require_ 'sasl.plain' (authzid, authcid, password)
     elseif mechanism == 'EXTERNAL' then
-        co = require_ 'sasl.external' (configuration.irc_sasl_authzid)
+        co = require_ 'sasl.external' (authzid)
     elseif mechanism == 'ECDSA-NIST256P-CHALLENGE' then
         key = load_key(key, password)
         co = require_ 'sasl.ecdsa' (authzid, authcid, key)
