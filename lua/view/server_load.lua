@@ -1,7 +1,7 @@
 local tablex = require 'pl.tablex'
 local drawing = require 'utils.drawing'
 
-local palette = {black, red, green, yellow, blue, magenta, cyan, white}
+local palette = {red, green, yellow, blue, magenta, cyan, white}
 local colormap =
   { black = ncurses.black, red = ncurses.red, green = ncurses.green,
     yellow = ncurses.yellow, blue = ncurses.blue, magenta = ncurses.magenta,
