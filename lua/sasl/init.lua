@@ -4,13 +4,13 @@ local M = {}
 
 -- Takes a binary argument, base64 encodes it, and chunks it into multiple
 -- AUTHENTICATE commands
-function M.encode_authenticate(body)
+function M.encode_authenticate(body, secret)
     local commands = {}
     local n = 0
 
     local function authenticate(msg)
         n = n + 1
-        commands[n] = {'AUTHENTICATE', {content=msg, secret=true}}
+        commands[n] = {'AUTHENTICATE', {content=msg, secret=secret}}
     end
 
     if body then

@@ -227,14 +227,15 @@ M.AUTHENTICATE = function(irc)
         local payload = snowcone.from_base64(table.concat(irc_state.authenticate))
         irc_state.authenticate = nil
 
-        local reply
+        local reply, secret
         if payload == nil then
             status('sasl', 'bad authenticate base64')
             -- discard the current sasl coroutine but still react
             -- to sasl reply codes
             irc_state.sasl = false
         else
-            local success, message = coroutine.resume(irc_state.sasl, payload)
+            local success, message
+            success, message, secret = coroutine.resume(irc_state.sasl, payload)
             if success then
                 reply = message
             else
@@ -245,7 +246,7 @@ M.AUTHENTICATE = function(irc)
 
         -- reply will be nil if something went wrong
         -- nil will cause an abort message to be generated
-        for _, cmd in ipairs(sasl.encode_authenticate(reply)) do
+        for _, cmd in ipairs(sasl.encode_authenticate(reply, secret)) do
             send(table.unpack(cmd))
         end
     end
