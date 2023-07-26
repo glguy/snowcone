@@ -207,6 +207,11 @@ M.NICK = function(irc)
 end
 
 M.AUTHENTICATE = function(irc)
+    if not irc_state.sasl then
+        status('sasl', 'no sasl session active')
+        return
+    end
+
     local chunk = irc[1]
     if chunk == '+' then
         chunk = ''
@@ -219,25 +224,27 @@ M.AUTHENTICATE = function(irc)
     end
 
     if #chunk < 400 then
-        local reply
-
-        local full = table.concat(irc_state.authenticate)
+        local payload = snowcone.from_base64(table.concat(irc_state.authenticate))
         irc_state.authenticate = nil
-        local payload = snowcone.from_base64(full)
 
+        local reply
         if payload == nil then
             status('sasl', 'bad authenticate base64')
-        elseif irc_state.sasl == nil then
-            status('sasl', 'no sasl session active')
+            -- discard the current sasl coroutine but still react
+            -- to sasl reply codes
+            irc_state.sasl = false
         else
             local success, message = coroutine.resume(irc_state.sasl, payload)
             if success then
                 reply = message
             else
                 status('sasl', '%s', message)
+                irc_state.sasl = false
             end
         end
 
+        -- reply will be nil if something went wrong
+        -- nil will cause an abort message to be generated
         for _, cmd in ipairs(sasl.encode_authenticate(reply)) do
             send(table.unpack(cmd))
         end

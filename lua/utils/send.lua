@@ -9,27 +9,30 @@ return function(cmd, ...)
     }
 
     local parts = {cmd}
+    local n = #{...}
 
     for i, v in ipairs({...}) do
+        local part
         if type(v) == 'table' then
-            local txt = tostring(v.content)
-            parts[i+1] = txt
+            part = tostring(v.content)
             if v.secret then
                 msg[i] = '********'
             else
-                msg[i] = txt
+                msg[i] = part
             end
         else
-            v = tostring(v)
-            msg[i] = v
-            parts[i+1] = v
+            part = tostring(v)
+            msg[i] = part
+        end
+
+        if not string.match(part, '^[^ :][^ ]*$') then
+            assert(i == n)
+            parts[i+1] = ':' .. part
+        else
+            parts[i+1] = part
         end
     end
 
-    local n = #parts
-    if n > 1 then
-        parts[n] = ':' .. parts[n]
-    end
     snowcone.send_irc(table.concat(parts, ' ') .. '\r\n')
 
     messages:insert(true, msg)
