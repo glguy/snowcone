@@ -1,6 +1,7 @@
 local addircstr = require_ 'utils.irc_formatting'
 local parse_snote = require 'utils.parse_snote'
 local drawing = require 'utils.drawing'
+local numerics = require 'utils.numerics'
 local tablex = require 'pl.tablex'
 local hide_snow = false
 local show_raw = false
@@ -10,8 +11,17 @@ local palette = {
     NOTICE = cyan,
     JOIN = green,
     PART = yellow,
-    QUIT = red,
+    QUIT = magenta,
 }
+
+-- Compute the pretty names for IRC numerics for use in focused view
+local numeric_names = {}
+for name, numeric in pairs(numerics) do
+    numeric_names[numeric] = name
+    if name:startswith 'ERR_' then
+        palette[numeric] = red
+    end
+end
 
 local function pretty_source(source)
     if source == '>>>' then
@@ -29,6 +39,8 @@ local function pretty_source(source)
     normal()
 end
 
+-- Predicate for server notices
+-- Return the body of the notice with the header removed
 local function match_snotice(irc)
     if irc.source and irc.command == 'NOTICE'
     and irc[1] == '*' and #irc == 2
@@ -136,15 +148,21 @@ local function rawstr(str)
 end
 
 local function draw_focus(irc, snotice)
+
+    --
+    -- MESSAGE TAGS
+    --
     if next(irc.tags) then
         blue()
         addstr('      tags:')
         for k, v in tablex.sort(irc.tags) do
             cyan()
+            if show_raw then k = rawstr(k) end
             mvaddstr(ncurses.getyx(), 12, k)
             if type(v) == 'string' then
                 addstr(': ')
                 normal()
+                if show_raw then v = rawstr(v) end
                 addstr(v .. '\n')
             else
                 addstr('\n')
@@ -152,6 +170,9 @@ local function draw_focus(irc, snotice)
         end
     end
 
+    --
+    -- SOURCE
+    --
     if irc.source then
         blue()
         addstr('    source: ')
@@ -159,14 +180,28 @@ local function draw_focus(irc, snotice)
         addstr(irc.source..'\n')
     end
 
+    --
+    -- COMMAND
+    --
     blue()
     addstr('   command: ')
     local cmd_color = palette[irc.command] or function() end
     cmd_color()
     bold()
-    addstr(irc.command .. '\n')
+    addstr(irc.command)
     bold_()
 
+    if not show_raw then
+        local name = numeric_names[irc.command]
+        if name then
+            addstr(' - ' .. name)
+        end
+    end
+    addstr('\n')
+
+    --
+    -- ARGUMENTS
+    --
     for i, v in ipairs(irc) do
         blue()
         addstr(string.format('%10d: ', i))
@@ -179,6 +214,9 @@ local function draw_focus(irc, snotice)
         addstr('\n')
     end
 
+    --
+    -- DECODED SNOTE BODY
+    --
     if snotice ~= nil then
         addstr('\n')
         blue()
@@ -198,8 +236,6 @@ local function draw_focus(irc, snotice)
 
     addstr('─')
     add_button('[CLOSE]', function() focus = nil end)
-    addstr('─')
-
     local _, x = ncurses.getyx()
     addstr(string.rep('─', tty_width - x))
 end
