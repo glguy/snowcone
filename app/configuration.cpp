@@ -87,7 +87,7 @@ configuration load_configuration(int argc, char** argv)
         0 != strcmp("SCRAM-SHA-256", cfg.irc_sasl_mechanism) &&
         0 != strcmp("SCRAM-SHA-512", cfg.irc_sasl_mechanism))
     {
-        std::cerr << "SASL mechanism should be PLAIN, EXTERNAL, ECDSA-NIST256P-CHALLENGE, or ECDH-X25519-CHALLENGE (-M).\n";
+        std::cerr << "SASL mechanism should be PLAIN, EXTERNAL, ECDSA-NIST256P-CHALLENGE, ECDH-X25519-CHALLENGE, SCRAM-SHA-1, SCRAM-SHA-256, SCRAM-SHA-512 (-M).\n";
         show_usage = true;
     }
 
