@@ -33,6 +33,7 @@ return function(str)
 
         -- done
         if ctrl == '' then
+            normal()
             return
 
         -- ^B - bold
@@ -77,4 +78,6 @@ return function(str)
             addstr(scrub(ctrl))
         end
     end
+
+    normal()
 end
