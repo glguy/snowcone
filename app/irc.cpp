@@ -49,7 +49,7 @@ void on_done(app* a) {
 void start_irc(app* a)
 {
     try {
-        auto [irc,err] = socat_wrapper(&a->loop, a->cfg->irc_socat);
+        auto [irc,err] = socat_wrapper(&a->loop, a->cfg.irc_socat);
         auto delete_pipe = [](uv_handle_t* h) { delete reinterpret_cast<uv_pipe_t*>(h); };
         a->set_irc(stream_cast(irc));
         readline_start(stream_cast(irc), on_line, on_done, delete_pipe);

@@ -26,7 +26,7 @@ using namespace std::chrono_literals;
 struct app
 {
     lua_State *L;
-    configuration *cfg;
+    configuration const& cfg;
     uv_stream_t *irc;
     uv_loop_t loop;
     uv_poll_t input;
@@ -36,8 +36,12 @@ struct app
     std::chrono::seconds reconnect_delay;
     std::optional<std::string> paste;
 
+    inline static auto app_cell(lua_State* const L) -> app*& {
+        return *static_cast<app**>(lua_getextraspace(L));
+    }
+
 public:
-    app(configuration * cfg)
+    app(configuration const& cfg)
     : L {}
     , cfg {cfg}
     , irc {}
@@ -78,9 +82,9 @@ public:
         return static_cast<app*>(loop->data);
     }
     static app* from_lua(lua_State* L) {
-        return *static_cast<app**>(lua_getextraspace(L));
+        return app_cell(L);
     }
     void to_lua(lua_State* L) {
-        *static_cast<app**>(lua_getextraspace(L)) = this;
+        app_cell(L) = this;
     }
 };

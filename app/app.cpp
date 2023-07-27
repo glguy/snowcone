@@ -1,6 +1,7 @@
 #include "app.hpp"
 
 #include "applib.hpp"
+#include "bracketed_paste.hpp"
 #include "configuration.hpp"
 #include "uv.hpp"
 
@@ -40,7 +41,7 @@ void on_stdin(uv_poll_t* handle, int status, int events)
     while(ERR != (key = getch()))
     {
         if (a->paste) {
-            if (key == 01001) {
+            if (bracketed_paste::end_paste == key) {
                 a->do_paste();
                 a->paste.reset();
             } else {
@@ -57,7 +58,7 @@ void on_stdin(uv_poll_t* handle, int status, int events)
                 a->do_mouse(ev.y, ev.x);
             }
         } else if (KEY_RESIZE == key) {
-        } else if (01000 == key) {
+        } else if (bracketed_paste::start_paste == key) {
             a->paste = "";
         } else if (key > 0xff) {
             a->do_keyboard(-key);
@@ -102,7 +103,7 @@ void app::init()
     to_lua(L);
 
     prepare_globals(L, cfg);
-    load_logic(L, cfg->lua_filename);
+    load_logic(L, cfg.lua_filename);
 }
 
 void app::run() {

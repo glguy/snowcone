@@ -3,6 +3,7 @@
 #define _DARWIN_C_SOURCE
 
 #include "app.hpp"
+#include "bracketed_paste.hpp"
 #include "configuration.hpp"
 #include "irc.hpp"
 
@@ -31,17 +32,16 @@ struct Ncurses {
 };
 
 Ncurses initialize_terminal() {
-    Ncurses result {};
+    Ncurses result;
 
     setlocale(LC_ALL, "");
 
-    result.tty = decltype(result.tty)(fopen("/dev/tty", "w"));
+    result.tty = decltype(result.tty){fopen("/dev/tty", "w")};
     if (!result.tty) {
         throw std::system_error(errno, std::generic_category());
     }
 
-    fprintf(result.tty.get(), "%s", "\x1b[?2004h");
-    fflush(result.tty.get());
+    bracketed_paste::enable(result.tty.get());
 
     result.scr = decltype(result.scr)(newterm(nullptr, result.tty.get(), stdin));
     if (!result.scr) {
@@ -54,15 +54,14 @@ Ncurses initialize_terminal() {
     raw(); /* pass through all they keys */
     noecho(); /* no echo input to screen */
     nonl(); /* no newline on pressing return */
-    intrflush(stdscr, FALSE);
+    intrflush(nullptr, FALSE);
     keypad(stdscr, TRUE); /* process keyboard input escape sequences */
     curs_set(0); /* no cursor */
     mousemask(BUTTON1_CLICKED, nullptr);
     set_escdelay(25);
     endwin();
 
-    define_key("\x1b[200~", 01000);
-    define_key("\x1b[201~", 01001);
+    bracketed_paste::install();
 
     return result;
 }
@@ -73,11 +72,10 @@ Ncurses initialize_terminal() {
 
 int main(int argc, char *argv[])
 {
-    configuration cfg = load_configuration(argc, argv);
-
+    auto const cfg = load_configuration(argc, argv);
     auto nc = initialize_terminal();
 
-    app a {&cfg};
+    app a {cfg};
     a.init();
 
     if (*cfg.irc_socat != '\0') {
@@ -89,8 +87,7 @@ int main(int argc, char *argv[])
     endwin();
     a.destroy();
 
-    fprintf(nc.tty.get(), "%s", "\x1b[?2004l");
-    fflush(nc.tty.get());
+    bracketed_paste::disable(nc.tty.get());
 
     return 0;
 }
