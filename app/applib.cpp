@@ -1,4 +1,5 @@
 #include "applib.hpp"
+#include "config.hpp"
 
 #include "app.hpp"
 #include "configuration.hpp"
@@ -214,26 +215,26 @@ int l_isalnum(lua_State* L)
 }
 
 
-void push_configuration(lua_State* L, configuration* cfg)
+void push_configuration(lua_State* L, configuration const& cfg)
 {
     char const* const configs[][2] = {
-        {"lua_filename", cfg->lua_filename},
-        {"irc_socat", cfg->irc_socat},
-        {"irc_nick", cfg->irc_nick},
-        {"irc_pass", cfg->irc_pass},
-        {"irc_user", cfg->irc_user},
-        {"irc_gecos", cfg->irc_gecos},
-        {"irc_challenge_key", cfg->irc_challenge_key},
-        {"irc_challenge_password", cfg->irc_challenge_password},
-        {"irc_oper_username", cfg->irc_oper_username},
-        {"irc_oper_password", cfg->irc_oper_password},
-        {"irc_sasl_mechanism", cfg->irc_sasl_mechanism},
-        {"irc_sasl_username", cfg->irc_sasl_username},
-        {"irc_sasl_password", cfg->irc_sasl_password},
-        {"irc_capabilities", cfg->irc_capabilities},
-        {"network_filename", cfg->network_filename},
-        {"irc_sasl_key", cfg->irc_sasl_key},
-        {"irc_sasl_authzid", cfg->irc_sasl_authzid},
+        {"lua_filename", cfg.lua_filename},
+        {"irc_socat", cfg.irc_socat},
+        {"irc_nick", cfg.irc_nick},
+        {"irc_pass", cfg.irc_pass},
+        {"irc_user", cfg.irc_user},
+        {"irc_gecos", cfg.irc_gecos},
+        {"irc_challenge_key", cfg.irc_challenge_key},
+        {"irc_challenge_password", cfg.irc_challenge_password},
+        {"irc_oper_username", cfg.irc_oper_username},
+        {"irc_oper_password", cfg.irc_oper_password},
+        {"irc_sasl_mechanism", cfg.irc_sasl_mechanism},
+        {"irc_sasl_username", cfg.irc_sasl_username},
+        {"irc_sasl_password", cfg.irc_sasl_password},
+        {"irc_capabilities", cfg.irc_capabilities},
+        {"network_filename", cfg.network_filename},
+        {"irc_sasl_key", cfg.irc_sasl_key},
+        {"irc_sasl_authzid", cfg.irc_sasl_authzid},
     };
 
     lua_createtable(L, 0, std::size(configs));
@@ -330,7 +331,7 @@ int l_print(lua_State* L)
 } // end of lua support namespace
 
 
-void load_logic(lua_State* L, char const* filename)
+void load_logic(lua_State* const L, char const* const filename)
 {
     int r = luaL_loadfile(L, filename);
     if (LUA_OK == r) {
@@ -391,7 +392,7 @@ void pushircmsg(lua_State* L, ircmsg const& msg)
     }
 }
 
-void prepare_globals(lua_State* L, configuration* cfg)
+void prepare_globals(lua_State* L, configuration const& cfg)
 {
     /* setup libraries */
     luaL_openlibs(L);
@@ -416,7 +417,7 @@ void prepare_globals(lua_State* L, configuration* cfg)
 
     /* populate arg */
     lua_createtable(L, 0, 1);
-    lua_pushstring(L, cfg->lua_filename);
+    lua_pushstring(L, cfg.lua_filename);
     lua_rawseti(L, -2, 0);
     lua_setglobal(L, "arg");
 
