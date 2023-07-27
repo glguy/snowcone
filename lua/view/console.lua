@@ -263,7 +263,11 @@ local function draw_messages()
             return not ok or match
         end
     elseif hide_snow then
-        show_irc = function(irc) return irc.command ~= 'NOTICE' or irc[1] ~= '*' end
+        show_irc = function(irc)
+            return (irc.command ~= 'NOTICE' or irc[1] ~= '*')
+               and irc.command ~= 'PING'
+               and irc.command ~= 'PONG'
+        end
     end
 
     local start = ncurses.getyx()
