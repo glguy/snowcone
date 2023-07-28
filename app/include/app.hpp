@@ -2,7 +2,7 @@
  * @file app.hpp
  * @author Eric Mertens (emertens@gmail.com)
  * @brief Core application state
- * 
+ *
  */
 
 #pragma once
@@ -35,6 +35,7 @@ struct app
     bool closing;
     std::chrono::seconds reconnect_delay;
     std::optional<std::string> paste;
+    mbstate_t mbstate;
 
     inline static auto app_cell(lua_State* const L) -> app*& {
         return *static_cast<app**>(lua_getextraspace(L));
@@ -49,8 +50,9 @@ public:
     , input {}
     , winch {}
     , closing {false}
-    , reconnect_delay(0s)
+    , reconnect_delay {0s}
     , paste {}
+    , mbstate {}
     {
         loop.data = this;
     }
@@ -83,8 +85,5 @@ public:
     }
     static app* from_lua(lua_State* L) {
         return app_cell(L);
-    }
-    void to_lua(lua_State* L) {
-        app_cell(L) = this;
     }
 };

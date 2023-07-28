@@ -144,14 +144,14 @@ int l_send_irc(lua_State* L)
     auto const a = app::from_lua(L);
 
     size_t len;
-    char const* cmd = luaL_optlstring(L, 1, nullptr, &len);
+    auto const cmd = luaL_optlstring(L, 1, nullptr, &len);
     bool result;
 
     if (cmd == nullptr) {
         result = a->close_irc();
     } else {
-        lua_pushvalue(L, 1);
-        int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        lua_settop(L, 1);
+        auto const ref = luaL_ref(L, LUA_REGISTRYINDEX);
         result = a->send_irc(cmd, len, ref);
     }
 

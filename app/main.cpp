@@ -73,9 +73,8 @@ Ncurses initialize_terminal() {
 int main(int argc, char *argv[])
 {
     auto const cfg = load_configuration(argc, argv);
-    auto nc = initialize_terminal();
-
-    app a {cfg};
+    auto const nc = initialize_terminal();
+    auto a = app{cfg};
     a.init();
 
     if (*cfg.irc_socat != '\0') {

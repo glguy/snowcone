@@ -12,7 +12,7 @@ socat_pipes socat_wrapper(uv_loop_t* loop, char const* socat)
     char const* name = getenv("SOCAT");
     if (nullptr == name) { name = "socat"; }
 
-    char const* argv[] = {name, "FD:3", socat, nullptr};
+    char const* const argv[] = {name, "FD:3", socat, nullptr};
 
     auto irc_pipe = make_pipe(loop, 0);
     auto error_pipe = make_pipe(loop, 0);

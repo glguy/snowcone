@@ -33,17 +33,13 @@ void on_stdin(uv_poll_t* handle, int status, int events)
 {
     if (status != 0) return;
 
-    auto a = app::from_loop(handle->loop);
+    auto const a = app::from_loop(handle->loop);
 
-    int key;
-    mbstate_t ps {};
-
-    while(ERR != (key = getch()))
+    for(int key; ERR != (key = getch());)
     {
         if (a->paste) {
             if (bracketed_paste::end_paste == key) {
                 a->do_paste();
-                a->paste.reset();
             } else {
                 a->paste->push_back(key);
             }
@@ -65,9 +61,9 @@ void on_stdin(uv_poll_t* handle, int status, int events)
         } else if (isascii(key)) {
             a->do_keyboard(key);
         } else {
-            char c = key;
+            char const c = key;
             wchar_t code;
-            size_t r = mbrtowc(&code, &c, 1, &ps);
+            size_t const r = mbrtowc(&code, &c, 1, &a->mbstate);
             if (r < (size_t)-2) {
                 a->do_keyboard(code);
             }
@@ -79,10 +75,9 @@ void on_stdin(uv_poll_t* handle, int status, int events)
 
 void on_winch(uv_signal_t* handle, int signum)
 {
-    auto a = app::from_loop(handle->loop);
     endwin();
     refresh();
-    a->set_window_size();
+    app::from_loop(handle->loop)->set_window_size();
 }
 
 } // namespace
@@ -99,8 +94,7 @@ void app::init()
 
     L = luaL_newstate();
     if (nullptr == L) throw std::runtime_error("failed to create lua");
-
-    to_lua(L);
+    app_cell(L) = this;
 
     prepare_globals(L, cfg);
     load_logic(L, cfg.lua_filename);
@@ -133,6 +127,7 @@ void app::do_keyboard(long key)
 void app::do_paste()
 {
     lua_pushlstring(L, paste->data(), paste->size());
+    paste.reset();
     lua_callback(L, "on_paste");
 }
 
@@ -179,15 +174,23 @@ bool app::close_irc() {
 }
 
 namespace {
-    class R {
+    class R final {
         uv_write_t write;
-        lua_State* L;
-        int ref;
+        lua_State* const L;
+        int const ref;
     public:
-        R(lua_State* L, int ref) : L(L), ref(ref) { write.data = this; }
-        ~R() { luaL_unref(L, LUA_REGISTRYINDEX, ref); }
-        uv_write_t *to_write() { return &write; }
-        static R* from_write(uv_write_t* write) { return static_cast<R*>(write->data); }
+        R(lua_State* L, int ref) : L{L}, ref{ref} {
+            write.data = this;
+        }
+        ~R() {
+            luaL_unref(L, LUA_REGISTRYINDEX, ref);
+        }
+        uv_write_t *to_write() {
+            return &write;
+        }
+        static R* from_write(uv_write_t const* write) {
+            return static_cast<R*>(write->data);
+        }
     };
 }
 
@@ -197,11 +200,12 @@ bool app::send_irc(char const* cmd, std::size_t n, int ref) {
         return false;
     }
 
+    auto const buf = uv_buf_init(const_cast<char*>(cmd), n);
     auto req = std::make_unique<R>(L, ref);
-    uv_buf_t const buf = {const_cast<char*>(cmd), n};
-
-    auto cb = [](uv_write_t* write, int status){ delete R::from_write(write); };
-    uvok(uv_write(req->to_write(), irc, &buf, 1, cb));
+    uvok(uv_write(req->to_write(), irc, &buf, 1,
+        [](uv_write_t* write, int status){
+            delete R::from_write(write);
+        }));
     req.release();
 
     return true;

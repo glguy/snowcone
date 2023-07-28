@@ -102,7 +102,8 @@ public:
  * @param on_delete Deallocation callback
  */
 inline void readline_start(uv_stream_t* stream, line_cb* on_line, done_cb* on_done, uv_close_cb on_delete) {
-    stream->data = new readline_data(on_line, on_done, on_delete);
+    auto data = std::make_unique<readline_data>(on_line, on_done, on_delete);
+    stream->data = data.get();
     uvok(uv_read_start(
         stream,
 
@@ -114,4 +115,5 @@ inline void readline_start(uv_stream_t* stream, line_cb* on_line, done_cb* on_do
             auto const d = static_cast<readline_data*>(stream->data);
             d->read_cb(stream, nread, buf);
         }));
+    data.release();
 }
