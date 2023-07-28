@@ -49,6 +49,7 @@ public:
     , loop {}
     , input {}
     , winch {}
+    , reconnect {}
     , closing {false}
     , reconnect_delay {0s}
     , paste {}
