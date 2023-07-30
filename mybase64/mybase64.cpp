@@ -4,17 +4,20 @@
 #include <cstdint>
 #include <string_view>
 
+namespace mybase64
+{
+
 static_assert(CHAR_BIT == 8);
 
-void mybase64_encode(char const* input, std::size_t len, char* output)
+auto encode(std::string_view const input, char* output) -> void
 {
   static char const* const alphabet =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     "abcdefghijklmnopqrstuvwxyz"
     "0123456789+/";
 
-  auto cursor = input;
-  auto const end = cursor + len;
+  auto cursor = std::begin(input);
+  auto const end = std::end(input);
 
   while (end - cursor >= 3)
   {
@@ -41,7 +44,7 @@ void mybase64_encode(char const* input, std::size_t len, char* output)
   *output = '\0';
 }
 
-bool mybase64_decode(char const* input, std::size_t len, char* output, std::size_t* outlen)
+auto decode(std::string_view const input, char* const output, std::size_t* const outlen) -> bool
 {
     static constexpr int8_t const alphabet_values[] = {
         -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
@@ -81,7 +84,7 @@ bool mybase64_decode(char const* input, std::size_t len, char* output, std::size
     uint32_t buffer = 1;
     char* cursor = output;
 
-    for (char c : std::string_view {input, len}) {
+    for (char c : input) {
         int8_t const value = alphabet_values[uint8_t(c)];
         if (-1 == value) continue;
 
@@ -106,3 +109,5 @@ bool mybase64_decode(char const* input, std::size_t len, char* output, std::size
     *outlen = cursor - output;
     return true;
 }
+
+} // namespace

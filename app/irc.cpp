@@ -51,9 +51,13 @@ void start_irc(app* a)
     try {
         auto [irc,err] = socat_wrapper(&a->loop, a->cfg.irc_socat);
         auto delete_pipe = [](uv_handle_t* h) { delete reinterpret_cast<uv_pipe_t*>(h); };
-        a->set_irc(stream_cast(irc));
-        readline_start(stream_cast(irc), on_line, on_done, delete_pipe);
-        readline_start(stream_cast(err), on_err_line, [](auto){}, delete_pipe);
+        a->set_irc(stream_cast(irc.get())); // should not throw
+        readline_start(stream_cast(irc.get()), on_line, on_done, delete_pipe);
+        irc.release();
+
+        readline_start(stream_cast(err.get()), on_err_line, [](auto){}, delete_pipe);
+        err.release();
+
     } catch (UV_error const& e) {
         std::stringstream msg;
         msg << "socat spawn failed: " << e.what();

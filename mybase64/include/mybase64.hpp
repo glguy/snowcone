@@ -7,17 +7,38 @@
 #pragma once
 
 #include <cstddef>
+#include <string_view>
 
-void mybase64_encode(char const* input, std::size_t len, char* output);
+namespace mybase64
+{
+
+inline auto encoded_size(std::size_t len) -> std::size_t
+{
+    return (len + 2) / 3 * 4;
+}
+
+inline auto decoded_size(std::size_t len) -> std::size_t
+{
+    return (len + 3) / 4 * 3;
+}
+
+/**
+ * @brief Encode a base64 encoded string
+ * 
+ * @param input Base64 input text
+ * @param output Target buffer for decoded value
+ */
+auto encode(std::string_view input, char* output) -> void;
 
 /**
  * @brief Decode a base64 encoded string
  * 
  * @param input Base64 input text
- * @param len Length of input
  * @param output Target buffer for decoded value
  * @param outlen Output parameter for decoded length
  * @return true success
  * @return false failure
  */
-bool mybase64_decode(char const* input, std::size_t len, char* output, std::size_t* outlen);
+auto decode(std::string_view input, char* output, std::size_t* outlen) -> bool;
+
+} // namespace

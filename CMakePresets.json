@@ -1,0 +1,36 @@
+{
+    "version": 2,
+    "configurePresets": [
+        {
+            "name": "cmake",
+            "displayName": "",
+            "description": "Sets Ninja generator, build and install directory",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_TOOLCHAIN_FILE": "",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}"
+            },
+            "environment": {
+                "PKG_CONFIG_PATH": "/opt/homebrew/opt/ncurses/lib/pkgconfig"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "cmake",
+            "description": "",
+            "displayName": "",
+            "configurePreset": "cmake"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "cmake",
+            "description": "",
+            "displayName": "",
+            "configurePreset": "cmake"
+        }
+    ]
+}

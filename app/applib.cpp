@@ -12,7 +12,7 @@
 #include <myncurses.h>
 #include <ircmsg.hpp>
 
-#if HAS_GEOIP
+#ifdef GEOIP_FOUND
 #include <mygeoip.h>
 #endif
 #include <mybase64.hpp>
@@ -116,7 +116,7 @@ int l_to_base64(lua_State* L)
     
     luaL_Buffer B;
     auto output = luaL_buffinitsize(L, &B, outlen);
-    mybase64_encode(input, input_len, output);
+    mybase64::encode({input, input_len}, output);
     luaL_pushresultsize(&B, outlen);
 
     return 1;
@@ -131,7 +131,7 @@ int l_from_base64(lua_State* L)
     luaL_Buffer B;
     auto output = luaL_buffinitsize(L, &B, outlen);
     size_t len;
-    if (mybase64_decode(input, input_len, output, &len)) {
+    if (mybase64::decode({input, input_len}, output, &len)) {
         luaL_pushresultsize(&B, len);
     } else {
         lua_pushnil(L);
@@ -399,7 +399,7 @@ void prepare_globals(lua_State* L, configuration const& cfg)
     luaL_requiref(L, "ncurses", luaopen_myncurses, 1);
     lua_pop(L, 1);
 
-    #if HAS_GEOIP
+    #ifdef GEOIP_FOUND
     luaL_requiref(L, "mygeoip", luaopen_mygeoip, 1);
     lua_pop(L, 1);
     #endif

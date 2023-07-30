@@ -6,9 +6,8 @@
 #include <iterator>
 #include <memory>
 
-socat_pipes socat_wrapper(uv_loop_t* loop, char const* socat)
+socat_pipes socat_wrapper(uv_loop_t* const loop, char const* const socat)
 {
-    int r;
     char const* name = getenv("SOCAT");
     if (nullptr == name) { name = "socat"; }
 
@@ -26,15 +25,15 @@ socat_pipes socat_wrapper(uv_loop_t* loop, char const* socat)
          {stream_cast(irc_pipe.get())}},
     };
 
-    uv_process_options_t options {};
-    options.file = name;
-    options.args = const_cast<char**>(argv); // libuv doesn't actually write to these
-    options.exit_cb = [](auto process, auto status, auto signal){
-        uv_close_delete(process);
+    uv_process_options_t const options {
+        .file = name,
+        .args = const_cast<char**>(argv), // libuv doesn't actually write to these
+        .exit_cb = [](auto process, auto status, auto signal){
+            uv_close_delete(process);
+        },
+        .stdio_count = std::size(containers),
+        .stdio = containers,
     };
-    options.stdio_count = std::size(containers);
-    options.stdio = containers;
-
     HandlePointer<uv_process_t> process {new uv_process_t};
     uvok(uv_spawn(loop, process.get(), &options));
     process.release();

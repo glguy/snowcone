@@ -34,8 +34,8 @@ struct ircmsg
         std::vector<std::string_view> && args)
     : tags(std::move(tags)),
       args(std::move(args)),
-      command{command},
-      source{source} {}
+      source{source},
+      command{command} {}
 
       bool hassource() const;
 

@@ -29,7 +29,7 @@ static int l_clear(lua_State *L)
 static int l_refresh(lua_State *L)
 {
     if (ERR == refresh()) {
-        return luaL_error(L, "ncurses error");
+        return luaL_error(L, "refresh: ncurses error");
     }
     return 0;
 }

@@ -2,7 +2,7 @@
  * @file socat.hpp
  * @author Eric Mertens (emertens@gmail.com)
  * @brief TCP connections via socat
- * 
+ *
  */
 #pragma once
 
@@ -27,7 +27,7 @@ struct socat_pipes {
 
 /**
  * @brief Spawn a new socat process
- * 
+ *
  * @param loop Current libuv loop
  * @param socat Connection string
  * @return network pipe and stderr pipe
