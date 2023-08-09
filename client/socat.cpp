@@ -26,11 +26,11 @@ socat_pipes socat_wrapper(uv_loop_t* const loop, char const* const socat)
     };
 
     uv_process_options_t const options {
-        .file = name,
-        .args = const_cast<char**>(argv), // libuv doesn't actually write to these
         .exit_cb = [](auto process, auto status, auto signal){
             uv_close_delete(process);
         },
+        .file = name,
+        .args = const_cast<char**>(argv), // libuv doesn't actually write to these
         .stdio_count = std::size(containers),
         .stdio = containers,
     };
