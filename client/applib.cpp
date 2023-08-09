@@ -20,6 +20,10 @@ extern "C" {
 
 #include <ncurses.h>
 
+#ifdef LIBHS_FOUND
+#include "hsfilter.hpp"
+#endif
+
 #include <algorithm>
 #include <csignal>
 #include <cstring>
@@ -277,6 +281,11 @@ auto prepare_globals(lua_State* const L, int const argc, char ** const argv) -> 
     luaL_openlibs(L);
     luaL_requiref(L, "ncurses", luaopen_myncurses, 1);
     lua_pop(L, 1);
+
+#ifdef LIBHS_FOUND
+    luaL_requiref(L, "hsfilter", luaopen_hsfilter, 1);
+    lua_pop(L, 1);
+#endif
 
     luaL_newlib(L, applib_module);
     lua_pushinteger(L, SIGINT);

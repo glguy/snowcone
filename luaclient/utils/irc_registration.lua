@@ -7,7 +7,6 @@ return function()
         nick = configuration.irc_nick,
         registration = true,
         caps_enabled = Set{},
-        kline_hunt = Set{},
     }
 
     local caps_wanted = Set{}

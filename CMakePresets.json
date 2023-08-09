@@ -2,7 +2,7 @@
     "version": 2,
     "configurePresets": [
         {
-            "name": "cmake",
+            "name": "mac",
             "displayName": "",
             "description": "Sets Ninja generator, build and install directory",
             "generator": "Ninja",
@@ -13,24 +13,24 @@
                 "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}"
             },
             "environment": {
-                "PKG_CONFIG_PATH": "/opt/homebrew/opt/ncurses/lib/pkgconfig"
+                "PKG_CONFIG_PATH": "/opt/homebrew/opt/ncurses/lib/pkgconfig:/opt/homebrew/opt/hs/lib/pkgconfig"
             }
         }
     ],
     "buildPresets": [
         {
-            "name": "cmake",
+            "name": "mac",
             "description": "",
             "displayName": "",
-            "configurePreset": "cmake"
+            "configurePreset": "mac"
         }
     ],
     "testPresets": [
         {
-            "name": "cmake",
+            "name": "mac",
             "description": "",
             "displayName": "",
-            "configurePreset": "cmake"
+            "configurePreset": "mac"
         }
     ]
 }

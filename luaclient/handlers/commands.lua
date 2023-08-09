@@ -45,10 +45,6 @@ add_command('filter', '$R', function(args)
     end
 end)
 
-add_command('sync', '', function()
-    counter_sync_commands()
-end)
-
 add_command('reload', '', function()
     assert(loadfile(arg[0]))()
 end)
@@ -69,37 +65,9 @@ end)
 
 add_command('quit', '$R', quit)
 
-add_command('inject', '$r', function(arg)
-    local parse_snote = require 'utils.parse_snote'
-    local time = os.date('!%H:%M:%S')
-    local server = 'INJECT.'
-    local event = parse_snote(time, server, arg)
-    if event then
-        local handlers = require 'handlers.snotice'
-        local handler = handlers[event.name]
-        if handler then
-            handler(event)
-        else
-            status('inject', 'no handler')
-        end
-    else
-        status('inject', 'parse failed')
-    end
-end)
-
 for k, _ in pairs(views) do
     add_command(k, '', function() view = k end)
 end
-
-add_command('duration', '$r', function(arg)
-    arg = string.gsub(arg, ' +', '')
-    local n = utils_time.parse_duration(arg)
-    if n and n > 0 then
-        kline_duration = arg
-    else
-        status('error', 'bad duration: %s', arg)
-    end
-end)
 
 -- Pretending to be an IRC client
 

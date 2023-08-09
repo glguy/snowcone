@@ -16,6 +16,7 @@ pkg_search_module(LUA      REQUIRED IMPORTED_TARGET lua>=5.3 lua5.3 lua-5.3 lua5
 pkg_check_modules(NCURSESW REQUIRED IMPORTED_TARGET ncursesw>=6)
 pkg_check_modules(UV       REQUIRED IMPORTED_TARGET libuv)
 pkg_check_modules(GEOIP             IMPORTED_TARGET geoip)
+pkg_check_modules(LIBHS             IMPORTED_TARGET libhs)
 
 if(GEOIP_FOUND)
 add_subdirectory(mygeoip)

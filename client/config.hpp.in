@@ -2,5 +2,6 @@
 #define SNOWCONE_CONFIG_H
 
 #cmakedefine GEOIP_FOUND
+#cmakedefine LIBHS_FOUND
 
 #endif

@@ -16,7 +16,7 @@ stds = {
         globals = {
             -- general functionality
             "require_", "next_view", "prev_view",
-            "quit", "send_irc", "exiting",
+            "quit", "send_irc", "exiting", "disconnect",
             "reset_filter", "initialize", "counter_sync_commands",
             "ctrl", "meta", "status", "plugins", "draw_suspend",
             "prepare_kline", "tick_timer", "reconnect_timer", "configuration",

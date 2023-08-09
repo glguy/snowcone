@@ -146,5 +146,6 @@ std::ostream& operator<<(std::ostream& out, irc_error_code code) {
     switch(code) {
         case irc_error_code::MISSING_COMMAND: out << "MISSING COMMAND"; return out;
         case irc_error_code::MISSING_TAG: out << "MISSING TAG"; return out;
+        default: return out;
     }
 }
