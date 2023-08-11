@@ -10,7 +10,6 @@ extern "C"
 
 #include <hs.h>
 
-#include <memory>
 #include <vector>
 
 namespace
@@ -18,40 +17,6 @@ namespace
   auto get_platform(lua_State *L, int idx) -> hs_platform_info;
 
   unsigned int const default_flags = HS_FLAG_SINGLEMATCH;
-
-  /**
-   * @brief Push a Lua sequence onto the stack with all the commands needed to load the
-   * given serialized database.
-   *
-   * @param L Lua state
-   * @param bytes serialized regular expression database
-   * @param len
-   */
-  auto irc_commands(lua_State *const L, std::string_view const serialized_db) -> void
-  {
-    auto const chunk = std::size_t{300};
-    char buffer[mybase64::encoded_size(chunk) + 1];
-
-    // randomized session check value common across all commands
-    auto const check = rand();
-
-    lua_createtable(L, (serialized_db.size() + chunk - 1) / chunk + 2, 0);
-    lua_Integer o = 1;
-
-    lua_pushfstring(L, "SETFILTER * %d NEW", check);
-    lua_seti(L, -2, o++);
-
-    for (size_t i = 0; i < serialized_db.size(); i += chunk)
-    {
-      auto const remain = serialized_db.size() - i;
-      mybase64::encode({&serialized_db[i], remain < chunk ? remain : chunk}, buffer);
-      lua_pushfstring(L, "SETFILTER * %d +%s", check, buffer);
-      lua_seti(L, -2, o++);
-    }
-
-    lua_pushfstring(L, "SETFILTER * %d APPLY", check);
-    lua_seti(L, -2, o++);
-  }
 
   struct Inputs
   {
@@ -99,11 +64,11 @@ namespace
     return {serialize_bytes, serialize_len};
   }
 
-  auto compile_regexp_db_to_irc(lua_State *const L) -> int
+  auto l_serialize_regexp_db(lua_State *const L) -> int
   {
     Inputs inputs;
 
-    lua_settop(L, 1);
+    lua_settop(L, 2);
 
     hs_platform_info platform;
     auto const has_platform = !lua_isnoneornil(L, 2);
@@ -145,12 +110,12 @@ namespace
 
     auto const [serialize_bytes, serialize_len] = compile(L, inputs, has_platform ? &platform : nullptr);
     lua_settop(L, 0); // toss the strings
-    irc_commands(L, {serialize_bytes, serialize_len});
+    lua_pushlstring(L, serialize_bytes, serialize_len);
     free(serialize_bytes);
     return 1;
   }
 
-  auto get_current_platform(lua_State *const L) -> int
+  auto l_get_current_platform(lua_State *const L) -> int
   {
     hs_platform_info platform;
     auto const e = hs_populate_platform(&platform);
@@ -182,9 +147,9 @@ namespace
   }
 
   luaL_Reg const M[]{
-      {"compile_regexp_db_to_irc", compile_regexp_db_to_irc},
-      {"get_current_platform", get_current_platform},
-      {nullptr, nullptr},
+      {"serialize_regexp_db", l_serialize_regexp_db},
+      {"get_current_platform", l_get_current_platform},
+      {},
   };
 
 } // namespace
@@ -208,9 +173,11 @@ auto luaopen_hsfilter(lua_State *const L) -> int
   FLAG(HS_FLAG_SOM_LEFTMOST);
   FLAG(HS_FLAG_UCP);
   FLAG(HS_FLAG_UTF8);
+
   FLAG(HS_CPU_FEATURES_AVX2);
   FLAG(HS_CPU_FEATURES_AVX512);
   FLAG(HS_CPU_FEATURES_AVX512VBMI);
+
   FLAG(HS_TUNE_FAMILY_BDW);
   FLAG(HS_TUNE_FAMILY_GENERIC);
   FLAG(HS_TUNE_FAMILY_GLM);
