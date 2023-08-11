@@ -3,7 +3,6 @@ add_executable(ircc
     main.cpp app.cpp applib.cpp bracketed_paste.cpp
     socat.cpp uv.cpp safecall.cpp irc.cpp
     lua_uv_timer.cpp lua_uv_dnslookup.cpp
-    hsfilter.cpp
     )
 
 target_link_libraries(ircc PRIVATE
@@ -13,7 +12,7 @@ configure_file(config.hpp.in config.hpp @ONLY)
 target_include_directories(ircc PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" include)
 
 if(LIBHS_FOUND)
-target_link_libraries(ircc PRIVATE PkgConfig::LIBHS)
+target_link_libraries(ircc PRIVATE hsfilter)
 endif()
 
 install(TARGETS ircc DESTINATION "${CMAKE_INSTALL_BINDIR}")

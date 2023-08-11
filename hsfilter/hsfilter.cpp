@@ -1,7 +1,5 @@
 #include "hsfilter.hpp"
 
-#ifdef LIBHS_FOUND
-
 #include <mybase64.hpp>
 
 extern "C"
@@ -17,9 +15,19 @@ extern "C"
 
 namespace
 {
+  auto get_platform(lua_State *L, int idx) -> hs_platform_info;
+
   unsigned int const default_flags = HS_FLAG_SINGLEMATCH;
 
-  auto irc_commands(lua_State *const L, char const *const bytes, std::size_t const len) -> void
+  /**
+   * @brief Push a Lua sequence onto the stack with all the commands needed to load the
+   * given serialized database.
+   *
+   * @param L Lua state
+   * @param bytes serialized regular expression database
+   * @param len
+   */
+  auto irc_commands(lua_State *const L, std::string_view const serialized_db) -> void
   {
     auto const chunk = std::size_t{300};
     char buffer[mybase64::encoded_size(chunk) + 1];
@@ -27,16 +35,16 @@ namespace
     // randomized session check value common across all commands
     auto const check = rand();
 
-    lua_createtable(L, (len + chunk - 1) / chunk + 2, 0);
+    lua_createtable(L, (serialized_db.size() + chunk - 1) / chunk + 2, 0);
     lua_Integer o = 1;
 
     lua_pushfstring(L, "SETFILTER * %d NEW", check);
     lua_seti(L, -2, o++);
 
-    for (size_t i = 0; i < len; i += chunk)
+    for (size_t i = 0; i < serialized_db.size(); i += chunk)
     {
-      auto const remain = len - i;
-      mybase64::encode({&bytes[i], remain < chunk ? remain : chunk}, buffer);
+      auto const remain = serialized_db.size() - i;
+      mybase64::encode({&serialized_db[i], remain < chunk ? remain : chunk}, buffer);
       lua_pushfstring(L, "SETFILTER * %d +%s", check, buffer);
       lua_seti(L, -2, o++);
     }
@@ -52,12 +60,10 @@ namespace
     std::vector<unsigned> ids;
   };
 
-  auto compile(lua_State *const L, Inputs const &inputs) -> std::pair<char *, std::size_t>
+  auto compile(lua_State *const L, Inputs const &inputs, hs_platform_info_t *const platform) -> std::pair<char *, std::size_t>
   {
     hs_database_t *db;
     hs_compile_error_t *error;
-    hs_platform_info_t const *const platform = nullptr;
-
     auto const compile_result = hs_compile_multi(inputs.expressions.data(), inputs.flags.data(), inputs.ids.data(), inputs.expressions.size(), HS_MODE_BLOCK, platform, &db, &error);
     switch (compile_result)
     {
@@ -87,7 +93,7 @@ namespace
 
     if (HS_SUCCESS != serialize_result)
     {
-      luaL_error(L, "hs_serialize_database(%d)", int{e});
+      luaL_error(L, "hs_serialize_database(%d)", int{serialize_result});
     }
 
     return {serialize_bytes, serialize_len};
@@ -98,6 +104,14 @@ namespace
     Inputs inputs;
 
     lua_settop(L, 1);
+
+    hs_platform_info platform;
+    auto const has_platform = !lua_isnoneornil(L, 2);
+    if (has_platform)
+    {
+      platform = get_platform(L, 2);
+    }
+
     auto const N = luaL_len(L, 1);
 
     for (size_t i = 1; i <= N; i++)
@@ -105,8 +119,9 @@ namespace
       lua_geti(L, 1, i);
 
       lua_getfield(L, -1, "flags");
-      auto const flag = lua_tointeger(L, -1);
-      inputs.flags.push_back(flag);
+      int is_num;
+      auto const flag = lua_tointegerx(L, -1, &is_num);
+      inputs.flags.push_back(is_num ? flag : default_flags);
 
       lua_getfield(L, -2, "id");
       auto const id = lua_tointeger(L, -1);
@@ -128,15 +143,47 @@ namespace
       inputs.expressions.push_back(str);
     }
 
-    auto const [serialize_bytes, serialize_len] = compile(L, inputs);
+    auto const [serialize_bytes, serialize_len] = compile(L, inputs, has_platform ? &platform : nullptr);
     lua_settop(L, 0); // toss the strings
-    irc_commands(L, serialize_bytes, serialize_len);
+    irc_commands(L, {serialize_bytes, serialize_len});
     free(serialize_bytes);
     return 1;
   }
 
+  auto get_current_platform(lua_State *const L) -> int
+  {
+    hs_platform_info platform;
+    auto const e = hs_populate_platform(&platform);
+    if (HS_SUCCESS != e)
+    {
+      luaL_error(L, "hs_populate_platform(%d)", int{e});
+      return 0;
+    }
+
+    lua_createtable(L, 0, 2);
+    lua_pushinteger(L, platform.cpu_features);
+    lua_setfield(L, -2, "cpu_features");
+
+    lua_pushinteger(L, platform.tune);
+    lua_setfield(L, -2, "tune");
+
+    return 1;
+  }
+
+  auto get_platform(lua_State *const L, int const idx) -> hs_platform_info
+  {
+    hs_platform_info platform{};
+    lua_getfield(L, idx, "cpu_features");
+    platform.cpu_features = lua_tointeger(L, -1);
+    lua_getfield(L, idx, "tune");
+    platform.tune = lua_tointeger(L, -1);
+    lua_pop(L, 2);
+    return platform;
+  }
+
   luaL_Reg const M[]{
       {"compile_regexp_db_to_irc", compile_regexp_db_to_irc},
+      {"get_current_platform", get_current_platform},
       {nullptr, nullptr},
   };
 
@@ -149,6 +196,7 @@ auto luaopen_hsfilter(lua_State *const L) -> int
 #define FLAG(flag)          \
   lua_pushinteger(L, flag); \
   lua_setfield(L, -2, #flag);
+
   FLAG(HS_FLAG_ALLOWEMPTY);
   FLAG(HS_FLAG_CASELESS);
   FLAG(HS_FLAG_COMBINATION);
@@ -160,6 +208,20 @@ auto luaopen_hsfilter(lua_State *const L) -> int
   FLAG(HS_FLAG_SOM_LEFTMOST);
   FLAG(HS_FLAG_UCP);
   FLAG(HS_FLAG_UTF8);
+  FLAG(HS_CPU_FEATURES_AVX2);
+  FLAG(HS_CPU_FEATURES_AVX512);
+  FLAG(HS_CPU_FEATURES_AVX512VBMI);
+  FLAG(HS_TUNE_FAMILY_BDW);
+  FLAG(HS_TUNE_FAMILY_GENERIC);
+  FLAG(HS_TUNE_FAMILY_GLM);
+  FLAG(HS_TUNE_FAMILY_HSW);
+  FLAG(HS_TUNE_FAMILY_ICL);
+  FLAG(HS_TUNE_FAMILY_ICX);
+  FLAG(HS_TUNE_FAMILY_IVB);
+  FLAG(HS_TUNE_FAMILY_SKL);
+  FLAG(HS_TUNE_FAMILY_SKX);
+  FLAG(HS_TUNE_FAMILY_SLM);
+  FLAG(HS_TUNE_FAMILY_SNB);
 #undef FLAG
 
   lua_pushinteger(L, 1 << 0);
@@ -171,5 +233,3 @@ auto luaopen_hsfilter(lua_State *const L) -> int
 
   return 1;
 }
-
-#endif

@@ -22,6 +22,10 @@ if(GEOIP_FOUND)
 add_subdirectory(mygeoip)
 endif()
 
+if(LIBHS_FOUND)
+add_subdirectory(hsfilter)
+endif()
+
 add_subdirectory(ircmsg)
 add_subdirectory(myncurses)
 add_subdirectory(mybase64)

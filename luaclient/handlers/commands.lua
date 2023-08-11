@@ -10,7 +10,7 @@ end
 
 -- quote actually parses the message and integrates it into the
 -- console view as a processed message
-add_command('quote', '$g $r', function(cmd, str)
+add_command('quote', '$g$R', function(cmd, str)
     local args = {}
     while true do
         local arg, rest = str:match '^ *([^ :][^ ]*)(.*)$'
