@@ -79,7 +79,7 @@ namespace
 
     auto const N = luaL_len(L, 1);
 
-    for (size_t i = 1; i <= N; i++)
+    for (lua_Integer i = 1; i <= N; i++)
     {
       lua_geti(L, 1, i);
 
@@ -128,7 +128,6 @@ namespace
     lua_createtable(L, 0, 2);
     lua_pushinteger(L, platform.cpu_features);
     lua_setfield(L, -2, "cpu_features");
-
     lua_pushinteger(L, platform.tune);
     lua_setfield(L, -2, "tune");
 
@@ -162,6 +161,7 @@ auto luaopen_hsfilter(lua_State *const L) -> int
   lua_pushinteger(L, flag); \
   lua_setfield(L, -2, #flag);
 
+  lua_createtable(L, 0, 11);
   FLAG(HS_FLAG_ALLOWEMPTY);
   FLAG(HS_FLAG_CASELESS);
   FLAG(HS_FLAG_COMBINATION);
@@ -173,11 +173,15 @@ auto luaopen_hsfilter(lua_State *const L) -> int
   FLAG(HS_FLAG_SOM_LEFTMOST);
   FLAG(HS_FLAG_UCP);
   FLAG(HS_FLAG_UTF8);
+  lua_setfield(L, -2, "flags");
 
+  lua_createtable(L, 0, 3);
   FLAG(HS_CPU_FEATURES_AVX2);
   FLAG(HS_CPU_FEATURES_AVX512);
   FLAG(HS_CPU_FEATURES_AVX512VBMI);
+  lua_setfield(L, -2, "cpu_features");
 
+  lua_createtable(L, 0, 11);
   FLAG(HS_TUNE_FAMILY_BDW);
   FLAG(HS_TUNE_FAMILY_GENERIC);
   FLAG(HS_TUNE_FAMILY_GLM);
@@ -189,14 +193,17 @@ auto luaopen_hsfilter(lua_State *const L) -> int
   FLAG(HS_TUNE_FAMILY_SKX);
   FLAG(HS_TUNE_FAMILY_SLM);
   FLAG(HS_TUNE_FAMILY_SNB);
+  lua_setfield(L, -2, "tune");
 #undef FLAG
 
+  lua_createtable(L, 0, 3);
   lua_pushinteger(L, 1 << 0);
   lua_setfield(L, -2, "DROP");
   lua_pushinteger(L, 1 << 1);
   lua_setfield(L, -2, "KILL");
   lua_pushinteger(L, 1 << 2);
   lua_setfield(L, -2, "ALARM");
+  lua_setfield(L, -2, "actions");
 
   return 1;
 }
