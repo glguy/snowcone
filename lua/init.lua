@@ -724,7 +724,7 @@ function M.on_disconnect()
 end
 
 function M.print(str)
-    status('print', str)
+    status('print', '%s', str)
 end
 
 snowcone.setmodule(M)

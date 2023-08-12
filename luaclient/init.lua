@@ -321,14 +321,60 @@ plugin_manager.startup()
 
 -- Callback Logic =====================================================
 
-local connect
-
 local M = {}
+
+local key_handlers = require_ 'handlers.keyboard'
+function M.on_keyboard(key)
+    -- buffer text editing
+    if input_mode and 0x20 <= key and (key < 0x7f or 0xa0 <= key) then
+        editor:add(key)
+        draw()
+        return
+    end
+
+    -- global key handlers
+    local f = key_handlers[key]
+    if f then
+        f()
+        draw()
+        return
+    end
+
+    -- view-specific key handlers
+    views[view]:keypress(key)
+end
+
+function M.on_paste(paste)
+    draw_suspend = true
+    local f = M.on_keyboard
+    for _, c in utf8.codes(paste) do
+        f(c)
+    end
+    draw_suspend = false
+    draw()
+end
+
+function M.on_mouse(y, x)
+    for _, button in ipairs(clicks[y] or {}) do
+        if button.lo <= x and x < button.hi then
+            button.action()
+            draw()
+        end
+    end
+end
+
+function M.print(str)
+    status('print', '%s', str)
+end
+
+snowcone.setmodule(M)
+
+local connect
 
 -- a global allows these to be replaced on a live connection
 irc_handlers = require_ 'handlers.irc'
 
-local on_irc = function(irc, err)
+local function on_irc(irc, err)
     if err then
         status('socat', 'socat error: %s', err)
         return
@@ -397,52 +443,6 @@ function connect()
     end
 end
 
-local key_handlers = require_ 'handlers.keyboard'
-function M.on_keyboard(key)
-    -- buffer text editing
-    if input_mode and 0x20 <= key and (key < 0x7f or 0xa0 <= key) then
-        editor:add(key)
-        draw()
-        return
-    end
-
-    -- global key handlers
-    local f = key_handlers[key]
-    if f then
-        f()
-        draw()
-        return
-    end
-
-    -- view-specific key handlers
-    views[view]:keypress(key)
-end
-
-function M.on_paste(paste)
-    draw_suspend = true
-    local f = M.on_keyboard
-    for _, c in utf8.codes(paste) do
-        f(c)
-    end
-    draw_suspend = false
-    draw()
-end
-
-function M.on_mouse(y, x)
-    for _, button in ipairs(clicks[y] or {}) do
-        if button.lo <= x and x < button.hi then
-            button.action()
-            draw()
-        end
-    end
-end
-
-snowcone.setmodule(M)
-
 if not send_irc then
     connect()
-end
-
-function M.print(str)
-    status('print', str)
 end
