@@ -8,7 +8,8 @@ return function()
         phase = 'registration',
         caps_wanted = Set(configuration.irc_capabilities or {}),
         caps_enabled = Set{},
-        caps_requested = Set{}
+        caps_requested = Set{},
+        batches = {},
     }
 
     -- always request sasl cap when sasl is configured

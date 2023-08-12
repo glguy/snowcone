@@ -1,4 +1,6 @@
 -- Logic for IRC messages
+local tablex      = require 'pl.tablex'
+
 local N           = require_ 'utils.numerics'
 local challenge   = require_ 'utils.challenge'
 local sasl        = require_ 'sasl'
@@ -51,7 +53,7 @@ function M.PRIVMSG(irc)
 end
 
 local cap_cmds = require_ 'handlers.cap'
-M.CAP = function(irc)
+function M.CAP(irc)
     -- irc[1] is a nickname or *
     local h = cap_cmds[irc[2]]
     if h then
@@ -59,7 +61,7 @@ M.CAP = function(irc)
     end
 end
 
-M.NICK = function(irc)
+function M.NICK(irc)
     local nick = parse_source(irc.source)
     if nick and nick == irc_state.nick then
         irc_state.nick = irc[1]
@@ -69,7 +71,7 @@ M.NICK = function(irc)
     end
 end
 
-M.AUTHENTICATE = function(irc)
+function M.AUTHENTICATE(irc)
     if not irc_state.sasl then
         status('sasl', 'no sasl session active')
         return
@@ -112,6 +114,16 @@ M.AUTHENTICATE = function(irc)
         for _, cmd in ipairs(sasl.encode_authenticate(reply, secret)) do
             send(table.unpack(cmd))
         end
+    end
+end
+
+function M.BATCH(irc)
+    local polarity = irc[1]:sub(1,1)
+    local name = irc[1]:sub(2)
+    if '+' == polarity then
+        irc_state.batches[name] = tablex.sub(irc, 2)
+    elseif '-' == polarity then
+        irc_state.batches[name] = nil
     end
 end
 

@@ -359,6 +359,13 @@ local on_irc = function(irc, err)
 
     messages:insert(true, irc)
     liveness = uptime
+
+    -- Ignore chat history
+    local batch = irc_state.batches[irc.tags.batch]
+    if batch and batch[1] == 'chathistory' then
+        return
+    end
+
     local f = irc_handlers[irc.command]
     if f then
         local success, message = pcall(f, irc)
