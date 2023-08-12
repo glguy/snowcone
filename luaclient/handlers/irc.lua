@@ -133,8 +133,7 @@ M[N.RPL_WELCOME] = function(irc)
     status('irc', 'connected to %s', irc.source)
 
     if configuration.irc_oper_username and configuration.irc_challenge_key then
-        send('CHALLENGE', configuration.irc_oper_username)
-        irc_state.challenge = {}
+        challenge.start()
     elseif configuration.irc_oper_username and configuration.irc_oper_password then
         send('OPER', configuration.irc_oper_username,
             {content=configuration.irc_oper_password, secret=true})
@@ -194,7 +193,7 @@ M[N.RPL_ENDOFRSACHALLENGE2] = function()
         local file          = require 'pl.file'
         local rsa_key       = assert(file.read(configuration.irc_challenge_key))
         local password      = configuration.irc_challenge_password
-        local success, resp = pcall(challenge, rsa_key, password, challenge_text)
+        local success, resp = pcall(challenge.response, rsa_key, password, challenge_text)
         if success then
             send('CHALLENGE',  '+' .. resp)
             status('irc', 'challenged')

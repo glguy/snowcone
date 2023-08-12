@@ -1,3 +1,4 @@
+local challenge = require 'utils.challenge'
 local utils_time = require 'utils.time'
 local mkcommand = require 'utils.mkcommand'
 local send = require 'utils.send'
@@ -118,8 +119,7 @@ add_command('challenge', '', function()
     elseif not configuration.irc_challenge_key then
         status('challenge', 'no challenge key configured: `irc_challenge_key`')
     else
-        send('CHALLENGE', configuration.irc_oper_username)
-        irc_state.challenge = {}
+        challenge.start()
     end
 end)
 
