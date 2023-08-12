@@ -18,7 +18,7 @@ namespace {
 luaL_Reg const MT[] = {
     {"close", [](auto const L) {
         auto const timer = check_udata<uv_timer_t>(L, 1);
-        if (!uv_is_closing(handle_cast(timer))) {
+        if (not uv_is_closing(handle_cast(timer))) {
             uv_close_xx(timer, [](auto const handle) {
                 auto const L = App::from_loop(handle->loop)->L;
                 lua_pushnil(L);

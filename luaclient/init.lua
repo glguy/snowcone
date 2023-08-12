@@ -83,12 +83,6 @@ if configuration.irc_oper_username and string.match(configuration.irc_oper_usern
     error 'Invalid character in operator username'
 end
 
-if configuration.irc_capabilities and string.match(configuration.irc_capabilities, '[\n\r]') then
-    error 'Invalid character in capabilities'
-end
-
-
-
 -- Global state =======================================================
 
 function reset_filter()

@@ -6,10 +6,11 @@ local send        = require_ 'utils.send'
 local split_nuh   = require_ 'utils.split_nick_user_host'
 
 -- irc_state
--- .caps_available - set of string   - create in LS - consume at end of LS
--- .caps_wanted    - set of string   - create before LS - consume after ACK/NAK
--- .caps_enabled   - set of string   - create before LS - consume at quit
+-- .caps_ls        - set of string   - create in LS - consume at end of LS
 -- .caps_list      - array of string - list of enabled caps - consume after LIST
+-- .caps_wanted    - set of string   - create before LS - consume after ACK/NAK
+-- .caps_enabled   - set of string   - filled by ACK
+-- .caps_requested - set of string   - create on LS or NEW - consume at ACK or NAK
 -- .want_sasl      - boolean         - consume at ACK to trigger SASL session
 -- .phase          - string          - registration or connected
 -- .sasl           - coroutine       - AUTHENTICATE state machine

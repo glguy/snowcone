@@ -6,28 +6,19 @@ return function()
 
     irc_state = {
         phase = 'registration',
+        caps_wanted = Set(configuration.irc_capabilities or {}),
         caps_enabled = Set{},
         caps_requested = Set{}
     }
 
-    local caps_wanted = Set{}
-
     -- always request sasl cap when sasl is configured
     if configuration.irc_sasl_mechanism then
-        caps_wanted.sasl = true
+        irc_state.caps_wanted.sasl = true
         irc_state.want_sasl = true
     end
-
-    -- add in all the manually requested caps
-    if configuration.irc_capabilities then
-        for cap in configuration.irc_capabilities:gmatch '[%w%-./]+' do
-            caps_wanted[cap] = true
-        end
-    end
-
-    if not Set.isempty(caps_wanted) then
+    
+    if not Set.isempty(irc_state.caps_wanted) then
         send('CAP', 'LS', '302')
-        irc_state.caps_wanted = caps_wanted
     end
 
     if configuration.irc_pass then

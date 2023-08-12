@@ -34,7 +34,9 @@ return function(cmd, ...)
         -- * empty
         -- * leading :
         -- * any space
-        if not string.match(part, '^[^ :][^ ]*$') then
+        if string.find(part, '[\x00\r\n]') then
+            error('prohibited character in command argument')
+        elseif not string.find(part, '^[^ :][^ ]*$') then
             assert(i == n, 'malformed internal command argument')
             parts[i+1] = ':' .. part
         else
