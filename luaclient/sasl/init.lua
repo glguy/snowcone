@@ -13,10 +13,10 @@ function M.authenticate(body, secret)
             send('AUTHENTICATE', {content=string.sub(body, i, i+399), secret=secret})
         end
         if n % 400 == 0 then
-            authenticate '+'
+            send('AUTHENTICATE', '+')
         end
     else
-        authenticate '*'
+        send('AUTHENTICATE', '*')
     end
 end
 

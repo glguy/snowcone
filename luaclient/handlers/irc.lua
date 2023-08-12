@@ -123,6 +123,24 @@ function M.BATCH(irc)
     end
 end
 
+function M.MODE(irc)
+    local target = irc[1]
+
+    -- Update self umodes
+    if target == irc_state.nick then
+        local polarity = true
+        for m in irc[2]:gmatch '.' do
+            if m == '+' then
+                polarity = true
+            elseif m == '-' then
+                polarity = false
+            elseif m == 'o' then
+                irc_state.oper = polarity
+            end
+        end
+    end
+end
+
 M[N.RPL_WELCOME] = function(irc)
     irc_state.phase = 'connected'
     irc_state.nick = irc[1]
@@ -134,7 +152,8 @@ M[N.RPL_WELCOME] = function(irc)
         send('OPER', configuration.irc_oper_username,
             {content=configuration.irc_oper_password, secret=true})
     else
-        irc_state.oper = true
+        -- determine if we're already oper
+        send('MODE', irc_state.nick)
     end
 end
 
@@ -179,8 +198,6 @@ M[N.RPL_ENDOFRSACHALLENGE2] = function()
 end
 
 M[N.RPL_YOUREOPER] = function()
-    irc_state.oper = true
-    send('MODE', irc_state.nick, 's', 'BFZbcklnsx')
     status('irc', "you're oper")
 end
 

@@ -21,9 +21,12 @@ function CAP.LS(x, y)
     end
 
     if last then
+        local available = irc_state.caps_ls
+        irc_state.caps_ls = nil
+
         local req = {}
 
-        for cap in Set.iter(irc_state.caps_ls) do
+        for cap in Set.iter(available) do
             if irc_state.caps_wanted[cap] and not irc_state.caps_enabled[cap] then
                 irc_state.caps_requested[cap] = true
                 table.insert(req, cap)

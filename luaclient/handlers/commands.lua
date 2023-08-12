@@ -55,7 +55,7 @@ add_command('eval', '$r', function(args)
     local chunk, message = load(args, '=(eval)', 't')
     if chunk then
         local _, ret = pcall(chunk)
-        if ret then
+        if ret ~= nil then
             status('eval', '%s', ret)
         else
             status_message = nil
