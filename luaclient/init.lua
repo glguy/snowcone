@@ -437,6 +437,8 @@ function M.on_mouse(y, x)
     end
 end
 
+snowcone.setmodule(M)
+
 if not send_irc then
     connect()
 end
@@ -444,5 +446,3 @@ end
 function M.print(str)
     status('print', str)
 end
-
-snowcone.setmodule(M)

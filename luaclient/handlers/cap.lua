@@ -3,24 +3,6 @@ local tablex      = require 'pl.tablex'
 local sasl        = require_ 'sasl'
 local send        = require 'utils.send'
 
--- install SASL state machine based on configuration values
--- and send the first AUTHENTICATE command
-local function start_sasl()
-    local success, auth_cmd
-    success, auth_cmd, irc_state.sasl = pcall(sasl.start,
-        configuration.irc_sasl_mechanism,
-        configuration.irc_sasl_username,
-        configuration.irc_sasl_password,
-        configuration.irc_sasl_key,
-        configuration.irc_sasl_authzid
-    )
-    if success then
-        send(table.unpack(auth_cmd))
-    else
-        status('sasl', 'startup failed: %s', auth_cmd)
-    end
-end
-
 local CAP = {}
 
 function CAP.LS(x, y)
@@ -88,7 +70,7 @@ function CAP.ACK(capsarg)
     if Set.isempty(irc_state.caps_requested) then
         if irc_state.caps_enabled.sasl and irc_state.want_sasl then
             irc_state.want_sasl = nil
-            start_sasl()
+            sasl.start()
         elseif irc_state.phase == 'registration' then
             send('CAP', 'END')
         end

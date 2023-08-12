@@ -1,7 +1,8 @@
 local challenge = require 'utils.challenge'
-local utils_time = require 'utils.time'
 local mkcommand = require 'utils.mkcommand'
+local sasl = require 'sasl'
 local send = require 'utils.send'
+local utils_time = require 'utils.time'
 
 local M = {}
 
@@ -132,6 +133,10 @@ add_command('oper', '', function()
         send('OPER', configuration.irc_oper_username,
         {content=configuration.irc_oper_password, secret=true})
     end
+end)
+
+add_command('sasl', '', function()
+    sasl.start()
 end)
 
 return M

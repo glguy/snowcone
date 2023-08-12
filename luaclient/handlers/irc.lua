@@ -109,11 +109,7 @@ function M.AUTHENTICATE(irc)
             end
         end
 
-        -- reply will be nil if something went wrong
-        -- nil will cause an abort message to be generated
-        for _, cmd in ipairs(sasl.encode_authenticate(reply, secret)) do
-            send(table.unpack(cmd))
-        end
+        sasl.authenticate(reply, secret)
     end
 end
 
@@ -167,41 +163,19 @@ M[N.RPL_SNOMASK] = function(irc)
 end
 
 M[N.ERR_NOOPERHOST] = function()
-    irc_state.challenge = nil
-    status('irc', 'no oper host')
+    challenge.fail('no oper host')
 end
 
 M[N.ERR_PASSWDMISMATCH] = function()
-    irc_state.challenge = nil
-    status('irc', 'oper password mismatch')
+    challenge.fail('oper password mismatch')
 end
 
 M[N.RPL_RSACHALLENGE2] = function(irc)
-    local challenge_text = irc_state.challenge
-    if challenge_text then
-        table.insert(challenge_text, irc[2])
-    end
+    challenge.add_chunk(irc[2])
 end
 
 M[N.RPL_ENDOFRSACHALLENGE2] = function()
-    -- remember and clear the challenge buffer now before failures below
-    local challenge_text = irc_state.challenge
-    if challenge_text then
-        irc_state.challenge = nil
-        challenge_text = table.concat(challenge_text)
-
-        local file          = require 'pl.file'
-        local rsa_key       = assert(file.read(configuration.irc_challenge_key))
-        local password      = configuration.irc_challenge_password
-        local success, resp = pcall(challenge.response, rsa_key, password, challenge_text)
-        if success then
-            send('CHALLENGE',  '+' .. resp)
-            status('irc', 'challenged')
-        else
-            io.stderr:write(resp,'\n')
-            status('irc', 'challenge failed - see stderr')
-        end
-    end
+    challenge.response()
 end
 
 M[N.RPL_YOUREOPER] = function()

@@ -1,34 +1,23 @@
 local file = require 'pl.file'
+local send = require_ 'utils.send'
 
 local M = {}
 
 -- Takes a binary argument, base64 encodes it, and chunks it into multiple
 -- AUTHENTICATE commands
-function M.encode_authenticate(body, secret)
-    local commands = {}
-    local n = 0
-
-    local function authenticate(msg)
-        n = n + 1
-        commands[n] = {'AUTHENTICATE', {content=msg, secret=secret}}
-    end
-
+function M.authenticate(body, secret)
     if body then
         body = snowcone.to_base64(body)
-        while #body >= 400 do
-            authenticate(string.sub(body, 1, 400))
-            body = string.sub(body, 401)
+        local n = #body
+        for i = 1, n, 400 do
+            send('AUTHENTICATE', {content=string.sub(body, i, i+399), secret=secret})
         end
-
-        if '' == body then
-            body = '+'
+        if n % 400 == 0 then
+            authenticate '+'
         end
-        authenticate(body)
     else
         authenticate '*'
     end
-
-    return commands
 end
 
 local function load_key(key, password)
@@ -39,7 +28,7 @@ local function load_key(key, password)
     return key
 end
 
-function M.start(mechanism, authcid, password, key, authzid)
+function M.start_mech(mechanism, authcid, password, key, authzid)
     local co
     if mechanism == 'PLAIN' then
         co = require_ 'sasl.plain' (authzid, authcid, password)
@@ -61,6 +50,24 @@ function M.start(mechanism, authcid, password, key, authzid)
         error 'bad mechanism'
     end
     return {'AUTHENTICATE', mechanism}, co
+end
+
+-- install SASL state machine based on configuration values
+-- and send the first AUTHENTICATE command
+function M.start()
+    local success, auth_cmd
+    success, auth_cmd, irc_state.sasl = pcall(M.start_mech,
+        configuration.irc_sasl_mechanism,
+        configuration.irc_sasl_username,
+        configuration.irc_sasl_password,
+        configuration.irc_sasl_key,
+        configuration.irc_sasl_authzid
+    )
+    if success then
+        send(table.unpack(auth_cmd))
+    else
+        status('sasl', 'startup failed: %s', auth_cmd)
+    end
 end
 
 return M
