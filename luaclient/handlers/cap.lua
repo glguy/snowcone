@@ -27,27 +27,32 @@ function CAP.LS(x, y)
     -- CAP * LS * :x y z    -- continuation
     -- CAP * LS :x y z      -- final
 
-    if irc_state.caps_available == nil then
-        irc_state.caps_available = Set{}
+    if irc_state.caps_ls == nil then
+        irc_state.caps_ls = Set{}
     end
 
     local last = x ~= '*'
     local capsarg
     if last then capsarg = x else capsarg = y end
     for cap in capsarg:gmatch '([^ =]+)(=?)([^ ]*)' do
-        irc_state.caps_available[cap] = true
+        irc_state.caps_ls[cap] = true
     end
 
     if last then
-        if irc_state.caps_wanted ~= nil and not Set.isempty(irc_state.caps_wanted) then
-            local missing = Set.difference(irc_state.caps_wanted, irc_state.caps_available)
-            if Set.isempty(missing) then
-                send('CAP', 'REQ', table.concat(tablex.keys(irc_state.caps_wanted), ' '))
-            else
-                status('cap', 'caps not available: ' .. table.concat(Set.values(missing), ', '))
+        local req = {}
+
+        for cap in Set.iter(irc_state.caps_ls) do
+            if irc_state.caps_wanted[cap] and not irc_state.caps_enabled[cap] then
+                irc_state.caps_requested[cap] = true
+                table.insert(req, cap)
             end
         end
-        irc_state.caps_available = nil
+
+        if next(req) then
+            send('CAP', 'REQ', table.concat(req, ' '))
+        elseif irc_state.phase == 'registration' then
+            send('CAP', 'END')
+        end
     end
 end
 
@@ -71,9 +76,7 @@ end
 
 function CAP.ACK(capsarg)
     for minus, cap in capsarg:gmatch '(%-?)([^ =]+)' do
-        if irc_state.caps_wanted ~= nil then
-            irc_state.caps_wanted[cap] = nil
-        end
+        irc_state.caps_requested[cap] = nil
         if minus == '-' then
             irc_state.caps_enabled[cap] = nil
         else
@@ -82,26 +85,39 @@ function CAP.ACK(capsarg)
     end
 
     -- once all the requested caps have been ACKd clear up the request
-    if irc_state.caps_wanted ~= nil and Set.isempty(irc_state.caps_wanted) then
-        irc_state.caps_wanted = nil
+    if Set.isempty(irc_state.caps_requested) then
         if irc_state.caps_enabled.sasl and irc_state.want_sasl then
             irc_state.want_sasl = nil
             start_sasl()
-        else
-            if irc_state.registration then
-                send('CAP', 'END')
-            end
+        elseif irc_state.phase == 'registration' then
+            send('CAP', 'END')
         end
     end
 end
 
 function CAP.NAK(capsarg)
+    for cap in capsarg:gmatch '[^ ]+' do
+        irc_state.caps_requested[cap] = nil
+    end
     status('cap', "caps nak'd: %s", capsarg)
 end
 
 function CAP.DEL(capsarg)
     for cap in capsarg:gmatch '[^ ]+' do
         irc_state.caps_enabled[cap] = nil
+    end
+end
+
+function CAP.NEW(capsarg)
+    local req = {}
+    for cap in capsarg:gmatch '[^ ]+' do
+        if irc_state.caps_wanted[cap] and not irc_state.caps_enabled[cap] then
+            irc_state.caps_requested[cap] = true
+            table.insert(req, cap)
+        end
+        if next(req) then
+            send('CAP', 'REQ', table.concat(req, ' '))
+        end
     end
 end
 

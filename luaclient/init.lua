@@ -282,7 +282,7 @@ if not tick_timer then
     tick_timer = snowcone.newtimer()
     tick_timer:start(1000, 1000, function()
         uptime = uptime + 1
-        if irc_state.connected and uptime == liveness + 30 then
+        if irc_state.phase == 'connected' and uptime == liveness + 30 then
             send('PING', 'snowcone')
         end
         draw()

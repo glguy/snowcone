@@ -1,12 +1,13 @@
-local send = require_ 'utils.send'
 local Set = require 'pl.Set'
+
+local send = require_ 'utils.send'
 
 return function()
 
     irc_state = {
-        nick = configuration.irc_nick,
-        registration = true,
+        phase = 'registration',
         caps_enabled = Set{},
+        caps_requested = Set{}
     }
 
     local caps_wanted = Set{}

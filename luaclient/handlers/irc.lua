@@ -11,8 +11,7 @@ local split_nuh   = require_ 'utils.split_nick_user_host'
 -- .caps_enabled   - set of string   - create before LS - consume at quit
 -- .caps_list      - array of string - list of enabled caps - consume after LIST
 -- .want_sasl      - boolean         - consume at ACK to trigger SASL session
--- .registration   - boolean         - create on connect - consume at 001
--- .connected      - boolean         - create on 001     - consume at ERROR
+-- .phase          - string          - registration or connected
 -- .sasl           - coroutine       - AUTHENTICATE state machine
 -- .nick           - string          - current nickname
 -- .target_nick    - string          - consumed when target nick recovered
@@ -26,7 +25,7 @@ end
 local M = {}
 
 function M.ERROR()
-    irc_state.connected = nil
+    irc_state.phase = 'closed'
 end
 
 function M.PING(irc)
@@ -116,8 +115,8 @@ M.AUTHENTICATE = function(irc)
 end
 
 M[N.RPL_WELCOME] = function(irc)
-    irc_state.registration = nil
-    irc_state.connected = true
+    irc_state.phase = 'connected'
+    irc_state.nick = irc[1]
     status('irc', 'connected to %s', irc.source)
 
     if configuration.irc_oper_username and configuration.irc_challenge_key then
@@ -204,7 +203,7 @@ M[N.RPL_SASLSUCCESS] = function()
         status('irc', 'SASL success')
         irc_state.sasl = nil
 
-        if irc_state.registration then
+        if irc_state.phase == 'registration' then
             send('CAP', 'END')
         end
     end
@@ -234,9 +233,8 @@ M[N.RPL_SASLMECHS] = function()
 end
 
 local function new_nickname()
-    if irc_state.registration then
+    if irc_state.phase == 'registration' then
         local nick = string.format('%.10s-%05d', configuration.irc_nick, math.random(0,99999))
-        irc_state.nick = nick
         irc_state.target_nick = configuration.irc_nick
         send('NICK', nick)
     end

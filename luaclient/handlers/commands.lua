@@ -85,7 +85,7 @@ end)
 
 add_command('umode', '$R', function(args)
     -- raw send_irc hack to allow args to contain spaces
-    if send_irc then
+    if irc_state.phase == 'connected' and send_irc then
         send_irc('MODE ' .. irc_state.nick .. ' ' .. args .. '\r\n')
     else
         status('umode', 'not connected')
