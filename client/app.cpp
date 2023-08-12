@@ -50,7 +50,11 @@ auto App::do_mouse(int y, int x) -> void
 auto App::do_keyboard(long key) -> void
 {
     lua_pushinteger(L, key);
-    lua_callback(L, "on_keyboard");
+    auto const success = lua_callback(L, "on_keyboard");
+    // fallback ^C
+    if (not success and key == 3) {
+        raise(SIGINT);
+    }
 }
 
 auto App::do_paste() -> void

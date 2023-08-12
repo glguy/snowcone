@@ -266,13 +266,13 @@ auto load_logic(lua_State* const L, char const* const filename) -> bool
     }
 }
 
-auto lua_callback(lua_State* const L, char const* const key) -> void
+auto lua_callback(lua_State* const L, char const* const key) -> bool
 {
     /* args */
     lua_pushcfunction(L, lua_callback_worker); /* args f */
     lua_insert(L, 1); /* f args */
     lua_pushstring(L, key); /* f args key */
-    safecall(L, key, lua_gettop(L) - 1);
+    return LUA_OK == safecall(L, key, lua_gettop(L) - 1);
 }
 
 auto prepare_globals(lua_State* const L, int const argc, char ** const argv) -> void

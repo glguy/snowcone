@@ -22,7 +22,8 @@ auto load_logic(lua_State* L, char const* filename) -> bool;
 /// All arguments on the current Lua stack are pass to the function.
 /// @param L Lua state
 /// @param key Name of callback
-auto lua_callback(lua_State* L, char const* key) -> void;
+/// @return true on success and false on failure
+auto lua_callback(lua_State* L, char const* key) -> bool;
 
 /// @brief Install app functionality into global variables in the lua state
 /// @param L Lua state
