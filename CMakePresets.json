@@ -2,9 +2,9 @@
     "version": 2,
     "configurePresets": [
         {
-            "name": "mac",
+            "name": "arm-mac",
             "displayName": "",
-            "description": "Sets Ninja generator, build and install directory",
+            "description": "Configure for Apple Silicon macOS",
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "cacheVariables": {
@@ -15,22 +15,49 @@
             "environment": {
                 "PKG_CONFIG_PATH": "/opt/homebrew/opt/ncurses/lib/pkgconfig:/opt/homebrew/opt/hs/lib/pkgconfig"
             }
+        },
+        {
+            "name": "intel-mac",
+            "displayName": "",
+            "description": "Configure for x86_64 macOS",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_TOOLCHAIN_FILE": "",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}"
+            },
+            "environment": {
+                "PKG_CONFIG_PATH": "/usr/local/opt/ncurses/lib/pkgconfig:/usr/local/opt/hyperscan/lib/pkgconfig"
+            }
         }
     ],
     "buildPresets": [
         {
-            "name": "mac",
+            "name": "arm-mac",
             "description": "",
             "displayName": "",
-            "configurePreset": "mac"
+            "configurePreset": "arm-mac"
+        },
+        {
+            "name": "intel-mac",
+            "description": "",
+            "displayName": "",
+            "configurePreset": "intel-mac"
         }
     ],
     "testPresets": [
         {
-            "name": "mac",
+            "name": "arm-mac",
             "description": "",
             "displayName": "",
-            "configurePreset": "mac"
+            "configurePreset": "arm-mac"
+        },
+        {
+            "name": "intel-mac",
+            "description": "",
+            "displayName": "",
+            "configurePreset": "intel-mac"
         }
     ]
 }
