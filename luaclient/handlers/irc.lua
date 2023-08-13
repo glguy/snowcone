@@ -201,6 +201,28 @@ M[N.RPL_YOUREOPER] = function()
     status('irc', "you're oper")
 end
 
+-----------------------------------------------------------------------
+
+M[N.RPL_LIST] = function(irc)
+    if irc_state.channel_list_complete then
+        irc_state.channel_list = {}
+        irc_state.channel_list_complete = nil
+    elseif not irc_state.channel_list then
+        irc_state.channel_list = {}
+    end
+
+    irc_state.channel_list[irc[2]] = {
+        users = tonumber(irc[3]),
+        topic = irc[4],
+    }
+end
+
+M[N.RPL_LISTEND] = function()
+    irc_state.channel_list_complete = true
+end
+
+-----------------------------------------------------------------------
+
 M[N.RPL_SASLSUCCESS] = function()
     if irc_state.sasl then
         status('irc', 'SASL success')
