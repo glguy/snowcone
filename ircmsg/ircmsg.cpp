@@ -79,7 +79,14 @@ std::string_view unescape_tag_value(char* const val)
     return {val, write};
 }
 
-std::vector<irctag> parse_tags(char* str)
+} // namespace
+
+auto irctag::hasval() const -> bool
+{
+    return val.data() != nullptr;
+}
+
+auto parse_irc_tags(char* str) -> std::vector<irctag>
 {
     std::vector<irctag> tags;
 
@@ -99,20 +106,14 @@ std::vector<irctag> parse_tags(char* str)
     return tags;
 }
 
-} // namespace
-
-bool irctag::hasval() const {
-    return val.data() != nullptr;
-}
-
-ircmsg parse_irc_message(char* msg)
+auto parse_irc_message(char* msg) -> ircmsg
 {
     parser p {msg};
     ircmsg out;
 
     /* MESSAGE TAGS */
     if (p.match('@')) {
-        out.tags = parse_tags(p.word());
+        out.tags = parse_irc_tags(p.word());
     }
 
     /* MESSAGE SOURCE */
@@ -138,11 +139,13 @@ ircmsg parse_irc_message(char* msg)
     return out;
 }
 
-bool ircmsg::hassource() const {
+auto ircmsg::hassource() const -> bool
+{
     return source.data() != nullptr;
 }
 
-std::ostream& operator<<(std::ostream& out, irc_error_code code) {
+auto operator<<(std::ostream& out, irc_error_code code) -> std::ostream&
+{
     switch(code) {
         case irc_error_code::MISSING_COMMAND: out << "MISSING COMMAND"; return out;
         case irc_error_code::MISSING_TAG: out << "MISSING TAG"; return out;

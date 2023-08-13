@@ -211,6 +211,21 @@ auto l_shutdown(lua_State* const L) -> int
     return 0;
 }
 
+auto l_parse_irc_tags(lua_State * const L) -> int
+{
+    std::size_t len;
+    auto const str = luaL_checklstring(L, 1, &len);
+    auto const buffer = static_cast<char*>(lua_newuserdatauv(L, len+1, 0));
+    memcpy(buffer, str, len);
+    buffer[len] = '\0';
+    try {
+        pushtags(L, parse_irc_tags(buffer));
+        return 1;
+    } catch (irc_parse_error e) {
+        return 0;
+    }
+}
+
 luaL_Reg const applib_module[] = {
     { "to_base64", l_to_base64 },
     { "from_base64", l_from_base64 },
@@ -224,6 +239,7 @@ luaL_Reg const applib_module[] = {
     { "shutdown", l_shutdown},
     { "connect", start_irc },
     { "dnslookup", l_dnslookup },
+    { "parse_irc_tags", l_parse_irc_tags },
     {}
 };
 

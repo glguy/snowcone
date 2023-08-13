@@ -13,9 +13,9 @@ struct irctag
 
     /// @brief Check if a tag has an associated value to distinguish between empty value and missing value.
     /// @return true when tag has an explicit value
-    bool hasval() const;
+    auto hasval() const -> bool;
 
-    friend bool operator==(irctag const&, irctag const&) = default;
+    friend auto operator==(irctag const&, irctag const&) -> bool = default;
 };
 
 struct ircmsg
@@ -47,7 +47,7 @@ enum class irc_error_code {
     MISSING_COMMAND,
 };
 
-std::ostream& operator<<(std::ostream& out, irc_error_code);
+auto operator<<(std::ostream& out, irc_error_code) -> std::ostream&;
 
 struct irc_parse_error : public std::exception {
     irc_error_code code;
@@ -61,4 +61,6 @@ struct irc_parse_error : public std::exception {
  *
  * Returns zero for success, non-zero for parse error.
  */
-ircmsg parse_irc_message(char* msg);
+auto parse_irc_message(char* msg) -> ircmsg;
+
+auto parse_irc_tags(char* msg) -> std::vector<irctag>;

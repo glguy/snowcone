@@ -6,7 +6,7 @@ stds = {
         read_globals = {
             snowcone = {
               fields = {"to_base64", "from_base64", "dnslookup", "pton", "shutdown", "newtimer",
-                "setmodule", "raise", "xor_strings", "isalnum", "irccase",
+                "setmodule", "raise", "xor_strings", "isalnum", "irccase", "parse_irc_tags",
                 "SIGINT", "SIGTSTP", "connect" },
             },
         },
@@ -15,7 +15,7 @@ stds = {
         read_globals = {"tty_height", "tty_width", "mygeoip", "ncurses"},
         globals = {
             -- general functionality
-            "require_", "next_view", "prev_view",
+            "require_", "next_view", "prev_view", "irc_handlers",
             "quit", "send_irc", "exiting", "disconnect",
             "reset_filter", "initialize", "counter_sync_commands",
             "ctrl", "meta", "status", "plugins", "draw_suspend",

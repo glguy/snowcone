@@ -231,12 +231,6 @@ function draw_global_load()
         add_click(tty_height-1, 0, 9, next_view)
         ncurses.cursset(0)
     end
-
-    local y1, x1 = ncurses.getyx()
-    if x1 < tty_width - 1 then
-        addstr(string.rep(' ', tty_width - x1))
-        ncurses.move(y1, x1)
-    end
 end
 
 views = {
@@ -245,6 +239,7 @@ views = {
     status = require_ 'view.status',
     plugins = require_ 'view.plugins',
     help = require_ 'view.help',
+    bouncer = require_ 'view.bouncer'
 }
 
 main_views = {'console', 'status'}
@@ -416,7 +411,10 @@ local function on_irc(irc, err)
 
     -- Ignore chat history
     local batch = irc_state.batches[irc.tags.batch]
-    if batch and batch[1] == 'chathistory' then
+    if batch then
+        local n = batch.n + 1
+        batch.n = n
+        batch.messages[n] = irc
         return
     end
 

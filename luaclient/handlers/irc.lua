@@ -113,13 +113,50 @@ function M.AUTHENTICATE(irc)
     end
 end
 
+local batch_handlers = require_ 'handlers.batch'
 function M.BATCH(irc)
     local polarity = irc[1]:sub(1,1)
     local name = irc[1]:sub(2)
+    local params = tablex.sub(irc, 2)
     if '+' == polarity then
-        irc_state.batches[name] = tablex.sub(irc, 2)
+        irc_state.batches[name] = {
+            params = params,
+            messages = {},
+            n = 0
+        }
     elseif '-' == polarity then
+        local batch = irc_state.batches[name]
         irc_state.batches[name] = nil
+        if batch then
+            local h = batch_handlers[batch.params[1]]
+            if h then
+                h(batch.params, batch.messages)
+            end
+        end
+    end
+end
+
+function M.BOUNCER(irc)
+    if 'NETWORK' == irc[1] then
+        if irc_state.bouncer_networks then
+            local netid, attrs = irc[2], irc[3]
+            if attrs == '*' then
+                irc.bouncer_networks[netid] = nil
+            else
+                local network = irc_state.bouncer_networks[netid]
+                if nil == network then
+                    network = {}
+                    irc_state.bouncer_networks[netid] = network
+                end
+                for k, v in pairs(snowcone.parse_irc_tags(attrs)) do
+                    if true == v then
+                        network[k] = nil
+                    else
+                        network[k] = v
+                    end
+                end
+            end
+        end
     end
 end
 

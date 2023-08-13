@@ -21,8 +21,7 @@ extern "C"
 #include <sstream>
 #include <string>
 
-namespace
-{
+namespace {
     /**
      * @brief Push string_view value onto Lua stack
      *
@@ -34,25 +33,32 @@ namespace
     {
         return lua_pushlstring(L, str.data(), str.size());
     }
+}
 
+auto pushtags(lua_State * const L, std::vector<irctag> const& tags) -> void
+{
+    lua_createtable(L, 0, tags.size());
+    for (auto &&tag : tags)
+    {
+        push_stringview(L, tag.key);
+        if (tag.hasval())
+        {
+            push_stringview(L, tag.val);
+        }
+        else
+        {
+            lua_pushboolean(L, 1);
+        }
+        lua_settable(L, -3);
+    }
+}
+
+namespace
+{
     auto pushircmsg(lua_State * const L, ircmsg const &msg) -> void
     {
         lua_createtable(L, msg.args.size(), 3);
-
-        lua_createtable(L, 0, msg.tags.size());
-        for (auto &&tag : msg.tags)
-        {
-            push_stringview(L, tag.key);
-            if (tag.hasval())
-            {
-                push_stringview(L, tag.val);
-            }
-            else
-            {
-                lua_pushboolean(L, 1);
-            }
-            lua_settable(L, -3);
-        }
+        pushtags(L, msg.tags);
         lua_setfield(L, -2, "tags");
 
         if (msg.hassource())
