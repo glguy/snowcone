@@ -231,6 +231,12 @@ function draw_global_load()
         add_click(tty_height-1, 0, 9, next_view)
         ncurses.cursset(0)
     end
+
+    local y1, x1 = ncurses.getyx()
+    if x1 < tty_width - 1 then
+        addstr(string.rep(' ', tty_width - x1))
+        ncurses.move(y1, x1)
+    end
 end
 
 views = {
