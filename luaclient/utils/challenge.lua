@@ -5,7 +5,7 @@ local M = {}
 function M.start()
     local openssl       = require 'openssl'
     local file          = require 'pl.file'
-    
+
     -- make sure we have a username and a key before bothering the server
     local user          = assert(configuration.irc_oper_username, 'missing irc_oper_username')
     local rsa_key       = assert(file.read(configuration.irc_challenge_key))

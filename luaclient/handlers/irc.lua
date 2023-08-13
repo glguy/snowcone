@@ -203,7 +203,8 @@ M[N.RPL_ISUPPORT] = function(irc)
 
     for i = 2, #irc - 1 do
         local token = irc[i]
-        local minus, key, equals, val = string.match(token, '^(%-?)(%w+)(=?)(.*)$')
+        -- soju.im/bouncer-networks happens to add _ to the allowed characters
+        local minus, key, equals, val = string.match(token, '^(%-?)([%u%d_]+)(=?)(.*)$')
         if minus == '-' then
             isupport[key] = nil
         elseif equals == '' then

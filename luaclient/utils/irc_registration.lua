@@ -17,7 +17,7 @@ return function()
         irc_state.caps_wanted.sasl = true
         irc_state.want_sasl = true
     end
-    
+
     if not Set.isempty(irc_state.caps_wanted) then
         send('CAP', 'LS', '302')
     end
