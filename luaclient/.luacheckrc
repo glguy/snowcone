@@ -36,7 +36,7 @@ stds = {
             -- ncurses helpers
             "addstr", "mvaddstr",
             "bold", "bold_", "underline", "underline_", "normal", "reversevideo", "reversevideo_",
-            "red", "green", "cyan", "black", "yellow", "magenta", "white", "blue",
+            "red", "green", "cyan", "black", "yellow", "magenta", "white", "blue", "italic", "italic_"
             },
         },
     },

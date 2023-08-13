@@ -238,7 +238,7 @@ int luaopen_myncurses(lua_State *L)
 	/* attributes */
 	CC(WA_NORMAL);      CC(WA_STANDOUT);    CC(WA_UNDERLINE);
 	CC(WA_REVERSE);     CC(WA_BLINK);       CC(WA_DIM);
-	CC(WA_BOLD);        CC(WA_ALTCHARSET);
+	CC(WA_BOLD);        CC(WA_ALTCHARSET);  CC(WA_ITALIC);
 
 	CC(KEY_DOWN);       CC(KEY_UP);         CC(KEY_END);
 	CC(KEY_LEFT);       CC(KEY_RIGHT);      CC(KEY_HOME);

@@ -11,12 +11,14 @@ return function(str)
     local on_b, on_b_
     local on_u, on_u_
     local on_r, on_r_
+    local on_i, on_i_
     local background
 
     local function init()
         on_b, on_b_ = bold,         bold_
         on_u, on_u_ = underline,    underline_
         on_r, on_r_ = reversevideo, reversevideo_
+        on_i, on_i_ = italic,       italic_
         background = nil
         normal()
     end
@@ -72,6 +74,11 @@ return function(str)
         elseif ctrl == '\x16' then
             on_r()
             on_r, on_r_ = on_r_, on_r
+
+        -- ^] - italic
+        elseif ctrl == '\x1d' then
+            on_i()
+            on_i, on_i_ = on_i_, on_i
 
         -- unsupported control character
         else
