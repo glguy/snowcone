@@ -75,9 +75,12 @@ end
 
 add_command('talk', '$g', function(target)
     talk_target = target
-    if not buffers[target] then
+    view = 'buffer'
+
+    local buffer_name = snowcone.irccase(target)
+    if not buffers[buffer_name] then
         local maxhistory = 1000
-        buffers[target] = OrderedMap(maxhistory)
+        buffers[buffer_name] = OrderedMap(maxhistory)
         if irc_state.caps_enabled['draft/chathistory'] then
             local amount = tonumber(irc_state.isupport.CHATHISTORY)
             if nil == amount or amount > maxhistory then
@@ -86,7 +89,6 @@ add_command('talk', '$g', function(target)
             send('CHATHISTORY', 'LATEST', target, '*', amount)
         end
     end
-    view = 'buffer'
 end)
 
 add_command('msg', '$g $r', function(target, message)

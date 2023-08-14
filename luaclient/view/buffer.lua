@@ -1,37 +1,24 @@
 local addircstr = require_ 'utils.irc_formatting'
 local drawing = require 'utils.drawing'
 
-local function pretty_source(source)
+local function render_irc(irc)
+    local command = irc.command
+    local source = irc.source:match '^(.-)([.!])'
+    local action = irc[2]:match '^\x01ACTION (.*)\x01$'
+    local text = action or irc[2]
+
     if source == '>>>' then
         red()
-    else
-        local head, kind = string.match(source, '^(.-)([.!])')
-        source = head or source
-        if kind == '!' then
-            cyan()
-        else
-            yellow()
-        end
-    end
-    addstr(string.format('%16.16s ', source))
-    normal()
-end
-
-local function render_irc(irc)
-    addstr ' '
-
-    if irc.source then
-        pretty_source(irc.source)
-    else
-        addstr(string.rep(' ', 17))
-    end
-
-    local command = irc.command
-    if command == 'PRIVMSG' then
-        addircstr(irc[2])
+    elseif action then
+        blue()
+    elseif command == 'PRIVMSG' then
+        cyan()
     elseif command == 'NOTICE' then
-        addircstr(irc[2])
+        green()
     end
+
+    addstr(string.format(' %16.16s ', source))
+    addircstr(text)
 end
 
 local M = {
@@ -67,7 +54,7 @@ function M:keypress(key)
 end
 
 local function draw_messages()
-    local buffer = buffers[talk_target]
+    local buffer = buffers[snowcone.irccase(talk_target)]
     if not buffer then return end
 
     local current_filter

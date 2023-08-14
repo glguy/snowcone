@@ -51,7 +51,7 @@ function M.PRIVMSG(irc)
         end
     end
 
-    local buffer = buffers[target]
+    local buffer = buffers[snowcone.irccase(target)]
     if buffer then
         buffer:insert(true, irc)
     end
@@ -59,7 +59,7 @@ end
 
 function M.NOTICE(irc)
     local target = irc[1]
-    local buffer = buffers[target]
+    local buffer = buffers[snowcone.irccase(target)]
     if buffer then
         buffer:insert(true, irc)
     end

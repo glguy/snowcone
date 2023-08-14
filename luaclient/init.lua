@@ -163,6 +163,12 @@ end
 
 -- Screen rendering ===================================================
 
+local input_mode_palette = {
+    command = ncurses.blue,
+    talk = ncurses.green,
+    filter = ncurses.red,
+}
+
 function draw_global_load()
     local titlecolor = ncurses.white
 
@@ -170,11 +176,12 @@ function draw_global_load()
     mvaddstr(tty_height-1, 0, string.format('%-8.8s', view))
 
     if input_mode then
-        ncurses.colorset(titlecolor, ncurses.blue)
+        local input_mode_color = input_mode_palette[input_mode]
+        ncurses.colorset(titlecolor, input_mode_color)
         addstr('')
-        ncurses.colorset(ncurses.white, ncurses.blue)
+        ncurses.colorset(ncurses.white, input_mode_color)
         addstr(input_mode)
-        blue()
+        ncurses.colorset(input_mode_color)
         addstr('')
 
         if 1 < editor.first then

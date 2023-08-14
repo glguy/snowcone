@@ -10,7 +10,7 @@ end
 
 M['chathistory'] = function(params, messages)
     local target = params[1]
-    local buffer = buffers[target]
+    local buffer = buffers[snowcone.irccase(target)]
     if not buffer then return end
 
     for _, irc in ipairs(messages) do

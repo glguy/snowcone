@@ -288,12 +288,6 @@ function M:render()
     draw_global_load()
 end
 
-function M:draw_status()
-    if talk_target then
-        green()
-        addstr(talk_target .. '')
-        normal()
-    end
-end
+function M:draw_status() end
 
 return M
