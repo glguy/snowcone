@@ -22,7 +22,7 @@ stds = {
             "prepare_kline", "tick_timer", "reconnect_timer", "configuration",
 
             -- global client state
-            "irc_state", "status_message", "input_mode",
+            "irc_state", "status_message", "input_mode", "talk_target",
             "view", "views", "uptime", "liveness", "scroll", "editor",
             "uv_resources", "filter", "main_views",
             "focus", "status_messages", "commands", "config_dir",

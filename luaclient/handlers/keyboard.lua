@@ -1,9 +1,20 @@
+local send = require_ 'utils.send'
+
 local execute = {}
 
 function execute.filter()
     filter = editor.rendered
     if filter == '' then
         filter = nil
+    end
+    editor:reset()
+    input_mode = nil
+end
+
+function execute.talk()
+    local msg = editor.rendered
+    if msg ~= '' then
+        send('PRIVMSG', talk_target, editor.rendered)
     end
     editor:reset()
     input_mode = nil

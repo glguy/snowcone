@@ -102,7 +102,6 @@ end
 local M = {
     active = true,
     title = 'console',
-    draw_status = function() end,
 }
 
 local keys = {
@@ -118,6 +117,12 @@ local keys = {
     end,
     [meta 'h'] = function() hide_snow = not hide_snow end,
     [meta 'r'] = function() show_raw = not show_raw end,
+    [string.byte('t')] = function()
+        if talk_target ~= nil then
+            editor:reset()
+            input_mode = 'talk'
+        end
+    end,
 }
 
 function M:keypress(key)
@@ -281,6 +286,14 @@ function M:render()
     end
     draw_messages()
     draw_global_load()
+end
+
+function M:draw_status()
+    if talk_target then
+        green()
+        addstr(talk_target .. '')
+        normal()
+    end
 end
 
 return M

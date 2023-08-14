@@ -73,6 +73,10 @@ end
 
 -- Pretending to be an IRC client
 
+add_command('talk', '$g', function(target)
+    talk_target = target
+end)
+
 add_command('msg', '$g $r', function(target, message)
     send('PRIVMSG', target, message)
 end)
