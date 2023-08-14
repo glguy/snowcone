@@ -93,7 +93,8 @@ end
 
 local defaults = {
     -- state
-    messages = OrderedMap(1000),
+    messages = OrderedMap(1000), -- Raw IRC protocol messages
+    buffers = {}, -- channel and nickname keys to formatted messages
     status_messages = OrderedMap(100),
     editor = Editor(),
     view = 'console',
@@ -239,7 +240,8 @@ views = {
     status = require_ 'view.status',
     plugins = require_ 'view.plugins',
     help = require_ 'view.help',
-    bouncer = require_ 'view.bouncer'
+    bouncer = require_ 'view.bouncer',
+    buffer = require_ 'view.buffer'
 }
 
 main_views = {'console', 'status'}

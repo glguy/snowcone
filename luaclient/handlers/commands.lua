@@ -2,7 +2,7 @@ local challenge = require 'utils.challenge'
 local mkcommand = require 'utils.mkcommand'
 local sasl = require 'sasl'
 local send = require 'utils.send'
-local utils_time = require 'utils.time'
+local OrderedMap = require_ 'components.OrderedMap'
 
 local M = {}
 
@@ -75,6 +75,18 @@ end
 
 add_command('talk', '$g', function(target)
     talk_target = target
+    if not buffers[target] then
+        local maxhistory = 1000
+        buffers[target] = OrderedMap(maxhistory)
+        if irc_state.caps_enabled['draft/chathistory'] then
+            local amount = tonumber(irc_state.isupport.CHATHISTORY)
+            if nil == amount or amount > maxhistory then
+                amount = maxhistory
+            end
+            send('CHATHISTORY', 'LATEST', target, '*', amount)
+        end
+    end
+    view = 'buffer'
 end)
 
 add_command('msg', '$g $r', function(target, message)

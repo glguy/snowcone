@@ -50,6 +50,19 @@ function M.PRIVMSG(irc)
             end
         end
     end
+
+    local buffer = buffers[target]
+    if buffer then
+        buffer:insert(true, irc)
+    end
+end
+
+function M.NOTICE(irc)
+    local target = irc[1]
+    local buffer = buffers[target]
+    if buffer then
+        buffer:insert(true, irc)
+    end
 end
 
 local cap_cmds = require_ 'handlers.cap'
@@ -117,10 +130,10 @@ local batch_handlers = require_ 'handlers.batch'
 function M.BATCH(irc)
     local polarity = irc[1]:sub(1,1)
     local name = irc[1]:sub(2)
-    local params = tablex.sub(irc, 2)
     if '+' == polarity then
         irc_state.batches[name] = {
-            params = params,
+            identifier = irc[2],
+            params = tablex.sub(irc, 3),
             messages = {},
             n = 0
         }
@@ -128,7 +141,7 @@ function M.BATCH(irc)
         local batch = irc_state.batches[name]
         irc_state.batches[name] = nil
         if batch then
-            local h = batch_handlers[batch.params[1]]
+            local h = batch_handlers[batch.identifier]
             if h then
                 h(batch.params, batch.messages)
             end

@@ -8,4 +8,17 @@ M['soju.im/bouncer-networks'] = function(_, messages)
     irc_state.bouncer_networks = networks
 end
 
+M['chathistory'] = function(params, messages)
+    local target = params[1]
+    local buffer = buffers[target]
+    if not buffer then return end
+
+    for _, irc in ipairs(messages) do
+        local command = irc.command
+        if command == "PRIVMSG" or command == "NOTICE" then
+            buffer:insert(true, irc)
+        end
+    end
+end
+
 return M
