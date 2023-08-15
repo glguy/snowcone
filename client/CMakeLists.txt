@@ -15,4 +15,8 @@ if(LIBHS_FOUND)
 target_link_libraries(ircc PRIVATE hsfilter)
 endif()
 
+if(LIBIDN_FOUND)
+target_link_libraries(ircc PRIVATE mysaslprep)
+endif()
+
 install(TARGETS ircc DESTINATION "${CMAKE_INSTALL_BINDIR}")

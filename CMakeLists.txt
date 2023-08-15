@@ -17,6 +17,7 @@ pkg_check_modules(NCURSESW REQUIRED IMPORTED_TARGET ncursesw>=6)
 pkg_check_modules(UV       REQUIRED IMPORTED_TARGET libuv)
 pkg_check_modules(GEOIP             IMPORTED_TARGET geoip)
 pkg_check_modules(LIBHS             IMPORTED_TARGET libhs)
+pkg_check_modules(LIBIDN            IMPORTED_TARGET libidn)
 
 if(GEOIP_FOUND)
 add_subdirectory(mygeoip)
@@ -24,6 +25,10 @@ endif()
 
 if(LIBHS_FOUND)
 add_subdirectory(hsfilter)
+endif()
+
+if (LIBIDN_FOUND)
+add_subdirectory(mysaslprep)
 endif()
 
 add_subdirectory(ircmsg)

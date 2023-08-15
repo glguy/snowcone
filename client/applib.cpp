@@ -24,6 +24,10 @@ extern "C" {
 #include "hsfilter.hpp"
 #endif
 
+#ifdef LIBIDN_FOUND
+#include "mysaslprep.h"
+#endif
+
 #include <algorithm>
 #include <csignal>
 #include <cstring>
@@ -295,11 +299,17 @@ auto prepare_globals(lua_State* const L, int const argc, char ** const argv) -> 
 {
     /* setup libraries */
     luaL_openlibs(L);
+
     luaL_requiref(L, "ncurses", luaopen_myncurses, 1);
     lua_pop(L, 1);
 
 #ifdef LIBHS_FOUND
     luaL_requiref(L, "hsfilter", luaopen_hsfilter, 1);
+    lua_pop(L, 1);
+#endif
+
+#ifdef LIBIDN_FOUND
+    luaL_requiref(L, "mysaslprep", luaopen_mysaslprep, 1);
     lua_pop(L, 1);
 #endif
 

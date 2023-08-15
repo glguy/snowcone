@@ -29,9 +29,24 @@ local function load_key(key, password)
 end
 
 function M.start_mech(mechanism, authcid, password, key, authzid)
+
+    -- If libidn is available, we SaslPrep all the authentiation strings
+    local saslpassword = password -- normal password will get used for private key decryption
+    if mysaslprep then
+        if authcid then
+            authcid = mysaslprep.saslprep(authcid)
+        end
+        if authzid then
+            authzid = mysaslprep.saslprep(authzid)
+        end
+        if saslpassword then
+            saslpassword = mysaslprep.saslprep(saslpassword)
+        end
+    end
+
     local co
     if mechanism == 'PLAIN' then
-        co = require_ 'sasl.plain' (authzid, authcid, password)
+        co = require_ 'sasl.plain' (authzid, authcid, saslpassword)
     elseif mechanism == 'EXTERNAL' then
         co = require_ 'sasl.external' (authzid)
     elseif mechanism == 'ECDSA-NIST256P-CHALLENGE' then
@@ -41,11 +56,11 @@ function M.start_mech(mechanism, authcid, password, key, authzid)
         key = load_key(key, password)
         co = require_ 'sasl.ecdh' (authzid, authcid, key)
     elseif mechanism == 'SCRAM-SHA-1'   then
-        co = require_ 'sasl.scram' ('sha1', authzid, authcid, password)
+        co = require_ 'sasl.scram' ('sha1', authzid, authcid, saslpassword)
     elseif mechanism == 'SCRAM-SHA-256' then
-        co = require_ 'sasl.scram' ('sha256', authzid, authcid, password)
+        co = require_ 'sasl.scram' ('sha256', authzid, authcid, saslpassword)
     elseif mechanism == 'SCRAM-SHA-512' then
-        co = require_ 'sasl.scram' ('sha512', authzid, authcid, password)
+        co = require_ 'sasl.scram' ('sha512', authzid, authcid, saslpassword)
     else
         error 'bad mechanism'
     end
