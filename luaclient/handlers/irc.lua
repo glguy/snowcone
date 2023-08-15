@@ -216,19 +216,7 @@ function M.KICK(irc)
 end
 
 M[N.RPL_WELCOME] = function(irc)
-    irc_state.phase = 'connected'
     irc_state.nick = irc[1]
-    status('irc', 'connected to %s', irc.source)
-
-    if configuration.irc_oper_username and configuration.irc_challenge_key then
-        challenge.start()
-    elseif configuration.irc_oper_username and configuration.irc_oper_password then
-        send('OPER', configuration.irc_oper_username,
-            {content=configuration.irc_oper_password, secret=true})
-    else
-        -- determine if we're already oper
-        send('MODE', irc_state.nick)
-    end
 end
 
 M[N.RPL_ISUPPORT] = function(irc)
@@ -249,6 +237,47 @@ M[N.RPL_ISUPPORT] = function(irc)
         else
             isupport[key] = val
         end
+    end
+end
+
+local function end_of_registration()
+    irc_state.phase = 'connected'
+
+    if configuration.irc_oper_username and configuration.irc_challenge_key then
+        challenge.start()
+    elseif configuration.irc_oper_username and configuration.irc_oper_password then
+        send('OPER', configuration.irc_oper_username,
+            {content=configuration.irc_oper_password, secret=true})
+    else
+        -- determine if we're already oper
+        send('MODE', irc_state.nick)
+    end
+
+    if irc_state.caps_enabled['draft/chathistory'] then
+        local supported_amount = tonumber(irc_state.isupport.CHATHISTORY)
+        for target, buffer in pairs(buffers) do
+            local amount = math.min(buffer.max, supported_amount)
+            local ts
+            local lastirc = buffer:lookup(true)
+            if lastirc and lastirc.tags.time then
+                ts = 'timestamp=' .. lastirc.tags.time
+            else
+                ts = '*'
+            end
+            send('CHATHISTORY', 'LATEST', target, ts, amount)
+        end
+    end
+end
+
+M[N.RPL_ENDOFMOTD] = function()
+    if irc_state.phase == 'registration' then
+        end_of_registration()
+    end
+end
+
+M[N.ERR_NOMOTD] = function()
+    if irc_state.phase == 'registration' then
+        end_of_registration()
     end
 end
 
