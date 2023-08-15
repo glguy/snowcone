@@ -1,3 +1,5 @@
+local tablex = require 'pl.tablex'
+
 local addircstr = require_ 'utils.irc_formatting'
 local drawing = require 'utils.drawing'
 
@@ -95,6 +97,13 @@ function M:draw_status()
         green()
         addstr(talk_target .. '')
         normal()
+    end
+
+    for k, v in tablex.sort(buffers) do
+        if v.seen < v.n then
+            red()
+            addstr(k:lower() .. '')
+        end
     end
 end
 

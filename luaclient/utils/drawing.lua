@@ -50,6 +50,10 @@ local function rotating_window(source, rows, predicate)
 end
 
 function M.draw_rotation(start, rows, data, show_entry, draw)
+
+    -- assume that we've seen things that are drawn
+    data.seen = data.n
+
     local window = rotating_window(data, rows, show_entry)
     local clear_string = string.rep(' ', tty_width)
 
