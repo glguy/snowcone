@@ -10,6 +10,7 @@ return function()
         caps_enabled = Set{},
         caps_requested = Set{},
         batches = {},
+        channels = {},
     }
 
     -- always request sasl cap when sasl is configured

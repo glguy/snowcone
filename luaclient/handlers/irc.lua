@@ -191,6 +191,30 @@ function M.MODE(irc)
     end
 end
 
+function M.JOIN(irc)
+    local who = split_nuh(irc.source)
+    if who == irc_state.nick then
+        local channel = irc[1]
+        irc_state.channels[snowcone.irccase(channel)] = {}
+    end
+end
+
+function M.PART(irc)
+    local who = split_nuh(irc.source)
+    if who == irc_state.nick then
+        local channel = irc[1]
+        irc_state.channels[snowcone.irccase(channel)] = nil
+    end
+end
+
+function M.KICK(irc)
+    local target = irc[2]
+    if target == irc_state.nick then
+        local channel = irc[1]
+        irc_state.channels[snowcone.irccase(channel)] = nil
+    end
+end
+
 M[N.RPL_WELCOME] = function(irc)
     irc_state.phase = 'connected'
     irc_state.nick = irc[1]
