@@ -248,7 +248,7 @@ end
 local function draw_messages()
     local current_filter
     if input_mode == 'filter' then
-        current_filter = editor.rendered
+        current_filter = editor:content()
     else
         current_filter = filter
     end

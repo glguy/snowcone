@@ -34,7 +34,6 @@ end
 function M:render()
     self.before_cursor = utf8.char(table.unpack(self.buffer, self.first, self.cursor - 1))
     self.at_cursor = utf8.char(table.unpack(self.buffer, self.cursor))
-    self.rendered = self.before_cursor .. self.at_cursor
 end
 
 function M:overflow()
@@ -109,7 +108,7 @@ function M:newer_history()
 end
 
 function M:is_empty()
-    return self.rendered == ''
+    return not self.buffer[1]
 end
 
 function M:backspace()

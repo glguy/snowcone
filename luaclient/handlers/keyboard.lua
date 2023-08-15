@@ -3,7 +3,7 @@ local send = require_ 'utils.send'
 local execute = {}
 
 function execute.filter()
-    filter = editor.rendered
+    filter = editor:content()
     if filter == '' then
         filter = nil
     end
@@ -12,9 +12,9 @@ function execute.filter()
 end
 
 function execute.talk()
-    local msg = editor.rendered
+    local msg = editor:content()
     if msg ~= '' then
-        send('PRIVMSG', talk_target, editor.rendered)
+        send('PRIVMSG', talk_target, editor:content())
     end
     editor:reset()
     input_mode = nil
