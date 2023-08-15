@@ -81,6 +81,10 @@ function M:render()
     list_stats('messages', messages)
     list_stats('status', status_messages)
 
+    for k,v in pairs(buffers) do
+        list_stats(k,v)
+    end
+
     addstr '\n'
 
     draw_global_load()

@@ -3,7 +3,7 @@ local drawing = require 'utils.drawing'
 
 local function render_irc(irc)
     local command = irc.command
-    local source = irc.source:match '^(.-)([.!])'
+    local source = irc.source:match '^(.-)([.!])' or irc.source
     local action = irc[2]:match '^\x01ACTION (.*)\x01$'
     local text = action or irc[2]
 

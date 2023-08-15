@@ -47,4 +47,11 @@ return function(cmd, ...)
     send_irc(table.concat(parts, ' ') .. '\r\n')
 
     messages:insert(true, msg)
+
+    if cmd == 'PRIVMSG' or cmd == 'NOTICE' then
+        local buffer = buffers[snowcone.irccase(msg[1])]
+        if buffer then
+            buffer:insert(true, msg)
+        end
+    end
 end
