@@ -103,7 +103,6 @@ local defaults = {
     scroll = 0,
     status_message = '',
     irc_state = {},
-    draw_suspend = false,
     exiting = false,
 }
 
@@ -272,9 +271,6 @@ function prev_view()
 end
 
 function draw()
-    if draw_suspend then
-        return
-    end
     clicks = {}
     ncurses.erase()
     normal()
@@ -357,13 +353,16 @@ function M.on_keyboard(key)
 end
 
 function M.on_paste(paste)
-    draw_suspend = true
-    local f = M.on_keyboard
-    for _, c in utf8.codes(paste) do
-        f(c)
+    if input_mode then
+        for _, c in utf8.codes(paste) do
+            -- paste up to the first newline or nul
+            if c == 0 or c == 10 or c == 13 then
+                break
+            end
+            editor:add(c)
+        end
+        draw()
     end
-    draw_suspend = false
-    draw()
 end
 
 function M.on_mouse(y, x)

@@ -60,7 +60,7 @@ function execute.command()
 end
 
 local function do_tab(dir)
-    if input_mode then
+    if input_mode == 'command' then
         editor:tab(dir, function(prefix)
             local t = {}
             for k, _ in pairs(commands) do
