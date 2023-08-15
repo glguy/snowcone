@@ -242,6 +242,7 @@ end
 
 local function end_of_registration()
     irc_state.phase = 'connected'
+    status('irc', 'connected')
 
     if configuration.irc_oper_username and configuration.irc_challenge_key then
         challenge.start()
@@ -256,7 +257,13 @@ local function end_of_registration()
     if irc_state.caps_enabled['draft/chathistory'] then
         local supported_amount = tonumber(irc_state.isupport.CHATHISTORY)
         for target, buffer in pairs(buffers) do
-            local amount = math.min(buffer.max, supported_amount)
+            local amount = buffer.max
+
+            -- 0 indicates "no limit"
+            if 0 < supported_amount and supported_amount < amount then
+                amount = supported_amount
+            end
+
             local ts
             local lastirc = buffer:lookup(true)
             if lastirc and lastirc.tags.time then
@@ -264,6 +271,7 @@ local function end_of_registration()
             else
                 ts = '*'
             end
+
             send('CHATHISTORY', 'LATEST', target, ts, amount)
         end
     end
