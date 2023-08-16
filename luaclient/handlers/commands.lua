@@ -91,6 +91,8 @@ add_command('talk', '$g', function(target)
     -- join the channel if it's a channel and we're not in it
     if irc_state:is_channel_name(buffer_name) and not irc_state.channels[buffer_name] then
         send('JOIN', target)
+    elseif irc_state:has_monitor() and not irc_state:is_monitored(buffer_name) then
+        send('MONITOR', '+', buffer_name)
     end
 
     if not buffers[buffer_name] then

@@ -16,6 +16,14 @@ function M:_init()
     self.monitor = {} -- map irccased nickname mapped to {nick=str, online=bool}
 end
 
+function M:has_monitor()
+    return self.isupport.MONITOR ~= nil
+end
+
+function M:is_monitored(nick)
+    return self.monitor[snowcone.irccase(nick)] ~= nil
+end
+
 function M:is_channel_name(name)
     local sigil = name:sub(1,1)
     return string.find(sigil, self.chantypes, 1, true) and sigil ~= ''

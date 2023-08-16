@@ -124,15 +124,35 @@ function M:render()
 end
 
 function M:draw_status()
-    green()
+    -- Render joined channels in green and stale buffers in red
+    if irc_state:is_channel_name(talk_target) then
+        if irc_state.channels[snowcone.irccase(talk_target)] then
+            green()
+        else
+            red()
+        end
+
+    -- render online users in green, offline in red
+    elseif irc_state:has_monitor() and irc_state:is_monitored(talk_target) then
+        if irc_state.monitor[snowcone.irccase(talk_target)].online then
+            green()
+        else
+            red()
+        end
+
+    -- When monitor isn't available indicate uncertainty with yellow
+    else
+        yellow()
+    end
+
     addstr(talk_target .. '')
     normal()
 
-
-    for k, v in tablex.sort(buffers) do
+    -- render channel names with unseen messages in yellow
+    for _, v in tablex.sort(buffers) do
         if v.seen < v.n then
-            red()
-            addstr(k:lower() .. '')
+            yellow()
+            addstr(v.name .. '')
         end
     end
 end

@@ -1,6 +1,6 @@
 local M = {}
 
--- Populate the bouncer_networks information with 
+-- Populate the bouncer_networks information with
 M['soju.im/bouncer-networks'] = function(_, messages)
     local networks = {}
     for _, irc in ipairs(messages) do
