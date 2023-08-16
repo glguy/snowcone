@@ -1,17 +1,15 @@
 local Set = require 'pl.Set'
+local Irc = require_ 'components.Irc'
 
 local send = require_ 'utils.send'
 
 return function()
 
-    irc_state = {
-        phase = 'registration',
-        caps_wanted = Set(configuration.irc_capabilities or {}),
-        caps_enabled = Set{},
-        caps_requested = Set{},
-        batches = {},
-        channels = {},
-    }
+    irc_state = Irc()
+
+    if configuration.irc_capabilities then
+        irc_state.caps_wanted = Set(configuration.irc_capabilities)
+    end
 
     -- always request sasl cap when sasl is configured
     if configuration.irc_sasl_mechanism then

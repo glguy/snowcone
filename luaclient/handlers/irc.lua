@@ -130,6 +130,8 @@ local batch_handlers = require_ 'handlers.batch'
 function M.BATCH(irc)
     local polarity = irc[1]:sub(1,1)
     local name = irc[1]:sub(2)
+
+    -- start of batch
     if '+' == polarity then
         irc_state.batches[name] = {
             identifier = irc[2],
@@ -137,6 +139,8 @@ function M.BATCH(irc)
             messages = {},
             n = 0
         }
+
+    -- end of batch
     elseif '-' == polarity then
         local batch = irc_state.batches[name]
         irc_state.batches[name] = nil
@@ -149,10 +153,15 @@ function M.BATCH(irc)
     end
 end
 
+-- Support for draft/bouncer-networks-notify
 function M.BOUNCER(irc)
+    -- BOUNCER NETWORK <netid> <tag-encoded attribute updates>
     if 'NETWORK' == irc[1] then
+        -- These messages are updates, so they only make sense if we've seen the list already
         if irc_state.bouncer_networks then
             local netid, attrs = irc[2], irc[3]
+
+            -- * indicates the network was deleted
             if attrs == '*' then
                 irc.bouncer_networks[netid] = nil
             else
@@ -162,6 +171,7 @@ function M.BOUNCER(irc)
                     irc_state.bouncer_networks[netid] = network
                 end
                 for k, v in pairs(snowcone.parse_irc_tags(attrs)) do
+                    -- No value indicates the attribute was deleted
                     if true == v then
                         network[k] = nil
                     else
@@ -244,6 +254,14 @@ local function end_of_registration()
     irc_state.phase = 'connected'
     status('irc', 'connected')
 
+    -- Update IRC settings from ISUPPORT commands
+    local isupport = irc_state.isupport
+    if isupport then
+        if isupport.CHANTYPES then
+            irc_state.chantypes = isupport.CHANTYPES
+        end
+    end
+
     if configuration.irc_oper_username and configuration.irc_challenge_key then
         challenge.start()
     elseif configuration.irc_oper_username and configuration.irc_oper_password then
@@ -254,7 +272,7 @@ local function end_of_registration()
         send('MODE', irc_state.nick)
     end
 
-    if irc_state.caps_enabled['draft/chathistory'] then
+    if irc_state:has_chathistory() then
         local supported_amount = tonumber(irc_state.isupport.CHATHISTORY)
         for target, buffer in pairs(buffers) do
             local amount = buffer.max
@@ -331,6 +349,35 @@ end
 
 M[N.RPL_LISTEND] = function()
     irc_state.channel_list_complete = true
+end
+
+-----------------------------------------------------------------------
+-- Monitor support
+
+-- :<server> 730 <nick> :target[!user@host][,target[!user@host]]*
+M[N.RPL_MONONLINE] = function(irc)
+    local list = irc[2]
+    local nicks = {}
+    for nick in list:gmatch '([^!,]+)[^,]*,?' do
+        irc_state.monitor[snowcone.irccase(nick)] = { nick = nick, online = true }
+        table.insert(nicks, nick)
+    end
+    status('monitor', 'monitor online: ' .. table.concat(nicks, ', '))
+end
+
+-- :<server> 731 <nick> :target[,target2]*
+M[N.RPL_MONOFFLINE] = function(irc)
+    local list = irc[2]
+    local nicks = {}
+    for nick in list:gmatch '([^!,]+)[^,]*,?' do
+        irc_state.monitor[snowcone.irccase(nick)] = { nick = nick, online = true }
+        table.insert(nicks, nick)
+    end
+    status('monitor', 'monitor offline: ' .. table.concat(nicks, ', '))
+end
+
+M[N.ERR_MONLISTFULL] = function()
+    status('monitor', 'monitor list full')
 end
 
 -----------------------------------------------------------------------

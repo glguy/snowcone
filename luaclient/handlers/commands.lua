@@ -73,6 +73,15 @@ end
 
 -- Pretending to be an IRC client
 
+add_command('close', '', function()
+    if talk_target and view == 'buffer' then
+        local buffer_name = snowcone.irccase(talk_target)
+        buffers[buffer_name] = nil
+        view = 'console'
+        talk_target = nil
+    end
+end)
+
 add_command('talk', '$g', function(target)
     talk_target = target
     view = 'buffer'
@@ -80,14 +89,14 @@ add_command('talk', '$g', function(target)
     local buffer_name = snowcone.irccase(target)
 
     -- join the channel if it's a channel and we're not in it
-    if buffer_name:startswith '#' and not irc_state.channels[buffer_name] then
+    if irc_state:is_channel_name(buffer_name) and not irc_state.channels[buffer_name] then
         send('JOIN', target)
     end
 
     if not buffers[buffer_name] then
         local maxhistory = 1000
         buffers[buffer_name] = OrderedMap(maxhistory)
-        if irc_state.caps_enabled['draft/chathistory'] then
+        if irc_state:has_chathistory() then
             local amount = tonumber(irc_state.isupport.CHATHISTORY)
             if nil == amount or amount > maxhistory then
                 amount = maxhistory

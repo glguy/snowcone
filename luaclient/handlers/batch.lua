@@ -1,13 +1,19 @@
 local M = {}
 
+-- Populate the bouncer_networks information with 
 M['soju.im/bouncer-networks'] = function(_, messages)
     local networks = {}
     for _, irc in ipairs(messages) do
-        networks[irc[2]] = snowcone.parse_irc_tags(irc[3])
+        -- BOUNCER NETWORK <netid> <tag-encoded attributes>
+        if 'BOUNCER' == irc.command and 'NETWORK' == irc[1] then
+            networks[irc[2]] = snowcone.parse_irc_tags(irc[3])
+        end
     end
     irc_state.bouncer_networks = networks
 end
 
+-- If a chathistory batch corresponds to an active buffer
+-- route the chat messages to it.
 M['chathistory'] = function(params, messages)
     local target = params[1]
     local buffer = buffers[snowcone.irccase(target)]

@@ -5,6 +5,7 @@ local irc_colors = {
           ncurses.red, ncurses.cyan, ncurses.magenta, ncurses.yellow,
           ncurses.white, ncurses.black, ncurses.blue, ncurses.green,
           ncurses.red, ncurses.cyan, ncurses.magenta, ncurses.yellow,
+    [99] = ncurses.default,
 }
 
 return function(str)
