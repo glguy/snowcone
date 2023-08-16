@@ -88,27 +88,29 @@ add_command('talk', '$g', function(target)
 
     local buffer_name = snowcone.irccase(target)
 
-    -- join the channel if it's a channel and we're not in it
-    if irc_state:is_channel_name(buffer_name) then
-        if not irc_state.channels[buffer_name] then
-            send('JOIN', target)
-        end
-    elseif irc_state:has_monitor() and not irc_state:is_monitored(buffer_name) then
-        send('MONITOR', '+', buffer_name)
-    end
-
-    if not buffers[buffer_name] then
-        local maxhistory = 1000
-        buffers[buffer_name] = {
-            name = target,
-            messages = OrderedMap(maxhistory),
-        }
-        if irc_state:has_chathistory() then
-            local amount = tonumber(irc_state.isupport.CHATHISTORY)
-            if nil == amount or amount > maxhistory then
-                amount = maxhistory
+    if irc_state and irc_state.phase == 'connected' then
+        -- join the channel if it's a channel and we're not in it
+        if irc_state:is_channel_name(buffer_name) then
+            if not irc_state.channels[buffer_name] then
+                send('JOIN', target)
             end
-            send('CHATHISTORY', 'LATEST', target, '*', amount)
+        elseif irc_state:has_monitor() and not irc_state:is_monitored(buffer_name) then
+            send('MONITOR', '+', buffer_name)
+        end
+
+        if not buffers[buffer_name] then
+            local maxhistory = 1000
+            buffers[buffer_name] = {
+                name = target,
+                messages = OrderedMap(maxhistory),
+            }
+            if irc_state:has_chathistory() then
+                local amount = tonumber(irc_state.isupport.CHATHISTORY)
+                if nil == amount or amount > maxhistory then
+                    amount = maxhistory
+                end
+                send('CHATHISTORY', 'LATEST', target, '*', amount)
+            end
         end
     end
 end)

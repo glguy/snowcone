@@ -162,8 +162,12 @@ function M:render()
 end
 
 function M:draw_status()
+    -- not connected
+    if not irc_state or irc_state.phase ~= 'connected' then
+        yellow()
+
     -- Render joined channels in green and stale buffers in red
-    if irc_state:is_channel_name(talk_target) then
+    elseif irc_state:is_channel_name(talk_target) then
         if irc_state.channels[snowcone.irccase(talk_target)] then
             green()
         else

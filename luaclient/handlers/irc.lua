@@ -273,9 +273,9 @@ local function end_of_registration()
     end
 
     if irc_state:has_chathistory() then
-        local supported_amount = tonumber(irc_state.isupport.CHATHISTORY)
+        local supported_amount = tonumber(isupport.CHATHISTORY)
         for target, buffer in pairs(buffers) do
-            local amount = buffer.max
+            local amount = buffer.messages.max
 
             -- 0 indicates "no limit"
             if 0 < supported_amount and supported_amount < amount then
@@ -283,7 +283,7 @@ local function end_of_registration()
             end
 
             local ts
-            local lastirc = buffer:lookup(true)
+            local lastirc = buffer.messages:lookup(true)
             if lastirc and lastirc.tags.time then
                 ts = 'timestamp=' .. lastirc.tags.time
             else
