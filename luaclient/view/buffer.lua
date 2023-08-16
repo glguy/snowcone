@@ -176,8 +176,13 @@ function M:draw_status()
 
     -- render online users in green, offline in red
     elseif irc_state:has_monitor() and irc_state:is_monitored(talk_target) then
-        if irc_state.monitor[snowcone.irccase(talk_target)].online then
-            green()
+        local entry = irc_state:get_monitor(talk_target)
+        if entry.online then
+            if entry.away then
+                magenta()
+            else
+                green()
+            end
         else
             red()
         end

@@ -16,12 +16,24 @@ function M:_init()
     self.monitor = {} -- map irccased nickname mapped to {nick=str, online=bool}
 end
 
+function M:get_monitor(nick)
+    return self.monitor[snowcone.irccase(nick)]
+end
+
+function M:add_monitor(nick, online)
+    self.monitor[snowcone.irccase(nick)] = {
+        nick = nick,
+        online = online,
+    }
+end
+
 function M:has_monitor()
     return self.isupport.MONITOR ~= nil
 end
 
 function M:is_monitored(nick)
-    return self.monitor[snowcone.irccase(nick)] ~= nil
+    local entry = self:get_monitor(nick)
+    return entry and entry.online ~= nil
 end
 
 function M:is_channel_name(name)

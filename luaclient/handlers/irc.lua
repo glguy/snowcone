@@ -225,6 +225,22 @@ function M.KICK(irc)
     end
 end
 
+function M.AWAY(irc)
+    local nick = split_nuh(irc.source)
+    local entry = irc_state:get_monitor(nick)
+    if entry then
+        entry.away = irc[3]
+    end
+end
+
+M[N.RPL_AWAY] = function(irc)
+    local nick = irc[2]
+    local entry = irc_state:get_monitor(nick)
+    if entry then
+        entry.away = irc[1]
+    end
+end
+
 M[N.RPL_WELCOME] = function(irc)
     irc_state.nick = irc[1]
 end
@@ -377,7 +393,12 @@ M[N.RPL_MONONLINE] = function(irc)
     local list = irc[2]
     local nicks = {}
     for nick in list:gmatch '([^!,]+)[^,]*,?' do
-        irc_state.monitor[snowcone.irccase(nick)] = { nick = nick, online = true }
+        local entry = irc_state:get_monitor(nick)
+        if entry then
+            entry.online = true
+        else
+            irc_state:add_monitor(nick, true)
+        end
         table.insert(nicks, nick)
     end
     status('monitor', 'monitor online: ' .. table.concat(nicks, ', '))
@@ -388,7 +409,13 @@ M[N.RPL_MONOFFLINE] = function(irc)
     local list = irc[2]
     local nicks = {}
     for nick in list:gmatch '([^!,]+)[^,]*,?' do
-        irc_state.monitor[snowcone.irccase(nick)] = { nick = nick, online = false }
+        local entry = irc_state:get_monitor(nick)
+        if entry then
+            entry.online = false
+            entry.away = nil
+        else
+            irc_state:add_monitor(nick, false)
+        end
         table.insert(nicks, nick)
     end
     status('monitor', 'monitor offline: ' .. table.concat(nicks, ', '))
