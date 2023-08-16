@@ -78,6 +78,12 @@ add_command('talk', '$g', function(target)
     view = 'buffer'
 
     local buffer_name = snowcone.irccase(target)
+
+    -- join the channel if it's a channel and we're not in it
+    if buffer_name:startswith '#' and not irc_state.channels[buffer_name] then
+        send('JOIN', target)
+    end
+
     if not buffers[buffer_name] then
         local maxhistory = 1000
         buffers[buffer_name] = OrderedMap(maxhistory)

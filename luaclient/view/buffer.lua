@@ -39,10 +39,31 @@ local keys = {
         scroll = scroll - math.max(1, tty_height - 1)
         scroll = math.max(scroll, 0)
     end,
+
+    -- enter talk input mode
     [string.byte('t')] = function()
-        if talk_target ~= nil then
-            editor:reset()
-            input_mode = 'talk'
+        editor:reset()
+        input_mode = 'talk'
+    end,
+
+    -- jump to next activity (alphabetically)
+    [meta 'a'] = function()
+        local current = snowcone.irccase(talk_target)
+        local first_target
+        for k, buffer in tablex.sort(buffers) do
+            -- has new messages
+            if buffer.n > buffer.seen then
+                if current < k then
+                    talk_target = k:lower()
+                    return
+                end
+                if not first_target then
+                    first_target = k
+                end
+            end
+        end
+        if first_target then
+            talk_target = first_target:lower()
         end
     end,
 }
@@ -93,11 +114,10 @@ function M:render()
 end
 
 function M:draw_status()
-    if talk_target then
-        green()
-        addstr(talk_target .. '')
-        normal()
-    end
+    green()
+    addstr(talk_target .. '')
+    normal()
+
 
     for k, v in tablex.sort(buffers) do
         if v.seen < v.n then

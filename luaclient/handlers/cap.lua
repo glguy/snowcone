@@ -1,5 +1,4 @@
 local Set         = require 'pl.Set'
-local tablex      = require 'pl.tablex'
 local sasl        = require_ 'sasl'
 local send        = require 'utils.send'
 

@@ -16,4 +16,7 @@ message("luacheck was " ${LUACHECK})
 add_test(NAME luacheck
   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/lua"
   COMMAND ${LUACHECK} ".")
+add_test(NAME luacheck-client
+  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/luaclient"
+  COMMAND ${LUACHECK} ".")
 endif()
