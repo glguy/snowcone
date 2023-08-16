@@ -428,14 +428,20 @@ M[N.ERR_SASLFAIL] = function()
     if irc_state.sasl ~= nil then
         status('irc', 'SASL failed')
         irc_state.sasl = nil
-        disconnect()
+
+        if irc_state.phase == 'registration' then
+            disconnect()
+        end
     end
 end
 
 M[N.ERR_SASLABORTED] = function()
     if irc_state.sasl ~= nil then
         irc_state.sasl = nil
-        disconnect()
+
+        if irc_state.phase == 'registration' then
+            disconnect()
+        end
     end
 end
 
@@ -443,7 +449,10 @@ M[N.RPL_SASLMECHS] = function()
     if irc_state.sasl then
         status('irc', 'bad SASL mechanism')
         irc_state.sasl = nil
-        disconnect()
+
+        if irc_state.phase == 'registration' then
+            disconnect()
+        end
     end
 end
 
