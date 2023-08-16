@@ -28,7 +28,7 @@ add_subdirectory(hsfilter)
 endif()
 
 if (LIBIDN_FOUND)
-add_subdirectory(mysaslprep)
+add_subdirectory(mystringprep)
 endif()
 
 add_subdirectory(ircmsg)

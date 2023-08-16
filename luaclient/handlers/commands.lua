@@ -177,8 +177,21 @@ add_command('oper', '', function()
     end
 end)
 
-add_command('sasl', '', function()
-    sasl.start()
+add_command('sasl', '$g', function(name)
+    local credentials = configuration.sasl_credentials
+    local entry = credentials and credentials[name]
+
+    if not entry then
+        status('sasl', 'unknown credentials')
+    elseif irc_state.caps_enabled.sasl then
+        sasl.start(entry)
+    elseif irc_state.caps_available.sasl then
+        irc_state.caps_wanted.sasl = true
+        irc_state.sasl_credentials = entry
+        send('CAP', 'REQ', 'sasl')
+    else
+        status('sasl', 'sasl not available')
+    end
 end)
 
 return M

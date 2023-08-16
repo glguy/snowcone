@@ -70,9 +70,10 @@ function CAP.ACK(capsarg)
 
     -- once all the requested caps have been ACKd clear up the request
     if not next(irc_state.caps_requested) then
-        if irc_state.caps_enabled.sasl and irc_state.want_sasl then
-            irc_state.want_sasl = nil
-            sasl.start()
+        if irc_state.caps_enabled.sasl and irc_state.sasl_credentials then
+            local credentials = irc_state.sasl_credentials
+            irc_state.sasl_credentials = nil
+            sasl.start(credentials)
         elseif irc_state.phase == 'registration' then
             send('CAP', 'END')
         end

@@ -12,7 +12,7 @@ stds = {
         },
     },
     main = {
-        read_globals = {"tty_height", "tty_width", "mygeoip", "ncurses", "mysaslprep", "hsfilter"},
+        read_globals = {"tty_height", "tty_width", "mygeoip", "ncurses", "mystringprep", "hsfilter"},
         globals = {
             -- general functionality
             "require_", "next_view", "prev_view", "irc_handlers",

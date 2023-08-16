@@ -25,7 +25,7 @@ extern "C" {
 #endif
 
 #ifdef LIBIDN_FOUND
-#include "mysaslprep.h"
+#include "mystringprep.h"
 #endif
 
 #include <algorithm>
@@ -309,7 +309,7 @@ auto prepare_globals(lua_State* const L, int const argc, char ** const argv) -> 
 #endif
 
 #ifdef LIBIDN_FOUND
-    luaL_requiref(L, "mysaslprep", luaopen_mysaslprep, 1);
+    luaL_requiref(L, "mystringprep", luaopen_mystringprep, 1);
     lua_pop(L, 1);
 #endif
 

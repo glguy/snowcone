@@ -32,15 +32,19 @@ function M.start_mech(mechanism, authcid, password, key, authzid)
 
     -- If libidn is available, we SaslPrep all the authentiation strings
     local saslpassword = password -- normal password will get used for private key decryption
-    if mysaslprep then
+    if mystringprep then
         if authcid then
-            authcid = mysaslprep.saslprep(authcid)
+            if mechanism == 'ANONYMOUS' then
+                authcid = mystringprep.stringprep(authcid, 'trace')
+            else
+                authcid = mystringprep.stringprep(authcid, 'SASLprep')
+            end
         end
         if authzid then
-            authzid = mysaslprep.saslprep(authzid)
+            authzid = mystringprep.stringprep(authzid, 'SASLprep')
         end
         if saslpassword then
-            saslpassword = mysaslprep.saslprep(saslpassword)
+            saslpassword = mystringprep.stringprep(saslpassword, 'SASLprep')
         end
     end
 
@@ -61,6 +65,8 @@ function M.start_mech(mechanism, authcid, password, key, authzid)
         co = require_ 'sasl.scram' ('sha256', authzid, authcid, saslpassword)
     elseif mechanism == 'SCRAM-SHA-512' then
         co = require_ 'sasl.scram' ('sha512', authzid, authcid, saslpassword)
+    elseif mechanism == 'ANONYMOUS' then
+        co = require_ 'sasl.anonymous' (authcid)
     else
         error 'bad mechanism'
     end
@@ -69,14 +75,14 @@ end
 
 -- install SASL state machine based on configuration values
 -- and send the first AUTHENTICATE command
-function M.start()
+function M.start(credentials)
     local success, auth_cmd
     success, auth_cmd, irc_state.sasl = pcall(M.start_mech,
-        configuration.irc_sasl_mechanism,
-        configuration.irc_sasl_username,
-        configuration.irc_sasl_password,
-        configuration.irc_sasl_key,
-        configuration.irc_sasl_authzid
+        credentials.mechanism,
+        credentials.username,
+        credentials.password,
+        credentials.key,
+        credentials.authzid
     )
     if success then
         send(table.unpack(auth_cmd))
