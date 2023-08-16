@@ -247,7 +247,8 @@ views = {
     plugins = require_ 'view.plugins',
     help = require_ 'view.help',
     bouncer = require_ 'view.bouncer',
-    buffer = require_ 'view.buffer'
+    buffer = require_ 'view.buffer',
+    session = require_ 'view.session',
 }
 
 main_views = {'console', 'status'}
@@ -332,12 +333,22 @@ plugin_manager.startup()
 local M = {}
 
 local key_handlers = require_ 'handlers.keyboard'
+local input_handlers = require_ 'handlers.input'
 function M.on_keyboard(key)
     -- buffer text editing
     if input_mode and 0x20 <= key and (key < 0x7f or 0xa0 <= key) then
         editor:add(key)
         draw()
         return
+    end
+
+    if input_mode then
+        local f = input_handlers[key]
+        if f then
+            f()
+            draw()
+            return
+        end
     end
 
     -- global key handlers

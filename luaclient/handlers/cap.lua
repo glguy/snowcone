@@ -21,6 +21,7 @@ function CAP.LS(x, y)
 
     if last then
         local available = irc_state.caps_ls
+        irc_state.caps_available = available
         irc_state.caps_ls = nil
 
         local req = {}

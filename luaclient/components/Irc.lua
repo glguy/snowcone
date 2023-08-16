@@ -8,6 +8,7 @@ function M:_init()
     self.phase = 'registration' -- registration, connected, closed
     self.caps_wanted = Set{}
     self.caps_enabled = Set{}
+    self.caps_available = Set{}
     self.caps_requested = Set{}
     self.batches = {}
     self.channels = {}

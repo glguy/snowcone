@@ -205,7 +205,7 @@ function M.JOIN(irc)
     local who = split_nuh(irc.source)
     if who == irc_state.nick then
         local channel = irc[1]
-        irc_state.channels[snowcone.irccase(channel)] = {}
+        irc_state.channels[snowcone.irccase(channel)] = {name = channel}
     end
 end
 
@@ -370,7 +370,7 @@ M[N.RPL_MONOFFLINE] = function(irc)
     local list = irc[2]
     local nicks = {}
     for nick in list:gmatch '([^!,]+)[^,]*,?' do
-        irc_state.monitor[snowcone.irccase(nick)] = { nick = nick, online = true }
+        irc_state.monitor[snowcone.irccase(nick)] = { nick = nick, online = false }
         table.insert(nicks, nick)
     end
     status('monitor', 'monitor offline: ' .. table.concat(nicks, ', '))

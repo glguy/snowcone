@@ -3,6 +3,8 @@ local tablex = require 'pl.tablex'
 local addircstr = require_ 'utils.irc_formatting'
 local drawing = require 'utils.drawing'
 
+local hscroll = 0
+
 local function render_irc(irc)
     local command = irc.command
     local source = irc.source:match '^(.-)([.!])' or irc.source
@@ -20,7 +22,7 @@ local function render_irc(irc)
     end
 
     addstr(string.format(' %16.16s ', source))
-    addircstr(text)
+    addircstr(string.sub(text, hscroll))
 end
 
 local M = {
@@ -38,6 +40,14 @@ local keys = {
     [-ncurses.KEY_NPAGE] = function()
         scroll = scroll - math.max(1, tty_height - 1)
         scroll = math.max(scroll, 0)
+    end,
+    [-ncurses.KEY_RIGHT] = function()
+        local scroll_unit = math.max(1, tty_width - 26)
+        hscroll = math.max(0, math.min(512 - scroll_unit, hscroll + scroll_unit))
+    end,
+    [-ncurses.KEY_LEFT] = function()
+        local scroll_unit = math.max(1, tty_width - 26)
+        hscroll = math.max(0, hscroll - scroll_unit)
     end,
 
     -- enter talk input mode
