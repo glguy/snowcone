@@ -1,4 +1,3 @@
-local Set         = require 'pl.Set'
 local sasl        = require_ 'sasl'
 local send        = require 'utils.send'
 
@@ -9,14 +8,14 @@ function CAP.LS(x, y)
     -- CAP * LS :x y z      -- final
 
     if irc_state.caps_ls == nil then
-        irc_state.caps_ls = Set{}
+        irc_state.caps_ls = {}
     end
 
     local last = x ~= '*'
     local capsarg
     if last then capsarg = x else capsarg = y end
-    for cap in capsarg:gmatch '([^ =]+)(=?)([^ ]*)' do
-        irc_state.caps_ls[cap] = true
+    for cap, eq, arg in capsarg:gmatch '([^ =]+)(=?)([^ ]*)' do
+        irc_state.caps_ls[cap] = eq == '=' and arg or true
     end
 
     if last then
@@ -26,7 +25,7 @@ function CAP.LS(x, y)
 
         local req = {}
 
-        for cap in Set.iter(available) do
+        for cap, _ in pairs(available) do
             if irc_state.caps_wanted[cap] and not irc_state.caps_enabled[cap] then
                 irc_state.caps_requested[cap] = true
                 table.insert(req, cap)
@@ -60,7 +59,7 @@ function CAP.LIST(x,y)
 end
 
 function CAP.ACK(capsarg)
-    for minus, cap in capsarg:gmatch '(%-?)([^ =]+)' do
+    for minus, cap in capsarg:gmatch '(%-?)([^ ]+)' do
         irc_state.caps_requested[cap] = nil
         if minus == '-' then
             irc_state.caps_enabled[cap] = nil
@@ -70,7 +69,7 @@ function CAP.ACK(capsarg)
     end
 
     -- once all the requested caps have been ACKd clear up the request
-    if Set.isempty(irc_state.caps_requested) then
+    if not next(irc_state.caps_requested) then
         if irc_state.caps_enabled.sasl and irc_state.want_sasl then
             irc_state.want_sasl = nil
             sasl.start()
@@ -96,8 +95,8 @@ end
 
 function CAP.NEW(capsarg)
     local req = {}
-    for cap in capsarg:gmatch '[^ ]+' do
-        irc_state.caps_available[cap] = true
+    for cap, eq, arg in capsarg:gmatch '([^ =]+)(=?)([^ ]*)' do
+        irc_state.caps_available[cap] = eq == '=' and arg or true
         if irc_state.caps_wanted[cap] and not irc_state.caps_enabled[cap] then
             irc_state.caps_requested[cap] = true
             table.insert(req, cap)

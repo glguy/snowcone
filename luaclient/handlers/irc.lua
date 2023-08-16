@@ -7,20 +7,6 @@ local sasl        = require_ 'sasl'
 local send        = require_ 'utils.send'
 local split_nuh   = require_ 'utils.split_nick_user_host'
 
--- irc_state
--- .caps_ls        - set of string   - create in LS - consume at end of LS
--- .caps_list      - array of string - list of enabled caps - consume after LIST
--- .caps_wanted    - set of string   - create before LS - consume after ACK/NAK
--- .caps_enabled   - set of string   - filled by ACK
--- .caps_requested - set of string   - create on LS or NEW - consume at ACK or NAK
--- .want_sasl      - boolean         - consume at ACK to trigger SASL session
--- .phase          - string          - registration or connected
--- .sasl           - coroutine       - AUTHENTICATE state machine
--- .nick           - string          - current nickname
--- .target_nick    - string          - consumed when target nick recovered
--- .authenticate   - array of string - accumulated chunks of AUTHENTICATE
--- .challenge      - array of string - accumulated chunks of CHALLENGE
-
 local function parse_source(source)
     return string.match(source, '^(.-)!(.-)@(.*)$')
 end

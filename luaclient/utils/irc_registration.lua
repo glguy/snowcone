@@ -1,4 +1,3 @@
-local Set = require 'pl.Set'
 local Irc = require_ 'components.Irc'
 
 local send = require_ 'utils.send'
@@ -8,7 +7,11 @@ return function()
     irc_state = Irc()
 
     if configuration.irc_capabilities then
-        irc_state.caps_wanted = Set(configuration.irc_capabilities)
+        local wanted = {}
+        for _, cap in ipairs(configuration.irc_capabilities) do
+            wanted[cap] = true
+        end
+        irc_state.caps_wanted = wanted
     end
 
     -- always request sasl cap when sasl is configured
@@ -17,7 +20,7 @@ return function()
         irc_state.want_sasl = true
     end
 
-    if not Set.isempty(irc_state.caps_wanted) then
+    if next(irc_state.caps_wanted) then
         send('CAP', 'LS', '302')
     end
 

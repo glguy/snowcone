@@ -102,7 +102,6 @@ local defaults = {
     liveness = 0, -- timestamp of last irc receipt
     scroll = 0,
     status_message = '',
-    irc_state = {},
     exiting = false,
 }
 
@@ -285,8 +284,8 @@ if not tick_timer then
     tick_timer = snowcone.newtimer()
     tick_timer:start(1000, 1000, function()
         uptime = uptime + 1
-        if irc_state.phase == 'connected' and uptime == liveness + 30 then
-            send('PING', 'snowcone')
+        if irc_state and irc_state.phase == 'connected' and uptime == liveness + 30 then
+            send('PING', string.format('snowcone-%d', uptime))
         end
         draw()
     end)
@@ -403,7 +402,7 @@ local function on_irc(irc, err)
         status('socat', 'socat error: %s', err)
         return
     elseif not irc then
-        irc_state = {}
+        irc_state = nil
         send_irc = nil
         status('irc', 'disconnected')
 

@@ -1,5 +1,4 @@
 local tablex = require 'pl.tablex'
-local Set = require 'pl.Set'
 
 local M = {
     title = 'session',
@@ -23,13 +22,17 @@ function M:render()
 
     addstr 'Caps:    '
     bold()
-    for k, _ in Set.iter(irc_state.caps_available) do
+    for k, v in tablex.sort(irc_state.caps_available) do
         if irc_state.caps_enabled[k] then
             green()
         else
             red()
         end
         addstr ' ' addstr(k)
+        if v ~= true then
+            addstr '='
+            addstr(v)
+        end
     end
     normal()
     addstr '\n'

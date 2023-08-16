@@ -1,15 +1,32 @@
 local class = require 'pl.class'
-local Set = require 'pl.Set'
+
+-- irc_state
+-- .caps_ls        - set of string   - create in LS - consume at end of LS
+-- .caps_list      - array of string - list of enabled caps - consume after LIST
+-- .caps_available - set of string   - created by LS and NEW
+-- .caps_wanted    - set of string   - create before LS - consume after ACK/NAK
+-- .caps_enabled   - set of string   - filled by ACK
+-- .caps_requested - set of string   - create on LS or NEW - consume at ACK or NAK
+-- .want_sasl      - boolean         - consume at ACK to trigger SASL session
+-- .phase          - string          - registration or connected
+-- .sasl           - coroutine       - AUTHENTICATE state machine
+-- .nick           - string          - current nickname
+-- .target_nick    - string          - consumed when target nick recovered
+-- .authenticate   - array of string - accumulated chunks of AUTHENTICATE
+-- .challenge      - array of string - accumulated chunks of CHALLENGE
+-- .monitor
+-- .chantypes
+-- .batches
 
 local M = class()
 M._name = 'Irc'
 
 function M:_init()
     self.phase = 'registration' -- registration, connected, closed
-    self.caps_wanted = Set{}
-    self.caps_enabled = Set{}
-    self.caps_available = Set{}
-    self.caps_requested = Set{}
+    self.caps_wanted = {}
+    self.caps_enabled = {}
+    self.caps_available = {}
+    self.caps_requested = {}
     self.batches = {}
     self.channels = {}
     self.chantypes = '&#' -- updated by ISUPPORT
