@@ -293,6 +293,24 @@ local function end_of_registration()
             send('CHATHISTORY', 'LATEST', target, ts, amount)
         end
     end
+
+    -- reinstall monitors for the active private message buffers
+    if irc_state:has_monitor() then
+        local n, nicks = 0, {}
+        for target, _ in pairs(buffers) do
+            if not irc_state:is_channel_name(target) then
+                table.insert(nicks, target)
+                n = 1 + #target
+                if n > 400 then
+                    send('MONITOR', '+', table.concat(nicks, ','))
+                    n, nicks = 0, {}
+                end
+            end
+        end
+        if n > 0 then
+            send('MONITOR', '+', table.concat(nicks, ','))
+        end
+    end
 end
 
 M[N.RPL_ENDOFMOTD] = function()
