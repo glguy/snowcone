@@ -130,6 +130,7 @@ function M:keypress(key)
     if h then
         h()
         draw()
+        return true -- consume
     end
 end
 

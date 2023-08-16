@@ -51,7 +51,7 @@ return function(cmd, ...)
     if cmd == 'PRIVMSG' or cmd == 'NOTICE' then
         local buffer = buffers[snowcone.irccase(msg[1])]
         if buffer then
-            buffer:insert(true, msg)
+            buffer.messages:insert(true, msg)
         end
     end
 end

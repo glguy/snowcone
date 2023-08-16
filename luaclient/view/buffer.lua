@@ -50,6 +50,43 @@ local keys = {
         hscroll = math.max(0, hscroll - scroll_unit)
     end,
 
+    -- next buffer (alphabetical)
+    [ctrl 'N'] = function()
+        local current = snowcone.irccase(talk_target)
+        local first_target
+        for k, _ in tablex.sort(buffers) do
+            if current < k then
+                talk_target = k:lower()
+                return
+            end
+            if not first_target then
+                first_target = k
+            end
+        end
+        if first_target then
+            talk_target = first_target:lower()
+        end
+    end,
+
+    -- previous buffer (alphabetical)
+    [ctrl 'P'] = function()
+        local current = snowcone.irccase(talk_target)
+        local first_target
+        local function backward(x,y) return x > y end
+        for k, _ in tablex.sort(buffers, backward) do
+            if current > k then
+                talk_target = k:lower()
+                return
+            end
+            if not first_target then
+                first_target = k
+            end
+        end
+        if first_target then
+            talk_target = first_target:lower()
+        end
+    end,
+
     -- enter talk input mode
     [string.byte('t')] = function()
         editor:reset()
@@ -62,7 +99,7 @@ local keys = {
         local first_target
         for k, buffer in tablex.sort(buffers) do
             -- has new messages
-            if buffer.n > buffer.seen then
+            if buffer.messages.n > buffer.messages.seen then
                 if current < k then
                     talk_target = k:lower()
                     return
@@ -83,6 +120,7 @@ function M:keypress(key)
     if h then
         h()
         draw()
+        return true -- consume
     end
 end
 
@@ -115,7 +153,7 @@ local function draw_messages()
 
     local start = ncurses.getyx()
     local rows = math.max(0, tty_height - 1 - start)
-    drawing.draw_rotation(start, rows, buffer, show_irc, render_irc)
+    drawing.draw_rotation(start, rows, buffer.messages, show_irc, render_irc)
 end
 
 function M:render()
@@ -149,10 +187,10 @@ function M:draw_status()
     normal()
 
     -- render channel names with unseen messages in yellow
-    for _, v in tablex.sort(buffers) do
-        if v.seen < v.n then
+    for _, buffer in tablex.sort(buffers) do
+        if buffer.messages.seen < buffer.messages.n then
             yellow()
-            addstr(v.name .. '')
+            addstr(buffer.name .. '')
         end
     end
 end

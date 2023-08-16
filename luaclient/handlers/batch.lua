@@ -22,7 +22,7 @@ M['chathistory'] = function(params, messages)
     for _, irc in ipairs(messages) do
         local command = irc.command
         if command == "PRIVMSG" or command == "NOTICE" then
-            buffer:insert(true, irc)
+            buffer.messages:insert(true, irc)
         end
     end
 end

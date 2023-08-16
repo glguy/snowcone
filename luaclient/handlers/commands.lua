@@ -97,7 +97,10 @@ add_command('talk', '$g', function(target)
 
     if not buffers[buffer_name] then
         local maxhistory = 1000
-        buffers[buffer_name] = OrderedMap(maxhistory)
+        buffers[buffer_name] = {
+            name = target,
+            messages = OrderedMap(maxhistory),
+        }
         if irc_state:has_chathistory() then
             local amount = tonumber(irc_state.isupport.CHATHISTORY)
             if nil == amount or amount > maxhistory then

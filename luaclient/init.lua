@@ -351,6 +351,11 @@ function M.on_keyboard(key)
         end
     end
 
+    -- view-specific key handlers - return true to consume event
+    if views[view]:keypress(key) then
+        return
+    end
+
     -- global key handlers
     local f = key_handlers[key]
     if f then
@@ -358,9 +363,6 @@ function M.on_keyboard(key)
         draw()
         return
     end
-
-    -- view-specific key handlers
-    views[view]:keypress(key)
 end
 
 function M.on_paste(paste)
