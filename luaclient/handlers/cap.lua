@@ -89,6 +89,7 @@ end
 
 function CAP.DEL(capsarg)
     for cap in capsarg:gmatch '[^ ]+' do
+        irc_state.caps_available[cap] = nil
         irc_state.caps_enabled[cap] = nil
     end
 end
@@ -96,6 +97,7 @@ end
 function CAP.NEW(capsarg)
     local req = {}
     for cap in capsarg:gmatch '[^ ]+' do
+        irc_state.caps_available[cap] = true
         if irc_state.caps_wanted[cap] and not irc_state.caps_enabled[cap] then
             irc_state.caps_requested[cap] = true
             table.insert(req, cap)
