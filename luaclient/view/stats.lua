@@ -78,11 +78,11 @@ function M:render()
     addstr('   dataset         .n       .max\n')
 
     normal()
-    list_stats('messages', messages)
-    list_stats('status', status_messages)
+    list_stats('/console', messages)
+    list_stats('/status', status_messages)
 
-    for k,v in pairs(buffers) do
-        list_stats(k,v)
+    for _, buffer in pairs(buffers) do
+        list_stats(buffer.name, buffer.messages)
     end
 
     addstr '\n'
