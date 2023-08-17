@@ -246,6 +246,12 @@ local function draw_focus(irc, snotice)
     addstr(string.rep('─', tty_width - x))
 end
 
+local squelch_commands = {
+    PONG = true,
+    PING = true,
+    AWAY = true,
+}
+
 local function draw_messages()
     local current_filter
     if input_mode == 'filter' then
@@ -271,8 +277,7 @@ local function draw_messages()
     elseif hide_snow then
         show_irc = function(irc)
             return (irc.command ~= 'NOTICE' or irc[1] ~= '*')
-               and irc.command ~= 'PING'
-               and irc.command ~= 'PONG'
+               and not squelch_commands[irc.command]
         end
     end
 

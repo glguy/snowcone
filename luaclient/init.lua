@@ -17,7 +17,7 @@ function normal()       ncurses.attrset(ncurses.WA_NORMAL, 0)   end
 function bold()         ncurses.attron(ncurses.WA_BOLD)         end
 function bold_()        ncurses.attroff(ncurses.WA_BOLD)        end
 function italic()       ncurses.attron(ncurses.WA_ITALIC)       end
-function italic_()      ncurses.attroff(ncurses.WA_ITALIC)       end
+function italic_()      ncurses.attroff(ncurses.WA_ITALIC)      end
 function reversevideo() ncurses.attron(ncurses.WA_REVERSE)      end
 function reversevideo_()ncurses.attroff(ncurses.WA_REVERSE)     end
 function underline()    ncurses.attron(ncurses.WA_UNDERLINE)    end
