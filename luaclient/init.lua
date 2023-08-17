@@ -60,23 +60,27 @@ end
 
 -- Validate configuration =============================================
 
-if string.match(configuration.irc_nick, '[ \n\r\x00]') then
+if not configuration.nick then
+    error 'Configuration nick required'
+end
+
+if string.match(configuration.nick, '[ \n\r\x00]') then
     error 'Invalid character in nickname'
 end
 
-if configuration.irc_user and string.match(configuration.irc_user, '[ \n\r\x00]') then
+if configuration.user and string.match(configuration.user, '[ \n\r\x00]') then
     error 'Invalid character in username'
 end
 
-if configuration.irc_gecos and string.match(configuration.irc_gecos, '[\n\r\x00]') then
+if configuration.gecos and string.match(configuration.gecos, '[\n\r\x00]') then
     error 'Invalid character in GECOS'
 end
 
-if configuration.irc_pass and string.match(configuration.irc_pass, '[\n\r\x00]') then
+if configuration.pass and string.match(configuration.pass, '[\n\r\x00]') then
     error 'Invalid character in server password'
 end
 
-if configuration.irc_oper_username and string.match(configuration.irc_oper_username, '[ \n\r\x00]') then
+if configuration.oper_username and string.match(configuration.oper_username, '[ \n\r\x00]') then
     error 'Invalid character in operator username'
 end
 
@@ -277,13 +281,15 @@ end
 
 if not tick_timer then
     tick_timer = snowcone.newtimer()
-    tick_timer:start(1000, 1000, function()
+    local function cb()
         uptime = uptime + 1
         if irc_state and irc_state.phase == 'connected' and uptime == liveness + 30 then
             send('PING', string.format('snowcone-%d', uptime))
         end
         draw()
-    end)
+        tick_timer:start(1000, cb)
+    end
+    tick_timer:start(1000, cb)
 end
 
 function disconnect(msg)
@@ -405,7 +411,7 @@ local function on_irc(irc, err)
             snowcone.shutdown()
         else
             reconnect_timer = snowcone.newtimer()
-            reconnect_timer:start(1000, 0, function()
+            reconnect_timer:start(1000, function()
                 connect()
                 reconnect_timer:close()
                 reconnect_timer = nil
@@ -450,11 +456,19 @@ local function on_irc(irc, err)
             end
         end
     end
+
+    draw()
 end
 
 -- declared above so that it's in scope in on_irc
 function connect()
-    local success, result = pcall(snowcone.connect, configuration.irc_socat, on_irc)
+    local success, result = pcall(
+        snowcone.connect,
+        configuration.tls,
+        configuration.host,
+        configuration.port,
+        configuration.tls_client_cert,
+        on_irc)
     if success then
         send_irc = result
         status('irc', 'connecting')
@@ -464,6 +478,6 @@ function connect()
     end
 end
 
-if not send_irc then
+if not send_irc and configuration.host and configuration.port then
     connect()
 end

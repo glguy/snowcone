@@ -7,9 +7,9 @@ function M.start()
     local file          = require 'pl.file'
 
     -- make sure we have a username and a key before bothering the server
-    local user          = assert(configuration.irc_oper_username, 'missing irc_oper_username')
-    local rsa_key       = assert(file.read(configuration.irc_challenge_key))
-    local key           = assert(openssl.pkey.read(rsa_key, true, 'auto', configuration.irc_challenge_password))
+    local user          = assert(configuration.oper_username, 'missing irc_oper_username')
+    local rsa_key       = assert(file.read(configuration.challenge_key))
+    local key           = assert(openssl.pkey.read(rsa_key, true, 'auto', configuration.challenge_password))
 
     irc_state.challenge_key = key
     irc_state.challenge = {}

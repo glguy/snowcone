@@ -6,9 +6,9 @@ return function()
 
     irc_state = Irc()
 
-    if configuration.irc_capabilities then
+    if configuration.capabilities then
         local wanted = {}
-        for _, cap in ipairs(configuration.irc_capabilities) do
+        for _, cap in ipairs(configuration.capabilities) do
             wanted[cap] = true
         end
         irc_state.caps_wanted = wanted
@@ -24,13 +24,13 @@ return function()
 
     send('CAP', 'LS', '302')
 
-    if configuration.irc_pass then
-        send('PASS', {content=configuration.irc_pass, secret=true})
+    if configuration.pass then
+        send('PASS', {content=configuration.pass, secret=true})
     end
 
-    local nick  = configuration.irc_nick
-    local user  = configuration.irc_user  or nick
-    local gecos = configuration.irc_gecos or nick
+    local nick  = configuration.nick
+    local user  = configuration.user  or nick
+    local gecos = configuration.gecos or nick
 
     send('NICK', nick)
     send('USER', user, '*', '*', gecos)

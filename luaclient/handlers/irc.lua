@@ -264,11 +264,11 @@ local function end_of_registration()
         end
     end
 
-    if configuration.irc_oper_username and configuration.irc_challenge_key then
+    if configuration.oper_username and configuration.challenge_key then
         challenge.start()
-    elseif configuration.irc_oper_username and configuration.irc_oper_password then
-        send('OPER', configuration.irc_oper_username,
-            {content=configuration.irc_oper_password, secret=true})
+    elseif configuration.oper_username and configuration.oper_password then
+        send('OPER', configuration.oper_username,
+            {content=configuration.oper_password, secret=true})
     else
         -- determine if we're already oper
         send('MODE', irc_state.nick)
@@ -458,8 +458,8 @@ end
 
 local function new_nickname()
     if irc_state.phase == 'registration' then
-        local nick = string.format('%.10s-%05d', configuration.irc_nick, math.random(0,99999))
-        irc_state.target_nick = configuration.irc_nick
+        local nick = string.format('%.10s-%05d', configuration.nick, math.random(0,99999))
+        irc_state.target_nick = configuration.nick
         send('NICK', nick)
     end
 end

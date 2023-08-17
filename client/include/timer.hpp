@@ -9,8 +9,6 @@
 
 struct lua_State;
 
-#include <uv.h>
-
 /**
  * @brief Construct a new libuv timer
  *
@@ -24,4 +22,4 @@ struct lua_State;
  * @param L Lua state
  * @param loop Current libuv loop
  */
-void push_new_uv_timer(lua_State *L, uv_loop_t *);
+void push_new_timer(lua_State *L);

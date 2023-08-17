@@ -19,6 +19,9 @@ pkg_check_modules(GEOIP             IMPORTED_TARGET geoip)
 pkg_check_modules(LIBHS             IMPORTED_TARGET libhs)
 pkg_check_modules(LIBIDN            IMPORTED_TARGET libidn)
 
+find_package(OpenSSL REQUIRED)
+find_package(Boost REQUIRED)
+
 if(GEOIP_FOUND)
 add_subdirectory(mygeoip)
 endif()

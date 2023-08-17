@@ -3,8 +3,7 @@
 #include "app.hpp"
 #include "config.hpp"
 #include "irc.hpp"
-#include "lua_uv_dnslookup.hpp"
-#include "lua_uv_timer.hpp"
+#include "timer.hpp"
 #include "safecall.hpp"
 #include "uv.hpp"
 
@@ -204,8 +203,7 @@ int l_irccase(lua_State* L) {
 
 auto l_newtimer(lua_State* const L) -> int
 {
-    auto const a = App::from_lua(L);
-    push_new_uv_timer(L, &a->loop);
+    push_new_timer(L);
     return 1;
 }
 
@@ -242,7 +240,7 @@ luaL_Reg const applib_module[] = {
     { "newtimer", l_newtimer},
     { "shutdown", l_shutdown},
     { "connect", start_irc },
-    { "dnslookup", l_dnslookup },
+   // { "dnslookup", l_dnslookup },
     { "parse_irc_tags", l_parse_irc_tags },
     {}
 };

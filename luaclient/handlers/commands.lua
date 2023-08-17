@@ -157,9 +157,9 @@ add_command('nick', '$g', function(nick)
 end)
 
 add_command('challenge', '', function()
-    if not configuration.irc_oper_username then
+    if not configuration.oper_username then
         status('challenge', 'no username configured: `irc_oper_username`')
-    elseif not configuration.irc_challenge_key then
+    elseif not configuration.challenge_key then
         status('challenge', 'no challenge key configured: `irc_challenge_key`')
     else
         challenge.start()
@@ -167,13 +167,13 @@ add_command('challenge', '', function()
 end)
 
 add_command('oper', '', function()
-    if not configuration.irc_oper_username then
+    if not configuration.oper_username then
         status('oper', 'no username configured: `irc_oper_username`')
-    elseif not configuration.irc_oper_password then
+    elseif not configuration.oper_password then
         status('oper', 'no password configured: `irc_oper_password`')
     else
-        send('OPER', configuration.irc_oper_username,
-        {content=configuration.irc_oper_password, secret=true})
+        send('OPER', configuration.oper_username,
+        {content=configuration.oper_password, secret=true})
     end
 end)
 

@@ -2,16 +2,17 @@
 
 #include <string>
 
-#include <uv.h>
+#include <boost/asio.hpp>
+#include <boost/asio/ssl.hpp>
 
 struct lua_State;
 
 struct App
 {
-    uv_loop_t loop;
+    boost::asio::io_context io_context;
+    boost::asio::posix::stream_descriptor stdin_poll;
+
     lua_State *L;
-    uv_poll_t stdin_poll;
-    uv_signal_t winch_signal;
     std::string paste;
     bool in_paste = false;
     mbstate_t mbstate{};
@@ -19,7 +20,6 @@ struct App
     App();
     ~App();
 
-    static auto from_loop(uv_loop_t const *loop) -> App *;
     static auto from_lua(lua_State *) -> App *;
 
     auto do_mouse(int y, int x) -> void;
@@ -29,6 +29,5 @@ struct App
     auto startup() -> void;
     auto shutdown() -> void;
 
-    static auto on_stdin(uv_poll_t *handle, int status, int events) -> void;
-    static auto on_winch(uv_signal_t* handle, int signum) -> void;
+    //static auto on_winch(uv_signal_t* handle, int signum) -> void;
 };
