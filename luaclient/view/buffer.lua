@@ -99,7 +99,7 @@ local keys = {
         local first_target
         for k, buffer in tablex.sort(buffers) do
             -- has new messages
-            if buffer.messages.n > buffer.messages.seen then
+            if buffer.messages.n > buffer.seen then
                 if current < k then
                     talk_target = k:lower()
                     return
@@ -153,6 +153,7 @@ local function draw_messages()
 
     local start = ncurses.getyx()
     local rows = math.max(0, tty_height - 1 - start)
+    buffer.seen = buffer.messages.n -- mark everything as seen
     drawing.draw_rotation(start, rows, buffer.messages, show_irc, render_irc)
 end
 
@@ -197,7 +198,7 @@ function M:draw_status()
 
     -- render channel names with unseen messages in yellow
     for _, buffer in tablex.sort(buffers) do
-        if buffer.messages.seen < buffer.messages.n then
+        if buffer.seen < buffer.messages.n then
             yellow()
             addstr(buffer.name .. '')
         end
