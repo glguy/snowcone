@@ -47,41 +47,36 @@ local plugin_manager     = require_ 'utils.plugin_manager'
 
 -- Load configuration =================================================
 
-config_dir = os.getenv 'XDG_CONFIG_HOME'
-if not config_dir then
-    config_dir = path.join(os.getenv 'HOME', '.config', 'snowcone')
-end
-
--- Process arguments ==================================================
-
 do
-    local flags = app.parse_args(arg, {config=true})
+    local config_home = os.getenv 'XDG_CONFIG_HOME'
+                     or path.join(assert(os.getenv 'HOME', 'HOME not set'), '.config')
+    config_dir = path.join(config_home, 'snowcone')
 
-    local configuration_file =
-        flags.config and file.read(flags.config) or
-        path.join(config_dir, 'settings.lua')
-    configuration = pretty.read(configuration_file)
+    local flags = app.parse_args(arg, {config=true})
+    local settings_filename = flags.config or path.join(config_dir, 'settings.lua')
+    local settings_file = file.read(settings_filename)
+    configuration = assert(pretty.read(settings_file))
 end
 
 -- Validate configuration =============================================
 
-if string.match(configuration.irc_nick, '[ \n\r]') then
+if string.match(configuration.irc_nick, '[ \n\r\x00]') then
     error 'Invalid character in nickname'
 end
 
-if configuration.irc_user and string.match(configuration.irc_user, '[ \n\r]') then
+if configuration.irc_user and string.match(configuration.irc_user, '[ \n\r\x00]') then
     error 'Invalid character in username'
 end
 
-if configuration.irc_gecos and string.match(configuration.irc_gecos, '[\n\r]') then
+if configuration.irc_gecos and string.match(configuration.irc_gecos, '[\n\r\x00]') then
     error 'Invalid character in GECOS'
 end
 
-if configuration.irc_pass and string.match(configuration.irc_pass, '[\n\r]') then
+if configuration.irc_pass and string.match(configuration.irc_pass, '[\n\r\x00]') then
     error 'Invalid character in server password'
 end
 
-if configuration.irc_oper_username and string.match(configuration.irc_oper_username, '[ \n\r]') then
+if configuration.irc_oper_username and string.match(configuration.irc_oper_username, '[ \n\r\x00]') then
     error 'Invalid character in operator username'
 end
 
@@ -94,7 +89,7 @@ end
 local defaults = {
     -- state
     messages = OrderedMap(1000), -- Raw IRC protocol messages
-    buffers = {}, -- channel and nickname keys to formatted messages
+    buffers = {}, -- [irccase(target)] = {name=string, messages=OrderedMap, seen=number}
     status_messages = OrderedMap(100),
     editor = Editor(),
     view = 'console',

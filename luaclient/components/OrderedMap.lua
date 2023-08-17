@@ -83,7 +83,6 @@ function OrderedMap:_init(n, keyfn)
     self.max = n
     self.ticker = 0
     self.keyfn = keyfn
-    self.seen = 0
 end
 
 return OrderedMap
