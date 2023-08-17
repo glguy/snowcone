@@ -17,7 +17,7 @@ function normal()       ncurses.attrset(ncurses.WA_NORMAL, 0)   end
 function bold()         ncurses.attron(ncurses.WA_BOLD)         end
 function bold_()        ncurses.attroff(ncurses.WA_BOLD)        end
 function italic()       ncurses.attron(ncurses.WA_ITALIC)       end
-function italic_()      ncurses.attron(ncurses.WA_ITALIC_)      end
+function italic_()      ncurses.attron(ncurses.WA_ITALIC)       end
 function reversevideo() ncurses.attron(ncurses.WA_REVERSE)      end
 function reversevideo_()ncurses.attroff(ncurses.WA_REVERSE)     end
 function underline()    ncurses.attron(ncurses.WA_UNDERLINE)    end
@@ -203,7 +203,7 @@ function draw_global_load()
         if x1 == tty_width - 1 then
             yellow()
             mvaddstr(y0, x0-1, '…' .. string.rep(' ', tty_width)) -- erase line
-            blue()
+            ncurses.colorset(input_mode_color)
             editor:overflow()
             mvaddstr(y0, x0, editor.before_cursor)
             y1, x1 = ncurses.getyx()

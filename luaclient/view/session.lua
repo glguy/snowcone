@@ -14,13 +14,13 @@ function M:render()
 
     if not irc_state then return end
 
-    addstr 'Phase:    '
+    addstr '   Phase: '
     bold()
     addstr(irc_state.phase)
     normal()
     addstr '\n'
 
-    addstr 'Caps:    '
+    addstr '    Caps:'
     bold()
     for k, v in tablex.sort(irc_state.caps_available) do
         if irc_state.caps_enabled[k] then
@@ -45,7 +45,7 @@ function M:render()
     normal()
     addstr '\n'
 
-    addstr 'Monitor: '
+    addstr ' Monitor:'
     for _, v in tablex.sort(irc_state.monitor) do
         if v.online then
             green()
