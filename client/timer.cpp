@@ -16,8 +16,8 @@ extern "C" {
 template<> char const* udata_name<boost::asio::steady_timer> = "steady_timer";
 
 namespace {
-luaL_Reg const MT[] = {
-    {"close", [](auto const L) {
+luaL_Reg const MT[] = {    
+    {"__gc", [](auto const L) {
         auto const timer = check_udata<boost::asio::steady_timer>(L, 1);
         lua_pushnil(L);
         lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
@@ -32,15 +32,18 @@ luaL_Reg const MT[] = {
         lua_settop(L, 3);
 
         // store the callback function
-        lua_setuservalue(L, 1);
+        lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
 
         timer->expires_after(std::chrono::milliseconds{start});
         timer->async_wait([L, timer](auto const error) {
             if (!error) {
+                // get the callback
                 lua_rawgetp(L, LUA_REGISTRYINDEX, timer);
-                lua_getuservalue(L, -1);
-                lua_insert(L, -2);
-                safecall(L, "timer", 1);
+                // forget the callback
+                lua_pushnil(L);
+                lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
+                // invoke the callback
+                safecall(L, "timer", 0);
             }});
 
         return 0;
@@ -49,9 +52,10 @@ luaL_Reg const MT[] = {
     {"stop", [](auto const L) {
         auto const timer = check_udata<boost::asio::steady_timer>(L, 1);
         timer->cancel();
+        
         // forget the current callback.
         lua_pushnil(L);
-        lua_setuservalue(L, -2);
+        lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
 
         return 0;
     }},
@@ -69,8 +73,4 @@ void push_new_timer(lua_State *L)
         lua_setfield(L, -2, "__index");
     });
     new (timer) boost::asio::steady_timer {App::from_lua(L)->io_context};
-
-    // Keep the timer alive until it is closed in uv
-    lua_pushvalue(L, -1);
-    lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
 }

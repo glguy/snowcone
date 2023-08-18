@@ -302,11 +302,11 @@ end
 
 function quit(msg)
     if tick_timer then
-        tick_timer:close()
+        tick_timer:stop()
         tick_timer = nil
     end
     if reconnect_timer then
-        reconnect_timer:close()
+        reconnect_timer:stop()
         reconnect_timer = nil
     end
     if send_irc then
@@ -412,9 +412,8 @@ local function on_irc(irc, err)
         else
             reconnect_timer = snowcone.newtimer()
             reconnect_timer:start(1000, function()
-                connect()
-                reconnect_timer:close()
                 reconnect_timer = nil
+                connect()
             end)
         end
         return
