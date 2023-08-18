@@ -167,13 +167,6 @@ namespace
         virtual auto start() -> void = 0;
         virtual auto shutdown() -> void = 0;
         virtual auto write(char const *cmd, size_t n, int ref) -> void = 0;
-
-        auto resolve(std::string hostname, std::string service)
-        {
-            auto resolver = boost::asio::ip::tcp::resolver{io_context};
-            auto const query = boost::asio::ip::tcp::resolver::query{hostname, service};
-            return resolver.resolve(query);
-        }
     };
 
     class plain_irc_connection final : public irc_connection
@@ -204,10 +197,10 @@ namespace
             boost::asio::async_write(socket_, boost::asio::buffer(cmd, n), [L = this->L, ref](auto error, auto amount)
                                      { luaL_unref(L, LUA_REGISTRYINDEX, ref); });
         }
-        auto connect(char const *host, char const *port) -> boost::system::error_code
+        auto connect(auto endpoints) -> boost::system::error_code
         {
             boost::system::error_code error;
-            boost::asio::connect(socket_, resolve(host, port), error);
+            boost::asio::connect(socket_, endpoints, error);
             return error;
         }
     };
@@ -241,10 +234,10 @@ namespace
             boost::asio::async_write(socket_, boost::asio::buffer(cmd, n), [L = this->L, ref](auto error, auto amount)
                                      { luaL_unref(L, LUA_REGISTRYINDEX, ref); });
         }
-        auto connect(char const *host, char const *port) -> boost::system::error_code
+        auto connect(boost::asio::ip::basic_resolver_results<boost::asio::ip::tcp> endpoints, std::string const& host) -> boost::system::error_code
         {
             boost::system::error_code error;
-            boost::asio::connect(socket_.lowest_layer(), resolve(host, port), error);
+            boost::asio::connect(socket_.lowest_layer(), endpoints, error);
             if (error)
             {
                 return error;
@@ -302,10 +295,13 @@ auto start_irc(lua_State *const L) -> int
     lua_pushvalue(L, -1);
     auto const send_cb = luaL_ref(L, LUA_REGISTRYINDEX);
 
+    auto resolver = boost::asio::ip::tcp::resolver{a->io_context};
+    auto const endpoints = resolver.resolve({host, port});
+
     if (not tls)
     {
         auto const irc = plain_irc_connection::create(a->io_context, L, irc_cb, send_cb);
-        auto const error = irc->connect(host, port);
+        auto const error = irc->connect(std::move(endpoints));
 
         lua_pushlightuserdata(L, irc.get());
         lua_setupvalue(L, -2, 1);
@@ -330,7 +326,7 @@ auto start_irc(lua_State *const L) -> int
             ssl_context.use_private_key_file(cert, boost::asio::ssl::context::file_format::pem);
         }
         auto const irc = tls_irc_connection::create(a->io_context, ssl_context, L, irc_cb, send_cb);
-        auto const error = irc->connect(host, port);
+        auto const error = irc->connect(std::move(endpoints), cert);
 
         if (error)
         {

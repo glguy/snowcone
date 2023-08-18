@@ -1,7 +1,7 @@
 return function(cmd, ...)
 
     if not send_irc then
-        error 'irc not connected'
+        error('irc not connected', 2)
     end
 
     local msg = {
@@ -35,16 +35,23 @@ return function(cmd, ...)
         -- * leading :
         -- * any space
         if string.find(part, '[\x00\r\n]') then
-            error('prohibited character in command argument')
+            error('prohibited character in command argument', 2)
         elseif not string.find(part, '^[^ :][^ ]*$') then
-            assert(i == n, 'malformed internal command argument')
+            if i ~= n then
+                error(i == n, 'malformed internal command argument', 2)
+            end
             parts[i+1] = ':' .. part
         else
             parts[i+1] = part
         end
     end
 
-    send_irc(table.concat(parts, ' ') .. '\r\n')
+    local raw = table.concat(parts, ' ') .. '\r\n'
+    if #raw > 512 then
+        error('message too long: ' .. #raw, 2)
+    end
+
+    send_irc(raw)
 
     messages:insert(true, msg)
 
