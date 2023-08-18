@@ -14,12 +14,12 @@ extern "C"
 #include <lauxlib.h>
 }
 
-#include <boost/bind.hpp>
 
 #include <charconv> // from_chars
 #include <sstream>
 #include <string>
 #include <memory>
+#include <functional>
 
 namespace
 {
@@ -94,15 +94,18 @@ namespace
     protected:
         boost::asio::io_context &io_context;
         boost::asio::streambuf buffer;
-
-    public:
         lua_State *L;
         int irc_cb, send_cb;
 
+    public:
+
         typedef std::shared_ptr<irc_connection> pointer;
 
-        irc_connection(boost::asio::io_context &io_context)
+        irc_connection(boost::asio::io_context &io_context, lua_State * const L, int const irc_cb, int const send_cb)
             : io_context{io_context}
+            , L{L}
+            , irc_cb{irc_cb}
+            , send_cb{send_cb}
         {
         }
 
@@ -157,6 +160,12 @@ namespace
             }
             else
             {
+                // Remove send_callback's upvalue pointing to this object
+                lua_rawgeti(L, LUA_REGISTRYINDEX, send_cb);
+                lua_pushnil(L);
+                lua_setupvalue(L, -2, 1);
+                lua_pop(L, 1);
+
                 lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
                 safecall(L, "on_irc_line", 0);
             }
@@ -179,22 +188,19 @@ namespace
         boost::asio::ip::tcp::socket socket_;
 
     public:
-        plain_irc_connection(boost::asio::io_context &io_context)
-            : irc_connection{io_context}, socket_{io_context} {}
+        plain_irc_connection(boost::asio::io_context &io_context, lua_State * const L, int const irc_cb, int const send_cb)
+            : irc_connection{io_context, L, irc_cb, send_cb}, socket_{io_context} {}
 
-        static std::shared_ptr<plain_irc_connection> create(boost::asio::io_context &io_context)
+        static std::shared_ptr<plain_irc_connection> create(boost::asio::io_context &io_context, lua_State * const L, int const irc_cb, int const send_cb)
         {
-            return std::make_shared<plain_irc_connection>(io_context);
+            return std::make_shared<plain_irc_connection>(io_context, L, irc_cb, send_cb);
         }
 
         auto start() -> void override
         {
-            auto self{shared_from_this()};
+            using namespace std::placeholders;
             boost::asio::async_read_until(socket_, buffer, '\n',
-                                          [self](auto x, auto y)
-                                          {
-                                              self->handle_read(x, y);
-                                          });
+                std::bind(&plain_irc_connection::handle_read, shared_from_this(), _1, _2));
         }
         auto shutdown() -> void override
         {
@@ -216,24 +222,21 @@ namespace
         boost::asio::ssl::stream<boost::asio::ip::tcp::socket> socket_;
 
     public:
-        tls_irc_connection(boost::asio::io_context &io_context, boost::asio::ssl::context &ssl_context)
-            : irc_connection{io_context}, socket_{io_context, ssl_context}
+        tls_irc_connection(boost::asio::io_context &io_context, boost::asio::ssl::context &ssl_context, lua_State * const L, int const irc_cb, int const send_cb)
+            : irc_connection{io_context, L, irc_cb, send_cb}, socket_{io_context, ssl_context}
         {
         }
 
-        static std::shared_ptr<tls_irc_connection> create(boost::asio::io_context &io_context, boost::asio::ssl::context &ssl_context)
+        static std::shared_ptr<tls_irc_connection> create(boost::asio::io_context &io_context, boost::asio::ssl::context &ssl_context, lua_State * const L, int const irc_cb, int const send_cb)
         {
-            return std::make_shared<tls_irc_connection>(io_context, ssl_context);
+            return std::make_shared<tls_irc_connection>(io_context, ssl_context, L, irc_cb, send_cb);
         }
 
         auto start() -> void override
         {
-            auto self{shared_from_this()};
+            using namespace std::placeholders;
             boost::asio::async_read_until(socket_, buffer, '\n',
-                                          [self](auto x, auto y)
-                                          {
-                                              self->handle_read(x, y);
-                                          });
+                std::bind(&plain_irc_connection::handle_read, shared_from_this(), _1, _2));
         }
         auto shutdown() -> void override
         {
@@ -256,7 +259,7 @@ namespace
 
     auto on_send_irc(lua_State *L) -> int
     {
-        auto const tcp = reinterpret_cast<irc_connection *>(lua_touserdata(L, lua_upvalueindex(1)))->shared_from_this();
+        auto const tcp = reinterpret_cast<irc_connection *>(lua_touserdata(L, lua_upvalueindex(1)));
 
         if (tcp == nullptr)
         {
@@ -293,17 +296,20 @@ auto start_irc(lua_State *const L) -> int
     luaL_checkany(L, 5); // callback
     lua_settop(L, 5);
 
+    auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_pushnil(L);
+    lua_pushcclosure(L, on_send_irc, 1);
+    lua_pushvalue(L, -1);
+    auto const send_cb = luaL_ref(L, LUA_REGISTRYINDEX);
+
     if (not tls)
     {
-        auto irc = plain_irc_connection::create(a->io_context);
-        irc->L = L;
-        irc->irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
-        lua_pushlightuserdata(L, irc.get());
-        lua_pushcclosure(L, on_send_irc, 1);
-        lua_pushvalue(L, -1);
-        irc->send_cb = luaL_ref(L, LUA_REGISTRYINDEX);
+        auto const irc = plain_irc_connection::create(a->io_context, L, irc_cb, send_cb);
         irc->connect(host, port);
         irc->start();
+
+        lua_pushlightuserdata(L, irc.get());
+        lua_setupvalue(L, -2, 1);
     }
     else
     {
@@ -314,15 +320,12 @@ auto start_irc(lua_State *const L) -> int
             ssl_context.use_certificate_file(cert, boost::asio::ssl::context::file_format::pem);
             ssl_context.use_private_key_file(cert, boost::asio::ssl::context::file_format::pem);
         }
-        auto const irc = tls_irc_connection::create(a->io_context, ssl_context);
-        irc->L = L;
-        irc->irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
-        lua_pushlightuserdata(L, irc.get());
-        lua_pushcclosure(L, on_send_irc, 1);
-        lua_pushvalue(L, -1);
-        irc->send_cb = luaL_ref(L, LUA_REGISTRYINDEX);
+        auto const irc = tls_irc_connection::create(a->io_context, ssl_context, L, irc_cb, send_cb);
         irc->connect(host, port);
         irc->start();
+
+        lua_pushlightuserdata(L, irc.get());
+        lua_setupvalue(L, -2, 1);
     }
 
     return 1; // returns the on_send callback function
