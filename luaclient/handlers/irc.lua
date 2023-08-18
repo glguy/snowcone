@@ -21,10 +21,26 @@ function M.PING(irc)
     send('PONG', irc[1])
 end
 
+local function route_to_buffer(target, irc)
+    local buffer_target
+    if irc_state:is_channel_name(target) then
+        buffer_target = target
+    else
+        buffer_target = split_nuh(irc.source)
+    end
+
+    local buffer = buffers[snowcone.irccase(buffer_target)]
+    if buffer then
+        buffer.messages:insert(true, irc)
+    end
+end
+
 local ctcp_handlers = require_ 'handlers.ctcp'
 function M.PRIVMSG(irc)
     local target, message = irc[1], irc[2]
     local ctcp, ctcp_args = message:match '^\x01([^\x01 ]+) ?([^\x01]*)\x01?$'
+
+    -- reply only to targetted CTCP requests from staff
     if ctcp and target == irc_state.nick and irc.tags['solanum.chat/oper'] then
         ctcp = ctcp:upper()
         local nick = split_nuh(irc.source)
@@ -37,18 +53,12 @@ function M.PRIVMSG(irc)
         end
     end
 
-    local buffer = buffers[snowcone.irccase(target)]
-    if buffer then
-        buffer.messages:insert(true, irc)
-    end
+    route_to_buffer(target, irc)
 end
 
 function M.NOTICE(irc)
     local target = irc[1]
-    local buffer = buffers[snowcone.irccase(target)]
-    if buffer then
-        buffer.messages:insert(true, irc)
-    end
+    route_to_buffer(target, irc)
 end
 
 local cap_cmds = require_ 'handlers.cap'
