@@ -13,7 +13,7 @@ struct App
     boost::asio::posix::stream_descriptor stdin_poll;
     boost::asio::signal_set winch;
 
-    lua_State *L;
+    lua_State * L;
     std::string paste;
     bool in_paste = false;
     mbstate_t mbstate{};

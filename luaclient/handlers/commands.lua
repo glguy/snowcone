@@ -137,6 +137,10 @@ add_command('umode', '$R', function(args)
 end)
 
 add_command('whois', '$g', function(nick)
+    send('WHOIS', nick)
+end)
+
+add_command('wii', '$g', function(nick)
     send('WHOIS', nick, nick)
 end)
 

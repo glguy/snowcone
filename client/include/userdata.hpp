@@ -17,9 +17,9 @@ extern "C" {
 template<typename T> char const* udata_name;
 
 template <typename T>
-T * new_udata(lua_State *L, std::invocable auto k) {
+T * new_udata(lua_State *L, int nuvalue, std::invocable auto k) {
 
-    auto ptr = static_cast<T*>(lua_newuserdata(L, sizeof (T)));
+    auto ptr = static_cast<T*>(lua_newuserdatauv(L, sizeof (T), nuvalue));
 
     if (luaL_newmetatable(L, udata_name<T>)) {
         k();

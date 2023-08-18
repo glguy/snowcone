@@ -12,6 +12,7 @@ extern "C"
 }
 
 #include <ncurses.h>
+
 #include <iostream>
 #include <unistd.h>
 
@@ -60,14 +61,16 @@ auto App::do_paste() -> void
 
 auto App::start_winch() -> void
 {
-    winch.async_wait([this](auto error, auto sig)
-                     {
+    winch.async_wait(
+    [this](auto const error, auto const sig)
+    {
         if (!error) {
             endwin();
             refresh();
             l_ncurses_resize(this->L);
             start_winch();
-        } });
+        }
+    });
 }
 
 auto App::start_stdin() -> void

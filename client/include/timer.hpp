@@ -12,7 +12,7 @@ struct lua_State;
 /**
  * @brief Construct a new libuv timer
  *
- * Pushes new object onto Lua stack
+ * Pushes new object onto Lua stack and return 1
  *
  * Lua object methods:
  * * start
@@ -22,4 +22,4 @@ struct lua_State;
  * @param L Lua state
  * @param loop Current libuv loop
  */
-void push_new_timer(lua_State *L);
+auto push_new_timer(lua_State *L) -> int;
