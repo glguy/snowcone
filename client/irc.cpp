@@ -326,7 +326,7 @@ auto start_irc(lua_State *const L) -> int
             ssl_context.use_private_key_file(cert, boost::asio::ssl::context::file_format::pem);
         }
         auto const irc = tls_irc_connection::create(a->io_context, ssl_context, L, irc_cb, send_cb);
-        auto const error = irc->connect(std::move(endpoints), cert);
+        auto const error = irc->connect(std::move(endpoints), host);
 
         if (error)
         {
