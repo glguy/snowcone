@@ -184,7 +184,7 @@ function draw_global_load()
         if 1 < editor.first then
             yellow()
             addstr('…')
-            blue()
+            ncurses.colorset(input_mode_color)
         else
             addstr(' ')
         end
