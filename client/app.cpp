@@ -51,95 +51,96 @@ auto App::do_keyboard(long key) -> void
     }
 }
 
-auto App::do_paste() -> void
+auto App::do_paste(std::string const& paste) -> void
 {
     lua_pushlstring(L, paste.data(), paste.size());
-    paste.clear();
-    in_paste = false;
     lua_callback(L, "on_paste");
 }
 
-auto App::start_winch() -> void
+auto App::winch_thread() -> boost::asio::awaitable<void>
 {
-    winch.async_wait(
-    [this](auto const error, auto const sig)
-    {
-        if (!error) {
-            endwin();
-            refresh();
-            l_ncurses_resize(this->L);
-            start_winch();
-        }
-    });
+    for (;;) {
+        co_await winch.async_wait(boost::asio::use_awaitable);
+        endwin();
+        refresh();
+        l_ncurses_resize(this->L);
+        lua_callback(this->L, "on_resize");
+    }
 }
 
-auto App::start_stdin() -> void
+auto App::stdin_thread() -> boost::asio::awaitable<void>
 {
-    stdin_poll.async_wait(boost::asio::posix::stream_descriptor::wait_read,
-    [this](auto const error) {
-        if (!error) {
-            for (int key; ERR != (key = getch());)
+    std::string paste;
+    bool in_paste = false;
+    mbstate_t mbstate{};
+
+    for(;;) {
+        co_await stdin_poll.async_wait(
+            boost::asio::posix::stream_descriptor::wait_read,
+            boost::asio::use_awaitable);
+
+        for (int key; ERR != (key = getch());)
+        {
+            if (in_paste)
             {
-                if (in_paste)
+                if (BracketedPaste::end_paste == key)
                 {
-                    if (BracketedPaste::end_paste == key)
-                    {
-                        do_paste();
-                    }
-                    else
-                    {
-                        paste.push_back(key);
-                    }
-                }
-                else if (key == '\x1b')
-                {
-                    key = getch();
-                    do_keyboard(ERR == key ? '\x1b' : -key);
-                }
-                else if (KEY_MOUSE == key)
-                {
-                    MEVENT ev;
-                    getmouse(&ev);
-                    if (ev.bstate == BUTTON1_CLICKED)
-                    {
-                        do_mouse(ev.y, ev.x);
-                    }
-                }
-                else if (KEY_RESIZE == key)
-                {
-                }
-                else if (BracketedPaste::start_paste == key)
-                {
-                    in_paste = true;
-                }
-                else if (key > 0xff)
-                {
-                    do_keyboard(-key);
-                }
-                else if (isascii(key))
-                {
-                    do_keyboard(key);
+                    do_paste(paste);
+                    paste.clear();
+                    in_paste = false;
                 }
                 else
                 {
-                    char const c = key;
-                    wchar_t code;
-                    size_t const r = mbrtowc(&code, &c, 1, &mbstate);
-                    if (r < (size_t)-2)
-                    {
-                        do_keyboard(code);
-                    }
+                    paste.push_back(key);
                 }
             }
-            start_stdin();
+            else if (key == '\x1b')
+            {
+                key = getch();
+                do_keyboard(ERR == key ? '\x1b' : -key);
+            }
+            else if (KEY_MOUSE == key)
+            {
+                MEVENT ev;
+                getmouse(&ev);
+                if (ev.bstate == BUTTON1_CLICKED)
+                {
+                    do_mouse(ev.y, ev.x);
+                }
+            }
+            else if (KEY_RESIZE == key)
+            {
+            }
+            else if (BracketedPaste::start_paste == key)
+            {
+                in_paste = true;
+            }
+            else if (key > 0xff)
+            {
+                do_keyboard(-key);
+            }
+            else if (isascii(key))
+            {
+                do_keyboard(key);
+            }
+            else
+            {
+                char const c = key;
+                wchar_t code;
+                size_t const r = mbrtowc(&code, &c, 1, &mbstate);
+                if (r < (size_t)-2)
+                {
+                    do_keyboard(code);
+                }
+            }
         }
-    });
+    }
 }
 
 auto App::startup() -> void
 {
-    start_stdin();
-    start_winch();
+    boost::asio::co_spawn(io_context, stdin_thread(), boost::asio::detached);
+    boost::asio::co_spawn(io_context, winch_thread(), boost::asio::detached);
     io_context.run();
 }
 

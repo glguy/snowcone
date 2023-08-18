@@ -14,9 +14,6 @@ struct App
     boost::asio::signal_set winch;
 
     lua_State * L;
-    std::string paste;
-    bool in_paste = false;
-    mbstate_t mbstate{};
 
     App();
     ~App();
@@ -25,11 +22,12 @@ struct App
 
     auto do_mouse(int y, int x) -> void;
     auto do_keyboard(long key) -> void;
-    auto do_paste() -> void;
+    auto do_paste(std::string const&) -> void;
 
     auto startup() -> void;
     auto shutdown() -> void;
 
-    auto start_stdin() -> void;
-    auto start_winch() -> void;
+private:
+    auto winch_thread() -> boost::asio::awaitable<void>;
+    auto stdin_thread() -> boost::asio::awaitable<void>;
 };

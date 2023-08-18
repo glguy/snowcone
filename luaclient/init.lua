@@ -391,6 +391,10 @@ function M.print(str)
     status('print', '%s', str)
 end
 
+function M.on_resize()
+    draw()
+end
+
 snowcone.setmodule(M)
 
 local connect
