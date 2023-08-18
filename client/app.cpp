@@ -16,8 +16,7 @@ extern "C"
 #include <unistd.h>
 
 App::App()
-    : io_context{}
-    , stdin_poll{io_context, STDIN_FILENO}
+    : io_context{}, stdin_poll{io_context, STDIN_FILENO}, winch{io_context, SIGWINCH}
 {
     L = luaL_newstate();
     *reinterpret_cast<App **>(lua_getextraspace(L)) = this;
@@ -59,86 +58,90 @@ auto App::do_paste() -> void
     lua_callback(L, "on_paste");
 }
 
-namespace
+auto App::start_winch() -> void
 {
-    auto on_stdin(App *const a) -> void
-    {
-        for (int key; ERR != (key = getch());)
-        {
-            if (a->in_paste)
+    winch.async_wait([this](auto error, auto sig)
+                     {
+        if (!error) {
+            endwin();
+            refresh();
+            l_ncurses_resize(this->L);
+            start_winch();
+        } });
+}
+
+auto App::start_stdin() -> void
+{
+    stdin_poll.async_wait(boost::asio::posix::stream_descriptor::wait_read,
+    [this](auto const error) {
+        if (!error) {
+            for (int key; ERR != (key = getch());)
             {
-                if (BracketedPaste::end_paste == key)
+                if (in_paste)
                 {
-                    a->do_paste();
+                    if (BracketedPaste::end_paste == key)
+                    {
+                        do_paste();
+                    }
+                    else
+                    {
+                        paste.push_back(key);
+                    }
+                }
+                else if (key == '\x1b')
+                {
+                    key = getch();
+                    do_keyboard(ERR == key ? '\x1b' : -key);
+                }
+                else if (KEY_MOUSE == key)
+                {
+                    MEVENT ev;
+                    getmouse(&ev);
+                    if (ev.bstate == BUTTON1_CLICKED)
+                    {
+                        do_mouse(ev.y, ev.x);
+                    }
+                }
+                else if (KEY_RESIZE == key)
+                {
+                }
+                else if (BracketedPaste::start_paste == key)
+                {
+                    in_paste = true;
+                }
+                else if (key > 0xff)
+                {
+                    do_keyboard(-key);
+                }
+                else if (isascii(key))
+                {
+                    do_keyboard(key);
                 }
                 else
                 {
-                    a->paste.push_back(key);
+                    char const c = key;
+                    wchar_t code;
+                    size_t const r = mbrtowc(&code, &c, 1, &mbstate);
+                    if (r < (size_t)-2)
+                    {
+                        do_keyboard(code);
+                    }
                 }
             }
-            else if (key == '\x1b')
-            {
-                key = getch();
-                a->do_keyboard(ERR == key ? '\x1b' : -key);
-            }
-            else if (KEY_MOUSE == key)
-            {
-                MEVENT ev;
-                getmouse(&ev);
-                if (ev.bstate == BUTTON1_CLICKED)
-                {
-                    a->do_mouse(ev.y, ev.x);
-                }
-            }
-            else if (KEY_RESIZE == key)
-            {
-                endwin();
-                refresh();
-                l_ncurses_resize(a->L);
-            }
-            else if (BracketedPaste::start_paste == key)
-            {
-                a->in_paste = true;
-            }
-            else if (key > 0xff)
-            {
-                a->do_keyboard(-key);
-            }
-            else if (isascii(key))
-            {
-                a->do_keyboard(key);
-            }
-            else
-            {
-                char const c = key;
-                wchar_t code;
-                size_t const r = mbrtowc(&code, &c, 1, &a->mbstate);
-                if (r < (size_t)-2)
-                {
-                    a->do_keyboard(code);
-                }
-            }
+            start_stdin();
         }
-    }
-
-    auto stdin_poll_loop(App *const a) -> void
-    {
-        a->stdin_poll.async_wait(boost::asio::posix::stream_descriptor::wait_read, [a](auto const error)
-                                 {
-        if (!error) {
-            on_stdin(a);
-            stdin_poll_loop(a);
-        } });
-    }
+    });
 }
 
 auto App::startup() -> void
 {
-    stdin_poll_loop(this);
+    start_stdin();
+    start_winch();
     io_context.run();
 }
 
 auto App::shutdown() -> void
 {
     stdin_poll.close();
+    winch.cancel();
 }

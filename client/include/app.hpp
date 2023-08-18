@@ -11,6 +11,7 @@ struct App
 {
     boost::asio::io_context io_context;
     boost::asio::posix::stream_descriptor stdin_poll;
+    boost::asio::signal_set winch;
 
     lua_State *L;
     std::string paste;
@@ -29,5 +30,6 @@ struct App
     auto startup() -> void;
     auto shutdown() -> void;
 
-    //static auto on_winch(uv_signal_t* handle, int signum) -> void;
+    auto start_stdin() -> void;
+    auto start_winch() -> void;
 };

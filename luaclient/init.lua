@@ -282,12 +282,12 @@ end
 if not tick_timer then
     tick_timer = snowcone.newtimer()
     local function cb()
+        tick_timer:start(1000, cb)
         uptime = uptime + 1
         if irc_state and irc_state.phase == 'connected' and uptime == liveness + 30 then
             send('PING', string.format('snowcone-%d', uptime))
         end
         draw()
-        tick_timer:start(1000, cb)
     end
     tick_timer:start(1000, cb)
 end
@@ -462,7 +462,7 @@ end
 
 -- declared above so that it's in scope in on_irc
 function connect()
-    local success, result = pcall(
+    local success, result, err = pcall(
         snowcone.connect,
         configuration.tls,
         configuration.host,
@@ -470,9 +470,14 @@ function connect()
         configuration.tls_client_cert,
         on_irc)
     if success then
-        send_irc = result
-        status('irc', 'connecting')
-        irc_registration()
+        if result then
+            send_irc = result
+            status('irc', 'connecting')
+            irc_registration()
+        else
+            -- yeah, I know this is awkward, but I'm trying not to raise a lua error in some C++ code
+            status('irc', 'failed to connect: %s', err)
+        end
     else
         status('irc', 'failed to connect: %s', result)
     end

@@ -211,9 +211,11 @@ namespace
             boost::asio::async_write(socket_, boost::asio::buffer(cmd, n), [L = this->L, ref](auto error, auto amount)
                                      { luaL_unref(L, LUA_REGISTRYINDEX, ref); });
         }
-        auto connect(char const *host, char const *port) -> void
+        auto connect(char const *host, char const *port) -> boost::system::error_code
         {
-            boost::asio::connect(socket_, resolve(host, port));
+            boost::system::error_code error;
+            boost::asio::connect(socket_, resolve(host, port), error);
+            return error;
         }
     };
 
@@ -247,13 +249,16 @@ namespace
             boost::asio::async_write(socket_, boost::asio::buffer(cmd, n), [L = this->L, ref](auto error, auto amount)
                                      { luaL_unref(L, LUA_REGISTRYINDEX, ref); });
         }
-        auto connect(char const *host, char const *port) -> void
+        auto connect(char const *host, char const *port) -> boost::system::error_code
         {
-            boost::asio::connect(socket_.lowest_layer(), resolve(host, port));
+            boost::system::error_code error;
+            boost::asio::connect(socket_.lowest_layer(), resolve(host, port), error);
+            if (error) { return error; }
             socket_.lowest_layer().set_option(boost::asio::ip::tcp::no_delay(true));
             socket_.set_verify_mode(boost::asio::ssl::verify_peer);
             socket_.set_verify_callback(boost::asio::ssl::host_name_verification(host));
-            socket_.handshake(boost::asio::ssl::stream_base::handshake_type::client);
+            socket_.handshake(boost::asio::ssl::stream_base::handshake_type::client, error);
+            return error;
         }
     };
 
@@ -305,11 +310,19 @@ auto start_irc(lua_State *const L) -> int
     if (not tls)
     {
         auto const irc = plain_irc_connection::create(a->io_context, L, irc_cb, send_cb);
-        irc->connect(host, port);
-        irc->start();
+        auto const error = irc->connect(host, port);
 
         lua_pushlightuserdata(L, irc.get());
         lua_setupvalue(L, -2, 1);
+
+        if (error) {
+            auto const errmsg = error.what();
+            lua_pushnil(L);
+            lua_pushstring(L, errmsg.c_str());
+            return 2;
+        }
+
+        irc->start();
     }
     else
     {
@@ -321,11 +334,18 @@ auto start_irc(lua_State *const L) -> int
             ssl_context.use_private_key_file(cert, boost::asio::ssl::context::file_format::pem);
         }
         auto const irc = tls_irc_connection::create(a->io_context, ssl_context, L, irc_cb, send_cb);
-        irc->connect(host, port);
-        irc->start();
+        auto const error = irc->connect(host, port);
+
+        if (error) {
+            auto const errmsg = error.what();
+            lua_pushstring(L, errmsg.c_str());
+            return 2;
+        }
 
         lua_pushlightuserdata(L, irc.get());
         lua_setupvalue(L, -2, 1);
+
+        irc->start();
     }
 
     return 1; // returns the on_send callback function
