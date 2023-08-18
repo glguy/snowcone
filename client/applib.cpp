@@ -3,9 +3,8 @@
 #include "app.hpp"
 #include "config.hpp"
 #include "irc.hpp"
-#include "timer.hpp"
 #include "safecall.hpp"
-#include "uv.hpp"
+#include "timer.hpp"
 
 #include <ircmsg.hpp>
 #include <mybase64.hpp>

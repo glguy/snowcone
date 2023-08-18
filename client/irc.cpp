@@ -1,10 +1,7 @@
 #include "irc.hpp"
 
 #include "app.hpp"
-#include "read-line.hpp"
 #include "safecall.hpp"
-#include "socat.hpp"
-#include "uv.hpp"
 
 #include <ircmsg.hpp>
 
@@ -14,12 +11,11 @@ extern "C"
 #include <lauxlib.h>
 }
 
-
 #include <charconv> // from_chars
+#include <functional>
+#include <memory>
 #include <sstream>
 #include <string>
-#include <memory>
-#include <functional>
 
 namespace
 {

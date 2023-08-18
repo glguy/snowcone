@@ -2,10 +2,7 @@
 #include "applib.hpp"
 #include "bracketed_paste.hpp"
 #include "ircmsg.hpp"
-#include "read-line.hpp"
 #include "safecall.hpp"
-#include "socat.hpp"
-#include "uv.hpp"
 
 extern "C"
 {
