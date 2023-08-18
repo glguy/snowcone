@@ -230,7 +230,7 @@ luaL_Reg const applib_module[] = {
     { "xor_strings", l_xor_strings },
     { "isalnum", l_isalnum },
     { "irccase", l_irccase },
-    { "newtimer", push_new_timer},
+    { "newtimer", l_new_timer},
     { "shutdown", l_shutdown},
     { "connect", start_irc },
    // { "dnslookup", l_dnslookup },

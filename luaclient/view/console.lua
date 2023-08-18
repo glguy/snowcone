@@ -68,7 +68,7 @@ local function render_irc(irc)
         add_button('SNOW ', function() set_focus(irc) end, true)
         bold_()
         cyan()
-        addstr(':')
+        addstr ':'
         normal()
         addircstr(snote_text)
         return
@@ -90,7 +90,7 @@ local function render_irc(irc)
     for i,arg in ipairs(irc) do
         if i == n and (arg == '' or arg:startswith ':' or arg:match ' ') then
             cyan()
-            addstr(' :')
+            addstr ' :'
             normal()
             addircstr(arg)
         else
@@ -160,18 +160,18 @@ local function draw_focus(irc, snotice)
     --
     if next(irc.tags) then
         blue()
-        addstr('      tags:')
+        addstr '      tags:'
         for k, v in tablex.sort(irc.tags) do
             cyan()
             if show_raw then k = rawstr(k) end
             mvaddstr(ncurses.getyx(), 12, k)
             if type(v) == 'string' then
-                addstr(': ')
+                addstr ': '
                 normal()
                 if show_raw then v = rawstr(v) end
-                addstr(v .. '\n')
+                addstr(v, '\n')
             else
-                addstr('\n')
+                addstr '\n'
             end
         end
     end
@@ -181,16 +181,16 @@ local function draw_focus(irc, snotice)
     --
     if irc.source then
         blue()
-        addstr('    source: ')
+        addstr '    source: '
         normal()
-        addstr(irc.source..'\n')
+        addstr(irc.source, '\n')
     end
 
     --
     -- COMMAND
     --
     blue()
-    addstr('   command: ')
+    addstr '   command: '
     local cmd_color = palette[irc.command] or function() end
     cmd_color()
     bold()
@@ -200,10 +200,10 @@ local function draw_focus(irc, snotice)
     if not show_raw then
         local name = numeric_names[irc.command]
         if name then
-            addstr(' - ' .. name)
+            addstr(' - ', name)
         end
     end
-    addstr('\n')
+    addstr '\n'
 
     --
     -- ARGUMENTS
@@ -217,30 +217,30 @@ local function draw_focus(irc, snotice)
         else
             addircstr(v)
         end
-        addstr('\n')
+        addstr '\n'
     end
 
     --
     -- DECODED SNOTE BODY
     --
     if snotice ~= nil then
-        addstr('\n')
+        addstr '\n'
         blue()
         addstr(string.format('%10s: ', 'name'))
         magenta()
-        addstr(snotice.name .. '\n')
+        addstr(snotice.name, '\n')
 
         for k, v in tablex.sort(snotice) do
             if k ~= 'name' then
                 blue()
                 addstr(string.format('%10s: ', k))
                 normal()
-                addstr(v .. '\n')
+                addstr(v, '\n')
             end
         end
     end
 
-    addstr('─')
+    addstr '─'
     add_button('[CLOSE]', function() focus = nil end)
     local _, x = ncurses.getyx()
     addstr(string.rep('─', tty_width - x))

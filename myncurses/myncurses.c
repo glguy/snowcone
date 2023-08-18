@@ -54,8 +54,8 @@ static int l_attroff(lua_State *L)
 
 static int l_attrset(lua_State *L)
 {
-    int a = luaL_checkinteger(L, 1);
-    int color = luaL_checkinteger(L, 2);
+    int const a = luaL_checkinteger(L, 1);
+    int const color = luaL_checkinteger(L, 2);
     if (ERR == attr_set(a, color, NULL)) {
         return luaL_error(L, "attrset: ncurses error");
     }
@@ -64,25 +64,38 @@ static int l_attrset(lua_State *L)
 
 static int l_addstr(lua_State *L)
 {
-    size_t len;
-    char const* str = luaL_checklstring(L, 1, &len);
-    addnstr(str, len);
+    int const n = lua_gettop(L);
+    for (int i = 1; i <= n; i++) {
+        size_t len;
+        char const* const str = luaL_checklstring(L, i, &len);
+        addnstr(str, len);
+    }
     return 0;
 }
 
 static int l_mvaddstr(lua_State *L)
 {
-    int y = luaL_checkinteger(L, 1);
-    int x = luaL_checkinteger(L, 2);
+    int const y = luaL_checkinteger(L, 1);
+    int const x = luaL_checkinteger(L, 2);
     size_t len;
-    char const* str = luaL_checklstring(L, 3, &len);
-    
+    int const n = lua_gettop(L);
+
     int wy, wx;
     getmaxyx(stdscr, wy, wx);
 
     if (0 <= y && 0 <= x && y < wy && x < wx)
     {
-        mvaddnstr(y, x, str, len);
+        if (n < 3) {
+            move(y, x);
+        } else {
+            char const* const str = luaL_checklstring(L, 3, &len);
+            mvaddnstr(y, x, str, len);
+
+            for (int i = 4; i <= n; i++) {
+                char const* const str = luaL_checklstring(L, i, &len);
+                addnstr(str, len);
+            }
+        }
     }
     return 0;
 }
@@ -245,7 +258,7 @@ int luaopen_myncurses(lua_State *L)
 	CC(KEY_BACKSPACE);  CC(KEY_PPAGE);      CC(KEY_NPAGE);
     CC(KEY_DC);         CC(KEY_BTAB);
 
-	CF( 1); CF( 2); CF( 3); CF( 4); CF( 5); CF( 6); CF( 7); 
+	CF( 1); CF( 2); CF( 3); CF( 4); CF( 5); CF( 6); CF( 7);
     CF( 8); CF( 9); CF(10); CF(11); CF(12);
 
     return 1;

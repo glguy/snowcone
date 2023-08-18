@@ -1,7 +1,7 @@
 /**
- * @file lua_uv_timer.hpp
+ * @file timer.hpp
  * @author Eric Mertens (emertens@gmail.com)
- * @brief Lua binding to libuv timers
+ * @brief Asyncronous timer objects
  *
  */
 
@@ -10,16 +10,13 @@
 struct lua_State;
 
 /**
- * @brief Construct a new libuv timer
- *
- * Pushes new object onto Lua stack and return 1
+ * @brief Construct a new timer
  *
  * Lua object methods:
- * * start
- * * stop
- * * close
+ * * start(milliseconds, callback)
+ * * stop()
  *
  * @param L Lua state
- * @param loop Current libuv loop
+ * @return 1
  */
-auto push_new_timer(lua_State *L) -> int;
+auto l_new_timer(lua_State *L) -> int;

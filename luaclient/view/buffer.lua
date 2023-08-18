@@ -193,14 +193,14 @@ function M:draw_status()
         yellow()
     end
 
-    addstr(talk_target .. '')
+    addstr(talk_target, '')
     normal()
 
     -- render channel names with unseen messages in yellow
     for _, buffer in tablex.sort(buffers) do
         if buffer.seen < buffer.messages.n then
             yellow()
-            addstr(buffer.name .. '')
+            addstr(buffer.name, '')
         end
     end
 end

@@ -60,7 +60,7 @@ function M.draw_rotation(start, rows, data, show_entry, draw)
         if entry == 'divider' then
             last_time = os.date '!%H:%M:%S'
             yellow()
-            mvaddstr(y, 0, last_time .. string.rep('·', tty_width-8))
+            mvaddstr(y, 0, last_time, string.rep('·', tty_width-8))
             normal()
         elseif entry then
             normal()
@@ -68,7 +68,7 @@ function M.draw_rotation(start, rows, data, show_entry, draw)
             ncurses.move(y, 0)
             local time = entry.time
             if time == last_time then
-                addstr('        ')
+                addstr '        '
             else
                 last_time = time
                 M.fade_time(entry.timestamp or 0, entry.time)

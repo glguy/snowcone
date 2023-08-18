@@ -67,7 +67,7 @@ luaL_Reg const MT[] = {
 };
 }
 
-auto push_new_timer(lua_State *const L) -> int
+auto l_new_timer(lua_State *const L) -> int
 {
     auto const timer = new_udata<Timer>(L, 0, [L](){
         // Build metatable the first time
