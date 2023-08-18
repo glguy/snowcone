@@ -29,9 +29,13 @@ local function route_to_buffer(target, irc)
         buffer_target = split_nuh(irc.source)
     end
 
-    local buffer = buffers[snowcone.irccase(buffer_target)]
-    if buffer then
-        buffer.messages:insert(true, irc)
+    -- will be nil in the case of a message from a server
+
+    if buffer_target then
+        local buffer = buffers[snowcone.irccase(buffer_target)]
+        if buffer then
+            buffer.messages:insert(true, irc)
+        end
     end
 end
 
