@@ -443,8 +443,12 @@ local function on_irc(event, irc)
 
         draw()
     elseif event == 'connect' then
-        send_irc = irc
-        irc_registration()
+        if exiting then
+            send_irc()
+        else
+            send_irc = irc
+            irc_registration()
+        end
     elseif event == 'closed' then
         irc_state = nil
         send_irc = nil
