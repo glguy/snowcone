@@ -153,7 +153,10 @@ local function draw_messages()
 
     local start = ncurses.getyx()
     local rows = math.max(0, tty_height - 1 - start)
+
     buffer.seen = buffer.messages.n -- mark everything as seen
+    buffer.mention = nil -- forget mentions
+
     drawing.draw_rotation(start, rows, buffer.messages, show_irc, render_irc)
 end
 
@@ -199,7 +202,11 @@ function M:draw_status()
     -- render channel names with unseen messages in yellow
     for _, buffer in tablex.sort(buffers) do
         if buffer.seen < buffer.messages.n then
-            yellow()
+            if buffer.mention then
+                magenta()
+            else
+                yellow()
+            end
             addstr(buffer.name, '')
         end
     end

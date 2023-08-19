@@ -21,20 +21,49 @@ function M.PING(irc)
     send('PONG', irc[1])
 end
 
-local function route_to_buffer(target, irc)
+local function do_notify(target, nick, text)
+    if configuration.notification_module then
+        require(configuration.notification_module)(target, nick, text)
+    end
+end
+
+local function route_to_buffer(target, text, irc)
     local buffer_target
+    local mention
+    local nick = split_nuh(irc.source)
+
     if irc_state:is_channel_name(target) then
         buffer_target = target
+
+        -- channel messages generate mention on pattern match
+        local mention_patterns = configuration.mention_patterns
+        if mention_patterns then
+            for _, pattern in ipairs(mention_patterns) do
+                if text:find(pattern) then
+                    mention = true
+                    break;
+                end
+            end
+        end
     else
-        buffer_target = split_nuh(irc.source)
+        buffer_target = nick
+
+        -- PM always generate notifications
+        mention = true
+    end
+
+    -- TODO: detect terminal focus to quiet notifications
+    if mention then
+        do_notify(buffer_target, nick, irc[2])
     end
 
     -- will be nil in the case of a message from a server
-
+    local buffer
     if buffer_target then
-        local buffer = buffers[snowcone.irccase(buffer_target)]
+        buffer = buffers[snowcone.irccase(buffer_target)]
         if buffer then
             buffer.messages:insert(true, irc)
+            buffer.mention = mention
         end
     end
 end
@@ -57,12 +86,12 @@ function M.PRIVMSG(irc)
         end
     end
 
-    route_to_buffer(target, irc)
+    route_to_buffer(target, message, irc)
 end
 
 function M.NOTICE(irc)
-    local target = irc[1]
-    route_to_buffer(target, irc)
+    local target, message = irc[1], irc[2]
+    route_to_buffer(target, message, irc)
 end
 
 local cap_cmds = require_ 'handlers.cap'

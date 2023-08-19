@@ -11,8 +11,6 @@ extern "C"
 #include <lauxlib.h>
 }
 
-#include <boost/bind.hpp>
-
 #include <charconv> // from_chars
 #include <memory>
 #include <sstream>
