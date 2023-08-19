@@ -8,8 +8,15 @@ local M = {
         scroll = 0
     end,
 
-    [-ncurses.KEY_RESUME] = function() terminal_focus = true end,
-    [-ncurses.KEY_EXIT] = function() terminal_focus = nil end,
+    [-ncurses.KEY_RESUME] = function()
+        terminal_focus = true
+        notification_ok = nil -- don't notify while focused
+    end,
+
+    [-ncurses.KEY_EXIT] = function()
+        terminal_focus = nil
+        notification_ok = true -- allow a notification
+    end,
 
     [ctrl 'L'] = function() ncurses.clear() draw() end,
     [ctrl 'N'] = next_view,

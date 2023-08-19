@@ -1,6 +1,6 @@
 return {
 ignore = { "212/self" },
-std = "lua53+main+snowcone",
+std = "lua54+main+snowcone",
 stds = {
     snowcone = {
         read_globals = {
@@ -14,21 +14,53 @@ stds = {
     main = {
         read_globals = {"tty_height", "tty_width", "mygeoip", "ncurses", "mystringprep", "hsfilter"},
         globals = {
-            -- general functionality
-            "require_", "next_view", "prev_view", "irc_handlers",
-            "quit", "send_irc", "exiting", "disconnect",
-            "reset_filter", "initialize", "configuration",
-            "ctrl", "meta", "status", "plugins",
-            "prepare_kline", "tick_timer", "reconnect_timer",
+            "ctrl", "meta", -- functions for defining keyboard handlers
+            "require_", -- require function that already reloads
+            "next_view", -- function to advance the view
+            "prev_view", -- function to retreat the view
+            "quit", -- function to shutdown the client
+            "send_irc", -- function to send a raw command line on the IRC socket
+            "disconnect", -- function to disconnect the current IRC connection
+            "reset_filter", -- function to reset message filter
+            "initialize", -- function to reset all state variable to their defaults
+
+            "tick_timer", -- timer object that runs every second
+            "reconnect_timer", -- timer object that fires a reconnect
 
             -- global client state
-            "irc_state", "status_message", "input_mode", "talk_target",
-            "view", "views", "uptime", "liveness", "scroll", "editor",
-            "uv_resources", "filter", "main_views", "buffers", "terminal_focus",
-            "focus", "status_messages", "commands", "config_dir",
+            "plugins", -- map of loaded plugins
+            "irc_state", -- state of the current IRC connection
+            "input_mode", -- current input mode: filter, talk, command
+            "view", -- name of the currently rendering view
+            "views", -- table of all the available views
+            "main_views", -- sequence of views mapped to keyboard shortcuts
+            "uptime", -- seconds the client has been open
+            "liveness", -- seconds since last message from IRC server
+            "scroll", -- number of lines scrolled back
+            "editor", -- input textbox state
+            "filter", -- pattern used to filter chat messages
+            "terminal_focus", -- true when terminal has focus
+            "notification_ok", -- true when a notification can be sent
+            "exiting", -- true when the client is shutting down
+            "focus", -- zoomed in message in console
 
-            -- IRC console view
-            "messages",
+            "commands", -- mapping of the global command handlers
+            "irc_handlers", -- mapping of IRC message handlers
+
+            "config_dir", -- path to configuration directory
+            "configuration", -- table of user-provided configuration settings
+
+            -- /talk view
+            "buffers", -- mapping of all buffers
+            "talk_target", -- name of active buffer
+
+            -- /status view
+            "status", -- function to record a message in the status buffer
+            "status_message", -- current message printed in the status bar
+            "status_messages", -- OrderedMap of messages for /status
+
+            -- /console view
+            "messages", -- OrderedMap of the recent IRC messages
 
             -- Rendering
             "add_click", "add_button", "draw_global_load", "draw",

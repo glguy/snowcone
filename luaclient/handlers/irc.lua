@@ -22,7 +22,8 @@ function M.PING(irc)
 end
 
 local function do_notify(target, nick, text)
-    if configuration.notification_module then
+    if notification_ok and configuration.notification_module then
+        notification_ok = nil -- use up the notification until next focus
         require(configuration.notification_module)(target, nick, text)
     end
 end
@@ -55,13 +56,7 @@ local function route_to_buffer(target, text, irc)
     end
 
     if mention then
-        -- don't notify if we're looking at the window
-        if not terminal_focus
-        or view ~= 'buffer'
-        or snowcone.irccase(talk_target) ~= snowcone.irccase(buffer_target)
-        then
-            do_notify(buffer_target, nick, irc[2])
-        end
+        do_notify(buffer_target, nick, text)
     end
 
     -- will be nil in the case of a message from a server
