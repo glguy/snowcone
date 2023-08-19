@@ -108,6 +108,14 @@ namespace
             luaL_unref(L, LUA_REGISTRYINDEX, send_cb);
         }
 
+        auto forget_irc_handle() -> void {
+            // Remove send_callback's upvalue pointing to this object
+            lua_rawgeti(L, LUA_REGISTRYINDEX, send_cb);
+            lua_pushnil(L);
+            lua_setupvalue(L, -2, 1);
+            lua_pop(L, 1);
+        }
+
         auto handle_read(const boost::system::error_code &error, size_t bytes_transferred)
         {
             if (!error)
@@ -153,12 +161,7 @@ namespace
             }
             else
             {
-                // Remove send_callback's upvalue pointing to this object
-                lua_rawgeti(L, LUA_REGISTRYINDEX, send_cb);
-                lua_pushnil(L);
-                lua_setupvalue(L, -2, 1);
-                lua_pop(L, 1);
-
+                forget_irc_handle();
                 lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
                 safecall(L, "on_irc_line", 0);
             }
@@ -190,6 +193,7 @@ namespace
         }
         auto shutdown() -> void override
         {
+            forget_irc_handle();
             socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_send);
         }
         auto write(char const *const cmd, size_t n, int ref) -> void override
@@ -223,11 +227,16 @@ namespace
         auto start() -> void override
         {
             boost::asio::async_read_until(socket_, buffer, '\n',
-                                          boost::bind(&plain_irc_connection::handle_read, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
+                boost::bind(
+                    &plain_irc_connection::handle_read,
+                    shared_from_this(),
+                    boost::asio::placeholders::error,
+                    boost::asio::placeholders::bytes_transferred));
         }
         auto shutdown() -> void override
         {
-            // socket_.shutdown();
+            forget_irc_handle();
+            socket_.shutdown();
         }
         auto write(char const *const cmd, size_t n, int ref) -> void override
         {
@@ -243,8 +252,10 @@ namespace
                 return error;
             }
             socket_.lowest_layer().set_option(boost::asio::ip::tcp::no_delay(true));
-            socket_.set_verify_mode(boost::asio::ssl::verify_peer);
-            socket_.set_verify_callback(boost::asio::ssl::host_name_verification(host));
+            if (not host.empty()) {
+                socket_.set_verify_mode(boost::asio::ssl::verify_peer);
+                socket_.set_verify_callback(boost::asio::ssl::host_name_verification(host));
+            }
             socket_.handshake(boost::asio::ssl::stream_base::handshake_type::client, error);
             return error;
         }
@@ -286,8 +297,9 @@ auto start_irc(lua_State *const L) -> int
     auto const host = luaL_checkstring(L, 2);
     auto const port = luaL_checkstring(L, 3);
     auto const cert = luaL_optlstring(L, 4, nullptr, nullptr);
-    luaL_checkany(L, 5); // callback
-    lua_settop(L, 5);
+    auto const verify = luaL_optlstring(L, 5, host, nullptr);
+    luaL_checkany(L, 6); // callback
+    lua_settop(L, 6);
 
     auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
     lua_pushnil(L);
@@ -326,7 +338,7 @@ auto start_irc(lua_State *const L) -> int
             ssl_context.use_private_key_file(cert, boost::asio::ssl::context::file_format::pem);
         }
         auto const irc = tls_irc_connection::create(a->io_context, ssl_context, L, irc_cb, send_cb);
-        auto const error = irc->connect(std::move(endpoints), host);
+        auto const error = irc->connect(std::move(endpoints), verify);
 
         if (error)
         {

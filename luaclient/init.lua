@@ -471,6 +471,7 @@ function connect()
         configuration.host,
         configuration.port,
         configuration.tls_client_cert,
+        configuration.tls_verify_host,
         on_irc)
     if success then
         if result then
