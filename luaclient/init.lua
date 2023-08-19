@@ -465,7 +465,7 @@ local function on_irc(event, irc)
         end
         return
     elseif event == 'bad message' then
-        status('badirc', 'raw: %s', irc)
+        status('irc', 'message parse error: %d', irc)
     end
 end
 
