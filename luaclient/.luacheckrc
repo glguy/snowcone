@@ -24,7 +24,7 @@ stds = {
             -- global client state
             "irc_state", "status_message", "input_mode", "talk_target",
             "view", "views", "uptime", "liveness", "scroll", "editor",
-            "uv_resources", "filter", "main_views", "buffers",
+            "uv_resources", "filter", "main_views", "buffers", "terminal_focus",
             "focus", "status_messages", "commands", "config_dir",
 
             -- IRC console view

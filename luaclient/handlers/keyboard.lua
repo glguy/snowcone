@@ -8,6 +8,9 @@ local M = {
         scroll = 0
     end,
 
+    [-ncurses.KEY_RESUME] = function() terminal_focus = true end,
+    [-ncurses.KEY_EXIT] = function() terminal_focus = nil end,
+
     [ctrl 'L'] = function() ncurses.clear() draw() end,
     [ctrl 'N'] = next_view,
     [ctrl 'P'] = prev_view,

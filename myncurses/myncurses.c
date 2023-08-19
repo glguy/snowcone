@@ -258,6 +258,8 @@ int luaopen_myncurses(lua_State *L)
 	CC(KEY_BACKSPACE);  CC(KEY_PPAGE);      CC(KEY_NPAGE);
     CC(KEY_DC);         CC(KEY_BTAB);
 
+    CC(KEY_RESUME);     CC(KEY_EXIT);
+
 	CF( 1); CF( 2); CF( 3); CF( 4); CF( 5); CF( 6); CF( 7);
     CF( 8); CF( 9); CF(10); CF(11); CF(12);
 

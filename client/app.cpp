@@ -115,6 +115,13 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
             {
                 in_paste = true;
             }
+            else if (BracketedPaste::focus_gained == key) {
+                do_keyboard(-KEY_RESUME);
+            }
+            else if (BracketedPaste::focus_lost == key)
+            {
+                do_keyboard(-KEY_EXIT);
+            }
             else if (key > 0xff)
             {
                 do_keyboard(-key);

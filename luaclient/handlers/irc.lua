@@ -48,13 +48,20 @@ local function route_to_buffer(target, text, irc)
     else
         buffer_target = nick
 
-        -- PM always generate notifications
-        mention = true
+        -- Targetted PMs notify
+        if target == irc_state.nick then
+            mention = true
+        end
     end
 
-    -- TODO: detect terminal focus to quiet notifications
     if mention then
-        do_notify(buffer_target, nick, irc[2])
+        -- don't notify if we're looking at the window
+        if not terminal_focus
+        or view ~= 'buffer'
+        or snowcone.irccase(talk_target) ~= snowcone.irccase(buffer_target)
+        then
+            do_notify(buffer_target, nick, irc[2])
+        end
     end
 
     -- will be nil in the case of a message from a server
