@@ -402,14 +402,53 @@ local connect
 -- a global allows these to be replaced on a live connection
 irc_handlers = require_ 'handlers.irc'
 
-local function on_irc(irc, err)
-    if err then
-        status('socat', 'socat error: %s', err)
-        return
-    elseif not irc then
+local function on_irc(event, irc)
+    if event == 'message' then
+        do
+            local time_tag = irc.tags.time
+            irc.time = time_tag and string.match(irc.tags.time, '^%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d%d%dZ$')
+                    or os.date '!%H:%M:%S'
+        end
+        irc.timestamp = uptime
+
+        messages:insert(true, irc)
+        liveness = uptime
+
+        -- Ignore chat history
+        local batch = irc_state.batches[irc.tags.batch]
+        if batch then
+            local n = batch.n + 1
+            batch.n = n
+            batch.messages[n] = irc
+            return
+        end
+
+        local f = irc_handlers[irc.command]
+        if f then
+            local success, message = pcall(f, irc)
+            if not success then
+                status('irc', 'irc handler error: %s', message)
+            end
+        end
+
+        for _, plugin in pairs(plugins) do
+            local h = plugin.irc
+            if h then
+                local success, result = pcall(h, irc)
+                if not success then
+                    status(plugin.name, 'irc handler error: %s', result)
+                end
+            end
+        end
+
+        draw()
+    elseif event == 'connect' then
+        send_irc = irc
+        irc_registration()
+    elseif event == 'closed' then
         irc_state = nil
         send_irc = nil
-        status('irc', 'disconnected')
+        status('irc', 'disconnected: %s', irc or 'end of stream')
 
         if exiting then
             snowcone.shutdown()
@@ -421,51 +460,14 @@ local function on_irc(irc, err)
             end)
         end
         return
+    elseif event == 'bad message' then
+        status('badirc', 'raw: %s', irc)
     end
-
-    do
-        local time_tag = irc.tags.time
-        irc.time = time_tag and string.match(irc.tags.time, '^%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d%d%dZ$')
-                or os.date '!%H:%M:%S'
-    end
-    irc.timestamp = uptime
-
-    messages:insert(true, irc)
-    liveness = uptime
-
-    -- Ignore chat history
-    local batch = irc_state.batches[irc.tags.batch]
-    if batch then
-        local n = batch.n + 1
-        batch.n = n
-        batch.messages[n] = irc
-        return
-    end
-
-    local f = irc_handlers[irc.command]
-    if f then
-        local success, message = pcall(f, irc)
-        if not success then
-            status('irc', 'irc handler error: %s', message)
-        end
-    end
-
-    for _, plugin in pairs(plugins) do
-        local h = plugin.irc
-        if h then
-            local success, result = pcall(h, irc)
-            if not success then
-                status(plugin.name, 'irc handler error: %s', result)
-            end
-        end
-    end
-
-    draw()
 end
 
 -- declared above so that it's in scope in on_irc
 function connect()
-    local success, result, err = pcall(
+    local success, result = pcall(
         snowcone.connect,
         configuration.tls,
         configuration.host,
@@ -474,14 +476,7 @@ function connect()
         configuration.tls_verify_host,
         on_irc)
     if success then
-        if result then
-            send_irc = result
-            status('irc', 'connecting')
-            irc_registration()
-        else
-            -- yeah, I know this is awkward, but I'm trying not to raise a lua error in some C++ code
-            status('irc', 'failed to connect: %s', err)
-        end
+        status('irc', 'connecting')
     else
         status('irc', 'failed to connect: %s', result)
     end
