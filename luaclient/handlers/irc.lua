@@ -22,8 +22,10 @@ function M.PING(irc)
 end
 
 local function do_notify(target, nick, text)
-    if notification_ok and configuration.notification_module then
-        notification_ok = nil -- use up the notification until next focus
+    if not terminal_focus
+    and not notification_muted[target]
+    and configuration.notification_module then
+        notification_muted[target] = true -- use up the notification until next focus
         require(configuration.notification_module)(target, nick, text)
     end
 end

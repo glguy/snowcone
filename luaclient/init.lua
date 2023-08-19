@@ -102,6 +102,8 @@ local defaults = {
     scroll = 0,
     status_message = '',
     exiting = false,
+    terminal_focus = true,
+    notification_muted = {},
 }
 
 function initialize()

@@ -10,12 +10,11 @@ local M = {
 
     [-ncurses.KEY_RESUME] = function()
         terminal_focus = true
-        notification_ok = nil -- don't notify while focused
+        notification_muted = {} -- reset notification mutes
     end,
 
     [-ncurses.KEY_EXIT] = function()
-        terminal_focus = nil
-        notification_ok = true -- allow a notification
+        terminal_focus = false
     end,
 
     [ctrl 'L'] = function() ncurses.clear() draw() end,

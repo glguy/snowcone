@@ -40,7 +40,7 @@ stds = {
             "editor", -- input textbox state
             "filter", -- pattern used to filter chat messages
             "terminal_focus", -- true when terminal has focus
-            "notification_ok", -- true when a notification can be sent
+            "notification_muted", -- notifications we've already seen
             "exiting", -- true when the client is shutting down
             "focus", -- zoomed in message in console
 

@@ -5,7 +5,7 @@ end
 return function(buffer, nick, msg)
     -- weird \< escape due to terminal-notifier quirk
     os.execute(string.format(
-        'terminal-notifier -title Snowcone -subtitle "%s" -sound default -message "\\<%s> %s"',
+        'terminal-notifier -title Snowcone -subtitle "%s" -sound default -message "\\<%s> %s" &> /dev/null &',
         esc(buffer),
         esc(nick),
         esc(msg)))
