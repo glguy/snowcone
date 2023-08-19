@@ -11,5 +11,6 @@ local repls = {
 }
 
 return function(str)
-    return string.gsub(str, '%c', repls)
+    -- extra parens to drop gsub's second argument
+    return (string.gsub(str, '[\x00-\x1f\x7f]', repls))
 end

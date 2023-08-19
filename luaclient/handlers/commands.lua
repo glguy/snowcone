@@ -2,7 +2,7 @@ local challenge = require 'utils.challenge'
 local mkcommand = require 'utils.mkcommand'
 local sasl = require 'sasl'
 local send = require 'utils.send'
-local OrderedMap = require_ 'components.OrderedMap'
+local OrderedMap = require 'components.OrderedMap'
 
 local M = {}
 
@@ -98,7 +98,10 @@ add_command('talk', '$g', function(target)
             send('MONITOR', '+', buffer_name)
         end
 
-        if not buffers[buffer_name] then
+        local buffer = buffers[buffer_name]
+        if buffer then
+            talk_target = buffer.name
+        else
             local maxhistory = 1000
             buffers[buffer_name] = {
                 name = target,

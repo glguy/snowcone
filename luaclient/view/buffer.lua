@@ -96,21 +96,28 @@ local keys = {
     -- jump to next activity (alphabetically)
     [meta 'a'] = function()
         local current = snowcone.irccase(talk_target)
-        local first_target
-        for k, buffer in tablex.sort(buffers) do
-            -- has new messages
+
+        local best_target
+        local best_mention
+
+        for k, buffer in pairs(buffers) do
             if buffer.messages.n > buffer.seen then
-                if current < k then
-                    talk_target = k:lower()
-                    return
-                end
-                if not first_target then
-                    first_target = k
+
+                -- jump to next window alphabetically preferring mentions
+                if not best_target
+                or buffer.mention and not best_mention
+                or buffer.mention == best_mention
+                and (best_target < current and current < k
+                  or (current < best_target) == (current < k) and k < best_target)
+                then
+                    best_target = k
+                    best_mention = buffer.mention
                 end
             end
         end
-        if first_target then
-            talk_target = first_target:lower()
+
+        if best_target then
+            talk_target = buffers[best_target].name
         end
     end,
 }

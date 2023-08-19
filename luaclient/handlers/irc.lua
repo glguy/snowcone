@@ -64,6 +64,7 @@ local function route_to_buffer(target, text, irc)
     if buffer_target then
         buffer = buffers[snowcone.irccase(buffer_target)]
         if buffer then
+            buffer.name = buffer_target
             buffer.messages:insert(true, irc)
             buffer.mention = mention
         end
