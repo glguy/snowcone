@@ -52,11 +52,11 @@ local keys = {
 
     -- next buffer (alphabetical)
     [ctrl 'N'] = function()
-        local current = snowcone.irccase(talk_target)
+        local current = talk_target
         local first_target
         for k, _ in tablex.sort(buffers) do
             if current < k then
-                talk_target = k:lower()
+                talk_target = k
                 return
             end
             if not first_target then
@@ -64,18 +64,18 @@ local keys = {
             end
         end
         if first_target then
-            talk_target = first_target:lower()
+            talk_target = first_target
         end
     end,
 
     -- previous buffer (alphabetical)
     [ctrl 'P'] = function()
-        local current = snowcone.irccase(talk_target)
+        local current = talk_target
         local first_target
         local function backward(x,y) return x > y end
         for k, _ in tablex.sort(buffers, backward) do
             if current > k then
-                talk_target = k:lower()
+                talk_target = k
                 return
             end
             if not first_target then
@@ -83,7 +83,7 @@ local keys = {
             end
         end
         if first_target then
-            talk_target = first_target:lower()
+            talk_target = first_target
         end
     end,
 
@@ -91,34 +91,6 @@ local keys = {
     [string.byte('t')] = function()
         editor:reset()
         input_mode = 'talk'
-    end,
-
-    -- jump to next activity (alphabetically)
-    [meta 'a'] = function()
-        local current = snowcone.irccase(talk_target)
-
-        local best_target
-        local best_mention
-
-        for k, buffer in pairs(buffers) do
-            if buffer.messages.n > buffer.seen then
-
-                -- jump to next window alphabetically preferring mentions
-                if not best_target
-                or buffer.mention and not best_mention
-                or buffer.mention == best_mention
-                and (best_target < current and current < k
-                  or (current < best_target) == (current < k) and k < best_target)
-                then
-                    best_target = k
-                    best_mention = buffer.mention
-                end
-            end
-        end
-
-        if best_target then
-            talk_target = buffers[best_target].name
-        end
     end,
 }
 
@@ -132,7 +104,7 @@ function M:keypress(key)
 end
 
 local function draw_messages()
-    local buffer = buffers[snowcone.irccase(talk_target)]
+    local buffer = buffers[talk_target]
     if not buffer then return end
 
     local current_filter
@@ -179,7 +151,7 @@ function M:draw_status()
 
     -- Render joined channels in green and stale buffers in red
     elseif irc_state:is_channel_name(talk_target) then
-        if irc_state.channels[snowcone.irccase(talk_target)] then
+        if irc_state.channels[talk_target] then
             green()
         else
             red()
@@ -203,8 +175,12 @@ function M:draw_status()
         yellow()
     end
 
-    addstr(talk_target, '')
-    normal()
+    do
+        local buffer = buffers[talk_target]
+        local name = buffer and buffer.name or talk_target
+        addstr(name, '')
+        normal()
+    end
 
     -- render channel names with unseen messages in yellow
     for _, buffer in tablex.sort(buffers) do

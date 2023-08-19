@@ -75,15 +75,14 @@ end
 
 add_command('close', '', function()
     if talk_target and view == 'buffer' then
-        local buffer_name = snowcone.irccase(talk_target)
-        buffers[buffer_name] = nil
+        buffers[talk_target] = nil
         view = 'console'
         talk_target = nil
     end
 end)
 
 add_command('talk', '$g', function(target)
-    talk_target = target
+    talk_target = snowcone.irccase(target)
     view = 'buffer'
 
     local buffer_name = snowcone.irccase(target)
@@ -99,9 +98,7 @@ add_command('talk', '$g', function(target)
         end
 
         local buffer = buffers[buffer_name]
-        if buffer then
-            talk_target = buffer.name
-        else
+        if not buffer then
             local maxhistory = 1000
             buffers[buffer_name] = {
                 name = target,

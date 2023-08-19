@@ -7,7 +7,7 @@ local M = {
 }
 
 local function list_stats(name, data)
-    addstr(string.format('%10s %10d %10d\n', name, data.n, data.max))
+    addstr(string.format('%16s %10d %10d\n', name, data.n, data.max))
 end
 
 
@@ -75,7 +75,7 @@ function M:render()
     addstr '\n'
 
     green()
-    addstr('   dataset         .n       .max\n')
+    addstr('         dataset         .n       .max\n')
 
     normal()
     list_stats('/console', messages)

@@ -117,12 +117,6 @@ local keys = {
     end,
     [meta 'h'] = function() hide_snow = not hide_snow end,
     [meta 'r'] = function() show_raw = not show_raw end,
-    [string.byte('t')] = function()
-        if talk_target ~= nil then
-            editor:reset()
-            input_mode = 'talk'
-        end
-    end,
 }
 
 function M:keypress(key)

@@ -32,6 +32,34 @@ local M = {
         editor:reset()
         input_mode = 'command'
     end,
+
+    -- jump to next /talk activity (alphabetically)
+    [meta 'a'] = function()
+        local current = talk_target or ''
+
+        local best_target
+        local best_mention
+
+        for k, buffer in pairs(buffers) do
+            if buffer.messages.n > buffer.seen then
+                -- jump to next window alphabetically preferring mentions
+                if not best_target
+                or buffer.mention and not best_mention
+                or buffer.mention == best_mention
+                and (best_target < current and current < k
+                  or (current < best_target) == (current < k) and k < best_target)
+                then
+                    best_target = k
+                    best_mention = buffer.mention
+                end
+            end
+        end
+
+        if best_target then
+            talk_target = best_target
+            view = 'buffer'
+        end
+    end,
 }
 
 for i, v in ipairs(main_views) do
