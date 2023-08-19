@@ -107,13 +107,16 @@ namespace
         virtual ~irc_connection()
         {
             luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);
-            if (send_cb) {
+            if (send_cb)
+            {
                 luaL_unref(L, LUA_REGISTRYINDEX, *send_cb);
             }
         }
 
-        auto forget_irc_handle() -> void {
-            if (send_cb) {
+        auto forget_irc_handle() -> void
+        {
+            if (send_cb)
+            {
                 // Remove send_callback's upvalue pointing to this object
                 lua_rawgeti(L, LUA_REGISTRYINDEX, *send_cb);
                 lua_pushnil(L);
@@ -184,7 +187,6 @@ namespace
     class plain_irc_connection final : public irc_connection
     {
     public:
-
         boost::asio::ip::tcp::socket socket_;
         plain_irc_connection(boost::asio::io_context &io_context, lua_State *const L, int const irc_cb)
             : irc_connection{io_context, L, irc_cb}, socket_{io_context} {}
@@ -210,14 +212,12 @@ namespace
             boost::asio::async_write(socket_, boost::asio::buffer(cmd, n), [L = this->L, ref](auto error, auto amount)
                                      { luaL_unref(L, LUA_REGISTRYINDEX, ref); });
         }
-
     };
 
     class tls_irc_connection : public irc_connection
     {
-        public:
+    public:
         boost::asio::ssl::stream<boost::asio::ip::tcp::socket> socket_;
-
 
         tls_irc_connection(boost::asio::io_context &io_context, boost::asio::ssl::context &ssl_context, lua_State *const L, int const irc_cb)
             : irc_connection{io_context, L, irc_cb}, socket_{io_context, ssl_context}
@@ -232,11 +232,11 @@ namespace
         auto start() -> void override
         {
             boost::asio::async_read_until(socket_, buffer, '\n',
-                boost::bind(
-                    &plain_irc_connection::handle_read,
-                    shared_from_this(),
-                    boost::asio::placeholders::error,
-                    boost::asio::placeholders::bytes_transferred));
+                                          boost::bind(
+                                              &plain_irc_connection::handle_read,
+                                              shared_from_this(),
+                                              boost::asio::placeholders::error,
+                                              boost::asio::placeholders::bytes_transferred));
         }
         auto shutdown() -> void override
         {
@@ -249,7 +249,6 @@ namespace
             boost::asio::async_write(socket_, boost::asio::buffer(cmd, n), [L = this->L, ref](auto error, auto amount)
                                      { luaL_unref(L, LUA_REGISTRYINDEX, ref); });
         }
-
     };
 
     auto on_send_irc(lua_State *L) -> int
@@ -281,19 +280,22 @@ namespace
 }
 
 auto connect_thread(
-    boost::asio::io_context & io_context,
-    lua_State * const L,
+    boost::asio::io_context &io_context,
+    lua_State *const L,
     bool tls,
     std::string host,
     std::string port,
-    std::string cert,
+    std::string client_cert,
+    std::string client_key,
+    std::string client_key_password,
     std::string verify,
-    int irc_cb
-) -> boost::asio::awaitable<void> {
+    int irc_cb) -> boost::asio::awaitable<void>
+{
     // store this early - it keeps irc_cb alive even in an error case
     std::shared_ptr<irc_connection> p;
 
-    try {
+    try
+    {
         auto resolver = boost::asio::ip::tcp::resolver{io_context};
         auto const endpoints = co_await resolver.async_resolve({host, port}, boost::asio::use_awaitable);
 
@@ -309,18 +311,32 @@ auto connect_thread(
         {
             boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
             ssl_context.set_default_verify_paths();
-            if (not cert.empty())
+
+            ssl_context.set_password_callback(
+                [client_key_password](
+                    std::size_t const max_size,
+                    boost::asio::ssl::context::password_purpose purpose
+                ) {
+                    return client_key_password.size() <= max_size ? client_key_password : "";
+                });
+
+            if (not client_cert.empty())
             {
-                ssl_context.use_certificate_file(cert, boost::asio::ssl::context::file_format::pem);
-                ssl_context.use_private_key_file(cert, boost::asio::ssl::context::file_format::pem);
+                ssl_context.use_certificate_file(client_cert, boost::asio::ssl::context::file_format::pem);
             }
+            if (not client_key.empty())
+            {
+                ssl_context.use_private_key_file(client_key, boost::asio::ssl::context::file_format::pem);
+            }
+
             auto irc = tls_irc_connection::create(io_context, ssl_context, L, irc_cb);
             p = irc;
 
             co_await boost::asio::async_connect(irc->socket_.lowest_layer(), endpoints, boost::asio::use_awaitable);
 
             irc->socket_.lowest_layer().set_option(boost::asio::ip::tcp::no_delay(true));
-            if (not host.empty()) {
+            if (not host.empty())
+            {
                 irc->socket_.set_verify_mode(boost::asio::ssl::verify_peer);
                 irc->socket_.set_verify_callback(boost::asio::ssl::host_name_verification(host));
             }
@@ -329,14 +345,15 @@ auto connect_thread(
         }
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
-        lua_pushstring(L, "connect");    
+        lua_pushstring(L, "connect");
         lua_pushlightuserdata(L, p.get());
         lua_pushcclosure(L, on_send_irc, 1);
         safecall(L, "successful connect", 2);
 
         p->start();
-
-    } catch (std::exception &e) {
+    }
+    catch (std::exception &e)
+    {
         lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
         lua_pushstring(L, "closed");
         lua_pushstring(L, e.what());
@@ -352,17 +369,19 @@ auto start_irc(lua_State *const L) -> int
     auto const tls = lua_toboolean(L, 1);
     auto const host = luaL_checkstring(L, 2);
     auto const port = luaL_checkstring(L, 3);
-    auto const cert = luaL_optlstring(L, 4, "", nullptr);
-    auto const verify = luaL_optlstring(L, 5, host, nullptr);
-    luaL_checkany(L, 6); // callback
-    lua_settop(L, 6);
+    auto const client_cert = luaL_optlstring(L, 4, "", nullptr);
+    auto const client_key = luaL_optlstring(L, 5, client_cert, nullptr);
+    auto const client_key_password = luaL_optlstring(L, 6, "", nullptr);
+    auto const verify = luaL_optlstring(L, 7, host, nullptr);
+    luaL_checkany(L, 8); // callback
+    lua_settop(L, 8);
 
     // consume the callback function and name it
     auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
 
     boost::asio::co_spawn(
         a->io_context,
-        connect_thread(a->io_context, L, tls, host, port, cert, verify, irc_cb),
+        connect_thread(a->io_context, L, tls, host, port, client_cert, client_key, client_key_password, verify, irc_cb),
         boost::asio::detached);
     return 0;
 }
