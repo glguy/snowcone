@@ -54,11 +54,20 @@ end
 
 function M:is_channel_name(name)
     local sigil = name:sub(1,1)
-    return string.find(sigil, self.chantypes, 1, true) and sigil ~= ''
+    local chantypes = self.isupport.CHANTYPES or '#&'
+    return string.find(sigil, chantypes, 1, true) and sigil ~= ''
 end
 
 function M:has_chathistory()
     return self.caps_enabled['draft/chathistory']
+end
+
+function M:max_chat_history()
+    local n = tonumber(self.isupport.CHATHISTORY)
+    -- 0 indicates "no limit"
+    if n ~= nil and n > 0 then
+        return n
+    end
 end
 
 return M

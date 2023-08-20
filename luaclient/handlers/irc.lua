@@ -6,6 +6,7 @@ local challenge   = require_ 'utils.challenge'
 local sasl        = require_ 'sasl'
 local send        = require_ 'utils.send'
 local split_nuh   = require_ 'utils.split_nick_user_host'
+local Buffer      = require  'components.Buffer'
 
 local function parse_source(source)
     return string.match(source, '^(.-)!(.-)@(.*)$')
@@ -64,12 +65,15 @@ local function route_to_buffer(target, text, irc)
     -- will be nil in the case of a message from a server
     local buffer
     if buffer_target then
-        buffer = buffers[snowcone.irccase(buffer_target)]
-        if buffer then
-            buffer.name = buffer_target
-            buffer.messages:insert(true, irc)
-            buffer.mention = mention
+        local buffer_key = snowcone.irccase(buffer_target)
+        buffer = buffers[buffer_key]
+        if not buffer then
+            buffer = Buffer(buffer_target)
+            buffers[buffer_key] = buffer
         end
+        buffer.name = buffer_target
+        buffer.messages:insert(true, irc)
+        buffer.mention = mention
     end
 end
 
@@ -304,14 +308,6 @@ local function end_of_registration()
     irc_state.phase = 'connected'
     status('irc', 'connected')
 
-    -- Update IRC settings from ISUPPORT commands
-    local isupport = irc_state.isupport
-    if isupport then
-        if isupport.CHANTYPES then
-            irc_state.chantypes = isupport.CHANTYPES
-        end
-    end
-
     if configuration.oper_username and configuration.challenge_key then
         challenge.start()
     elseif configuration.oper_username and configuration.oper_password then
@@ -323,12 +319,11 @@ local function end_of_registration()
     end
 
     if irc_state:has_chathistory() then
-        local supported_amount = tonumber(isupport.CHATHISTORY)
+        local supported_amount = irc_state:max_chat_history()
         for target, buffer in pairs(buffers) do
             local amount = buffer.messages.max
 
-            -- 0 indicates "no limit"
-            if 0 < supported_amount and supported_amount < amount then
+            if supported_amount and supported_amount < amount then
                 amount = supported_amount
             end
 

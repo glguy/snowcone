@@ -2,7 +2,7 @@ local challenge = require 'utils.challenge'
 local mkcommand = require 'utils.mkcommand'
 local sasl = require 'sasl'
 local send = require 'utils.send'
-local OrderedMap = require 'components.OrderedMap'
+local Buffer = require 'components.Buffer'
 
 local M = {}
 
@@ -74,6 +74,13 @@ end
 -- Pretending to be an IRC client
 
 add_command('close', '', function()
+    if irc_state
+    and irc_state:has_monitor()
+    and irc_state:is_monitored(talk_target)
+    then
+        send('MONITOR', '-', talk_target)
+    end
+
     if talk_target and view == 'buffer' then
         buffers[talk_target] = nil
         view = 'console'
@@ -85,27 +92,23 @@ add_command('talk', '$g', function(target)
     talk_target = snowcone.irccase(target)
     view = 'buffer'
 
-    local buffer_name = snowcone.irccase(target)
-
     if irc_state and irc_state.phase == 'connected' then
         -- join the channel if it's a channel and we're not in it
-        if irc_state:is_channel_name(buffer_name) then
-            if not irc_state.channels[buffer_name] then
+        if irc_state:is_channel_name(talk_target) then
+            if not irc_state.channels[talk_target] then
                 send('JOIN', target)
             end
-        elseif irc_state:has_monitor() and not irc_state:is_monitored(buffer_name) then
-            send('MONITOR', '+', buffer_name)
+        elseif irc_state:has_monitor() and not irc_state:is_monitored(talk_target) then
+            send('MONITOR', '+', talk_target)
         end
 
-        local buffer = buffers[buffer_name]
+        local buffer = buffers[talk_target]
         if not buffer then
             local maxhistory = 1000
-            buffers[buffer_name] = {
-                name = target,
-                messages = OrderedMap(maxhistory),
-            }
+            buffers[talk_target] = Buffer(target)
+
             if irc_state:has_chathistory() then
-                local amount = tonumber(irc_state.isupport.CHATHISTORY)
+                local amount = irc_state:max_chat_history()
                 if nil == amount or amount > maxhistory then
                     amount = maxhistory
                 end

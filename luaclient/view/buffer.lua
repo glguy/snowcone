@@ -133,8 +133,7 @@ local function draw_messages()
     local start = ncurses.getyx()
     local rows = math.max(0, tty_height - 1 - start)
 
-    buffer.seen = buffer.messages.n -- mark everything as seen
-    buffer.mention = nil -- forget mentions
+    buffer:look()
 
     drawing.draw_rotation(start, rows, buffer.messages, show_irc, render_irc)
 end
