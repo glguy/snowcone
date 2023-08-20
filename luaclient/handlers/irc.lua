@@ -7,6 +7,7 @@ local sasl        = require_ 'sasl'
 local send        = require_ 'utils.send'
 local split_nuh   = require_ 'utils.split_nick_user_host'
 local Buffer      = require  'components.Buffer'
+local Channel     = require  'components.Channel'
 
 local function parse_source(source)
     return string.match(source, '^(.-)!(.-)@(.*)$')
@@ -243,7 +244,7 @@ function M.JOIN(irc)
     local who = split_nuh(irc.source)
     if who == irc_state.nick then
         local channel = irc[1]
-        irc_state.channels[snowcone.irccase(channel)] = {name = channel}
+        irc_state.channels[snowcone.irccase(channel)] = Channel(channel)
     end
 end
 
@@ -308,6 +309,8 @@ local function end_of_registration()
     irc_state.phase = 'connected'
     status('irc', 'connected')
 
+    irc_state:commit_isupport()
+
     if configuration.oper_username and configuration.challenge_key then
         challenge.start()
     elseif configuration.oper_username and configuration.oper_password then
@@ -319,7 +322,7 @@ local function end_of_registration()
     end
 
     if irc_state:has_chathistory() then
-        local supported_amount = irc_state:max_chat_history()
+        local supported_amount = irc_state.max_chat_history
         for target, buffer in pairs(buffers) do
             local amount = buffer.messages.max
 
@@ -412,6 +415,22 @@ end
 
 M[N.RPL_LISTEND] = function()
     irc_state.channel_list_complete = true
+end
+
+-----------------------------------------------------------------------
+-- Channel metadata
+
+function M.TOPIC(irc)
+    irc_state:get_channel(irc[1]).topic = irc[2]
+end
+
+-- "<client> <channel> :<topic>"
+M[N.RPL_TOPIC] = function(irc)
+    irc_state:get_channel(irc[2]).topic = irc[3]
+end
+
+M[N.RPL_CREATIONTIME] = function(irc)
+    irc_state:get_channel(irc[2]).creationtime = tonumber(irc[3])
 end
 
 -----------------------------------------------------------------------

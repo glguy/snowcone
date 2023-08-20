@@ -28,8 +28,28 @@ function M:_init()
     self.caps_requested = {}
     self.batches = {}
     self.channels = {}
+
     self.chantypes = '&#' -- updated by ISUPPORT
-    self.monitor = {} -- map irccased nickname mapped to {nick=str, online=bool}
+    self.monitor = nil -- map irccased nickname mapped to {nick=str, online=bool}
+    self.max_chat_history = nil
+end
+
+-- gets run at end of registration and should be the last time
+-- normal behavior relies on the raw isupport
+function M:commit_isupport()
+    local isupport = irc_state.isupport
+    if isupport then
+        self.chantypes = isupport.CHANTYPES or self.chantypes
+        if isupport.MONITOR then
+            self.monitor = {}
+        end
+
+        local n = tonumber(self.isupport.CHATHISTORY)
+        -- 0 indicates "no limit"
+        if n ~= nil and n > 0 then
+            self.max_chat_history = n
+        end
+    end
 end
 
 function M:get_monitor(nick)
@@ -44,7 +64,7 @@ function M:add_monitor(nick, online)
 end
 
 function M:has_monitor()
-    return self.isupport.MONITOR ~= nil
+    return self.monitor ~= nil
 end
 
 function M:is_monitored(nick)
@@ -54,20 +74,15 @@ end
 
 function M:is_channel_name(name)
     local sigil = name:sub(1,1)
-    local chantypes = self.isupport.CHANTYPES or '#&'
-    return string.find(sigil, chantypes, 1, true) and sigil ~= ''
+    return string.find(sigil, self.chantypes, 1, true) and sigil ~= ''
 end
 
 function M:has_chathistory()
     return self.caps_enabled['draft/chathistory']
 end
 
-function M:max_chat_history()
-    local n = tonumber(self.isupport.CHATHISTORY)
-    -- 0 indicates "no limit"
-    if n ~= nil and n > 0 then
-        return n
-    end
+function M:get_channel(name)
+    return self.channels[snowcone.irccase(name)]
 end
 
 return M

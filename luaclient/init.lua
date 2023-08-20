@@ -445,10 +445,10 @@ local function on_irc(event, irc)
 
         draw()
     elseif event == 'connect' then
+        send_irc = irc
         if exiting then
-            send_irc()
+            disconnect()
         else
-            send_irc = irc
             irc_registration()
         end
     elseif event == 'closed' then

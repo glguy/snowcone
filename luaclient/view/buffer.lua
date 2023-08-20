@@ -150,7 +150,7 @@ function M:draw_status()
 
     -- Render joined channels in green and stale buffers in red
     elseif irc_state:is_channel_name(talk_target) then
-        if irc_state.channels[talk_target] then
+        if irc_state:get_channel(talk_target) then
             green()
         else
             red()

@@ -104,11 +104,12 @@ add_command('talk', '$g', function(target)
 
         local buffer = buffers[talk_target]
         if not buffer then
-            local maxhistory = 1000
-            buffers[talk_target] = Buffer(target)
+            buffer = Buffer(target)
+            buffers[talk_target] = buffer
+            local maxhistory = buffer.messages.max
 
             if irc_state:has_chathistory() then
-                local amount = irc_state:max_chat_history()
+                local amount = irc_state.max_chat_history
                 if nil == amount or amount > maxhistory then
                     amount = maxhistory
                 end
