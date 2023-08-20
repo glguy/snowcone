@@ -8,24 +8,23 @@ ported over.
 
 ## Building and running
 
-This project uses CMake to build. If you're on a mac you'll need to override
-`PKG_CONFIG_PATH` to find any missing libraries.
+I have presets `intel-mac`, `arm-mac`, `debian-gcc` CMake presets that set
+up the needed environment variables (see CMakePresets.json). Note that Debian's
+`gcc-12` and `boost` packages are currently incompatible, so you have to
+install `gcc-11` there.
+
+```sh
+cmake --preset arm-mac
+cmake --build --preset arm-mac
+out/build/intel-mac/arm-mac/ircc luaclient/init.lua
+```
+
+If you more control you can do a manual cmake build:
 
 ```sh
 cmake -B build
 cmake --build build
 build/client/ircc luaclient/init.lua
-```
-
-I also have presets `intel-mac`, `arm-mac`, `debian-gcc` CMake presets that set up
-the needed environment variables (see CMakePresets.json). Note that Debian's
-`gcc-12` and `boost` packages are currently incompatible, so you have to install
-`gcc-11` there.
-
-```sh
-cmake --preset arm-mac
-cmake --build --preset arm-mac
-out/build/intel-mac/client/ircc luaclient/init.lua
 ```
 
 ## Important commands and behaviors
@@ -84,7 +83,7 @@ except: `nick`, `host`, `port`.
     tls_client_cert = '/path/to/pem', -- optional
     tls_client_key = '/path/to/pem', -- defaults to tls_client_cert
     tls_client_password = 'apassword', -- defaults to '' if unspecified
-    
+
     tls_verify_host = 'host.name', -- used to override the hostname in the host key
     -- most useful when connecting by IP address to a server with a certificate
 

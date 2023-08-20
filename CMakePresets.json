@@ -2,6 +2,23 @@
     "version": 2,
     "configurePresets": [
         {
+            "name": "debian-gcc",
+            "displayName": "",
+            "description": "Configure for Debian Bookworm",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_TOOLCHAIN_FILE": "",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "On"
+            },
+            "environment": {
+                "CC": "gcc-11",
+                "CXX": "g++-11"
+            }
+        },
+        {
             "name": "arm-mac",
             "displayName": "",
             "description": "Configure for Apple Silicon macOS",
@@ -36,6 +53,12 @@
     ],
     "buildPresets": [
         {
+            "name": "debian-gcc",
+            "description": "",
+            "displayName": "",
+            "configurePreset": "debian-gcc"
+        },
+        {
             "name": "arm-mac",
             "description": "",
             "displayName": "",
@@ -49,6 +72,12 @@
         }
     ],
     "testPresets": [
+        {
+            "name": "debian-gcc",
+            "description": "",
+            "displayName": "",
+            "configurePreset": "debian-gcc"
+        },
         {
             "name": "arm-mac",
             "description": "",
