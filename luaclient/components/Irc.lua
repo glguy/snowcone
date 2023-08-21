@@ -11,7 +11,6 @@ local User = require  'components.User'
 -- .phase          - string          - registration or connected
 -- .sasl           - coroutine       - AUTHENTICATE state machine
 -- .nick           - string          - current nickname
--- .target_nick    - string          - consumed when target nick recovered
 -- .authenticate   - array of string - accumulated chunks of AUTHENTICATE
 -- .challenge      - array of string - accumulated chunks of CHALLENGE
 -- .monitor

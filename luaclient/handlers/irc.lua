@@ -121,9 +121,6 @@ function M.NICK(irc)
     -- My nickname is changing
     if oldnick and oldnick == irc_state.nick then
         irc_state.nick = newnick
-        if irc_state.target_nick == irc_state.nick then
-            irc_state.target_nick = nil
-        end
     end
 
     -- Nicknames are tracked in:
@@ -603,7 +600,6 @@ end
 local function new_nickname()
     if irc_state.phase == 'registration' then
         local nick = string.format('%.10s-%05d', configuration.nick, math.random(0,99999))
-        irc_state.target_nick = configuration.nick
         send('NICK', nick)
     end
 end
