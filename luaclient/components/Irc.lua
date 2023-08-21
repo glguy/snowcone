@@ -35,14 +35,21 @@ function M:_init()
     self.caps_available = {}
     self.caps_requested = {}
 
+    self.isupport = {}
+
     self.batches = {}
     self.channels = {}
 
     self.chantypes = '&#' -- updated by ISUPPORT
     self.monitor = nil -- map irccased nickname mapped to {nick=str, online=bool}
     self.max_chat_history = nil
+
     self.prefix_to_mode = { ["@"] = "o", ["+"] = "v"}
     self.mode_to_prefix = { ["o"] = "@", ["v"] = "+"}
+    self.modes_A = '' -- Modes that add or remove an address to or from a list.
+    self.modes_B = '' -- Modes that change a setting on a channel. Arg always set
+    self.modes_C = '' -- Modes that change a setting on a channel. Arg when set
+    self.modes_D = '' -- Modes that change a setting on a channel. Arg never
 
     self.users = make_user_table()
 end
@@ -51,32 +58,37 @@ end
 -- normal behavior relies on the raw isupport
 function M:commit_isupport()
     local isupport = irc_state.isupport
-    if isupport then
-        -- CHANTYPES
-        self.chantypes = isupport.CHANTYPES or self.chantypes
-        if isupport.MONITOR then
-            self.monitor = {}
-        end
 
-        -- PREFIX
-        if isupport.PREFIX then
-            local modes, prefixes = isupport.PREFIX:match '^%((.*)%)(.*)$'
-            local prefix_to_mode, mode_to_prefix = {}, {}
-            for i = 1, #modes do
-                local prefix, mode = prefixes:sub(i,i), modes:sub(i,i)
-                prefix_to_mode[prefix] = mode
-                mode_to_prefix[mode] = prefix
-            end
-            self.prefix_to_mode = prefix_to_mode
-            self.mode_to_prefix = mode_to_prefix
-        end
+    -- CHANTYPES
+    self.chantypes = isupport.CHANTYPES or self.chantypes
+    if isupport.MONITOR then
+        self.monitor = {}
+    end
 
-        -- CHATHISTORY
-        local n = tonumber(self.isupport.CHATHISTORY)
-        -- 0 indicates "no limit"
-        if n ~= nil and n > 0 then
-            self.max_chat_history = n
+    -- PREFIX
+    if isupport.PREFIX then
+        local modes, prefixes = isupport.PREFIX:match '^%((.*)%)(.*)$'
+        local prefix_to_mode, mode_to_prefix = {}, {}
+        for i = 1, #modes do
+            local prefix, mode = prefixes:sub(i,i), modes:sub(i,i)
+            prefix_to_mode[prefix] = mode
+            mode_to_prefix[mode] = prefix
         end
+        self.prefix_to_mode = prefix_to_mode
+        self.mode_to_prefix = mode_to_prefix
+    end
+
+    -- CHANMODES
+    if isupport.CHANMODES then
+        self.modes_A, self.modes_B, self.modes_C, self.modes_D =
+            isupport.CHANMODES:match '^([^,]*),([^,]*),([^,]*),([^,]*)'
+    end
+
+    -- CHATHISTORY
+    local n = tonumber(self.isupport.CHATHISTORY)
+    -- 0 indicates "no limit"
+    if n ~= nil and n > 0 then
+        self.max_chat_history = n
     end
 end
 

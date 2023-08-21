@@ -281,17 +281,72 @@ end
 
 function M.MODE(irc)
     local target = irc[1]
+    local modestring = irc[2]
+    local cursor = 3
 
     -- Update self umodes
     if target == irc_state.nick then
         local polarity = true
-        for m in irc[2]:gmatch '.' do
+        for m in modestring:gmatch '.' do
             if m == '+' then
                 polarity = true
             elseif m == '-' then
                 polarity = false
             elseif m == 'o' then
                 irc_state.oper = polarity
+            end
+        end
+
+    -- update channel modes
+    elseif irc_state:is_channel_name(target) then
+        local channel = irc_state:get_channel(target)
+        if channel then -- you can get mode information for channels you aren't in
+            local polarity = true
+            for flag in modestring:gmatch '.' do
+                if flag == '+' then
+                    polarity = true
+                elseif flag == '-' then
+                    polarity = false
+                elseif irc_state.mode_to_prefix[flag] then
+                    local modes = channel:get_member(irc[cursor]).modes
+                    cursor = cursor + 1
+                    if polarity then
+                        modes[flag] = true
+                    else
+                        modes[flag] = nil
+                    end
+                elseif irc_state.modes_B:find(flag, 1, true) then
+                    local modes = channel.modes
+                    if modes then
+                        if polarity then
+                            modes[flag] = irc[cursor]
+                        else
+                            modes[flag] = nil
+                        end
+                    end
+                    cursor = cursor + 1
+                elseif irc_state.modes_C:find(flag, 1, true) then
+                    local modes = channel.modes
+                    if modes then
+                        if polarity then
+                            modes[flag] = irc[cursor]
+                            cursor = cursor + 1
+                        else
+                            modes[flag] = nil
+                        end
+                    elseif polarity then
+                        cursor = cursor + 1
+                    end
+                elseif irc_state.modes_D:find(flag, 1, true) then
+                    local modes = channel.modes
+                    if modes then
+                        if polarity then
+                            modes[flag] = true
+                        else
+                            modes[flag] = nil
+                        end
+                    end
+                end
             end
         end
     end
@@ -323,6 +378,29 @@ M[N.RPL_NAMREPLY] = function(irc)
         local member = Member(user)
         member.modes = modes
         channel.members[snowcone.irccase(entry)] = member
+    end
+end
+
+M[N.RPL_CHANNELMODEIS] = function(irc)
+    local name = irc[2]
+    local modestring = irc[3]
+    local cursor = 4
+
+    local channel = irc_state:get_channel(name)
+    if channel then
+        local modes = {}
+        channel.modes = modes
+        for flag in modestring:gmatch '.' do
+            if irc_state.modes_B:find(flag, 1, true) then
+                modes[flag] = irc[cursor]
+                cursor = cursor + 1
+            elseif irc_state.modes_C:find(flag, 1, true) then
+                modes[flag] = irc[cursor]
+                cursor = cursor + 1
+            elseif irc_state.modes_D:find(flag, 1, true) then
+                modes[flag] = true
+            end
+        end
     end
 end
 
@@ -376,10 +454,6 @@ end
 
 M[N.RPL_ISUPPORT] = function(irc)
     local isupport = irc_state.isupport
-    if isupport == nil then
-        isupport = {}
-        irc_state.isupport = isupport
-    end
 
     for i = 2, #irc - 1 do
         local token = irc[i]
@@ -516,11 +590,18 @@ end
 
 -- "<client> <channel> :<topic>"
 M[N.RPL_TOPIC] = function(irc)
-    irc_state:get_channel(irc[2]).topic = irc[3]
+    local channel = irc_state:get_channel(irc[2])
+    if channel then
+        channel.topic = irc[3]
+    end
 end
 
+-- "<client> <channel> <creationtime>"
 M[N.RPL_CREATIONTIME] = function(irc)
-    irc_state:get_channel(irc[2]).creationtime = tonumber(irc[3])
+    local channel = irc_state:get_channel(irc[2])
+    if channel then
+        channel.creationtime = tonumber(irc[3])
+    end
 end
 
 -----------------------------------------------------------------------

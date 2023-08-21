@@ -6,6 +6,7 @@ M._name = 'Channel'
 function M:_init(name)
     self.name = name
     self.members = {}
+    -- self.modes
     -- self.topic
     -- self.creationtime
 end
