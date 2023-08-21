@@ -137,7 +137,7 @@ function M.NICK(irc)
     local newkey = snowcone.irccase(newnick)
     local rename = oldkey ~= newkey
 
-    local user = irc_state:get_user(nick)
+    local user = irc_state:get_user(oldnick)
     -- get_user *always* returns a table
     user.nick = newnick
     if rename then
