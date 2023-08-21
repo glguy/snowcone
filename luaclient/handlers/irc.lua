@@ -8,6 +8,7 @@ local send        = require_ 'utils.send'
 local split_nuh   = require_ 'utils.split_nick_user_host'
 local Buffer      = require  'components.Buffer'
 local Channel     = require  'components.Channel'
+local Member      = require  'components.Member'
 
 local function parse_source(source)
     return string.match(source, '^(.-)!(.-)@(.*)$')
@@ -115,11 +116,63 @@ end
 
 function M.NICK(irc)
     local nick = parse_source(irc.source)
+    local newnick = irc[1]
+
+    -- My nickname is changing
     if nick and nick == irc_state.nick then
-        irc_state.nick = irc[1]
+        irc_state.nick = newnick
         if irc_state.target_nick == irc_state.nick then
             irc_state.target_nick = nil
         end
+    end
+
+    local oldkey = snowcone.irccase(nick)
+    local newkey = snowcone.irccase(newnick)
+    local rename = oldkey ~= newkey
+
+    local user = irc_state:get_user(nick)
+    -- get_user *always* returns a table
+    user.nick = newnick
+    if rename then
+        irc_state.users[oldkey] = nil
+        irc_state.users[newkey] = user
+    end
+
+    -- Update all the channel lists
+    for _, channel in pairs(irc_state.channels) do
+        local member = channel.members[oldkey]
+        if member then
+            if rename then
+                channel.members[oldkey] = nil
+                channel.members[newkey] = member
+            end
+        end
+    end
+
+    -- Update buffer names
+    local buffer = buffers[oldkey]
+    if buffer then
+        buffer.name = newnick
+        if rename then
+            buffers[oldkey] = nil
+            buffers[newkey] = buffer
+        end
+    end
+
+    if oldkey ~= newkey and irc_state:has_monitor() then
+        local monitor = irc_state.monitor[oldkey]
+        if monitor then
+            if rename then
+                monitor[oldkey] = nil
+                monitor[newkey] = monitor
+                send('MONITOR', '+', newnick)
+                send('MONITOR', '-', nick)
+            end
+        end
+    end
+
+    if talk_target and talk_target == oldkey then
+        talk_target = newkey
     end
 end
 
@@ -242,42 +295,75 @@ end
 
 function M.JOIN(irc)
     local who = split_nuh(irc.source)
+    local channel = irc[1]
     if who == irc_state.nick then
-        local channel = irc[1]
         irc_state.channels[snowcone.irccase(channel)] = Channel(channel)
+    end
+
+    local user = irc_state:get_user(who)
+    irc_state:get_channel(channel).members[snowcone.irccase(who)] = Member(user)
+end
+
+-- "<client> <symbol> <channel> :[prefix]<nick>{ [prefix]<nick>}"
+M[N.RPL_NAMREPLY] = function(irc)
+    local name, nicks = irc[3], irc[4]
+    local channel = irc_state:get_channel(name)
+
+    for entry in nicks:gmatch '[^ ]+' do
+        local modes = {}
+        while irc_state.prefix_to_mode[entry:sub(1,1)] do
+            modes[irc_state.prefix_to_mode[entry:sub(1,1)]] = true
+            entry = entry:sub(2)
+        end
+        local user = irc_state:get_user(entry)
+        local member = Member(user)
+        member.modes = modes
+        channel.members[snowcone.irccase(entry)] = member
     end
 end
 
 function M.PART(irc)
     local who = split_nuh(irc.source)
+    local channel = irc[1]
     if who == irc_state.nick then
-        local channel = irc[1]
         irc_state.channels[snowcone.irccase(channel)] = nil
+    else
+        irc_state:get_channel(channel).members[snowcone.irccase(who)] = nil
     end
 end
 
+function M.QUIT(irc)
+    local nick = split_nuh(irc.source)
+    local key = snowcone.irccase(nick)
+
+    for _, channel in pairs(irc_state.channels) do
+        channel.members[snowcone.irccase(nick)] = nil
+    end
+
+    irc_state.users[key] = nil
+end
+
 function M.KICK(irc)
+    local channel = irc[1]
     local target = irc[2]
     if target == irc_state.nick then
-        local channel = irc[1]
         irc_state.channels[snowcone.irccase(channel)] = nil
+    else
+        irc_state:get_channel(channel).members[snowcone.irccase(target)] = nil
     end
 end
 
 function M.AWAY(irc)
     local nick = split_nuh(irc.source)
-    local entry = irc_state:get_monitor(nick)
-    if entry then
-        entry.away = irc[3]
-    end
+    local user = irc_state:get_user(nick)
+    user.away = irc[1] -- will be nil when BACK
 end
 
+-- "<client> <nick> :<message>"
 M[N.RPL_AWAY] = function(irc)
     local nick = irc[2]
-    local entry = irc_state:get_monitor(nick)
-    if entry then
-        entry.away = irc[1]
-    end
+    local user = irc_state:get_user(nick)
+    user.away = irc[3]
 end
 
 M[N.RPL_WELCOME] = function(irc)
@@ -441,12 +527,7 @@ M[N.RPL_MONONLINE] = function(irc)
     local list = irc[2]
     local nicks = {}
     for nick in list:gmatch '([^!,]+)[^,]*,?' do
-        local entry = irc_state:get_monitor(nick)
-        if entry then
-            entry.online = true
-        else
-            irc_state:add_monitor(nick, true)
-        end
+        irc_state:add_monitor(nick, true)
         table.insert(nicks, nick)
     end
     status('monitor', 'monitor online: ' .. table.concat(nicks, ', '))
@@ -457,13 +538,7 @@ M[N.RPL_MONOFFLINE] = function(irc)
     local list = irc[2]
     local nicks = {}
     for nick in list:gmatch '([^!,]+)[^,]*,?' do
-        local entry = irc_state:get_monitor(nick)
-        if entry then
-            entry.online = false
-            entry.away = nil
-        else
-            irc_state:add_monitor(nick, false)
-        end
+        irc_state:add_monitor(nick, false)
         table.insert(nicks, nick)
     end
     status('monitor', 'monitor offline: ' .. table.concat(nicks, ', '))

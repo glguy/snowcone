@@ -159,8 +159,8 @@ function M:draw_status()
     -- render online users in green, offline in red
     elseif irc_state:has_monitor() and irc_state:is_monitored(talk_target) then
         local entry = irc_state:get_monitor(talk_target)
-        if entry.online then
-            if entry.away then
+        if entry.user then
+            if entry.user.away then
                 magenta()
             else
                 green()

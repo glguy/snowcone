@@ -1,4 +1,5 @@
 local class = require 'pl.class'
+local User = require  'components.User'
 
 -- irc_state
 -- .caps_ls        - set of string   - create in LS - consume at end of LS
@@ -16,9 +17,17 @@ local class = require 'pl.class'
 -- .monitor
 -- .chantypes
 -- .batches
+-- .isupport
 
 local M = class()
 M._name = 'Irc'
+
+local function make_user_table()
+    local MT = { __mode = 'v' } -- weak values
+    local tab = {}
+    setmetatable(tab, MT)
+    return tab
+end
 
 function M:_init()
     self.phase = 'registration' -- registration, connected, closed
@@ -26,12 +35,17 @@ function M:_init()
     self.caps_enabled = {}
     self.caps_available = {}
     self.caps_requested = {}
+
     self.batches = {}
     self.channels = {}
 
     self.chantypes = '&#' -- updated by ISUPPORT
     self.monitor = nil -- map irccased nickname mapped to {nick=str, online=bool}
     self.max_chat_history = nil
+    self.prefix_to_mode = { ["@"] = "o", ["+"] = "v"}
+    self.mode_to_prefix = { ["o"] = "@", ["v"] = "+"}
+
+    self.users = make_user_table()
 end
 
 -- gets run at end of registration and should be the last time
@@ -39,11 +53,26 @@ end
 function M:commit_isupport()
     local isupport = irc_state.isupport
     if isupport then
+        -- CHANTYPES
         self.chantypes = isupport.CHANTYPES or self.chantypes
         if isupport.MONITOR then
             self.monitor = {}
         end
 
+        -- PREFIX
+        if isupport.PREFIX then
+            local modes, prefixes = isupport.PREFIX:match '^%((.*)%)(.*)$'
+            local prefix_to_mode, mode_to_prefix = {}, {}
+            for i = 1, #modes do
+                local prefix, mode = prefixes:sub(i,i), modes:sub(i,i)
+                prefix_to_mode[prefix] = mode
+                mode_to_prefix[mode] = prefix
+            end
+            self.prefix_to_mode = prefix_to_mode
+            self.mode_to_prefix = mode_to_prefix
+        end
+
+        -- CHATHISTORY
         local n = tonumber(self.isupport.CHATHISTORY)
         -- 0 indicates "no limit"
         if n ~= nil and n > 0 then
@@ -56,11 +85,24 @@ function M:get_monitor(nick)
     return self.monitor[snowcone.irccase(nick)]
 end
 
+function M:get_user(nick)
+    local key = snowcone.irccase(nick)
+    local entry = self.users[key]
+    if not entry then
+        entry = User(nick)
+        self.users[key] = entry
+    end
+    return entry
+end
+
 function M:add_monitor(nick, online)
-    self.monitor[snowcone.irccase(nick)] = {
-        nick = nick,
-        online = online,
-    }
+    if online then
+        self.monitor[snowcone.irccase(nick)] = {
+            user = self:get_user(nick)
+        }
+    else
+        self.monitor[snowcone.irccase(nick)] = {}
+    end
 end
 
 function M:has_monitor()
@@ -68,8 +110,7 @@ function M:has_monitor()
 end
 
 function M:is_monitored(nick)
-    local entry = self:get_monitor(nick)
-    return entry and entry.online ~= nil
+    return self:get_monitor(nick) ~= nil
 end
 
 function M:is_channel_name(name)

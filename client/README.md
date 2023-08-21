@@ -8,7 +8,7 @@ ported over.
 
 ## Building and running
 
-This project uses cmake to build. If you're on a mac you'll need to override
+This project uses CMake to build. If you're on a mac you'll need to override
 `PKG_CONFIG_PATH` to find any missing libraries.
 
 ```sh
@@ -17,8 +17,10 @@ cmake --build build
 build/client/ircc luaclient/init.lua
 ```
 
-I also have presets `intel-mac` and `arm-mac` CMake presets that set up
-the needed environment variables (see CMakePresets.json)
+I also have presets `intel-mac`, `arm-mac`, `debian-gcc` CMake presets that set up
+the needed environment variables (see CMakePresets.json). Note that Debian's
+`gcc-12` and `boost` packages are currently incompatible, so you have to install
+`gcc-11` there.
 
 ```sh
 cmake --preset arm-mac

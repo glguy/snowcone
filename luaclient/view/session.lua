@@ -46,13 +46,14 @@ function M:render()
     addstr '\n'
 
     addstr ' Monitor:'
-    for _, v in tablex.sort(irc_state.monitor) do
-        if v.online then
+    for k, v in tablex.sort(irc_state.monitor) do
+        if v.user then
             green()
+            addstr ' ' addstr(v.user.nick)
         else
             red()
+            addstr ' ' addstr(k:lower())
         end
-        addstr ' ' addstr(v.nick)
     end
     normal()
     addstr '\n'

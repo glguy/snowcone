@@ -79,6 +79,7 @@ add_command('close', '', function()
     and irc_state:is_monitored(talk_target)
     then
         send('MONITOR', '-', talk_target)
+        irc_state.monitor[snowcone.irccase(talk_target)] = nil
     end
 
     if talk_target and view == 'buffer' then
