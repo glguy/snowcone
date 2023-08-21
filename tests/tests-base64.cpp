@@ -106,10 +106,10 @@ TEST(Base64, Zeros) {
 }
 
 TEST(Base64, Ones) {
-    char buffer[4] {-1, -1, -1, -1};
+    uint32_t buffer = UINT32_C(0xffffffff);
     char output[9];
 
-    mybase64::encode({buffer, sizeof(buffer)}, output);
+    mybase64::encode({reinterpret_cast<char*>(&buffer), sizeof(buffer)}, output);
     EXPECT_STREQ(output, "/////w==");
 
     uint32_t decoded {};
