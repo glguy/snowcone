@@ -170,7 +170,7 @@ function M.NICK(irc)
                 monitor[oldkey] = nil
                 monitor[newkey] = monitor
                 send('MONITOR', '+', newnick)
-                send('MONITOR', '-', nick)
+                send('MONITOR', '-', oldnick)
             end
         end
     end
