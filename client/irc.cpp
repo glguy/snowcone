@@ -1,6 +1,7 @@
 #include "irc.hpp"
 
 #include "app.hpp"
+#include "linebuffer.hpp"
 #include "safecall.hpp"
 
 #include <ircmsg.hpp>
@@ -91,8 +92,12 @@ namespace
         int send_cb;
 
     public:
-        irc_connection(lua_State *L, int send_cb) : L{L}, send_cb{send_cb} {}
+        irc_connection(lua_State *L, int send_cb)
+        : L{L}, send_cb{send_cb}
+        {}
+
         virtual ~irc_connection() { forget_irc_handle(); }
+
         auto forget_irc_handle() -> void
         {
             // Remove send_callback's upvalue pointing to this object
@@ -110,8 +115,11 @@ namespace
     {
     public:
         boost::asio::ip::tcp::socket socket_;
+
         plain_irc_connection(boost::asio::io_context &io_context, lua_State *const L, int const send_cb)
-            : irc_connection{L, send_cb}, socket_{io_context} {}
+            : irc_connection{L, send_cb}
+            , socket_{io_context}
+            {}
 
         auto shutdown() -> void override
         {
@@ -121,8 +129,8 @@ namespace
 
         auto write(char const *const cmd, size_t n, int ref) -> void override
         {
-            boost::asio::async_write(socket_, boost::asio::buffer(cmd, n), [L = this->L, ref](auto error, auto amount)
-                                     { luaL_unref(L, LUA_REGISTRYINDEX, ref); });
+            boost::asio::write(socket_, boost::asio::buffer(cmd, n));
+            luaL_unref(L, LUA_REGISTRYINDEX, ref);
         }
     };
 
@@ -132,7 +140,8 @@ namespace
         boost::asio::ssl::stream<boost::asio::ip::tcp::socket> socket_;
 
         tls_irc_connection(boost::asio::io_context &io_context, boost::asio::ssl::context &ssl_context, lua_State *const L, int const send_cb)
-            : irc_connection{L, send_cb}, socket_{io_context, ssl_context}
+            : irc_connection{L, send_cb}
+            , socket_{io_context, ssl_context}
         {
         }
 
@@ -144,8 +153,8 @@ namespace
 
         auto write(char const *const cmd, size_t n, int ref) -> void override
         {
-            boost::asio::async_write(socket_, boost::asio::buffer(cmd, n), [L = this->L, ref](auto error, auto amount)
-                                     { luaL_unref(L, LUA_REGISTRYINDEX, ref); });
+            boost::asio::write(socket_, boost::asio::buffer(cmd, n));
+            luaL_unref(L, LUA_REGISTRYINDEX, ref);
         }
     };
 
@@ -211,19 +220,8 @@ namespace
         ~LuaRef() { luaL_unref(L, LUA_REGISTRYINDEX, ref); }
     };
 
-    auto handle_read(boost::asio::streambuf &buffer, size_t bytes_transferred, lua_State *L, int irc_cb) -> void
+    auto handle_read(char * line, lua_State *L, int irc_cb) -> void
     {
-        if (bytes_transferred < 2)
-        {
-            buffer.consume(bytes_transferred);
-            return;
-        }
-
-        auto const p = boost::asio::buffers_begin(buffer.data());
-        std::string line_string(p, p + (bytes_transferred - 2));
-        buffer.consume(bytes_transferred);
-
-        char *line = line_string.data();
         while (*line == ' ')
         {
             line++;
@@ -289,10 +287,14 @@ auto connect_thread(
             lua_setupvalue(L, -2, 1);
             safecall(L, "successful connect", 2);
 
+            LineBuffer buff{32'000};
             for (;;)
             {
-                auto const bytes_transferred = co_await boost::asio::async_read_until(irc.socket_, buffer, '\n', boost::asio::use_awaitable);
-                handle_read(buffer, bytes_transferred, L, irc_cb);
+                auto const bytes_transferred = co_await
+                    irc.socket_.async_read_some(buff.get_buffer(), boost::asio::use_awaitable);
+                    buff.add_bytes(bytes_transferred, [L, irc_cb](auto line) {
+                        handle_read(line, L, irc_cb);
+                    });
             }
         }
         else
@@ -301,7 +303,6 @@ auto connect_thread(
             tls_irc_connection irc{io_context, ssl_context, L, send_cb};
 
             co_await boost::asio::async_connect(irc.socket_.lowest_layer(), endpoints, boost::asio::use_awaitable);
-
             irc.socket_.lowest_layer().set_option(boost::asio::ip::tcp::no_delay(true));
             if (not host.empty())
             {
@@ -318,10 +319,14 @@ auto connect_thread(
             lua_setupvalue(L, -2, 1);
             safecall(L, "successful connect", 2);
 
+            LineBuffer buff{32'000};
             for (;;)
             {
-                auto const bytes_transferred = co_await boost::asio::async_read_until(irc.socket_, buffer, '\n', boost::asio::use_awaitable);
-                handle_read(buffer, bytes_transferred, L, irc_cb);
+                auto const bytes_transferred = co_await
+                    irc.socket_.async_read_some(buff.get_buffer(), boost::asio::use_awaitable);
+                    buff.add_bytes(bytes_transferred, [L, irc_cb](auto line) {
+                        handle_read(line, L, irc_cb);
+                    });
             }
         }
     }

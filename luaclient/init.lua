@@ -312,13 +312,14 @@ function quit(msg)
         reconnect_timer = nil
     end
     if send_irc then
+        exiting = true
         disconnect(msg)
     else
         if not exiting then
+            exiting = true
             snowcone.shutdown()
         end
     end
-    exiting = true
 end
 
 -- Command handlers ===================================================
