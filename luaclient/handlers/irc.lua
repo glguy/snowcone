@@ -115,18 +115,25 @@ function M.CAP(irc)
 end
 
 function M.NICK(irc)
-    local nick = parse_source(irc.source)
+    local oldnick = parse_source(irc.source)
     local newnick = irc[1]
 
     -- My nickname is changing
-    if nick and nick == irc_state.nick then
+    if oldnick and oldnick == irc_state.nick then
         irc_state.nick = newnick
         if irc_state.target_nick == irc_state.nick then
             irc_state.target_nick = nil
         end
     end
 
-    local oldkey = snowcone.irccase(nick)
+    -- Nicknames are tracked in:
+    -- * users table
+    -- * channel members
+    -- * buffers
+    -- * monitor tracking
+    -- * talk target
+
+    local oldkey = snowcone.irccase(oldnick)
     local newkey = snowcone.irccase(newnick)
     local rename = oldkey ~= newkey
 
@@ -159,7 +166,7 @@ function M.NICK(irc)
         end
     end
 
-    if oldkey ~= newkey and irc_state:has_monitor() then
+    if rename then
         local monitor = irc_state.monitor[oldkey]
         if monitor then
             if rename then

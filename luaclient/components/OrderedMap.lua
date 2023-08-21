@@ -40,6 +40,14 @@ function OrderedMap:rekey(old, new)
     end
 end
 
+function OrderedMap:get_oldest()
+    if self.n <= self.max then
+        return self.vals[1]
+    else
+        return self.vals[self.n % self.max + 1]
+    end
+end
+
 function OrderedMap:each(offset)
     local i = offset or 0
     local n = self.n
