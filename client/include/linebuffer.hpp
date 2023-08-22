@@ -1,46 +1,96 @@
 #pragma once
 
-#include <vector>
-#include <boost/asio.hpp>
+/**
+ * @file linebuffer.hpp
+ * @author Eric Mertens <emertens@gmail.com>
+ * @brief A line buffering class
+ * @version 0.1
+ * @date 2023-08-22
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
 
-class LineBuffer {
+#include <boost/asio/buffer.hpp>
+
+#include <concepts>
+#include <vector>
+
+/**
+ * @brief Fixed-size buffer with line-oriented dispatch
+ * 
+ */
+class LineBuffer
+{
     std::vector<char> buffer;
+
+    // [buffer.begin(), end_) contains buffered data
+    // [end_, buffer.end()) is available buffer space
     std::vector<char>::iterator end_;
 
 public:
+    /**
+     * @brief Construct a new Line Buffer object
+     * 
+     * @param n Buffer size
+     */
     LineBuffer(std::size_t n) : buffer(n), end_{buffer.begin()} {}
 
-    auto get_buffer() {
+    /**
+     * @brief Get the available buffer space
+     * 
+     * @return boost::asio::mutable_buffers_1 
+     */
+    auto get_buffer() -> boost::asio::mutable_buffers_1
+    {
         return boost::asio::buffer(&*end_, buffer.end() - end_);
     }
 
-    auto add_bytes(std::size_t n, auto f) -> void {
+    /**
+     * @brief Commit new buffer bytes and dispatch line callback
+     * 
+     * The first n bytes of the buffer will be considered to be
+     * populated. The line callback function will be called once
+     * per completed line. Those lines are removed from the buffer
+     * and the is ready for additional calls to get_buffer and
+     * add_bytes.
+     * 
+     * @param n Bytes written to the last call of get_buffer
+     * @param line_cb Callback function to run on each completed line 
+     */
+    auto add_bytes(std::size_t n, std::invocable<char *> auto line_cb) -> void
+    {
         auto const start = end_;
         end_ += n;
-        
+        // new data is now located in [start, end_)
+
+        // cursor marks the beginning of the current line
         auto cursor = buffer.begin();
 
         for (auto nl = std::find(start, end_, '\n');
              nl != end_;
              nl = std::find(cursor, end_, '\n'))
         {
-            // Null-terminate the line terminator
-            if (cursor < nl && *(nl-1) == '\r')
+            // Null-terminate the line. Support both \n and \r\n
+            if (cursor < nl && *(nl - 1) == '\r')
             {
-                *(nl-1) = '\0';
+                *(nl - 1) = '\0';
             }
             else
             {
                 *nl = '\0';
             }
 
-            f(&*cursor);
-            
+            line_cb(&*cursor);
+
             cursor = nl + 1;
         }
 
-        if (cursor != buffer.begin()) {
-            auto used = cursor - buffer.begin();
+        // If any lines were processed, move all processed lines to
+        // the front of the buffer
+        if (cursor != buffer.begin())
+        {
+            auto const used = cursor - buffer.begin();
             std::move(cursor, end_, buffer.begin());
             end_ -= used;
         }
