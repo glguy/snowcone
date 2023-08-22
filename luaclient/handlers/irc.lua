@@ -279,6 +279,9 @@ function M.BOUNCER(irc)
     end
 end
 
+-----------------------------------------------------------------------
+-- MODE processing
+
 function M.MODE(irc)
     local target = irc[1]
     local modestring = irc[2]
@@ -314,6 +317,19 @@ function M.MODE(irc)
                         modes[flag] = true
                     else
                         modes[flag] = nil
+                    end
+                elseif irc_state.modes_A:find(flag, 1, true) then
+                    local modes = channel.list_modes[flag]
+                    local mask = irc[cursor]
+                    cursor = cursor + 1
+                    if modes then
+                        if polarity then
+                            modes[mask] = {
+                                who = irc.source
+                            }
+                        else
+                            modes[mask] = nil
+                        end
                     end
                 elseif irc_state.modes_B:find(flag, 1, true) then
                     local modes = channel.modes
@@ -352,6 +368,103 @@ function M.MODE(irc)
     end
 end
 
+-- "<client> <channel> <mask> [<who> <set-ts>]"
+M[N.RPL_BANLIST] = function(irc)
+    local mode_list = irc_state:get_partial_mode_list();
+    mode_list[irc[3]] = {
+        who = irc[4],
+        ts = irc[5],
+    }
+end
+
+--  "<client> <channel> :End of Channel Ban List"
+M[N.RPL_ENDOFBANLIST] = function(irc)
+    local channel = irc_state:get_channel(irc[2])
+    if channel then
+        channel.list_modes.b = irc_state:get_partial_mode_list()
+        irc_state:clear_partial_mode_list()
+    end
+end
+
+-- "<client> <channel> <mode> <mask> [<who> <set-ts>]"
+M[N.RPL_QUIETLIST] = function(irc)
+    local mode_list = irc_state:get_partial_mode_list();
+    mode_list[irc[4]] = {
+        who = irc[5],
+        ts = irc[6],
+    }
+end
+
+-- "<client> <channel> <mode> :End of channel quiet list"
+M[N.RPL_ENDOFQUIETLIST] = function(irc)
+    local channel = irc_state:get_channel(irc[2])
+    if channel then
+        channel.list_modes.q = irc_state:get_partial_mode_list()
+        irc_state:clear_partial_mode_list()
+    end
+end
+
+-- "<client> <channel> <mask> [<who> <set-ts>]"
+M[N.RPL_EXCEPTLIST] = function(irc)
+    local mode_list = irc_state:get_partial_mode_list();
+    mode_list[irc[3]] = {
+        who = irc[4],
+        ts = irc[5],
+    }
+end
+
+-- "<client> <channel> :End of channel exception list"
+M[N.RPL_ENDOFEXCEPTLIST] = function(irc)
+    local channel = irc_state:get_channel(irc[2])
+    if channel then
+        channel.list_modes.e = irc_state:get_partial_mode_list()
+        irc_state:clear_partial_mode_list()
+    end
+end
+
+-- "<client> <channel> <mask> [<who> <set-ts>]"
+M[N.RPL_INVITELIST] = function(irc)
+    local mode_list = irc_state:get_partial_mode_list();
+    mode_list[irc[3]] = {
+        who = irc[4],
+        ts = irc[5],
+    }
+end
+
+--   "<client> <channel> :End of Channel Invite Exception List"
+M[N.RPL_ENDOFINVITELIST] = function(irc)
+    local channel = irc_state:get_channel(irc[2])
+    if channel then
+        channel.list_modes.I = irc_state:get_partial_mode_list()
+        irc_state:clear_partial_mode_list()
+    end
+end
+
+M[N.RPL_CHANNELMODEIS] = function(irc)
+    local name = irc[2]
+    local modestring = irc[3]
+    local cursor = 4
+
+    local channel = irc_state:get_channel(name)
+    if channel then
+        local modes = {}
+        channel.modes = modes
+        for flag in modestring:gmatch '.' do
+            if irc_state.modes_B:find(flag, 1, true) then
+                modes[flag] = irc[cursor]
+                cursor = cursor + 1
+            elseif irc_state.modes_C:find(flag, 1, true) then
+                modes[flag] = irc[cursor]
+                cursor = cursor + 1
+            elseif irc_state.modes_D:find(flag, 1, true) then
+                modes[flag] = true
+            end
+        end
+    end
+end
+
+-----------------------------------------------------------------------
+
 function M.JOIN(irc)
     local who = split_nuh(irc.source)
     local channel = irc[1]
@@ -378,29 +491,6 @@ M[N.RPL_NAMREPLY] = function(irc)
         local member = Member(user)
         member.modes = modes
         channel.members[snowcone.irccase(entry)] = member
-    end
-end
-
-M[N.RPL_CHANNELMODEIS] = function(irc)
-    local name = irc[2]
-    local modestring = irc[3]
-    local cursor = 4
-
-    local channel = irc_state:get_channel(name)
-    if channel then
-        local modes = {}
-        channel.modes = modes
-        for flag in modestring:gmatch '.' do
-            if irc_state.modes_B:find(flag, 1, true) then
-                modes[flag] = irc[cursor]
-                cursor = cursor + 1
-            elseif irc_state.modes_C:find(flag, 1, true) then
-                modes[flag] = irc[cursor]
-                cursor = cursor + 1
-            elseif irc_state.modes_D:find(flag, 1, true) then
-                modes[flag] = true
-            end
-        end
     end
 end
 

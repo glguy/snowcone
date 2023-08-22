@@ -137,4 +137,17 @@ function M:get_channel(name)
     return self.channels[snowcone.irccase(name)]
 end
 
+function M:get_partial_mode_list()
+    local mode_list = self.partial_mode_list
+    if not mode_list then
+        mode_list = {}
+        self.partial_mode_list = mode_list
+    end
+    return mode_list
+end
+
+function M:clear_partial_mode_list()
+    self.partial_mode_list = nil
+end
+
 return M
