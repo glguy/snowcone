@@ -13,5 +13,5 @@ class LuaRef
 public:
     LuaRef(lua_State *L, int const ref) : L{L}, ref{ref} {}
     ~LuaRef() { luaL_unref(L, LUA_REGISTRYINDEX, ref); }
-    auto push() -> void { lua_rawgeti(L, LUA_REGISTRYINDEX, ref); }
+    auto push() const -> void { lua_rawgeti(L, LUA_REGISTRYINDEX, ref); }
 };
