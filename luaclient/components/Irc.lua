@@ -126,7 +126,7 @@ end
 
 function M:is_channel_name(name)
     local sigil = name:sub(1,1)
-    return string.find(sigil, self.chantypes, 1, true) and sigil ~= ''
+    return string.find(self.chantypes, sigil, 1, true) and sigil ~= ''
 end
 
 function M:has_chathistory()
