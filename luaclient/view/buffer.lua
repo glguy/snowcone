@@ -177,6 +177,7 @@ function M:draw_status()
     do
         local buffer = buffers[talk_target]
         local name = buffer and buffer.name or talk_target
+        bold()
         addstr(name, '')
         normal()
     end

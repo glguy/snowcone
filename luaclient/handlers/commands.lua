@@ -84,8 +84,10 @@ add_command('close', '', function()
 
     if talk_target and view == 'buffer' then
         buffers[talk_target] = nil
-        view = 'console'
-        talk_target = nil
+        talk_target = next(buffers)
+        if not talk_target then
+            view = 'console'
+        end
     end
 end)
 
