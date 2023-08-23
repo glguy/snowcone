@@ -49,9 +49,13 @@ install(
     DIRECTORY   "lua"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/snowcone"
     PATTERN     ".luacheckrc" EXCLUDE)
+install(
+    DIRECTORY   "luaclient"
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/snowcone"
+    PATTERN     ".luacheckrc" EXCLUDE)
 install(FILES "snowcone.1" DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
 
 set(CPACK_GENERATOR "DEB")
-set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Eric Mertens <glguy@libera.chat>")
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "libgeoip1, liblua5.3-0, libuv1, lua-penlight, socat")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Eric Mertens <emertens@gmail.com>")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libgeoip1, liblua5.4-0, libuv1, lua-penlight, socat")
 include(CPack)
