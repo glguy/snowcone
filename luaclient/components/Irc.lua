@@ -54,41 +54,54 @@ function M:_init()
     self.users = make_user_table()
 end
 
--- gets run at end of registration and should be the last time
--- normal behavior relies on the raw isupport
-function M:commit_isupport()
-    local isupport = irc_state.isupport
+-- this table contains methods, but these methods get called on
+-- the irc_state, not the isupport_logic table!
+local isupport_logic = {}
 
-    -- CHANTYPES
-    self.chantypes = isupport.CHANTYPES or self.chantypes
-    if isupport.MONITOR then
+function isupport_logic:CHANTYPES(arg)
+    self.chantypes = arg or '&#'
+end
+
+function isupport_logic:MONITOR(arg)
+    if arg then
         self.monitor = {}
+    else
+        self.monitor = nil
     end
+end
 
-    -- PREFIX
-    if isupport.PREFIX then
-        local modes, prefixes = isupport.PREFIX:match '^%((.*)%)(.*)$'
-        local prefix_to_mode, mode_to_prefix = {}, {}
-        for i = 1, #modes do
-            local prefix, mode = prefixes:sub(i,i), modes:sub(i,i)
-            prefix_to_mode[prefix] = mode
-            mode_to_prefix[mode] = prefix
-        end
-        self.prefix_to_mode = prefix_to_mode
-        self.mode_to_prefix = mode_to_prefix
+function isupport_logic:PREFIX(arg)
+    local modes, prefixes = arg:match '^%((.*)%)(.*)$'
+    local prefix_to_mode, mode_to_prefix = {}, {}
+    for i = 1, #modes do
+        local prefix, mode = prefixes:sub(i,i), modes:sub(i,i)
+        prefix_to_mode[prefix] = mode
+        mode_to_prefix[mode] = prefix
     end
+    self.prefix_to_mode = prefix_to_mode
+    self.mode_to_prefix = mode_to_prefix
+end
 
-    -- CHANMODES
-    if isupport.CHANMODES then
-        self.modes_A, self.modes_B, self.modes_C, self.modes_D =
-            isupport.CHANMODES:match '^([^,]*),([^,]*),([^,]*),([^,]*)'
-    end
+function isupport_logic:CHANMODES(arg)
+    self.modes_A, self.modes_B, self.modes_C, self.modes_D =
+        arg:match '^([^,]*),([^,]*),([^,]*),([^,]*)'
+end
 
-    -- CHATHISTORY
-    local n = tonumber(self.isupport.CHATHISTORY)
+function isupport_logic:CHATHISTORY(arg)
+    local n = tonumber(arg)
     -- 0 indicates "no limit"
     if n ~= nil and n > 0 then
         self.max_chat_history = n
+    end
+end
+
+-- gets run at end of registration and should be the last time
+-- normal behavior relies on the raw isupport
+function M:set_isupport(key, val)
+    self.isupport[key] = val
+    local f = isupport_logic[key]
+    if f then
+        f(self, val) -- invoke on self, not as methods on isupport_logic
     end
 end
 

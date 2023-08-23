@@ -274,9 +274,10 @@ function M:tab(dir, mklist)
         self.tabix = (tabix + dir - 1) % #tablist + 1
         i = cur - #tablist[tabix]
     else
-        i = self:search_prev_word(function(c) return c ~= ' ' end)
+        i = self:search_prev_word(function(c) return c ~= 32 end)
+        local prefix = utf8.char(table.unpack(self.buffer, 1, i - 1))
         local seed = utf8.char(table.unpack(self.buffer, i, cur - 1))
-        self.tabix, self.tablist = mklist(seed)
+        self.tabix, self.tablist = mklist(prefix, seed)
         if self.tablist == nil then
             return
         end

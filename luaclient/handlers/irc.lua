@@ -440,6 +440,7 @@ M[N.RPL_ENDOFINVITELIST] = function(irc)
     end
 end
 
+-- "<client> <channel> <modestring> <mode arguments>..."
 M[N.RPL_CHANNELMODEIS] = function(irc)
     local name = irc[2]
     local modestring = irc[3]
@@ -538,27 +539,24 @@ M[N.RPL_AWAY] = function(irc)
     user.away = irc[3]
 end
 
+-- "<client> :Welcome to the <networkname> Network, <nick>[!<user>@<host>]"
 M[N.RPL_WELCOME] = function(irc)
     irc_state.nick = irc[1]
 end
 
+-- "<client> <1-13 tokens> :are supported by this server"
 M[N.RPL_ISUPPORT] = function(irc)
-    local isupport = irc_state.isupport
-
     for i = 2, #irc - 1 do
         local token = irc[i]
         -- soju.im/bouncer-networks happens to add _ to the allowed characters
-        local minus, key, equals, val = string.match(token, '^(%-?)([%u%d_]+)(=?)(.*)$')
+        local minus, key, equals, val = token:match '^(%-?)([%u%d_]+)(=?)(.*)$'
         if minus == '-' then
-            isupport[key] = nil
+            val = nil
         elseif equals == '' then
-            isupport[key] = true
-        else
-            isupport[key] = val
+            val = true
         end
+        irc_state:set_isupport(key, val)
     end
-
-    irc_state:commit_isupport()
 end
 
 local function end_of_registration()
@@ -615,12 +613,14 @@ local function end_of_registration()
     end
 end
 
+-- "<client> :End of /MOTD command."
 M[N.RPL_ENDOFMOTD] = function()
     if irc_state.phase == 'registration' then
         end_of_registration()
     end
 end
 
+-- "<client> :MOTD File is missing"
 M[N.ERR_NOMOTD] = function()
     if irc_state.phase == 'registration' then
         end_of_registration()
@@ -653,6 +653,7 @@ end
 
 -----------------------------------------------------------------------
 
+-- "<client> <channel> <client count> :<topic>"
 M[N.RPL_LIST] = function(irc)
     if irc_state.channel_list_complete then
         irc_state.channel_list = {}
@@ -667,6 +668,7 @@ M[N.RPL_LIST] = function(irc)
     }
 end
 
+-- "<client> :End of /LIST"
 M[N.RPL_LISTEND] = function()
     irc_state.channel_list_complete = true
 end
