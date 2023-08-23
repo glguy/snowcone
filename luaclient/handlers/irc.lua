@@ -259,7 +259,7 @@ function M.BOUNCER(irc)
 
             -- * indicates the network was deleted
             if attrs == '*' then
-                irc.bouncer_networks[netid] = nil
+                irc_state.bouncer_networks[netid] = nil
             else
                 local network = irc_state.bouncer_networks[netid]
                 if nil == network then
