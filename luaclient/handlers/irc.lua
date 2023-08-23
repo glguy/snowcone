@@ -557,13 +557,13 @@ M[N.RPL_ISUPPORT] = function(irc)
             isupport[key] = val
         end
     end
+
+    irc_state:commit_isupport()
 end
 
 local function end_of_registration()
     irc_state.phase = 'connected'
     status('irc', 'connected')
-
-    irc_state:commit_isupport()
 
     if configuration.oper_username and configuration.challenge_key then
         challenge.start()
