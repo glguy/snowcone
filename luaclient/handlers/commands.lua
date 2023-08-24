@@ -208,7 +208,8 @@ end)
 add_command('dump', '$r', function(path)
 
     local function escapeval(val)
-        return (val:gsub('[;\n\r ]', {
+        return (val:gsub('[;\n\r\\ ]', {
+                ['\\'] = '\\',
                 [' '] = '\\s',
                 [';'] = '\\:',
                 ['\n'] = '\\n',
