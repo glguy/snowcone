@@ -32,8 +32,8 @@ end)
 
 -- raw just dumps the text directly into the network stream
 add_command('raw', '$r', function(args)
-    if send_irc then
-        send_irc(args .. '\r\n')
+    if conn then
+        conn:send(args .. '\r\n')
     else
         status('quote', 'not connected')
     end
@@ -135,9 +135,9 @@ add_command('notice', '$g $r', function(target, message)
 end)
 
 add_command('umode', '$R', function(args)
-    -- raw send_irc hack to allow args to contain spaces
-    if irc_state.phase == 'connected' and send_irc then
-        send_irc('MODE ' .. irc_state.nick .. ' ' .. args .. '\r\n')
+    -- raw hack to allow args to contain spaces
+    if irc_state.phase == 'connected' and conn then
+        conn:send('MODE ' .. irc_state.nick .. ' ' .. args .. '\r\n')
     else
         status('umode', 'not connected')
     end

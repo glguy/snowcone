@@ -4,6 +4,7 @@
 #include "linebuffer.hpp"
 #include "luaref.hpp"
 #include "safecall.hpp"
+#include "userdata.hpp"
 
 #include <ircmsg.hpp>
 
@@ -17,6 +18,7 @@ extern "C"
 #include <list>
 #include <memory>
 #include <string>
+
 
 namespace
 {
@@ -68,6 +70,7 @@ class irc_connection : public std::enable_shared_from_this<irc_connection>
 {
 protected:
     boost::asio::io_context &io_context;
+    boost::asio::steady_timer write_timer;
     lua_State *L;
 
     std::list<boost::asio::const_buffer> write_buffers;
@@ -75,27 +78,42 @@ protected:
 
 public:
     irc_connection(boost::asio::io_context &io_context, lua_State *L)
-        : io_context{io_context}, L{L}
+        : io_context{io_context}
+        , write_timer{io_context, boost::asio::steady_timer::time_point::max()}
+        , L{L}
     {
     }
 
-    virtual ~irc_connection() {}
+    virtual ~irc_connection() {
+        for (auto const ref : write_refs) {
+            luaL_unref(L, LUA_REGISTRYINDEX, ref);
+        }
+    }
 
     virtual auto shutdown() -> boost::system::error_code = 0;
 
     auto write_thread() -> boost::asio::awaitable<void>
     {
-        do
+        for(;;)
         {
+            if (write_buffers.empty()) {
+                // wait and ignore the cancellation errors
+                boost::system::error_code ec;
+                co_await write_timer.async_wait(
+                    boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+            }
+
             auto n = write_buffers.size();
             co_await write_awaitable();
+
+            // release written buffers
             for (; n > 0; n--)
             {
                 luaL_unref(L, LUA_REGISTRYINDEX, write_refs.front());
                 write_buffers.pop_front();
                 write_refs.pop_front();
             }
-        } while (not write_buffers.empty());
+        }
     }
 
     auto write(char const * const cmd, size_t const n, int const ref) -> void
@@ -105,19 +123,7 @@ public:
         write_refs.push_back(ref);
         if (idle)
         {
-            boost::asio::co_spawn(io_context, write_thread(),
-                [self = shared_from_this()](std::exception_ptr error)
-                {
-                    if (error)
-                    {
-                        for (auto ref : self->write_refs)
-                        {
-                            luaL_unref(self->L, LUA_REGISTRYINDEX, ref);
-                        }
-                        self->write_refs.clear();
-                        self->write_buffers.clear();
-                    }
-                });
+            write_timer.cancel_one();
         }
     }
 
@@ -187,34 +193,39 @@ public:
     }
 };
 
-auto on_send_irc(lua_State * const L) -> int
+auto l_send_irc(lua_State * const L) -> int
 {
-    auto const tcp = reinterpret_cast<irc_connection *>(lua_touserdata(L, lua_upvalueindex(1)));
-
-    if (tcp == nullptr)
+    auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
+    if (w->expired())
     {
         luaL_error(L, "send to closed irc");
         return 0;
     }
 
-    size_t n;
-    auto const cmd = luaL_optlstring(L, 1, nullptr, &n);
-    lua_settop(L, 1);
+    // Wait until after luaL_error to start putting things on the
+    // stack that have destructors
 
-    if (cmd == nullptr)
+    size_t n;
+    auto const cmd = luaL_checklstring(L, 2, &n);
+    lua_settop(L, 2);
+    auto const ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    w->lock()->write(cmd, n, ref);
+    return 0;
+}
+
+auto l_shutdown_irc(lua_State * const L) -> int
+{
+    auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
+
+    if (w->expired())
     {
-        auto const error = tcp->shutdown();
-        if (error) {
-            lua_pushnil(L);
-            lua_pushstring(L, error.what().c_str());
-            return 2;
-        }
+        luaL_error(L, "send to closed irc");
+        return 0;
     }
-    else
-    {
-        auto const ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        tcp->write(cmd, n, ref);
-    }
+
+    auto const irc = w->lock();
+    irc->shutdown();
 
     return 0;
 }
@@ -271,6 +282,29 @@ auto handle_read(char *line, lua_State *L, int irc_cb) -> void
     }
 }
 
+auto pushirc(lua_State * const L, std::shared_ptr<irc_connection> irc) -> void
+{
+    auto const w = new_udata<std::weak_ptr<irc_connection>>(L, 1, [L]() {
+        static luaL_Reg const MT[] {
+            {"__gc", [](auto const L) {
+                auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
+                w->~weak_ptr();
+                return 0;
+            }},
+            {},
+        };
+        static luaL_Reg const Methods[] {
+            {"send", l_send_irc},
+            {"shutdown", l_shutdown_irc},
+            {}
+        };
+        luaL_setfuncs(L, MT, 0);
+        luaL_newlib(L, Methods);
+        lua_setfield(L, -2, "__index");
+    });
+    new (w) std::weak_ptr{irc};
+}
+
 auto connect_thread(
     boost::asio::io_context &io_context,
     lua_State *const L,
@@ -281,14 +315,8 @@ auto connect_thread(
     std::string client_key,
     std::string client_key_password,
     std::string verify,
-    int irc_cb) -> boost::asio::awaitable<void>
+    LuaRef irc_cb_ref) -> boost::asio::awaitable<void>
 {
-    LuaRef const irc_cb_ref{L, irc_cb};
-
-    lua_pushnil(L); // this gets replaced with a pointer to the irc object later
-    lua_pushcclosure(L, on_send_irc, 1);
-    LuaRef const send_cb_ref{L, luaL_ref(L, LUA_REGISTRYINDEX)};
-
     try
     {
         auto const endpoints = co_await
@@ -328,11 +356,11 @@ auto connect_thread(
             irc = std::move(tls_irc);
         }
 
+        boost::asio::co_spawn(io_context, irc->write_thread(), boost::asio::detached);
+
         irc_cb_ref.push();            // function
         lua_pushstring(L, "connect"); // argument 1
-        send_cb_ref.push();           // argument 2
-        lua_pushlightuserdata(L, irc.get());
-        lua_setupvalue(L, -2, 1);
+        pushirc(L, irc);              // argument 2
         safecall(L, "successful connect", 2);
 
         LineBuffer buff{32'000};
@@ -341,17 +369,11 @@ auto connect_thread(
             auto const bytes_transferred = co_await irc->read_awaitable(buff.get_buffer());
             buff.add_bytes(
                 bytes_transferred,
-                [L, irc_cb](auto const line) { handle_read(line, L, irc_cb); });
+                [L, irc_cb = irc_cb_ref.get_ref()](auto const line) { handle_read(line, L, irc_cb); });
         }
     }
     catch (std::exception &e)
     {
-        // Remove send_callback's upvalue pointing to this object
-        send_cb_ref.push();
-        lua_pushnil(L);
-        lua_setupvalue(L, -2, 1);
-        lua_pop(L, 1);
-
         irc_cb_ref.push();
         lua_pushstring(L, "closed");
         lua_pushstring(L, e.what());
@@ -359,7 +381,7 @@ auto connect_thread(
     }
 }
 
-}
+} // namespace
 
 auto start_irc(lua_State *const L) -> int
 {
@@ -377,10 +399,11 @@ auto start_irc(lua_State *const L) -> int
 
     // consume the callback function and name it
     auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
+    LuaRef irc_cb_ref{L, irc_cb};
 
     boost::asio::co_spawn(
         a->io_context,
-        connect_thread(a->io_context, L, tls, host, port, client_cert, client_key, client_key_password, verify, irc_cb),
+        connect_thread(a->io_context, L, tls, host, port, client_cert, client_key, client_key_password, verify, std::move(irc_cb_ref)),
         boost::asio::detached);
 
     return 0;
@@ -403,3 +426,4 @@ auto pushtags(lua_State *const L, std::vector<irctag> const &tags) -> void
         lua_settable(L, -3);
     }
 }
+template<> char const* udata_name<std::weak_ptr<irc_connection>> = "irc_connection";

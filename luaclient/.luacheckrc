@@ -19,7 +19,7 @@ stds = {
             "next_view", -- function to advance the view
             "prev_view", -- function to retreat the view
             "quit", -- function to shutdown the client
-            "send_irc", -- function to send a raw command line on the IRC socket
+            "conn", -- handle to irc connection
             "disconnect", -- function to disconnect the current IRC connection
             "reset_filter", -- function to reset message filter
             "initialize", -- function to reset all state variable to their defaults

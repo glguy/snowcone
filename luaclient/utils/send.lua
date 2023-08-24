@@ -1,6 +1,6 @@
 return function(cmd, ...)
 
-    if not send_irc then
+    if not conn then
         error('irc not connected', 2)
     end
 
@@ -51,7 +51,7 @@ return function(cmd, ...)
         error('message too long: ' .. #raw, 2)
     end
 
-    send_irc(raw)
+    conn:send(raw)
 
     messages:insert(true, msg)
 

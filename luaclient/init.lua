@@ -295,10 +295,10 @@ if not tick_timer then
 end
 
 function disconnect(msg)
-    if send_irc then
-        send('QUIT', msg)
-        send_irc()
-        send_irc = nil
+    if conn then
+        conn:send('QUIT', msg)
+        conn:shutdown()
+        conn = nil
     end
 end
 
@@ -311,7 +311,7 @@ function quit(msg)
         reconnect_timer:stop()
         reconnect_timer = nil
     end
-    if send_irc then
+    if conn then
         exiting = true
         disconnect(msg)
     else
@@ -446,7 +446,7 @@ local function on_irc(event, irc)
 
         draw()
     elseif event == 'connect' then
-        send_irc = irc
+        conn = irc
         if exiting then
             disconnect()
         else
@@ -454,7 +454,7 @@ local function on_irc(event, irc)
         end
     elseif event == 'closed' then
         irc_state = nil
-        send_irc = nil
+        conn = nil
         status('irc', 'disconnected: %s', irc or 'end of stream')
 
         if exiting then
@@ -491,6 +491,6 @@ function connect()
     end
 end
 
-if not send_irc and configuration.host and configuration.port then
+if not conn and configuration.host and configuration.port then
     connect()
 end
