@@ -205,4 +205,54 @@ add_command('sasl', '$g', function(name)
     end
 end)
 
+add_command('dump', '$r', function(path)
+
+    local function escapeval(val)
+        return (val:gsub('[;\n\r ]', {
+                [' '] = '\\s',
+                [';'] = '\\:',
+                ['\n'] = '\\n',
+                ['\r'] = '\\r',
+            }))
+    end
+
+    local log = io.open(path, 'w')
+    for irc in messages:reveach() do
+        if irc.source == '>>>' then
+            log:write('C: ')
+        else
+            log:write('S: ')
+        end
+        if next(irc.tags) then
+            local sep = '@'
+            for k,v in pairs(irc.tags) do
+                log:write(sep, k)
+                if true ~= v then
+                    log:write('=', v)
+                end
+                sep = ';'
+            end
+            log:write(' ')
+        end
+        if irc.source and irc.source ~= '>>>' then
+            log:write(':', irc.source, ' ')
+        end
+        if type(irc.command) == 'number' then
+            log:write(string.format('%03d', irc.command))
+        else
+            log:write(irc.command)
+        end
+        local n = #irc
+        for i, p in ipairs(irc) do
+            if i == n then
+                log:write(' :', p)
+            else
+                log:write(' ', p)
+            end
+        end
+        log:write('\n')
+    end
+    log:close()
+end)
+
 return M

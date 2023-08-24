@@ -64,6 +64,22 @@ function OrderedMap:each(offset)
     return gen
 end
 
+function OrderedMap:reveach()
+    local i = 0
+    local n = self.n
+    local m = self.max
+    local t = math.min(n,m)
+    local function gen()
+        if i < t then
+            local j = (n+i)%t+1
+            i = i + 1
+            return self.vals[j], self.keys[j]
+        end
+    end
+
+    return gen
+end
+
 function OrderedMap:setindex(key, i)
     local f = self.keyfn
     if f then

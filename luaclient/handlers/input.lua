@@ -63,55 +63,26 @@ function execute.command()
 end
 
 local function do_tab(dir)
-    local handler
-    if input_mode == 'command' then
-        function handler(prefix, seed)
-            local t = {}
-
-            if prefix == '' then
-                -- Command handlers
-                for k, _ in pairs(commands) do
-                    if k:startswith(seed) then
-                        table.insert(t, k)
-                    end
+    editor:tab(dir, function(prefix, seed)
+        local t = {}
+        if input_mode == 'command' and prefix == '' then
+            -- Command handlers
+            for k, _ in pairs(commands) do
+                if k:startswith(seed) then
+                    table.insert(t, k)
                 end
-                -- Plugin command handlers
-                for _, plugin in pairs(plugins) do
-                    if plugin.commands then
-                        for k, _ in pairs(plugin.commands) do
-                            if k:startswith(seed) then
-                                table.insert(t, k)
-                            end
-                        end
-                    end
-                end
-            else
-                -- Channel names
-                for _, channel in pairs(irc_state.channels) do
-                    if channel.name:startswith(seed) then
-                        table.insert(t, channel.name)
-                    end
-                end
-                -- Nicknames in current channel
-                if talk_target and irc_state:is_channel_name(talk_target) then
-                    local channel = irc_state:get_channel(talk_target)
-                    if channel then
-                        for _, member in pairs(channel.members) do
-                            if member.user.nick:startswith(seed) then
-                                table.insert(t,member.user.nick)
-                            end
+            end
+            -- Plugin command handlers
+            for _, plugin in pairs(plugins) do
+                if plugin.commands then
+                    for k, _ in pairs(plugin.commands) do
+                        if k:startswith(seed) then
+                            table.insert(t, k)
                         end
                     end
                 end
             end
-            if next(t) then
-                table.sort(t)
-                return 1, t
-            end
-        end
-    else
-        function handler(_, seed)
-            local t = {}
+        else
             -- Channel names
             for _, channel in pairs(irc_state.channels) do
                 if channel.name:startswith(seed) then
@@ -129,16 +100,12 @@ local function do_tab(dir)
                     end
                 end
             end
-            if next(t) then
-                table.sort(t)
-                return 1, t
-            end
         end
-    end
-
-    if handler then
-        editor:tab(dir, handler)
-    end
+        if next(t) then
+            table.sort(t)
+            return 1, t
+        end
+    end)
 end
 
 return {
