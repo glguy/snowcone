@@ -2,7 +2,6 @@
 
 #include "app.hpp"
 #include "linebuffer.hpp"
-#include "luaref.hpp"
 #include "safecall.hpp"
 #include "userdata.hpp"
 
@@ -15,7 +14,7 @@ extern "C"
 }
 
 #include <charconv> // from_chars
-#include <list>
+#include <deque>
 #include <memory>
 #include <string>
 
@@ -73,8 +72,8 @@ protected:
     boost::asio::steady_timer write_timer;
     lua_State *L;
 
-    std::list<boost::asio::const_buffer> write_buffers;
-    std::list<int> write_refs;
+    std::deque<boost::asio::const_buffer> write_buffers;
+    std::deque<int> write_refs;
 
 public:
     irc_connection(boost::asio::io_context &io_context, lua_State *L)
@@ -85,9 +84,11 @@ public:
     }
 
     virtual ~irc_connection() {
+        write_buffers.clear();
         for (auto const ref : write_refs) {
             luaL_unref(L, LUA_REGISTRYINDEX, ref);
         }
+        write_refs.clear(); // the write thread checks for this
     }
 
     virtual auto shutdown() -> boost::system::error_code = 0;
@@ -101,6 +102,11 @@ public:
                 boost::system::error_code ec;
                 co_await write_timer.async_wait(
                     boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+                
+                if (write_buffers.empty()) {
+                    // We got canceled by the destructor - shows over
+                    co_return;
+                }
             }
 
             auto n = write_buffers.size();
@@ -315,7 +321,7 @@ auto connect_thread(
     std::string client_key,
     std::string client_key_password,
     std::string verify,
-    LuaRef irc_cb_ref) -> boost::asio::awaitable<void>
+    int irc_cb) -> boost::asio::awaitable<void>
 {
     try
     {
@@ -358,7 +364,7 @@ auto connect_thread(
 
         boost::asio::co_spawn(io_context, irc->write_thread(), boost::asio::detached);
 
-        irc_cb_ref.push();            // function
+        lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb); // function
         lua_pushstring(L, "connect"); // argument 1
         pushirc(L, irc);              // argument 2
         safecall(L, "successful connect", 2);
@@ -369,12 +375,12 @@ auto connect_thread(
             auto const bytes_transferred = co_await irc->read_awaitable(buff.get_buffer());
             buff.add_bytes(
                 bytes_transferred,
-                [L, irc_cb = irc_cb_ref.get_ref()](auto const line) { handle_read(line, L, irc_cb); });
+                [L, irc_cb](auto const line) { handle_read(line, L, irc_cb); });
         }
     }
     catch (std::exception &e)
     {
-        irc_cb_ref.push();
+        lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
         lua_pushstring(L, "closed");
         lua_pushstring(L, e.what());
         safecall(L, "plain connect error", 2);
@@ -399,12 +405,13 @@ auto start_irc(lua_State *const L) -> int
 
     // consume the callback function and name it
     auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
-    LuaRef irc_cb_ref{L, irc_cb};
-
     boost::asio::co_spawn(
         a->io_context,
-        connect_thread(a->io_context, L, tls, host, port, client_cert, client_key, client_key_password, verify, std::move(irc_cb_ref)),
-        boost::asio::detached);
+        connect_thread(a->io_context, L, tls, host, port, client_cert, client_key, client_key_password, verify, irc_cb),
+        [L, irc_cb](std::exception_ptr e)
+        {
+            luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);
+        });
 
     return 0;
 }
