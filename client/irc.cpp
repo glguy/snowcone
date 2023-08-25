@@ -133,10 +133,12 @@ public:
         }
     }
 
-    using await_size_t = boost::asio::awaitable<std::size_t>;
-    auto virtual write_awaitable() -> await_size_t = 0;
-    auto virtual read_awaitable(boost::asio::mutable_buffers_1 const& buffers) -> await_size_t = 0;
-    auto virtual connect(boost::asio::ip::basic_resolver_results<boost::asio::ip::tcp> const&) -> boost::asio::awaitable<void> = 0;
+    auto virtual write_awaitable() -> boost::asio::awaitable<std::size_t> = 0;
+    auto virtual read_awaitable(boost::asio::mutable_buffers_1 const& buffers) -> boost::asio::awaitable<std::size_t> = 0;
+    auto virtual connect(
+        boost::asio::ip::tcp::resolver::results_type const&,
+        std::string const&
+    ) -> boost::asio::awaitable<void> = 0;
 };
 
 class plain_irc_connection final : public irc_connection
@@ -156,22 +158,25 @@ public:
         return ec;
     }
 
-    auto write_awaitable() -> await_size_t override
+    auto write_awaitable() -> boost::asio::awaitable<std::size_t> override
     {
         return boost::asio::async_write(socket_, write_buffers, boost::asio::use_awaitable);
     }
 
     auto read_awaitable(
         boost::asio::mutable_buffers_1 const& buffers
-    ) -> await_size_t override
+    ) -> boost::asio::awaitable<std::size_t> override
     {
         return socket_.async_read_some(buffers, boost::asio::use_awaitable);
     }
 
-    auto connect(boost::asio::ip::basic_resolver_results<boost::asio::ip::tcp> const& endpoints) -> boost::asio::awaitable<void> override
+    auto connect(
+        boost::asio::ip::tcp::resolver::results_type const& endpoints,
+        std::string const&
+    ) -> boost::asio::awaitable<void> override
     {
         co_await boost::asio::async_connect(socket_, endpoints, boost::asio::use_awaitable);
-        socket_.set_option(boost::asio::ip::tcp::no_delay(true));
+        socket_.set_option(boost::asio::ip::tcp::no_delay(true));    
     }
 };
 
@@ -195,20 +200,30 @@ public:
         return ec;
     }
 
-    auto write_awaitable() -> await_size_t override
+    auto write_awaitable() -> boost::asio::awaitable<std::size_t> override
     {
         return boost::asio::async_write(socket_, write_buffers, boost::asio::use_awaitable);
     }
 
-    auto read_awaitable(boost::asio::mutable_buffers_1 const& buffers) -> await_size_t override
+    auto read_awaitable(
+        boost::asio::mutable_buffers_1 const& buffers
+    ) -> boost::asio::awaitable<std::size_t> override
     {
         return socket_.async_read_some(buffers, boost::asio::use_awaitable);
     }
 
-    auto connect(boost::asio::ip::basic_resolver_results<boost::asio::ip::tcp> const& endpoints) -> boost::asio::awaitable<void> override
+    auto connect(
+        boost::asio::ip::tcp::resolver::results_type const& endpoints,
+        std::string const& verify
+    ) -> boost::asio::awaitable<void> override
     {
         co_await boost::asio::async_connect(socket_.lowest_layer(), endpoints, boost::asio::use_awaitable);
         socket_.lowest_layer().set_option(boost::asio::ip::tcp::no_delay(true));
+        if (not verify.empty())
+        {
+            socket_.set_verify_mode(boost::asio::ssl::verify_peer);
+            socket_.set_verify_callback(boost::asio::ssl::host_name_verification(verify));
+        }
         co_await socket_.async_handshake(socket_.client, boost::asio::use_awaitable);
     }
 };
@@ -251,20 +266,23 @@ auto l_shutdown_irc(lua_State * const L) -> int
 }
 
 auto build_ssl_context(
-    std::string client_cert,
-    std::string client_key,
-    std::string client_key_password) -> boost::asio::ssl::context
+    std::string const& client_cert,
+    std::string const& client_key,
+    std::string const& client_key_password
+) -> boost::asio::ssl::context
 {
     boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
     ssl_context.set_default_verify_paths();
-    ssl_context.set_password_callback(
-        [client_key_password](
-            std::size_t const max_size,
-            boost::asio::ssl::context::password_purpose purpose)
-        {
-            return client_key_password.size() <= max_size ? client_key_password : "";
-        });
-
+    if (not client_key_password.empty())
+    {
+        ssl_context.set_password_callback(
+            [client_key_password](
+                std::size_t const max_size,
+                boost::asio::ssl::context::password_purpose purpose)
+            {
+                return client_key_password.size() <= max_size ? client_key_password : "";
+            });
+    }
     if (not client_cert.empty())
     {
         ssl_context.use_certificate_file(client_cert, boost::asio::ssl::context::file_format::pem);
@@ -341,8 +359,7 @@ auto connect_thread(
             auto const endpoints = co_await
             boost::asio::ip::tcp::resolver{io_context}
                 .async_resolve({host, port}, boost::asio::use_awaitable);
-
-            co_await irc->connect(endpoints);
+            co_await irc->connect(endpoints, verify);
         }
 
         boost::asio::co_spawn(io_context, irc->write_thread(), boost::asio::detached);
