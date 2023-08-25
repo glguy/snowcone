@@ -232,7 +232,7 @@ luaL_Reg const applib_module[] = {
     { "irccase", l_irccase },
     { "newtimer", l_new_timer},
     { "shutdown", l_shutdown},
-    { "connect", start_irc },
+    { "connect", l_start_irc },
    // { "dnslookup", l_dnslookup },
     { "parse_irc_tags", l_parse_irc_tags },
     {}

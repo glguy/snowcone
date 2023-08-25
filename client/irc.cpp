@@ -102,7 +102,7 @@ public:
                 boost::system::error_code ec;
                 co_await write_timer.async_wait(
                     boost::asio::redirect_error(boost::asio::use_awaitable, ec));
-                
+
                 if (write_buffers.empty()) {
                     // We got canceled by the destructor - shows over
                     co_return;
@@ -136,6 +136,7 @@ public:
     using await_size_t = boost::asio::awaitable<std::size_t>;
     auto virtual write_awaitable() -> await_size_t = 0;
     auto virtual read_awaitable(boost::asio::mutable_buffers_1 const& buffers) -> await_size_t = 0;
+    auto virtual connect(boost::asio::ip::basic_resolver_results<boost::asio::ip::tcp> const&) -> boost::asio::awaitable<void> = 0;
 };
 
 class plain_irc_connection final : public irc_connection
@@ -165,6 +166,12 @@ public:
     ) -> await_size_t override
     {
         return socket_.async_read_some(buffers, boost::asio::use_awaitable);
+    }
+
+    auto connect(boost::asio::ip::basic_resolver_results<boost::asio::ip::tcp> const& endpoints) -> boost::asio::awaitable<void> override
+    {
+        co_await boost::asio::async_connect(socket_, endpoints, boost::asio::use_awaitable);
+        socket_.set_option(boost::asio::ip::tcp::no_delay(true));
     }
 };
 
@@ -196,6 +203,13 @@ public:
     auto read_awaitable(boost::asio::mutable_buffers_1 const& buffers) -> await_size_t override
     {
         return socket_.async_read_some(buffers, boost::asio::use_awaitable);
+    }
+
+    auto connect(boost::asio::ip::basic_resolver_results<boost::asio::ip::tcp> const& endpoints) -> boost::asio::awaitable<void> override
+    {
+        co_await boost::asio::async_connect(socket_.lowest_layer(), endpoints, boost::asio::use_awaitable);
+        socket_.lowest_layer().set_option(boost::asio::ip::tcp::no_delay(true));
+        co_await socket_.async_handshake(socket_.client, boost::asio::use_awaitable);
     }
 };
 
@@ -313,68 +327,34 @@ auto pushirc(lua_State * const L, std::shared_ptr<irc_connection> irc) -> void
 
 auto connect_thread(
     boost::asio::io_context &io_context,
+    std::shared_ptr<irc_connection> irc,
     lua_State *const L,
-    bool tls,
     std::string host,
     std::string port,
-    std::string client_cert,
-    std::string client_key,
-    std::string client_key_password,
     std::string verify,
-    int irc_cb) -> boost::asio::awaitable<void>
+    int irc_cb
+) -> boost::asio::awaitable<void>
 {
     try
     {
-        auto const endpoints = co_await
+        {
+            auto const endpoints = co_await
             boost::asio::ip::tcp::resolver{io_context}
                 .async_resolve({host, port}, boost::asio::use_awaitable);
 
-        std::shared_ptr<irc_connection> irc;
-        if (not tls)
-        {
-            auto plain_irc = std::make_shared<plain_irc_connection>(io_context, L);
-
-            co_await boost::asio::async_connect(plain_irc->socket_, endpoints, boost::asio::use_awaitable);
-            plain_irc->socket_.set_option(boost::asio::ip::tcp::no_delay(true));
-            irc = std::move(plain_irc);
-        }
-        else
-        {
-            auto ssl_context = build_ssl_context(client_cert, client_key, client_key_password);
-            auto tls_irc = std::make_shared<tls_irc_connection>(io_context, ssl_context, L);
-
-            co_await boost::asio::async_connect(
-                tls_irc->socket_.lowest_layer(),
-                endpoints,
-                boost::asio::use_awaitable);
-
-            tls_irc->socket_.lowest_layer().set_option(boost::asio::ip::tcp::no_delay(true));
-            if (not verify.empty())
-            {
-                tls_irc->socket_.set_verify_mode(boost::asio::ssl::verify_peer);
-                tls_irc->socket_.set_verify_callback(boost::asio::ssl::host_name_verification(verify));
-            }
-
-            co_await tls_irc->socket_.async_handshake(
-                boost::asio::ssl::stream_base::handshake_type::client,
-                boost::asio::use_awaitable);
-
-            irc = std::move(tls_irc);
+            co_await irc->connect(endpoints);
         }
 
         boost::asio::co_spawn(io_context, irc->write_thread(), boost::asio::detached);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb); // function
         lua_pushstring(L, "connect"); // argument 1
-        pushirc(L, irc);              // argument 2
-        safecall(L, "successful connect", 2);
+        safecall(L, "successful connect", 1);
 
-        LineBuffer buff{32'000};
-        for (;;)
+        for (LineBuffer buff{32'000};;)
         {
-            auto const bytes_transferred = co_await irc->read_awaitable(buff.get_buffer());
             buff.add_bytes(
-                bytes_transferred,
+                co_await irc->read_awaitable(buff.get_buffer()),
                 [L, irc_cb](auto const line) { handle_read(line, L, irc_cb); });
         }
     }
@@ -389,7 +369,7 @@ auto connect_thread(
 
 } // namespace
 
-auto start_irc(lua_State *const L) -> int
+auto l_start_irc(lua_State *const L) -> int
 {
     auto const a = App::from_lua(L);
 
@@ -405,15 +385,29 @@ auto start_irc(lua_State *const L) -> int
 
     // consume the callback function and name it
     auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    std::shared_ptr<irc_connection> irc;
+    if (tls)
+    {
+        auto ssl_context = build_ssl_context(client_cert, client_key, client_key_password);
+        irc = std::make_shared<tls_irc_connection>(a->io_context, ssl_context, L);
+    }
+    else
+    {
+        irc = std::make_shared<plain_irc_connection>(a->io_context, L);
+    }
+
     boost::asio::co_spawn(
         a->io_context,
-        connect_thread(a->io_context, L, tls, host, port, client_cert, client_key, client_key_password, verify, irc_cb),
+        connect_thread(a->io_context, irc, L, host, port, verify, irc_cb),
         [L, irc_cb](std::exception_ptr e)
         {
             luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);
         });
 
-    return 0;
+    pushirc(L, irc);
+
+    return 1;
 }
 
 auto pushtags(lua_State *const L, std::vector<irctag> const &tags) -> void

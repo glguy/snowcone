@@ -446,7 +446,6 @@ local function on_irc(event, irc)
 
         draw()
     elseif event == 'connect' then
-        conn = irc
         if exiting then
             disconnect()
         else
@@ -486,6 +485,7 @@ function connect()
         on_irc)
     if success then
         status('irc', 'connecting')
+        conn = result
     else
         status('irc', 'failed to connect: %s', result)
     end
