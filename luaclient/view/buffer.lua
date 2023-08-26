@@ -21,7 +21,16 @@ local function render_irc(irc)
         green()
     end
 
-    addstr(string.format(' %16.16s ', source))
+    addstr(string.format(' %16.16s', source))
+
+    local statusmsg = irc.statusmsg
+    if statusmsg then
+        red()
+        addstr(statusmsg)
+    else
+        addstr ' '
+    end
+
     addircstr(string.sub(text, hscroll))
 end
 
