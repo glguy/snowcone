@@ -44,6 +44,7 @@ function M:_init()
     self.monitor = nil -- map irccased nickname mapped to {nick=str, online=bool}
     self.max_chat_history = nil
 
+    self.statusmsg = '@+'
     self.prefix_to_mode = { ["@"] = "o", ["+"] = "v"}
     self.mode_to_prefix = { ["o"] = "@", ["v"] = "+"}
     self.modes_A = '' -- Modes that add or remove an address to or from a list.
@@ -60,6 +61,10 @@ local isupport_logic = {}
 
 function isupport_logic:CHANTYPES(arg)
     self.chantypes = arg or '&#'
+end
+
+function isupport_logic:STATUSMSG(arg)
+    self.statusmsg = arg or ''
 end
 
 function isupport_logic:MONITOR(arg)

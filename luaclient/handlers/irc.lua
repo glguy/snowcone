@@ -79,9 +79,19 @@ local function route_to_buffer(target, text, irc)
     end
 end
 
+local function split_statusmsg(target)
+    local prefix = ""
+    while irc_state.statusmsg:find(target:sub(1,1), 1, true) do
+        prefix = prefix .. target:sub(1,1)
+        target = target:sub(2)
+    end
+    return prefix, target
+end
+
 local ctcp_handlers = require_ 'handlers.ctcp'
 function M.PRIVMSG(irc)
-    local target, message = irc[1], irc[2]
+    local prefix, target = split_statusmsg(irc[1])
+    local message = irc[2]
     local ctcp, ctcp_args = message:match '^\x01([^\x01 ]+) ?([^\x01]*)\x01?$'
 
     -- reply only to targetted CTCP requests from staff
@@ -101,7 +111,8 @@ function M.PRIVMSG(irc)
 end
 
 function M.NOTICE(irc)
-    local target, message = irc[1], irc[2]
+    local prefix, target = split_statusmsg(irc[1])
+    local message = irc[2]
     route_to_buffer(target, message, irc)
 end
 
