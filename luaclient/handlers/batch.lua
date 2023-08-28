@@ -1,3 +1,4 @@
+local split_statusmsg = require 'utils.split_statusmsg'
 local M = {}
 
 -- Populate the bouncer_networks information with
@@ -22,6 +23,8 @@ M['chathistory'] = function(params, messages)
     for _, irc in ipairs(messages) do
         local command = irc.command
         if command == "PRIVMSG" or command == "NOTICE" then
+            local prefix = split_statusmsg(irc[1])
+            irc.statusmsg = prefix
             buffer.messages:insert(true, irc)
         end
     end

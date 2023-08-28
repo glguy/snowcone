@@ -9,6 +9,7 @@ local split_nuh   = require_ 'utils.split_nick_user_host'
 local Buffer      = require  'components.Buffer'
 local Channel     = require  'components.Channel'
 local Member      = require  'components.Member'
+local split_statusmsg = require 'utils.split_statusmsg'
 
 local function parse_source(source)
     return string.match(source, '^(.-)!(.-)@(.*)$')
@@ -81,8 +82,10 @@ end
 
 local ctcp_handlers = require_ 'handlers.ctcp'
 function M.PRIVMSG(irc)
-    local target, message = irc[1], irc[2]
+    local prefix, target = split_statusmsg(irc[1])
+    local message = irc[2]
     local ctcp, ctcp_args = message:match '^\x01([^\x01 ]+) ?([^\x01]*)\x01?$'
+    irc.statusmsg = prefix
 
     -- reply only to targetted CTCP requests from staff
     if ctcp and target == irc_state.nick and irc.tags['solanum.chat/oper'] then
@@ -101,7 +104,9 @@ function M.PRIVMSG(irc)
 end
 
 function M.NOTICE(irc)
-    local target, message = irc[1], irc[2]
+    local prefix, target = split_statusmsg(irc[1])
+    local message = irc[2]
+    irc.statusmsg = prefix
     route_to_buffer(target, message, irc)
 end
 
