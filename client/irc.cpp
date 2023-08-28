@@ -91,8 +91,6 @@ public:
         write_refs.clear(); // the write thread checks for this
     }
 
-    virtual auto shutdown() -> boost::system::error_code = 0;
-
     auto write_thread() -> boost::asio::awaitable<void>
     {
         for(;;)
@@ -151,13 +149,6 @@ public:
     {
     }
 
-    auto shutdown() -> boost::system::error_code override
-    {
-        boost::system::error_code ec;
-        socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_send, ec);
-        return ec;
-    }
-
     auto write_awaitable() -> boost::asio::awaitable<std::size_t> override
     {
         return boost::asio::async_write(socket_, write_buffers, boost::asio::use_awaitable);
@@ -191,13 +182,6 @@ public:
         lua_State *const L)
     : irc_connection{io_context, L}, socket_{io_context, ssl_context}
     {
-    }
-
-    auto shutdown() -> boost::system::error_code override
-    {
-        boost::system::error_code ec;
-        socket_.shutdown(ec);
-        return ec;
     }
 
     auto write_awaitable() -> boost::asio::awaitable<std::size_t> override
@@ -246,22 +230,6 @@ auto l_send_irc(lua_State * const L) -> int
     auto const ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
     w->lock()->write(cmd, n, ref);
-    return 0;
-}
-
-auto l_shutdown_irc(lua_State * const L) -> int
-{
-    auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
-
-    if (w->expired())
-    {
-        luaL_error(L, "send to closed irc");
-        return 0;
-    }
-
-    auto const irc = w->lock();
-    irc->shutdown();
-
     return 0;
 }
 
@@ -333,7 +301,6 @@ auto pushirc(lua_State * const L, std::shared_ptr<irc_connection> irc) -> void
         };
         static luaL_Reg const Methods[] {
             {"send", l_send_irc},
-            {"shutdown", l_shutdown_irc},
             {}
         };
         luaL_setfuncs(L, MT, 0);

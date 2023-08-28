@@ -296,8 +296,7 @@ end
 
 function disconnect(msg)
     if conn then
-        conn:send('QUIT', msg)
-        conn:shutdown()
+        send('QUIT', msg or 'closing')
         conn = nil
     end
 end
