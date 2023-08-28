@@ -169,9 +169,9 @@ end)
 
 add_command('challenge', '', function()
     if not configuration.oper_username then
-        status('challenge', 'no username configured: `irc_oper_username`')
+        status('challenge', 'no username configured: `oper_username`')
     elseif not configuration.challenge_key then
-        status('challenge', 'no challenge key configured: `irc_challenge_key`')
+        status('challenge', 'no challenge key configured: `challenge_key`')
     else
         challenge.start()
     end
@@ -179,9 +179,9 @@ end)
 
 add_command('oper', '', function()
     if not configuration.oper_username then
-        status('oper', 'no username configured: `irc_oper_username`')
+        status('oper', 'no username configured: `oper_username`')
     elseif not configuration.oper_password then
-        status('oper', 'no password configured: `irc_oper_password`')
+        status('oper', 'no password configured: `oper_password`')
     else
         send('OPER', configuration.oper_username,
         {content=configuration.oper_password, secret=true})
