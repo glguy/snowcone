@@ -52,13 +52,15 @@ local function route_to_buffer(target, text, irc)
                 end
             end
         end
-    else
-        buffer_target = nick
+    
+    elseif nick == irc_state.nick then
+        -- this is a message I sent that a bouncer is relaying to me
+        -- or that I sent to myself
+        buffer_target = target
 
-        -- Targetted PMs notify
-        if target == irc_state.nick then
-            mention = true
-        end
+    elseif target == irc_state.nick then
+        buffer_target = nick
+        mention = true
     end
 
     if mention then
