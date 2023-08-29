@@ -26,11 +26,12 @@ function M.PING(irc)
 end
 
 local function do_notify(target, nick, text)
+    local key = snowcone.irccase(target)
     if not terminal_focus
-    and not notification_muted[target]
+    and not notification_muted[key]
     and configuration.notification_module then
-        notification_muted[target] = true -- use up the notification until next focus
-        require(configuration.notification_module)(target, nick, text)
+        local previous = notification_muted[key]
+        notification_muted[key] = require(configuration.notification_module).notify(previous, target, nick, text)
     end
 end
 

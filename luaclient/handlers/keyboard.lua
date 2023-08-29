@@ -10,7 +10,6 @@ local M = {
 
     [-ncurses.KEY_RESUME] = function()
         terminal_focus = true
-        notification_muted = {} -- reset notification mutes
     end,
 
     [-ncurses.KEY_EXIT] = function()

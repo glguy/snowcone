@@ -112,10 +112,7 @@ function M:keypress(key)
     end
 end
 
-local function draw_messages()
-    local buffer = buffers[talk_target]
-    if not buffer then return end
-
+local function draw_messages(buffer)
     local current_filter
     if input_mode == 'filter' then
         current_filter = editor:content()
@@ -148,7 +145,14 @@ local function draw_messages()
 end
 
 function M:render()
-    draw_messages()
+    local buffer = buffers[talk_target]
+    if buffer then
+        if terminal_focus and notification_muted[talk_target] then
+            require(configuration.notification_module).dismiss(notification_muted[talk_target])
+            notification_muted[talk_target] = nil
+        end
+        draw_messages(buffer)
+    end
     draw_global_load()
 end
 
