@@ -190,8 +190,13 @@ end)
 
 add_command('sasl', '$g', function(name)
     local credentials = configuration.sasl_credentials
-    local entry = credentials and credentials[name]
 
+    if not credentials then
+        status('sasl', 'no sasl credentials configured')
+        return
+    end
+
+    local entry = credentials[name]
     if not entry then
         status('sasl', 'unknown credentials')
     elseif irc_state.caps_enabled.sasl then
