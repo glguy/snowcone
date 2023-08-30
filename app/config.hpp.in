@@ -1,7 +1,0 @@
-#ifndef SNOWCONE_CONFIG_H
-#define SNOWCONE_CONFIG_H
-
-#define DATAROOTDIR "@CMAKE_INSTALL_FULL_DATAROOTDIR@"
-#cmakedefine GEOIP_FOUND
-
-#endif

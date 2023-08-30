@@ -14,7 +14,7 @@ struct lua_State;
  *
  * Lua object methods:
  * * start(milliseconds, callback)
- * * stop()
+ * * cancel()
  *
  * @param L Lua state
  * @return 1

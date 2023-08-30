@@ -52,7 +52,7 @@ luaL_Reg const MT[] = {
         return 0;
     }},
 
-    {"stop", [](auto const L) {
+    {"cancel", [](auto const L) {
         auto const timer = check_udata<Timer>(L, 1);
         timer->cancel();
 

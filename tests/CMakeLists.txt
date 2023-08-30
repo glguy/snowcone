@@ -14,9 +14,9 @@ find_program(LUACHECK luacheck)
 if(NOT ${LUACHECK} STREQUAL "LUACHECK-NOTFOUND")
 message("luacheck was " ${LUACHECK})
 add_test(NAME luacheck
-  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/lua"
+  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/ircc"
   COMMAND ${LUACHECK} ".")
 add_test(NAME luacheck-client
-  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/luaclient"
+  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/dashboard"
   COMMAND ${LUACHECK} ".")
 endif()

@@ -37,7 +37,6 @@ endif()
 add_subdirectory(ircmsg)
 add_subdirectory(myncurses)
 add_subdirectory(mybase64)
-add_subdirectory(app)
 add_subdirectory(client)
 add_subdirectory(docs)
 
@@ -46,13 +45,14 @@ add_subdirectory(tests)
 endif()
 
 install(
-    DIRECTORY   "lua"
+    DIRECTORY   "ircc"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/snowcone"
     PATTERN     ".luacheckrc" EXCLUDE)
 install(
-    DIRECTORY   "luaclient"
+    DIRECTORY   "dashboard"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/snowcone"
     PATTERN     ".luacheckrc" EXCLUDE)
+
 install(FILES "snowcone.1" DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
 
 set(CPACK_GENERATOR "DEB")
