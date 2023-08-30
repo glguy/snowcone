@@ -4,7 +4,6 @@ local tablex = require 'pl.tablex'
 local pretty = require 'pl.pretty'
 local path   = require 'pl.path'
 local file   = require 'pl.file'
-local dir    = require 'pl.dir'
 local app    = require 'pl.app'
 
 if not uptime then
