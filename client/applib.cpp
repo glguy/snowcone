@@ -2,6 +2,7 @@
 
 #include "app.hpp"
 #include "config.hpp"
+#include "dnslookup.hpp"
 #include "irc.hpp"
 #include "safecall.hpp"
 #include "timer.hpp"
@@ -230,8 +231,9 @@ luaL_Reg const applib_module[] = {
     { "xor_strings", l_xor_strings },
     { "isalnum", l_isalnum },
     { "irccase", l_irccase },
-    { "newtimer", l_new_timer},
-    { "shutdown", l_shutdown},
+    { "newtimer", l_new_timer },
+    { "dnslookup", l_dnslookup },
+    { "shutdown", l_shutdown },
     { "connect", l_start_irc },
    // { "dnslookup", l_dnslookup },
     { "parse_irc_tags", l_parse_irc_tags },

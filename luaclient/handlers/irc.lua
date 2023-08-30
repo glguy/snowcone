@@ -53,7 +53,7 @@ local function route_to_buffer(target, text, irc)
                 end
             end
         end
-    
+
     elseif nick == irc_state.nick then
         -- this is a message I sent that a bouncer is relaying to me
         -- or that I sent to myself

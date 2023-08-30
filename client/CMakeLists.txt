@@ -1,7 +1,7 @@
 # set(CMAKE_CXX_CLANG_TIDY /usr/local/opt/llvm/bin/clang-tidy -checks=-*,readability-*)
 add_executable(ircc
     main.cpp app.cpp applib.cpp bracketed_paste.cpp
-    safecall.cpp irc.cpp timer.cpp
+    safecall.cpp irc.cpp timer.cpp dnslookup.cpp
     )
 
 target_link_libraries(ircc PRIVATE

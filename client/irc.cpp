@@ -325,7 +325,7 @@ auto connect_thread(
         {
             auto const endpoints = co_await
             boost::asio::ip::tcp::resolver{io_context}
-                .async_resolve({host, port}, boost::asio::use_awaitable);
+                .async_resolve(host, port, boost::asio::use_awaitable);
             co_await irc->connect(endpoints, verify);
         }
 
