@@ -78,7 +78,7 @@ auto l_dnslookup(lua_State *const L) -> int
         {
             returns = 2;
             lua_pushnil(L);
-            lua_pushstring(L, error.what().c_str());
+            lua_pushstring(L, error.message().c_str());
         }
         else
         {
