@@ -1,6 +1,7 @@
+local path = require 'pl.path'
 local has_mmdb, mmdb = pcall(require, 'mmdb')
 if has_mmdb then
-    local success, geoip = pcall(mmdb.open, 'GeoLite2-ASN.mmdb')
+    local success, geoip = pcall(mmdb.open, path.join(config_dir, 'GeoLite2-ASN.mmdb'))
     if success then
         return function(addr)
             local result
