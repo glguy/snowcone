@@ -1,8 +1,8 @@
+local Buffer = require 'components.Buffer'
 local challenge = require 'utils.challenge'
 local mkcommand = require 'utils.mkcommand'
 local sasl = require 'sasl'
 local send = require 'utils.send'
-local Buffer = require 'components.Buffer'
 
 local M = {}
 

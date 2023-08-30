@@ -142,7 +142,6 @@ local defaults = {
     upstream = {},
     status_message = '',
     irc_state = {},
-    uv_resources = {},
     editor = Editor(),
     versions = {},
     uptimes = {},
@@ -568,21 +567,21 @@ local function refresh_rotations()
     end
 end
 
-if not uv_resources.rotations_timer then
-    uv_resources.rotations_timer = snowcone.newtimer()
+if not rotations_timer then
+    rotations_timer = snowcone.newtimer()
     local function cb()
-        uv_resources.rotations_timer:start(30000, cb)
+        rotations_timer:start(30000, cb)
         refresh_rotations()
     end
     cb()
 end
 
-if not uv_resources.tick_timer then
-    uv_resources.tick_timer = snowcone.newtimer()
+if not tick_timer then
+    tick_timer = snowcone.newtimer()
     local function cb()
-        uv_resources.tick_timer:start(1000, cb)
+        tick_timer:start(1000, cb)
         uptime = uptime + 1
-        if irc_state.connected and uptime == liveness + 30 then
+        if irc_state.phase == 'connected' and uptime == liveness + 30 then
             send('PING', 'snowcone')
         end
 
@@ -592,16 +591,31 @@ if not uv_resources.tick_timer then
         filter_tracker:tick()
         draw()
     end
-    uv_resources.tick_timer:start(1000, cb)
+    tick_timer:start(1000, cb)
 end
 
-function quit()
-    snowcone.shutdown()
-    for _, handle in pairs(uv_resources) do
-        handle:cancel()
+function quit(msg)
+    if rotations_timer then
+        rotations_timer:cancel()
+        rotations_timer = nil
     end
-    uv_resources = {}
-    send('QUIT')
+    if tick_timer then
+        tick_timer:cancel()
+        tick_timer = nil
+    end
+    if reconnect_timer then
+        reconnect_timer:cancel()
+        reconnect_timer = nil
+    end
+    if conn then
+        exiting = true
+        disconnect(msg)
+    else
+        if not exiting then
+            exiting = true
+            snowcone.shutdown()
+        end
+    end
 end
 
 -- Load plugins
@@ -628,12 +642,27 @@ local irc_event = {}
 
 function irc_event.connect()
     status('irc', 'connecting')
-    irc_registration()
+    if exiting then
+        disconnect()
+    else
+        irc_registration()
+    end
 end
 
 function irc_event.closed(txt)
-    irc_state = {}
+    irc_state = nil
+    conn = nil
     status('irc', 'disconnected %s', txt)
+
+    if exiting then
+        snowcone.shutdown()
+    else
+        reconnect_timer = snowcone.newtimer()
+        reconnect_timer:start(1000, function()
+            reconnect_timer = nil
+            connect()
+        end)
+    end
 end
 
 local irc_handlers = require_ 'handlers.irc'
@@ -650,9 +679,13 @@ function irc_event.message(irc)
 
     messages:insert(true, irc)
     liveness = uptime
+
     local f = irc_handlers[irc.command]
     if f then
-        f(irc)
+        local success, message = pcall(f, irc)
+        if not success then
+            status('irc', 'irc handler error: %s', message)
+        end
     end
 
     for _, plugin in ipairs(plugins) do
@@ -664,6 +697,10 @@ function irc_event.message(irc)
             end
         end
     end
+end
+
+irc_event['bad message'] = function(err)
+    status('irc', 'message parse error: %d', err)
 end
 
 local function on_irc(event, irc)

@@ -445,6 +445,7 @@ local function on_irc(event, irc)
 
         draw()
     elseif event == 'connect' then
+        status('irc', 'connecting')
         if exiting then
             disconnect()
         else
@@ -464,7 +465,6 @@ local function on_irc(event, irc)
                 connect()
             end)
         end
-        return
     elseif event == 'bad message' then
         status('irc', 'message parse error: %d', irc)
     end
