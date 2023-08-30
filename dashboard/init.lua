@@ -50,6 +50,7 @@ local drawing            = require_ 'utils.drawing'
 local utils_time         = require_ 'utils.time'
 local send               = require_ 'utils.send'
 local irc_registration   = require_ 'utils.irc_registration'
+local plugin_manager     = require_ 'utils.plugin_manager'
 
 -- Load configuration =================================================
 
@@ -606,36 +607,8 @@ end
 
 -- Load plugins
 
-do
-    plugins = {}
-    local plugin_dir = path.join(config_dir, 'plugins')
-    local success, paths = pcall(dir.getfiles, plugin_dir, '*.lua')
+plugin_manager.startup()
 
-    if success then
-        for _, plugin_path in ipairs(paths) do
-            local plugin, load_error = loadfile(plugin_path)
-
-            local state_path = plugin_path .. ".dat"
-            local state_body = file.read(state_path)
-            local state = state_body and pretty.read(state_body)
-
-            local function save(new_state)
-                file.write(state_path, pretty.write(new_state))
-            end
-
-            if plugin then
-                local started, result = pcall(plugin, state, save)
-                if started then
-                    table.insert(plugins, result)
-                else
-                    status('plugin', 'startup: %s', result)
-                end
-            else
-                status('plugin', 'loadfile: %s', load_error)
-            end
-        end
-    end
-end
 
 -- Command handlers ===================================================
 
@@ -759,6 +732,10 @@ end
 
 function M.print(str)
     status('print', '%s', str)
+end
+
+function M.on_resize()
+    draw()
 end
 
 snowcone.setmodule(M)
