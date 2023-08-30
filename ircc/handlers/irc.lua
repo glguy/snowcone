@@ -126,9 +126,18 @@ function M.NICK(irc)
     local oldnick = parse_source(irc.source)
     local newnick = irc[1]
 
+    local oldkey = snowcone.irccase(oldnick)
+    local newkey = snowcone.irccase(newnick)
+    local rename = oldkey ~= newkey
+
     -- My nickname is changing
     if oldnick and oldnick == irc_state.nick then
         irc_state.nick = newnick
+
+        if newkey == irc_state.recover_nick then
+            irc_state.recover_nick = nil
+            send('MONITOR', '-', newnick)
+        end
     end
 
     -- Nicknames are tracked in:
@@ -138,9 +147,6 @@ function M.NICK(irc)
     -- * monitor tracking
     -- * talk target
 
-    local oldkey = snowcone.irccase(oldnick)
-    local newkey = snowcone.irccase(newnick)
-    local rename = oldkey ~= newkey
 
     local user = irc_state:get_user(oldnick)
     -- get_user *always* returns a table
@@ -619,6 +625,11 @@ local function end_of_registration()
             send('MONITOR', '+', table.concat(nicks, ','))
         end
     end
+
+    -- start waiting for our nickname
+    if irc_state.recover_nick and irc_state:has_monitor() then
+        send('MONITOR', '+', configuration.nick)
+    end
 end
 
 -- "<client> :End of /MOTD command."
@@ -725,6 +736,10 @@ M[N.RPL_MONOFFLINE] = function(irc)
     for nick in list:gmatch '([^!,]+)[^,]*,?' do
         irc_state:add_monitor(nick, false)
         table.insert(nicks, nick)
+
+        if snowcone.irccase(nick) == irc_state.recover_nick then
+            send('NICK', configuration.nick)
+        end
     end
     status('monitor', 'monitor offline: ' .. table.concat(nicks, ', '))
 end
@@ -782,6 +797,7 @@ local function new_nickname()
     if irc_state.phase == 'registration' then
         local nick = string.format('%.10s-%05d', configuration.nick, math.random(0,99999))
         send('NICK', nick)
+        irc_state.recover_nick = snowcone.irccase(configuration.nick)
     end
 end
 
