@@ -53,7 +53,7 @@ auto l_dnslookup(lua_State *const L) -> int
         lua_setfield(L, -2, "__index");
     });
 
-    lua_rotate(L, -2, 1);
+    lua_rotate(L, -2, 1); // swap the callback and the udata
 
     // Store the callback
     lua_rawsetp(L, LUA_REGISTRYINDEX, resolver);
@@ -76,7 +76,7 @@ auto l_dnslookup(lua_State *const L) -> int
         {
             returns = 2;
             lua_pushnil(L);
-            lua_pushstring(L, error.what().c_str());
+            lua_pushstring(L, error.message().c_str());
         }
         else
         {

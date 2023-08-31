@@ -10,6 +10,8 @@ extern "C"
 
 #include <hs.h>
 
+#include <exception>
+
 namespace
 {
   auto get_platform(lua_State *L, int idx) -> hs_platform_info;

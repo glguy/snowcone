@@ -24,10 +24,12 @@ stds = {
             "conn", "config_dir", "terminal_focus", "configuration",
             "disconnect",
 
+            "tick_timer", "rotations_timer", "reconnect_timer", "exiting",
+
             -- global client state
             "irc_state",  "status_message", "input_mode", "servers",
             "view", "views", "uptime", "liveness", "scroll", "editor",
-            "uv_resources", "filter", "main_views", "new_channels",
+            "filter", "main_views", "new_channels",
             "focus", "status_messages", "commands",
 
             -- global load bar state

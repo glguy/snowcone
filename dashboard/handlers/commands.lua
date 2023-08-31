@@ -1,8 +1,11 @@
 local tablex = require 'pl.tablex'
 local lexer = require 'pl.lexer'
-local utils_time = require 'utils.time'
+
+local challenge = require 'utils.challenge'
 local mkcommand = require 'utils.mkcommand'
+local sasl = require 'sasl'
 local send = require 'utils.send'
+local utils_time = require 'utils.time'
 
 local colormap =
   { black = ncurses.black, red = ncurses.red, green = ncurses.green,
@@ -33,6 +36,15 @@ add_command('quote', '$g$R', function(cmd, str)
         table.insert(args,final)
     end
     send(cmd, table.unpack(args))
+end)
+
+-- raw just dumps the text directly into the network stream
+add_command('raw', '$r', function(args)
+    if conn then
+        conn:send(args .. '\r\n')
+    else
+        status('quote', 'not connected')
+    end
 end)
 
 add_command('nettrack', '$g $g', function(name, mask)
@@ -220,6 +232,49 @@ end)
 
 add_command('nick', '$g', function(nick)
     send('NICK', nick)
+end)
+
+add_command('challenge', '', function()
+    if not configuration.oper_username then
+        status('challenge', 'no username configured: `oper_username`')
+    elseif not configuration.challenge_key then
+        status('challenge', 'no challenge key configured: `challenge_key`')
+    else
+        challenge.start()
+    end
+end)
+
+add_command('oper', '', function()
+    if not configuration.oper_username then
+        status('oper', 'no username configured: `oper_username`')
+    elseif not configuration.oper_password then
+        status('oper', 'no password configured: `oper_password`')
+    else
+        send('OPER', configuration.oper_username,
+        {content=configuration.oper_password, secret=true})
+    end
+end)
+
+add_command('sasl', '$g', function(name)
+    local credentials = configuration.sasl_credentials
+
+    if not credentials then
+        status('sasl', 'no sasl credentials configured')
+        return
+    end
+
+    local entry = credentials[name]
+    if not entry then
+        status('sasl', 'unknown credentials')
+    elseif irc_state.caps_enabled.sasl then
+        sasl.start(entry)
+    elseif irc_state.caps_available.sasl then
+        irc_state.caps_wanted.sasl = true
+        irc_state.sasl_credentials = entry
+        send('CAP', 'REQ', 'sasl')
+    else
+        status('sasl', 'sasl not available')
+    end
 end)
 
 add_command('kline_nick', '$g', function(nick)

@@ -25,6 +25,310 @@ function M.PING(irc)
     send('PONG', irc[1])
 end
 
+local cap_cmds = require_ 'handlers.cap'
+function M.CAP(irc)
+    -- irc[1] is a nickname or *
+    local h = cap_cmds[irc[2]]
+    if h then
+        h(table.unpack(irc, 3))
+    end
+end
+
+function M.AUTHENTICATE(irc)
+    if not irc_state.sasl then
+        status('sasl', 'no sasl session active')
+        return
+    end
+
+    local chunk = irc[1]
+    if chunk == '+' then
+        chunk = ''
+    end
+
+    if irc_state.authenticate == nil then
+        irc_state.authenticate = {chunk}
+    else
+        table.insert(irc_state.authenticate, chunk)
+    end
+
+    if #chunk < 400 then
+        local payload = snowcone.from_base64(table.concat(irc_state.authenticate))
+        irc_state.authenticate = nil
+
+        local reply, secret
+        if payload == nil then
+            status('sasl', 'bad authenticate base64')
+            -- discard the current sasl coroutine but still react
+            -- to sasl reply codes
+            irc_state.sasl = false
+        else
+            local success, message
+            success, message, secret = coroutine.resume(irc_state.sasl, payload)
+            if success then
+                reply = message
+            else
+                status('sasl', '%s', message)
+                irc_state.sasl = false
+            end
+        end
+
+        sasl.authenticate(reply, secret)
+    end
+end
+
+-- "<client> :Welcome to the <networkname> Network, <nick>[!<user>@<host>]"
+M[N.RPL_WELCOME] = function(irc)
+    irc_state.nick = irc[1]
+end
+
+-- "<client> <1-13 tokens> :are supported by this server"
+M[N.RPL_ISUPPORT] = function(irc)
+    for i = 2, #irc - 1 do
+        local token = irc[i]
+        -- soju.im/bouncer-networks happens to add _ to the allowed characters
+        local minus, key, equals, val = token:match '^(%-?)([%u%d_]+)(=?)(.*)$'
+        if minus == '-' then
+            val = nil
+        elseif equals == '' then
+            val = true
+        end
+        irc_state:set_isupport(key, val)
+    end
+end
+
+local function end_of_registration()
+    irc_state.phase = 'connected'
+    status('irc', 'connected')
+
+    if configuration.oper_username and configuration.challenge_key then
+        challenge.start()
+    elseif configuration.oper_username and configuration.oper_password then
+        send('OPER', configuration.oper_username,
+            {content=configuration.oper_password, secret=true})
+    else
+        -- determine if we're already oper
+        send('MODE', irc_state.nick)
+    end
+
+    if irc_state:has_chathistory() then
+        local supported_amount = irc_state.max_chat_history
+        for target, buffer in pairs(buffers) do
+            local amount = buffer.messages.max
+
+            if supported_amount and supported_amount < amount then
+                amount = supported_amount
+            end
+
+            local ts
+            local lastirc = buffer.messages:lookup(true)
+            if lastirc and lastirc.tags.time then
+                ts = 'timestamp=' .. lastirc.tags.time
+            else
+                ts = '*'
+            end
+
+            send('CHATHISTORY', 'LATEST', target, ts, amount)
+        end
+    end
+
+    -- reinstall monitors for the active private message buffers
+    if irc_state:has_monitor() then
+        local n, nicks = 0, {}
+        for target, _ in pairs(buffers) do
+            if not irc_state:is_channel_name(target) then
+                table.insert(nicks, target)
+                n = 1 + #target
+                if n > 400 then
+                    send('MONITOR', '+', table.concat(nicks, ','))
+                    n, nicks = 0, {}
+                end
+            end
+        end
+        if n > 0 then
+            send('MONITOR', '+', table.concat(nicks, ','))
+        end
+    end
+
+    -- start waiting for our nickname
+    if irc_state.recover_nick and irc_state:has_monitor() then
+        send('MONITOR', '+', configuration.nick)
+    end
+end
+
+-- "<client> :End of /MOTD command."
+M[N.RPL_ENDOFMOTD] = function()
+    if irc_state.phase == 'registration' then
+        end_of_registration()
+    end
+end
+
+-- "<client> :MOTD File is missing"
+M[N.ERR_NOMOTD] = function()
+    if irc_state.phase == 'registration' then
+        end_of_registration()
+    end
+end
+
+M[N.RPL_SNOMASK] = function(irc)
+    status('irc', 'snomask %s', irc[2])
+end
+
+M[N.ERR_NOOPERHOST] = function()
+    challenge.fail('no oper host')
+end
+
+M[N.ERR_PASSWDMISMATCH] = function()
+    challenge.fail('oper password mismatch')
+end
+
+M[N.RPL_RSACHALLENGE2] = function(irc)
+    challenge.add_chunk(irc[2])
+end
+
+M[N.RPL_ENDOFRSACHALLENGE2] = function()
+    challenge.response()
+end
+
+M[N.RPL_YOUREOPER] = function()
+    status('irc', "you're oper")
+end
+
+-----------------------------------------------------------------------
+
+-- "<client> <channel> <client count> :<topic>"
+M[N.RPL_LIST] = function(irc)
+    if irc_state.channel_list_complete then
+        irc_state.channel_list = {}
+        irc_state.channel_list_complete = nil
+    elseif not irc_state.channel_list then
+        irc_state.channel_list = {}
+    end
+
+    irc_state.channel_list[irc[2]] = {
+        users = tonumber(irc[3]),
+        topic = irc[4],
+    }
+end
+
+-- "<client> :End of /LIST"
+M[N.RPL_LISTEND] = function()
+    irc_state.channel_list_complete = true
+end
+
+-----------------------------------------------------------------------
+-- Channel metadata
+
+function M.TOPIC(irc)
+    irc_state:get_channel(irc[1]).topic = irc[2]
+end
+
+-- "<client> <channel> :<topic>"
+M[N.RPL_TOPIC] = function(irc)
+    local channel = irc_state:get_channel(irc[2])
+    if channel then
+        channel.topic = irc[3]
+    end
+end
+
+-- "<client> <channel> <creationtime>"
+M[N.RPL_CREATIONTIME] = function(irc)
+    local channel = irc_state:get_channel(irc[2])
+    if channel then
+        channel.creationtime = tonumber(irc[3])
+    end
+end
+
+-----------------------------------------------------------------------
+-- Monitor support
+
+-- :<server> 730 <nick> :target[!user@host][,target[!user@host]]*
+M[N.RPL_MONONLINE] = function(irc)
+    local list = irc[2]
+    local nicks = {}
+    for nick in list:gmatch '([^!,]+)[^,]*,?' do
+        irc_state:add_monitor(nick, true)
+        table.insert(nicks, nick)
+    end
+    status('monitor', 'monitor online: ' .. table.concat(nicks, ', '))
+end
+
+-- :<server> 731 <nick> :target[,target2]*
+M[N.RPL_MONOFFLINE] = function(irc)
+    local list = irc[2]
+    local nicks = {}
+    for nick in list:gmatch '([^!,]+)[^,]*,?' do
+        irc_state:add_monitor(nick, false)
+        table.insert(nicks, nick)
+
+        if snowcone.irccase(nick) == irc_state.recover_nick then
+            send('NICK', configuration.nick)
+        end
+    end
+    status('monitor', 'monitor offline: ' .. table.concat(nicks, ', '))
+end
+
+M[N.ERR_MONLISTFULL] = function()
+    status('monitor', 'monitor list full')
+end
+
+-----------------------------------------------------------------------
+
+M[N.RPL_SASLSUCCESS] = function()
+    if irc_state.sasl then
+        status('irc', 'SASL success')
+        irc_state.sasl = nil
+
+        if irc_state.phase == 'registration' then
+            send('CAP', 'END')
+        end
+    end
+end
+
+M[N.ERR_SASLFAIL] = function()
+    if irc_state.sasl ~= nil then
+        status('irc', 'SASL failed')
+        irc_state.sasl = nil
+
+        if irc_state.phase == 'registration' then
+            disconnect()
+        end
+    end
+end
+
+M[N.ERR_SASLABORTED] = function()
+    if irc_state.sasl ~= nil then
+        irc_state.sasl = nil
+
+        if irc_state.phase == 'registration' then
+            disconnect()
+        end
+    end
+end
+
+M[N.RPL_SASLMECHS] = function()
+    if irc_state.sasl then
+        status('irc', 'bad SASL mechanism')
+        irc_state.sasl = nil
+
+        if irc_state.phase == 'registration' then
+            disconnect()
+        end
+    end
+end
+
+local function new_nickname()
+    if irc_state.phase == 'registration' then
+        local nick = string.format('%.10s-%05d', configuration.nick, math.random(0,99999))
+        send('NICK', nick)
+        irc_state.recover_nick = snowcone.irccase(configuration.nick)
+    end
+end
+
+M[N.ERR_ERRONEUSNICKNAME] = new_nickname
+M[N.ERR_NICKNAMEINUSE] = new_nickname
+M[N.ERR_UNAVAILRESOURCE] = new_nickname
+
+
 local function do_notify(target, nick, text)
     local key = snowcone.irccase(target)
     if not terminal_focus
@@ -113,15 +417,6 @@ function M.NOTICE(irc)
     route_to_buffer(target, message, irc)
 end
 
-local cap_cmds = require_ 'handlers.cap'
-function M.CAP(irc)
-    -- irc[1] is a nickname or *
-    local h = cap_cmds[irc[2]]
-    if h then
-        h(table.unpack(irc, 3))
-    end
-end
-
 function M.NICK(irc)
     local oldnick = parse_source(irc.source)
     local newnick = irc[1]
@@ -191,48 +486,6 @@ function M.NICK(irc)
 
     if talk_target and talk_target == oldkey then
         talk_target = newkey
-    end
-end
-
-function M.AUTHENTICATE(irc)
-    if not irc_state.sasl then
-        status('sasl', 'no sasl session active')
-        return
-    end
-
-    local chunk = irc[1]
-    if chunk == '+' then
-        chunk = ''
-    end
-
-    if irc_state.authenticate == nil then
-        irc_state.authenticate = {chunk}
-    else
-        table.insert(irc_state.authenticate, chunk)
-    end
-
-    if #chunk < 400 then
-        local payload = snowcone.from_base64(table.concat(irc_state.authenticate))
-        irc_state.authenticate = nil
-
-        local reply, secret
-        if payload == nil then
-            status('sasl', 'bad authenticate base64')
-            -- discard the current sasl coroutine but still react
-            -- to sasl reply codes
-            irc_state.sasl = false
-        else
-            local success, message
-            success, message, secret = coroutine.resume(irc_state.sasl, payload)
-            if success then
-                reply = message
-            else
-                status('sasl', '%s', message)
-                irc_state.sasl = false
-            end
-        end
-
-        sasl.authenticate(reply, secret)
     end
 end
 
@@ -552,257 +805,5 @@ M[N.RPL_AWAY] = function(irc)
     local user = irc_state:get_user(nick)
     user.away = irc[3]
 end
-
--- "<client> :Welcome to the <networkname> Network, <nick>[!<user>@<host>]"
-M[N.RPL_WELCOME] = function(irc)
-    irc_state.nick = irc[1]
-end
-
--- "<client> <1-13 tokens> :are supported by this server"
-M[N.RPL_ISUPPORT] = function(irc)
-    for i = 2, #irc - 1 do
-        local token = irc[i]
-        -- soju.im/bouncer-networks happens to add _ to the allowed characters
-        local minus, key, equals, val = token:match '^(%-?)([%u%d_]+)(=?)(.*)$'
-        if minus == '-' then
-            val = nil
-        elseif equals == '' then
-            val = true
-        end
-        irc_state:set_isupport(key, val)
-    end
-end
-
-local function end_of_registration()
-    irc_state.phase = 'connected'
-    status('irc', 'connected')
-
-    if configuration.oper_username and configuration.challenge_key then
-        challenge.start()
-    elseif configuration.oper_username and configuration.oper_password then
-        send('OPER', configuration.oper_username,
-            {content=configuration.oper_password, secret=true})
-    else
-        -- determine if we're already oper
-        send('MODE', irc_state.nick)
-    end
-
-    if irc_state:has_chathistory() then
-        local supported_amount = irc_state.max_chat_history
-        for target, buffer in pairs(buffers) do
-            local amount = buffer.messages.max
-
-            if supported_amount and supported_amount < amount then
-                amount = supported_amount
-            end
-
-            local ts
-            local lastirc = buffer.messages:lookup(true)
-            if lastirc and lastirc.tags.time then
-                ts = 'timestamp=' .. lastirc.tags.time
-            else
-                ts = '*'
-            end
-
-            send('CHATHISTORY', 'LATEST', target, ts, amount)
-        end
-    end
-
-    -- reinstall monitors for the active private message buffers
-    if irc_state:has_monitor() then
-        local n, nicks = 0, {}
-        for target, _ in pairs(buffers) do
-            if not irc_state:is_channel_name(target) then
-                table.insert(nicks, target)
-                n = 1 + #target
-                if n > 400 then
-                    send('MONITOR', '+', table.concat(nicks, ','))
-                    n, nicks = 0, {}
-                end
-            end
-        end
-        if n > 0 then
-            send('MONITOR', '+', table.concat(nicks, ','))
-        end
-    end
-
-    -- start waiting for our nickname
-    if irc_state.recover_nick and irc_state:has_monitor() then
-        send('MONITOR', '+', configuration.nick)
-    end
-end
-
--- "<client> :End of /MOTD command."
-M[N.RPL_ENDOFMOTD] = function()
-    if irc_state.phase == 'registration' then
-        end_of_registration()
-    end
-end
-
--- "<client> :MOTD File is missing"
-M[N.ERR_NOMOTD] = function()
-    if irc_state.phase == 'registration' then
-        end_of_registration()
-    end
-end
-
-M[N.RPL_SNOMASK] = function(irc)
-    status('irc', 'snomask %s', irc[2])
-end
-
-M[N.ERR_NOOPERHOST] = function()
-    challenge.fail('no oper host')
-end
-
-M[N.ERR_PASSWDMISMATCH] = function()
-    challenge.fail('oper password mismatch')
-end
-
-M[N.RPL_RSACHALLENGE2] = function(irc)
-    challenge.add_chunk(irc[2])
-end
-
-M[N.RPL_ENDOFRSACHALLENGE2] = function()
-    challenge.response()
-end
-
-M[N.RPL_YOUREOPER] = function()
-    status('irc', "you're oper")
-end
-
------------------------------------------------------------------------
-
--- "<client> <channel> <client count> :<topic>"
-M[N.RPL_LIST] = function(irc)
-    if irc_state.channel_list_complete then
-        irc_state.channel_list = {}
-        irc_state.channel_list_complete = nil
-    elseif not irc_state.channel_list then
-        irc_state.channel_list = {}
-    end
-
-    irc_state.channel_list[irc[2]] = {
-        users = tonumber(irc[3]),
-        topic = irc[4],
-    }
-end
-
--- "<client> :End of /LIST"
-M[N.RPL_LISTEND] = function()
-    irc_state.channel_list_complete = true
-end
-
------------------------------------------------------------------------
--- Channel metadata
-
-function M.TOPIC(irc)
-    irc_state:get_channel(irc[1]).topic = irc[2]
-end
-
--- "<client> <channel> :<topic>"
-M[N.RPL_TOPIC] = function(irc)
-    local channel = irc_state:get_channel(irc[2])
-    if channel then
-        channel.topic = irc[3]
-    end
-end
-
--- "<client> <channel> <creationtime>"
-M[N.RPL_CREATIONTIME] = function(irc)
-    local channel = irc_state:get_channel(irc[2])
-    if channel then
-        channel.creationtime = tonumber(irc[3])
-    end
-end
-
------------------------------------------------------------------------
--- Monitor support
-
--- :<server> 730 <nick> :target[!user@host][,target[!user@host]]*
-M[N.RPL_MONONLINE] = function(irc)
-    local list = irc[2]
-    local nicks = {}
-    for nick in list:gmatch '([^!,]+)[^,]*,?' do
-        irc_state:add_monitor(nick, true)
-        table.insert(nicks, nick)
-    end
-    status('monitor', 'monitor online: ' .. table.concat(nicks, ', '))
-end
-
--- :<server> 731 <nick> :target[,target2]*
-M[N.RPL_MONOFFLINE] = function(irc)
-    local list = irc[2]
-    local nicks = {}
-    for nick in list:gmatch '([^!,]+)[^,]*,?' do
-        irc_state:add_monitor(nick, false)
-        table.insert(nicks, nick)
-
-        if snowcone.irccase(nick) == irc_state.recover_nick then
-            send('NICK', configuration.nick)
-        end
-    end
-    status('monitor', 'monitor offline: ' .. table.concat(nicks, ', '))
-end
-
-M[N.ERR_MONLISTFULL] = function()
-    status('monitor', 'monitor list full')
-end
-
------------------------------------------------------------------------
-
-M[N.RPL_SASLSUCCESS] = function()
-    if irc_state.sasl then
-        status('irc', 'SASL success')
-        irc_state.sasl = nil
-
-        if irc_state.phase == 'registration' then
-            send('CAP', 'END')
-        end
-    end
-end
-
-M[N.ERR_SASLFAIL] = function()
-    if irc_state.sasl ~= nil then
-        status('irc', 'SASL failed')
-        irc_state.sasl = nil
-
-        if irc_state.phase == 'registration' then
-            disconnect()
-        end
-    end
-end
-
-M[N.ERR_SASLABORTED] = function()
-    if irc_state.sasl ~= nil then
-        irc_state.sasl = nil
-
-        if irc_state.phase == 'registration' then
-            disconnect()
-        end
-    end
-end
-
-M[N.RPL_SASLMECHS] = function()
-    if irc_state.sasl then
-        status('irc', 'bad SASL mechanism')
-        irc_state.sasl = nil
-
-        if irc_state.phase == 'registration' then
-            disconnect()
-        end
-    end
-end
-
-local function new_nickname()
-    if irc_state.phase == 'registration' then
-        local nick = string.format('%.10s-%05d', configuration.nick, math.random(0,99999))
-        send('NICK', nick)
-        irc_state.recover_nick = snowcone.irccase(configuration.nick)
-    end
-end
-
-M[N.ERR_ERRONEUSNICKNAME] = new_nickname
-M[N.ERR_NICKNAMEINUSE] = new_nickname
-M[N.ERR_UNAVAILRESOURCE] = new_nickname
 
 return M
