@@ -293,7 +293,7 @@ function draw_global_load(title, tracker)
             addstr(' ')
         end
 
-        if input_mode == 'filter' and not pcall(string.match, '', editor.rendered) then
+        if input_mode == 'filter' and not pcall(string.match, '', editor:content()) then
             red()
         end
 
