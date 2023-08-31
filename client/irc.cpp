@@ -130,6 +130,7 @@ public:
         }
     }
 
+    auto virtual close() -> boost::system::error_code = 0;
     auto virtual write_awaitable() -> boost::asio::awaitable<std::size_t> = 0;
     auto virtual read_awaitable(boost::asio::mutable_buffers_1 const& buffers) -> boost::asio::awaitable<std::size_t> = 0;
     auto virtual connect(
@@ -167,6 +168,12 @@ public:
     {
         co_await boost::asio::async_connect(socket_, endpoints, boost::asio::use_awaitable);
         socket_.set_option(boost::asio::ip::tcp::no_delay(true));    
+    }
+
+    auto virtual close() -> boost::system::error_code override
+    {
+        boost::system::error_code error;
+        return socket_.close(error);
     }
 };
 
@@ -209,7 +216,36 @@ public:
         }
         co_await socket_.async_handshake(socket_.client, boost::asio::use_awaitable);
     }
+
+    auto virtual close() -> boost::system::error_code override
+    {
+        boost::system::error_code error;
+        return socket_.lowest_layer().close(error);
+    }
 };
+
+auto l_close_irc(lua_State * const L) -> int
+{
+    auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
+    if (w->expired())
+    {
+        luaL_error(L, "send to closed irc");
+        return 0;
+    }
+    
+    auto const error = w->lock()->close();
+    if (error)
+    {
+        luaL_pushfail(L);
+        lua_pushstring(L, error.message().c_str());
+        return 2;
+    }
+    else
+    {
+        lua_pushboolean(L, 1);
+        return 1;
+    }
+}
 
 auto l_send_irc(lua_State * const L) -> int
 {
@@ -300,6 +336,7 @@ auto pushirc(lua_State * const L, std::shared_ptr<irc_connection> irc) -> void
         };
         static luaL_Reg const Methods[] {
             {"send", l_send_irc},
+            {"close", l_close_irc},
             {}
         };
         luaL_setfuncs(L, MT, 0);

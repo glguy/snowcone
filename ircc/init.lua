@@ -286,9 +286,15 @@ if not tick_timer then
     local function cb()
         tick_timer:start(1000, cb)
         uptime = uptime + 1
-        if irc_state and irc_state.phase == 'connected' and uptime == liveness + 30 then
-            send('PING', string.format('snowcone-%d', uptime))
+
+        if irc_state then
+            if irc_state.phase == 'connected' and uptime == liveness + 30 then
+                send('PING', 'snowcone')
+            elseif uptime == liveness + 60 then
+                conn:close()
+            end
         end
+
         draw()
     end
     tick_timer:start(1000, cb)

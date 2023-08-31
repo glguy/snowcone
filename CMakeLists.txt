@@ -56,5 +56,5 @@ install(FILES "snowcone.1" DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
 
 set(CPACK_GENERATOR "DEB")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Eric Mertens <emertens@gmail.com>")
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "libgeoip1, liblua5.4-0, lua-penlight, libssl-dev")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "liblua5.4-0, lua-penlight, libssl3, libncursesw6, libidn12")
 include(CPack)

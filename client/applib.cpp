@@ -77,12 +77,12 @@ auto l_pton(lua_State* const L) -> int
         lua_pushlstring(L, buffer, len);
         return 1;
     case 0:
-        lua_pushnil(L);
+        luaL_pushfail(L);
         lua_pushstring(L, "pton: bad address");
         return 2;
     default: {
         auto const e = errno;
-        lua_pushnil(L);
+        luaL_pushfail(L);
         lua_pushfstring(L, "pton: %s", strerror(e));
         return 2;
     }
