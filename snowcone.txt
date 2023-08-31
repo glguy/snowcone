@@ -1,11 +1,8 @@
 NAME
   snowcone - solanum server notice console
 SYNOPSIS
-  snowcone -S address -N nick [-U user] [-G gecos]
-           [-O opername] [-K challenge] [-M mechanism]
-           [-E sasluser] [-D saslkey] [-Z saslauthzid]
-           [-C capabilities] [-L initfile]
-           [-f filename] [-h]
+  snowcone MODE [--config PATH]
+
 DESCRIPTION
   snowcone provides a live view of server notices focused on awareness
   of recent connections and disconnections to the network. It can show
@@ -17,40 +14,6 @@ DESCRIPTION
   Instead of bundling its own network connection support, snowcone relies
   on the socat application to make network connections. This allows
   snowcone to natively support a wide range of network connection options.
-OPTIONS
-  -S address       specify the IRC server to connect to using socat(1)
-                   argument syntax.
-  -N nick          IRC nickname (NICK)
-  -U user          IRC username (USER)
-  -G gecos         IRC gecos/realname (USER)
-  -O opername      IRC operator username (OPER and CHALLENGE)
-  -K challenge     Path to RSA key for CHALLENGE. Challenge support requires
-                   you to install an extra Lua dependency with: luarocks install openssl
-  -M mechanism     SASL mechanism
-  -E sasluser      SASL username
-  -D saslkey       Path to PEM or DER encoded key file
-  -Z saslauthzid   SASL authorization ID (uncommon)
-  -C capabilities  Extra space-delimited capabilities to request upon connect (CAP REQ)
-  -L initfile      Path to Lua logic entry point
-  -f filename      Path to Lua network configuration
-  -h               print this usage information
-
-ENVIRONMENT
-  Sensitive arguments are passed using environment variables to keep them
-  out of the process list.
-
-  IRC_PASSWORD            IRC password (PASS)
-  IRC_SASL_PASSWORD       IRC account password
-  IRC_OPER_PASSWORD       IRC operator password (OPER)
-  IRC_CHALLENGE_PASSWORD  Challenge private key password (CHALLENGE)
-
-SOCAT ADDRESSES
-  Check the socat(1) man page for an exhaustive set of connection
-  addresses, but these will be the most commonly used:
-
-  TCP:server:6667  Connect to a plain-text IRC server
-  OPENSSL:server:6697,certificate=cert.pem  
-    Connect to a TLS-enabled IRC server using a client-side certificate
 
 MODES
   F1  recent connections
@@ -193,33 +156,43 @@ NETWORK CONFIGURATION
 	  },
 	}
 SASL SUPPORT
-  The SASL username is specified using -E.
+  mechanism          One of the mechanisms below
+  username           Authentication identity
+  password           Authentication password or private key password
+  authzid            Authorization identity
+  key                Private key path
 
-  All SASL passwords are passed by the IRC_SASL_PASSWORD environment
-  variable. For password-based authentication mechanisms the password
+  For password-based authentication mechanisms the password
   will be used as your credential. For asymmetric cryptography
   mechanisms, this will be used to decrypt the private key.
 
-  Private key files are specified with -D. These can be either PEM
-  or DER encoded files. This is automatically detected.
+  Private key files should be PEM encoded.
 
   An optional (and very uncommon) authorization identity can be specified
-  with -Z.
+  with authzid.
 
-  PLAIN                     Uses -E, -Z and IRC_SASL_PASSWORD
-  EXTERNAL                  Uses -Z
-  ECDH-X25519-CHALLENGE     Uses -E, -Z, -D, and IRC_SASL_PASSWORD
-  ECDSA-NIST256P-CHALLENGE  Uses -E, -Z, -D, and IRC_SASL_PASSWORD
-  SCRAM-SHA-1               Uses -E, -Z, and IRC_SASL_PASSWORD
-  SCRAM-SHA-256             Uses -E, -Z, and IRC_SASL_PASSWORD
-  SCRAM-SHA-512             Uses -E, -Z, and IRC_SASL_PASSWORD
+  PLAIN
+  EXTERNAL
+  ECDH-X25519-CHALLENGE
+  ECDSA-NIST256P-CHALLENGE
+  SCRAM-SHA-1
+  SCRAM-SHA-256
+  SCRAM-SHA-512
+
 FILES
+  ~/.config/snowcone/settings.lua
+    Connection configuration file using lua syntax
+
   ~/.config/snowcone/servers.lua  
     Lua syntax table specifying server addresses and regions.
-  /usr/share/snowcone/lua  
-    Lua run-time source files. These can be edited at runtime. Specify
-    an alternative entry point with -L.
-  GeoLite2-ASN.mmdb  
+
+  /usr/share/snowcone/dashboard
+    Lua run-time source files for dashboard mode
+
+  /usr/share/snowcone/ircc
+    Lua run-time source files for ircc mode
+
+  ~/.config/snowcone/GeoLite2-ASN.mmdb  
     If the mmdb Lua library is installed, and the GeoLite2-ASN.mmdb
     database is in the current directory, snowcone will use it to provide
     more information about recent connections.

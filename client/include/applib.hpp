@@ -28,4 +28,4 @@ auto lua_callback(lua_State* L, char const* key) -> bool;
 /// @brief Install app functionality into global variables in the lua state
 /// @param L Lua state
 /// @param cfg Configuration object
-auto prepare_globals(lua_State* L, int argc, char ** argv) -> void;
+auto prepare_globals(lua_State* L, int argc, char const* const* argv) -> void;

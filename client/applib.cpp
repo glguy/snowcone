@@ -288,7 +288,7 @@ auto lua_callback(lua_State* const L, char const* const key) -> bool
     return LUA_OK == safecall(L, key, lua_gettop(L) - 1);
 }
 
-auto prepare_globals(lua_State* const L, int const argc, char ** const argv) -> void
+auto prepare_globals(lua_State* const L, int const argc, char const * const * const argv) -> void
 {
     /* setup libraries */
     luaL_openlibs(L);

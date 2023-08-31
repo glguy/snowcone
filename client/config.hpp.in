@@ -4,5 +4,6 @@
 #cmakedefine GEOIP_FOUND
 #cmakedefine LIBHS_FOUND
 #cmakedefine LIBIDN_FOUND
+#cmakedefine CMAKE_INSTALL_FULL_DATAROOTDIR "@CMAKE_INSTALL_FULL_DATAROOTDIR@"
 
 #endif

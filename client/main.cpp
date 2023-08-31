@@ -1,6 +1,7 @@
 #include "app.hpp"
 #include "applib.hpp"
 #include "bracketed_paste.hpp"
+#include "config.hpp"
 #include "ircmsg.hpp"
 #include "safecall.hpp"
 
@@ -15,6 +16,7 @@ extern "C"
 #include <myncurses.h>
 
 #include <clocale>
+#include <cstring>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -49,11 +51,26 @@ public:
     }
 };
 
-auto main(int argc, char *argv[]) -> int
+auto main(int argc, char const* argv[]) -> int
 {
     if (argc < 2)
     {
-        return 1;
+        std::cerr <<
+            "Usage: snowcone MODE [--config=PATH]\n"
+            "  Modes:\n"
+            "    ircc               - chat client\n"
+            "    dashboard          - server notice dashboard\n"
+            "    path/to/init.lua   - arbitrary Lua script\n"
+            " \n"
+            "  --config=PATH        - override configuration file\n"
+            "                         (default ~/.config/snowcone/settings.lua)\n";
+        return EXIT_FAILURE;
+    }
+
+    if (not strcmp("dashboard", argv[1])) {
+        argv[1] = CMAKE_INSTALL_FULL_DATAROOTDIR "/snowcone/dashboard/init.lua";
+    } else if (not strcmp("ircc", argv[1])) {
+        argv[1] = CMAKE_INSTALL_FULL_DATAROOTDIR "/snowcone/ircc/init.lua";
     }
 
     auto nc = NC{};
