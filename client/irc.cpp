@@ -18,7 +18,6 @@ extern "C"
 #include <memory>
 #include <string>
 
-
 namespace
 {
     /**

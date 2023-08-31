@@ -9,8 +9,6 @@ extern "C" {
 #include <lauxlib.h>
 }
 
-#include <chrono> // durations
-
 using Resolver = boost::asio::ip::tcp::resolver;
 
 template<> char const* udata_name<Resolver> = "dnslookup";
@@ -39,7 +37,7 @@ luaL_Reg const Methods[] = {
     {}
 };
 
-}
+} // namespace
 
 auto l_dnslookup(lua_State *const L) -> int
 {
@@ -55,7 +53,7 @@ auto l_dnslookup(lua_State *const L) -> int
         lua_setfield(L, -2, "__index");
     });
 
-    lua_pushvalue(L, -2);
+    lua_rotate(L, -2, 1);
 
     // Store the callback
     lua_rawsetp(L, LUA_REGISTRYINDEX, resolver);
@@ -67,7 +65,7 @@ auto l_dnslookup(lua_State *const L) -> int
     ) {
         // get the callback
         lua_rawgetp(L, LUA_REGISTRYINDEX, resolver);
-        
+
         // forget the callback
         lua_pushnil(L);
         lua_rawsetp(L, LUA_REGISTRYINDEX, resolver);
@@ -85,7 +83,7 @@ auto l_dnslookup(lua_State *const L) -> int
             returns = 1;
             lua_createtable(L, results.size(), 0);
             lua_Integer i = 1;
-            for (auto && result : results)
+            for (auto const& result : results)
             {
                 auto const address = result.endpoint().address().to_string();
                 lua_pushlstring(L, address.data(), address.size());
