@@ -21,7 +21,10 @@ local function render_irc(irc)
         green()
     end
 
-    addstr(string.format(' %16.16s', source))
+    add_button(string.format(' %16.16s', source), function()
+        focus = {irc=irc}
+        view = 'console'
+    end, true)
 
     local statusmsg = irc.statusmsg
     if statusmsg then

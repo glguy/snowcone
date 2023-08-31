@@ -19,7 +19,7 @@ template<> char const* udata_name<Timer> = "steady_timer";
 
 namespace {
 
-luaL_Reg const MT[] = {
+luaL_Reg const MT[] {
     {"__gc", [](auto const L) {
         auto const timer = check_udata<Timer>(L, 1);
         lua_pushnil(L);
@@ -28,6 +28,10 @@ luaL_Reg const MT[] = {
         return 0;
     }},
 
+    {}
+};
+
+luaL_Reg const Methods[] {
     {"start", [](auto const L) {
         auto const timer = check_udata<Timer>(L, 1);
         auto const start = luaL_checkinteger(L, 2);
@@ -65,14 +69,16 @@ luaL_Reg const MT[] = {
 
     {}
 };
-}
+
+} // namespace
 
 auto l_new_timer(lua_State *const L) -> int
 {
     auto const timer = new_udata<Timer>(L, 0, [L](){
         // Build metatable the first time
         luaL_setfuncs(L, MT, 0);
-        lua_pushvalue(L, -1);
+        luaL_newlibtable(L, Methods);
+        luaL_setfuncs(L, Methods, 0);
         lua_setfield(L, -2, "__index");
     });
     new (timer) Timer {App::from_lua(L)->io_context};

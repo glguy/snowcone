@@ -43,22 +43,23 @@ auto l_dnslookup(lua_State *const L) -> int
 {
     std::size_t len;
     auto const hostname = luaL_checklstring(L, 1, &len);
-    luaL_checkany(L, 2);
+    luaL_checkany(L, 2); // callback
     lua_settop(L, 2);
 
     auto const resolver = new_udata<Resolver>(L, 0, [L](){
         // Build metatable the first time
         luaL_setfuncs(L, MT, 0);
-        luaL_newlib(L, Methods);
+        luaL_newlibtable(L, Methods);
+        luaL_setfuncs(L, Methods, 0);
         lua_setfield(L, -2, "__index");
     });
+    new (resolver) Resolver {App::from_lua(L)->io_context};
 
     lua_rotate(L, -2, 1); // swap the callback and the udata
 
     // Store the callback
     lua_rawsetp(L, LUA_REGISTRYINDEX, resolver);
 
-    new (resolver) Resolver {App::from_lua(L)->io_context};
     resolver->async_resolve(std::string_view{hostname, len}, "", [L, resolver](
         boost::system::error_code const& error,
         Resolver::results_type results
