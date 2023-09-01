@@ -368,7 +368,7 @@ local function route_to_buffer(target, text, irc)
         mention = true
     end
 
-    if mention then
+    if mention and buffer_target then
         do_notify(buffer_target, nick, text)
     end
 

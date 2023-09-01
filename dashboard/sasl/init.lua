@@ -21,10 +21,9 @@ function M.authenticate(body, secret)
 end
 
 local function load_key(key, password)
-    local openssl = require 'openssl'
     assert(key, "sasl key file not specified `irc_sasl_key`")
     key = assert(file.read(key), 'failed to read sasl key file')
-    key = assert(openssl.pkey.read(key, true, 'auto', password))
+    key = assert(myopenssl.readpkey(key, true, 'pem', password))
     return key
 end
 

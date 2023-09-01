@@ -12,7 +12,7 @@ stds = {
         },
     },
     main = {
-        read_globals = {"tty_height", "tty_width", "mygeoip", "ncurses", "mystringprep", "hsfilter"},
+        read_globals = {"tty_height", "tty_width", "mygeoip", "ncurses", "mystringprep", "hsfilter", "myopenssl"},
         globals = {
             "ctrl", "meta", -- functions for defining keyboard handlers
             "require_", -- require function that already reloads

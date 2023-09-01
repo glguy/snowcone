@@ -3,13 +3,12 @@ local send = require 'utils.send'
 local M = {}
 
 function M.start()
-    local openssl       = require 'openssl'
     local file          = require 'pl.file'
 
     -- make sure we have a username and a key before bothering the server
-    local user          = assert(configuration.oper_username, 'missing irc_oper_username')
+    local user          = assert(configuration.oper_username, 'missing oper_username')
     local rsa_key       = assert(file.read(configuration.challenge_key))
-    local key           = assert(openssl.pkey.read(rsa_key, true, 'auto', configuration.challenge_password))
+    local key           = assert(myopenssl.readpkey(rsa_key, true, 'pem', configuration.challenge_password))
 
     irc_state.challenge_key = key
     irc_state.challenge = {}
@@ -33,18 +32,17 @@ end
 
 function M.response()
     if irc_state.challenge then
-        local openssl = require 'openssl'
-        local sha1 = openssl.digest.get 'sha1'
+        local sha1 = myopenssl.getdigest 'sha1'
 
         local key = irc_state.challenge_key
         local challenge = table.concat(irc_state.challenge)
         irc_state.challenge_key = nil
         irc_state.challenge = nil
 
-        local envelope = assert(openssl.base64(challenge, false, true), 'bad base64')
+        local envelope = assert(snowcone.from_base64(challenge), 'bad base64')
         local message  = assert(key:decrypt(envelope, 'oaep'))
         local digest   = sha1:digest(message)
-        local response = openssl.base64(digest, true, true)
+        local response = snowcone.to_base64(digest)
 
         send('CHALLENGE', '+' .. response)
         status('irc', 'challenged')

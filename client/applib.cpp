@@ -10,6 +10,7 @@
 #include <ircmsg.hpp>
 #include <mybase64.hpp>
 #include <myncurses.h>
+#include <myopenssl.hpp>
 
 extern "C" {
 #include <lua.h>
@@ -294,6 +295,9 @@ auto prepare_globals(lua_State* const L, int const argc, char const * const * co
     luaL_openlibs(L);
 
     luaL_requiref(L, "ncurses", luaopen_myncurses, 1);
+    lua_pop(L, 1);
+
+    luaL_requiref(L, "myopenssl", luaopen_myopenssl, 1);
     lua_pop(L, 1);
 
 #ifdef LIBHS_FOUND

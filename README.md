@@ -29,7 +29,7 @@ These are the baseline dependencies
 apt install liblua5.4-dev libboost-dev lua-penlight libidn-dev
 
 # Homebrew
-brew install lua luarocks openssl boost libidn ncurses
+brew install lua luarocks boost libidn ncurses
 luarocks install penlight mmdblua
 ```
 

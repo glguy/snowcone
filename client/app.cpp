@@ -108,14 +108,12 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
                     do_mouse(ev.y, ev.x);
                 }
             }
-            else if (KEY_RESIZE == key)
-            {
-            }
             else if (BracketedPaste::start_paste == key)
             {
                 in_paste = true;
             }
-            else if (BracketedPaste::focus_gained == key) {
+            else if (BracketedPaste::focus_gained == key)
+            {
                 do_keyboard(-KEY_RESUME);
             }
             else if (BracketedPaste::focus_lost == key)
