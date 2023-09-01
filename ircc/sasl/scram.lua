@@ -23,7 +23,7 @@ end
 
 -- luacheck: ignore 631
 return function(digest_name, authzid, authcid, password, nonce)
-    local digest = myopenssl.getdigest(digest_name)
+    local digest = myopenssl.get_digest(digest_name)
 
     return coroutine.create(function()
         local gs2_header

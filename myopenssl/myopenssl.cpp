@@ -11,8 +11,11 @@ extern "C" {
 
 namespace {
 
+auto push_evp_pkey(lua_State * const L, EVP_PKEY * pkey) -> void;
+
 luaL_Reg const DigestMethods[] {
-    {"digest", [](auto const L) {
+    {"digest", [](auto const L)
+    {
         // Process arguments
         auto const type = *static_cast<EVP_MD const**>(luaL_checkudata(L, 1, "digest"));
         std::size_t count;
@@ -20,12 +23,12 @@ luaL_Reg const DigestMethods[] {
 
         // Prepare the buffer
         luaL_Buffer B;
-        char* md = luaL_buffinitsize(L, &B, EVP_MAX_MD_SIZE);
+        char* const md = luaL_buffinitsize(L, &B, EVP_MAX_MD_SIZE);
 
         // Perform the digest
         unsigned int size;
         auto const success = EVP_Digest(
-            static_cast<void const*>(data),
+            data,
             count,
             reinterpret_cast<unsigned char*>(md),
             &size,
@@ -43,7 +46,8 @@ luaL_Reg const DigestMethods[] {
         return 1;
     }},
 
-    {"hmac", [](auto const L) {
+    {"hmac", [](auto const L)
+    {
         auto const type = *static_cast<EVP_MD const**>(luaL_checkudata(L, 1, "digest"));
         std::size_t data_len;
         auto const data = luaL_checklstring(L, 2, &data_len);
@@ -51,7 +55,7 @@ luaL_Reg const DigestMethods[] {
         auto const key = luaL_checklstring(L, 3, &key_len);
 
         luaL_Buffer B;
-        char * const md = luaL_buffinitsize(L, &B, EVP_MAX_MD_SIZE);
+        auto const md = luaL_buffinitsize(L, &B, EVP_MAX_MD_SIZE);
 
         unsigned int md_len;
         if (nullptr == HMAC(
@@ -86,7 +90,8 @@ luaL_Reg const PkeyMT[] {
 };
 
 luaL_Reg const PkeyMethods[] {
-    { "sign", [](auto const L) {
+    { "sign", [](auto const L)
+    {
         auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
         std::size_t data_len;
         auto const data = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 2, &data_len));
@@ -144,7 +149,8 @@ luaL_Reg const PkeyMethods[] {
         return 1;
     }},
 
-    {"decrypt", [](auto const L) {
+    {"decrypt", [](auto const L)
+    {
         auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
         std::size_t in_len;
         auto const in = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 2, &in_len));
@@ -201,7 +207,8 @@ luaL_Reg const PkeyMethods[] {
         return 1;
     }},
 
-    {"derive", [](auto const L){
+    {"derive", [](auto const L)
+    {
         auto const priv = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
         auto const pub = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 2, "pkey"));
 
@@ -253,7 +260,8 @@ luaL_Reg const PkeyMethods[] {
         return 1;
     }},
 
-    {"get_raw_public", [](auto const L){
+    {"get_raw_public", [](auto const L)
+    {
         auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
 
         std::size_t out_len;
@@ -282,109 +290,144 @@ luaL_Reg const PkeyMethods[] {
 };
 
 luaL_Reg const LIB [] {
-    {"getdigest", [](lua_State * const L) -> int
+    {"get_digest", [](lua_State * const L) -> int
+    {
+        // Process arguments
+        auto const name = luaL_checkstring(L, 1);
+
+        // Lookup digest
+        auto const digest = EVP_get_digestbyname(name);
+        if (digest == nullptr)
         {
-            // Process arguments
-            auto const name = luaL_checkstring(L, 1);
-
-            // Lookup digest
-            auto const digest = EVP_get_digestbyname(name);
-            if (digest == nullptr)
-            {
-                luaL_error(L, "EVP_get_digestbyname");
-                return 0;
-            }
-
-            // Allocate userdata
-            auto const digestPtr = static_cast<EVP_MD const**>(lua_newuserdatauv(L, sizeof digest, 0));
-            *digestPtr = digest;
-
-            // Configure userdata's metatable
-            if (luaL_newmetatable(L, "digest"))
-            {
-                luaL_newlibtable(L, DigestMethods);
-                luaL_setfuncs(L, DigestMethods, 0);
-                lua_setfield(L, -2, "__index");
-            }
-            lua_setmetatable(L, -2);
-
-            return 1;
+            luaL_error(L, "EVP_get_digestbyname");
+            return 0;
         }
-    },
 
-    {"readpkey", [](lua_State * const L) -> int
+        // Allocate userdata
+        auto const digestPtr = static_cast<EVP_MD const**>(lua_newuserdatauv(L, sizeof digest, 0));
+        *digestPtr = digest;
+
+        // Configure userdata's metatable
+        if (luaL_newmetatable(L, "digest"))
         {
-            std::size_t key_len;
-            auto const key = luaL_checklstring(L, 1, &key_len);
-            auto const priv = lua_toboolean(L, 2);
-            auto const format = luaL_checkstring(L, 3);
-            std::size_t pass_len;
-            auto const pass = luaL_optlstring(L, 4, "", &pass_len);
-
-            struct password_closure {
-                char const* data;
-                std::size_t len;
-            };
-
-            password_closure password { pass, pass_len };
-            pem_password_cb * cb = [](char *buf, int size, int rwflag, void *u) -> int {
-                auto const p = static_cast<password_closure *>(u);
-                if (size < p->len) { return 0; }
-                memcpy(buf, p->data, p->len);
-                return p->len;
-            };
-
-            auto const bio = BIO_new_mem_buf(static_cast<void const*>(key), key_len);
-            if (nullptr == bio)
-            {
-                luaL_error(L, "BIO_new_mem_buf");
-                return 0;
-            }
-
-            auto const pk =
-                0==strcmp(format, "pem")
-                ? (priv
-                   ? PEM_read_bio_PrivateKey(bio, nullptr, cb, &password)
-                   : PEM_read_bio_PUBKEY(bio, nullptr, cb, &password))
-                : 0==strcmp(format, "der")
-                ? (priv
-                   ? d2i_PrivateKey_bio(bio, nullptr)
-                   : d2i_PUBKEY_bio(bio, nullptr))
-                : nullptr;
-
-            BIO_free_all(bio);
-
-            if (nullptr == pk)
-            {
-                luaL_error(L, "failed to read key");
-                return 0;
-            }
-
-            auto const pkPtr = static_cast<EVP_PKEY**>(lua_newuserdatauv(L, sizeof pk, 0));
-            *pkPtr = pk;
-
-            if (luaL_newmetatable(L, "pkey"))
-            {
-                luaL_setfuncs(L, PkeyMT, 0);
-
-                luaL_newlibtable(L, PkeyMethods);
-                luaL_setfuncs(L, PkeyMethods, 0);
-                lua_setfield(L, -2, "__index");
-            }
-            lua_setmetatable(L, -2);
-
-            return 1;
+            luaL_newlibtable(L, DigestMethods);
+            luaL_setfuncs(L, DigestMethods, 0);
+            lua_setfield(L, -2, "__index");
         }
-    },
+        lua_setmetatable(L, -2);
 
+        return 1;
+    }},
+
+    {"read_raw", [](lua_State * const L) -> int
+    {
+        auto const type = luaL_checknumber(L, 1);
+        auto const priv = lua_toboolean(L, 2);
+        std::size_t raw_len;
+        auto const raw = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 3, &raw_len));
+
+        auto const pkey = priv
+            ? EVP_PKEY_new_raw_private_key(type, nullptr, raw, raw_len)
+            : EVP_PKEY_new_raw_public_key(type, nullptr, raw, raw_len);
+        if (nullptr == pkey)
+        {
+            luaL_error(L, "EVP_PKEY_new_raw_private_key");
+            return 0;
+        }
+
+        push_evp_pkey(L, pkey);
+        return 1;
+    }},
+
+    {"read_pkey", [](lua_State * const L) -> int
+    {
+        std::size_t key_len;
+        auto const key = luaL_checklstring(L, 1, &key_len);
+        auto const priv = lua_toboolean(L, 2);
+        auto const format = luaL_checkstring(L, 3);
+
+        struct password_closure {
+            char const* data;
+            std::size_t len;
+        };
+        password_closure password;
+        password.data = luaL_optlstring(L, 4, "", &password.len);
+
+        pem_password_cb * cb = [](char *buf, int size, int rwflag, void *u) -> int
+        {
+            auto const p = static_cast<password_closure *>(u);
+            if (size < p->len)
+            {
+                return 0;
+            }
+            memcpy(buf, p->data, p->len);
+            return p->len;
+        };
+
+        auto const bio = BIO_new_mem_buf(key, key_len);
+        if (nullptr == bio)
+        {
+            luaL_error(L, "BIO_new_mem_buf");
+            return 0;
+        }
+
+        auto const pk =
+            0==strcmp(format, "pem")
+            ? (priv
+                ? PEM_read_bio_PrivateKey(bio, nullptr, cb, &password)
+                : PEM_read_bio_PUBKEY(bio, nullptr, cb, &password))
+            : 0==strcmp(format, "der")
+            ? (priv
+                ? d2i_PrivateKey_bio(bio, nullptr)
+                : d2i_PUBKEY_bio(bio, nullptr))
+            : nullptr;
+
+        BIO_free_all(bio);
+
+        if (nullptr == pk)
+        {
+            luaL_error(L, "failed to read key");
+            return 0;
+        }
+
+        push_evp_pkey(L, pk);
+        return 1;
+    }},
 
     {}
 };
+
+auto push_evp_pkey(lua_State * const L, EVP_PKEY * pkey) -> void
+{
+    *static_cast<EVP_PKEY**>(lua_newuserdatauv(L, sizeof pkey, 0)) = pkey;
+    if (luaL_newmetatable(L, "pkey"))
+    {
+        luaL_setfuncs(L, PkeyMT, 0);
+
+        luaL_newlibtable(L, PkeyMethods);
+        luaL_setfuncs(L, PkeyMethods, 0);
+        lua_setfield(L, -2, "__index");
+    }
+    lua_setmetatable(L, -2);
+}
 
 } // namespace
 
 auto luaopen_myopenssl(lua_State * const L) -> int
 {
     luaL_newlib(L, LIB);
+
+    lua_pushnumber(L, EVP_PKEY_X25519);
+    lua_setfield(L, -2, "EVP_PKEY_X25519");
+
+    lua_pushnumber(L, EVP_PKEY_ED25519);
+    lua_setfield(L, -2, "EVP_PKEY_ED25519");
+
+    lua_pushnumber(L, EVP_PKEY_X448);
+    lua_setfield(L, -2, "EVP_PKEY_X448");
+
+    lua_pushnumber(L, EVP_PKEY_ED448);
+    lua_setfield(L, -2, "EVP_PKEY_ED448");
+
     return 1;
 }

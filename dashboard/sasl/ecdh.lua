@@ -1,10 +1,4 @@
-local sha256  = myopenssl.getdigest 'sha256'
-
-local function raw_to_x25519(raw)
-    return myopenssl.readpkey(
-        "\x30\x2a\x30\x05\x06\x03\x2b\x65\x6e\x03\x21\x00" .. raw,
-        false, 'der')
-end
+local sha256  = myopenssl.get_digest 'sha256'
 
 return function(authzid, authcid, client_seckey)
     return coroutine.create(function()
@@ -21,7 +15,7 @@ return function(authzid, authcid, client_seckey)
             string.sub(server_response, 33, 64),
             string.sub(server_response, 65, 96)
 
-        local server_pubkey = raw_to_x25519(server_pubkey_raw)
+        local server_pubkey = myopenssl.read_raw(myopenssl.EVP_PKEY_X25519, false, server_pubkey_raw)
         local client_pubkey_raw = client_seckey:get_raw_public()
         local shared_secret = assert(client_seckey:derive(server_pubkey))
 
