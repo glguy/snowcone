@@ -13,19 +13,18 @@ extern "C" {
 
 namespace {
 
-template <typename F>
-class Closure {
-    F fun;
-
-public:
-    Closure(F && fun) : fun{std::move(fun)} {}
-
-    template <typename... Ts>
-    requires std::invocable<F, Ts...>
-    static typename std::invoke_result<F, Ts...>::type invoke(Ts... args, void* u) {
-        return reinterpret_cast<Closure*>(u)->fun(args...);
+template <typename> struct Invoke_;
+template <typename F, typename R, typename... Ts>
+struct Invoke_<R (F::*) (Ts...) const>
+{
+    static R invoke(Ts... args, void* u)
+    {
+        return (*reinterpret_cast<F*>(u))(args...);
     }
 };
+
+template <typename F>
+using Invoke = Invoke_<decltype(&F::operator())>;
 
 auto push_evp_pkey(lua_State * const L, EVP_PKEY * pkey) -> void;
 
@@ -341,7 +340,7 @@ luaL_Reg const LIB [] {
         std::size_t pass_len;
         auto const pass = luaL_optlstring(L, 3, "", &pass_len);
 
-        Closure cb {[pass, pass_len](char *buf, int size, int rwflag) -> int
+        auto cb = [pass, pass_len](char *buf, int size, int rwflag) -> int
         {
             if (size < pass_len)
             {
@@ -349,7 +348,7 @@ luaL_Reg const LIB [] {
             }
             memcpy(buf, pass, pass_len);
             return pass_len;
-        }};
+        };
 
         auto const bio = BIO_new_mem_buf(key, key_len);
         if (nullptr == bio)
@@ -361,7 +360,7 @@ luaL_Reg const LIB [] {
 
         auto const pkey
             = (priv ? PEM_read_bio_PrivateKey : PEM_read_bio_PUBKEY)
-              (bio, nullptr, cb.invoke<char*, int, int>, &cb);
+              (bio, nullptr, Invoke<decltype(cb)>::invoke, &cb);
 
         BIO_free_all(bio);
 
