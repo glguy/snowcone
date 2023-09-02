@@ -46,7 +46,7 @@ auto encode(std::string_view const input, char* output) -> void
 
 auto decode(std::string_view const input, char* const output, std::size_t* const outlen) -> bool
 {
-    static constexpr int8_t const alphabet_values[] = {
+    static int8_t const alphabet_values[] = {
         -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
         -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
         -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,

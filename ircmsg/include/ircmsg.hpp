@@ -25,7 +25,7 @@ struct ircmsg
     std::string_view source;
     std::string_view command;
 
-    ircmsg() : tags(), args(), source(), command() {}
+    ircmsg() = default;
 
     ircmsg(
         std::vector<irctag> && tags,

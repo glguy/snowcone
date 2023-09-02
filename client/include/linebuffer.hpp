@@ -13,6 +13,7 @@
 
 #include <boost/asio/buffer.hpp>
 
+#include <algorithm>
 #include <concepts>
 #include <vector>
 
@@ -43,7 +44,7 @@ public:
      */
     auto get_buffer() -> boost::asio::mutable_buffers_1
     {
-        return boost::asio::buffer(&*end_, buffer.end() - end_);
+        return boost::asio::buffer(&*end_, std::distance(end_, buffer.end()));
     }
 
     /**
@@ -61,7 +62,8 @@ public:
     auto add_bytes(std::size_t n, std::invocable<char *> auto line_cb) -> void
     {
         auto const start = end_;
-        end_ += n;
+        std::advance(end_, n);
+
         // new data is now located in [start, end_)
 
         // cursor marks the beginning of the current line
@@ -72,9 +74,9 @@ public:
              nl = std::find(cursor, end_, '\n'))
         {
             // Null-terminate the line. Support both \n and \r\n
-            if (cursor < nl && *(nl - 1) == '\r')
+            if (cursor < nl && *std::prev(nl) == '\r')
             {
-                *(nl - 1) = '\0';
+                *std::prev(nl) = '\0';
             }
             else
             {
@@ -83,16 +85,14 @@ public:
 
             line_cb(&*cursor);
 
-            cursor = nl + 1;
+            cursor = std::next(nl);
         }
 
         // If any lines were processed, move all processed lines to
         // the front of the buffer
         if (cursor != buffer.begin())
         {
-            auto const used = cursor - buffer.begin();
-            std::move(cursor, end_, buffer.begin());
-            end_ -= used;
+            end_ = std::move(cursor, end_, buffer.begin());
         }
     }
 };
