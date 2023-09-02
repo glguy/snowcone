@@ -7,9 +7,24 @@ extern "C" {
 #include <lauxlib.h>
 }
 
+#include <concepts>
 #include <cstddef>
 
 namespace {
+
+template <typename F>
+class Closure {
+    F fun;
+
+public:
+    Closure(F && fun) : fun{std::move(fun)} {}
+
+    template <typename... Ts>
+    requires std::invocable<F, Ts...>
+    static typename std::invoke_result<F, Ts...>::type invoke(Ts... args, void* u) {
+        return reinterpret_cast<Closure*>(u)->fun(args...);
+    }
+};
 
 auto push_evp_pkey(lua_State * const L, EVP_PKEY * pkey) -> void;
 
@@ -23,17 +38,11 @@ luaL_Reg const DigestMethods[] {
 
         // Prepare the buffer
         luaL_Buffer B;
-        char* const md = luaL_buffinitsize(L, &B, EVP_MAX_MD_SIZE);
+        auto const md = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, EVP_MAX_MD_SIZE));
 
         // Perform the digest
         unsigned int size;
-        auto const success = EVP_Digest(
-            data,
-            count,
-            reinterpret_cast<unsigned char*>(md),
-            &size,
-            type,
-            nullptr);
+        auto const success = EVP_Digest(data, count, md, &size, type, nullptr);
 
         if (0 >= success)
         {
@@ -50,22 +59,15 @@ luaL_Reg const DigestMethods[] {
     {
         auto const type = *static_cast<EVP_MD const**>(luaL_checkudata(L, 1, "digest"));
         std::size_t data_len;
-        auto const data = luaL_checklstring(L, 2, &data_len);
+        auto const data = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 2, &data_len));
         std::size_t key_len;
         auto const key = luaL_checklstring(L, 3, &key_len);
 
         luaL_Buffer B;
-        auto const md = luaL_buffinitsize(L, &B, EVP_MAX_MD_SIZE);
+        auto const md = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, EVP_MAX_MD_SIZE));
 
         unsigned int md_len;
-        if (nullptr == HMAC(
-            type,
-            key,
-            key_len,
-            reinterpret_cast<unsigned char const*>(data),
-            data_len,
-            reinterpret_cast<unsigned char*>(md),
-            &md_len))
+        if (nullptr == HMAC(type, key, key_len, data, data_len, md, &md_len))
         {
             luaL_error(L, "HMAC");
             return 0;
@@ -79,7 +81,8 @@ luaL_Reg const DigestMethods[] {
 };
 
 luaL_Reg const PkeyMT[] {
-    { "__gc", [](auto const L) {
+    { "__gc", [](auto const L)
+    {
         auto const pkeyPtr = static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
         EVP_PKEY_free(*pkeyPtr);
         *pkeyPtr = nullptr;
@@ -113,12 +116,7 @@ luaL_Reg const PkeyMethods[] {
 
         // Get the max output size
         std::size_t sig_len;
-        success = EVP_PKEY_sign(
-            ctx,
-            nullptr,
-            &sig_len,
-            data,
-            data_len);
+        success = EVP_PKEY_sign(ctx, nullptr, &sig_len, data, data_len);
 
         if (0 >= success)
         {
@@ -128,15 +126,9 @@ luaL_Reg const PkeyMethods[] {
         }
 
         luaL_Buffer B;
-        auto const sig = luaL_buffinitsize(L, &B, sig_len);
+        auto const sig = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, sig_len));
 
-        success = EVP_PKEY_sign(
-            ctx,
-            reinterpret_cast<unsigned char *>(sig),
-            &sig_len,
-            reinterpret_cast<unsigned char const*>(data),
-            data_len);
-
+        success = EVP_PKEY_sign(ctx, sig, &sig_len, data, data_len);
         EVP_PKEY_CTX_free(ctx);
 
         if (0 >= success)
@@ -331,8 +323,9 @@ luaL_Reg const LIB [] {
             : EVP_PKEY_new_raw_public_key(type, nullptr, raw, raw_len);
         if (nullptr == pkey)
         {
-            luaL_error(L, "EVP_PKEY_new_raw_private_key");
-            return 0;
+            luaL_pushfail(L);
+            lua_pushstring(L, "EVP_PKEY_new_raw_private_key");
+            return 2;
         }
 
         push_evp_pkey(L, pkey);
@@ -344,53 +337,41 @@ luaL_Reg const LIB [] {
         std::size_t key_len;
         auto const key = luaL_checklstring(L, 1, &key_len);
         auto const priv = lua_toboolean(L, 2);
-        auto const format = luaL_checkstring(L, 3);
+        std::size_t pass_len;
+        auto const pass = luaL_optlstring(L, 3, "", &pass_len);
 
-        struct password_closure {
-            char const* data;
-            std::size_t len;
-        };
-        password_closure password;
-        password.data = luaL_optlstring(L, 4, "", &password.len);
-
-        pem_password_cb * cb = [](char *buf, int size, int rwflag, void *u) -> int
+        Closure cb {[pass, pass_len](char *buf, int size, int rwflag) -> int
         {
-            auto const p = static_cast<password_closure *>(u);
-            if (size < p->len)
+            if (size < pass_len)
             {
                 return 0;
             }
-            memcpy(buf, p->data, p->len);
-            return p->len;
-        };
+            memcpy(buf, pass, pass_len);
+            return pass_len;
+        }};
 
         auto const bio = BIO_new_mem_buf(key, key_len);
         if (nullptr == bio)
         {
-            luaL_error(L, "BIO_new_mem_buf");
-            return 0;
+            luaL_pushfail(L);
+            lua_pushstring(L, "BIO_new_mem_buf");
+            return 2;
         }
 
-        auto const pk =
-            0==strcmp(format, "pem")
-            ? (priv
-                ? PEM_read_bio_PrivateKey(bio, nullptr, cb, &password)
-                : PEM_read_bio_PUBKEY(bio, nullptr, cb, &password))
-            : 0==strcmp(format, "der")
-            ? (priv
-                ? d2i_PrivateKey_bio(bio, nullptr)
-                : d2i_PUBKEY_bio(bio, nullptr))
-            : nullptr;
+        auto const pkey
+            = (priv ? PEM_read_bio_PrivateKey : PEM_read_bio_PUBKEY)
+              (bio, nullptr, cb.invoke<char*, int, int>, &cb);
 
         BIO_free_all(bio);
 
-        if (nullptr == pk)
+        if (nullptr == pkey)
         {
-            luaL_error(L, "failed to read key");
-            return 0;
+            luaL_pushfail(L);
+            lua_pushstring(L, priv ? "PEM_read_bio_PrivateKey" : "PEM_read_bio_PUBKEY");
+            return 2;
         }
 
-        push_evp_pkey(L, pk);
+        push_evp_pkey(L, pkey);
         return 1;
     }},
 

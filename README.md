@@ -9,7 +9,7 @@ solanum server notice console as well as a relaxed chat client.
 To use snowcone, create a configuration file as described below
 and invoke one of the two modes:
 
-```
+```sh
 # These mode shortcuts (dashboard/ircc) work when snowcone is installed
 # otherwise you'll need to provide a path to the appropriate init.lua
 
@@ -25,11 +25,22 @@ $ snowcone ircc
 These are the baseline dependencies
 
 ```sh
-# Debian
-apt install liblua5.4-dev libboost-dev lua-penlight libidn-dev
+# Debian build dependencies
+apt install cmake pkg-config liblua5.4-dev libboost-dev libidn-dev libssl-dev libncurses-dev libgeoip-dev lua-mmdb lua-penlight
+# Optional on x86_64
+apt install libhyperscan-dev
+# Optional on arm64
+apt install libvectorscan-dev
+# Optional for testing
+apt install libgmock-dev libgtest-dev lua-check
 
 # Homebrew
-brew install lua luarocks boost libidn ncurses
+brew install cmake pkg-config lua luarocks boost libidn ncurses openssl
+# Optional on x86_64
+brew install hyperscan
+# Optional on arm64
+brew install vectorscan
+# Lua run-time dependencies
 luarocks install penlight mmdblua
 ```
 

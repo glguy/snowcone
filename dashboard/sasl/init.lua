@@ -23,7 +23,7 @@ end
 local function load_key(key, password)
     assert(key, "sasl key file not specified `irc_sasl_key`")
     key = assert(file.read(key), 'failed to read sasl key file')
-    key = assert(myopenssl.read_pkey(key, true, 'pem', password))
+    key = assert(myopenssl.read_pkey(key, true, password))
     return key
 end
 
@@ -58,7 +58,7 @@ function M.start_mech(mechanism, authcid, password, key, authzid)
     elseif mechanism == 'ECDH-X25519-CHALLENGE' then
         assert(key, 'missing private key')
         key = assert(snowcone.from_base64(key), 'bad base64 in private key')
-        key = myopenssl.read_raw(myopenssl.EVP_PKEY_X25519, true, key)
+        key = assert(myopenssl.read_raw(myopenssl.EVP_PKEY_X25519, true, key))
         co = require_ 'sasl.ecdh' (authzid, authcid, key)
     elseif mechanism == 'SCRAM-SHA-1'   then
         co = require_ 'sasl.scram' ('sha1', authzid, authcid, saslpassword)

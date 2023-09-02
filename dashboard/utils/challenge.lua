@@ -8,7 +8,7 @@ function M.start()
     -- make sure we have a username and a key before bothering the server
     local user          = assert(configuration.oper_username, 'missing oper_username')
     local rsa_key       = assert(file.read(configuration.challenge_key))
-    local key           = assert(myopenssl.read_pkey(rsa_key, true, 'pem', configuration.challenge_password))
+    local key           = assert(myopenssl.read_pkey(rsa_key, true, configuration.challenge_password))
 
     irc_state.challenge_key = key
     irc_state.challenge = {}

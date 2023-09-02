@@ -11,10 +11,6 @@ DESCRIPTION
   editable scripting environment to support rapidly adapting to the
   needs of the current situation.
 
-  Instead of bundling its own network connection support, snowcone relies
-  on the socat application to make network connections. This allows
-  snowcone to natively support a wide range of network connection options.
-
 MODES
   F1  recent connections
   F2  server connection load
