@@ -7,11 +7,15 @@ return function()
     irc_state = Irc()
 
     if configuration.capabilities then
-        local wanted = {}
+        local wanted = irc_state.caps_wanted
         for _, cap in ipairs(configuration.capabilities) do
-            wanted[cap] = true
+            local minus, name = cap:match '^(%-?)([^ ]+)$'
+            if minus == '-' then
+                wanted[name] = nil
+            elseif name ~= nil then
+                wanted[name] = true
+            end
         end
-        irc_state.caps_wanted = wanted
     end
 
     -- always request sasl cap when sasl is configured

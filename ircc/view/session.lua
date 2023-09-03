@@ -45,18 +45,20 @@ function M:render()
     normal()
     addstr '\n'
 
-    addstr ' Monitor:'
-    for k, v in tablex.sort(irc_state.monitor) do
-        if v.user then
-            green()
-            addstr ' ' addstr(v.user.nick)
-        else
-            red()
-            addstr ' ' addstr(k:lower())
+    if irc_state.monitor then
+        addstr ' Monitor:'
+        for k, v in tablex.sort(irc_state.monitor) do
+            if v.user then
+                green()
+                addstr ' ' addstr(v.user.nick)
+            else
+                red()
+                addstr ' ' addstr(k:lower())
+            end
         end
+        normal()
+        addstr '\n'
     end
-    normal()
-    addstr '\n'
 
     draw_global_load()
 end

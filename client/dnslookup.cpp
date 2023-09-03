@@ -9,6 +9,8 @@ extern "C" {
 #include <lauxlib.h>
 }
 
+#include <memory>
+
 using Resolver = boost::asio::ip::tcp::resolver;
 
 template<> char const* udata_name<Resolver> = "dnslookup";
@@ -53,7 +55,7 @@ auto l_dnslookup(lua_State *const L) -> int
         luaL_setfuncs(L, Methods, 0);
         lua_setfield(L, -2, "__index");
     });
-    new (resolver) Resolver {App::from_lua(L)->io_context};
+    std::construct_at(resolver, App::from_lua(L)->io_context);
 
     lua_rotate(L, -2, 1); // swap the callback and the udata
 

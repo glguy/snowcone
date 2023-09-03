@@ -12,6 +12,7 @@ extern "C" {
 #include <boost/asio/steady_timer.hpp>
 
 #include <chrono> // durations
+#include <memory>
 
 using Timer = boost::asio::steady_timer;
 
@@ -81,6 +82,6 @@ auto l_new_timer(lua_State *const L) -> int
         luaL_setfuncs(L, Methods, 0);
         lua_setfield(L, -2, "__index");
     });
-    new (timer) Timer {App::from_lua(L)->io_context};
+    std::construct_at(timer, App::from_lua(L)->io_context);
     return 1;
 }

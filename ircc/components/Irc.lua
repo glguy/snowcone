@@ -28,6 +28,26 @@ local function make_user_table()
     return tab
 end
 
+local caps_supported = {
+    'account-notify',
+    'account-tag',
+    'away-notify',
+    'batch',
+    'cap-notify',
+    'chghost',
+    'draft/chathistory',
+    'extended-join',
+    'invite-notify',
+    'multi-prefix',
+    'server-time',
+    'setname',
+    'soju.im/bouncer-networks',
+    'soju.im/bouncer-networks-notify',
+    'solanum.chat/identify-msg',
+    'solanum.chat/oper',
+    'solanum.chat/realhost',
+}
+
 function M:_init()
     self.phase = 'registration' -- registration, connected, closed
     self.caps_wanted = {}
@@ -53,6 +73,10 @@ function M:_init()
     self.modes_D = '' -- Modes that change a setting on a channel. Arg never
 
     self.users = make_user_table()
+
+    for _, cap in ipairs(caps_supported) do
+        self.caps_wanted[cap] = true
+    end
 end
 
 -- this table contains methods, but these methods get called on
