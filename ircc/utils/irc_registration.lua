@@ -18,13 +18,8 @@ return function()
         end
     end
 
-    -- always request sasl cap when sasl is configured
     local credentials = configuration.sasl_credentials
-    local default_credentials = credentials and credentials.default
-    if default_credentials then
-        irc_state.caps_wanted.sasl = true
-        irc_state.sasl_credentials = default_credentials
-    end
+    irc_state.sasl_credentials = credentials and credentials.default
 
     send('CAP', 'LS', '302')
 

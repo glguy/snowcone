@@ -39,6 +39,7 @@ local caps_supported = {
     'extended-join',
     'invite-notify',
     'multi-prefix',
+    'sasl',
     'server-time',
     'setname',
     'soju.im/bouncer-networks',
