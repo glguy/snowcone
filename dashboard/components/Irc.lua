@@ -190,6 +190,10 @@ function M:has_chathistory()
     return self.caps_enabled['draft/chathistory']
 end
 
+function M:has_sasl()
+    return self.caps_enabled.sasl
+end
+
 function M:get_channel(name)
     return self.channels[snowcone.irccase(name)]
 end

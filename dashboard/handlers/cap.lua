@@ -1,7 +1,29 @@
-local sasl        = require_ 'sasl'
-local send        = require 'utils.send'
+local sasl = require_ 'sasl'
+local send = require 'utils.send'
 
+-- callback functions for the CAP subcommands
 local CAP = {}
+
+local function request_caps(caps)
+    local caps_requested = irc_state.caps_requested
+    for _, cap in ipairs(caps) do
+        caps_requested[cap] = true
+    end
+    send('CAP', 'REQ', table.concat(caps, ' '))
+end
+
+local function check_end_of_req()
+    -- once all the requested caps have been ACKd clear up the request
+    if not next(irc_state.caps_requested) then
+        if irc_state:has_sasl() and irc_state.sasl_credentials then
+            local credentials = irc_state.sasl_credentials
+            irc_state.sasl_credentials = nil
+            sasl.start(credentials)
+        elseif irc_state.phase == 'registration' then
+            send('CAP', 'END')
+        end
+    end
+end
 
 function CAP.LS(x, y)
     -- CAP * LS * :x y z    -- continuation
@@ -27,13 +49,12 @@ function CAP.LS(x, y)
 
         for cap, _ in pairs(available) do
             if irc_state.caps_wanted[cap] and not irc_state.caps_enabled[cap] then
-                irc_state.caps_requested[cap] = true
                 table.insert(req, cap)
             end
         end
 
         if next(req) then
-            send('CAP', 'REQ', table.concat(req, ' '))
+            request_caps(req)
         elseif irc_state.phase == 'registration' then
             send('CAP', 'END')
         end
@@ -60,24 +81,11 @@ end
 
 function CAP.ACK(capsarg)
     for minus, cap in capsarg:gmatch '(%-?)([^ ]+)' do
-        irc_state.caps_requested[cap] = nil
-        if minus == '-' then
-            irc_state.caps_enabled[cap] = nil
-        else
-            irc_state.caps_enabled[cap] = true
-        end
+        irc_state.caps_requested[minus .. cap] = nil
+        irc_state.caps_enabled[cap] = minus == '' or nil
     end
 
-    -- once all the requested caps have been ACKd clear up the request
-    if not next(irc_state.caps_requested) then
-        if irc_state.caps_enabled.sasl and irc_state.sasl_credentials then
-            local credentials = irc_state.sasl_credentials
-            irc_state.sasl_credentials = nil
-            sasl.start(credentials)
-        elseif irc_state.phase == 'registration' then
-            send('CAP', 'END')
-        end
-    end
+    check_end_of_req()
 end
 
 function CAP.NAK(capsarg)
@@ -85,6 +93,8 @@ function CAP.NAK(capsarg)
         irc_state.caps_requested[cap] = nil
     end
     status('cap', "caps nak'd: %s", capsarg)
+
+    check_end_of_req()
 end
 
 function CAP.DEL(capsarg)
@@ -99,11 +109,10 @@ function CAP.NEW(capsarg)
     for cap, eq, arg in capsarg:gmatch '([^ =]+)(=?)([^ ]*)' do
         irc_state.caps_available[cap] = eq == '=' and arg or true
         if irc_state.caps_wanted[cap] and not irc_state.caps_enabled[cap] then
-            irc_state.caps_requested[cap] = true
             table.insert(req, cap)
         end
         if next(req) then
-            send('CAP', 'REQ', table.concat(req, ' '))
+            request_caps(req)
         end
     end
 end

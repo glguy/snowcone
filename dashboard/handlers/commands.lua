@@ -266,12 +266,8 @@ add_command('sasl', '$g', function(name)
     local entry = credentials[name]
     if not entry then
         status('sasl', 'unknown credentials')
-    elseif irc_state.caps_enabled.sasl then
+    elseif irc_state:has_sasl() then
         sasl.start(entry)
-    elseif irc_state.caps_available.sasl then
-        irc_state.caps_wanted.sasl = true
-        irc_state.sasl_credentials = entry
-        send('CAP', 'REQ', 'sasl')
     else
         status('sasl', 'sasl not available')
     end
