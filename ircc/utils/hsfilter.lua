@@ -12,8 +12,8 @@ local function send_db(check, db)
     conn:send(pattern:format(check, '', 'APPLY'))
 end
 
-return function(tab, platform)
+return function(exprs, flags, ids, platform)
     local check = math.random(0)
-    local db = hsfilter.serialize_regexp_db(tab, platform)
+    local db = hsfilter.serialize_regexp_db(exprs, flags, ids, platform)
     send_db(check, db)
 end
