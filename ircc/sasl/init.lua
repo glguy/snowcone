@@ -1,11 +1,20 @@
 local file = require 'pl.file'
 local send = require_ 'utils.send'
+local N = require 'utils.numerics'
 
-local M = {}
+local sasl_commands = {
+    [N.RPL_SASLSUCCESS] = true,
+    [N.ERR_SASLFAIL] = true,
+    [N.ERR_SASLABORTED] = true,
+    [N.RPL_SASLMECHS] = true,
+    [N.ERR_SASLALREADY] = true,
+    [N.ERR_SASLTOOLONG] = true,
+    AUTHENTICATE = true,
+}
 
 -- Takes a binary argument, base64 encodes it, and chunks it into multiple
 -- AUTHENTICATE commands
-function M.authenticate(body, secret)
+local function send_authenticate(body, secret)
     if body then
         body = snowcone.to_base64(body)
         local n = #body
@@ -21,13 +30,13 @@ function M.authenticate(body, secret)
 end
 
 local function load_key(key, password)
-    assert(key, "sasl key file not specified `irc_sasl_key`")
+    assert(key, "sasl key file not specified `key`")
     key = assert(file.read(key), 'failed to read sasl key file')
     key = assert(myopenssl.read_pkey(key, true, password))
     return key
 end
 
-function M.start_mech(mechanism, authcid, password, key, authzid)
+local function start_mech(mechanism, authcid, password, key, authzid)
 
     -- If libidn is available, we SaslPrep all the authentiation strings
     local saslpassword = password -- normal password will get used for private key decryption
@@ -71,25 +80,84 @@ function M.start_mech(mechanism, authcid, password, key, authzid)
     else
         error 'bad mechanism'
     end
-    return {'AUTHENTICATE', mechanism}, co
+    send('AUTHENTICATE', mechanism)
+    return co
 end
 
--- install SASL state machine based on configuration values
--- and send the first AUTHENTICATE command
-function M.start(credentials)
-    local success, auth_cmd
-    success, auth_cmd, irc_state.sasl = pcall(M.start_mech,
+-- Main body for a Task
+return function(self, credentials)
+    local success, mechanism = pcall(start_mech,
         credentials.mechanism,
         credentials.username,
         credentials.password,
         credentials.key,
         credentials.authzid
     )
-    if success then
-        send(table.unpack(auth_cmd))
-    else
-        status('sasl', 'startup failed: %s', auth_cmd)
+    if not success then
+        status('sasl', 'startup failed: %s', mechanism)
+        return
+    end
+
+    local chunks = {}
+    local n = 0
+    while true do
+        local irc = self:wait_for_command(sasl_commands)
+        local command = irc.command
+        if command == 'AUTHENTICATE' then
+            local chunk = irc[1]
+            if chunk == '+' then
+                chunk = ''
+            end
+
+            n = n + 1
+            chunks[n] = chunk
+
+            if #chunk < 400 then
+                local payload = snowcone.from_base64(table.concat(chunks))
+                chunks = {}
+                n = 0
+
+                local reply, secret
+                if payload == nil then
+                    status('sasl', 'bad authenticate base64')
+                else
+                    local message
+                    success, message, secret = coroutine.resume(mechanism, payload)
+                    if success then
+                        reply = message
+                    else
+                        status('sasl', 'mechanism error: %s', message)
+                    end
+                end
+                send_authenticate(reply, secret)
+                if not reply then
+                    return
+                end
+            end
+        elseif command == N.RPL_SASLSUCCESS then
+            status('irc', 'SASL success')
+            if irc_state.phase == 'registration' then
+                send('CAP', 'END')
+            end
+            return
+        else
+            -- these are all errors and are terminal
+            if command == N.ERR_SASLFAIL then
+                status('irc', 'SASL failed')
+            elseif command == N.ERR_SASLABORTED then
+                status('irc', 'SASL aborted')
+            elseif command == N.RPL_SASLMECHS then
+                status('irc', 'SASL mechanism unsupported')
+            elseif command == N.ERR_SASLTOOLONG then
+                status('irc', 'SASL too long')
+            elseif command == N.ERR_SASLALREADY then
+                status('irc', 'SASL already complete')
+            end
+
+            if irc_state.phase == 'registration' then
+                disconnect()
+            end
+            return
+        end
     end
 end
-
-return M

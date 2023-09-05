@@ -32,5 +32,7 @@ return function()
     local gecos = configuration.gecos or nick
 
     send('NICK', nick)
+    irc_state.nick = nick -- optimistic
+
     send('USER', user, '*', '*', gecos)
 end

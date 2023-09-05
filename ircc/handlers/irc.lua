@@ -3,12 +3,12 @@ local tablex      = require 'pl.tablex'
 
 local N           = require_ 'utils.numerics'
 local challenge   = require_ 'utils.challenge'
-local sasl        = require_ 'sasl'
 local send        = require_ 'utils.send'
 local split_nuh   = require_ 'utils.split_nick_user_host'
 local Buffer      = require  'components.Buffer'
 local Channel     = require  'components.Channel'
 local Member      = require  'components.Member'
+local Task        = require  'components.Task'
 local split_statusmsg = require 'utils.split_statusmsg'
 
 local function parse_source(source)
@@ -34,51 +34,9 @@ function M.CAP(irc)
     end
 end
 
-function M.AUTHENTICATE(irc)
-    if not irc_state.sasl then
-        status('sasl', 'no sasl session active')
-        return
-    end
-
-    local chunk = irc[1]
-    if chunk == '+' then
-        chunk = ''
-    end
-
-    if irc_state.authenticate == nil then
-        irc_state.authenticate = {chunk}
-    else
-        table.insert(irc_state.authenticate, chunk)
-    end
-
-    if #chunk < 400 then
-        local payload = snowcone.from_base64(table.concat(irc_state.authenticate))
-        irc_state.authenticate = nil
-
-        local reply, secret
-        if payload == nil then
-            status('sasl', 'bad authenticate base64')
-            -- discard the current sasl coroutine but still react
-            -- to sasl reply codes
-            irc_state.sasl = false
-        else
-            local success, message
-            success, message, secret = coroutine.resume(irc_state.sasl, payload)
-            if success then
-                reply = message
-            else
-                status('sasl', '%s', message)
-                irc_state.sasl = false
-            end
-        end
-
-        sasl.authenticate(reply, secret)
-    end
-end
-
 -- "<client> :Welcome to the <networkname> Network, <nick>[!<user>@<host>]"
 M[N.RPL_WELCOME] = function(irc)
-    irc_state.nick = irc[1]
+    irc_state.nick = irc[1] -- first confirmation
 end
 
 -- "<client> <1-13 tokens> :are supported by this server"
@@ -101,7 +59,7 @@ local function end_of_registration()
     status('irc', 'connected')
 
     if configuration.oper_username and configuration.challenge_key then
-        challenge.start()
+        Task(challenge)
     elseif configuration.oper_username and configuration.oper_password then
         send('OPER', configuration.oper_username,
             {content=configuration.oper_password, secret=true})
@@ -173,46 +131,29 @@ M[N.RPL_SNOMASK] = function(irc)
     status('irc', 'snomask %s', irc[2])
 end
 
-M[N.ERR_NOOPERHOST] = function()
-    challenge.fail('no oper host')
-end
-
-M[N.ERR_PASSWDMISMATCH] = function()
-    challenge.fail('oper password mismatch')
-end
-
-M[N.RPL_RSACHALLENGE2] = function(irc)
-    challenge.add_chunk(irc[2])
-end
-
-M[N.RPL_ENDOFRSACHALLENGE2] = function()
-    challenge.response()
-end
-
-M[N.RPL_YOUREOPER] = function()
-    status('irc', "you're oper")
-end
-
 -----------------------------------------------------------------------
 
--- "<client> <channel> <client count> :<topic>"
-M[N.RPL_LIST] = function(irc)
-    if irc_state.channel_list_complete then
-        irc_state.channel_list = {}
-        irc_state.channel_list_complete = nil
-    elseif not irc_state.channel_list then
-        irc_state.channel_list = {}
-    end
+M[N.RPL_LISTSTART] = function()
+    Task(function(self)
+        local list = {}
+        local list_commands = {[N.RPL_LIST]=true, [N.RPL_LISTEND]=true}
+        while true do
+            local irc = self:wait_for_command(list_commands)
 
-    irc_state.channel_list[irc[2]] = {
-        users = tonumber(irc[3]),
-        topic = irc[4],
-    }
-end
+            -- "<client> <channel> <client count> :<topic>"
+            if irc.command == N.RPL_LIST then
+                list[irc[2]] = {
+                    users = tonumber(irc[3]),
+                    topic = irc[4],
+                }
 
--- "<client> :End of /LIST"
-M[N.RPL_LISTEND] = function()
-    irc_state.channel_list_complete = true
+            -- "<client> :End of /LIST"
+            else
+                irc_state.channel_list = list
+                return
+            end
+        end
+    end)
 end
 
 -----------------------------------------------------------------------
@@ -273,54 +214,12 @@ end
 
 -----------------------------------------------------------------------
 
-M[N.RPL_SASLSUCCESS] = function()
-    if irc_state.sasl then
-        status('irc', 'SASL success')
-        irc_state.sasl = nil
-
-        if irc_state.phase == 'registration' then
-            send('CAP', 'END')
-        end
-    end
-end
-
-M[N.ERR_SASLFAIL] = function()
-    if irc_state.sasl ~= nil then
-        status('irc', 'SASL failed')
-        irc_state.sasl = nil
-
-        if irc_state.phase == 'registration' then
-            disconnect()
-        end
-    end
-end
-
-M[N.ERR_SASLABORTED] = function()
-    if irc_state.sasl ~= nil then
-        irc_state.sasl = nil
-
-        if irc_state.phase == 'registration' then
-            disconnect()
-        end
-    end
-end
-
-M[N.RPL_SASLMECHS] = function()
-    if irc_state.sasl then
-        status('irc', 'bad SASL mechanism')
-        irc_state.sasl = nil
-
-        if irc_state.phase == 'registration' then
-            disconnect()
-        end
-    end
-end
-
 local function new_nickname()
     if irc_state.phase == 'registration' then
         local nick = string.format('%.10s-%05d', configuration.nick, math.random(0,99999))
         send('NICK', nick)
         irc_state.recover_nick = snowcone.irccase(configuration.nick)
+        irc_state.nick = nick -- optimistic
     end
 end
 

@@ -1,4 +1,5 @@
 local Buffer = require 'components.Buffer'
+local Task = require 'components.Task'
 local challenge = require 'utils.challenge'
 local mkcommand = require 'utils.mkcommand'
 local sasl = require 'sasl'
@@ -173,7 +174,7 @@ add_command('challenge', '', function()
     elseif not configuration.challenge_key then
         status('challenge', 'no challenge key configured: `challenge_key`')
     else
-        challenge.start()
+        Task(challenge)
     end
 end)
 
@@ -200,7 +201,7 @@ add_command('sasl', '$g', function(name)
     if not entry then
         status('sasl', 'unknown credentials')
     elseif irc_state:has_sasl() then
-        sasl.start(entry)
+        Task(sasl, entry)
     else
         status('sasl', 'sasl not available')
     end

@@ -104,6 +104,8 @@ local defaults = {
     exiting = false,
     terminal_focus = true,
     notification_muted = {},
+
+    tasks = {},
 }
 
 function initialize()
@@ -436,6 +438,15 @@ local function on_irc(event, irc)
             local success, message = pcall(f, irc)
             if not success then
                 status('irc', 'irc handler error: %s', message)
+            end
+        end
+
+        for task, _ in pairs(tasks) do
+            if task.want_command[irc.command] then
+                task:resume_irc(irc)
+                if task:complete() then
+                    tasks[task] = nil
+                end
             end
         end
 
