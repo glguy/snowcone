@@ -43,7 +43,6 @@ stds = {
             "notification_muted", -- notifications we've already seen
             "exiting", -- true when the client is shutting down
             "focus", -- zoomed in message in console
-            "tasks", -- Set of Tasks waiting for IRC messages to resme
 
             "commands", -- mapping of the global command handlers
             "irc_handlers", -- mapping of IRC message handlers
