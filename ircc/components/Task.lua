@@ -3,30 +3,34 @@ local class = require 'pl.class'
 local M = class()
 M._name = 'Task'
 
-function M:_init(main, ...)
+function M:_init(queue, main, ...)
     self.co = coroutine.create(main)
-    local success, result = coroutine.resume(self.co, self, ...)
-    if not success then
-        status('Task', 'startup failed: %s', result)
-    elseif not self:complete() then
-        tasks[self] = true
-    end
+    self.queue = queue
+    queue[self] = true
+    self:resume(self, ...)
 end
 
-function M:wait_for_command(command_set)
+function M:wait_irc(command_set)
     self.want_command = command_set
     return coroutine.yield()
+end
+
+function M:resume_irc(irc)
+    self.want_command = nil
+    self:resume(irc)
 end
 
 function M:complete()
     return coroutine.status(self.co) == 'dead'
 end
 
-function M:resume_irc(irc)
-    self.want_command = nil
-    local success, result = coroutine.resume(self.co, irc)
+function M:resume(...)
+    local success, result = coroutine.resume(self.co, ...)
+    if self:complete() then
+        self.queue[self] = nil
+    end
     if not success then
-        status('Task', 'resume failed: %s', result)
+        status('Task', 'task failed: %s', result)
     end
 end
 

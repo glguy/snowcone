@@ -59,7 +59,7 @@ local function end_of_registration()
     status('irc', 'connected')
 
     if configuration.oper_username and configuration.challenge_key then
-        Task(challenge)
+        Task(tasks, challenge)
     elseif configuration.oper_username and configuration.oper_password then
         send('OPER', configuration.oper_username,
             {content=configuration.oper_password, secret=true})
@@ -134,11 +134,11 @@ end
 -----------------------------------------------------------------------
 
 M[N.RPL_LISTSTART] = function()
-    Task(function(self)
+    Task(tasks, function(self)
         local list = {}
         local list_commands = {[N.RPL_LIST]=true, [N.RPL_LISTEND]=true}
         while true do
-            local irc = self:wait_for_command(list_commands)
+            local irc = self:wait_irc(list_commands)
 
             -- "<client> <channel> <client count> :<topic>"
             if irc.command == N.RPL_LIST then

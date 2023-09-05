@@ -85,7 +85,7 @@ local function start_mech(mechanism, authcid, password, key, authzid)
 end
 
 -- Main body for a Task
-return function(self, credentials)
+return function(self, credentials, disconnect_on_failure)
     local success, mechanism = pcall(start_mech,
         credentials.mechanism,
         credentials.username,
@@ -101,7 +101,7 @@ return function(self, credentials)
     local chunks = {}
     local n = 0
     while true do
-        local irc = self:wait_for_command(sasl_commands)
+        local irc = self:wait_irc(sasl_commands)
         local command = irc.command
         if command == 'AUTHENTICATE' then
             local chunk = irc[1]
@@ -129,8 +129,10 @@ return function(self, credentials)
                         status('sasl', 'mechanism error: %s', message)
                     end
                 end
-                send_authenticate(reply, secret)
-                if not reply then
+                if reply or not disconnect_on_failure then
+                    send_authenticate(reply, secret)
+                else
+                    disconnect()
                     return
                 end
             end
@@ -154,7 +156,7 @@ return function(self, credentials)
                 status('irc', 'SASL already complete')
             end
 
-            if irc_state.phase == 'registration' then
+            if disconnect_on_failure then
                 disconnect()
             end
             return

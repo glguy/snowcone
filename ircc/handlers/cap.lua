@@ -19,7 +19,7 @@ local function check_end_of_req()
         if irc_state:has_sasl() and irc_state.sasl_credentials then
             local credentials = irc_state.sasl_credentials
             irc_state.sasl_credentials = nil
-            Task(sasl, credentials)
+            Task(tasks, sasl, credentials, irc_state.phase == 'registration')
         elseif irc_state.phase == 'registration' then
             send('CAP', 'END')
         end
