@@ -139,9 +139,6 @@ return function(self, credentials, disconnect_on_failure)
             end
         elseif command == N.RPL_SASLSUCCESS then
             status('irc', 'SASL success')
-            if irc_state.phase == 'registration' then
-                send('CAP', 'END')
-            end
             return
         else
             -- these are all errors and are terminal

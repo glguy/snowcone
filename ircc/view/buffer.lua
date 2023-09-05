@@ -142,9 +142,7 @@ local function draw_messages(buffer)
     local start = ncurses.getyx()
     local rows = math.max(0, tty_height - 1 - start)
 
-    if terminal_focus then
-        buffer:look()
-    end
+    buffer:look()
 
     drawing.draw_rotation(start, rows, buffer.messages, show_irc, render_irc)
 end
