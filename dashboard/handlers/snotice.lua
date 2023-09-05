@@ -40,7 +40,7 @@ function M.connect(ev)
         asn = math.tointeger(asn),
         time = ev.time,
         count = prev and prev.count+1 or 1,
-        mask = ev.nick .. '!' .. ev.user .. '@' .. ev.host .. ' ' .. ev.gecos,
+        mask = ev.nick .. '!' .. ev.user .. '@' .. ev.host .. '#' .. ev.gecos,
         timestamp = uptime,
     }
     users:insert(key, entry)
@@ -52,10 +52,17 @@ function M.connect(ev)
         population[ev.server] = pop + 1
     end
 
+    local function safematch(str, pat)
+        local success, result = pcall(string.find, str, pat)
+        return success and result
+    end
+
     for _, watch in ipairs(watches) do
         if watch.active then
-            local success, match = pcall(string.match, entry.mask, watch.mask)
-            if success and match then
+            local success = safematch(entry.mask, watch.mask) or
+                            safematch(entry.org, watch.mask) or
+                            entry.asn and safematch('AS'..entry.asn, watch.mask)
+            if success then
                 watch.hits = watch.hits + 1
                 entry.mark = watch.color or ncurses.red
                 if watch.beep  then ncurses.beep () end
