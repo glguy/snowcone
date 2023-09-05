@@ -26,7 +26,7 @@ local function request_caps(request)
                 for cap in caps:gmatch '[^ ]+' do
                     outstanding[cap] = nil
                 end
-                status('cap', "caps nak'd: %s", capsarg)
+                status('cap', "caps nak'd: %s", caps)
             end
         end
 
@@ -40,11 +40,6 @@ local function request_caps(request)
             send('CAP', 'END')
         end
     end)
-end
-
-local function check_end_of_req()
-    -- once all the requested caps have been ACKd clear up the request
-    
 end
 
 function CAP.LS(x, y)
