@@ -1,15 +1,16 @@
+local Set = require 'pl.Set'
 local file = require 'pl.file'
 local send = require_ 'utils.send'
 local N = require 'utils.numerics'
 
-local sasl_commands = {
-    [N.RPL_SASLSUCCESS] = true,
-    [N.ERR_SASLFAIL] = true,
-    [N.ERR_SASLABORTED] = true,
-    [N.RPL_SASLMECHS] = true,
-    [N.ERR_SASLALREADY] = true,
-    [N.ERR_SASLTOOLONG] = true,
-    AUTHENTICATE = true,
+local sasl_commands = Set{
+    N.RPL_SASLSUCCESS,
+    N.ERR_SASLFAIL,
+    N.ERR_SASLABORTED,
+    N.RPL_SASLMECHS,
+    N.ERR_SASLALREADY,
+    N.ERR_SASLTOOLONG,
+    "AUTHENTICATE",
 }
 
 -- Takes a binary argument, base64 encodes it, and chunks it into multiple

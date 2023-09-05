@@ -1,17 +1,18 @@
+local Set  = require 'pl.Set'
 local N    = require 'utils.numerics'
 local send = require 'utils.send'
 
-local commands1 = {
-    [N.ERR_NOOPERHOST] = true,
-    [N.RPL_RSACHALLENGE2] = true,
-    [N.RPL_ENDOFRSACHALLENGE2] = true,
-    [N.RPL_YOUREOPER] = true,
+local commands1 = Set{
+    N.ERR_NOOPERHOST,
+    N.RPL_RSACHALLENGE2,
+    N.RPL_ENDOFRSACHALLENGE2,
+    N.RPL_YOUREOPER,
 }
 
-local commands2 = {
-    [N.RPL_YOUREOPER] = true,
-    [N.ERR_PASSWDMISMATCH] = true,
-    [N.ERR_NOOPERHOST] = true,
+local commands2 = Set{
+    N.RPL_YOUREOPER,
+    N.ERR_PASSWDMISMATCH,
+    N.ERR_NOOPERHOST,
 }
 
 return function(self)
