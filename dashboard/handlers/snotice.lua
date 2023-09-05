@@ -61,7 +61,7 @@ function M.connect(ev)
         if watch.active then
             if
                 safematch(entry.mask, watch.mask) or
-                safematch(entry.org, watch.mask) or
+                entry.org and safematch(entry.org, watch.mask) or
                 entry.asn and safematch('AS'..entry.asn, watch.mask) or
                 entry.ip  and safematch(ev.nick .. '!' .. ev.user .. '@' .. ev.ip .. '#' .. ev.gecos, watch.mask)
             then
