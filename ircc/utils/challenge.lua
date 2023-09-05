@@ -11,6 +11,7 @@ local commands1 = {
 local commands2 = {
     [N.RPL_YOUREOPER] = true,
     [N.ERR_PASSWDMISMATCH] = true,
+    [N.ERR_NOOPERHOST] = true,
 }
 
 return function(self)
@@ -36,6 +37,7 @@ return function(self)
             break
         elseif command == N.RPL_YOUREOPER then
             status('challenge', 'already oper')
+            return
         elseif command == N.ERR_NOOPERHOST then
             status('challenge', 'host mismatch')
             return
@@ -55,5 +57,7 @@ return function(self)
         status('challenge', "oper up")
     elseif command == N.ERR_PASSWDMISMATCH then
         status('challenge', 'key mismatch')
+    elseif command == N.ERR_NOOPERHOST then
+        status('challenge', 'host mismatch')
     end
 end
