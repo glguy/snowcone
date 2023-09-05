@@ -13,9 +13,14 @@ extern "C"
 #include <lauxlib.h>
 }
 
+#include <openssl/evp.h>
+#include <openssl/x509.h>
+
 #include <charconv> // from_chars
 #include <deque>
+#include <iomanip>
 #include <memory>
+#include <sstream>
 #include <string>
 
 namespace
@@ -136,7 +141,7 @@ public:
     auto virtual connect(
         boost::asio::ip::tcp::resolver::results_type const&,
         std::string const&
-    ) -> boost::asio::awaitable<void> = 0;
+    ) -> boost::asio::awaitable<std::string> = 0;
 };
 
 class plain_irc_connection final : public irc_connection
@@ -164,10 +169,11 @@ public:
     auto connect(
         boost::asio::ip::tcp::resolver::results_type const& endpoints,
         std::string const&
-    ) -> boost::asio::awaitable<void> override
+    ) -> boost::asio::awaitable<std::string> override
     {
         co_await boost::asio::async_connect(socket_, endpoints, boost::asio::use_awaitable);
-        socket_.set_option(boost::asio::ip::tcp::no_delay(true));    
+        socket_.set_option(boost::asio::ip::tcp::no_delay(true));
+        co_return "";
     }
 
     auto virtual close() -> boost::system::error_code override
@@ -205,7 +211,7 @@ public:
     auto connect(
         boost::asio::ip::tcp::resolver::results_type const& endpoints,
         std::string const& verify
-    ) -> boost::asio::awaitable<void> override
+    ) -> boost::asio::awaitable<std::string> override
     {
         co_await boost::asio::async_connect(socket_.lowest_layer(), endpoints, boost::asio::use_awaitable);
         socket_.lowest_layer().set_option(boost::asio::ip::tcp::no_delay(true));
@@ -215,6 +221,19 @@ public:
             socket_.set_verify_callback(boost::asio::ssl::host_name_verification(verify));
         }
         co_await socket_.async_handshake(socket_.client, boost::asio::use_awaitable);
+
+        unsigned char md[EVP_MAX_MD_SIZE];
+        unsigned int md_len = 0; // if the digest somehow fails, use 0
+        auto const cert = SSL_get0_peer_certificate(socket_.native_handle());
+        X509_pubkey_digest(cert, EVP_sha256(), md, &md_len);
+
+        std::stringstream fingerprint;
+        fingerprint << std::hex << std::setfill('0');
+        for (int i = 0; i < md_len; i++) {
+            fingerprint << std::setw(2) << int{md[i]};
+        }
+
+        co_return fingerprint.str();
     }
 
     auto virtual close() -> boost::system::error_code override
@@ -232,7 +251,7 @@ auto l_close_irc(lua_State * const L) -> int
         luaL_error(L, "send to closed irc");
         return 0;
     }
-    
+
     auto const error = w->lock()->close();
     if (error)
     {
@@ -358,18 +377,18 @@ auto connect_thread(
 {
     try
     {
-        {
-            auto const endpoints = co_await
+        auto const endpoints = co_await
             boost::asio::ip::tcp::resolver{io_context}
-                .async_resolve(host, port, boost::asio::use_awaitable);
-            co_await irc->connect(endpoints, verify);
-        }
+            .async_resolve(host, port, boost::asio::use_awaitable);
+
+        auto const fingerprint = co_await irc->connect(endpoints, verify);
 
         boost::asio::co_spawn(io_context, irc->write_thread(), boost::asio::detached);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb); // function
         lua_pushstring(L, "connect"); // argument 1
-        safecall(L, "successful connect", 1);
+        lua_pushlstring(L, fingerprint.data(), fingerprint.size()); // argument 2
+        safecall(L, "successful connect", 2);
 
         for (LineBuffer buff{32'000};;)
         {

@@ -66,7 +66,7 @@ add_command('eval', '$r', function(args)
     end
 end)
 
-add_command('quit', '$R', quit)
+add_command('quit', '', quit)
 
 for k, _ in pairs(views) do
     add_command(k, '', function() view = k end)

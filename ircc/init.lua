@@ -39,6 +39,7 @@ end
 -- Local modules ======================================================
 
 local Editor             = require_ 'components.Editor'
+local Irc                = require_ 'components.Irc'
 local OrderedMap         = require_ 'components.OrderedMap'
 local addircstr          = require_ 'utils.irc_formatting'
 local send               = require_ 'utils.send'
@@ -302,14 +303,14 @@ if not tick_timer then
     tick_timer:start(1000, cb)
 end
 
-function disconnect(msg)
+function disconnect()
     if conn then
-        send('QUIT', msg or 'closing')
+        conn:close()
         conn = nil
     end
 end
 
-function quit(msg)
+function quit()
     if tick_timer then
         tick_timer:cancel()
         tick_timer = nil
@@ -320,7 +321,7 @@ function quit(msg)
     end
     if conn then
         exiting = true
-        disconnect(msg)
+        disconnect()
     else
         if not exiting then
             exiting = true
@@ -459,8 +460,19 @@ local function on_irc(event, irc)
 
         draw()
     elseif event == 'connect' then
-        status('irc', 'connecting')
+        irc_state = Irc()
+
+        if irc == '' then
+            status('irc', 'connecting plain')
+        else
+            status('irc', 'connecting tls: %s', irc)
+        end
+
+        local want_fingerprint = configuration.tls_fingerprint;
         if exiting then
+            disconnect()
+        elseif want_fingerprint and want_fingerprint ~= irc then
+            status('irc', 'expected fingerprint: %s', want_fingerprint)
             disconnect()
         else
             irc_registration()

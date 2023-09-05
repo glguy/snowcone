@@ -1,11 +1,6 @@
-local Irc = require_ 'components.Irc'
-
 local send = require_ 'utils.send'
 
 return function()
-
-    irc_state = Irc()
-
     if configuration.capabilities then
         local wanted = irc_state.caps_wanted
         for _, cap in ipairs(configuration.capabilities) do
