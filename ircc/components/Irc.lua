@@ -51,6 +51,8 @@ local caps_supported = {
 
 function M:_init()
     self.phase = 'registration' -- registration, connected, closed
+    self.tasks = {}
+
     self.caps_wanted = {}
     self.caps_enabled = {}
     self.caps_available = {}

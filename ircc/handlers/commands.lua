@@ -174,7 +174,7 @@ add_command('challenge', '', function()
     elseif not configuration.challenge_key then
         status('challenge', 'no challenge key configured: `challenge_key`')
     else
-        Task(tasks, challenge)
+        Task(irc_state.tasks, challenge)
     end
 end)
 
@@ -201,7 +201,7 @@ add_command('sasl', '$g', function(name)
     if not entry then
         status('sasl', 'unknown credentials')
     elseif irc_state:has_sasl() then
-        Task(tasks, sasl, entry, false)
+        Task(irc_state.tasks, sasl, entry, false)
     else
         status('sasl', 'sasl not available')
     end

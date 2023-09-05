@@ -441,7 +441,7 @@ local function on_irc(event, irc)
             end
         end
 
-        for task, _ in pairs(tasks) do
+        for task, _ in pairs(irc_state.tasks) do
             if task.want_command[irc.command] then
                 task:resume_irc(irc)
             end
