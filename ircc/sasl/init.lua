@@ -42,7 +42,7 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid)
 
     authcid = prep(authcid, mechanism == 'ANONYMOUS' and 'trace' or 'SASLprep')
     authzid = prep(authzid, 'SASLprep')
-    saslpassword = prep(password, 'SASLprep')
+    local saslpassword = prep(password, 'SASLprep')
 
     if mechanism == 'PLAIN' then
         return require_ 'sasl.plain' (authzid, authcid, saslpassword)
