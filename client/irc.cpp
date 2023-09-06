@@ -410,7 +410,6 @@ auto connect_thread(
 
 auto l_start_irc(lua_State *const L) -> int
 {
-    auto const a = App::from_lua(L);
 
     auto const tls = lua_toboolean(L, 1);
     auto const host = luaL_checkstring(L, 2);
@@ -424,27 +423,25 @@ auto l_start_irc(lua_State *const L) -> int
 
     // consume the callback function and name it
     auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
-
+    
+    auto const a = App::from_lua(L);
+    auto& io_context = a->io_context;
     std::shared_ptr<irc_connection> irc;
+
     if (tls)
     {
         auto ssl_context = build_ssl_context(client_cert, client_key, client_key_password);
-        irc = std::make_shared<tls_irc_connection>(a->io_context, ssl_context, L);
+        irc = std::make_shared<tls_irc_connection>(io_context, ssl_context, a->L);
     }
     else
     {
-        irc = std::make_shared<plain_irc_connection>(a->io_context, L);
+        irc = std::make_shared<plain_irc_connection>(io_context, a->L);
     }
 
-    // Run all callbacks on main thread
-    lua_rawgeti(L, LUA_REGISTRYINDEX, LUA_RIDX_MAINTHREAD);
-    auto const L_ = lua_tothread(L, -1);
-    lua_pop(L, 1);
-
     boost::asio::co_spawn(
-        a->io_context,
-        connect_thread(a->io_context, irc, L_, host, port, verify, irc_cb),
-        [L, irc_cb](std::exception_ptr e)
+        io_context,
+        connect_thread(io_context, irc, a->L, host, port, verify, irc_cb),
+        [L = a->L, irc_cb](std::exception_ptr e)
         {
             luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);
         });

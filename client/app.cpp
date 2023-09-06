@@ -16,11 +16,15 @@ extern "C"
 #include <iostream>
 #include <unistd.h>
 
+static char app_key;
+
 App::App()
     : io_context{}, stdin_poll{io_context, STDIN_FILENO}, winch{io_context, SIGWINCH}
 {
     L = luaL_newstate();
-    *reinterpret_cast<App **>(lua_getextraspace(L)) = this;
+    
+    lua_pushlightuserdata(L, this);
+    lua_rawsetp(L, LUA_REGISTRYINDEX, &app_key);
 }
 
 App::~App()
@@ -30,7 +34,10 @@ App::~App()
 
 auto App::from_lua(lua_State *const L) -> App *
 {
-    return *reinterpret_cast<App **>(lua_getextraspace(L));
+    lua_rawgetp(L, LUA_REGISTRYINDEX, &app_key);
+    auto const a = reinterpret_cast<App*>(lua_touserdata(L, -1));
+    lua_pop(L, 1);
+    return a;
 }
 
 auto App::do_mouse(int y, int x) -> void
