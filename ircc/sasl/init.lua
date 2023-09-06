@@ -86,7 +86,7 @@ local function start_mech(mechanism, authcid, password, key, authzid)
 end
 
 -- Main body for a Task
-return function(self, credentials, disconnect_on_failure)
+return function(task, credentials, disconnect_on_failure)
     local success, mechanism = pcall(start_mech,
         credentials.mechanism,
         credentials.username,
@@ -102,7 +102,7 @@ return function(self, credentials, disconnect_on_failure)
     local chunks = {}
     local n = 0
     while true do
-        local irc = self:wait_irc(sasl_commands)
+        local irc = task:wait_irc(sasl_commands)
         local command = irc.command
         if command == 'AUTHENTICATE' then
             local chunk = irc[1]

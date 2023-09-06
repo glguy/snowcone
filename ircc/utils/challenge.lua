@@ -15,7 +15,7 @@ local commands2 = Set{
     N.ERR_NOOPERHOST,
 }
 
-return function(self)
+return function(task)
     local file    = require 'pl.file'
 
     -- make sure we have a username and a key before bothering the server
@@ -29,7 +29,7 @@ return function(self)
 
     send('CHALLENGE', user)
     while true do
-        local irc = self:wait_irc(commands1)
+        local irc = task:wait_irc(commands1)
         local command = irc.command
         if command == N.RPL_RSACHALLENGE2 then
             n = n + 1
@@ -52,7 +52,7 @@ return function(self)
     local response = snowcone.to_base64(digest)
 
     send('CHALLENGE', '+' .. response)
-    local irc = self:wait_irc(commands2)
+    local irc = task:wait_irc(commands2)
     local command = irc.command
     if command == N.RPL_YOUREOPER then
         status('challenge', "oper up")
