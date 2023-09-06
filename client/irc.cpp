@@ -436,9 +436,14 @@ auto l_start_irc(lua_State *const L) -> int
         irc = std::make_shared<plain_irc_connection>(a->io_context, L);
     }
 
+    // Run all callbacks on main thread
+    lua_rawgeti(L, LUA_REGISTRYINDEX, LUA_RIDX_MAINTHREAD);
+    auto const L_ = lua_tothread(L, -1);
+    lua_pop(L, 1);
+
     boost::asio::co_spawn(
         a->io_context,
-        connect_thread(a->io_context, irc, L, host, port, verify, irc_cb),
+        connect_thread(a->io_context, irc, L_, host, port, verify, irc_cb),
         [L, irc_cb](std::exception_ptr e)
         {
             luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);
