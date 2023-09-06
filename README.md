@@ -131,11 +131,6 @@ except: `nick`, `host`, `port`.
     gecos = 'your realname text',
     pass = 'a server password',
 
-    oper_username = 'username', -- used with OPER and CHALLENGE commands
-    oper_password = 'password', -- used with OPER command
-    challenge_key = '/path/to/pem', -- used with CHALLENGE command
-    challenge_password = 'password', -- decryption password for challenge pem
-
     tls = true, -- set to false for plaintext connections
     tls_client_cert = '/path/to/pem', -- optional
     tls_client_key = '/path/to/pem', -- defaults to tls_client_cert
@@ -166,26 +161,10 @@ except: `nick`, `host`, `port`.
     plugin_dir = '/path/to/plugins',
     plugins = {}, -- list of plugin names
 
-    capabilities = { -- there are currently no default caps (sasl is automatic)
-        'account-notify',
-        'account-tag',
-        'away-notify',
-        'batch',
-        'cap-notify',
-        'chghost',
-        'draft/chathistory',
-        'draft/event-playback',
-        'extended-join',
-        'invite-notify',
-        'multi-prefix',
-        'server-time',
-        'setname',
-        'soju.im/bouncer-networks',
-        'soju.im/bouncer-networks-notify',
-        'soju.im/no-implicit-names',
-        'solanum.chat/identify-msg',
-        'solanum.chat/oper',
-        'solanum.chat/realhost',
-    },
+    -- Don't set these unless you run your own network
+    oper_username = 'username', -- used with OPER and CHALLENGE commands
+    oper_password = 'password', -- used with OPER command
+    challenge_key = '/path/to/pem', -- used with CHALLENGE command
+    challenge_password = 'password', -- decryption password for challenge pem
 }
 ```
