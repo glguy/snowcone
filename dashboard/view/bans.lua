@@ -66,6 +66,7 @@ local function show_entry(entry)
     (conn_filter == nil or conn_filter == not entry.reason) and
     (current_filter == nil or
      safematch(entry.mask, current_filter) or
+     safematch(entry.reason, current_filter) or
      match_key(entry.nicks, current_filter))
 end
 
