@@ -17,6 +17,7 @@ pkg_check_modules(NCURSESW REQUIRED IMPORTED_TARGET ncursesw>=6)
 pkg_check_modules(GEOIP             IMPORTED_TARGET geoip)
 pkg_check_modules(LIBHS             IMPORTED_TARGET libhs)
 pkg_check_modules(LIBIDN            IMPORTED_TARGET libidn)
+pkg_check_modules(UTF8PROC REQUIRED IMPORTED_TARGET libutf8proc)
 
 find_package(OpenSSL REQUIRED)
 find_package(Boost REQUIRED)

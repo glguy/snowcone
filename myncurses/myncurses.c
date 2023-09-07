@@ -1,14 +1,16 @@
 #define _XOPEN_SOURCE 600
 
-#include <stdlib.h>
-#include <assert.h>
+#include "myncurses.h"
+
+#include <lua.h>
+#include <lauxlib.h>
 
 #include <ncurses.h>
-#include "lua.h"
-#include "lauxlib.h"
-#include "lualib.h"
 
-#include "myncurses.h"
+#include <utf8proc.h>
+
+#include <assert.h>
+#include <stdlib.h>
 
 static int l_erase(lua_State *L)
 {
@@ -62,13 +64,48 @@ static int l_attrset(lua_State *L)
     return 0;
 }
 
+static void render(char const* str, size_t str_n)
+{
+    utf8proc_ssize_t buffer_n = utf8proc_decompose((utf8proc_uint8_t const*)str, (utf8proc_ssize_t)str_n, NULL, 0, 0);
+    if (buffer_n < 0) {
+        // best effort
+        addnstr(str, str_n);
+        return;
+    }
+
+    utf8proc_int32_t buffer[buffer_n];
+    utf8proc_decompose((utf8proc_uint8_t const*)str, (utf8proc_ssize_t)str_n, buffer, buffer_n, 0);
+
+    size_t gr_len;
+    for (size_t begin = 0, end; begin < buffer_n; begin += gr_len)
+    {
+        // end will be one-past-the-end
+        gr_len = 1;
+        cchar_t cell = {0};
+        cell.chars[0] = buffer[begin];
+
+        // Advance end to span a single grapheme
+        for (
+            utf8proc_int32_t state = 0;
+            begin + gr_len < buffer_n && !utf8proc_grapheme_break_stateful(buffer[begin + gr_len - 1], buffer[begin + gr_len], &state);
+            gr_len++)
+        {
+            if (gr_len < CCHARW_MAX)
+            {
+                cell.chars[gr_len] = buffer[begin+gr_len];
+            }
+        }
+        add_wch(&cell);
+    }
+}
+
 static int l_addstr(lua_State *L)
 {
     int const n = lua_gettop(L);
     for (int i = 1; i <= n; i++) {
         size_t len;
         char const* const str = luaL_checklstring(L, i, &len);
-        addnstr(str, len);
+        render(str, len);
     }
     return 0;
 }
@@ -89,11 +126,12 @@ static int l_mvaddstr(lua_State *L)
             move(y, x);
         } else {
             char const* const str = luaL_checklstring(L, 3, &len);
-            mvaddnstr(y, x, str, len);
+            move(y, x);
+            render(str, len);
 
             for (int i = 4; i <= n; i++) {
                 char const* const str = luaL_checklstring(L, i, &len);
-                addnstr(str, len);
+                render(str, len);
             }
         }
     }

@@ -1,3 +1,3 @@
 add_library(myncurses STATIC myncurses.c)
 target_include_directories(myncurses PUBLIC include)
-target_link_libraries(myncurses PkgConfig::LUA PkgConfig::NCURSESW)
+target_link_libraries(myncurses PkgConfig::LUA PkgConfig::NCURSESW PkgConfig::UTF8PROC)
