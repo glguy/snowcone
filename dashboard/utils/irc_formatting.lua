@@ -28,7 +28,7 @@ return function(str)
 
     while str ~= '' do
         local prefix, ctrl
-        prefix, ctrl, str = string.match(str, '^(%C*)(%c?)(.*)$')
+        prefix, ctrl, str = string.match(str, '^([^\x00-\x1f\x7f]*)(.?)(.*)$')
 
         if prefix ~= '' then
             addstr(prefix)
