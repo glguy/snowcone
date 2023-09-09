@@ -56,7 +56,13 @@ do
     local flags = app.parse_args(arg, {config=true})
     local settings_filename = flags.config or path.join(config_dir, 'settings.lua')
     local settings_file = file.read(settings_filename)
-    configuration = assert(pretty.read(settings_file))
+    if not settings_file then
+        error("Failed to read settings file: " .. settings_filename, 0)
+    end
+    configuration = pretty.read(settings_file)
+    if not configuration then
+        error("Failed to parse settings file: " .. settings_filename, 0)
+    end
 end
 
 -- Validate configuration =============================================
