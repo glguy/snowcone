@@ -305,7 +305,7 @@ end
 function conn_handlers.CON(fingerprint)
     irc_state = Irc()
 
-    if irc == '' then
+    if fingerprint == '' then
         status('irc', 'connecting plain')
     else
         status('irc', 'connecting tls: %s', fingerprint)
