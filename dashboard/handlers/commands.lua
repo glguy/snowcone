@@ -1,3 +1,4 @@
+local Set = require 'pl.Set'
 local tablex = require 'pl.tablex'
 local lexer = require 'pl.lexer'
 
@@ -5,7 +6,9 @@ local challenge = require 'utils.challenge'
 local mkcommand = require 'utils.mkcommand'
 local sasl = require 'sasl'
 local send = require 'utils.send'
+local Task = require 'components.Task'
 local utils_time = require 'utils.time'
+local N = require 'utils.numerics'
 
 local colormap =
   { black = ncurses.black, red = ncurses.red, green = ncurses.green,
@@ -281,6 +284,65 @@ add_command('kline_nick', '$g', function(nick)
         irc_state.kline_hunt[snowcone.irccase(nick)] = {}
         send('WHO', nick, '%tuihn,696')
     end
+end)
+
+add_command('drains', '', function()
+    Task(irc_state.tasks, function(task)
+        local replies = Set{N.RPL_MODLIST, N.RPL_ENDOFMODLIST}
+        local found = {}
+        local outstanding = {}
+        for k, _ in pairs(links) do
+            if servers.servers[k] then
+                outstanding[k] = true
+            end
+        end
+
+        send('MODLIST', 'drain', '*')
+
+        while next(outstanding) do
+            local irc = task:wait_irc(replies)
+            if irc.command == N.RPL_MODLIST and irc[2] == 'drain' then
+                table.insert(found, irc.source)
+            elseif irc.command == N.RPL_ENDOFMODLIST then
+                outstanding[irc.source] = nil
+            end
+        end
+
+        if next(found) then
+            status('drain', 'Drains loaded: %s', table.concat(found, ' '))
+        else
+            status('drain', 'No drains loaded')
+        end
+    end)
+end)
+
+add_command('sheds', '', function()
+    Task(irc_state.tasks, function(task)
+        local replies = Set{N.RPL_STATSDEBUG, N.RPL_ENDOFSTATS}
+        local found = {}
+        local outstanding = {}
+        for k, _ in pairs(links) do
+            if servers.servers[k] then
+                outstanding[k] = true
+                send('STATS', 'E', k)
+            end
+        end
+
+        while next(outstanding) do
+            local irc = task:wait_irc(replies)
+            if irc.command == N.RPL_STATSDEBUG and irc[2] == 'E' and irc[3]:startswith 'user shedding event' then
+                table.insert(found, irc.source)
+            elseif irc.command == N.RPL_ENDOFSTATS then
+                outstanding[irc.source] = nil
+            end
+        end
+
+        if next(found) then
+            status('sheds', 'Sheds active: %s', table.concat(found, ' '))
+        else
+            status('sheds', 'No sheds active')
+        end
+    end)
 end)
 
 return M

@@ -699,6 +699,12 @@ function irc_event.MSG(irc)
         end
     end
 
+    for task, _ in pairs(irc_state.tasks) do
+        if task.want_command[irc.command] then
+            task:resume_irc(irc)
+        end
+    end
+
     for _, plugin in ipairs(plugins) do
         local h = plugin.irc
         if h then
