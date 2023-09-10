@@ -55,8 +55,8 @@ install `gcc-11` there.
 
 ```sh
 cmake --preset arm-mac
-cmake --build --preset arm-mac
-out/build/intel-mac/arm-mac/ircc luaclient/init.lua
+cmake --build --preset arm-mac --target install
+out/install/intel-mac/bin/snowcone dashboard
 ```
 
 ## Dashboard - Important commands and behaviors
