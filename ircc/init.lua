@@ -254,87 +254,96 @@ local connect
 -- a global allows these to be replaced on a live connection
 irc_handlers = require_ 'handlers.irc'
 
-local function on_irc(event, irc)
-    if event == 'message' then
-        do
-            local time_tag = irc.tags.time
-            irc.time = time_tag and string.match(irc.tags.time, '^%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d%d%dZ$')
-                    or os.date '!%H:%M:%S'
-        end
-        irc.timestamp = uptime
+local conn_handlers = {}
 
-        messages:insert(true, irc)
-        liveness = uptime
-
-        -- Ignore chat history
-        local batch = irc_state.batches[irc.tags.batch]
-        if batch then
-            local n = batch.n + 1
-            batch.n = n
-            batch.messages[n] = irc
-            return
-        end
-
-        local f = irc_handlers[irc.command]
-        if f then
-            local success, message = pcall(f, irc)
-            if not success then
-                status('irc', 'irc handler error: %s', message)
-            end
-        end
-
-        for task, _ in pairs(irc_state.tasks) do
-            if task.want_command[irc.command] then
-                task:resume_irc(irc)
-            end
-        end
-
-        for _, plugin in pairs(plugins) do
-            local h = plugin.irc
-            if h then
-                local success, result = pcall(h, irc)
-                if not success then
-                    status(plugin.name, 'irc handler error: %s', result)
-                end
-            end
-        end
-        draw()
-
-    elseif event == 'connect' then
-        irc_state = Irc()
-
-        if irc == '' then
-            status('irc', 'connecting plain')
-        else
-            status('irc', 'connecting tls: %s', irc)
-        end
-
-        local want_fingerprint = configuration.tls_fingerprint;
-        if exiting then
-            disconnect()
-        elseif want_fingerprint and want_fingerprint ~= irc then
-            status('irc', 'expected fingerprint: %s', want_fingerprint)
-            disconnect()
-        else
-            irc_registration()
-        end
-    elseif event == 'closed' then
-        irc_state = nil
-        conn = nil
-        status('irc', 'disconnected: %s', irc or 'end of stream')
-
-        if exiting then
-            snowcone.shutdown()
-        else
-            reconnect_timer = snowcone.newtimer()
-            reconnect_timer:start(1000, function()
-                reconnect_timer = nil
-                connect()
-            end)
-        end
-    elseif event == 'bad message' then
-        status('irc', 'message parse error: %d', irc)
+function conn_handlers.MSG(irc)
+    do
+        local time_tag = irc.tags.time
+        irc.time = time_tag and string.match(irc.tags.time, '^%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d%d%dZ$')
+                or os.date '!%H:%M:%S'
     end
+    irc.timestamp = uptime
+
+    messages:insert(true, irc)
+    liveness = uptime
+
+    -- Ignore chat history
+    local batch = irc_state.batches[irc.tags.batch]
+    if batch then
+        local n = batch.n + 1
+        batch.n = n
+        batch.messages[n] = irc
+        return
+    end
+
+    local f = irc_handlers[irc.command]
+    if f then
+        local success, message = pcall(f, irc)
+        if not success then
+            status('irc', 'irc handler error: %s', message)
+        end
+    end
+
+    for task, _ in pairs(irc_state.tasks) do
+        if task.want_command[irc.command] then
+            task:resume_irc(irc)
+        end
+    end
+
+    for _, plugin in pairs(plugins) do
+        local h = plugin.irc
+        if h then
+            local success, result = pcall(h, irc)
+            if not success then
+                status(plugin.name, 'irc handler error: %s', result)
+            end
+        end
+    end
+    draw()
+end
+
+function conn_handlers.CON(fingerprint)
+    irc_state = Irc()
+
+    if irc == '' then
+        status('irc', 'connecting plain')
+    else
+        status('irc', 'connecting tls: %s', fingerprint)
+    end
+
+    local want_fingerprint = configuration.tls_fingerprint;
+    if exiting then
+        disconnect()
+    elseif want_fingerprint and want_fingerprint ~= fingerprint then
+        status('irc', 'expected fingerprint: %s', want_fingerprint)
+        disconnect()
+    else
+        irc_registration()
+    end
+end
+
+function conn_handlers.END(reason)
+    irc_state = nil
+    conn = nil
+    status('irc', 'disconnected: %s', reason or 'end of stream')
+
+    if exiting then
+        snowcone.shutdown()
+    else
+        reconnect_timer = snowcone.newtimer()
+        reconnect_timer:start(1000, function()
+            reconnect_timer = nil
+            connect()
+        end)
+    end
+end
+
+function conn_handlers.BAD(code)
+    status('irc', 'message parse error: %d', code)
+end
+
+local function on_irc(event, arg)
+    conn_handlers[event](arg)
 end
 
 -- declared above so that it's in scope in on_irc
@@ -384,9 +393,8 @@ function quit()
     end
 end
 
-
-local success, error_message = pcall(function()
-
+local function startup()
+    -- initialize global variables
     for k,v in pairs(defaults) do
         if not _G[k] then
             _G[k] = v
@@ -442,7 +450,10 @@ local success, error_message = pcall(function()
                 type = 'table',
                 elements = {type = 'string', pattern = '^[^\n\r\x00 ]+$', required = true}
             },
-            mention_patterns    = {type = 'table', elements = {type = 'string', required = true}},
+            mention_patterns    = {
+                type = 'table',
+                elements = {type = 'string', required = true}
+            },
             sasl_credentials    = {
                 type = 'table',
                 assocs = {
@@ -485,8 +496,9 @@ local success, error_message = pcall(function()
     if not conn and configuration.host then
         connect()
     end
-end)
+end
 
+local success, error_message = pcall(startup)
 if not success then
     status('startup', 'Error: %s', error_message)
     view = 'status'

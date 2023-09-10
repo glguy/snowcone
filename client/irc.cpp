@@ -328,14 +328,14 @@ auto handle_read(char *line, lua_State *L, int irc_cb) -> void
         {
             auto const msg = parse_irc_message(line); // might throw
             lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
-            lua_pushstring(L, "message");
+            lua_pushstring(L, "MSG");
             pushircmsg(L, msg);
             safecall(L, "irc message", 2);
         }
         catch (irc_parse_error const &e)
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
-            lua_pushstring(L, "bad message");
+            lua_pushstring(L, "BAD");
             lua_pushnumber(L, static_cast<lua_Number>(e.code));
             safecall(L, "irc parse error", 2);
         }
@@ -386,7 +386,7 @@ auto connect_thread(
         boost::asio::co_spawn(io_context, irc->write_thread(), boost::asio::detached);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb); // function
-        lua_pushstring(L, "connect"); // argument 1
+        lua_pushstring(L, "CON"); // argument 1
         lua_pushlstring(L, fingerprint.data(), fingerprint.size()); // argument 2
         safecall(L, "successful connect", 2);
 
@@ -400,7 +400,7 @@ auto connect_thread(
     catch (std::exception &e)
     {
         lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
-        lua_pushstring(L, "closed");
+        lua_pushstring(L, "END");
         lua_pushstring(L, e.what());
         safecall(L, "plain connect error", 2);
     }

@@ -651,7 +651,7 @@ local connect
 
 local irc_event = {}
 
-function irc_event.connect()
+function irc_event.CON()
     status('irc', 'connecting')
     if exiting then
         disconnect()
@@ -660,7 +660,7 @@ function irc_event.connect()
     end
 end
 
-function irc_event.closed(txt)
+function irc_event.END(txt)
     irc_state = nil
     conn = nil
     status('irc', 'disconnected %s', txt)
@@ -677,7 +677,7 @@ function irc_event.closed(txt)
 end
 
 local irc_handlers = require_ 'handlers.irc'
-function irc_event.message(irc)
+function irc_event.MSG(irc)
     local time
     if irc.tags.time then
         time = string.match(irc.tags.time, '^%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d%d%dZ$')
@@ -710,8 +710,8 @@ function irc_event.message(irc)
     end
 end
 
-irc_event['bad message'] = function(err)
-    status('irc', 'message parse error: %d', err)
+function irc_event.BAD(code)
+    status('irc', 'message parse error: %d', code)
 end
 
 local function on_irc(event, irc)
