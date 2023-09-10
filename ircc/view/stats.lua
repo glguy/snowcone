@@ -73,8 +73,6 @@ function M:render()
     end
 
     addstr '\n'
-
-    draw_global_load()
 end
 
 return M

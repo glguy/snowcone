@@ -45,8 +45,6 @@ function M:render()
             y = y + 1
         end
     end
-
-    draw_global_load()
 end
 
 return M

@@ -39,8 +39,7 @@ function M:render()
                 addstr '\n'
             end
         end
-end
-    draw_global_load()
+    end
 end
 
 return M

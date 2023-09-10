@@ -16,7 +16,7 @@ local M = {
         terminal_focus = false
     end,
 
-    [ctrl 'L'] = function() ncurses.clear() draw() end,
+    [ctrl 'L'] = function() ncurses.clear() end,
     [ctrl 'N'] = next_view,
     [ctrl 'P'] = prev_view,
 

@@ -63,7 +63,7 @@ stds = {
             "messages", -- OrderedMap of the recent IRC messages
 
             -- Rendering
-            "add_click", "add_button", "draw_global_load", "draw",
+            "add_click", "add_button", "draw",
 
             -- ncurses helpers
             "addstr", "mvaddstr",

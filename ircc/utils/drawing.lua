@@ -1,3 +1,5 @@
+local irc_formatting = require 'utils.irc_formatting'
+
 local M = {}
 
 function M.fade_time(timestamp, time)
@@ -79,6 +81,84 @@ function M.draw_rotation(start, rows, data, show_entry, draw)
             normal()
             mvaddstr(y, 0, clear_string)
         end
+    end
+end
+
+local input_mode_palette = {
+    command = ncurses.blue,
+    talk = ncurses.green,
+    filter = ncurses.red,
+}
+
+function M.draw_status_bar()
+    local titlecolor = ncurses.white
+
+    ncurses.colorset(ncurses.black, titlecolor)
+    mvaddstr(tty_height-1, 0, string.format('%-8.8s', view))
+
+    if input_mode then
+        local input_mode_color = input_mode_palette[input_mode]
+        ncurses.colorset(titlecolor, input_mode_color)
+        addstr('')
+        ncurses.colorset(ncurses.white, input_mode_color)
+        addstr(input_mode)
+        ncurses.colorset(input_mode_color)
+        addstr('')
+
+        if 1 < editor.first then
+            yellow()
+            addstr('…')
+            ncurses.colorset(input_mode_color)
+        else
+            addstr(' ')
+        end
+
+        if input_mode == 'filter' and not pcall(string.match, '', editor:content()) then
+            red()
+        end
+
+        local y0, x0 = ncurses.getyx()
+
+        addstr(editor.before_cursor)
+
+        -- cursor overflow: clear and redraw
+        local y1, x1 = ncurses.getyx()
+        if x1 == tty_width - 1 then
+            yellow()
+            mvaddstr(y0, x0-1, '…' .. string.rep(' ', tty_width)) -- erase line
+            ncurses.colorset(input_mode_color)
+            editor:overflow()
+            mvaddstr(y0, x0, editor.before_cursor)
+            y1, x1 = ncurses.getyx()
+        end
+
+        addstr(editor.at_cursor)
+        ncurses.move(y1, x1)
+        ncurses.cursset(1)
+    else
+        ncurses.colorset(titlecolor)
+        addstr('')
+        normal()
+
+        views[view]:draw_status()
+
+        if status_message then
+            irc_formatting(' ' .. status_message)
+        end
+
+        if scroll ~= 0 then
+            addstr(string.format(' SCROLL %d', scroll))
+        end
+
+        if filter ~= nil then
+            yellow()
+            addstr(' FILTER ')
+            normal()
+            addstr(string.format('%q', filter))
+        end
+
+        add_click(tty_height-1, 0, 9, next_view)
+        ncurses.cursset(0)
     end
 end
 

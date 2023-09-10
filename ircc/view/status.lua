@@ -23,7 +23,6 @@ function M:keypress(key)
     local h = keys[key]
     if h then
         h()
-        draw()
         return true -- consume
     end
 end
@@ -57,7 +56,6 @@ function M:render()
         normal()
         addircstr(entry.text)
     end)
-    draw_global_load()
 end
 
 return M

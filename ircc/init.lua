@@ -12,24 +12,44 @@ end
 
 addstr = ncurses.addstr
 mvaddstr = ncurses.mvaddstr
+do
+    -- try to avoid a bunch of table lookups
+    local attrset = ncurses.attrset
+    local attron = ncurses.attron
+    local attroff = ncurses.attroff
+    local colorset = ncurses.colorset
+    local WA_NORMAL = ncurses.WA_NORMAL
+    local WA_BOLD = ncurses.WA_BOLD
+    local WA_ITALIC = ncurses.WA_ITALIC
+    local WA_REVERSE = ncurses.WA_REVERSE
+    local WA_UNDERLINE = ncurses.WA_UNDERLINE
+    local red_ = ncurses.red
+    local green_ = ncurses.green
+    local blue_ = ncurses.blue
+    local cyan_ = ncurses.cyan
+    local black_ = ncurses.black
+    local magenta_ = ncurses.magenta
+    local yellow_ = ncurses.yellow
+    local white_ = ncurses.white
 
-function normal()       ncurses.attrset(ncurses.WA_NORMAL, 0)   end
-function bold()         ncurses.attron(ncurses.WA_BOLD)         end
-function bold_()        ncurses.attroff(ncurses.WA_BOLD)        end
-function italic()       ncurses.attron(ncurses.WA_ITALIC)       end
-function italic_()      ncurses.attroff(ncurses.WA_ITALIC)      end
-function reversevideo() ncurses.attron(ncurses.WA_REVERSE)      end
-function reversevideo_()ncurses.attroff(ncurses.WA_REVERSE)     end
-function underline()    ncurses.attron(ncurses.WA_UNDERLINE)    end
-function underline_()   ncurses.attroff(ncurses.WA_UNDERLINE)   end
-function red()          ncurses.colorset(ncurses.red)           end
-function green()        ncurses.colorset(ncurses.green)         end
-function blue()         ncurses.colorset(ncurses.blue)          end
-function cyan()         ncurses.colorset(ncurses.cyan)          end
-function black()        ncurses.colorset(ncurses.black)         end
-function magenta()      ncurses.colorset(ncurses.magenta)       end
-function yellow()       ncurses.colorset(ncurses.yellow)        end
-function white()        ncurses.colorset(ncurses.white)         end
+    function normal()        attrset(WA_NORMAL, 0)   end
+    function bold()          attron(WA_BOLD)         end
+    function bold_()         attroff(WA_BOLD)        end
+    function italic()        attron(WA_ITALIC)       end
+    function italic_()       attroff(WA_ITALIC)      end
+    function reversevideo()  attron(WA_REVERSE)      end
+    function reversevideo_() attroff(WA_REVERSE)     end
+    function underline()     attron(WA_UNDERLINE)    end
+    function underline_()    attroff(WA_UNDERLINE)   end
+    function red()           colorset(red_)          end
+    function green()         colorset(green_)        end
+    function blue()          colorset(blue_)         end
+    function cyan()          colorset(cyan_)         end
+    function black()         colorset(black_)        end
+    function magenta()       colorset(magenta_)      end
+    function yellow()        colorset(yellow_)       end
+    function white()         colorset(white_)        end
+end
 
 function require_(name)
     package.loaded[name] = nil
@@ -38,64 +58,13 @@ end
 
 -- Local modules ======================================================
 
+local drawing            = require_ 'utils.drawing'
 local Editor             = require_ 'components.Editor'
 local Irc                = require_ 'components.Irc'
-local OrderedMap         = require_ 'components.OrderedMap'
-local addircstr          = require_ 'utils.irc_formatting'
-local send               = require_ 'utils.send'
 local irc_registration   = require_ 'utils.irc_registration'
+local OrderedMap         = require_ 'components.OrderedMap'
 local plugin_manager     = require_ 'utils.plugin_manager'
-
--- Load configuration =================================================
-
-do
-    local config_home = os.getenv 'XDG_CONFIG_HOME'
-                     or path.join(assert(os.getenv 'HOME', 'HOME not set'), '.config')
-    config_dir = path.join(config_home, 'snowcone')
-
-    local flags = app.parse_args(arg, {config=true})
-    local settings_filename = flags.config or path.join(config_dir, 'settings.lua')
-    local settings_file = file.read(settings_filename)
-    if not settings_file then
-        error("Failed to read settings file: " .. settings_filename, 0)
-    end
-    configuration = pretty.read(settings_file)
-    if not configuration then
-        error("Failed to parse settings file: " .. settings_filename, 0)
-    end
-end
-
--- Validate configuration =============================================
-
-if not configuration.nick then
-    error 'Configuration nick required'
-end
-
-if string.match(configuration.nick, '[ \n\r\x00]') then
-    error 'Invalid character in nickname'
-end
-
-if configuration.user and string.match(configuration.user, '[ \n\r\x00]') then
-    error 'Invalid character in username'
-end
-
-if configuration.gecos and string.match(configuration.gecos, '[\n\r\x00]') then
-    error 'Invalid character in GECOS'
-end
-
-if configuration.pass and string.match(configuration.pass, '[\n\r\x00]') then
-    error 'Invalid character in server password'
-end
-
-if configuration.oper_username and string.match(configuration.oper_username, '[ \n\r\x00]') then
-    error 'Invalid character in operator username'
-end
-
--- Global state =======================================================
-
-function reset_filter()
-    filter = nil
-end
+local send               = require_ 'utils.send'
 
 local defaults = {
     -- state
@@ -120,10 +89,8 @@ function initialize()
     reset_filter()
 end
 
-for k,v in pairs(defaults) do
-    if not _G[k] then
-        _G[k] = v
-    end
+function reset_filter()
+    filter = nil
 end
 
 --  Helper functions ==================================================
@@ -171,84 +138,6 @@ end
 
 -- Screen rendering ===================================================
 
-local input_mode_palette = {
-    command = ncurses.blue,
-    talk = ncurses.green,
-    filter = ncurses.red,
-}
-
-function draw_global_load()
-    local titlecolor = ncurses.white
-
-    ncurses.colorset(ncurses.black, titlecolor)
-    mvaddstr(tty_height-1, 0, string.format('%-8.8s', view))
-
-    if input_mode then
-        local input_mode_color = input_mode_palette[input_mode]
-        ncurses.colorset(titlecolor, input_mode_color)
-        addstr('')
-        ncurses.colorset(ncurses.white, input_mode_color)
-        addstr(input_mode)
-        ncurses.colorset(input_mode_color)
-        addstr('')
-
-        if 1 < editor.first then
-            yellow()
-            addstr('…')
-            ncurses.colorset(input_mode_color)
-        else
-            addstr(' ')
-        end
-
-        if input_mode == 'filter' and not pcall(string.match, '', editor:content()) then
-            red()
-        end
-
-        local y0, x0 = ncurses.getyx()
-
-        addstr(editor.before_cursor)
-
-        -- cursor overflow: clear and redraw
-        local y1, x1 = ncurses.getyx()
-        if x1 == tty_width - 1 then
-            yellow()
-            mvaddstr(y0, x0-1, '…' .. string.rep(' ', tty_width)) -- erase line
-            ncurses.colorset(input_mode_color)
-            editor:overflow()
-            mvaddstr(y0, x0, editor.before_cursor)
-            y1, x1 = ncurses.getyx()
-        end
-
-        addstr(editor.at_cursor)
-        ncurses.move(y1, x1)
-        ncurses.cursset(1)
-    else
-        ncurses.colorset(titlecolor)
-        addstr('')
-        normal()
-
-        views[view]:draw_status()
-
-        if status_message then
-            addircstr(' ' .. status_message)
-        end
-
-        if scroll ~= 0 then
-            addstr(string.format(' SCROLL %d', scroll))
-        end
-
-        if filter ~= nil then
-            yellow()
-            addstr(' FILTER ')
-            normal()
-            addstr(string.format('%q', filter))
-        end
-
-        add_click(tty_height-1, 0, 9, next_view)
-        ncurses.cursset(0)
-    end
-end
-
 views = {
     stats = require_ 'view.stats',
     console = require_ 'view.console',
@@ -280,70 +169,14 @@ function prev_view()
     end
 end
 
-function draw()
+local function draw()
     clicks = {}
     ncurses.erase()
     normal()
     views[view]:render()
+    drawing.draw_status_bar()
     ncurses.refresh()
 end
-
--- Timers =============================================================
-
-if not tick_timer then
-    tick_timer = snowcone.newtimer()
-    local function cb()
-        tick_timer:start(1000, cb)
-        uptime = uptime + 1
-
-        if irc_state then
-            if irc_state.phase == 'connected' and uptime == liveness + 30 then
-                send('PING', 'snowcone')
-            elseif uptime == liveness + 60 then
-                conn:close()
-            end
-        end
-
-        draw()
-    end
-    tick_timer:start(1000, cb)
-end
-
-function disconnect()
-    if conn then
-        conn:close()
-        conn = nil
-    end
-end
-
-function quit()
-    if tick_timer then
-        tick_timer:cancel()
-        tick_timer = nil
-    end
-    if reconnect_timer then
-        reconnect_timer:cancel()
-        reconnect_timer = nil
-    end
-    if conn then
-        exiting = true
-        disconnect()
-    else
-        if not exiting then
-            exiting = true
-            snowcone.shutdown()
-        end
-    end
-end
-
--- Command handlers ===================================================
-
-commands = require_ 'handlers.commands'
-
--- Load plugins
-
-plugin_manager.startup()
-
 
 -- Callback Logic =====================================================
 
@@ -355,31 +188,33 @@ function M.on_keyboard(key)
     -- buffer text editing
     if input_mode and 0x20 <= key and (key < 0x7f or 0xa0 <= key) then
         editor:add(key)
-        draw()
-        return
+        goto done
     end
 
     if input_mode then
         local f = input_handlers[key]
         if f then
             f()
-            draw()
-            return
+            goto done
         end
     end
 
     -- view-specific key handlers - return true to consume event
     if views[view]:keypress(key) then
-        return
+        goto done
     end
 
     -- global key handlers
-    local f = key_handlers[key]
-    if f then
-        f()
-        draw()
-        return
+    do
+        local f = key_handlers[key]
+        if f then
+            f()
+            goto done
+        end
     end
+
+    ::done::
+    draw()
 end
 
 function M.on_paste(paste)
@@ -463,8 +298,8 @@ local function on_irc(event, irc)
                 end
             end
         end
-
         draw()
+
     elseif event == 'connect' then
         irc_state = Irc()
 
@@ -508,7 +343,7 @@ function connect()
         snowcone.connect,
         configuration.tls,
         configuration.host,
-        configuration.port,
+        configuration.port or configuration.tls and 6697 or 6667,
         configuration.tls_client_cert,
         configuration.tls_client_key,
         configuration.tls_client_password,
@@ -522,6 +357,138 @@ function connect()
     end
 end
 
-if not conn and configuration.host and configuration.port then
-    connect()
+function disconnect()
+    if conn then
+        conn:close()
+        conn = nil
+    end
+end
+
+function quit()
+    if tick_timer then
+        tick_timer:cancel()
+        tick_timer = nil
+    end
+    if reconnect_timer then
+        reconnect_timer:cancel()
+        reconnect_timer = nil
+    end
+    if conn then
+        exiting = true
+        disconnect()
+    else
+        if not exiting then
+            exiting = true
+            snowcone.shutdown()
+        end
+    end
+end
+
+
+local success, error_message = pcall(function()
+
+    for k,v in pairs(defaults) do
+        if not _G[k] then
+            _G[k] = v
+        end
+    end
+
+    commands = require_ 'handlers.commands'
+
+    -- Load configuration =============================================
+
+    do
+        local config_home = os.getenv 'XDG_CONFIG_HOME'
+                        or path.join(assert(os.getenv 'HOME', 'HOME not set'), '.config')
+        config_dir = path.join(config_home, 'snowcone')
+
+        local flags = app.parse_args(arg, {config=true})
+        local settings_filename = flags.config or path.join(config_dir, 'settings.lua')
+        local settings_file = file.read(settings_filename)
+        if not settings_file then
+            error("Failed to read settings file: " .. settings_filename, 0)
+        end
+        configuration = pretty.read(settings_file)
+        if not configuration then
+            error("Failed to parse settings file: " .. settings_filename, 0)
+        end
+    end
+
+    -- Validate configuration =========================================
+
+    local schema = require 'utils.schema'
+    local configuration_schema = {
+        type = 'table',
+        fields = {
+            host                = {type = 'string', required = true},
+            port                = {},
+            tls                 = {type = 'boolean'},
+            tls_client_cert     = {type = 'string'},
+            tls_client_key      = {type = 'string'},
+            tls_client_password = {type = 'string'},
+            tls_verify_host     = {type = 'string'},
+            nick                = {type = 'string', pattern = '^[^\n\r\x00 ]+$', required = true},
+            user                = {type = 'string', pattern = '^[^\n\r\x00 ]+$'},
+            gecos               = {type = 'string', pattern = '^[^\n\r\x00]+$'},
+            pass                = {type = 'string', pattern = '^[^\n\r\x00]+$'},
+            oper_username       = {type = 'string', pattern = '^[^\n\r\x00 ]+$'},
+            oper_password       = {type = 'string', pattern = '^[^\n\r\x00]+$'},
+            challenge_key       = {type = 'string'},
+            challenge_password  = {type = 'string'},
+            plugin_dir          = {type = 'string'},
+            plugins             = {type = 'table', elements = {type = 'string', required = true}},
+            notification_module = {type = 'string'},
+            capabilities        = {
+                type = 'table',
+                elements = {type = 'string', pattern = '^[^\n\r\x00 ]+$', required = true}
+            },
+            mention_patterns    = {type = 'table', elements = {type = 'string', required = true}},
+            sasl_credentials    = {
+                type = 'table',
+                assocs = {
+                    type = 'table',
+                    fields = {
+                        mechanism   = {type = 'string', required = true},
+                        username    = {type = 'string'},
+                        password    = {type = 'string'},
+                        key         = {type = 'string'},
+                        authzid     = {type = 'string'},
+            }}},
+        }
+    }
+    schema.check(configuration_schema, configuration)
+
+    -- Plugins ========================================================
+
+    plugin_manager.startup()
+
+    -- Timers =========================================================
+
+    if not tick_timer then
+        tick_timer = snowcone.newtimer()
+        local function cb()
+            tick_timer:start(1000, cb)
+            uptime = uptime + 1
+
+            if irc_state then
+                if irc_state.phase == 'connected' and uptime == liveness + 30 then
+                    send('PING', 'snowcone')
+                elseif uptime == liveness + 60 then
+                    conn:close()
+                end
+            end
+            draw()
+        end
+        tick_timer:start(1000, cb)
+    end
+
+    if not conn and configuration.host then
+        connect()
+    end
+end)
+
+if not success then
+    status('startup', 'Error: %s', error_message)
+    view = 'status'
+    draw()
 end

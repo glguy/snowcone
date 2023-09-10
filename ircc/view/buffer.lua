@@ -110,7 +110,6 @@ function M:keypress(key)
     local h = keys[key]
     if h then
         h()
-        draw()
         return true -- consume
     end
 end
@@ -156,7 +155,6 @@ function M:render()
         end
         draw_messages(buffer)
     end
-    draw_global_load()
 end
 
 function M:draw_status()

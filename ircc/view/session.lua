@@ -59,8 +59,6 @@ function M:render()
         normal()
         addstr '\n'
     end
-
-    draw_global_load()
 end
 
 return M

@@ -28,8 +28,6 @@ function M:render()
             end
         end
     end
-
-    draw_global_load()
 end
 
 return M
