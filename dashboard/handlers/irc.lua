@@ -102,8 +102,8 @@ local function end_of_registration()
         send('OPER', configuration.oper_username,
             {content=configuration.oper_password, secret=true})
     else
-        -- determine if we're already oper
-        send('MODE', irc_state.nick)
+        -- assume we get oper from a proxy
+        counter_sync_commands()
     end
 end
 
