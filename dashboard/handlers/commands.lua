@@ -281,8 +281,73 @@ add_command('kline_nick', '$g', function(nick)
     if entry then
         entry_to_kline(entry)
     else
-        irc_state.kline_hunt[snowcone.irccase(nick)] = {}
-        send('WHO', nick, '%tuihn,696')
+        Task(irc_state.tasks, function(task)
+            local key = snowcone.irccase(nick)
+
+            -- First try a WHO
+            local who_replies = Set{N.RPL_WHOSPCRPL, N.RPL_ENDOFWHO}
+            send('WHO', key, '%tuihn,696')
+            while true do
+                local irc = task:wait_irc(who_replies)
+                local command = irc.command
+
+                if command == N.RPL_WHOSPCRPL
+                and '696' == irc[2]
+                and key == snowcone.irccase(irc[6])
+                then
+                    prepare_kline(irc[6], irc[3], irc[5], irc[4])
+                    return
+
+                elseif command == N.RPL_ENDOFWHO
+                and key == snowcone.irccase(irc[2])
+                then
+                    break
+                end
+            end
+
+            local whowas_replies = Set{N.RPL_WHOWASUSER, N.ERR_WASNOSUCHNICK, N.RPL_ENDOFWHOWAS, N.RPL_WHOISACTUALLY}
+            send('WHOWAS', key, 1)
+            local user, host, gecos
+            while true do
+                local irc = task:wait_irc(whowas_replies)
+                local command = irc.command
+
+                -- "<client> <nick> <username> <host> * :<realname>"
+                if command == N.RPL_WHOWASUSER
+                and key == snowcone.irccase(irc[2])
+                then
+                    user = irc[3]
+                    host = irc[4]
+                    gecos = irc[6]
+
+                elseif command == N.ERR_WASNOSUCHNICK
+                and key == snowcone.irccase(irc[2])
+                then
+                    status('kline', 'Failed to find %s', irc[2])
+                    return
+
+                elseif command == N.RPL_ENDOFWHOWAS
+                and key == snowcone.irccase(irc[2])
+                then
+                    if user and host and gecos then
+                        prepare_kline(irc[2], user, host, '255.255.255.255')
+                    else
+                        status('kline', 'Failed to find %s', irc[2])
+                    end
+                    return
+
+                elseif command == N.RPL_WHOISACTUALLY
+                and key == snowcone.irccase(irc[2])
+                then
+                    if user and host and gecos then
+                        prepare_kline(irc[2], user, host, irc[3])
+                    else
+                        status('kline', 'Missing 314 response for ' .. irc[2])
+                    end
+                    return
+                end
+            end
+        end)
     end
 end)
 
