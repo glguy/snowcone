@@ -1,5 +1,6 @@
 -- Logic for IRC messages
 local Set         = require 'pl.Set'
+local Task        = require 'components.Task'
 local N           = require_ 'utils.numerics'
 local challenge   = require_ 'utils.challenge'
 local parse_snote = require_ 'utils.parse_snote'
@@ -54,7 +55,7 @@ local function end_of_registration()
     status('irc', 'connected')
 
     if configuration.oper_username and configuration.challenge_key then
-        challenge.start()
+        Task(irc_state.tasks, challenge)
     elseif configuration.oper_username and configuration.oper_password then
         send('OPER', configuration.oper_username,
             {content=configuration.oper_password, secret=true})
@@ -80,22 +81,6 @@ end
 
 M[N.RPL_SNOMASK] = function(irc)
     status('irc', 'snomask %s', irc[2])
-end
-
-M[N.ERR_NOOPERHOST] = function()
-    challenge.fail('no oper host')
-end
-
-M[N.ERR_PASSWDMISMATCH] = function()
-    challenge.fail('oper password mismatch')
-end
-
-M[N.RPL_RSACHALLENGE2] = function(irc)
-    challenge.add_chunk(irc[2])
-end
-
-M[N.RPL_ENDOFRSACHALLENGE2] = function()
-    challenge.response()
 end
 
 M[N.RPL_YOUREOPER] = function()

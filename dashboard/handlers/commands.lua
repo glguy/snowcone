@@ -243,7 +243,7 @@ add_command('challenge', '', function()
     elseif not configuration.challenge_key then
         status('challenge', 'no challenge key configured: `challenge_key`')
     else
-        challenge.start()
+        Task(irc_state.tasks, challenge)
     end
 end)
 
