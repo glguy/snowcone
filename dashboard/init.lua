@@ -39,7 +39,9 @@ end
 
 -- Local modules ======================================================
 
+local N                  = require 'utils.numerics'
 local NetTracker         = require_ 'components.NetTracker'
+local Task               = require_ 'components.Task'
 local Editor             = require_ 'components.Editor'
 local LoadTracker        = require_ 'components.LoadTracker'
 local OrderedMap         = require_ 'components.OrderedMap'
@@ -228,8 +230,28 @@ end
 
 function entry_to_unkline(entry)
     local mask = entry.user .. '@' .. entry.ip
-    send('TESTKLINE', mask)
     staged_action = {action = 'unkline', nick = entry.nick}
+
+    Task(irc_state.tasks, function(task)
+        local replies = Set{N.RPL_NOTESTLINE, N.RPL_TESTLINE}
+        send('TESTKLINE', mask)
+        while true do
+            local irc = task:wait_irc(replies)
+            local command = irc.command
+
+            if command == N.RPL_NOTESTLINE
+            and irc[2] == mask
+            then
+                staged_action = nil
+                return
+            elseif command == N.RPL_TESTLINE
+            and irc[2] == 'k'
+            then
+                staged_action.mask = irc[4]
+                return
+            end
+        end
+    end)
 end
 
 local function kline_ready()

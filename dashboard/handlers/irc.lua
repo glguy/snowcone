@@ -206,25 +206,6 @@ M[N.ERR_UNAVAILRESOURCE] = new_nickname
 
 -----------------------------------------------------------------------
 
-M[N.RPL_NOTESTLINE] = function()
-    if staged_action ~= nil
-    and staged_action.action == 'unkline'
-    and staged_action.mask == nil
-    then
-        staged_action = nil
-    end
-end
-
-M[N.RPL_TESTLINE] = function(irc)
-    if irc[2] == 'k'
-    and staged_action ~= nil
-    and staged_action.action == 'unkline'
-    and staged_action.mask == nil
-    then
-        staged_action.mask = irc[4]
-    end
-end
-
 M[N.RPL_TESTMASKGECOS] = function(irc)
     local loc, rem, mask, gecos = table.unpack(irc,2,5)
     local total = math.tointeger(loc) + math.tointeger(rem)
