@@ -2,7 +2,6 @@
 local Set         = require 'pl.Set'
 local N           = require_ 'utils.numerics'
 local challenge   = require_ 'utils.challenge'
-local sasl        = require_ 'sasl'
 local parse_snote = require_ 'utils.parse_snote'
 local send        = require 'utils.send'
 local split_nuh   = require_ 'utils.split_nick_user_host'
@@ -27,48 +26,6 @@ function M.CAP(irc)
     local h = cap_cmds[irc[2]]
     if h then
         h(table.unpack(irc, 3))
-    end
-end
-
-function M.AUTHENTICATE(irc)
-    if not irc_state.sasl then
-        status('sasl', 'no sasl session active')
-        return
-    end
-
-    local chunk = irc[1]
-    if chunk == '+' then
-        chunk = ''
-    end
-
-    if irc_state.authenticate == nil then
-        irc_state.authenticate = {chunk}
-    else
-        table.insert(irc_state.authenticate, chunk)
-    end
-
-    if #chunk < 400 then
-        local payload = snowcone.from_base64(table.concat(irc_state.authenticate))
-        irc_state.authenticate = nil
-
-        local reply, secret
-        if payload == nil then
-            status('sasl', 'bad authenticate base64')
-            -- discard the current sasl coroutine but still react
-            -- to sasl reply codes
-            irc_state.sasl = false
-        else
-            local success, message
-            success, message, secret = coroutine.resume(irc_state.sasl, payload)
-            if success then
-                reply = message
-            else
-                status('sasl', '%s', message)
-                irc_state.sasl = false
-            end
-        end
-
-        sasl.authenticate(reply, secret)
     end
 end
 
@@ -148,51 +105,8 @@ M[N.RPL_YOUREOPER] = function()
     status('irc', "you're oper")
 end
 
-M[N.RPL_SASLSUCCESS] = function()
-    if irc_state.sasl then
-        status('irc', 'SASL success')
-        irc_state.sasl = nil
-
-        if irc_state.phase == 'registration' then
-            send('CAP', 'END')
-        end
-    end
-end
-
-M[N.ERR_SASLFAIL] = function()
-    if irc_state.sasl ~= nil then
-        status('irc', 'SASL failed')
-        irc_state.sasl = nil
-
-        if irc_state.phase == 'registration' then
-            disconnect()
-        end
-    end
-end
-
-M[N.ERR_SASLABORTED] = function()
-    if irc_state.sasl ~= nil then
-        irc_state.sasl = nil
-
-        if irc_state.phase == 'registration' then
-            disconnect()
-        end
-    end
-end
-
-M[N.RPL_SASLMECHS] = function()
-    if irc_state.sasl then
-        status('irc', 'bad SASL mechanism')
-        irc_state.sasl = nil
-
-        if irc_state.phase == 'registration' then
-            disconnect()
-        end
-    end
-end
-
 local function new_nickname()
-    if irc_state.registration then
+    if irc_state.phase == 'registration' then
         local nick = string.format('%.10s-%05d', configuration.nick, math.random(0,99999))
         irc_state.nick = nick
         irc_state.target_nick = configuration.nick

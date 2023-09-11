@@ -39,6 +39,7 @@ end
 
 -- Local modules ======================================================
 
+local Irc                = require_ 'components.Irc'
 local N                  = require 'utils.numerics'
 local NetTracker         = require_ 'components.NetTracker'
 local Task               = require_ 'components.Task'
@@ -674,6 +675,7 @@ local connect
 local irc_event = {}
 
 function irc_event.CON()
+    irc_state = Irc()
     status('irc', 'connecting')
     if exiting then
         disconnect()
