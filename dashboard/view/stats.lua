@@ -45,13 +45,16 @@ function M:render()
 
     addstr('Plugins:      ')
     bold()
-    for i, plugin in ipairs(plugins) do
-        if i > 1 then
+    local first_plugin = true
+    for script_name, plugin in pairs(plugins) do
+        if first_plugin then
+            first_plugin = false
+        else
             bold_()
             addstr(', ')
             bold()
         end
-        addstr(plugin.name)
+        addstr(plugin.name or script_name)
     end
     bold_()
     addstr '\n'

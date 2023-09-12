@@ -210,7 +210,7 @@ function M.NOTICE(irc)
                     handled = true
                 end
 
-                for _, plugin in ipairs(plugins) do
+                for _, plugin in pairs(plugins) do
                     h = plugin.snotice
                     if h then
                         local success, err = pcall(h, event)

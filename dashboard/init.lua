@@ -663,7 +663,7 @@ plugin_manager.startup()
 
 commands = require_ 'handlers.commands'
 
-for _, plugin in ipairs(plugins) do
+for _, plugin in pairs(plugins) do
     local plugin_commands = plugin.commands
     if plugin_commands ~= nil then
         tablex.update(commands, plugin_commands)
@@ -731,7 +731,7 @@ function irc_event.MSG(irc)
         end
     end
 
-    for _, plugin in ipairs(plugins) do
+    for _, plugin in pairs(plugins) do
         local h = plugin.irc
         if h then
             local success, err = pcall(h, irc)

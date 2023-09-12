@@ -9,8 +9,8 @@ function M:render()
     addstr('          -= plugins =-\n')
     normal()
 
-    for i, plugin in ipairs(plugins) do
-        local name = plugin.name or '#' .. tostring(i)
+    for script_name, plugin in pairs(plugins) do
+        local name = plugin.name or script_name
 
         normal()
         bold()
