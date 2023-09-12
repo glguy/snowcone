@@ -218,7 +218,7 @@ auto l_parse_irc_tags(lua_State * const L) -> int
     try {
         pushtags(L, parse_irc_tags(buffer));
         return 1;
-    } catch (irc_parse_error e) {
+    } catch (irc_parse_error const& e) {
         return 0;
     }
 }

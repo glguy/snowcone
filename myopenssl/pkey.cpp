@@ -265,7 +265,7 @@ auto l_read_pkey(lua_State * const L) -> int
 
     auto cb = [pass, pass_len](char *buf, int size, int rwflag) -> int
     {
-        if (size < pass_len)
+        if (size < 0 || size_t(size) < pass_len)
         {
             return 0;
         }

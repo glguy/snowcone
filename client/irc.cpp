@@ -229,7 +229,7 @@ public:
 
         std::stringstream fingerprint;
         fingerprint << std::hex << std::setfill('0');
-        for (int i = 0; i < md_len; i++) {
+        for (unsigned i = 0; i < md_len; i++) {
             fingerprint << std::setw(2) << int{md[i]};
         }
 
