@@ -68,9 +68,9 @@ auto main(int argc, char const* argv[]) -> int
     }
 
     if (not strcmp("dashboard", argv[1])) {
-        argv[1] = CMAKE_INSTALL_FULL_DATAROOTDIR "/snowcone/dashboard/init.lua";
+        argv[1] = FULL_DATAROOTDIR "/snowcone/dashboard/init.lua";
     } else if (not strcmp("ircc", argv[1])) {
-        argv[1] = CMAKE_INSTALL_FULL_DATAROOTDIR "/snowcone/ircc/init.lua";
+        argv[1] = FULL_DATAROOTDIR "/snowcone/ircc/init.lua";
     }
 
     auto nc = NC{};
