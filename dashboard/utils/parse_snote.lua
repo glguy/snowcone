@@ -568,6 +568,66 @@ return function(time, server, str)
     end
 
     do
+        local module =
+        string.match(str, '^Module ([^ ]+) %[.*%] loaded at [^ ]+$')
+        if module then
+            return {
+                name = 'modload',
+                server = server,
+                time = time,
+                module = module,
+            }
+        end
+    end
+
+    do
+        local module =
+        string.match(str, '^Module ([^ ]+) unloaded$')
+        if module then
+            return {
+                name = 'modunload',
+                server = server,
+                time = time,
+                module = module,
+            }
+        end
+    end
+
+    do
+        local nick, user, host, oper, interval, reason =
+        string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} enabled user shedding %(interval: ([0-9]+) seconds, reason: (.*)%)$')
+        if nick then
+            return {
+                name = 'shedding_on',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                oper = oper,
+                interval = tonumber(interval),
+                reason = reason,
+            }
+        end
+    end
+
+    do
+        local nick, user, host, oper =
+        string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} disabled user shedding$')
+        if nick then
+            return {
+                name = 'shedding_off',
+                server = server,
+                time = time,
+                nick = nick,
+                user = user,
+                host = host,
+                oper = oper,
+            }
+        end
+    end
+
+    do
         local name = simple[str]
         if name then
             return {

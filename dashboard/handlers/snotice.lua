@@ -324,4 +324,24 @@ function M.spambot(ev)
     channel_flag(ev.time, ev.nick, ev.target, 4)
 end
 
+function M.modload(ev)
+    if ev.module == 'drain' then
+        drains[ev.server] = true
+    end
+end
+
+function M.modunload(ev)
+    if ev.module == 'drain' then
+        drains[ev.server] = nil
+    end
+end
+
+function M.shedding_on(ev)
+    sheds[ev.server] = sheds.interval
+end
+
+function M.shedding_off(ev)
+    sheds[ev.server] = nil
+end
+
 return M

@@ -225,6 +225,21 @@ function M:render()
                 normal()
             end
         end
+
+        addstr ' '
+
+        if drains[row.name] then
+            yellow()
+            reversevideo()
+            addstr 'D'
+            normal()
+        end
+        if sheds[row.name] then
+            red()
+            reversevideo()
+            addstr('S')
+            normal()
+        end
     end
     draw_global_load(label, tracker)
 end

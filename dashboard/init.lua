@@ -155,6 +155,8 @@ local defaults = {
     versions = {},
     uptimes = {},
     draw_suspend = 'no', -- no: draw normally; eligible: don't draw; suspended: a draw is needed
+    drains = {},
+    sheds = {},
 
     -- settings
     show_reasons = 'reason',

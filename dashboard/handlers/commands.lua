@@ -354,6 +354,7 @@ end)
 add_command('drains', '', function()
     Task(irc_state.tasks, function(task)
         local replies = Set{N.RPL_MODLIST, N.RPL_ENDOFMODLIST}
+        local found_set = {}
         local found = {}
         local outstanding = {}
         for k, _ in pairs(links) do
@@ -368,11 +369,13 @@ add_command('drains', '', function()
             local irc = task:wait_irc(replies)
             if irc.command == N.RPL_MODLIST and irc[2] == 'drain' then
                 table.insert(found, irc.source)
+                found_set[irc.source] = true
             elseif irc.command == N.RPL_ENDOFMODLIST then
                 outstanding[irc.source] = nil
             end
         end
 
+        drains = found_set
         if next(found) then
             status('drain', 'Drains loaded: %s', table.concat(found, ' '))
         else
@@ -384,6 +387,7 @@ end)
 add_command('sheds', '', function()
     Task(irc_state.tasks, function(task)
         local replies = Set{N.RPL_STATSDEBUG, N.RPL_ENDOFSTATS}
+        local found_set = {}
         local found = {}
         local outstanding = {}
         for k, _ in pairs(links) do
@@ -395,13 +399,18 @@ add_command('sheds', '', function()
 
         while next(outstanding) do
             local irc = task:wait_irc(replies)
-            if irc.command == N.RPL_STATSDEBUG and irc[2] == 'E' and irc[3]:startswith 'user shedding event' then
-                table.insert(found, irc.source)
+            if irc.command == N.RPL_STATSDEBUG and irc[2] == 'E' then
+                local interval = irc[3]:match 'user shedding event +[0-9]+ +seconds %(frequency=([0-9]+)%)'
+                if interval then
+                    found_set[irc.source] = tonumber(interval)
+                    table.insert(found, irc.source)
+                end
             elseif irc.command == N.RPL_ENDOFSTATS then
                 outstanding[irc.source] = nil
             end
         end
 
+        sheds = found_set
         if next(found) then
             status('sheds', 'Sheds active: %s', table.concat(found, ' '))
         else
