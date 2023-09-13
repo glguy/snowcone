@@ -663,13 +663,6 @@ plugin_manager.startup()
 
 commands = require_ 'handlers.commands'
 
-for _, plugin in pairs(plugins) do
-    local plugin_commands = plugin.commands
-    if plugin_commands ~= nil then
-        tablex.update(commands, plugin_commands)
-    end
-end
-
 -- Callback Logic =====================================================
 
 local connect
