@@ -1,14 +1,9 @@
+#pragma once
 /**
  * @file applib.hpp
- * @author Eric Mertens (emertens@gmail.com)
  * @brief Application Lua environment primitives and setup
- *
+ * @author Eric Mertens (emertens@gmail.com)
  */
-
-#pragma once
-
-struct ircmsg;
-struct configuration;
 
 struct lua_State;
 

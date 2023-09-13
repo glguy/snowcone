@@ -1,9 +1,14 @@
 #pragma once
-
-#include <string>
+/**
+ * @file app.hpp
+ * @author Eric Mertens (emertens@gmail.com)
+ * @brief Core application model
+ *
+ */
 
 #include <boost/asio.hpp>
-#include <boost/asio/ssl.hpp>
+
+#include <string_view>
 
 struct lua_State;
 
@@ -22,7 +27,7 @@ struct App
 
     auto do_mouse(int y, int x) -> void;
     auto do_keyboard(long key) -> void;
-    auto do_paste(std::string const&) -> void;
+    auto do_paste(std::string_view) -> void;
 
     auto startup() -> void;
     auto shutdown() -> void;

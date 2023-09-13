@@ -3,12 +3,11 @@ add_executable(snowcone
     main.cpp app.cpp applib.cpp bracketed_paste.cpp
     safecall.cpp irc.cpp timer.cpp dnslookup.cpp
     )
-
 target_link_libraries(snowcone PRIVATE
     PkgConfig::NCURSESW PkgConfig::LUA Boost::headers OpenSSL::SSL
     ircmsg myncurses mybase64 myopenssl)
 configure_file(config.hpp.in config.hpp @ONLY)
-target_include_directories(snowcone PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" include)
+target_include_directories(snowcone PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
 if(LIBHS_FOUND)
 target_link_libraries(snowcone PRIVATE hsfilter)

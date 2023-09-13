@@ -16,6 +16,8 @@ extern "C"
 #include <openssl/evp.h>
 #include <openssl/x509.h>
 
+#include <boost/asio/ssl.hpp>
+
 #include <charconv> // from_chars
 #include <deque>
 #include <iomanip>

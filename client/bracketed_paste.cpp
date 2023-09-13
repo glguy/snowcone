@@ -2,6 +2,8 @@
 
 #include <ncurses.h>
 
+#include <cstdio>
+
 BracketedPaste::BracketedPaste()
 {
     puts("\x1b[?2004h"); // enable bracketed paste

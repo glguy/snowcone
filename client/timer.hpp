@@ -1,11 +1,10 @@
+#pragma once
 /**
  * @file timer.hpp
  * @author Eric Mertens (emertens@gmail.com)
  * @brief Asyncronous timer objects
  *
  */
-
-#pragma once
 
 struct lua_State;
 

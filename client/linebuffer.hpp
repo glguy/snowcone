@@ -1,5 +1,4 @@
 #pragma once
-
 /**
  * @file linebuffer.hpp
  * @author Eric Mertens <emertens@gmail.com>

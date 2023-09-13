@@ -1,11 +1,10 @@
+#pragma once
 /**
  * @file dnslookup.hpp
  * @author Eric Mertens (emertens@gmail.com)
- * @brief Asyncronous dns lookup
+ * @brief Asynchronous dns lookup
  *
  */
-
-#pragma once
 
 struct lua_State;
 

@@ -58,7 +58,7 @@ auto App::do_keyboard(long key) -> void
     }
 }
 
-auto App::do_paste(std::string const& paste) -> void
+auto App::do_paste(std::string_view const paste) -> void
 {
     lua_pushlstring(L, paste.data(), paste.size());
     lua_callback(L, "on_paste");

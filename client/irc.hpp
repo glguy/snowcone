@@ -1,11 +1,10 @@
+#pragma once
 /**
  * @file irc.hpp
  * @author Eric Mertens (emertens@gmail.com)
  * @brief IRC connection logic
  *
  */
-
-#pragma once
 
 struct lua_State;
 struct irctag;

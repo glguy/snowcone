@@ -1,3 +1,4 @@
+#pragma once
 /**
  * @file safecall.hpp
  * @author Eric Mertens (emertens@gmail.com)
@@ -5,10 +6,8 @@
  *
  */
 
-#pragma once
-
-
 struct lua_State;
+
 /**
  * @brief Call a Lua function catching and reporting all errors
  *
