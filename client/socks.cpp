@@ -74,6 +74,10 @@ auto socks_connect(
     // Receive the connect reply
     buffer.resize(5); // version, reply, reserved, address-tag, first address byte
     co_await boost::asio::async_read(socket, boost::asio::buffer(buffer), boost::asio::use_awaitable);
+    if (buffer[0] != version_tag || buffer[1] != Reply::Succeeded)
+    {
+        throw std::runtime_error{"socks request unsuccessful"};
+    }
 
     // Ignore the returned address (first byte already in buffer)
     switch (buffer[3]) {
@@ -91,10 +95,5 @@ auto socks_connect(
             break;
         default:
             throw std::runtime_error {"bad socks confirmation address type"};
-    }
-
-    if (buffer[0] != version_tag || buffer[1] != Reply::Succeeded)
-    {
-        throw std::runtime_error{"socks request unsuccessful"};
     }
 }
