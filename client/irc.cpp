@@ -3,6 +3,7 @@
 #include "app.hpp"
 #include "linebuffer.hpp"
 #include "safecall.hpp"
+#include "socks.hpp"
 #include "userdata.hpp"
 
 #include <ircmsg.hpp>
@@ -142,7 +143,9 @@ public:
     auto virtual read_awaitable(boost::asio::mutable_buffers_1 const& buffers) -> boost::asio::awaitable<std::size_t> = 0;
     auto virtual connect(
         boost::asio::ip::tcp::resolver::results_type const&,
-        std::string const&
+        std::string const&,
+        std::string_view,
+        uint16_t
     ) -> boost::asio::awaitable<std::string> = 0;
 };
 
@@ -170,12 +173,20 @@ public:
 
     auto connect(
         boost::asio::ip::tcp::resolver::results_type const& endpoints,
-        std::string const&
+        std::string const&,
+        std::string_view socks_host,
+        uint16_t socks_port
     ) -> boost::asio::awaitable<std::string> override
     {
         co_await boost::asio::async_connect(socket_, endpoints, boost::asio::use_awaitable);
         socket_.set_option(boost::asio::ip::tcp::no_delay(true));
-        co_return "";
+
+        if (not socks_host.empty())
+        {
+            co_await socks_connect(socket_, socks_host, socks_port);
+        }
+
+        co_return ""; // no fingerprint
     }
 
     auto virtual close() -> boost::system::error_code override
@@ -212,11 +223,21 @@ public:
 
     auto connect(
         boost::asio::ip::tcp::resolver::results_type const& endpoints,
-        std::string const& verify
+        std::string const& verify,
+        std::string_view socks_host,
+        uint16_t socks_port
     ) -> boost::asio::awaitable<std::string> override
     {
-        co_await boost::asio::async_connect(socket_.lowest_layer(), endpoints, boost::asio::use_awaitable);
-        socket_.lowest_layer().set_option(boost::asio::ip::tcp::no_delay(true));
+        boost::asio::ip::tcp::socket {io_context};
+
+        co_await boost::asio::async_connect(socket_.next_layer(), endpoints, boost::asio::use_awaitable);
+        socket_.next_layer().set_option(boost::asio::ip::tcp::no_delay(true));
+
+        if (not socks_host.empty())
+        {
+            co_await socks_connect(socket_.next_layer(), socks_host, socks_port);
+        }
+
         if (not verify.empty())
         {
             socket_.set_verify_mode(boost::asio::ssl::verify_peer);
@@ -338,7 +359,7 @@ auto handle_read(char *line, lua_State *L, int irc_cb) -> void
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
             lua_pushstring(L, "BAD");
-            lua_pushnumber(L, static_cast<lua_Number>(e.code));
+            lua_pushinteger(L, static_cast<lua_Integer>(e.code));
             safecall(L, "irc parse error", 2);
         }
     }
@@ -372,18 +393,26 @@ auto connect_thread(
     std::shared_ptr<irc_connection> irc,
     lua_State *const L,
     std::string host,
-    std::string port,
+    uint16_t port,
     std::string verify,
+    std::string socks_host,
+    uint16_t socks_port,
     int irc_cb
 ) -> boost::asio::awaitable<void>
 {
+    if (not socks_host.empty())
+    {
+        std::swap(host, socks_host);
+        std::swap(port, socks_port);
+    }
+
     try
     {
         auto const endpoints = co_await
             boost::asio::ip::tcp::resolver{io_context}
-            .async_resolve(host, port, boost::asio::use_awaitable);
+            .async_resolve(host, std::to_string(port), boost::asio::use_awaitable);
 
-        auto const fingerprint = co_await irc->connect(endpoints, verify);
+        auto const fingerprint = co_await irc->connect(endpoints, verify, socks_host, socks_port);
 
         boost::asio::co_spawn(io_context, irc->write_thread(), boost::asio::detached);
 
@@ -415,17 +444,19 @@ auto l_start_irc(lua_State *const L) -> int
 
     auto const tls = lua_toboolean(L, 1);
     auto const host = luaL_checkstring(L, 2);
-    auto const port = luaL_checkstring(L, 3);
+    auto const port = luaL_checkinteger(L, 3);
     auto const client_cert = luaL_optlstring(L, 4, "", nullptr);
     auto const client_key = luaL_optlstring(L, 5, client_cert, nullptr);
     auto const client_key_password = luaL_optlstring(L, 6, "", nullptr);
     auto const verify = luaL_optlstring(L, 7, host, nullptr);
-    luaL_checkany(L, 8); // callback
-    lua_settop(L, 8);
+    auto const socks_host = luaL_optlstring(L, 8, "", nullptr);
+    auto const socks_port = luaL_optinteger(L, 9, 0);
+    luaL_checkany(L, 10); // callback
+    lua_settop(L, 10);
 
     // consume the callback function and name it
     auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
-    
+
     auto const a = App::from_lua(L);
     auto& io_context = a->io_context;
     std::shared_ptr<irc_connection> irc;
@@ -442,7 +473,7 @@ auto l_start_irc(lua_State *const L) -> int
 
     boost::asio::co_spawn(
         io_context,
-        connect_thread(io_context, irc, a->L, host, port, verify, irc_cb),
+        connect_thread(io_context, irc, a->L, host, port, verify, socks_host, socks_port, irc_cb),
         [L = a->L, irc_cb](std::exception_ptr e)
         {
             luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);

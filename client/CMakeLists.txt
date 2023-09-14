@@ -2,6 +2,7 @@
 add_executable(snowcone
     main.cpp app.cpp applib.cpp bracketed_paste.cpp
     safecall.cpp irc.cpp timer.cpp dnslookup.cpp
+    socks.cpp
     )
 target_link_libraries(snowcone PRIVATE
     PkgConfig::NCURSESW PkgConfig::LUA Boost::headers OpenSSL::SSL

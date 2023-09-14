@@ -311,7 +311,7 @@ function conn_handlers.CON(fingerprint)
         status('irc', 'connecting tls: %s', fingerprint)
     end
 
-    local want_fingerprint = configuration.tls_fingerprint;
+    local want_fingerprint = configuration.tls_fingerprint
     if exiting then
         disconnect()
     elseif want_fingerprint and want_fingerprint ~= fingerprint then
@@ -357,6 +357,8 @@ function connect()
         configuration.tls_client_key,
         configuration.tls_client_password,
         configuration.tls_verify_host,
+        configuration.socks_host,
+        configuration.socks_port,
         on_irc)
     if success then
         status('irc', 'connecting')
@@ -429,12 +431,15 @@ local function startup()
         type = 'table',
         fields = {
             host                = {type = 'string', required = true},
-            port                = {},
+            port                = {type = 'number'},
+            socks_host          = {type = 'string'},
+            socks_port          = {type = 'number'},
             tls                 = {type = 'boolean'},
             tls_client_cert     = {type = 'string'},
             tls_client_key      = {type = 'string'},
             tls_client_password = {type = 'string'},
             tls_verify_host     = {type = 'string'},
+            tls_fingerprint     = {type = 'string'},
             nick                = {type = 'string', pattern = '^[^\n\r\x00 ]+$', required = true},
             user                = {type = 'string', pattern = '^[^\n\r\x00 ]+$'},
             gecos               = {type = 'string', pattern = '^[^\n\r\x00]+$'},
