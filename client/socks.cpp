@@ -1,6 +1,7 @@
 #include "socks.hpp"
 
 #include <boost/asio.hpp>
+#include <boost/endian.hpp>
 
 #include <array>
 #include <iterator>
@@ -45,7 +46,7 @@ auto socks_connect(
 ) -> boost::asio::awaitable<void>
 {
     if (host.size() > 255) {
-        throw std::runtime_error{"hostname too big for socks"};
+        throw std::runtime_error{"SOCKS: Hostname too long"};
     }
 
     // Send the client hello
@@ -58,19 +59,23 @@ auto socks_connect(
     {
         uint8_t buffer[2]; // version, method
         co_await boost::asio::async_read(socket, boost::asio::buffer(buffer), boost::asio::use_awaitable);
-        if (buffer[0] != version_tag || buffer[1] != AuthMethod::NoAuth) {
-            throw std::runtime_error {"bad socks hello"};
+        if (buffer[0] != version_tag)
+        {
+            throw std::runtime_error{"SOCKS: Bad hello version"};
+        }
+        if (buffer[1] != AuthMethod::NoAuth) {
+            throw std::runtime_error{"SOCKS: Authentication required"};
         }
     }
 
     // Build the connect request
     {
         uint8_t request[] {version_tag, Command::Connect, reserved, 3, uint8_t(host.size())};
-        uint8_t port_buffer[] {uint8_t(port>>8), uint8_t(port)};
+        boost::endian::big_uint16_t port_be {port};
         std::array<boost::asio::const_buffer, 3> const buffers {
             boost::asio::buffer(request),
             boost::asio::buffer(host),
-            boost::asio::buffer(port_buffer),
+            boost::asio::buffer(&port_be, sizeof port_be),
         };
         co_await boost::asio::async_write(socket, buffers, boost::asio::use_awaitable);
     }
@@ -78,9 +83,22 @@ auto socks_connect(
     // Receive the connect reply
     uint8_t reply[5]; // version, reply, reserved, address-tag, first address byte
     co_await boost::asio::async_read(socket, boost::asio::buffer(reply), boost::asio::use_awaitable);
-    if (reply[0] != version_tag || reply[1] != Reply::Succeeded)
+    if (reply[0] != version_tag)
     {
-        throw std::runtime_error{"socks request unsuccessful"};
+        throw std::runtime_error{"SOCKS: Bad reply version"};
+    }
+    switch (reply[1])
+    {
+        case Reply::Succeeded:           break;
+        case Reply::GeneralFailure:      throw std::runtime_error{"SOCKS: General server failure"};
+        case Reply::NotAllowed:          throw std::runtime_error{"SOCKS: Connection not allowed by ruleset"};
+        case Reply::NetworkUnreachable:  throw std::runtime_error{"SOCKS: Network unreachable"};
+        case Reply::HostUnreachable:     throw std::runtime_error{"SOCKS: Host unreachable"};
+        case Reply::ConnectionRefused:   throw std::runtime_error{"SOCKS: Connection refused"};
+        case Reply::TtlExpired:          throw std::runtime_error{"SOCKS: TTL expired"};
+        case Reply::CommandNotSupported: throw std::runtime_error{"SOCKS: Command not supported"};
+        case Reply::AddressNotSupported: throw std::runtime_error{"SOCKS: Address type not supported"};
+        default:                         throw std::runtime_error{"SOCKS: Unknown reply code"};
     }
 
     // Ignore the returned address (first byte already in buffer)
@@ -101,6 +119,6 @@ auto socks_connect(
             break;
         }
         default:
-            throw std::runtime_error {"bad socks confirmation address type"};
+            throw std::runtime_error {"SOCKS: Unknown reply address type"};
     }
 }
