@@ -147,6 +147,21 @@ public:
         std::string_view,
         uint16_t
     ) -> boost::asio::awaitable<std::string> = 0;
+
+    static auto basic_connect(
+        boost::asio::ip::tcp::socket& socket,
+        boost::asio::ip::tcp::resolver::results_type const& endpoints,
+        std::string_view socks_host,
+        uint16_t socks_port
+    ) -> boost::asio::awaitable<void>
+    {
+        co_await boost::asio::async_connect(socket, endpoints, boost::asio::use_awaitable);
+        socket.set_option(boost::asio::ip::tcp::no_delay(true));
+        if (not socks_host.empty())
+        {
+            co_await socks_connect(socket, socks_host, socks_port);
+        }
+    }
 };
 
 class plain_irc_connection final : public irc_connection
@@ -178,14 +193,7 @@ public:
         uint16_t socks_port
     ) -> boost::asio::awaitable<std::string> override
     {
-        co_await boost::asio::async_connect(socket_, endpoints, boost::asio::use_awaitable);
-        socket_.set_option(boost::asio::ip::tcp::no_delay(true));
-
-        if (not socks_host.empty())
-        {
-            co_await socks_connect(socket_, socks_host, socks_port);
-        }
-
+        co_await irc_connection::basic_connect(socket_, endpoints, socks_host, socks_port);
         co_return ""; // no fingerprint
     }
 
@@ -228,16 +236,10 @@ public:
         uint16_t socks_port
     ) -> boost::asio::awaitable<std::string> override
     {
-        boost::asio::ip::tcp::socket {io_context};
+        // TCP connection
+        co_await irc_connection::basic_connect(socket_.next_layer(), endpoints, socks_host, socks_port);
 
-        co_await boost::asio::async_connect(socket_.next_layer(), endpoints, boost::asio::use_awaitable);
-        socket_.next_layer().set_option(boost::asio::ip::tcp::no_delay(true));
-
-        if (not socks_host.empty())
-        {
-            co_await socks_connect(socket_.next_layer(), socks_host, socks_port);
-        }
-
+        // TLS connection
         if (not verify.empty())
         {
             socket_.set_verify_mode(boost::asio::ssl::verify_peer);
@@ -245,11 +247,13 @@ public:
         }
         co_await socket_.async_handshake(socket_.client, boost::asio::use_awaitable);
 
+        // Server fingerprint computation
         unsigned char md[EVP_MAX_MD_SIZE];
         unsigned int md_len = 0; // if the digest somehow fails, use 0
         auto const cert = SSL_get0_peer_certificate(socket_.native_handle());
         X509_pubkey_digest(cert, EVP_sha256(), md, &md_len);
 
+        // Server fingerprint representation
         std::stringstream fingerprint;
         fingerprint << std::hex << std::setfill('0');
         for (unsigned i = 0; i < md_len; i++) {
