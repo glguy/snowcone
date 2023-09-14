@@ -281,7 +281,7 @@ function M.netjoin(ev)
             send('STATS', 'E', server)
             while true do
                 local irc = task:wait_irc(replies)
-                if irc.source == irc.source then
+                if irc.source == server then
                     if irc.command == N.RPL_STATSDEBUG and irc[2] == 'E' then
                         local interval = irc[3]:match 'user shedding event +[0-9]+ +seconds %(frequency=([0-9]+)%)'
                         if interval then
@@ -302,7 +302,7 @@ function M.netjoin(ev)
             send('MODLIST', 'drain', server)
             while true do
                 local irc = task:wait_irc(replies)
-                if irc.source == irc.source then
+                if irc.source == server then
                     if irc.command == N.RPL_MODLIST and irc[2] == 'drain' then
                         break
                     elseif irc.command == N.RPL_ENDOFSTATS then
