@@ -2,6 +2,9 @@
 local ip_org = require_ 'utils.ip_org'
 local tablex = require 'pl.tablex'
 local send = require 'utils.send'
+local Set = require 'pl.Set'
+local N = require 'utils.numerics'
+local Task = require 'components.Task'
 
 local function count_ip(address, delta)
     if next(net_trackers) then
@@ -264,11 +267,51 @@ end
 
 function M.netjoin(ev)
     counter_sync_commands()
-    status('snote', 'netjoin %s', ev.server2)
+    local server = ev.server2
+    status('snote', 'netjoin %s', server)
 
-    if versions[ev.server2] ~= nil then
-        versions[ev.server2] = nil
-        send('VERSION', ev.server2)
+    if versions[server] ~= nil then
+        versions[server] = nil
+        send('VERSION', server)
+    end
+
+    if sheds[server] ~= nil then
+        Task(irc_state.tasks, function(task)
+            local replies = Set{N.RPL_STATSDEBUG, N.RPL_ENDOFSTATS}
+            send('STATS', 'E', server)
+            while true do
+                local irc = task:wait_irc(replies)
+                if irc.source == irc.source then
+                    if irc.command == N.RPL_STATSDEBUG and irc[2] == 'E' then
+                        local interval = irc[3]:match 'user shedding event +[0-9]+ +seconds %(frequency=([0-9]+)%)'
+                        if interval then
+                            sheds[server] = tonumber(interval)
+                        end
+                    elseif irc.command == N.RPL_ENDOFSTATS then
+                        sheds[server] = nil
+                    end
+                    return
+                end
+            end
+        end)
+    end
+
+    if drains[server] ~= nil then
+        Task(irc_state.tasks, function(task)
+            local replies = Set{N.RPL_MODLIST, N.RPL_ENDOFMODLIST}
+            send('MODLIST', 'drain', server)
+            while true do
+                local irc = task:wait_irc(replies)
+                if irc.source == irc.source then
+                    if irc.command == N.RPL_MODLIST and irc[2] == 'drain' then
+                        break
+                    elseif irc.command == N.RPL_ENDOFSTATS then
+                        drains[server] = nil
+                        break
+                    end
+                end
+            end
+        end)
     end
 end
 
