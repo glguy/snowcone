@@ -42,8 +42,13 @@ public:
         nodelay(stdscr, TRUE); /* nonblocking input reads */
         intrflush(stdscr, FALSE);
         keypad(stdscr, TRUE); /* process keyboard input escape sequences */
-        bp.install();
+        BracketedPaste::install();
     }
+
+    NC(NC const&) = delete;
+    NC(NC &&) = delete;
+    auto operator=(NC const&) -> NC& = delete;
+    auto operator=(NC &&) -> NC& = delete;
 
     ~NC()
     {

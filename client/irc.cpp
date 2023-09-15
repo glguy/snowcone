@@ -74,18 +74,17 @@ auto pushircmsg(lua_State *const L, ircmsg const &msg) -> void
 
 class irc_connection : public std::enable_shared_from_this<irc_connection>
 {
-protected:
-    boost::asio::io_context &io_context;
+private:
     boost::asio::steady_timer write_timer;
     lua_State *L;
-
-    std::deque<boost::asio::const_buffer> write_buffers;
     std::deque<int> write_refs;
 
+protected:
+    std::deque<boost::asio::const_buffer> write_buffers;
+
 public:
-    irc_connection(boost::asio::io_context &io_context, lua_State *L)
-        : io_context{io_context}
-        , write_timer{io_context, boost::asio::steady_timer::time_point::max()}
+    irc_connection(boost::asio::io_context& io_context, lua_State *L)
+        : write_timer{io_context, boost::asio::steady_timer::time_point::max()}
         , L{L}
     {
     }
@@ -97,6 +96,11 @@ public:
         }
         write_refs.clear(); // the write thread checks for this
     }
+
+    auto operator=(irc_connection const&) -> irc_connection& = delete;
+    auto operator=(irc_connection &&) -> irc_connection& = delete;
+    irc_connection(irc_connection const&) = delete;
+    irc_connection(irc_connection &&) = delete;
 
     auto write_thread() -> boost::asio::awaitable<void>
     {
@@ -197,7 +201,7 @@ public:
         co_return ""; // no fingerprint
     }
 
-    auto virtual close() -> boost::system::error_code override
+    auto close() -> boost::system::error_code override
     {
         boost::system::error_code error;
         return socket_.close(error);
@@ -263,7 +267,7 @@ public:
         co_return fingerprint.str();
     }
 
-    auto virtual close() -> boost::system::error_code override
+    auto close() -> boost::system::error_code override
     {
         boost::system::error_code error;
         return socket_.lowest_layer().close(error);

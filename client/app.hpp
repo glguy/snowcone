@@ -26,8 +26,8 @@ struct App
     static auto from_lua(lua_State *) -> App *;
 
     auto do_mouse(int y, int x) -> void;
-    auto do_keyboard(long key) -> void;
-    auto do_paste(std::string_view) -> void;
+    auto do_keyboard(long key) const -> void;
+    auto do_paste(std::string_view) const -> void;
 
     auto startup() -> void;
     auto shutdown() -> void;

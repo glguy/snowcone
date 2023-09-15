@@ -47,7 +47,7 @@ auto App::do_mouse(int y, int x) -> void
     lua_callback(L, "on_mouse");
 }
 
-auto App::do_keyboard(long key) -> void
+auto App::do_keyboard(long key) const -> void
 {
     lua_pushinteger(L, key);
     auto const success = lua_callback(L, "on_keyboard");
@@ -58,7 +58,7 @@ auto App::do_keyboard(long key) -> void
     }
 }
 
-auto App::do_paste(std::string_view const paste) -> void
+auto App::do_paste(std::string_view const paste) const -> void
 {
     lua_pushlstring(L, paste.data(), paste.size());
     lua_callback(L, "on_paste");

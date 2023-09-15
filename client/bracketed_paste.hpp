@@ -10,7 +10,7 @@ struct BracketedPaste
 {
     BracketedPaste();
     ~BracketedPaste();
-    auto install() -> void;
+    static auto install() -> void;
     static int const start_paste = 01000;
     static int const end_paste = 01001;
     static int const focus_gained = 01002;
