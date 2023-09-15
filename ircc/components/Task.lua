@@ -3,11 +3,20 @@ local class = require 'pl.class'
 local M = class()
 M._name = 'Task'
 
-function M:_init(queue, main, ...)
+function M:_init(name, queue, main, ...)
+    self.name = name
     self.co = coroutine.create(main)
     self.queue = queue
     queue[self] = true
     self:resume(self, ...)
+end
+
+function M:__tostring()
+    return 'Task: ' .. self.name
+end
+
+function M:cancel()
+    self.queue[self] = nil
 end
 
 function M:wait_irc(command_set)
@@ -30,7 +39,7 @@ function M:resume(...)
         self.queue[self] = nil
     end
     if not success then
-        status('Task', 'task failed: %s', result)
+        status(task.name, '%s', result)
     end
 end
 

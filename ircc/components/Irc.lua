@@ -49,7 +49,9 @@ local caps_supported = {
     'solanum.chat/realhost',
 }
 
-function M:_init()
+function M:_init(conn)
+    self.conn = conn
+
     self.phase = 'registration' -- registration, connected, closed
     self.tasks = {}
 
@@ -79,6 +81,17 @@ function M:_init()
 
     for _, cap in ipairs(caps_supported) do
         self.caps_wanted[cap] = true
+    end
+end
+
+function M:rawsend(str)
+    self.conn:send(str)
+end
+
+function M:close()
+    self.conn:close()
+    for task, _ in pairs(self.tasks) do
+        task:cancel()
     end
 end
 

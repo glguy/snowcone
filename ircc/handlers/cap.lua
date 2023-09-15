@@ -19,7 +19,7 @@ function CAP.NEW(capsarg)
             table.insert(req, cap)
         end
         if next(req) then
-            Task(irc_state.tasks, cap_negotiation.REQ, req)
+            Task('cap negotiation', irc_state.tasks, cap_negotiation.REQ, req)
         end
     end
 end

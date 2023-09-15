@@ -65,7 +65,7 @@ local irc_registration   = require_ 'utils.irc_registration'
 local OrderedMap         = require_ 'components.OrderedMap'
 local plugin_manager     = require_ 'utils.plugin_manager'
 local send               = require_ 'utils.send'
-
+local Task               = require_ 'components.Task'
 local defaults = {
     -- state
     messages = OrderedMap(1000), -- Raw IRC protocol messages
@@ -303,8 +303,6 @@ function conn_handlers.MSG(irc)
 end
 
 function conn_handlers.CON(fingerprint)
-    irc_state = Irc()
-
     if fingerprint == '' then
         status('irc', 'connecting plain')
     else
@@ -318,13 +316,12 @@ function conn_handlers.CON(fingerprint)
         status('irc', 'expected fingerprint: %s', want_fingerprint)
         disconnect()
     else
-        irc_registration()
+        Task('irc registration', irc_state.tasks, irc_registration)
     end
 end
 
 function conn_handlers.END(reason)
-    irc_state = nil
-    conn = nil
+    disconnect()
     status('irc', 'disconnected: %s', reason or 'end of stream')
 
     if exiting then
@@ -362,16 +359,16 @@ function connect()
         on_irc)
     if success then
         status('irc', 'connecting')
-        conn = result
+        irc_state = Irc(result)
     else
         status('irc', 'failed to connect: %s', result)
     end
 end
 
 function disconnect()
-    if conn then
-        conn:close()
-        conn = nil
+    if irc_state then
+        irc_state:close()
+        irc_state = nil
     end
 end
 
@@ -384,7 +381,7 @@ function quit()
         reconnect_timer:cancel()
         reconnect_timer = nil
     end
-    if conn then
+    if irc_state then
         exiting = true
         disconnect()
     else
@@ -413,6 +410,9 @@ local function startup()
         config_dir = path.join(config_home, 'snowcone')
 
         local flags = app.parse_args(arg, {config=true})
+        if not flags then
+            error("Failed to parse command line flags")
+        end
         local settings_filename = flags.config or path.join(config_dir, 'settings.lua')
         local settings_file = file.read(settings_filename)
         if not settings_file then
@@ -490,7 +490,8 @@ local function startup()
                 if irc_state.phase == 'connected' and uptime == liveness + 30 then
                     send('PING', 'snowcone')
                 elseif uptime == liveness + 60 then
-                    conn:close()
+                    irc_state:close()
+                    irc_state = nil
                 end
             end
             draw()
@@ -498,7 +499,7 @@ local function startup()
         tick_timer:start(1000, cb)
     end
 
-    if not conn and configuration.host then
+    if not irc_state and configuration.host then
         connect()
     end
 end

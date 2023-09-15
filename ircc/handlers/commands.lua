@@ -33,8 +33,8 @@ end)
 
 -- raw just dumps the text directly into the network stream
 add_command('raw', '$r', function(args)
-    if conn then
-        conn:send(args .. '\r\n')
+    if irc_state then
+        irc_state:rawsend(args .. '\r\n')
     else
         status('quote', 'not connected')
     end
@@ -137,8 +137,8 @@ end)
 
 add_command('umode', '$R', function(args)
     -- raw hack to allow args to contain spaces
-    if irc_state.phase == 'connected' and conn then
-        conn:send('MODE ' .. irc_state.nick .. ' ' .. args .. '\r\n')
+    if irc_state and irc_state.phase == 'connected' then
+        irc_state:rawsend('MODE ' .. irc_state.nick .. ' ' .. args .. '\r\n')
     else
         status('umode', 'not connected')
     end
@@ -174,7 +174,7 @@ add_command('challenge', '', function()
     elseif not configuration.challenge_key then
         status('challenge', 'no challenge key configured: `challenge_key`')
     else
-        Task(irc_state.tasks, challenge)
+        Task('challenge', irc_state.tasks, challenge)
     end
 end)
 
@@ -201,7 +201,7 @@ add_command('sasl', '$g', function(name)
     if not entry then
         status('sasl', 'unknown credentials')
     elseif irc_state:has_sasl() then
-        Task(irc_state.tasks, sasl, entry, false)
+        Task('sasl', irc_state.tasks, sasl, entry, false)
     else
         status('sasl', 'sasl not available')
     end

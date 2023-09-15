@@ -2,7 +2,6 @@
 local tablex      = require 'pl.tablex'
 
 local N           = require_ 'utils.numerics'
-local challenge   = require_ 'utils.challenge'
 local send        = require_ 'utils.send'
 local split_nuh   = require_ 'utils.split_nick_user_host'
 local Buffer      = require  'components.Buffer'
@@ -34,11 +33,6 @@ function M.CAP(irc)
     end
 end
 
--- "<client> :Welcome to the <networkname> Network, <nick>[!<user>@<host>]"
-M[N.RPL_WELCOME] = function(irc)
-    irc_state.nick = irc[1] -- first confirmation
-end
-
 -- "<client> <1-13 tokens> :are supported by this server"
 M[N.RPL_ISUPPORT] = function(irc)
     for i = 2, #irc - 1 do
@@ -54,79 +48,6 @@ M[N.RPL_ISUPPORT] = function(irc)
     end
 end
 
-local function end_of_registration()
-    irc_state.phase = 'connected'
-    status('irc', 'connected')
-
-    if configuration.oper_username and configuration.challenge_key then
-        Task(irc_state.tasks, challenge)
-    elseif configuration.oper_username and configuration.oper_password then
-        send('OPER', configuration.oper_username,
-            {content=configuration.oper_password, secret=true})
-    else
-        -- determine if we're already oper
-        send('MODE', irc_state.nick)
-    end
-
-    if irc_state:has_chathistory() then
-        local supported_amount = irc_state.max_chat_history
-        for target, buffer in pairs(buffers) do
-            local amount = buffer.messages.max
-
-            if supported_amount and supported_amount < amount then
-                amount = supported_amount
-            end
-
-            local ts
-            local lastirc = buffer.messages:lookup(true)
-            if lastirc and lastirc.tags.time then
-                ts = 'timestamp=' .. lastirc.tags.time
-            else
-                ts = '*'
-            end
-
-            send('CHATHISTORY', 'LATEST', target, ts, amount)
-        end
-    end
-
-    -- reinstall monitors for the active private message buffers
-    if irc_state:has_monitor() then
-        local n, nicks = 0, {}
-        for target, _ in pairs(buffers) do
-            if not irc_state:is_channel_name(target) then
-                table.insert(nicks, target)
-                n = 1 + #target
-                if n > 400 then
-                    send('MONITOR', '+', table.concat(nicks, ','))
-                    n, nicks = 0, {}
-                end
-            end
-        end
-        if n > 0 then
-            send('MONITOR', '+', table.concat(nicks, ','))
-        end
-    end
-
-    -- start waiting for our nickname
-    if irc_state.recover_nick and irc_state:has_monitor() then
-        send('MONITOR', '+', configuration.nick)
-    end
-end
-
--- "<client> :End of /MOTD command."
-M[N.RPL_ENDOFMOTD] = function()
-    if irc_state.phase == 'registration' then
-        end_of_registration()
-    end
-end
-
--- "<client> :MOTD File is missing"
-M[N.ERR_NOMOTD] = function()
-    if irc_state.phase == 'registration' then
-        end_of_registration()
-    end
-end
-
 M[N.RPL_SNOMASK] = function(irc)
     status('irc', 'snomask %s', irc[2])
 end
@@ -134,7 +55,7 @@ end
 -----------------------------------------------------------------------
 
 M[N.RPL_LISTSTART] = function()
-    Task(irc_state.tasks, function(self)
+    Task('channel list', irc_state.tasks, function(self)
         local list = {}
         local list_commands = {[N.RPL_LIST]=true, [N.RPL_LISTEND]=true}
         while true do
@@ -226,7 +147,6 @@ end
 M[N.ERR_ERRONEUSNICKNAME] = new_nickname
 M[N.ERR_NICKNAMEINUSE] = new_nickname
 M[N.ERR_UNAVAILRESOURCE] = new_nickname
-
 
 local function do_notify(target, nick, text)
     local key = snowcone.irccase(target)
