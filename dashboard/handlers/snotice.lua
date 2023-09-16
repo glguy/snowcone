@@ -380,7 +380,7 @@ function M.modunload(ev)
 end
 
 function M.shedding_on(ev)
-    sheds[ev.server] = sheds.interval
+    sheds[ev.server] = ev.interval
 end
 
 function M.shedding_off(ev)
