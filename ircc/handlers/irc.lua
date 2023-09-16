@@ -231,7 +231,6 @@ M[N.ERR_UNAVAILRESOURCE] = new_nickname
 local function do_notify(target, nick, text)
     local key = snowcone.irccase(target)
     if not terminal_focus
-    and not notification_muted[key]
     and configuration.notification_module then
         local previous = notification_muted[key]
         notification_muted[key] = require(configuration.notification_module).notify(previous, target, nick, text)
@@ -267,7 +266,7 @@ local function route_to_buffer(target, text, irc)
         mention = true
     end
 
-    if mention and buffer_target then
+    if mention and buffer_target and nick then
         do_notify(buffer_target, nick, text)
     end
 
