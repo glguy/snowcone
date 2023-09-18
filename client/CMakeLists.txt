@@ -1,8 +1,9 @@
 # set(CMAKE_CXX_CLANG_TIDY /usr/local/opt/llvm/bin/clang-tidy -checks=-*,readability-*)
 add_executable(snowcone
     main.cpp app.cpp applib.cpp bracketed_paste.cpp
-    safecall.cpp irc.cpp timer.cpp dnslookup.cpp
-    socks.cpp
+    safecall.cpp timer.cpp dnslookup.cpp
+    irc/socks.cpp
+    irc/plain_connection.cpp irc/tls_connection.cpp irc/irc_connection.cpp irc/lua.cpp
     )
 target_link_libraries(snowcone PRIVATE
     PkgConfig::NCURSESW PkgConfig::LUA Boost::headers OpenSSL::SSL

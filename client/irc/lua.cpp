@@ -1,10 +1,13 @@
-#include "irc.hpp"
+#include "lua.hpp"
 
-#include "app.hpp"
-#include "linebuffer.hpp"
-#include "safecall.hpp"
-#include "socks.hpp"
-#include "userdata.hpp"
+#include "../app.hpp"
+#include "../linebuffer.hpp"
+#include "../safecall.hpp"
+#include "../userdata.hpp"
+
+#include "irc_connection.hpp"
+#include "plain_connection.hpp"
+#include "tls_connection.hpp"
 
 #include <ircmsg.hpp>
 
@@ -20,10 +23,7 @@ extern "C"
 #include <boost/asio/ssl.hpp>
 
 #include <charconv> // from_chars
-#include <deque>
-#include <iomanip>
 #include <memory>
-#include <sstream>
 #include <string>
 
 namespace
@@ -71,208 +71,6 @@ auto pushircmsg(lua_State *const L, ircmsg const &msg) -> void
         lua_rawseti(L, -2, argix++);
     }
 }
-
-class irc_connection : public std::enable_shared_from_this<irc_connection>
-{
-private:
-    boost::asio::steady_timer write_timer;
-    lua_State *L;
-    std::deque<int> write_refs;
-
-protected:
-    std::deque<boost::asio::const_buffer> write_buffers;
-
-public:
-    irc_connection(boost::asio::io_context& io_context, lua_State *L)
-        : write_timer{io_context, boost::asio::steady_timer::time_point::max()}
-        , L{L}
-    {
-    }
-
-    virtual ~irc_connection() {
-        write_buffers.clear();
-        for (auto const ref : write_refs) {
-            luaL_unref(L, LUA_REGISTRYINDEX, ref);
-        }
-        write_refs.clear(); // the write thread checks for this
-    }
-
-    auto operator=(irc_connection const&) -> irc_connection& = delete;
-    auto operator=(irc_connection &&) -> irc_connection& = delete;
-    irc_connection(irc_connection const&) = delete;
-    irc_connection(irc_connection &&) = delete;
-
-    auto write_thread() -> boost::asio::awaitable<void>
-    {
-        for(;;)
-        {
-            if (write_buffers.empty()) {
-                // wait and ignore the cancellation errors
-                boost::system::error_code ec;
-                co_await write_timer.async_wait(
-                    boost::asio::redirect_error(boost::asio::use_awaitable, ec));
-
-                if (write_buffers.empty()) {
-                    // We got canceled by the destructor - shows over
-                    co_return;
-                }
-            }
-
-            auto n = write_buffers.size();
-            co_await write_awaitable();
-
-            // release written buffers
-            for (; n > 0; n--)
-            {
-                luaL_unref(L, LUA_REGISTRYINDEX, write_refs.front());
-                write_buffers.pop_front();
-                write_refs.pop_front();
-            }
-        }
-    }
-
-    auto write(char const * const cmd, size_t const n, int const ref) -> void
-    {
-        auto const idle = write_buffers.empty();
-        write_buffers.emplace_back(cmd, n);
-        write_refs.push_back(ref);
-        if (idle)
-        {
-            write_timer.cancel_one();
-        }
-    }
-
-    auto virtual close() -> boost::system::error_code = 0;
-    auto virtual write_awaitable() -> boost::asio::awaitable<std::size_t> = 0;
-    auto virtual read_awaitable(boost::asio::mutable_buffers_1 const& buffers) -> boost::asio::awaitable<std::size_t> = 0;
-    auto virtual connect(
-        boost::asio::ip::tcp::resolver::results_type const&,
-        std::string const&,
-        std::string_view,
-        uint16_t
-    ) -> boost::asio::awaitable<std::string> = 0;
-
-    static auto basic_connect(
-        boost::asio::ip::tcp::socket& socket,
-        boost::asio::ip::tcp::resolver::results_type const& endpoints,
-        std::string_view socks_host,
-        uint16_t socks_port
-    ) -> boost::asio::awaitable<void>
-    {
-        co_await boost::asio::async_connect(socket, endpoints, boost::asio::use_awaitable);
-        socket.set_option(boost::asio::ip::tcp::no_delay(true));
-        if (not socks_host.empty())
-        {
-            co_await socks_connect(socket, socks_host, socks_port);
-        }
-    }
-};
-
-class plain_irc_connection final : public irc_connection
-{
-public:
-    boost::asio::ip::tcp::socket socket_;
-
-    plain_irc_connection(boost::asio::io_context &io_context, lua_State *const L)
-        : irc_connection{io_context, L}, socket_{io_context}
-    {
-    }
-
-    auto write_awaitable() -> boost::asio::awaitable<std::size_t> override
-    {
-        return boost::asio::async_write(socket_, write_buffers, boost::asio::use_awaitable);
-    }
-
-    auto read_awaitable(
-        boost::asio::mutable_buffers_1 const& buffers
-    ) -> boost::asio::awaitable<std::size_t> override
-    {
-        return socket_.async_read_some(buffers, boost::asio::use_awaitable);
-    }
-
-    auto connect(
-        boost::asio::ip::tcp::resolver::results_type const& endpoints,
-        std::string const&,
-        std::string_view socks_host,
-        uint16_t socks_port
-    ) -> boost::asio::awaitable<std::string> override
-    {
-        co_await irc_connection::basic_connect(socket_, endpoints, socks_host, socks_port);
-        co_return ""; // no fingerprint
-    }
-
-    auto close() -> boost::system::error_code override
-    {
-        boost::system::error_code error;
-        return socket_.close(error);
-    }
-};
-
-class tls_irc_connection : public irc_connection
-{
-public:
-    boost::asio::ssl::stream<boost::asio::ip::tcp::socket> socket_;
-
-    tls_irc_connection(
-        boost::asio::io_context &io_context,
-        boost::asio::ssl::context &ssl_context,
-        lua_State *const L)
-    : irc_connection{io_context, L}, socket_{io_context, ssl_context}
-    {
-    }
-
-    auto write_awaitable() -> boost::asio::awaitable<std::size_t> override
-    {
-        return boost::asio::async_write(socket_, write_buffers, boost::asio::use_awaitable);
-    }
-
-    auto read_awaitable(
-        boost::asio::mutable_buffers_1 const& buffers
-    ) -> boost::asio::awaitable<std::size_t> override
-    {
-        return socket_.async_read_some(buffers, boost::asio::use_awaitable);
-    }
-
-    auto connect(
-        boost::asio::ip::tcp::resolver::results_type const& endpoints,
-        std::string const& verify,
-        std::string_view socks_host,
-        uint16_t socks_port
-    ) -> boost::asio::awaitable<std::string> override
-    {
-        // TCP connection
-        co_await irc_connection::basic_connect(socket_.next_layer(), endpoints, socks_host, socks_port);
-
-        // TLS connection
-        if (not verify.empty())
-        {
-            socket_.set_verify_mode(boost::asio::ssl::verify_peer);
-            socket_.set_verify_callback(boost::asio::ssl::host_name_verification(verify));
-        }
-        co_await socket_.async_handshake(socket_.client, boost::asio::use_awaitable);
-
-        // Server fingerprint computation
-        unsigned char md[EVP_MAX_MD_SIZE];
-        unsigned int md_len = 0; // if the digest somehow fails, use 0
-        auto const cert = SSL_get0_peer_certificate(socket_.native_handle());
-        X509_pubkey_digest(cert, EVP_sha256(), md, &md_len);
-
-        // Server fingerprint representation
-        std::stringstream fingerprint;
-        fingerprint << std::hex << std::setfill('0');
-        for (unsigned i = 0; i < md_len; i++) {
-            fingerprint << std::setw(2) << int{md[i]};
-        }
-
-        co_return fingerprint.str();
-    }
-
-    auto close() -> boost::system::error_code override
-    {
-        boost::system::error_code error;
-        return socket_.lowest_layer().close(error);
-    }
-};
 
 auto l_close_irc(lua_State * const L) -> int
 {
