@@ -17,11 +17,6 @@ extern "C"
 #include <lauxlib.h>
 }
 
-#include <openssl/evp.h>
-#include <openssl/x509.h>
-
-#include <boost/asio/ssl.hpp>
-
 #include <charconv> // from_chars
 #include <memory>
 #include <string>
@@ -114,35 +109,6 @@ auto l_send_irc(lua_State * const L) -> int
 
     w->lock()->write(cmd, n, ref);
     return 0;
-}
-
-auto build_ssl_context(
-    std::string const& client_cert,
-    std::string const& client_key,
-    std::string const& client_key_password
-) -> boost::asio::ssl::context
-{
-    boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
-    ssl_context.set_default_verify_paths();
-    if (not client_key_password.empty())
-    {
-        ssl_context.set_password_callback(
-            [client_key_password](
-                std::size_t const max_size,
-                boost::asio::ssl::context::password_purpose purpose)
-            {
-                return client_key_password.size() <= max_size ? client_key_password : "";
-            });
-    }
-    if (not client_cert.empty())
-    {
-        ssl_context.use_certificate_file(client_cert, boost::asio::ssl::context::file_format::pem);
-    }
-    if (not client_key.empty())
-    {
-        ssl_context.use_private_key_file(client_key, boost::asio::ssl::context::file_format::pem);
-    }
-    return ssl_context;
 }
 
 auto handle_read(char *line, lua_State *L, int irc_cb) -> void
@@ -239,7 +205,7 @@ auto connect_thread(
         lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
         lua_pushstring(L, "END");
         lua_pushstring(L, e.what());
-        safecall(L, "plain connect error", 2);
+        safecall(L, "end of connection", 2);
     }
 }
 

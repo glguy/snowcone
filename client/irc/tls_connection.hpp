@@ -28,3 +28,9 @@ public:
 
     auto close() -> boost::system::error_code override;
 };
+
+auto build_ssl_context(
+    std::string const& client_cert,
+    std::string const& client_key,
+    std::string const& client_key_password
+) -> boost::asio::ssl::context;
