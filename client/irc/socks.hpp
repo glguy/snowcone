@@ -1,6 +1,10 @@
 #pragma once
 
-#include <boost/asio.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/awaitable.hpp>
+
+#include <cstdint>
+#include <string_view>
 
 auto socks_connect(
     boost::asio::ip::tcp::socket& socket,

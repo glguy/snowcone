@@ -3,7 +3,7 @@
 #include "app.hpp"
 #include "config.hpp"
 #include "dnslookup.hpp"
-#include "irc.hpp"
+#include "irc/lua.hpp"
 #include "safecall.hpp"
 #include "timer.hpp"
 
