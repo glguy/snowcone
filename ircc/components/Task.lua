@@ -39,7 +39,7 @@ function M:resume(...)
         self.queue[self] = nil
     end
     if not success then
-        status(task.name, '%s', result)
+        status(self.name, '%s', result)
     end
 end
 
