@@ -380,7 +380,7 @@ function draw_buttons()
     mvaddstr(tty_height-2, 0, ' ')
     bold()
 
-    black()
+    yellow()
     if show_reasons == 'reason' then
 
         add_button('[ REASON ]', function() show_reasons = 'org' end)
