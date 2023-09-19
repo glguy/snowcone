@@ -70,6 +70,6 @@ auto irc_connection::basic_connect(
     socket.set_option(boost::asio::ip::tcp::no_delay(true));
     if (not socks_host.empty())
     {
-        co_await socks_connect(socket, socks_host, socks_port);
+        co_await socks5::async_connect(socket, socks_host, socks_port, boost::asio::use_awaitable);
     }
 }
