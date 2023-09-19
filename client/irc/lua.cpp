@@ -186,7 +186,7 @@ auto connect_thread(
 
         auto const fingerprint = co_await irc->connect(endpoints, verify, socks_host, socks_port);
 
-        boost::asio::co_spawn(io_context, irc->write_thread(), boost::asio::detached);
+        irc_connection::write_thread(irc);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb); // function
         lua_pushstring(L, "CON"); // argument 1

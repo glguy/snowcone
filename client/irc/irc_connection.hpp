@@ -1,9 +1,10 @@
 #pragma once
 
-#include <deque>
-#include <memory>
-
 #include <boost/asio.hpp>
+
+#include <deque>
+#include <functional>
+#include <memory>
 
 struct lua_State;
 
@@ -26,12 +27,12 @@ public:
     irc_connection(irc_connection const&) = delete;
     irc_connection(irc_connection &&) = delete;
 
-    auto write_thread() -> boost::asio::awaitable<void>;
+    static auto write_thread(std::shared_ptr<irc_connection>) -> void;
 
     auto write(char const * const cmd, size_t const n, int const ref) -> void;
 
     auto virtual close() -> boost::system::error_code = 0;
-    auto virtual write_awaitable() -> boost::asio::awaitable<std::size_t> = 0;
+    auto virtual async_write(std::function<void()> &&) -> void = 0;
     auto virtual read_awaitable(boost::asio::mutable_buffers_1 const& buffers) -> boost::asio::awaitable<std::size_t> = 0;
     auto virtual connect(
         boost::asio::ip::tcp::resolver::results_type const&,

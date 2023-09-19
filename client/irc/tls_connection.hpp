@@ -13,7 +13,7 @@ public:
         boost::asio::ssl::context &ssl_context,
         lua_State *const L);
 
-    auto write_awaitable() -> boost::asio::awaitable<std::size_t> override;
+    auto async_write(std::function<void()> &&) -> void override;
 
     auto read_awaitable(
         boost::asio::mutable_buffers_1 const& buffers

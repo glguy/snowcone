@@ -35,9 +35,12 @@ tls_irc_connection::tls_irc_connection(
 {
 }
 
-auto tls_irc_connection::write_awaitable() -> boost::asio::awaitable<std::size_t>
+auto tls_irc_connection::async_write(std::function<void()> && callback) -> void
 {
-    return boost::asio::async_write(socket_, write_buffers, boost::asio::use_awaitable);
+    boost::asio::async_write(socket_, write_buffers,
+        [callback = std::move(callback)](auto const error, auto const) {
+            if (not error) callback();
+        });
 }
 
 auto tls_irc_connection::read_awaitable(

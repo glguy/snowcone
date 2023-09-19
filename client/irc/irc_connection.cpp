@@ -14,39 +14,37 @@ irc_connection::irc_connection(boost::asio::io_context& io_context, lua_State *L
 }
 
 irc_connection::~irc_connection() {
-    write_buffers.clear();
     for (auto const ref : write_refs) {
         luaL_unref(L, LUA_REGISTRYINDEX, ref);
     }
-    write_refs.clear(); // the write thread checks for this
 }
 
-auto irc_connection::write_thread() -> boost::asio::awaitable<void>
+auto irc_connection::write_thread(std::shared_ptr<irc_connection> irc) -> void
 {
-    for(;;)
+    auto const n = irc->write_buffers.size();
+    if (n > 0)
     {
-        if (write_buffers.empty()) {
-            // wait and ignore the cancellation errors
-            boost::system::error_code ec;
-            co_await write_timer.async_wait(
-                boost::asio::redirect_error(boost::asio::use_awaitable, ec));
-
-            if (write_buffers.empty()) {
-                // We got canceled by the destructor - shows over
-                co_return;
+        // shared_ptr is captured here to ensure the buffers don't get
+        // collected while asio is still using them
+        irc->async_write([irc = std::move(irc), n](){
+            // release written buffers
+            for (auto i = n; i > 0; i--)
+            {
+                luaL_unref(irc->L, LUA_REGISTRYINDEX, irc->write_refs.front());
+                irc->write_buffers.pop_front();
+                irc->write_refs.pop_front();
             }
-        }
-
-        auto n = write_buffers.size();
-        co_await write_awaitable();
-
-        // release written buffers
-        for (; n > 0; n--)
-        {
-            luaL_unref(L, LUA_REGISTRYINDEX, write_refs.front());
-            write_buffers.pop_front();
-            write_refs.pop_front();
-        }
+            irc_connection::write_thread(std::move(irc));
+        });
+    } else {
+        irc->write_timer.async_wait(
+            [weak = std::weak_ptr<irc_connection>{irc}](auto) {
+                if (auto irc = weak.lock())
+                {
+                    irc_connection::write_thread(std::move(irc));
+                }
+            }
+        );
     }
 }
 
