@@ -6,16 +6,13 @@ local M = {
     draw_status = function() end,
 }
 
+local filterutils = require 'utils.filter'
+local safematch = filterutils.safematch
 
-local function safematch(str, pat)
-    local success, result = pcall(string.match, str, pat)
-    return not success or result
-end
-
-local function match_any(t, pat)
+local function match_any(t, pat, insensitive)
     if t then
         for _, v in ipairs(t) do
-            if safematch(v, pat) then
+            if safematch(v, pat, insensitive) then
                 return true
             end
         end
@@ -23,17 +20,11 @@ local function match_any(t, pat)
 end
 
 local function show_entry(entry)
-    local current_filter
-    if input_mode == 'filter' then
-        current_filter = editor:content()
-    else
-        current_filter = filter
-    end
-
+    local current_filter, insensitive = filterutils.current_pattern()
     return
         (current_filter == nil or
-        safematch(entry.nick, current_filter) or
-        match_any(entry.channels, current_filter)
+        safematch(entry.nick, current_filter, insensitive) or
+        match_any(entry.channels, current_filter, insensitive)
         )
 end
 

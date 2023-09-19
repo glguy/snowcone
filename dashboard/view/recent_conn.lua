@@ -11,28 +11,20 @@ local M = {
     draw_status = function() end,
 }
 
-local function safematch(str, pat)
-    local success, result = pcall(string.match, str, pat)
-    return not success or result
-end
+local filterutils = require 'utils.filter'
+local safematch = filterutils.safematch
 
 local function show_entry(entry)
-    local current_filter
-    if input_mode == 'filter' then
-        current_filter = editor:content()
-    else
-        current_filter = filter
-    end
-
+    local current_filter, insensitive = filterutils.current_pattern()
     return
     (server_filter == nil or server_filter == entry.server) and
     (conn_filter == nil or conn_filter == not entry.reason) and
     (current_filter == nil or
-     safematch(entry.mask, current_filter) or
-     entry.gecos and safematch(entry.gecos, current_filter) or
-     entry.org and safematch(entry.org, current_filter) or
-     entry.asn and safematch('AS'..entry.asn, current_filter) or
-     entry.reason and safematch(entry.reason, current_filter)
+     safematch(entry.mask, current_filter, insensitive) or
+     entry.gecos and safematch(entry.gecos, current_filter, insensitive) or
+     entry.org and safematch(entry.org, current_filter, insensitive) or
+     entry.asn and safematch('AS'..entry.asn, current_filter, insensitive) or
+     entry.reason and safematch(entry.reason, current_filter, insensitive)
     )
 end
 

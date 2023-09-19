@@ -240,14 +240,11 @@ local function draw_focus(irc, snotice)
     addstr(string.rep('─', tty_width - x))
 end
 
-local function draw_messages()
-    local current_filter
-    if input_mode == 'filter' then
-        current_filter = editor:content()
-    else
-        current_filter = filter
-    end
+local filterutils = require 'utils.filter'
+local safematch = filterutils.safematch
 
+local function draw_messages()
+    local current_filter, insensitive = filterutils.current_pattern()
     local show_irc
     if current_filter then
         show_irc = function(irc)
@@ -259,8 +256,7 @@ local function draw_messages()
                 haystack = irc.command .. ' ' .. table.concat(irc, ' ')
             end
 
-            local ok, match = pcall(string.match, haystack, current_filter)
-            return not ok or match
+            return safematch(haystack, current_filter, insensitive)
         end
     elseif hide_snow then
         show_irc = function(irc)

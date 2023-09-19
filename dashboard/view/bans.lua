@@ -38,15 +38,13 @@ local palette = {
     dline = cyan,
 }
 
-local function safematch(str, pat)
-    local success, result = pcall(string.match, str, pat)
-    return not success or result
-end
+local filterutils = require 'utils.filter'
+local safematch = filterutils.safematch
 
-local function match_key(t, pat)
+local function match_key(t, pat, insensitive)
     if t then
         for k, _ in pairs(t) do
-            if safematch(k, pat) then
+            if safematch(k, pat, insensitive) then
                 return true
             end
         end
@@ -54,20 +52,14 @@ local function match_key(t, pat)
 end
 
 local function show_entry(entry)
-    local current_filter
-    if input_mode == 'filter' then
-        current_filter = editor:content()
-    else
-        current_filter = filter
-    end
-
+    local current_filter, insensitive = filterutils.current_pattern()
     return
     (server_filter == nil or server_filter == entry.server) and
     (conn_filter == nil or conn_filter == not entry.reason) and
     (current_filter == nil or
-     safematch(entry.mask, current_filter) or
-     safematch(entry.reason, current_filter) or
-     match_key(entry.nicks, current_filter))
+     safematch(entry.mask, current_filter, insensitive) or
+     safematch(entry.reason, current_filter, insensitive) or
+     match_key(entry.nicks, current_filter, insensitive))
 end
 
 function M:render()
