@@ -1,7 +1,5 @@
 #include "hsfilter.hpp"
 
-#include <mybase64.hpp>
-
 extern "C"
 {
 #include <lua.h>
