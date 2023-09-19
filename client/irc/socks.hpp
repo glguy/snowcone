@@ -3,11 +3,10 @@
 #include <boost/asio.hpp>
 #include <boost/endian.hpp>
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <string_view>
-#include <system_error>
-#include <functional>
 
 namespace socks5
 {
@@ -15,10 +14,10 @@ namespace socks5
 struct SocksErrCategory : boost::system::error_category
 {
     const char* name() const noexcept override;
-    std::string message(int ev) const override;
+    std::string message(int) const override;
 };
 
-const SocksErrCategory theSocksErrCategory;
+extern const SocksErrCategory theSocksErrCategory;
 
 enum class SocksErrc {
     Succeeded = 0,
@@ -64,14 +63,33 @@ struct SocksImplementation
     std::string_view const host_;
     boost::endian::big_uint16_t const port_;
 
+    /// buffer used to back async read/write operations
     std::vector<uint8_t> buffer_;
 
+    // Intermediate states used to dispatch to different operator() implementations
     struct RecvReply{};
     struct RecvHello{};
     struct SendConnect{};
     struct RecvAddress{};
     struct Finish{};
 
+    // In the case of error codes, abort the process. Otherwise proceed
+    // without the error code. This allows all the read/write error handling
+    // to be factored out into one place.
+    template <typename Self, typename... Ts>
+    void operator()(Self& self, boost::system::error_code const error, Ts&&... t)
+    {
+        if (error)
+        {
+            self.complete(error);
+        }
+        else
+        {
+            (*this)(self, std::forward<Ts>(t)...);
+        }
+    }
+
+    // START: Send hello and offer authentication methods
     template <typename Self>
     void operator()(Self& self)
     {
@@ -80,42 +98,31 @@ struct SocksImplementation
             std::bind(std::move(self), _1, _2, RecvHello{}));
     }
 
+    // Waiting for server to choose authentication method
     template <typename Self>
     void operator()(
         Self& self,
-        boost::system::error_code const error,
         std::size_t,
         RecvHello
     ) {
-        if (error)
-        {
-            self.complete(error);
-            return;
-        }
-
         buffer_.resize(2); // version, method
         boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
             std::bind(std::move(self), _1, _2, SendConnect{}));
     }
 
+    // Send TCP connection request for the domain name and port
     template <typename Self>
     void operator()(
         Self& self,
-        boost::system::error_code const error,
         std::size_t,
         SendConnect
     ) {
-        if (error)
-        {
-            self.complete(error);
-            return;
-        }
-        if (buffer_[0] != version_tag)
+        if (version_tag != buffer_[0])
         {
             self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported));
             return;
         }
-        if (static_cast<AuthMethod>(buffer_[1]) != AuthMethod::NoAuth) {
+        if (AuthMethod::NoAuth != static_cast<AuthMethod>(buffer_[1])) {
             self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported));
             return;
         }
@@ -133,47 +140,37 @@ struct SocksImplementation
             boost::asio::buffer(&port_, sizeof port_)
         };
         boost::asio::async_write(socket_, buffers,
-            std::bind<void>(std::move(self), _1, _2, RecvReply{}));
+            std::bind(std::move(self), _1, _2, RecvReply{}));
     }
 
+    // Wait for response to the connection request
     template <typename Self>
     void operator()(
         Self& self,
-        boost::system::error_code const error,
         std::size_t,
         RecvReply
     ) {
-        if (error)
-        {
-            self.complete(error);
-            return;
-        }
-
         buffer_.resize(5); // version, reply, reserved, address-tag, first address byte
         boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
             std::bind(std::move(self), _1, _2, RecvAddress{}));
     }
 
+    // Waiting on the remaining variable-sized address portion of the response
     template <typename Self>
     void operator()(
         Self& self,
-        boost::system::error_code const error,
         std::size_t,
         RecvAddress
     ) {
-        if (error)
-        {
-            self.complete(error);
-            return;
-        }
-        if (buffer_[0] != version_tag)
+        if (version_tag != buffer_[0])
         {
             self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported));
             return;
         }
-        if (0 != buffer_[1])
+        auto const reply = static_cast<SocksErrc>(buffer_[1]);
+        if (SocksErrc::Succeeded != reply)
         {
-            self.complete(boost::system::error_code{buffer_[1], theSocksErrCategory});
+            self.complete(boost::system::error_code{int(reply), theSocksErrCategory});
             return;
         }
 
@@ -198,19 +195,26 @@ struct SocksImplementation
             std::bind(std::move(self), _1, _2, Finish{}));
     }
 
+    // Protocol complete!
     template <typename Self>
     void operator()(
         Self& self,
-        boost::system::error_code const error,
         std::size_t,
         Finish
     ) {
-        self.complete(error);
+        self.complete({});
     }
 };
 
 } // namespace detail
 
+/// @brief Asynchronous SOCKS5 connection request
+/// @tparam CompletionToken Completion token type
+/// @param socket Established connection to SOCKS5 server
+/// @param host Target hostname
+/// @param port Target port number
+/// @param token Completion token
+/// @return Behavior determined by completion token type
 template <boost::asio::completion_token_for<void(boost::system::error_code)> CompletionToken>
 auto async_connect(
     boost::asio::ip::tcp::socket& socket,

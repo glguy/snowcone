@@ -10,6 +10,8 @@
 namespace socks5
 {
 
+const SocksErrCategory theSocksErrCategory;
+
 const char* SocksErrCategory::name() const noexcept
 {
     return "socks5";
