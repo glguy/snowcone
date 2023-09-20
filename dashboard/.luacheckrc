@@ -28,7 +28,7 @@ stds = {
 
             -- global client state
             "irc_state",  "status_message", "input_mode", "servers",
-            "view", "views", "uptime", "liveness", "scroll", "editor",
+            "view", "views", "uptime", "scroll", "editor",
             "filter", "main_views", "new_channels",
             "focus", "status_messages", "commands",
 

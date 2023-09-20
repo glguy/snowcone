@@ -33,6 +33,7 @@ enum class SocksErrc {
     AddressNotSupported = 8,
 };
 
+/// Either a hostname or an address. Hostnames are resolved locally on the proxy server
 using Host = std::variant<std::string_view, boost::asio::ip::address>;
 
 namespace detail

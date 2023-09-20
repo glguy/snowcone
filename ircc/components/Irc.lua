@@ -53,6 +53,7 @@ function M:_init(conn)
     self.conn = conn
 
     self.phase = 'registration' -- registration, connected, closed
+    self.liveness = uptime
     self.tasks = {}
 
     self.caps_wanted = {}

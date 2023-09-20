@@ -74,7 +74,6 @@ local defaults = {
     editor = Editor(),
     view = 'console',
     uptime = 0, -- seconds since startup
-    liveness = 0, -- timestamp of last irc receipt
     scroll = 0,
     status_message = '',
     exiting = false,
@@ -265,7 +264,7 @@ function conn_handlers.MSG(irc)
     irc.timestamp = uptime
 
     messages:insert(true, irc)
-    liveness = uptime
+    irc_state.liveness = uptime
 
     -- Ignore chat history
     local batch = irc_state.batches[irc.tags.batch]
@@ -358,7 +357,6 @@ function connect()
         configuration.socks_port,
         on_irc)
     if success then
-        liveness = uptime
         status('irc', 'connecting')
         irc_state = Irc(result)
     else
@@ -488,9 +486,9 @@ local function startup()
             uptime = uptime + 1
 
             if irc_state then
-                if irc_state.phase == 'connected' and uptime == liveness + 30 then
+                if irc_state.phase == 'connected' and uptime == irc_state.liveness + 30 then
                     send('PING', 'snowcone')
-                elseif uptime == liveness + 60 then
+                elseif uptime == irc_state.liveness + 60 then
                     irc_state:close()
                     irc_state = nil
                 end

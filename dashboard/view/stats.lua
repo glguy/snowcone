@@ -39,7 +39,7 @@ function M:render()
 
     addstr('Idle:         ')
     bold()
-    addstr(uptime - liveness)
+    addstr(irc_state and (uptime - irc_state.liveness) or 'N/A')
     bold_()
     addstr '\n'
 

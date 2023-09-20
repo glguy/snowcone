@@ -51,6 +51,7 @@ local caps_supported = {
 
 function M:_init()
     self.phase = 'registration' -- registration, connected, closed
+    self.liveness = uptime
     self.tasks = {}
 
     self.caps_wanted = {}

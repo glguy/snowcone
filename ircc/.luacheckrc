@@ -34,7 +34,6 @@ stds = {
             "views", -- table of all the available views
             "main_views", -- sequence of views mapped to keyboard shortcuts
             "uptime", -- seconds the client has been open
-            "liveness", -- seconds since last message from IRC server
             "scroll", -- number of lines scrolled back
             "editor", -- input textbox state
             "filter", -- pattern used to filter chat messages

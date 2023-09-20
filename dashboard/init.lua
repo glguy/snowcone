@@ -142,7 +142,6 @@ local defaults = {
     net_trackers = {},
     view = 'cliconn',
     uptime = 0, -- seconds since startup
-    liveness = 0, -- timestamp of last irc receipt
     mrs = {},
     scroll = 0,
     filter_tracker = LoadTracker(),
@@ -614,9 +613,9 @@ if not tick_timer then
         uptime = uptime + 1
 
         if irc_state then
-            if irc_state.phase == 'connected' and uptime == liveness + 30 then
+            if irc_state.phase == 'connected' and uptime == irc_state.liveness + 30 then
                 send('PING', 'snowcone')
-            elseif uptime == liveness + 60 then
+            elseif uptime == irc_state.liveness + 60 then
                 conn:close()
             end
         end
@@ -708,7 +707,7 @@ function irc_event.MSG(irc)
     irc.timestamp = uptime
 
     messages:insert(true, irc)
-    liveness = uptime
+    irc_state.liveness = uptime
 
     local f = irc_handlers[irc.command]
     if f then
@@ -834,7 +833,6 @@ function connect()
         configuration.socks_port,
         on_irc)
     if success then
-        liveness = uptime
         status('irc', 'connecting')
         conn = result
     else
