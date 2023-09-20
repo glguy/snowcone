@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <variant>
 
 namespace socks5
 {
@@ -30,6 +31,8 @@ enum class SocksErrc {
     CommandNotSupported = 7,
     AddressNotSupported = 8,
 };
+
+using Host = std::variant<std::string_view, boost::asio::ip::address>;
 
 namespace detail
 {
@@ -57,11 +60,13 @@ enum class AddressType {
     IPv6 = 4,
 };
 
+auto push_host(Host const& host, std::vector<uint8_t> &buffer) -> void;
+
 struct SocksImplementation
 {
     boost::asio::ip::tcp::socket& socket_;
-    std::string_view const host_;
-    boost::endian::big_uint16_t const port_;
+    Host const host_;
+    uint16_t const port_;
 
     /// buffer used to back async read/write operations
     std::vector<uint8_t> buffer_;
@@ -81,7 +86,7 @@ struct SocksImplementation
     {
         if (error)
         {
-            self.complete(error);
+            self.complete(error, {}, {});
         }
         else
         {
@@ -119,11 +124,11 @@ struct SocksImplementation
     ) {
         if (version_tag != buffer_[0])
         {
-            self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported));
+            self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported), {}, {});
             return;
         }
         if (AuthMethod::NoAuth != static_cast<AuthMethod>(buffer_[1])) {
-            self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported));
+            self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported), {}, {});
             return;
         }
 
@@ -131,15 +136,13 @@ struct SocksImplementation
             version_tag,
             uint8_t(Command::Connect),
             reserved,
-            uint8_t(AddressType::DomainName),
-            uint8_t(host_.size())
         };
-        std::array<boost::asio::const_buffer, 3> buffers {
-            boost::asio::buffer(buffer_),
-            boost::asio::buffer(host_),
-            boost::asio::buffer(&port_, sizeof port_)
-        };
-        boost::asio::async_write(socket_, buffers,
+
+        push_host(host_, buffer_);
+        buffer_.push_back(port_ >> 8);
+        buffer_.push_back(port_);
+
+        boost::asio::async_write(socket_, boost::asio::buffer(buffer_),
             std::bind(std::move(self), _1, _2, RecvReply{}));
     }
 
@@ -164,13 +167,13 @@ struct SocksImplementation
     ) {
         if (version_tag != buffer_[0])
         {
-            self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported));
+            self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported), {}, {});
             return;
         }
         auto const reply = static_cast<SocksErrc>(buffer_[1]);
         if (SocksErrc::Succeeded != reply)
         {
-            self.complete(boost::system::error_code{int(reply), theSocksErrCategory});
+            self.complete(boost::system::error_code{int(reply), theSocksErrCategory}, {}, {});
             return;
         }
 
@@ -179,51 +182,71 @@ struct SocksImplementation
             case AddressType::IPv4:
                 n = 5; // ipv4 + port
                 break;
-            case AddressType::DomainName:
-                n = size_t(buffer_[4]) + 2; // domain name + port
-                break;
             case AddressType::IPv6:
                 n = 17; // ipv6 + port
                 break;
             default:
-                self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported));
+                self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported), {}, {});
                 return;
         }
 
-        buffer_.resize(n);
-        boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
+        buffer_.resize(5 + n);
+        boost::asio::async_read(socket_, boost::asio::buffer(&buffer_[5], n),
             std::bind(std::move(self), _1, _2, Finish{}));
     }
 
-    // Protocol complete!
+    // Protocol complete! Return the client's remote endpoint
     template <typename Self>
     void operator()(
         Self& self,
         std::size_t,
         Finish
     ) {
-        self.complete({});
+        auto const n = buffer_.size();
+        uint16_t port = buffer_[n-2] << 8 | buffer_[n-1];
+    
+        switch (static_cast<AddressType>(buffer_[3]))
+        {
+            case AddressType::IPv4: {
+                boost::asio::ip::address_v4::bytes_type bytes;
+                std::copy_n(&buffer_[5], 4, bytes.begin());
+                self.complete({}, boost::asio::ip::make_address_v4(bytes), port);
+                break;
+            }
+            case AddressType::IPv6: {
+                boost::asio::ip::address_v6::bytes_type bytes;
+                std::copy_n(&buffer_[5], 16, bytes.begin());
+                self.complete({}, boost::asio::ip::make_address_v6(bytes), port);
+                break;
+            }
+            default:
+                self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported), {}, {});
+                return;
+        }
+
     }
 };
 
 } // namespace detail
 
+using Signature = void(boost::system::error_code, boost::asio::ip::address, uint16_t);
+
 /// @brief Asynchronous SOCKS5 connection request
-/// @tparam CompletionToken Completion token type
+/// @tparam CompletionToken Token accepting: error_code, address, port
 /// @param socket Established connection to SOCKS5 server
-/// @param host Target hostname
-/// @param port Target port number
+/// @param host Connection target host
+/// @param port Connection target port
 /// @param token Completion token
 /// @return Behavior determined by completion token type
-template <boost::asio::completion_token_for<void(boost::system::error_code)> CompletionToken>
+template <boost::asio::completion_token_for<Signature> CompletionToken>
 auto async_connect(
     boost::asio::ip::tcp::socket& socket,
-    std::string_view const host,
+    Host const host,
     uint16_t const port,
     CompletionToken&& token
 ) {
     return boost::asio::async_compose
-        <CompletionToken, void(boost::system::error_code), detail::SocksImplementation>
+        <CompletionToken, Signature, detail::SocksImplementation>
         ({socket, host, port}, token, socket);
 }
 
