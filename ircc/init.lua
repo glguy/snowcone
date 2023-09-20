@@ -358,6 +358,7 @@ function connect()
         configuration.socks_port,
         on_irc)
     if success then
+        liveness = uptime
         status('irc', 'connecting')
         irc_state = Irc(result)
     else
