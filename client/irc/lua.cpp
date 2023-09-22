@@ -180,18 +180,19 @@ auto connect_thread(
 
     try
     {
-        auto const endpoints = co_await
-            boost::asio::ip::tcp::resolver{io_context}
-            .async_resolve(host, std::to_string(port), boost::asio::use_awaitable);
+        {
+            auto const endpoints = co_await
+                boost::asio::ip::tcp::resolver{io_context}
+                .async_resolve(host, std::to_string(port), boost::asio::use_awaitable);
 
-        auto const fingerprint = co_await irc->connect(endpoints, verify, socks_host, socks_port);
+            auto const fingerprint = co_await irc->connect(endpoints, verify, socks_host, socks_port);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb); // function
+            lua_pushstring(L, "CON"); // argument 1
+            lua_pushlstring(L, fingerprint.data(), fingerprint.size()); // argument 2
+            safecall(L, "successful connect", 2);
+        }
 
-        irc_connection::write_thread(irc);
-
-        lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb); // function
-        lua_pushstring(L, "CON"); // argument 1
-        lua_pushlstring(L, fingerprint.data(), fingerprint.size()); // argument 2
-        safecall(L, "successful connect", 2);
+        irc->write_thread();
 
         for (LineBuffer buff{32'000};;)
         {

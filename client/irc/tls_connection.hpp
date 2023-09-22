@@ -5,7 +5,8 @@
 
 class tls_irc_connection : public irc_connection
 {
-    boost::asio::ssl::stream<boost::asio::ip::tcp::socket> socket_;
+    using tls_socket = boost::asio::ssl::stream<tcp_socket>;
+    tls_socket socket_;
 
 public:
     tls_irc_connection(
@@ -13,7 +14,7 @@ public:
         boost::asio::ssl::context &ssl_context,
         lua_State *const L);
 
-    auto async_write(std::function<void()> &&) -> void override;
+    auto async_write() -> void override;
 
     auto read_awaitable(
         boost::asio::mutable_buffers_1 const& buffers

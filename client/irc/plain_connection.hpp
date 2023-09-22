@@ -6,12 +6,12 @@
 
 class plain_irc_connection final : public irc_connection
 {
-    boost::asio::ip::tcp::socket socket_;
+    tcp_socket socket_;
 
 public:
     plain_irc_connection(boost::asio::io_context &io_context, lua_State *const L);
 
-    auto async_write(std::function<void()> &&) -> void override;
+    auto async_write() -> void override;
 
     auto read_awaitable(
         boost::asio::mutable_buffers_1 const& buffers

@@ -19,32 +19,30 @@ irc_connection::~irc_connection() {
     }
 }
 
-auto irc_connection::write_thread(std::shared_ptr<irc_connection> irc) -> void
+auto irc_connection::write_thread(std::size_t n) -> void
 {
-    auto const n = irc->write_buffers.size();
-    if (n > 0)
+    while (n--)
     {
-        // shared_ptr is captured here to ensure the buffers don't get
-        // collected while asio is still using them
-        irc->async_write([irc = std::move(irc), n](){
-            // release written buffers
-            for (auto i = n; i > 0; i--)
+        luaL_unref(L, LUA_REGISTRYINDEX, write_refs.front());
+        write_buffers.pop_front();
+        write_refs.pop_front();
+    }
+
+    if (write_buffers.empty())
+    {
+        write_timer.async_wait(
+            [weak = weak_from_this()](auto)
             {
-                luaL_unref(irc->L, LUA_REGISTRYINDEX, irc->write_refs.front());
-                irc->write_buffers.pop_front();
-                irc->write_refs.pop_front();
-            }
-            irc_connection::write_thread(std::move(irc));
-        });
-    } else {
-        irc->write_timer.async_wait(
-            [weak = std::weak_ptr<irc_connection>{irc}](auto) {
                 if (auto irc = weak.lock())
                 {
-                    irc_connection::write_thread(std::move(irc));
+                    irc->write_thread();
                 }
             }
         );
+    }
+    else
+    {
+        async_write();
     }
 }
 
@@ -60,10 +58,10 @@ auto irc_connection::write(char const * const cmd, size_t const n, int const ref
 }
 
 auto irc_connection::basic_connect(
-    boost::asio::ip::tcp::socket& socket,
+    tcp_socket& socket,
     boost::asio::ip::tcp::resolver::results_type const& endpoints,
-    std::string_view socks_host,
-    uint16_t socks_port
+    std::string_view const socks_host,
+    uint16_t const socks_port
 ) -> boost::asio::awaitable<void>
 {
     co_await boost::asio::async_connect(socket, endpoints, boost::asio::use_awaitable);

@@ -64,9 +64,10 @@ enum class AddressType {
 
 auto push_host(Host const& host, std::vector<uint8_t> &buffer) -> void;
 
+template<typename AsyncStream>
 struct SocksImplementation
 {
-    boost::asio::ip::tcp::socket& socket_;
+    AsyncStream& socket_;
     Host const host_;
     boost::endian::big_uint16_t const port_;
 
@@ -224,15 +225,17 @@ using Signature = void(boost::system::error_code, boost::asio::ip::tcp::endpoint
 /// @param port Connection target port
 /// @param token Completion token
 /// @return Behavior determined by completion token type
-template <boost::asio::completion_token_for<Signature> CompletionToken>
+template <
+    typename AsyncStream,
+    boost::asio::completion_token_for<Signature> CompletionToken>
 auto async_connect(
-    boost::asio::ip::tcp::socket& socket,
+    AsyncStream& socket,
     Host const host,
     uint16_t const port,
     CompletionToken&& token
 ) {
     return boost::asio::async_compose
-        <CompletionToken, Signature, detail::SocksImplementation>
+        <CompletionToken, Signature, detail::SocksImplementation<AsyncStream>>
         ({socket, host, port}, token, socket);
 }
 

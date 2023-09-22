@@ -5,12 +5,9 @@ plain_irc_connection::plain_irc_connection(boost::asio::io_context &io_context, 
 {
 }
 
-auto plain_irc_connection::async_write(std::function<void()>&& callback) -> void
+auto plain_irc_connection::async_write() -> void
 {
-    boost::asio::async_write(socket_, write_buffers,
-        [callback = std::move(callback)](auto const error, auto) {
-            if (not error) callback();
-        });
+    irc_connection::async_write_impl(socket_);
 }
 
 auto plain_irc_connection::read_awaitable(
