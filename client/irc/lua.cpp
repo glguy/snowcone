@@ -194,10 +194,13 @@ auto connect_thread(
 
         irc->write_thread();
 
-        for (LineBuffer buff{32'000};;)
+        for (LineBuffer buff{32'768};;)
         {
+            auto target = buff.get_buffer();
+            if (target.size() == 0) { throw std::runtime_error{"line buffer full"}; }
+
             buff.add_bytes(
-                co_await irc->read_awaitable(buff.get_buffer()),
+                co_await irc->read_awaitable(target),
                 [L, irc_cb](auto const line) { handle_read(line, L, irc_cb); });
         }
     }

@@ -7,7 +7,7 @@
 
 namespace {
 
-auto peer_fingerprint(SSL const* ssl) -> std::string
+auto peer_fingerprint(SSL const* const ssl) -> std::string
 {
     // Server fingerprint computation
     unsigned char md[EVP_MAX_MD_SIZE];
@@ -86,7 +86,7 @@ auto build_ssl_context(
         ssl_context.set_password_callback(
             [client_key_password](
                 std::size_t const max_size,
-                boost::asio::ssl::context::password_purpose purpose)
+                boost::asio::ssl::context::password_purpose const purpose)
             {
                 return client_key_password.size() <= max_size ? client_key_password : "";
             });
