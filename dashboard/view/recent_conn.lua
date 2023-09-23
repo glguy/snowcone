@@ -19,6 +19,7 @@ local function show_entry(entry)
     return
     (server_filter == nil or server_filter == entry.server) and
     (conn_filter == nil or conn_filter == not entry.reason) and
+    (mark_filter == nil or mark_filter == entry.mark) and
     (current_filter == nil or
      safematch(entry.mask, current_filter, insensitive) or
      entry.gecos and safematch(entry.gecos, current_filter, insensitive) or
@@ -83,7 +84,7 @@ function M:render()
 
         if entry.mark then
             if type(entry.mark) == 'number' then ncurses.colorset(entry.mark) end
-            addstr('◆')
+            add_button('◆', function() mark_filter = entry.mark end, true)
         else
             addstr(' ')
         end
@@ -194,6 +195,9 @@ function M:render()
         if server_filter ~= nil then
             yellow() addstr(' SERVER')
             normal()
+        end
+        if mark_filter ~= nil then
+            yellow() addstr(' MARKED')
         end
     end
 end

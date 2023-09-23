@@ -37,7 +37,7 @@ stds = {
             "staged_action", "kline_reason", "kline_reasons", "kline_durations",
 
             -- connection tracking view
-            "users", "exits",
+            "users", "exits", "mark_filter",
             "conn_filter", "server_filter", "highlight", "highlight_plain",
 
             -- server tracking view

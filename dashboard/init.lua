@@ -123,6 +123,7 @@ function reset_filter()
     filter = nil
     server_filter = nil
     conn_filter = nil
+    mark_filter = nil
     highlight = nil
     highlight_plain = false
     staged_action = nil
