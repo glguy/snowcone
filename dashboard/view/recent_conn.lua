@@ -11,11 +11,11 @@ local M = {
     draw_status = function() end,
 }
 
-local filterutils = require 'utils.filter'
-local safematch = filterutils.safematch
+local utils_filter = require 'utils.filter'
+local safematch = utils_filter.safematch
 
 local function show_entry(entry)
-    local current_filter = filterutils.current_pattern()
+    local current_filter = utils_filter.current_pattern()
     return
     (server_filter == nil or server_filter == entry.server) and
     (conn_filter == nil or conn_filter == not entry.reason) and

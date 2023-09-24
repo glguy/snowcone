@@ -18,7 +18,7 @@ end
 
 function M.safematch(str, pat)
 
-    if type(pat) == string then
+    if type(pat) == 'string' then
         if pat ~= cached_pat then
             local output = M.compile(pat)
             if output then
@@ -37,8 +37,7 @@ function M.safematch(str, pat)
 
     if not pat then return true end
 
-    local success, result = pcall(pat.exec, pat, str)
-    return not success or result
+    return not not pat:exec(str)
 end
 
 function M.current_pattern()
