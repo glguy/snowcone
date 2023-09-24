@@ -26,7 +26,7 @@ These are the baseline dependencies
 
 ```sh
 # Debian build dependencies
-apt install cmake pkg-config liblua5.4-dev libboost-dev libidn-dev libssl-dev libncurses-dev libgeoip-dev lua-mmdb lua-penlight
+apt install cmake pkg-config liblua5.4-dev libboost-dev libidn-dev libssl-dev libncurses-dev libgeoip-dev lua-mmdb lua-penlight lua-rex-pcre2-dev
 # Optional on x86_64
 apt install libhyperscan-dev
 # Optional on arm64

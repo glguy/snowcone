@@ -1,25 +1,39 @@
+local rex = require 'rex_pcre2'
+
 local M = {}
 
-function M.safematch(str, pat, insensitive)
-    if insensitive then str = str:lower() end
-    local success, result = pcall(string.match, str, pat)
+local cached_pat
+local obj
+
+function M.safematch(str, pat)
+
+    if pat ~= cached_pat then
+        local insensitive = not pat:find '%u'
+        local flag
+        if insensitive then flag = 'i' end
+
+        local success, output = pcall(rex.new, pat, flag)
+        if success then
+            obj = output
+            cached_pat = pat
+        else
+            cached_pat = nil
+            obj = nil
+        end
+    end
+
+    if not obj then return true end
+
+    local success, result = pcall(obj.exec, obj, str)
     return not success or result
 end
 
-local function is_case_insensitive_pattern(pat)
-    pat = pat:gsub('%%.', '')
-    return pat == pat:lower()
-end
-
 function M.current_pattern()
-    local current_filter
     if input_mode == 'filter' then
-        current_filter = editor:content()
+        return editor:content()
     else
-        current_filter = filter
+        return filter
     end
-    local insensitive = current_filter and is_case_insensitive_pattern(current_filter)
-    return current_filter, insensitive
 end
 
 return M

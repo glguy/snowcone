@@ -244,7 +244,7 @@ local filterutils = require 'utils.filter'
 local safematch = filterutils.safematch
 
 local function draw_messages()
-    local current_filter, insensitive = filterutils.current_pattern()
+    local current_filter = filterutils.current_pattern()
     local show_irc
     if current_filter then
         show_irc = function(irc)
@@ -256,7 +256,7 @@ local function draw_messages()
                 haystack = irc.command .. ' ' .. table.concat(irc, ' ')
             end
 
-            return safematch(haystack, current_filter, insensitive)
+            return safematch(haystack, current_filter)
         end
     elseif hide_snow then
         show_irc = function(irc)

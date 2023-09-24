@@ -15,17 +15,17 @@ local filterutils = require 'utils.filter'
 local safematch = filterutils.safematch
 
 local function show_entry(entry)
-    local current_filter, insensitive = filterutils.current_pattern()
+    local current_filter = filterutils.current_pattern()
     return
     (server_filter == nil or server_filter == entry.server) and
     (conn_filter == nil or conn_filter == not entry.reason) and
     (mark_filter == nil or mark_filter == entry.mark) and
     (current_filter == nil or
-     safematch(entry.mask, current_filter, insensitive) or
-     entry.gecos and safematch(entry.gecos, current_filter, insensitive) or
-     entry.org and safematch(entry.org, current_filter, insensitive) or
-     entry.asn and safematch('AS'..entry.asn, current_filter, insensitive) or
-     entry.reason and safematch(entry.reason, current_filter, insensitive)
+     safematch(entry.mask, current_filter) or
+     entry.gecos and safematch(entry.gecos, current_filter) or
+     entry.org and safematch(entry.org, current_filter) or
+     entry.asn and safematch('AS'..entry.asn, current_filter) or
+     entry.reason and safematch(entry.reason, current_filter)
     )
 end
 

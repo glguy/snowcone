@@ -5,6 +5,7 @@ local pretty = require 'pl.pretty'
 local path   = require 'pl.path'
 local file   = require 'pl.file'
 local app    = require 'pl.app'
+local rex    = require 'rex_pcre2'
 
 if not uptime then
     require 'pl.stringx'.import()
@@ -324,7 +325,7 @@ function draw_global_load(title, tracker)
             addstr(' ')
         end
 
-        if input_mode == 'filter' and not pcall(string.match, '', editor:content()) then
+        if input_mode == 'filter' and not pcall(rex.new, editor:content()) then
             red()
         end
 
@@ -377,12 +378,11 @@ function draw_global_load(title, tracker)
 end
 
 function draw_buttons()
-    mvaddstr(tty_height-2, 0, ' ')
+    ncurses.move(tty_height-2, 0)
     bold()
 
     yellow()
     if show_reasons == 'reason' then
-
         add_button('[ REASON ]', function() show_reasons = 'org' end)
     elseif show_reasons == 'org' then
         add_button('[  ORG   ]', function() show_reasons = 'asn' end)

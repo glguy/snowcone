@@ -31,8 +31,8 @@ local filterutils = require 'utils.filter'
 local safematch = filterutils.safematch
 
 local function show_entry(entry)
-    local current_filter, insensitive = filterutils.current_pattern()
-    return safematch(entry.text, current_filter, insensitive)
+    local current_filter = filterutils.current_pattern()
+    return safematch(entry.text, current_filter)
 end
 
 function M:render()

@@ -5,6 +5,7 @@ local send = require 'utils.send'
 local Set = require 'pl.Set'
 local N = require 'utils.numerics'
 local Task = require 'components.Task'
+local filter = require 'utils.filter'
 
 local function count_ip(address, delta)
     if next(net_trackers) then
@@ -55,11 +56,7 @@ function M.connect(ev)
         population[ev.server] = pop + 1
     end
 
-    local function safematch(str, pat)
-        local success, result = pcall(string.find, str, pat)
-        return success and result
-    end
-
+    local safematch = filter.safematch
     for _, watch in ipairs(watches) do
         if watch.active then
             if

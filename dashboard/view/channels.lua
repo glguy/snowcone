@@ -9,10 +9,10 @@ local M = {
 local filterutils = require 'utils.filter'
 local safematch = filterutils.safematch
 
-local function match_any(t, pat, insensitive)
+local function match_any(t, pat)
     if t then
         for _, v in ipairs(t) do
-            if safematch(v, pat, insensitive) then
+            if safematch(v, pat) then
                 return true
             end
         end
@@ -20,11 +20,11 @@ local function match_any(t, pat, insensitive)
 end
 
 local function show_entry(entry)
-    local current_filter, insensitive = filterutils.current_pattern()
+    local current_filter = filterutils.current_pattern()
     return
         (current_filter == nil or
-        safematch(entry.nick, current_filter, insensitive) or
-        match_any(entry.channels, current_filter, insensitive)
+        safematch(entry.nick, current_filter) or
+        match_any(entry.channels, current_filter)
         )
 end
 
