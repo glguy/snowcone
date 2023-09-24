@@ -22,6 +22,7 @@ local function show_entry(entry)
     (mark_filter == nil or mark_filter == entry.mark) and
     (current_filter == nil or
      safematch(entry.mask, current_filter) or
+     entry.account and safematch(entry.account, current_filter) or
      entry.gecos and safematch(entry.gecos, current_filter) or
      entry.org and safematch(entry.org, current_filter) or
      entry.asn and safematch('AS'..entry.asn, current_filter) or

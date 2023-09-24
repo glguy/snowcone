@@ -5,7 +5,7 @@ local send = require 'utils.send'
 local Set = require 'pl.Set'
 local N = require 'utils.numerics'
 local Task = require 'components.Task'
-local filter = require 'utils.filter'
+local utils_filter = require 'utils.filter'
 
 local function count_ip(address, delta)
     if next(net_trackers) then
@@ -56,13 +56,14 @@ function M.connect(ev)
         population[ev.server] = pop + 1
     end
 
-    local safematch = filter.safematch
+    local safematch = utils_filter.safematch
     for _, watch in ipairs(watches) do
         if watch.active then
             if
                 safematch(entry.mask, watch.regexp) or
                 entry.org and safematch(entry.org, watch.regexp) or
                 entry.asn and safematch('AS'..entry.asn, watch.regexp) or
+                entry.account and safematch(entry.account, watch.regexp) or
                 entry.ip  and safematch(ev.nick .. '!' .. ev.user .. '@' .. ev.ip .. '#' .. ev.gecos, watch.regexp)
             then
                 watch.hits = watch.hits + 1

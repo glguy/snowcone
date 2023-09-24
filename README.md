@@ -35,13 +35,16 @@ apt install libvectorscan-dev
 apt install libgmock-dev libgtest-dev lua-check
 
 # Homebrew
-brew install cmake pkg-config lua luarocks boost libidn ncurses openssl
+brew install cmake pkg-config lua luarocks boost libidn ncurses openssl pcre2
 # Optional on x86_64
 brew install hyperscan
 # Optional on arm64
 brew install vectorscan
 # Lua run-time dependencies
-luarocks install penlight mmdblua
+luarocks install penlight mmdblua lrexlib-pcre2
+
+# On ARM mac you'll need to specify where pcre2 is installed
+luarocks install lrexlib-pcre2 PCRE2_DIR=/opt/homebrew/opt/pcre2
 ```
 
 Snowcone can also make use of doxygen, luacheck, libhyperscan/libvectorscan.

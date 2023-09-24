@@ -27,11 +27,11 @@ function M:keypress(key)
     end
 end
 
-local filterutils = require 'utils.filter'
-local safematch = filterutils.safematch
+local utils_filter = require 'utils.filter'
+local safematch = utils_filter.safematch
 
 local function show_entry(entry)
-    local current_filter = filterutils.current_pattern()
+    local current_filter = utils_filter.current_pattern()
     return safematch(entry.text, current_filter)
 end
 
