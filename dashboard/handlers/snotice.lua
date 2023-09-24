@@ -60,10 +60,10 @@ function M.connect(ev)
     for _, watch in ipairs(watches) do
         if watch.active then
             if
-                safematch(entry.mask, watch.mask) or
-                entry.org and safematch(entry.org, watch.mask) or
-                entry.asn and safematch('AS'..entry.asn, watch.mask) or
-                entry.ip  and safematch(ev.nick .. '!' .. ev.user .. '@' .. ev.ip .. '#' .. ev.gecos, watch.mask)
+                safematch(entry.mask, watch.regexp) or
+                entry.org and safematch(entry.org, watch.regexp) or
+                entry.asn and safematch('AS'..entry.asn, watch.regexp) or
+                entry.ip  and safematch(ev.nick .. '!' .. ev.user .. '@' .. ev.ip .. '#' .. ev.gecos, watch.regexp)
             then
                 watch.hits = watch.hits + 1
                 entry.mark = watch.color or ncurses.red
