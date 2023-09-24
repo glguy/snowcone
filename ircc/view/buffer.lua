@@ -114,14 +114,11 @@ function M:keypress(key)
     end
 end
 
-local function draw_messages(buffer)
-    local current_filter
-    if input_mode == 'filter' then
-        current_filter = editor:content()
-    else
-        current_filter = filter
-    end
 
+local matching = require 'utils.matching'
+
+local function draw_messages(buffer)
+    local current_filter = matching.current_pattern()
     local show_irc
     if current_filter then
         show_irc = function(irc)
@@ -133,8 +130,8 @@ local function draw_messages(buffer)
                 haystack = irc.command .. ' ' .. table.concat(irc, ' ')
             end
 
-            local ok, match = pcall(string.match, haystack, current_filter)
-            return not ok or match
+            print(haystack, current_filter)
+            return matching.safematch(haystack, current_filter)
         end
     end
 

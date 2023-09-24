@@ -6,8 +6,8 @@ local M = {
     draw_status = function() end,
 }
 
-local filterutils = require 'utils.filter'
-local safematch = filterutils.safematch
+local matching = require 'utils.matching'
+local safematch = matching.safematch
 
 local function match_any(t, pat)
     if t then
@@ -20,7 +20,7 @@ local function match_any(t, pat)
 end
 
 local function show_entry(entry)
-    local current_filter = filterutils.current_pattern()
+    local current_filter = matching.current_pattern()
     return
         (current_filter == nil or
         safematch(entry.nick, current_filter) or

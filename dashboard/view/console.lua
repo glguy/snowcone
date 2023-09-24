@@ -240,11 +240,11 @@ local function draw_focus(irc, snotice)
     addstr(string.rep('─', tty_width - x))
 end
 
-local filterutils = require 'utils.filter'
-local safematch = filterutils.safematch
+local matching = require 'utils.matching'
+local safematch = matching.safematch
 
 local function draw_messages()
-    local current_filter = filterutils.current_pattern()
+    local current_filter = matching.current_pattern()
     local show_irc
     if current_filter then
         show_irc = function(irc)

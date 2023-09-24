@@ -1,5 +1,5 @@
 local irc_formatting = require 'utils.irc_formatting'
-
+local matching = require 'utils.matching'
 local M = {}
 
 function M.fade_time(timestamp, time)
@@ -87,7 +87,7 @@ end
 local input_mode_palette = {
     command = ncurses.blue,
     talk = ncurses.green,
-    filter = ncurses.red,
+    filter = ncurses.cyan,
 }
 
 function M.draw_status_bar()
@@ -113,8 +113,12 @@ function M.draw_status_bar()
             addstr(' ')
         end
 
-        if input_mode == 'filter' and not pcall(string.match, '', editor:content()) then
-            red()
+        if input_mode == 'filter' then
+            if matching.compile(editor:content()) then
+                green()
+            else
+                red()
+            end
         end
 
         local y0, x0 = ncurses.getyx()

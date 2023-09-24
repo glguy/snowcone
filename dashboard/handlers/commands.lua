@@ -9,7 +9,7 @@ local send = require 'utils.send'
 local Task = require 'components.Task'
 local utils_time = require 'utils.time'
 local N = require 'utils.numerics'
-local utils_filter = require 'utils.filter'
+local matching = require 'utils.matching'
 
 local colormap =
   { black = ncurses.black, red = ncurses.red, green = ncurses.green,
@@ -126,7 +126,7 @@ add_command('addwatch', '$r', function(args)
             watch.color = colormap[token]
 
         elseif kind == 'iden' and token == 'filter' then
-            local output = utils_filter.compile(filter)
+            local output = matching.compile(filter)
             if not output then
                 status('addwatch', 'Bad regular expression')
                 return
@@ -135,7 +135,7 @@ add_command('addwatch', '$r', function(args)
             watch.regexp = output
 
         elseif kind == 'string' then
-            local output = utils_filter.compile(token)
+            local output = matching.compile(token)
             if not output then
                 status('addwatch', 'Bad regular expression')
                 return

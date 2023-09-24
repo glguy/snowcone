@@ -27,20 +27,10 @@ function M:keypress(key)
     end
 end
 
-local function safematch(str, pat)
-    local success, result = pcall(string.match, str, pat)
-    return not success or result
-end
-
+local matching = require 'utils.matching'
 local function show_entry(entry)
-    local current_filter
-    if input_mode == 'filter' then
-        current_filter = editor:content()
-    else
-        current_filter = filter
-    end
-
-    return safematch(entry.text, current_filter)
+    local current_filter = matching.current_pattern()
+    return matching.safematch(entry.text, current_filter)
 end
 
 function M:render()
