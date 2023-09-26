@@ -70,45 +70,53 @@ auto pushircmsg(lua_State *const L, ircmsg const &msg) -> void
 auto l_close_irc(lua_State * const L) -> int
 {
     auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
-    if (w->expired())
-    {
-        luaL_error(L, "send to closed irc");
-        return 0;
-    }
 
-    auto const error = w->lock()->close();
-    if (error)
+    if (auto const irc = w->lock())
     {
-        luaL_pushfail(L);
-        lua_pushstring(L, error.message().c_str());
-        return 2;
+        auto const error = irc->close();
+        if (error)
+        {
+            luaL_pushfail(L);
+            lua_pushstring(L, error.message().c_str());
+            return 2;
+        }
+        else
+        {
+            lua_pushboolean(L, 1);
+            return 1;
+        }
     }
     else
     {
-        lua_pushboolean(L, 1);
-        return 1;
-    }
+        luaL_pushfail(L);
+        lua_pushstring(L, "irc handle destructed");
+        return 2;
+    }    
 }
 
 auto l_send_irc(lua_State * const L) -> int
 {
     auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
-    if (w->expired())
+
+    if (auto const irc = w->lock())
     {
-        luaL_error(L, "send to closed irc");
-        return 0;
+        // Wait until after luaL_error to start putting things on the
+        // stack that have destructors
+        size_t n;
+        auto const cmd = luaL_checklstring(L, 2, &n);
+        lua_settop(L, 2);
+        auto const ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        irc->write(cmd, n, ref);
+
+        lua_pushboolean(L, 1);
+        return 1;
     }
-
-    // Wait until after luaL_error to start putting things on the
-    // stack that have destructors
-
-    size_t n;
-    auto const cmd = luaL_checklstring(L, 2, &n);
-    lua_settop(L, 2);
-    auto const ref = luaL_ref(L, LUA_REGISTRYINDEX);
-
-    w->lock()->write(cmd, n, ref);
-    return 0;
+    else
+    {
+        luaL_pushfail(L);
+        luaL_error(L, "irc handle destructed");
+        return 2;
+    }
 }
 
 auto handle_read(char *line, lua_State *L, int irc_cb) -> void
