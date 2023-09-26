@@ -99,8 +99,12 @@ end
 -- Load network configuration =========================================
 
 do
-    servers = { servers = {}, regions = {},
-        kline_reasons = { 'banned', "You are banned."} }
+    servers = {
+        servers = {},
+        regions = {},
+        kline_reasons = { 'banned', "You are banned."},
+        kline_tags = {}
+    }
     local conf = configuration.network_filename
     if not conf then
         conf = path.join(config_dir, "servers.lua")
@@ -109,7 +113,7 @@ do
     if txt then
         local val, lua_err = pretty.read(txt)
         if val then
-            servers = val
+            tablex.update(servers, val)
         else
             error('Failed to parse ' .. conf .. '\n' .. lua_err)
         end
@@ -163,6 +167,7 @@ local defaults = {
     show_reasons = 'reason',
     kline_duration = '1d',
     kline_reason = 1,
+    kline_tag = 0,
     trust_uname = false,
     server_ordering = 'name',
     server_descending = false,
@@ -418,10 +423,19 @@ function draw_buttons()
     addstr ' '
 
     magenta()
-    local blacklist_text =
+    local klinereason_text =
         string.format('[ %-7s ]', servers.kline_reasons[kline_reason][1])
-    add_button(blacklist_text, function()
+    add_button(klinereason_text, function()
         kline_reason = kline_reason % #servers.kline_reasons + 1
+    end)
+    addstr ' '
+
+    magenta()
+    local klinetag_text =
+        string.format('[ %-7s ]', servers.kline_tags[kline_tag] or 'no tag')
+    add_button(klinetag_text, function()
+        -- increment by one, but use 0 as disabled
+        kline_tag = (kline_tag + 1) % (#servers.kline_tags + 1)
     end)
     addstr ' '
 
@@ -440,10 +454,21 @@ function draw_buttons()
             staged_action.nick or '*',
             staged_action.mask)
         add_button(klineText, function()
+            local reason = servers.kline_reasons[kline_reason][2]
+            local tag = servers.kline_tags[kline_tag]
+
+            if tag then
+                if reason:find '|' then
+                    reason = reason .. ' %' .. tag
+                else
+                    reason = reason .. '|%' .. tag
+                end
+            end
+
             send('KLINE',
                 utils_time.parse_duration(kline_duration),
                 staged_action.mask,
-                servers.kline_reasons[kline_reason][2]
+                reason
             )
             staged_action = nil
         end)
