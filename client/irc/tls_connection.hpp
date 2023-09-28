@@ -3,6 +3,8 @@
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 
+#include <variant>
+
 class tls_irc_connection : public irc_connection
 {
     using tls_socket = boost::asio::ssl::stream<tcp_socket>;
@@ -30,8 +32,14 @@ public:
     auto close() -> boost::system::error_code override;
 };
 
+struct BuildContextFailure
+{
+    const char * operation;
+    boost::system::error_code error;
+};
+
 auto build_ssl_context(
     std::string const& client_cert,
     std::string const& client_key,
     std::string const& client_key_password
-) -> boost::asio::ssl::context;
+) -> std::variant<boost::asio::ssl::context, BuildContextFailure>;

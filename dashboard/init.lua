@@ -846,8 +846,8 @@ end
 
 -- declared above so that it's in scope in on_irc
 function connect()
-    local success, result = pcall(
-        snowcone.connect,
+    local conn_, errmsg =
+        snowcone.connect(
         configuration.tls,
         configuration.host,
         configuration.port,
@@ -858,11 +858,11 @@ function connect()
         configuration.socks_host,
         configuration.socks_port,
         on_irc)
-    if success then
+    if conn_ then
         status('irc', 'connecting')
-        conn = result
+        conn = conn_
     else
-        status('irc', 'failed to connect: %s', result)
+        status('irc', 'failed to connect: %s', errmsg)
     end
 end
 

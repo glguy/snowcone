@@ -77,8 +77,9 @@ auto build_ssl_context(
     std::string const& client_cert,
     std::string const& client_key,
     std::string const& client_key_password
-) -> boost::asio::ssl::context
+) -> std::variant<boost::asio::ssl::context, BuildContextFailure>
 {
+    boost::system::error_code error;
     boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
     ssl_context.set_default_verify_paths();
     if (not client_key_password.empty())
@@ -89,15 +90,28 @@ auto build_ssl_context(
                 boost::asio::ssl::context::password_purpose const purpose)
             {
                 return client_key_password.size() <= max_size ? client_key_password : "";
-            });
+            },
+            error);
+            if (error)
+            {
+                return BuildContextFailure{"password callback", error};
+            }
     }
     if (not client_cert.empty())
     {
-        ssl_context.use_certificate_file(client_cert, boost::asio::ssl::context::file_format::pem);
+        ssl_context.use_certificate_file(client_cert, boost::asio::ssl::context::file_format::pem, error);
+        if (error)
+        {
+            return BuildContextFailure{"certificate file", error};
+        }
     }
     if (not client_key.empty())
     {
-        ssl_context.use_private_key_file(client_key, boost::asio::ssl::context::file_format::pem);
+        ssl_context.use_private_key_file(client_key, boost::asio::ssl::context::file_format::pem, error);
+        if (error)
+        {
+            return BuildContextFailure{"private key", error};
+        }
     }
     return ssl_context;
 }
