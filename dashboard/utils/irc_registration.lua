@@ -22,7 +22,11 @@ return function()
     Task(irc_state.tasks, cap_negotiation.LS)
 
     if configuration.pass then
-        send('PASS', {content=configuration.pass, secret=true})
+        local pass = configuration.pass
+        if configuration.passuser then
+            pass = configuration.passuser .. ':' .. pass
+        end
+        send('PASS', {content=pass, secret=true})
     end
 
     local nick  = configuration.nick

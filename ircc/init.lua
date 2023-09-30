@@ -442,6 +442,7 @@ local function startup()
             nick                = {type = 'string', pattern = '^[^\n\r\x00 ]+$', required = true},
             user                = {type = 'string', pattern = '^[^\n\r\x00 ]+$'},
             gecos               = {type = 'string', pattern = '^[^\n\r\x00]+$'},
+            passuser            = {type = 'string', pattern = '^[^\n\r\x00:]+$'},
             pass                = {type = 'string', pattern = '^[^\n\r\x00]+$'},
             oper_username       = {type = 'string', pattern = '^[^\n\r\x00 ]+$'},
             oper_password       = {type = 'string', pattern = '^[^\n\r\x00]+$'},
