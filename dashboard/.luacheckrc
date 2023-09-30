@@ -33,7 +33,7 @@ stds = {
             "focus", "status_messages", "commands",
 
             -- global load bar state
-            "trust_uname", "show_reasons", "kline_duration",
+            "trust_uname", "show_reasons", "kline_duration", "kline_tag",
             "staged_action", "kline_reason", "kline_reasons", "kline_durations",
 
             -- connection tracking view

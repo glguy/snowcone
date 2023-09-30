@@ -70,45 +70,53 @@ auto pushircmsg(lua_State *const L, ircmsg const &msg) -> void
 auto l_close_irc(lua_State * const L) -> int
 {
     auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
-    if (w->expired())
-    {
-        luaL_error(L, "send to closed irc");
-        return 0;
-    }
 
-    auto const error = w->lock()->close();
-    if (error)
+    if (auto const irc = w->lock())
     {
-        luaL_pushfail(L);
-        lua_pushstring(L, error.message().c_str());
-        return 2;
+        auto const error = irc->close();
+        if (error)
+        {
+            luaL_pushfail(L);
+            lua_pushstring(L, error.message().c_str());
+            return 2;
+        }
+        else
+        {
+            lua_pushboolean(L, 1);
+            return 1;
+        }
     }
     else
     {
-        lua_pushboolean(L, 1);
-        return 1;
-    }
+        luaL_pushfail(L);
+        lua_pushstring(L, "irc handle destructed");
+        return 2;
+    }    
 }
 
 auto l_send_irc(lua_State * const L) -> int
 {
     auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
-    if (w->expired())
+
+    if (auto const irc = w->lock())
     {
-        luaL_error(L, "send to closed irc");
-        return 0;
+        // Wait until after luaL_error to start putting things on the
+        // stack that have destructors
+        size_t n;
+        auto const cmd = luaL_checklstring(L, 2, &n);
+        lua_settop(L, 2);
+        auto const ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        irc->write(cmd, n, ref);
+
+        lua_pushboolean(L, 1);
+        return 1;
     }
-
-    // Wait until after luaL_error to start putting things on the
-    // stack that have destructors
-
-    size_t n;
-    auto const cmd = luaL_checklstring(L, 2, &n);
-    lua_settop(L, 2);
-    auto const ref = luaL_ref(L, LUA_REGISTRYINDEX);
-
-    w->lock()->write(cmd, n, ref);
-    return 0;
+    else
+    {
+        luaL_pushfail(L);
+        luaL_error(L, "irc handle destructed");
+        return 2;
+    }
 }
 
 auto handle_read(char *line, lua_State *L, int irc_cb) -> void
@@ -217,7 +225,6 @@ auto connect_thread(
 
 auto l_start_irc(lua_State *const L) -> int
 {
-
     auto const tls = lua_toboolean(L, 1);
     auto const host = luaL_checkstring(L, 2);
     auto const port = luaL_checkinteger(L, 3);
@@ -230,22 +237,33 @@ auto l_start_irc(lua_State *const L) -> int
     luaL_checkany(L, 10); // callback
     lua_settop(L, 10);
 
-    // consume the callback function and name it
-    auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
-
     auto const a = App::from_lua(L);
     auto& io_context = a->io_context;
     std::shared_ptr<irc_connection> irc;
 
     if (tls)
     {
-        auto ssl_context = build_ssl_context(client_cert, client_key, client_key_password);
-        irc = std::make_shared<tls_irc_connection>(io_context, ssl_context, a->L);
+        auto result = build_ssl_context(client_cert, client_key, client_key_password);
+        if (result.index() == 0)
+        {
+            irc = std::make_shared<tls_irc_connection>(io_context, std::get<0>(result), a->L);
+        }
+        else
+        {
+            auto const& failure = std::get<1>(result);
+            auto const message = failure.error.message();
+            luaL_pushfail(L);
+            lua_pushfstring(L, "%s: %s", failure.operation, message.c_str());
+            return 2;
+        }
     }
     else
     {
         irc = std::make_shared<plain_irc_connection>(io_context, a->L);
     }
+
+    // consume the callback function and name it
+    auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
 
     boost::asio::co_spawn(
         io_context,

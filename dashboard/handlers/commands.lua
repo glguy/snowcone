@@ -215,6 +215,26 @@ add_command('duration', '$r', function(arg)
     end
 end)
 
+add_command('tag', '$g', function(tag)
+    local i = tablex.find(servers.kline_tags, tag)
+    if i then
+        kline_tag = i
+    else
+        table.insert(servers.kline_tags, tag)
+        kline_tag = #servers.kline_tags
+    end
+end)
+
+add_command('droptag', '', function()
+    if kline_tag > 0 then
+        table.remove(servers.kline_tags, kline_tag)
+        local n = #servers.kline_tags
+        if kline_tag > n then
+            kline_tag = n
+        end
+    end
+end)
+
 -- Pretending to be an IRC client
 
 add_command('msg', '$g $r', function(target, message)
