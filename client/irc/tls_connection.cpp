@@ -2,6 +2,8 @@
 
 #include "socks.hpp"
 
+#include <openssl/ssl.h>
+
 #include <iomanip>
 #include <sstream>
 
@@ -62,6 +64,7 @@ auto tls_irc_connection::connect(
     {
         socket_.set_verify_mode(boost::asio::ssl::verify_peer);
         socket_.set_verify_callback(boost::asio::ssl::host_name_verification(verify));
+        SSL_set_tlsext_host_name(socket_.native_handle(), verify.c_str());
     }
     co_await socket_.async_handshake(socket_.client, boost::asio::use_awaitable);
     co_return peer_fingerprint(socket_.native_handle());
