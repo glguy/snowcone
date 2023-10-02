@@ -39,7 +39,7 @@ public:
     auto write(char const * const cmd, size_t const n, int const ref) -> void;
 
     auto virtual close() -> boost::system::error_code = 0;
-    auto virtual read_awaitable(boost::asio::mutable_buffers_1 const& buffers) -> boost::asio::awaitable<std::size_t> = 0;
+    auto virtual read_awaitable(boost::asio::mutable_buffer const& buffers) -> boost::asio::awaitable<std::size_t> = 0;
     auto virtual connect(
         boost::asio::ip::tcp::resolver::results_type const&,
         std::string const&,

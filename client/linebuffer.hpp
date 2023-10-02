@@ -39,9 +39,9 @@ public:
     /**
      * @brief Get the available buffer space
      *
-     * @return boost::asio::mutable_buffers_1
+     * @return boost::asio::mutable_buffer
      */
-    auto get_buffer() -> boost::asio::mutable_buffers_1
+    auto get_buffer() -> boost::asio::mutable_buffer
     {
         return boost::asio::buffer(&*end_, std::distance(end_, buffer.end()));
     }

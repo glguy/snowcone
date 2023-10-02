@@ -14,7 +14,7 @@ public:
     auto async_write() -> void override;
 
     auto read_awaitable(
-        boost::asio::mutable_buffers_1 const& buffers
+        boost::asio::mutable_buffer const& buffers
     ) -> boost::asio::awaitable<std::size_t> override;
 
     auto connect(

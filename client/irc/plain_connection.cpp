@@ -11,7 +11,7 @@ auto plain_irc_connection::async_write() -> void
 }
 
 auto plain_irc_connection::read_awaitable(
-    boost::asio::mutable_buffers_1 const& buffers
+    boost::asio::mutable_buffer const& buffers
 ) -> boost::asio::awaitable<std::size_t>
 {
     return socket_.async_read_some(buffers, boost::asio::use_awaitable);
