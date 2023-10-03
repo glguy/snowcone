@@ -720,6 +720,9 @@ function irc_event.END(txt)
     end
 end
 
+function irc_event.FLUSH()
+end
+
 local irc_handlers = require_ 'handlers.irc'
 function irc_event.MSG(irc)
     local time

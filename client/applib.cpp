@@ -35,6 +35,7 @@ extern "C" {
 #include <iostream>
 #include <iterator>
 #include <locale>
+#include <ctime>
 
 namespace { // lua support for app
 
@@ -223,6 +224,21 @@ auto l_parse_irc_tags(lua_State * const L) -> int
     }
 }
 
+auto l_time(lua_State * const L) -> int
+{
+    timespec now;
+    if (TIME_UTC == timespec_get(&now, TIME_UTC))
+    {
+        lua_pushinteger(L, now.tv_sec);
+        lua_pushinteger(L, now.tv_nsec);
+        return 2;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
 luaL_Reg const applib_module[] = {
     { "to_base64", l_to_base64 },
     { "from_base64", l_from_base64 },
@@ -236,6 +252,7 @@ luaL_Reg const applib_module[] = {
     { "dnslookup", l_dnslookup },
     { "shutdown", l_shutdown },
     { "connect", l_start_irc },
+    { "time", l_time },
    // { "dnslookup", l_dnslookup },
     { "parse_irc_tags", l_parse_irc_tags },
     {}

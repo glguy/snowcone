@@ -255,6 +255,10 @@ irc_handlers = require_ 'handlers.irc'
 
 local conn_handlers = {}
 
+function conn_handlers.FLUSH()
+    draw()
+end
+
 function conn_handlers.MSG(irc)
     do
         local time_tag = irc.tags.time
@@ -298,7 +302,6 @@ function conn_handlers.MSG(irc)
             end
         end
     end
-    draw()
 end
 
 function conn_handlers.CON(fingerprint)
