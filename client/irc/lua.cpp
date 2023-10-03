@@ -202,17 +202,24 @@ auto connect_thread(
 
         irc->write_thread();
 
-        for (LineBuffer buff{32'768};;)
+        std::size_t maxgot = 0;
+        for (LineBuffer buff{irc_connection::irc_buffer_size};;)
         {
             auto target = buff.get_buffer();
             if (target.size() == 0) { throw std::runtime_error{"line buffer full"}; }
 
+            auto const got = co_await irc->read_awaitable(target);
+            if (got > maxgot) {
+                maxgot = got;
+                lua_pushinteger(L, got);
+                lua_setglobal(L, "MAXGOT");
+            }
             buff.add_bytes(
-                co_await irc->read_awaitable(target),
+                got,
                 [L, irc_cb](auto const line) { handle_read(line, L, irc_cb); });
         }
     }
-    catch (std::exception &e)
+    catch (std::exception const& e)
     {
         lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
         lua_pushstring(L, "END");

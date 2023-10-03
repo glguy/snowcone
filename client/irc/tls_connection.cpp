@@ -35,6 +35,9 @@ tls_irc_connection::tls_irc_connection(
     lua_State *const L)
 : irc_connection{io_context, L}, socket_{io_context, ssl_context}
 {
+    auto const ssl = socket_.native_handle();
+    BIO_set_buffer_size(SSL_get_rbio(ssl), irc_connection::irc_buffer_size);
+    BIO_set_buffer_size(SSL_get_wbio(ssl), irc_connection::irc_buffer_size);
 }
 
 auto tls_irc_connection::async_write() -> void

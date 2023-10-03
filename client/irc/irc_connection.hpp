@@ -71,5 +71,7 @@ public:
                 }
             });
     }
+
+    static std::size_t const irc_buffer_size = 131'072;
 };
 
