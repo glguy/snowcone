@@ -258,4 +258,51 @@ add_command('dump', '$r', function(path)
     log:close()
 end)
 
+add_command('upload_filterdb', '$r', function(path)
+    local send_db = require 'utils.hsfilter'
+    local pretty = require 'pl.pretty'
+    local file = require 'pl.file'
+
+    local txt = assert(file.read(path))
+    local db = assert(pretty.read(txt))
+
+    
+    local exprs = {}
+    local ids = {}
+    local flags = {}
+    
+    local next_id = 0
+
+    for i, entry in ipairs(db.patterns) do
+        local id = next_id
+        next_id = next_id + 8
+        for _, action in ipairs(entry.actions) do
+            id = id + assert(hsfilter.actions[action], 'bad action: ' .. action)
+        end
+
+        local flag_val = 0
+        for _, flag in ipairs(entry.flags) do
+            flag_val = flag_val + assert(hsfilter.flags[flag], 'bad flag: ' .. flag)
+        end
+
+        ids[i] = id
+        flags[i] = flag_val
+        exprs[i] = assert(entry.regexp, 'missing regexp at index ' .. i)
+    end
+
+    local platform
+    if db.platform then
+        platform = {}
+        if db.platform.cpu_features then
+            platform.cpu_features = assert(hsfilterdb.cpu_features[db.platform.cpu_features], 'bad cpu_features: ' .. db.platform.cpu_features)
+        end
+        if db.platform.tune then
+            platform.tune = assert(hsfilterdb.tune[db.platform.tune], 'bad tune: ' .. db.platform.tune)
+        end
+    end
+
+    send_db(exprs, flags, ids, platform)
+
+end)
+
 return M

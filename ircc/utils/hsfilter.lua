@@ -1,15 +1,15 @@
 local function send_db(check, db)
+    local send = require'utils.send'
     local chunksize = 300
-    local pattern = "SETFILTER * %s %s%s\r\n"
 
-    irc_state:rawsend(pattern:format(check, '', 'NEW'))
+    send('SETFILTER', '*', check, 'NEW')
 
     for i = 1, db:len(), chunksize do
         local chunk = snowcone.to_base64(db:sub(i, i+chunksize-1))
-        irc_state:rawsend(pattern:format(check, '+', chunk))
+        send('SETFILTER', '*', check, '+' .. chunk)
     end
 
-    irc_state:rawsend(pattern:format(check, '', 'APPLY'))
+    send('SETFILTER', '*', check, 'APPLY')
 end
 
 return function(exprs, flags, ids, platform)
