@@ -171,3 +171,28 @@ except: `nick`, `host`, `port`.
     challenge_password = 'password', -- decryption password for challenge pem
 }
 ```
+
+## Server-side spam filter configuration
+
+Snowcone's ircc mode can load hyperscan databases for configuring the
+server-side message filter extension. This requires installing either
+the `hyperscan` or `vectorscan` optional packages.
+
+Example `patterns.lua` can be loaded with `/upload_filterdb /path/to/patterns.lua`.
+
+```lua
+{
+    patterns = {
+        {
+            actions = {'DROP', 'ALARM'},
+            flags = {'HS_FLAG_SINGLEMATCH', 'HS_FLAG_CASELESS'},
+            regexp = 'example spam string',
+        },
+        {
+            actions = {'KILL'},
+            flags = {'HS_FLAG_SINGLEMATCH'},
+            regexp = 'example kill string',
+        },
+    },
+}
+```
