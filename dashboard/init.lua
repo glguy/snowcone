@@ -155,7 +155,6 @@ local defaults = {
     links = {},
     upstream = {},
     status_message = '',
-    irc_state = {},
     editor = Editor(),
     versions = {},
     uptimes = {},
@@ -582,7 +581,7 @@ function add_network_tracker(name, mask)
     end
 
     net_trackers[name]:track(mask, b, prefix)
-    if irc_state.oper then
+    if irc_state and irc_state.oper then
         send('TESTMASK', '*@' .. mask)
     end
 end
