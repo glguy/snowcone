@@ -266,11 +266,11 @@ add_command('upload_filterdb', '$r', function(path)
     local txt = assert(file.read(path))
     local db = assert(pretty.read(txt))
 
-    
+
     local exprs = {}
     local ids = {}
     local flags = {}
-    
+
     local next_id = 0
 
     for i, entry in ipairs(db.patterns) do
@@ -294,10 +294,13 @@ add_command('upload_filterdb', '$r', function(path)
     if db.platform then
         platform = {}
         if db.platform.cpu_features then
-            platform.cpu_features = assert(hsfilterdb.cpu_features[db.platform.cpu_features], 'bad cpu_features: ' .. db.platform.cpu_features)
+            platform.cpu_features =
+                assert(
+                    hsfilter.cpu_features[db.platform.cpu_features],
+                    'bad cpu_features: ' .. db.platform.cpu_features)
         end
         if db.platform.tune then
-            platform.tune = assert(hsfilterdb.tune[db.platform.tune], 'bad tune: ' .. db.platform.tune)
+            platform.tune = assert(hsfilter.tune[db.platform.tune], 'bad tune: ' .. db.platform.tune)
         end
     end
 
