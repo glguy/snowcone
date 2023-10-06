@@ -13,6 +13,10 @@ local matching = require 'utils.matching'
 local safematch = matching.safematch
 
 local function show_entry(entry)
+    if prefilter and not prefilter(entry) then
+        return false
+    end
+
     local current_filter = matching.current_pattern()
     return
     (server_filter == nil or server_filter == entry.server) and
@@ -187,6 +191,9 @@ function M:render()
         end
         if mark_filter ~= nil then
             yellow() addstr(' MARKED')
+        end
+        if prefilter then
+            yellow() addstr(' PF')
         end
     end
 end

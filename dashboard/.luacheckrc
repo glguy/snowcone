@@ -29,7 +29,7 @@ stds = {
             -- global client state
             "irc_state",  "status_message", "input_mode", "servers",
             "view", "views", "uptime", "scroll", "editor",
-            "filter", "main_views", "new_channels",
+            "filter", "main_views", "new_channels", "prefilter",
             "focus", "status_messages", "commands",
 
             -- global load bar state

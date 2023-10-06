@@ -57,9 +57,10 @@ end)
 
 add_command('filter', '$R', function(args)
     if args == '' then
-        filter = nil
+        prefilter = nil
     else
-        filter = args
+        local matchdsl = require_ 'utils.matchdsl'
+        prefilter = matchdsl(args)
     end
 end)
 
