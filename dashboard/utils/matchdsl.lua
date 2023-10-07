@@ -2,6 +2,14 @@ local lexer = require 'pl.lexer'
 local class = require 'pl.class'
 local rex = require 'rex_pcre2'
 
+local STRING1 = "^(['\"])%1" -- empty string
+local STRING2 = [[^(['"])(\*)%2%1]]
+local STRING3 = [[^(['"]).-[^\](\*)%2%1]]
+
+local function stringlit(x)
+    return 'string', string.sub(x,2, -2)
+end
+
 local matches = {
     {'^ +', 'space'},
     {'^%a+', function(word) return 'word', word end},
@@ -23,6 +31,9 @@ local matches = {
             return 'bad regex', result
         end
     end},
+    {STRING1, stringlit},
+    {STRING2, stringlit},
+    {STRING3, stringlit},
     {'^%(', function(x) return 'open', x end},
     {'^%)', function(x) return 'close', x end},
     {'^.', function(x) return 'error', x end},
@@ -81,6 +92,12 @@ function Parser:atom()
                     self:next()
                     return function(x)
                         return r:exec(x[field] or '') ~= nil
+                    end
+                elseif self.token == 'string' then
+                    local s = self.lexeme
+                    self:next()
+                    return function(x)
+                        return x[field] == s
                     end
                 end
             end

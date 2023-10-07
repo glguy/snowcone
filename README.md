@@ -172,6 +172,42 @@ except: `nick`, `host`, `port`.
 }
 ```
 
+## Dashboard Pre-filter
+
+Viewed connections can be filtered with the `/filter <disjunct>` command.
+
+Example: `/filter nick "glguy" and (host |\.com$|I or not account |.|)`
+
+To reset the filter use an empty `/filter`
+
+```
+disjunct := conjunct ('or' disjunct)*
+
+conjunct := atom ('and' conjunct)*
+
+atom     := '(' disjunct ')'
+          | 'not' atom
+          | field pattern
+
+field    := 'asn'                       # e.g. "1234"
+          | 'class'                     # e.g. "users"
+          | 'gecos'                     # e.g. "realname"
+          | 'host'                      # e.g. "example.com"
+          | 'ip'                        # e.g. "192.0.2.0"
+          | 'mask'                      # e.g. "nick!user@host"
+          | 'nick'                      # e.g. "nick"
+          | 'org'                       # e.g. "SOME-CORP"
+          | 'reason'                    # e.g. "Client Quit"
+          | 'server'                    # e.g. "gold.libera.chat"
+          | 'user'                      # e.g. "user"
+
+pattern  := '|' regular-expression '|'  # pcre regexp
+          | '|' regular-expression '|I' # caseless pcre regexp
+          | '"' literal string '"'      # exact match
+          | "'" literal string "'"      # exact match
+
+```
+
 ## Server-side spam filter configuration
 
 Snowcone's ircc mode can load hyperscan databases for configuring the
