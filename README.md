@@ -189,7 +189,8 @@ atom     := '(' disjunct ')'
           | 'not' atom
           | field pattern
 
-field    := 'asn'                       # e.g. "1234"
+field    := 'account'                   # e.g. "acct"
+          | 'asn'                       # e.g. "1234"
           | 'class'                     # e.g. "users"
           | 'gecos'                     # e.g. "realname"
           | 'host'                      # e.g. "example.com"
