@@ -176,7 +176,7 @@ except: `nick`, `host`, `port`.
 
 Viewed connections can be filtered with the `/filter <disjunct>` command.
 
-Example: `/filter nick "glguy" and (host |\.com$|I or not account |.|)`
+Example: `/filter nick "glguy" and (host |\.com$|I or account "*")`
 
 To reset the filter use an empty `/filter`
 
@@ -189,7 +189,7 @@ atom     := '(' disjunct ')'
           | 'not' atom
           | field pattern
 
-field    := 'account'                   # e.g. "acct"
+field    := 'account'                   # e.g. "acct", unknown is "*"
           | 'asn'                       # e.g. "1234"
           | 'class'                     # e.g. "users"
           | 'gecos'                     # e.g. "realname"
@@ -200,7 +200,7 @@ field    := 'account'                   # e.g. "acct"
           | 'org'                       # e.g. "SOME-CORP"
           | 'reason'                    # e.g. "Client Quit"
           | 'server'                    # e.g. "gold.libera.chat"
-          | 'user'                      # e.g. "user"
+          | 'user'                      # e.g. "user", unknown is "?"
 
 pattern  := '|' regular-expression '|'  # pcre regexp
           | '|' regular-expression '|I' # caseless pcre regexp
