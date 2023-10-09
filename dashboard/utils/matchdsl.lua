@@ -97,7 +97,7 @@ function Parser:atom()
                     local s = self.lexeme
                     self:next()
                     return function(x)
-                        return x[field] == s
+                        return (x[field] or '') == s
                     end
                 end
             end
