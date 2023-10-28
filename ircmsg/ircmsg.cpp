@@ -81,11 +81,6 @@ std::string_view unescape_tag_value(char* const val)
 
 } // namespace
 
-auto irctag::hasval() const -> bool
-{
-    return val.data() != nullptr;
-}
-
 auto parse_irc_tags(char* str) -> std::vector<irctag>
 {
     std::vector<irctag> tags;
@@ -97,7 +92,7 @@ auto parse_irc_tags(char* str) -> std::vector<irctag>
             throw irc_parse_error(irc_error_code::MISSING_TAG);
         }
         if (nullptr == val) {
-            tags.emplace_back(key);
+            tags.emplace_back(key, "");
         } else {
             tags.emplace_back(std::string_view{key, val-1}, unescape_tag_value(val));
         }
