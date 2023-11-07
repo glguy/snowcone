@@ -33,8 +33,7 @@ public:
     irc_connection(irc_connection const&) = delete;
     irc_connection(irc_connection &&) = delete;
 
-    auto write_thread(std::size_t = 0) -> void;
-    auto virtual async_write() -> void = 0;
+    auto virtual write_thread() -> void = 0;
 
     auto write(char const * const cmd, size_t const n, int const ref) -> void;
 
@@ -54,24 +53,44 @@ public:
         uint16_t socks_port
     ) -> boost::asio::awaitable<void>;
 
-    // implementation used by plain_connection and tls_connection
-    // templated so that it works over different socket implementations
-    template <typename AsyncWriteStream>
-    auto async_write_impl(AsyncWriteStream& socket) -> void
-    {
-        boost::asio::async_write(
-            socket,
-            write_buffers,
-            [self = shared_from_this(), n = write_buffers.size()]
-            (auto const error, auto)
-            {
-                if (not error)
-                {
-                    self->write_thread(n);
-                }
-            });
-    }
-
     static std::size_t const irc_buffer_size = 131'072;
+
+    template <typename AsyncWriteStream>
+    auto write_thread_impl(AsyncWriteStream & stream) -> void
+    {
+        if (write_buffers.empty())
+        {
+            write_timer.async_wait(
+                [weak = weak_from_this(), &stream](auto)
+                {
+                    if (auto irc = weak.lock())
+                    {
+                        irc->write_thread_impl(stream);
+                    }
+                }
+            );
+        }
+        else
+        {
+            boost::asio::async_write(
+                stream,
+                write_buffers,
+                [self = shared_from_this(), n = write_buffers.size(), &stream]
+                (boost::system::error_code const& error, std::size_t)
+                {
+                    if (not error)
+                    {
+                        for (std::size_t i = 0; i < n; i++)
+                        {
+                            luaL_unref(self->L, LUA_REGISTRYINDEX, self->write_refs.front());
+                            self->write_buffers.pop_front();
+                            self->write_refs.pop_front();
+                        }
+
+                        self->write_thread_impl(stream);
+                    }
+                });
+        }
+    }
 };
 

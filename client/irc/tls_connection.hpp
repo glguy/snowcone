@@ -16,7 +16,7 @@ public:
         boost::asio::ssl::context &ssl_context,
         lua_State *const L);
 
-    auto async_write() -> void override;
+    auto write_thread() -> void override;
 
     auto read_awaitable(
         boost::asio::mutable_buffer const& buffers
