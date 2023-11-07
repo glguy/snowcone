@@ -9,11 +9,7 @@ struct irctag
     std::string_view key;
     std::string_view val;
 
-    irctag(std::string_view key, std::string_view val = {}) : key{key}, val{val} {}
-
-    /// @brief Check if a tag has an associated value to distinguish between empty value and missing value.
-    /// @return true when tag has an explicit value
-    auto hasval() const -> bool;
+    irctag(std::string_view key, std::string_view val) : key{key}, val{val} {}
 
     friend auto operator==(irctag const&, irctag const&) -> bool = default;
 };

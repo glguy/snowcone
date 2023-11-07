@@ -158,13 +158,13 @@ local function draw_focus(irc, snotice)
             cyan()
             if show_raw then k = rawstr(k) end
             mvaddstr(ncurses.getyx(), 12, k)
-            if type(v) == 'string' then
-                addstr ': '
+            if v == '' then
+                addstr '\n'
+            else
                 normal()
+                addstr ': '
                 if show_raw then v = rawstr(v) end
                 addstr(v, '\n')
-            else
-                addstr '\n'
             end
         end
     end

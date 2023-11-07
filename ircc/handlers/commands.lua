@@ -230,7 +230,7 @@ add_command('dump', '$r', function(path)
             local sep = '@'
             for k,v in pairs(irc.tags) do
                 log:write(sep, k)
-                if true ~= v then
+                if '' ~= v then
                     log:write('=', escapeval(v))
                 end
                 sep = ';'

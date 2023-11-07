@@ -295,14 +295,7 @@ auto pushtags(lua_State *const L, std::vector<irctag> const &tags) -> void
     for (auto &&tag : tags)
     {
         push_stringview(L, tag.key);
-        if (tag.hasval())
-        {
-            push_stringview(L, tag.val);
-        }
-        else
-        {
-            lua_pushboolean(L, 1);
-        }
+        push_stringview(L, tag.val);
         lua_settable(L, -3);
     }
 }
