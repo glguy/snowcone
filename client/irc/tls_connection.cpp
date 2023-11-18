@@ -40,9 +40,9 @@ tls_irc_connection::tls_irc_connection(
     BIO_set_buffer_size(SSL_get_wbio(ssl), irc_connection::irc_buffer_size);
 }
 
-auto tls_irc_connection::async_write() -> void
+auto tls_irc_connection::write_thread() -> void
 {
-    irc_connection::async_write_impl(socket_);
+    write_thread_impl(socket_);
 }
 
 auto tls_irc_connection::read_awaitable(

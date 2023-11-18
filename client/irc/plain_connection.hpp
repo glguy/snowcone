@@ -11,7 +11,7 @@ class plain_irc_connection final : public irc_connection
 public:
     plain_irc_connection(boost::asio::io_context &io_context, lua_State *const L);
 
-    auto async_write() -> void override;
+    auto write_thread() -> void override;
 
     auto read_awaitable(
         boost::asio::mutable_buffer const& buffers

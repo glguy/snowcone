@@ -19,33 +19,6 @@ irc_connection::~irc_connection() {
     }
 }
 
-auto irc_connection::write_thread(std::size_t n) -> void
-{
-    while (n--)
-    {
-        luaL_unref(L, LUA_REGISTRYINDEX, write_refs.front());
-        write_buffers.pop_front();
-        write_refs.pop_front();
-    }
-
-    if (write_buffers.empty())
-    {
-        write_timer.async_wait(
-            [weak = weak_from_this()](auto)
-            {
-                if (auto irc = weak.lock())
-                {
-                    irc->write_thread();
-                }
-            }
-        );
-    }
-    else
-    {
-        async_write();
-    }
-}
-
 auto irc_connection::write(char const * const cmd, size_t const n, int const ref) -> void
 {
     auto const idle = write_buffers.empty();

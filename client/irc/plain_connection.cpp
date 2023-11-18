@@ -5,9 +5,9 @@ plain_irc_connection::plain_irc_connection(boost::asio::io_context &io_context, 
 {
 }
 
-auto plain_irc_connection::async_write() -> void
+auto plain_irc_connection::write_thread() -> void
 {
-    irc_connection::async_write_impl(socket_);
+    write_thread_impl(socket_);
 }
 
 auto plain_irc_connection::read_awaitable(
