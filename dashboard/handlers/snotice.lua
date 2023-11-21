@@ -284,11 +284,12 @@ function M.netjoin(ev)
                         local interval = irc[3]:match 'user shedding event +[0-9]+ +seconds %(frequency=([0-9]+)%)'
                         if interval then
                             sheds[server] = tonumber(interval)
+                            break
                         end
                     elseif irc.command == N.RPL_ENDOFSTATS then
                         sheds[server] = nil
+                        break
                     end
-                    return
                 end
             end
         end)
@@ -303,7 +304,7 @@ function M.netjoin(ev)
                 if irc.source == server then
                     if irc.command == N.RPL_MODLIST and irc[2] == 'drain' then
                         break
-                    elseif irc.command == N.RPL_ENDOFSTATS then
+                    elseif irc.command == N.RPL_ENDOFMODLIST then
                         drains[server] = nil
                         break
                     end

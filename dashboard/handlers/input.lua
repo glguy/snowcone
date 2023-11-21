@@ -28,8 +28,10 @@ function execute.command()
     local entry = commands[command]
     if not entry then
         for _, plugin in pairs(plugins) do
-            entry = plugin.commands[command]
-            if entry then break end
+            if plugin.commands then
+                entry = plugin.commands[command]
+                if entry then break end
+            end
         end
     end
 
