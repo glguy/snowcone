@@ -1,7 +1,7 @@
 local M = {}
 
 function M.pretty_duration(duration)
-    local m = math.tointeger(duration)
+    local m = tonumber(duration)
     if m then
         if m >= 1440 then
             return string.format('%.1f d', m/1440)

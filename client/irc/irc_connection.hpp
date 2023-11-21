@@ -56,29 +56,17 @@ public:
     static std::size_t const irc_buffer_size = 131'072;
 
     template <typename AsyncWriteStream>
-    auto write_thread_impl(AsyncWriteStream & stream) -> void
+    auto write_thread_impl_go(AsyncWriteStream & stream) -> void
     {
-        if (write_buffers.empty())
-        {
-            write_timer.async_wait(
-                [weak = weak_from_this(), &stream](auto)
+        boost::asio::async_write(
+            stream,
+            write_buffers,
+            [weak = weak_from_this(), n = write_buffers.size(), &stream]
+            (boost::system::error_code const& error, std::size_t)
+            {
+                if (not error)
                 {
-                    if (auto irc = weak.lock())
-                    {
-                        irc->write_thread_impl(stream);
-                    }
-                }
-            );
-        }
-        else
-        {
-            boost::asio::async_write(
-                stream,
-                write_buffers,
-                [self = shared_from_this(), n = write_buffers.size(), &stream]
-                (boost::system::error_code const& error, std::size_t)
-                {
-                    if (not error)
+                    if (auto self = weak.lock())
                     {
                         for (std::size_t i = 0; i < n; i++)
                         {
@@ -89,7 +77,31 @@ public:
 
                         self->write_thread_impl(stream);
                     }
-                });
+                }
+            });
+    }
+
+    template <typename AsyncWriteStream>
+    auto write_thread_impl(AsyncWriteStream & stream) -> void
+    {
+        if (write_buffers.empty())
+        {
+            write_timer.async_wait(
+                [weak = weak_from_this(), &stream](auto)
+                {
+                    if (auto self = weak.lock())
+                    {
+                        if (not self->write_buffers.empty())
+                        {
+                            self->write_thread_impl_go(stream);
+                        }
+                    }
+                }
+            );
+        }
+        else
+        {
+            write_thread_impl_go(stream);
         }
     }
 };

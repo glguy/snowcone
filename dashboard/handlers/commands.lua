@@ -418,6 +418,16 @@ add_command('drains', '', function()
     end)
 end)
 
+add_command('shed_eta', '', function()
+    for k,v in pairs(sheds) do
+        local n = population[k]
+        local short = k:match '^[^.]*'
+        print(string.format(
+            "shedding \x02%-12s\x02 \x02%6d\x02 users \x02%6d\x02 rate \x02%6s\x02 remaning",
+            short, n, v, utils_time.pretty_duration(n*v/60)))
+    end
+end)
+
 add_command('sheds', '', function()
     Task(irc_state.tasks, function(task)
         local replies = Set{N.RPL_STATSDEBUG, N.RPL_ENDOFSTATS}
