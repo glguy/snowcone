@@ -3,12 +3,19 @@ local class = require 'pl.class'
 local LoadAverage = class()
 LoadAverage._name = 'LoadAverage'
 
-local exp_1  = 1 / math.exp(1/ 1/60)
-local exp_5  = 1 / math.exp(1/ 5/60)
-local exp_15 = 1 / math.exp(1/15/60)
+local exp = {}
+for i = 1, 15 do
+    exp[i] = 1 / math.exp(1/i/60)
+end
+
 local ticks = {[0]=' ','▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 
 function LoadAverage:sample(x)
+    local mins = math.max(1, math.ceil(self.n / 60))
+    local exp_1 = exp[1]
+    local exp_5 = exp[math.min(5, mins)]
+    local exp_15 = exp[math.min(15, mins)]
+
     self[ 1] = self[ 1] * exp_1  + x * (1 - exp_1 )
     self[ 5] = self[ 5] * exp_5  + x * (1 - exp_5 )
     self[15] = self[15] * exp_15 + x * (1 - exp_15)

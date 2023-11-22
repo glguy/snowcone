@@ -391,7 +391,7 @@ add_command('drains', '', function()
         local found_set = {}
         local found = {}
         local outstanding = {}
-        for k, _ in pairs(links) do
+        for k, _ in pairs(population) do
             if servers.servers[k] then
                 outstanding[k] = true
             end
@@ -434,7 +434,7 @@ add_command('sheds', '', function()
         local found_set = {}
         local found = {}
         local outstanding = {}
-        for k, _ in pairs(links) do
+        for k, _ in pairs(population) do
             if servers.servers[k] then
                 outstanding[k] = true
                 send('STATS', 'E', k)
