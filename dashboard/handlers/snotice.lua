@@ -120,6 +120,7 @@ function M.nick(ev)
     local user = users:lookup(ev.old)
     if user then
         user.nick = ev.new
+        user.mask = user.nick .. '!' .. user.user .. '@' .. user.host
         users:rekey(ev.old, ev.new)
     end
 
