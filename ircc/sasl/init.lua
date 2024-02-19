@@ -45,26 +45,37 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid)
     local saslpassword = prep(password, 'SASLprep')
 
     if mechanism == 'PLAIN' then
+        assert(authcid, "missing sasl `username`")
+        assert(saslpassword, "missing sasl `password`")
         return require_ 'sasl.plain' (authzid, authcid, saslpassword)
     elseif mechanism == 'EXTERNAL' then
         return require_ 'sasl.external' (authzid)
     elseif mechanism == 'ECDSA-NIST256P-CHALLENGE' then
+        assert(authcid, "missing sasl `username`")
         assert(key, "sasl key file not specified `key`")
-        key = assert(file.read(key), 'failed to read sasl key file')
+        key = assert(file.read(key), 'failed to read sasl `key`')
         key = assert(myopenssl.read_pkey(key, true, password))
         return require_ 'sasl.ecdsa' (authzid, authcid, key)
     elseif mechanism == 'ECDH-X25519-CHALLENGE' then
-        assert(key, 'missing private key')
-        key = assert(snowcone.from_base64(key), 'bad base64 in private key')
+        assert(authcid, "missing sasl `username`")
+        assert(key, 'missing private `key`')
+        key = assert(snowcone.from_base64(key), 'bad base64 in private sasl `key`')
         key = assert(myopenssl.read_raw(myopenssl.EVP_PKEY_X25519, true, key))
         return require_ 'sasl.ecdh' (authzid, authcid, key)
     elseif mechanism == 'SCRAM-SHA-1'   then
+        assert(authcid, "missing sasl `username`")
+        assert(saslpassword, "missing sasl `password`")
         return require_ 'sasl.scram' ('sha1', authzid, authcid, saslpassword)
     elseif mechanism == 'SCRAM-SHA-256' then
+        assert(authcid, "missing sasl `username`")
+        assert(saslpassword, "missing sasl `password`")
         return require_ 'sasl.scram' ('sha256', authzid, authcid, saslpassword)
     elseif mechanism == 'SCRAM-SHA-512' then
+        assert(authcid, "missing sasl `username`")
+        assert(saslpassword, "missing sasl `password`")
         return require_ 'sasl.scram' ('sha512', authzid, authcid, saslpassword)
     elseif mechanism == 'ANONYMOUS' then
+        assert(authcid, "missing sasl `username`")
         return require_ 'sasl.anonymous' (authcid)
     else
         error 'bad mechanism'
