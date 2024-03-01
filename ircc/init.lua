@@ -260,6 +260,15 @@ function conn_handlers.FLUSH()
 end
 
 function conn_handlers.MSG(irc)
+
+    -- This can happen in an abrubt teardown due to client rejecting
+    -- this connection because of mismatched fingerprint or SASL
+    -- failure, etc. Discard all remaining messages until next
+    -- reconnect.
+    if not irc_state then
+        return
+    end
+
     do
         local time_tag = irc.tags.time
         irc.time = time_tag and string.match(irc.tags.time, '^%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d%d%dZ$')
