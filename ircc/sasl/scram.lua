@@ -54,6 +54,11 @@ return function(digest_name, authzid, authcid, password, nonce)
 
         --------------------------------------------------
         local server_first = coroutine.yield(client_first)
+        if server_final:startswith 'e=' then
+            local errmsg = server_final:sub(3)
+            error('SCRAM server error: ' .. errmsg, 2)
+        end
+
         local server_nonce, salt, iterations = string.match(server_first, '^r=([!-+--~]*),s=([%w+/]*=?=?),i=(%d+)$')
         assert(server_nonce, 'bad server initial')
         salt = assert(snowcone.from_base64(salt), 'bad salt encoding')
