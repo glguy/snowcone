@@ -54,8 +54,8 @@ return function(digest_name, authzid, authcid, password, nonce)
 
         --------------------------------------------------
         local server_first = coroutine.yield(client_first)
-        if server_final:startswith 'e=' then
-            local errmsg = server_final:sub(3)
+        if server_first:startswith 'e=' then
+            local errmsg = server_first:sub(3)
             error('SCRAM server error: ' .. errmsg, 2)
         end
 
