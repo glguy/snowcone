@@ -635,7 +635,7 @@ M[N.RPL_LOGGEDIN] = function(irc)
 end
 
 -- <client> <nick>!<ident>@<host> :You are now logged out
-M[N.RPL_LOGGEDOUT] = function(irc)
+M[N.RPL_LOGGEDOUT] = function()
     irc_state:set_account(nil)
 end
 

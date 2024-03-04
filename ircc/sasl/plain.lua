@@ -1,4 +1,4 @@
--- The PLAIN Simple Authentication and Security Layer (SASL) Mechanism 
+-- The PLAIN Simple Authentication and Security Layer (SASL) Mechanism
 -- https://datatracker.ietf.org/doc/html/rfc4616
 
 return function(authzid, authcid, password)
