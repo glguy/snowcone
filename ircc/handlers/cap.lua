@@ -18,6 +18,9 @@ function CAP.NEW(capsarg)
         if irc_state.caps_wanted[cap] and not irc_state.caps_enabled[cap] then
             table.insert(req, cap)
         end
+        if 'sasl' == cap then
+            irc_state:set_sasl_mechs(arg)
+        end
         if next(req) then
             Task('cap negotiation', irc_state.tasks, cap_negotiation.REQ, req)
         end

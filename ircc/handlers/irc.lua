@@ -624,4 +624,9 @@ M[N.RPL_AWAY] = function(irc)
     user.away = irc[3]
 end
 
+-- <client> <mechanisms> :are available SASL mechanisms
+M[N.RPL_SASLMECHS] = function(irc)
+    irc_state:set_sasl_mechs(irc[2])
+end
+
 return M

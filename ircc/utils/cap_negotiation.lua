@@ -36,11 +36,12 @@ function M.REQ(task, request)
         -- transfer directly into sasl task body
 
         local success
-
         for _, credential in ipairs(credentials) do
-            success = sasl(task, credential)
-            if success then
-                break
+            if irc_state:has_sasl_mech(credential.mechanism) then
+                success = sasl(task, credential)
+                if success then
+                    break
+                end
             end
         end
 
@@ -69,6 +70,10 @@ function M.LS(task)
 
             for cap, eq, arg in capsarg:gmatch '([^ =]+)(=?)([^ ]*)' do
                 caps[cap] = eq == '=' and arg or true
+
+                if 'sasl' == cap then
+                    irc_state:set_sasl_mechs(arg)
+                end            
             end
         elseif irc.command == N.RPL_WELCOME then
             return -- welcome means no cap negotiation

@@ -1,4 +1,5 @@
 local class = require 'pl.class'
+local Set = require 'pl.Set'
 local User = require  'components.User'
 
 -- irc_state
@@ -17,6 +18,7 @@ local User = require  'components.User'
 -- .chantypes
 -- .batches
 -- .isupport
+-- .sasl_mechs     - set of string   - SASL mechanisms supported
 
 local M = class()
 M._name = 'Irc'
@@ -226,6 +228,15 @@ end
 
 function M:clear_partial_mode_list()
     self.partial_mode_list = nil
+end
+
+function M:set_sasl_mechs(list)
+    self.sasl_mechs = Set(list:split(','))
+end
+
+function M:has_sasl_mech(mech)
+    -- assume we support all mechs if we don't know which ones we support
+    return not self.sasl_mechs or self.sasl_mechs[mech]
 end
 
 return M
