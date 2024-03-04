@@ -34,7 +34,19 @@ function M.REQ(task, request)
         local credentials = irc_state.sasl_credentials
         irc_state.sasl_credentials = nil
         -- transfer directly into sasl task body
-        sasl(task, credentials, irc_state.phase == 'registration')
+
+        local success
+
+        for _, credential in ipairs(credentials) do
+            success = sasl(task, credential)
+            if success then
+                break
+            end
+        end
+
+        if not success and irc_state.phase == 'registration' then
+            disconnect()
+        end
     end
 end
 

@@ -18,8 +18,18 @@ return function(task)
         end
     end
 
-    local credentials = configuration.sasl_credentials
-    irc_state.sasl_credentials = credentials and credentials.default
+    if configuration.sasl_automatic then
+        irc_state.sasl_credentials = {}
+        for _, name in ipairs(configuration.sasl_automatic) do
+            local credential = configuration.sasl_credentials[name]
+            if not credential then
+                error('Unknown credential in sasl_automatic: ' .. name)
+            end
+            table.insert(irc_state.sasl_credentials, credential)
+        end
+    elseif configuration.sasl_credentials and irc_state.sasl_credentials.default then
+        irc_state.sasl_credentials = {configuration.sasl_credentials.default}
+    end
 
     send('CAP', 'LS', '302')
     Task('cap negotiation', irc_state.tasks, cap_negotiation.LS)

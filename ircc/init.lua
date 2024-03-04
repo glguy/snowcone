@@ -341,7 +341,7 @@ function conn_handlers.END(reason)
         reconnect_timer = snowcone.newtimer()
         reconnect_timer:start(1000, function()
             reconnect_timer = nil
-            connect()
+            --connect()
         end)
     end
 end
@@ -468,6 +468,10 @@ local function startup()
                 elements = {type = 'string', pattern = '^[^\n\r\x00 ]+$', required = true}
             },
             mention_patterns    = {
+                type = 'table',
+                elements = {type = 'string', required = true}
+            },
+            sasl_automatic      = {
                 type = 'table',
                 elements = {type = 'string', required = true}
             },

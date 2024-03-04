@@ -55,8 +55,7 @@ return function(digest_name, authzid, authcid, password, nonce)
         --------------------------------------------------
         local server_first = coroutine.yield(client_first)
         if server_first:startswith 'e=' then
-            local errmsg = server_first:sub(3)
-            error('SCRAM server error: ' .. errmsg, 2)
+            return
         end
 
         local server_nonce, salt, iterations = string.match(server_first, '^r=([!-+--~]*),s=([%w+/]*=?=?),i=(%d+)$')
@@ -84,9 +83,9 @@ return function(digest_name, authzid, authcid, password, nonce)
         --------------------------------------------------
         local server_final = coroutine.yield(client_final)
         if server_final:startswith 'e=' then
-            local errmsg = server_final:sub(3)
-            error('SCRAM server error: ' .. errmsg, 2)
+            return
         end
+
         local sig64 = assert(string.match(server_final, '^v=([%w+/]*=?=?)$'), 'bad server final')
         local sig = assert(snowcone.from_base64(sig64), 'bad server final signature base64')
         assert(server_signature == sig, 'bad server final signature')

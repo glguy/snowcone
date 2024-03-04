@@ -206,6 +206,7 @@ function M:has_chathistory()
     return self.caps_enabled['draft/chathistory']
 end
 
+--- has_sasl true when sasl capability is negotiated
 function M:has_sasl()
     return self.caps_enabled.sasl
 end

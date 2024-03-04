@@ -83,22 +83,23 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid)
 end
 
 -- Main body for a Task
-return function(task, credentials, disconnect_on_failure)
+return function(task, credentials)
     local mechanism = credentials.mechanism
-    local success, impl = pcall(mechanism_factory,
+    local mech_success, impl = pcall(mechanism_factory,
         mechanism,
         credentials.username,
         credentials.password,
         credentials.key,
         credentials.authzid
     )
-    if not success then
+    if not mech_success then
         status('sasl', 'Startup failed: %s', mechanism)
-        return
+        return false
     end
 
     send('AUTHENTICATE', mechanism)
 
+    local outcome = true
     local chunks = {}
     local n = 0
     while true do
@@ -118,60 +119,49 @@ return function(task, credentials, disconnect_on_failure)
                 chunks = {}
                 n = 0
 
-                local reply, secret
                 if payload == nil then
                     status('sasl', 'Bad base64 in AUTHENTICATE')
+                    send_authenticate() -- abort
+                    outcome = false
                 else
-                    local message
-                    success, message, secret = coroutine.resume(impl, payload)
+                    local success, message, secret = coroutine.resume(impl, payload)
                     if success then
-                        reply = message
+                        if message then
+                            send_authenticate(message, secret)
+                        end
                     else
                         status('sasl', 'Mechanism error: %s', message)
+                        send_authenticate() -- abort
+                        outcome = false
                     end
                 end
-
-                if not reply and disconnect_on_failure then
-                    goto failure
-                end
-
-                send_authenticate(reply, secret)
             end
         elseif command == N.RPL_SASLSUCCESS then
             -- ensure the mechanism has completed
             -- the end of scram, for example, verifies the server
             if coroutine.status(impl) == 'dead' then
                 status('sasl', 'SASL success')
-                return
+                return outcome
             else
-                status('sasl', 'Unexpected success')
-                goto failure
+                status('sasl', 'SASL erroneous success')
+                return false
             end
         elseif command == N.ERR_SASLFAIL then
             -- "<client> :SASL authentication failed"
             status('sasl', 'SASL failed')
-            goto failure
+            return false
         elseif command == N.ERR_SASLABORTED then
             -- "<client> :SASL authentication aborted"
             status('sasl', 'SASL aborted')
-            goto failure
-        elseif command == N.RPL_SASLMECHS then
-            -- "<client> <mechanisms> :are available SASL mechanisms"
-            status('sasl', 'SASL mechanism unsupported: %s', irc[2])
-            goto failure
-        elseif command == N.ERR_SASLTOOLONG then
-            -- "<client> :SASL message too long"
-            status('sasl', 'SASL too long')
-            goto failure
+            return false
         elseif command == N.ERR_SASLALREADY then
             -- "<client> :You have already authenticated using SASL"
             status('sasl', 'SASL already complete')
-            goto failure
+            return false
+        elseif command == N.ERR_NICKLOCKED then
+            -- "<client> :You must use a nick assigned to you
+            status('sasl', 'Must use assigned nickname')
+            return false
         end
-    end
-
-    ::failure::
-    if disconnect_on_failure then
-        disconnect()
     end
 end
