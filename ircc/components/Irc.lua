@@ -230,13 +230,28 @@ function M:clear_partial_mode_list()
     self.partial_mode_list = nil
 end
 
+--- Set the list of supported SASL mechanisms
+--- Input comma-separated string when supported
+--- Input nil to clear setting
 function M:set_sasl_mechs(list)
-    self.sasl_mechs = Set(list:split(','))
+    self.sasl_mechs = list and Set(list:split(','))
 end
 
+--- Predicate if a named mechanism might be supported
+--- If we don't know the list (old cap-negotiation version) we assume all are supported
 function M:has_sasl_mech(mech)
     -- assume we support all mechs if we don't know which ones we support
     return not self.sasl_mechs or self.sasl_mechs[mech]
+end
+
+--- Set current services account
+function M:set_account(account)
+    self.account = account
+end
+
+--- Get current services account
+function M:get_account()
+    return self.account
 end
 
 return M

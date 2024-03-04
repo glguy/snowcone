@@ -629,4 +629,14 @@ M[N.RPL_SASLMECHS] = function(irc)
     irc_state:set_sasl_mechs(irc[2])
 end
 
+-- <client> <nick>!<ident>@<host> <account> :You are now logged in as <user>
+M[N.RPL_LOGGEDIN] = function(irc)
+    irc_state:set_account(irc[3])
+end
+
+-- <client> <nick>!<ident>@<host> :You are now logged out
+M[N.RPL_LOGGEDOUT] = function(irc)
+    irc_state:set_account(nil)
+end
+
 return M

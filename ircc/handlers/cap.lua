@@ -8,6 +8,9 @@ function CAP.DEL(capsarg)
     for cap in capsarg:gmatch '[^ ]+' do
         irc_state.caps_available[cap] = nil
         irc_state.caps_enabled[cap] = nil
+        if 'sasl' == cap then
+            irc_state:set_sasl_mechs(nil)
+        end
     end
 end
 

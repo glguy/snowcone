@@ -1,6 +1,12 @@
 local sha256  = myopenssl.get_digest 'sha256'
+local xor_strings = snowcone.xor_strings
 
 return function(authzid, authcid, client_seckey)
+    if mystringprep then
+        authcid = mystringprep.stringprep(authcid, 'SASLprep')
+        authzid = authzid and mystringprep.stringprep(authzid, 'SASLprep')
+    end
+
     return coroutine.create(function()
         local first = authcid
         if authzid then
@@ -24,6 +30,6 @@ return function(authzid, authcid, client_seckey)
         local prk = sha256:hmac(ikm, session_salt)
         local better_secret = sha256:hmac("ECDH-X25519-CHALLENGE\1", prk)
 
-        return snowcone.xor_strings(masked_challenge, better_secret)
+        return xor_strings(masked_challenge, better_secret)
     end)
 end
