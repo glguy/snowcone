@@ -73,7 +73,7 @@ function M.LS(task)
 
                 if 'sasl' == cap then
                     irc_state:set_sasl_mechs(arg)
-                end            
+                end
             end
         elseif irc.command == N.RPL_WELCOME then
             return -- welcome means no cap negotiation
