@@ -1,4 +1,5 @@
 #include "digest.hpp"
+#include "errors.hpp"
 
 extern "C" {
 #include <lua.h>
@@ -28,8 +29,7 @@ static luaL_Reg const DigestMethods[] {
 
         if (0 >= success)
         {
-            luaL_error(L, "EVP_Digest(%d)", success);
-            return 0;
+            openssl_failure(L, "EVP_Digest");
         }
 
         // Push results
@@ -51,8 +51,7 @@ static luaL_Reg const DigestMethods[] {
         unsigned int md_len;
         if (nullptr == HMAC(type, key, key_len, data, data_len, md, &md_len))
         {
-            luaL_error(L, "HMAC");
-            return 0;
+            openssl_failure(L, "HMAC");
         }
 
         luaL_pushresultsize(&B, md_len);
@@ -71,8 +70,7 @@ auto l_get_digest(lua_State * const L) -> int
     auto const digest = EVP_get_digestbyname(name);
     if (digest == nullptr)
     {
-        luaL_error(L, "EVP_get_digestbyname");
-        return 0;
+        openssl_failure(L, "EVP_get_digestbyname");
     }
 
     // Allocate userdata

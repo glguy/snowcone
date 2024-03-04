@@ -1,5 +1,6 @@
 #include "pkey.hpp"
 #include "invoke.hpp"
+#include "errors.hpp"
 
 extern "C" {
 #include <lua.h>
@@ -39,16 +40,14 @@ luaL_Reg const PkeyMethods[] {
         auto const ctx = EVP_PKEY_CTX_new(pkey, nullptr);
         if (nullptr == ctx)
         {
-            luaL_error(L, "EVP_PKEY_CTX_new");
-            return 0;
+            openssl_failure(L, "EVP_PKEY_CTX_new");
         }
 
         auto success = EVP_PKEY_sign_init(ctx);
         if (0 >= success)
         {
             EVP_PKEY_CTX_free(ctx);
-            luaL_error(L, "EVP_PKEY_sign_init(%d)", success);
-            return 0;
+            openssl_failure(L, "EVP_PKEY_sign_init");
         }
 
         // Get the max output size
@@ -58,8 +57,7 @@ luaL_Reg const PkeyMethods[] {
         if (0 >= success)
         {
             EVP_PKEY_CTX_free(ctx);
-            luaL_error(L, "EVP_PKEY_sign(%d)", success);
-            return 0;
+            openssl_failure(L, "EVP_PKEY_sign");
         }
 
         luaL_Buffer B;
@@ -70,8 +68,7 @@ luaL_Reg const PkeyMethods[] {
 
         if (0 >= success)
         {
-            luaL_error(L, "EVP_PKEY_sign(%d)", success);
-            return 0;
+            openssl_failure(L, "EVP_PKEY_sign");
         }
 
         luaL_pushresultsize(&B, sig_len);
@@ -88,16 +85,14 @@ luaL_Reg const PkeyMethods[] {
         auto const ctx = EVP_PKEY_CTX_new(pkey, nullptr);
         if (nullptr == ctx)
         {
-            luaL_error(L, "EVP_PKEY_CTX_new");
-            return 0;
+            openssl_failure(L, "EVP_PKEY_CTX_new");
         }
 
         auto success = EVP_PKEY_decrypt_init(ctx);
         if (0 >= success)
         {
             EVP_PKEY_CTX_free(ctx);
-            luaL_error(L, "EVP_PKEY_decrypt_init(%d)", success);
-            return 0;
+            openssl_failure(L, "EVP_PKEY_decrypt_init");
         }
 
         if (0 == strcmp("oaep", format))
@@ -106,8 +101,7 @@ luaL_Reg const PkeyMethods[] {
             if (0 >= success)
             {
                 EVP_PKEY_CTX_free(ctx);
-                luaL_error(L, "EVP_PKEY_CTX_set_rsa_padding(%d)", success);
-                return 0;
+                openssl_failure(L, "EVP_PKEY_CTX_set_rsa_padding");
             }
         }
 
@@ -116,8 +110,7 @@ luaL_Reg const PkeyMethods[] {
         if (0 >= success)
         {
             EVP_PKEY_CTX_free(ctx);
-            luaL_error(L, "EVP_PKEY_decrypt(%d)", success);
-            return 0;
+            openssl_failure(L, "EVP_PKEY_decrypt");
         }
 
         luaL_Buffer B;
@@ -128,8 +121,7 @@ luaL_Reg const PkeyMethods[] {
 
         if (0 >= success)
         {
-            luaL_error(L, "EVP_PKEY_decrypt(%d)", success);
-            return 0;
+            openssl_failure(L, "EVP_PKEY_decrypt");
         }
 
         luaL_pushresultsize(&B, out_len);
@@ -144,24 +136,21 @@ luaL_Reg const PkeyMethods[] {
         auto const ctx = EVP_PKEY_CTX_new(priv, nullptr);
         if (nullptr == ctx)
         {
-            luaL_error(L, "EVP_PKEY_CTX_new");
-            return 0;
+            openssl_failure(L, "EVP_PKEY_CTX_new");
         }
 
         auto success = EVP_PKEY_derive_init(ctx);
         if (0 >= success)
         {
             EVP_PKEY_CTX_free(ctx);
-            luaL_error(L, "EVP_PKEY_derive_init(%d)", success);
-            return 0;
+            openssl_failure(L, "EVP_PKEY_derive_init");
         }
 
         success = EVP_PKEY_derive_set_peer(ctx, pub);
         if (0 >= success)
         {
             EVP_PKEY_CTX_free(ctx);
-            luaL_error(L, "EVP_PKEY_derive_set_peer(%d)", success);
-            return 0;
+            openssl_failure(L, "EVP_PKEY_derive_set_peer");
         }
 
         std::size_t out_len;
@@ -169,8 +158,7 @@ luaL_Reg const PkeyMethods[] {
         if (0 >= success)
         {
             EVP_PKEY_CTX_free(ctx);
-            luaL_error(L, "EVP_PKEY_derive(%d)", success);
-            return 0;
+            openssl_failure(L, "EVP_PKEY_derive");
         }
 
         luaL_Buffer B;
@@ -181,8 +169,7 @@ luaL_Reg const PkeyMethods[] {
 
         if (0 >= success)
         {
-            luaL_error(L, "EVP_PKEY_derive(%d)", success);
-            return 0;
+            openssl_failure(L, "EVP_PKEY_derive");
         }
 
         luaL_pushresultsize(&B, out_len);
@@ -197,8 +184,7 @@ luaL_Reg const PkeyMethods[] {
         auto success = EVP_PKEY_get_raw_public_key(pkey, nullptr, &out_len);
         if (0 >= success)
         {
-            luaL_error(L, "EVP_PKEY_get_raw_public_key(%d)", success);
-            return 0;
+            openssl_failure(L, "EVP_PKEY_get_raw_public_key");
         }
 
         luaL_Buffer B;
@@ -207,8 +193,7 @@ luaL_Reg const PkeyMethods[] {
         success = EVP_PKEY_get_raw_public_key(pkey, out, &out_len);
         if (0 >= success)
         {
-            luaL_error(L, "EVP_PKEY_get_raw_public_key(%d)", success);
-            return 0;
+            openssl_failure(L, "EVP_PKEY_get_raw_public_key");
         }
 
         luaL_pushresultsize(&B, out_len);
@@ -246,9 +231,7 @@ auto l_read_raw(lua_State * const L) -> int
         : EVP_PKEY_new_raw_public_key(type, nullptr, raw, raw_len);
     if (nullptr == pkey)
     {
-        luaL_pushfail(L);
-        lua_pushstring(L, "EVP_PKEY_new_raw_private_key");
-        return 2;
+        openssl_failure(L, "EVP_PKEY_new_raw_private_key");
     }
 
     push_evp_pkey(L, pkey);
@@ -276,9 +259,7 @@ auto l_read_pkey(lua_State * const L) -> int
     auto const bio = BIO_new_mem_buf(key, key_len);
     if (nullptr == bio)
     {
-        luaL_pushfail(L);
-        lua_pushstring(L, "BIO_new_mem_buf");
-        return 2;
+        openssl_failure(L, "BIO_new_mem_buf");
     }
 
     auto const pkey
@@ -289,9 +270,7 @@ auto l_read_pkey(lua_State * const L) -> int
 
     if (nullptr == pkey)
     {
-        luaL_pushfail(L);
-        lua_pushstring(L, priv ? "PEM_read_bio_PrivateKey" : "PEM_read_bio_PUBKEY");
-        return 2;
+        openssl_failure(L, priv ? "PEM_read_bio_PrivateKey" : "PEM_read_bio_PUBKEY");
     }
 
     push_evp_pkey(L, pkey);
