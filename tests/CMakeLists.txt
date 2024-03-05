@@ -13,10 +13,10 @@ endif()
 find_program(LUACHECK luacheck)
 if(NOT ${LUACHECK} STREQUAL "LUACHECK-NOTFOUND")
 message("luacheck was " ${LUACHECK})
-add_test(NAME luacheck
+add_test(NAME luacheck-ircc
   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/ircc"
   COMMAND ${LUACHECK} ".")
-add_test(NAME luacheck-client
+add_test(NAME luacheck-dashboard
   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/dashboard"
   COMMAND ${LUACHECK} ".")
 endif()

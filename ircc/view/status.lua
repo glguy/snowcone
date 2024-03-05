@@ -6,6 +6,8 @@ local M = {
     draw_status = function() end,
 }
 
+local hscroll = 0
+
 local keys = {
     [-ncurses.KEY_PPAGE] = function()
         local elts = math.min(status_messages.n, status_messages.max)
@@ -16,6 +18,14 @@ local keys = {
     [-ncurses.KEY_NPAGE] = function()
         scroll = scroll - math.max(1, tty_height - 3)
         scroll = math.max(scroll, 0)
+    end,
+    [-ncurses.KEY_RIGHT] = function()
+        local scroll_unit = math.max(1, tty_width - 26)
+        hscroll = math.max(0, math.min(1024 - scroll_unit, hscroll + scroll_unit))
+    end,
+    [-ncurses.KEY_LEFT] = function()
+        local scroll_unit = math.max(1, tty_width - 26)
+        hscroll = math.max(0, hscroll - scroll_unit)
     end,
 }
 
@@ -44,7 +54,7 @@ function M:render()
         blue()
         addstr(string.format(' %-10.10s ', entry.category or '-'))
         normal()
-        addircstr(entry.text)
+        addircstr(entry.text:sub(hscroll))
     end)
 end
 
