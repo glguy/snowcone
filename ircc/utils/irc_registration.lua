@@ -27,7 +27,7 @@ return function(task)
             end
             table.insert(irc_state.sasl_credentials, credential)
         end
-    elseif configuration.sasl_credentials and irc_state.sasl_credentials.default then
+    elseif configuration.sasl_credentials and configuration.sasl_credentials.default then
         irc_state.sasl_credentials = {configuration.sasl_credentials.default}
     end
 

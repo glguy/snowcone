@@ -285,11 +285,11 @@ auto l_read_pkey(lua_State * const L) -> int
     std::size_t pass_len;
     auto const pass = luaL_optlstring(L, 3, "", &pass_len);
 
-    auto cb = [pass, pass_len](char *buf, int size, int rwflag) -> int
+    auto cb = [pass, pass_len](char *buf, int size, int) -> int
     {
         if (size < 0 || size_t(size) < pass_len)
         {
-            return 0;
+            return -1; // -1:error due to password not fitting
         }
         memcpy(buf, pass, pass_len);
         return pass_len;
