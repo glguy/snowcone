@@ -1,3 +1,9 @@
+/***
+public/private key object
+
+@classmod pkey
+*/
+
 #include "pkey.hpp"
 #include "invoke.hpp"
 #include "errors.hpp"
@@ -30,7 +36,18 @@ luaL_Reg const PkeyMT[] {
     {}
 };
 
+/***
+@type pkey
+*/
+
 luaL_Reg const PkeyMethods[] {
+    /***
+    Sign a message using a private key
+    @function pkey:sign
+    @tparam string data to sign
+    @treturn string signature bytes
+    @raise openssl error on failure
+    */
     { "sign", [](auto const L)
     {
         auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
@@ -75,6 +92,14 @@ luaL_Reg const PkeyMethods[] {
         return 1;
     }},
 
+    /***
+    Decrypt a message using a private key
+    @function pkey:decrypt
+    @tparam string ciphertext
+    @tparam[opt] string format ("oaep" supported)
+    @treturn string signature bytes
+    @raise openssl error on failure
+    */
     {"decrypt", [](auto const L)
     {
         auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
@@ -128,6 +153,13 @@ luaL_Reg const PkeyMethods[] {
         return 1;
     }},
 
+    /***
+    Derive a shared secret given our private key and a given public key
+    @function pkey:derive
+    @tparam pkey public key
+    @treturn string secret bytes
+    @raise openssl error on failure
+    */
     {"derive", [](auto const L)
     {
         auto const priv = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
@@ -176,6 +208,13 @@ luaL_Reg const PkeyMethods[] {
         return 1;
     }},
 
+    /***
+    Return public key as raw bytes.
+    
+    @function get_raw_public
+    @treturn string raw key bytes
+    @raise openssl error on failure
+    */
     {"get_raw_public", [](auto const L)
     {
         auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));

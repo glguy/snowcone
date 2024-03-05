@@ -1,3 +1,9 @@
+/***
+digest object
+
+@classmod digest
+*/
+
 #include "digest.hpp"
 #include "errors.hpp"
 
@@ -12,6 +18,15 @@ extern "C" {
 #include <cstddef>
 
 static luaL_Reg const DigestMethods[] {
+
+    /***
+    Compute digest on input text
+
+    @function digest:digest
+    @tparam string data data to digest
+    @treturn string digest bytes
+    @raise openssl error on failure
+    */
     {"digest", [](auto const L)
     {
         // Process arguments
@@ -37,6 +52,15 @@ static luaL_Reg const DigestMethods[] {
         return 1;
     }},
 
+    /***
+    Compute HMAC given data and key
+
+    @function digest:hmac
+    @tparam string data data to digest
+    @tparam string key secret key
+    @treturn string digest bytes
+    @raise openssl error on failure
+    */
     {"hmac", [](auto const L)
     {
         auto const type = *static_cast<EVP_MD const**>(luaL_checkudata(L, 1, "digest"));
@@ -61,18 +85,8 @@ static luaL_Reg const DigestMethods[] {
     {}
 };
 
-auto l_get_digest(lua_State * const L) -> int
+static auto push_digest(lua_State* const L, EVP_MD const* const digest) -> void
 {
-    // Process arguments
-    auto const name = luaL_checkstring(L, 1);
-
-    // Lookup digest
-    auto const digest = EVP_get_digestbyname(name);
-    if (digest == nullptr)
-    {
-        openssl_failure(L, "EVP_get_digestbyname");
-    }
-
     // Allocate userdata
     auto const digestPtr = static_cast<EVP_MD const**>(lua_newuserdatauv(L, sizeof digest, 0));
     *digestPtr = digest;
@@ -85,6 +99,21 @@ auto l_get_digest(lua_State * const L) -> int
         lua_setfield(L, -2, "__index");
     }
     lua_setmetatable(L, -2);
+}
+
+auto l_get_digest(lua_State * const L) -> int
+{
+    // Process arguments
+    auto const name = luaL_checkstring(L, 1);
+
+    // Lookup digest
+    auto const digest = EVP_get_digestbyname(name);
+    if (digest == nullptr)
+    {
+        openssl_failure(L, "EVP_get_digestbyname");
+    }
+
+    push_digest(L, digest);
 
     return 1;
 }

@@ -56,7 +56,7 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid)
     elseif mechanism == 'ECDH-X25519-CHALLENGE' then
         assert(key, 'missing private key')
         key = assert(snowcone.from_base64(key), 'bad base64 in private key')
-        key = assert(myopenssl.read_raw(myopenssl.EVP_PKEY_X25519, true, key))
+        key = assert(myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, true, key))
         return require_ 'sasl.ecdh' (authzid, authcid, key)
     elseif mechanism == 'SCRAM-SHA-1'   then
         return require_ 'sasl.scram' ('sha1', authzid, authcid, saslpassword)
