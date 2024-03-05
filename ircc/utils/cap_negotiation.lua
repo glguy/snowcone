@@ -55,35 +55,25 @@ local ls_commands = Set{'CAP', N.RPL_WELCOME}
 
 -- Used for the initial capability negotiation during registration
 function M.LS(task)
-    local caps = {}
-    local last = false
-
-    while not last do
+    local more = true
+    while more do
         local irc = task:wait_irc(ls_commands)
         if irc.command == 'CAP' and irc[2] == 'LS' then
             -- CAP * LS * :x y z    -- continuation
             -- CAP * LS :x y z      -- final
-            local x, y = irc[3], irc[4]
-            last = x ~= '*'
-            local capsarg
-            if last then capsarg = x else capsarg = y end
-
-            for cap, eq, arg in capsarg:gmatch '([^ =]+)(=?)([^ ]*)' do
-                caps[cap] = eq == '=' and arg or true
-
-                if 'sasl' == cap then
-                    irc_state:set_sasl_mechs(arg)
-                end
+            local capsarg = irc[3]
+            more = '*' == capsarg
+            if more then
+                capsarg = irc[4]
             end
+            irc_state:add_cap(capsarg)
         elseif irc.command == N.RPL_WELCOME then
             return -- welcome means no cap negotiation
         end
     end
 
-    irc_state.caps_available = caps
-
     local req = {}
-    for cap, _ in pairs(caps) do
+    for cap, _ in pairs(irc_state.caps_available) do
         if irc_state.caps_wanted[cap] then
             table.insert(req, cap)
         end

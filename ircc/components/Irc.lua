@@ -230,6 +230,16 @@ function M:clear_partial_mode_list()
     self.partial_mode_list = nil
 end
 
+function M:add_cap(capsarg)
+    for cap, eq, arg in capsarg:gmatch '([^ =]+)(=?)([^ ]*)' do
+        self.caps_available[cap] = eq == '=' and arg or true
+
+        if 'sasl' == cap then
+            self:set_sasl_mechs(arg)
+        end
+    end
+end
+
 --- Set the list of supported SASL mechanisms
 --- Input comma-separated string when supported
 --- Input nil to clear setting

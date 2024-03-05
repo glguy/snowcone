@@ -15,14 +15,13 @@ function CAP.DEL(capsarg)
 end
 
 function CAP.NEW(capsarg)
+    irc_state:add_caps(capsarg)
+
     local req = {}
-    for cap, eq, arg in capsarg:gmatch '([^ =]+)(=?)([^ ]*)' do
-        irc_state.caps_available[cap] = eq == '=' and arg or true
-        if irc_state.caps_wanted[cap] and not irc_state.caps_enabled[cap] then
+
+    for cap, _ in pairs(irc_state.caps_wanted) do
+        if irc_state.caps_available[cap] and not irc_state.caps_enabled[cap] then
             table.insert(req, cap)
-        end
-        if 'sasl' == cap then
-            irc_state:set_sasl_mechs(arg)
         end
         if next(req) then
             Task('cap negotiation', irc_state.tasks, cap_negotiation.REQ, req)
