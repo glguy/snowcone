@@ -19,6 +19,7 @@ stds = {
             "next_view", -- function to advance the view
             "prev_view", -- function to retreat the view
             "quit", -- function to shutdown the client
+            "connect",
             "disconnect", -- function to disconnect the current IRC connection
             "reset_filter", -- function to reset message filter
             "initialize", -- function to reset all state variable to their defaults
@@ -39,7 +40,7 @@ stds = {
             "filter", -- pattern used to filter chat messages
             "terminal_focus", -- true when terminal has focus
             "notification_muted", -- notifications we've already seen
-            "exiting", -- true when the client is shutting down
+            "objective", -- connect, idle, exit
             "focus", -- zoomed in message in console
 
             "commands", -- mapping of the global command handlers

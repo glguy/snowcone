@@ -76,7 +76,7 @@ local defaults = {
     uptime = 0, -- seconds since startup
     scroll = 0,
     status_message = '',
-    exiting = false,
+    objective = 'connect', -- exit, idle
     terminal_focus = true,
     notification_muted = {},
 
@@ -248,12 +248,34 @@ end
 
 snowcone.setmodule(M)
 
-local connect
+local conn_handlers = {}
+
+function connect()
+    objective = 'connect'
+    local conn, errmsg =
+        snowcone.connect(
+        configuration.tls,
+        configuration.host,
+        configuration.port or configuration.tls and 6697 or 6667,
+        configuration.tls_client_cert,
+        configuration.tls_client_key,
+        configuration.tls_client_password,
+        configuration.tls_verify_host,
+        configuration.socks_host,
+        configuration.socks_port,
+        function(event, arg)
+            conn_handlers[event](arg)
+        end)
+    if conn then
+        status('irc', 'connecting')
+        irc_state = Irc(conn)
+    else
+        status('irc', 'failed to connect: %s', errmsg)
+    end
+end
 
 -- a global allows these to be replaced on a live connection
 irc_handlers = require_ 'handlers.irc'
-
-local conn_handlers = {}
 
 function conn_handlers.FLUSH()
     draw()
@@ -321,7 +343,7 @@ function conn_handlers.CON(fingerprint)
     end
 
     local want_fingerprint = configuration.tls_fingerprint
-    if exiting then
+    if objective ~= 'connect' then
         disconnect()
     elseif want_fingerprint and want_fingerprint ~= fingerprint then
         status('irc', 'expected fingerprint: %s', want_fingerprint)
@@ -335,9 +357,9 @@ function conn_handlers.END(reason)
     disconnect()
     status('irc', 'disconnected: %s', reason or 'end of stream')
 
-    if exiting then
+    if objective == 'exit' then
         snowcone.shutdown()
-    else
+    elseif objective == 'connect' then
         reconnect_timer = snowcone.newtimer()
         reconnect_timer:start(1000, function()
             reconnect_timer = nil
@@ -348,32 +370,6 @@ end
 
 function conn_handlers.BAD(code)
     status('irc', 'message parse error: %d', code)
-end
-
-local function on_irc(event, arg)
-    conn_handlers[event](arg)
-end
-
--- declared above so that it's in scope in on_irc
-function connect()
-    local conn, errmsg =
-        snowcone.connect(
-        configuration.tls,
-        configuration.host,
-        configuration.port or configuration.tls and 6697 or 6667,
-        configuration.tls_client_cert,
-        configuration.tls_client_key,
-        configuration.tls_client_password,
-        configuration.tls_verify_host,
-        configuration.socks_host,
-        configuration.socks_port,
-        on_irc)
-    if conn then
-        status('irc', 'connecting')
-        irc_state = Irc(conn)
-    else
-        status('irc', 'failed to connect: %s', errmsg)
-    end
 end
 
 function disconnect()
@@ -393,11 +389,11 @@ function quit()
         reconnect_timer = nil
     end
     if irc_state then
-        exiting = true
+        objective = 'exit'
         disconnect()
     else
-        if not exiting then
-            exiting = true
+        if objective ~= 'exit' then
+            objective = 'exit'
             snowcone.shutdown()
         end
     end

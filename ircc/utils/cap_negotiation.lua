@@ -33,11 +33,11 @@ function M.REQ(task, request)
     if irc_state:has_sasl() and irc_state.sasl_credentials then
         local credentials = irc_state.sasl_credentials
         irc_state.sasl_credentials = nil
-        -- transfer directly into sasl task body
 
-        local success
+        local success = false
         for _, credential in ipairs(credentials) do
             if irc_state:has_sasl_mech(credential.mechanism) then
+                -- transfer directly into sasl task body
                 success = sasl(task, credential)
                 if success then
                     break
@@ -46,6 +46,9 @@ function M.REQ(task, request)
         end
 
         if not success and irc_state.phase == 'registration' then
+            if objective == 'connect' then
+                objective = 'idle'
+            end
             disconnect()
         end
     end
@@ -66,7 +69,7 @@ function M.LS(task)
             if more then
                 capsarg = irc[4]
             end
-            irc_state:add_cap(capsarg)
+            irc_state:add_caps(capsarg)
         elseif irc.command == N.RPL_WELCOME then
             return -- welcome means no cap negotiation
         end

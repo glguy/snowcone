@@ -230,7 +230,7 @@ function M:clear_partial_mode_list()
     self.partial_mode_list = nil
 end
 
-function M:add_cap(capsarg)
+function M:add_caps(capsarg)
     for cap, eq, arg in capsarg:gmatch '([^ =]+)(=?)([^ ]*)' do
         self.caps_available[cap] = eq == '=' and arg or true
 

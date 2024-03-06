@@ -68,6 +68,20 @@ end)
 
 add_command('quit', '', quit)
 
+add_command('connect', '', function()
+    if irc_state then
+        objective = 'connect'
+        disconnect()
+    else
+        connect()
+    end
+end)
+
+add_command('disconnect', '', function()
+    objective = 'idle'
+    disconnect()
+end)
+
 for k, _ in pairs(views) do
     add_command(k, '', function() view = k end)
 end
