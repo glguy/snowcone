@@ -500,10 +500,9 @@ local function startup()
 
             if irc_state then
                 if irc_state.phase == 'connected' and uptime == irc_state.liveness + 30 then
-                    send('PING', 'snowcone')
+                    send('PING', os.time())
                 elseif uptime == irc_state.liveness + 60 then
-                    irc_state:close()
-                    irc_state = nil
+                    disconnect()
                 end
             end
             draw()
@@ -511,7 +510,7 @@ local function startup()
         tick_timer:start(1000, cb)
     end
 
-    if not irc_state and configuration.host then
+    if objective == 'connect' and not irc_state and configuration.host then
         connect()
     end
 end
