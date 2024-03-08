@@ -10,7 +10,7 @@ target_link_libraries(myopenssl_shared PUBLIC OpenSSL::Crypto PkgConfig::LUA)
 add_test(
     NAME TestMyopenssl
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMAND lua test/test.lua)
+    COMMAND lua5.4 test/test.lua)
 set_property(
     TEST TestMyopenssl
     PROPERTY ENVIRONMENT LUA_CPATH=${CMAKE_CURRENT_BINARY_DIR}/?.so)
