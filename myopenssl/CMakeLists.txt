@@ -3,7 +3,7 @@ target_include_directories(myopenssl PUBLIC include)
 target_link_libraries(myopenssl PUBLIC OpenSSL::Crypto PkgConfig::LUA)
 
 add_library(myopenssl_shared SHARED myopenssl.cpp digest.cpp pkey.cpp errors.cpp)
-set_target_properties(myopenssl_shared PROPERTIES OUTPUT_NAME myopenssl.so)
+set_target_properties(myopenssl_shared PROPERTIES OUTPUT_NAME myopenssl SUFFIX ".so")
 target_include_directories(myopenssl_shared PUBLIC include)
 target_link_libraries(myopenssl_shared PUBLIC OpenSSL::Crypto PkgConfig::LUA)
 
