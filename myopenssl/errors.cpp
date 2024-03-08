@@ -11,7 +11,7 @@ extern "C" {
 #include <cstdlib>
 
 [[noreturn]]
-auto openssl_failure(lua_State* L, char const* func) -> void
+auto myopenssl::openssl_failure(lua_State* L, char const* func) -> void
 {
     luaL_Buffer B;
     luaL_buffinit(L, &B);

@@ -56,15 +56,15 @@ Types for use with read_raw
 @field EVP_PKEY_ED448 ED448 type
 */
 
-static luaL_Reg const LIB [] {
-    {"get_digest", l_get_digest},
-    {"read_raw", l_read_raw},
-    {"read_pkey", l_read_pkey},
-    {}
-};
-
 extern "C" auto luaopen_myopenssl(lua_State * const L) -> int
 {
+    static luaL_Reg const LIB [] {
+        {"get_digest", myopenssl::l_get_digest},
+        {"read_raw", myopenssl::l_read_raw},
+        {"read_pkey", myopenssl::l_read_pkey},
+        {}
+    };
+
     luaL_newlib(L, LIB);
 
     lua_createtable(L, 0, 4);

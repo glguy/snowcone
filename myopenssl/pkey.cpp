@@ -20,9 +20,9 @@ extern "C" {
 #include <cstddef>
 #include <cstring>
 
-namespace {
+namespace myopenssl {
 
-auto push_evp_pkey(lua_State * const L, EVP_PKEY * pkey) -> void;
+namespace {
 
 luaL_Reg const PkeyMT[] {
     { "__gc", [](auto const L)
@@ -260,7 +260,7 @@ auto push_evp_pkey(lua_State * const L, EVP_PKEY * pkey) -> void
 
 auto l_read_raw(lua_State * const L) -> int
 {
-    auto const type = luaL_checknumber(L, 1);
+    auto const type = luaL_checkinteger(L, 1);
     auto const priv = lua_toboolean(L, 2);
     std::size_t raw_len;
     auto const raw = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 3, &raw_len));
@@ -315,3 +315,5 @@ auto l_read_pkey(lua_State * const L) -> int
     push_evp_pkey(L, pkey);
     return 1;
 }
+
+} // namespace myopenssl

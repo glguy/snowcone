@@ -17,7 +17,11 @@ extern "C" {
 
 #include <cstddef>
 
-static luaL_Reg const DigestMethods[] {
+namespace myopenssl {
+
+namespace {
+
+luaL_Reg const DigestMethods[] {
 
     /***
     Compute digest on input text
@@ -101,6 +105,8 @@ static auto push_digest(lua_State* const L, EVP_MD const* const digest) -> void
     lua_setmetatable(L, -2);
 }
 
+} // namespace
+
 auto l_get_digest(lua_State * const L) -> int
 {
     // Process arguments
@@ -117,3 +123,5 @@ auto l_get_digest(lua_State * const L) -> int
 
     return 1;
 }
+
+} // namespace myopenssl
