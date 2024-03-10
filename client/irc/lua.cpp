@@ -35,38 +35,6 @@ namespace
         return lua_pushlstring(L, str.data(), str.size());
     }
 
-auto pushircmsg(lua_State *const L, ircmsg const &msg) -> void
-{
-    lua_createtable(L, msg.args.size(), 3);
-    pushtags(L, msg.tags);
-    lua_setfield(L, -2, "tags");
-
-    if (msg.hassource())
-    {
-        push_stringview(L, msg.source);
-        lua_setfield(L, -2, "source");
-    }
-
-    int code;
-    auto res = std::from_chars(msg.command.begin(), msg.command.end(), code);
-    if (*res.ptr == '\0')
-    {
-        lua_pushinteger(L, code);
-    }
-    else
-    {
-        push_stringview(L, msg.command);
-    }
-    lua_setfield(L, -2, "command");
-
-    int argix = 1;
-    for (auto const arg : msg.args)
-    {
-        push_stringview(L, arg);
-        lua_rawseti(L, -2, argix++);
-    }
-}
-
 auto l_close_irc(lua_State * const L) -> int
 {
     auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
@@ -289,6 +257,38 @@ auto l_start_irc(lua_State *const L) -> int
     return 1;
 }
 
+auto pushircmsg(lua_State *const L, ircmsg const &msg) -> void
+{
+    lua_createtable(L, msg.args.size(), 3);
+    pushtags(L, msg.tags);
+    lua_setfield(L, -2, "tags");
+
+    if (msg.hassource())
+    {
+        push_stringview(L, msg.source);
+        lua_setfield(L, -2, "source");
+    }
+
+    int code;
+    auto res = std::from_chars(msg.command.begin(), msg.command.end(), code);
+    if (*res.ptr == '\0')
+    {
+        lua_pushinteger(L, code);
+    }
+    else
+    {
+        push_stringview(L, msg.command);
+    }
+    lua_setfield(L, -2, "command");
+
+    int argix = 1;
+    for (auto const arg : msg.args)
+    {
+        push_stringview(L, arg);
+        lua_rawseti(L, -2, argix++);
+    }
+}
+
 auto pushtags(lua_State *const L, std::vector<irctag> const &tags) -> void
 {
     lua_createtable(L, 0, tags.size());
@@ -299,4 +299,5 @@ auto pushtags(lua_State *const L, std::vector<irctag> const &tags) -> void
         lua_settable(L, -3);
     }
 }
+
 template<> char const* udata_name<std::weak_ptr<irc_connection>> = "irc_connection";

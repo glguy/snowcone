@@ -209,21 +209,6 @@ auto l_shutdown(lua_State* const L) -> int
     return 0;
 }
 
-auto l_parse_irc_tags(lua_State * const L) -> int
-{
-    std::size_t len;
-    auto const str = luaL_checklstring(L, 1, &len);
-    auto const buffer = static_cast<char*>(lua_newuserdatauv(L, len+1, 0));
-    memcpy(buffer, str, len);
-    buffer[len] = '\0';
-    try {
-        pushtags(L, parse_irc_tags(buffer));
-        return 1;
-    } catch (irc_parse_error const& e) {
-        return 0;
-    }
-}
-
 auto l_time(lua_State * const L) -> int
 {
     timespec now;
@@ -239,22 +224,55 @@ auto l_time(lua_State * const L) -> int
     }
 }
 
+auto mutable_string_arg(lua_State * const L, int const i) -> char*
+{
+    std::size_t len;
+    auto const str = luaL_checklstring(L, 1, &len);
+    auto const buffer = static_cast<char*>(lua_newuserdatauv(L, len + 1, 0));
+    strcpy(buffer, str);
+    return buffer;
+}
+
+auto l_parse_irc_tags(lua_State * const L) -> int
+{
+    auto const buf = mutable_string_arg(L, 1);
+
+    try {
+        pushtags(L, parse_irc_tags(buf));
+        return 1;
+    } catch (irc_parse_error const& e) {
+        return 0;
+    }
+}
+
+auto l_parse_irc(lua_State* const L) -> int
+{
+    auto const buf = mutable_string_arg(L, 1);
+
+    try {
+        pushircmsg(L, parse_irc_message(buf));
+        return 1;
+    } catch (irc_parse_error const& e) {
+        return 0;
+    }
+}
+
 luaL_Reg const applib_module[] = {
-    { "to_base64", l_to_base64 },
-    { "from_base64", l_from_base64 },
-    { "pton", l_pton },
-    { "setmodule", l_setmodule },
-    { "raise", l_raise },
-    { "xor_strings", l_xor_strings },
-    { "isalnum", l_isalnum },
-    { "irccase", l_irccase },
-    { "newtimer", l_new_timer },
-    { "dnslookup", l_dnslookup },
-    { "shutdown", l_shutdown },
     { "connect", l_start_irc },
-    { "time", l_time },
-   // { "dnslookup", l_dnslookup },
+    { "dnslookup", l_dnslookup },
+    { "from_base64", l_from_base64 },
+    { "irccase", l_irccase },
+    { "isalnum", l_isalnum },
+    { "newtimer", l_new_timer },
     { "parse_irc_tags", l_parse_irc_tags },
+    { "parse_irc", l_parse_irc },
+    { "pton", l_pton },
+    { "raise", l_raise },
+    { "setmodule", l_setmodule },
+    { "shutdown", l_shutdown },
+    { "time", l_time },
+    { "to_base64", l_to_base64 },
+    { "xor_strings", l_xor_strings },
     {}
 };
 

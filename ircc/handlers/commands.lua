@@ -13,22 +13,11 @@ end
 
 -- quote actually parses the message and integrates it into the
 -- console view as a processed message
-add_command('quote', '$g$R', function(cmd, str)
-    local args = {}
-    while true do
-        local arg, rest = str:match '^ *([^ :][^ ]*)(.*)$'
-        if arg then
-            table.insert(args, arg)
-            str = rest
-        else
-            break
-        end
-    end
-    local colon, final = str:match '^ *(:?)(.*)$'
-    if colon == ':' or final ~= '' then
-        table.insert(args,final)
-    end
-    send(cmd, table.unpack(args))
+add_command('quote', '$r', function(txt)
+    local irc = assert(snowcone.parse_irc(txt), 'failed to parse IRC command')
+    assert(irc.source == nil, 'source not supported')
+    assert(next(irc.tags) == nil, 'tags not supported')
+    send(irc.command, table.unpack(irc))
 end)
 
 -- raw just dumps the text directly into the network stream
