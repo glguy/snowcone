@@ -7,10 +7,27 @@ local M = {}
 
 local req_commands = Set{'CAP'}
 
-function M.REQ(task, request)
-    local outstanding = Set(request)
-    send('CAP', 'REQ', table.concat(request, ' '))
+-- sends potentially many CAP REQ commands depending on request size
+local function send_reqs(request)
+    local cursor = 1
+    local size = 0
+    for i, x in ipairs(request) do
+        local n = 1 + #x -- 1 for : or space per req
+        size = size + n
+        if size > 502 then -- 512 - #'CAP REQ \r\n'
+            assert(cursor < i, 'cap name too large')
+            send('CAP', 'REQ', table.concat(request, ' ', cursor, i-1))
+            size = n
+            cursor = i
+        end
+    end
+    if cursor <= #request then
+        send('CAP', 'REQ', table.concat(request, ' ', cursor))
+    end
+end
 
+local function wait_for_ack(task, request)
+    local outstanding = Set(request)
     while not Set.isempty(outstanding) do
         local irc = task:wait_irc(req_commands)
         local subcommand = irc[2]
@@ -29,27 +46,23 @@ function M.REQ(task, request)
             status('cap', "caps nak'd: %s", caps)
         end
     end
+end
+
+function M.REQ(task, request)
+
+    send_reqs(request)
+    wait_for_ack(task, request)
 
     if irc_state:has_sasl() and irc_state.sasl_credentials then
         local credentials = irc_state.sasl_credentials
         irc_state.sasl_credentials = nil
 
-        local success = false
         for _, credential in ipairs(credentials) do
-            if irc_state:has_sasl_mech(credential.mechanism) then
-                -- transfer directly into sasl task body
-                success = sasl(task, credential)
-                if success then
-                    break
-                end
+            if irc_state:has_sasl_mech(credential.mechanism) 
+            and sasl(task, credential)
+            then
+                break
             end
-        end
-
-        if not success and irc_state.phase == 'registration' then
-            if objective == 'connect' then
-                objective = 'idle'
-            end
-            disconnect()
         end
     end
 end
