@@ -246,7 +246,9 @@ function M.on_resize()
     draw()
 end
 
-snowcone.setmodule(M)
+snowcone.setmodule(function(ev, ...)
+    M[ev](...)
+end)
 
 local conn_handlers = {}
 

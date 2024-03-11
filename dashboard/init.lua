@@ -837,7 +837,9 @@ function M.on_resize()
     draw()
 end
 
-snowcone.setmodule(M)
+snowcone.setmodule(function(ev, ...)
+    M[ev](...)
+end)
 
 function disconnect(msg)
     if conn then

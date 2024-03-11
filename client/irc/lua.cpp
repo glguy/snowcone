@@ -8,6 +8,7 @@
 #include "irc_connection.hpp"
 #include "plain_connection.hpp"
 #include "tls_connection.hpp"
+#include "../strings.hpp"
 
 #include <ircmsg.hpp>
 
@@ -23,17 +24,6 @@ extern "C"
 
 namespace
 {
-    /**
-     * @brief Push string_view value onto Lua stack
-     *
-     * @param L Lua
-     * @param str string
-     * @return char const* string in Lua memory
-     */
-    auto push_stringview(lua_State *const L, std::string_view const str) -> char const *
-    {
-        return lua_pushlstring(L, str.data(), str.size());
-    }
 
 auto l_close_irc(lua_State * const L) -> int
 {
@@ -164,7 +154,7 @@ auto connect_thread(
             auto const fingerprint = co_await irc->connect(endpoints, verify, socks_host, socks_port);
             lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb); // function
             lua_pushstring(L, "CON"); // argument 1
-            lua_pushlstring(L, fingerprint.data(), fingerprint.size()); // argument 2
+            push_string(L, fingerprint); // argument 2
             safecall(L, "successful connect", 2);
         }
 
@@ -265,7 +255,7 @@ auto pushircmsg(lua_State *const L, ircmsg const &msg) -> void
 
     if (msg.hassource())
     {
-        push_stringview(L, msg.source);
+        push_string(L, msg.source);
         lua_setfield(L, -2, "source");
     }
 
@@ -277,14 +267,14 @@ auto pushircmsg(lua_State *const L, ircmsg const &msg) -> void
     }
     else
     {
-        push_stringview(L, msg.command);
+        push_string(L, msg.command);
     }
     lua_setfield(L, -2, "command");
 
     int argix = 1;
     for (auto const arg : msg.args)
     {
-        push_stringview(L, arg);
+        push_string(L, arg);
         lua_rawseti(L, -2, argix++);
     }
 }
@@ -294,8 +284,8 @@ auto pushtags(lua_State *const L, std::vector<irctag> const &tags) -> void
     lua_createtable(L, 0, tags.size());
     for (auto &&tag : tags)
     {
-        push_stringview(L, tag.key);
-        push_stringview(L, tag.val);
+        push_string(L, tag.key);
+        push_string(L, tag.val);
         lua_settable(L, -3);
     }
 }

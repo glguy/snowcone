@@ -4,6 +4,7 @@
 #include "bracketed_paste.hpp"
 #include "myncurses.h"
 #include "safecall.hpp"
+#include "strings.hpp"
 
 extern "C"
 {
@@ -44,13 +45,13 @@ auto App::do_mouse(int y, int x) -> void
 {
     lua_pushinteger(L, y);
     lua_pushinteger(L, x);
-    lua_callback(L, "on_mouse");
+    lua_callback(L, "on_mouse", 2);
 }
 
 auto App::do_keyboard(long key) const -> void
 {
     lua_pushinteger(L, key);
-    auto const success = lua_callback(L, "on_keyboard");
+    auto const success = lua_callback(L, "on_keyboard", 1);
     // fallback ^C
     if (not success and key == 3)
     {
@@ -60,8 +61,8 @@ auto App::do_keyboard(long key) const -> void
 
 auto App::do_paste(std::string_view const paste) const -> void
 {
-    lua_pushlstring(L, paste.data(), paste.size());
-    lua_callback(L, "on_paste");
+    push_string(L, paste);
+    lua_callback(L, "on_paste", 1);
 }
 
 auto App::winch_thread() -> boost::asio::awaitable<void>
@@ -71,7 +72,7 @@ auto App::winch_thread() -> boost::asio::awaitable<void>
         endwin();
         refresh();
         l_ncurses_resize(this->L);
-        lua_callback(this->L, "on_resize");
+        lua_callback(this->L, "on_resize", 0);
     }
 }
 

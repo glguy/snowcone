@@ -2,6 +2,7 @@
 
 #include "app.hpp"
 #include "safecall.hpp"
+#include "strings.hpp"
 #include "userdata.hpp"
 
 extern "C" {
@@ -88,8 +89,7 @@ auto l_dnslookup(lua_State *const L) -> int
             lua_Integer i = 1;
             for (auto const& result : results)
             {
-                auto const address = result.endpoint().address().to_string();
-                lua_pushlstring(L, address.data(), address.size());
+                push_string(L, result.endpoint().address().to_string());
                 lua_rawseti(L, -2, i++);
             }
         }

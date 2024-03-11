@@ -5,6 +5,7 @@
 #include "dnslookup.hpp"
 #include "irc/lua.hpp"
 #include "safecall.hpp"
+#include "strings.hpp"
 #include "timer.hpp"
 
 #include <ircmsg.hpp>
@@ -40,22 +41,6 @@ extern "C" {
 namespace { // lua support for app
 
 char logic_module;
-
-auto lua_callback_worker(lua_State* const L) -> int
-{
-    auto const module_ty = lua_rawgetp(L, LUA_REGISTRYINDEX, &logic_module);
-    if (module_ty != LUA_TNIL)
-    {
-        /* args key module */
-        lua_insert(L, -2); /* args module key */
-        lua_gettable(L, -2); /* args module cb */
-        lua_remove(L, -2); /* args cb */
-        lua_insert(L, 1); /* cb args */
-        auto const args = lua_gettop(L) - 1;
-        lua_call(L, args, 0);
-    }
-    return 0;
-}
 
 auto l_pton(lua_State* const L) -> int
 {
@@ -224,15 +209,6 @@ auto l_time(lua_State * const L) -> int
     }
 }
 
-auto mutable_string_arg(lua_State * const L, int const i) -> char*
-{
-    std::size_t len;
-    auto const str = luaL_checklstring(L, 1, &len);
-    auto const buffer = static_cast<char*>(lua_newuserdatauv(L, len + 1, 0));
-    strcpy(buffer, str);
-    return buffer;
-}
-
 auto l_parse_irc_tags(lua_State * const L) -> int
 {
     auto const buf = mutable_string_arg(L, 1);
@@ -293,7 +269,7 @@ auto l_print(lua_State* const L) -> int
     lua_replace(L, 1);
     lua_settop(L, 1);
 
-    lua_callback(L, "print");
+    lua_callback(L, "print", 1);
     return 0;
 }
 
@@ -315,13 +291,20 @@ auto load_logic(lua_State* const L, char const* const filename) -> bool
     }
 }
 
-auto lua_callback(lua_State* const L, char const* const key) -> bool
+auto lua_callback(lua_State* const L, char const* const key, int args) -> bool
 {
-    /* args */
-    lua_pushcfunction(L, lua_callback_worker); /* args f */
-    lua_insert(L, 1); /* f args */
-    lua_pushstring(L, key); /* f args key */
-    return LUA_OK == safecall(L, key, lua_gettop(L) - 1);
+    auto const module_ty = lua_rawgetp(L, LUA_REGISTRYINDEX, &logic_module);
+    if (module_ty != LUA_TNIL)
+    {
+        lua_pushstring(L, key);
+        lua_rotate(L, -(args + 2), 2);
+        return LUA_OK == safecall(L, key, args + 1);
+    }
+    else
+    {
+        lua_pop(L, args + 1);
+        return false;
+    }
 }
 
 auto prepare_globals(lua_State* const L, int const argc, char const * const * const argv) -> void
