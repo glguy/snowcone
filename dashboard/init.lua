@@ -861,6 +861,8 @@ function connect()
         configuration.tls_verify_host,
         configuration.socks_host,
         configuration.socks_port,
+        configuration.socks_username,
+        configuration.socks_password,
         on_irc)
     if conn_ then
         status('irc', 'connecting')

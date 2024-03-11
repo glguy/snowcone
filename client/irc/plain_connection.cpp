@@ -21,10 +21,12 @@ auto plain_irc_connection::connect(
     boost::asio::ip::tcp::resolver::results_type const& endpoints,
     std::string const&,
     std::string_view socks_host,
-    uint16_t socks_port
+    uint16_t socks_port,
+    std::string_view socks_user,
+    std::string_view socks_pass
 ) -> boost::asio::awaitable<std::string>
 {
-    co_await irc_connection::basic_connect(socket_, endpoints, socks_host, socks_port);
+    co_await irc_connection::basic_connect(socket_, endpoints, socks_host, socks_port, socks_user, socks_pass);
     co_return ""; // no fingerprint
 }
 

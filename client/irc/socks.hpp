@@ -36,6 +36,14 @@ enum class SocksErrc {
 /// Either a hostname or an address. Hostnames are resolved locally on the proxy server
 using Host = std::variant<std::string_view, boost::asio::ip::address>;
 
+struct NoCredential {};
+struct UsernamePasswordCredential {
+    std::string_view username;
+    std::string_view password;
+};
+
+using Auth = std::variant<NoCredential, UsernamePasswordCredential>;
+
 namespace detail
 {
 using namespace std::placeholders;
@@ -74,16 +82,19 @@ struct SocksImplementation
     AsyncStream& socket_;
     Host const host_;
     boost::endian::big_uint16_t const port_;
+    Auth auth_;
 
     /// buffer used to back async read/write operations
     std::vector<uint8_t> buffer_;
 
     // Representations of states in the protocol
     struct Start{};
-    struct RecvReply{};
-    struct RecvHello{};
-    struct SendConnect{};
-    struct RecvAddress{};
+    struct HelloSent{};
+    struct HelloRecvd{};
+    struct AuthSent{};
+    struct AuthRecvd{};
+    struct ConnectSent{};
+    struct ReplyRecvd{};
     struct FinishIpv4{};
     struct FinishIpv6{};
 
@@ -107,59 +118,107 @@ struct SocksImplementation
     template <typename Self>
     void step(Self& self, Start)
     {
-        buffer_ = {version_tag, 1 /* number of methods */, uint8_t(AuthMethod::NoAuth)};
+        AuthMethod method = auth_.index() == 0 ? AuthMethod::NoAuth : AuthMethod::UsernamePassword;
+        buffer_ = {version_tag, 1 /* number of methods */, uint8_t(method)};
         boost::asio::async_write(socket_, boost::asio::buffer(buffer_),
-            std::bind(std::move(self), _1, _2, RecvHello{}));
+            std::bind(std::move(self), _1, _2, HelloSent{}));
     }
 
     // Waiting for server to choose authentication method
     template <typename Self>
-    void step(Self& self, RecvHello)
+    void step(Self& self, HelloSent)
     {
         buffer_.resize(2); // version, method
         boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
-            std::bind(std::move(self), _1, _2, SendConnect{}));
+            std::bind(std::move(self), _1, _2, HelloRecvd{}));
     }
 
     // Send TCP connection request for the domain name and port
     template <typename Self>
-    void step(Self& self, SendConnect)
+    void step(Self& self, HelloRecvd)
     {
         if (version_tag != buffer_[0])
         {
             self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported), {});
             return;
         }
-        if (AuthMethod::NoAuth != static_cast<AuthMethod>(buffer_[1])) {
+
+        AuthMethod method = static_cast<AuthMethod>(buffer_[1]);
+        if (AuthMethod::NoAuth == method && auth_.index() == 0) {
+            send_connect(self);
+        }
+        else if (AuthMethod::UsernamePassword == method && auth_.index() == 1) {
+            send_usernamepassword(self);
+        }
+        else
+        {
+            self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported), {});
+        }
+    }
+
+    template <typename Self>
+    void send_usernamepassword(Self& self)
+    {
+        buffer_ = {
+            1, // version
+        };
+        buffer_.push_back(std::get<1>(auth_).username.size());
+        std::copy(std::get<1>(auth_).username.begin(), std::get<1>(auth_).username.end(), std::back_inserter(buffer_));
+        buffer_.push_back(std::get<1>(auth_).password.size());
+        std::copy(std::get<1>(auth_).password.begin(), std::get<1>(auth_).password.end(), std::back_inserter(buffer_));
+
+        boost::asio::async_write(socket_, boost::asio::buffer(buffer_),
+            std::bind(std::move(self), _1, _2, AuthSent{}));
+    }
+
+    template <typename Self>
+    void step(Self& self, AuthSent)
+    {
+        buffer_.resize(2); // version, status
+        boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
+            std::bind(std::move(self), _1, _2, AuthRecvd{}));
+    }
+
+    template <typename Self>
+    void step(Self& self, AuthRecvd)
+    {
+        if (1 != buffer_[0] || 0 != buffer_[1])
+        {
             self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported), {});
             return;
         }
 
+        send_connect(self);
+    }
+
+    template <typename Self>
+    void send_connect(Self& self)
+    {
         buffer_ = {
             version_tag,
             uint8_t(Command::Connect),
             reserved,
         };
-        
+
         push_host(host_, buffer_);
         std::copy_n(port_.data(), 2, std::back_inserter(buffer_));
 
         boost::asio::async_write(socket_, boost::asio::buffer(buffer_),
-            std::bind(std::move(self), _1, _2, RecvReply{}));
+            std::bind(std::move(self), _1, _2, ConnectSent{}));
     }
 
     // Wait for response to the connection request
     template <typename Self>
-    void step(Self& self, RecvReply)
+    void step(Self& self, ConnectSent)
     {
         buffer_.resize(4); // version, reply, reserved, address-tag
         boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
-            std::bind(std::move(self), _1, _2, RecvAddress{}));
+            std::bind(std::move(self), _1, _2, ReplyRecvd{}));
     }
 
     // Waiting on the remaining variable-sized address portion of the response
     template <typename Self>
-    void step(Self& self, RecvAddress)
+    void step(Self& self, ReplyRecvd)
     {
         if (version_tag != buffer_[0])
         {
@@ -233,11 +292,17 @@ auto async_connect(
     AsyncStream& socket,
     Host const host,
     uint16_t const port,
+    std::string_view const socks_user,
+    std::string_view const socks_pass,
     CompletionToken&& token
 ) {
+    Auth auth = socks_user.empty() && socks_pass.empty()
+        ? Auth{ NoCredential{} }
+        : Auth{ UsernamePasswordCredential{socks_user, socks_pass} };
+
     return boost::asio::async_compose
         <CompletionToken, Signature, detail::SocksImplementation<AsyncStream>>
-        ({socket, host, port}, token, socket);
+        ({socket, host, port, auth}, token, socket);
 }
 
 } // namespace socks5

@@ -128,13 +128,15 @@ auto pushirc(lua_State * const L, std::shared_ptr<irc_connection> irc) -> void
 
 auto connect_thread(
     boost::asio::io_context &io_context,
-    std::shared_ptr<irc_connection> irc,
+    std::shared_ptr<irc_connection> const irc,
     lua_State *const L,
     std::string host,
     uint16_t port,
-    std::string verify,
+    std::string const verify,
     std::string socks_host,
     uint16_t socks_port,
+    std::string const socks_user,
+    std::string const socks_pass,
     int irc_cb
 ) -> boost::asio::awaitable<void>
 {
@@ -151,7 +153,7 @@ auto connect_thread(
                 boost::asio::ip::tcp::resolver{io_context}
                 .async_resolve(host, std::to_string(port), boost::asio::use_awaitable);
 
-            auto const fingerprint = co_await irc->connect(endpoints, verify, socks_host, socks_port);
+            auto const fingerprint = co_await irc->connect(endpoints, verify, socks_host, socks_port, socks_user, socks_pass);
             lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb); // function
             lua_pushstring(L, "CON"); // argument 1
             push_string(L, fingerprint); // argument 2
@@ -203,8 +205,11 @@ auto l_start_irc(lua_State *const L) -> int
     auto const verify = luaL_optlstring(L, 7, host, nullptr);
     auto const socks_host = luaL_optlstring(L, 8, "", nullptr);
     auto const socks_port = luaL_optinteger(L, 9, 0);
-    luaL_checkany(L, 10); // callback
-    lua_settop(L, 10);
+    auto const socks_user = luaL_optlstring(L, 10, "", nullptr);
+    auto const socks_pass = luaL_optlstring(L, 11, "", nullptr);
+
+    luaL_checkany(L, 12); // callback
+    lua_settop(L, 12);
 
     auto const a = App::from_lua(L);
     auto& io_context = a->io_context;
@@ -236,7 +241,7 @@ auto l_start_irc(lua_State *const L) -> int
 
     boost::asio::co_spawn(
         io_context,
-        connect_thread(io_context, irc, a->L, host, port, verify, socks_host, socks_port, irc_cb),
+        connect_thread(io_context, irc, a->L, host, port, verify, socks_host, socks_port, socks_user, socks_pass, irc_cb),
         [L = a->L, irc_cb](std::exception_ptr e)
         {
             luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);

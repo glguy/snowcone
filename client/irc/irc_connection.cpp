@@ -34,13 +34,15 @@ auto irc_connection::basic_connect(
     tcp_socket& socket,
     boost::asio::ip::tcp::resolver::results_type const& endpoints,
     std::string_view const socks_host,
-    uint16_t const socks_port
+    uint16_t const socks_port,
+    std::string_view const socks_user,
+    std::string_view const socks_pass
 ) -> boost::asio::awaitable<void>
 {
     co_await boost::asio::async_connect(socket, endpoints, boost::asio::use_awaitable);
     socket.set_option(boost::asio::ip::tcp::no_delay(true));
     if (not socks_host.empty())
     {
-        co_await socks5::async_connect(socket, socks_host, socks_port, boost::asio::use_awaitable);
+        co_await socks5::async_connect(socket, socks_host, socks_port, socks_user, socks_pass, boost::asio::use_awaitable);
     }
 }

@@ -56,11 +56,13 @@ auto tls_irc_connection::connect(
     boost::asio::ip::tcp::resolver::results_type const& endpoints,
     std::string const& verify,
     std::string_view const socks_host,
-    uint16_t const socks_port
+    uint16_t const socks_port,
+    std::string_view socks_user,
+    std::string_view socks_pass
 ) -> boost::asio::awaitable<std::string>
 {
     // TCP connection
-    co_await irc_connection::basic_connect(socket_.next_layer(), endpoints, socks_host, socks_port);
+    co_await irc_connection::basic_connect(socket_.next_layer(), endpoints, socks_host, socks_port, socks_user, socks_pass);
 
     // TLS connection
     if (not verify.empty())

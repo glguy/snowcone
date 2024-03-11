@@ -21,7 +21,9 @@ public:
         boost::asio::ip::tcp::resolver::results_type const& endpoints,
         std::string const&,
         std::string_view socks_host,
-        uint16_t socks_port
+        uint16_t socks_port,
+        std::string_view socks_user,
+        std::string_view socks_pass
     ) -> boost::asio::awaitable<std::string> override;
 
     auto close() -> boost::system::error_code override;

@@ -10,6 +10,7 @@ extern "C" {
 #include <deque>
 #include <functional>
 #include <memory>
+#include <optional>
 
 struct lua_State;
 
@@ -43,14 +44,18 @@ public:
         boost::asio::ip::tcp::resolver::results_type const&,
         std::string const&,
         std::string_view,
-        uint16_t
+        uint16_t,
+        std::string_view socks_user,
+        std::string_view socks_pass
     ) -> boost::asio::awaitable<std::string> = 0;
 
     static auto basic_connect(
         tcp_socket& socket,
         boost::asio::ip::tcp::resolver::results_type const& endpoints,
         std::string_view socks_host,
-        uint16_t socks_port
+        uint16_t socks_port,
+        std::string_view socks_user,
+        std::string_view socks_pass
     ) -> boost::asio::awaitable<void>;
 
     static std::size_t const irc_buffer_size = 131'072;
