@@ -17,6 +17,6 @@ auto mutable_string_arg(lua_State * const L, int const i) -> char*
     std::size_t len;
     auto const str = luaL_checklstring(L, 1, &len);
     auto const buffer = static_cast<char*>(lua_newuserdatauv(L, len + 1, 0));
-    strcpy(buffer, str);
+    std::strcpy(buffer, str);
     return buffer;
 }

@@ -1,10 +1,12 @@
 #include "socks.hpp"
 
 #include <boost/asio.hpp>
-#include <boost/endian.hpp>
 
 #include <array>
 #include <iterator>
+#include <span>
+#include <stdexcept>
+#include <tuple>
 #include <vector>
 
 namespace socks5
@@ -47,29 +49,34 @@ std::string SocksErrCategory::message(int ev) const
 namespace detail
 {
 
+template<class... Ts>
+struct overloaded : Ts... { using Ts::operator()...; };
+template<class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
+
 auto push_host(Host const& host, std::vector<uint8_t> &buffer) -> void
 {
-    switch (host.index()) {
-        case 0: {
-            auto const& hostname = std::get<0>(host);
-            buffer.push_back(uint8_t(AddressType::DomainName));
-            buffer.push_back(hostname.size());
-            std::copy(hostname.begin(), hostname.end(), std::back_inserter(buffer));
-            break;
-        }
-        case 1: {
-            auto const& address = std::get<1>(host);
+    auto const go = [&buffer](AddressType const ty, auto const thing) -> void {
+        buffer.push_back(uint8_t(ty));
+        buffer.push_back(thing.size());
+        std::copy(thing.begin(), thing.end(), std::back_inserter(buffer));
+    };
+
+    std::visit(overloaded {
+        [go](std::string_view const hostname) {
+            go(AddressType::DomainName, hostname);
+        },
+        [go](boost::asio::ip::address const& address){
             if (address.is_v4()) {
-                buffer.push_back(uint8_t(AddressType::IPv4));
-                auto const bytes = address.to_v4().to_bytes();
-                std::copy(bytes.begin(), bytes.end(), std::back_inserter(buffer));
+                go(AddressType::IPv4, address.to_v4().to_bytes());
+            } else if (address.is_v6()) {
+                go(AddressType::IPv6, address.to_v6().to_bytes());
             } else {
-                buffer.push_back(uint8_t(AddressType::IPv6));
-                auto const bytes = address.to_v6().to_bytes();
-                std::copy(bytes.begin(), bytes.end(), std::back_inserter(buffer));
+                throw std::logic_error{"unexpected address type"};
             }
-        }
-    }
+        }},
+        host
+    );
 }
 
 } // namespace detail

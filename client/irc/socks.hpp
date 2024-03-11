@@ -62,6 +62,10 @@ enum class AddressType {
     IPv6 = 4,
 };
 
+/// @brief Encode the given host into the end of the buffer
+/// @param host host to encode
+/// @param buffer target to push bytes onto
+/// @return true for success and false for failure
 auto push_host(Host const& host, std::vector<uint8_t> &buffer) -> void;
 
 template<typename AsyncStream>
@@ -80,7 +84,8 @@ struct SocksImplementation
     struct RecvHello{};
     struct SendConnect{};
     struct RecvAddress{};
-    struct Finish{};
+    struct FinishIpv4{};
+    struct FinishIpv6{};
 
     // In the case of error codes, abort the process.
     // Disregard the bytes_transferred.
@@ -135,6 +140,7 @@ struct SocksImplementation
             uint8_t(Command::Connect),
             reserved,
         };
+        
         push_host(host_, buffer_);
         std::copy_n(port_.data(), 2, std::back_inserter(buffer_));
 
@@ -167,50 +173,45 @@ struct SocksImplementation
             return;
         }
 
-        std::size_t n;
         switch (static_cast<AddressType>(buffer_[3])) {
             case AddressType::IPv4:
-                n = 6; // ipv4 + port
-                break;
+                // ipv4 + port = 6 bytes
+                buffer_.resize(6);
+                boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
+                    std::bind(std::move(self), _1, _2, FinishIpv4{}));
+                return;
             case AddressType::IPv6:
-                n = 18; // ipv6 + port
-                break;
+                // ipv6 + port = 18 bytes
+                buffer_.resize(18);
+                boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
+                    std::bind(std::move(self), _1, _2, FinishIpv6{}));
+                return;
             default:
                 self.complete(boost::system::errc::make_error_code(boost::system::errc::not_supported), {});
                 return;
         }
-
-        buffer_.resize(4 + n);
-        boost::asio::async_read(socket_, boost::asio::buffer(&buffer_[4], n),
-            std::bind(std::move(self), _1, _2, Finish{}));
     }
 
     // Protocol complete! Return the client's remote endpoint
     template <typename Self>
-    void step(Self& self, Finish)
+    void step(Self& self, FinishIpv4)
     {
-        std::size_t const addr_offset = 4;
-        switch (static_cast<AddressType>(buffer_[3]))
-        {
-            case AddressType::IPv4: {
-                boost::asio::ip::address_v4::bytes_type bytes;
-                boost::endian::big_uint16_t port;
-                std::memcpy(bytes.data(), &buffer_[addr_offset], 4);
-                std::memcpy(port.data(), &buffer_[addr_offset + 4], 2);
-                self.complete({}, {boost::asio::ip::make_address_v4(bytes), port});
-                break;
-            }
-            case AddressType::IPv6: {
-                boost::asio::ip::address_v6::bytes_type bytes;
-                boost::endian::big_uint16_t port;
-                std::memcpy(bytes.data(), &buffer_[addr_offset], 16);
-                std::memcpy(port.data(), &buffer_[addr_offset + 16], 2);
-                self.complete({}, {boost::asio::ip::make_address_v6(bytes), port});
-                break;
-            }
-            default:
-                throw std::logic_error{"socks5 finish state with invalid address type"};
-        }
+        boost::asio::ip::address_v4::bytes_type bytes;
+        boost::endian::big_uint16_t port;
+        std::memcpy(bytes.data(), &buffer_[0], 4);
+        std::memcpy(port.data(), &buffer_[4], 2);
+        self.complete({}, {boost::asio::ip::make_address_v4(bytes), port});
+    }
+
+    // Protocol complete! Return the client's remote endpoint
+    template <typename Self>
+    void step(Self& self, FinishIpv6)
+    {
+        boost::asio::ip::address_v6::bytes_type bytes;
+        boost::endian::big_uint16_t port;
+        std::memcpy(bytes.data(), &buffer_[0], 16);
+        std::memcpy(port.data(), &buffer_[16], 2);
+        self.complete({}, {boost::asio::ip::make_address_v6(bytes), port});
     }
 };
 
