@@ -58,7 +58,7 @@ function M.REQ(task, request)
         irc_state.sasl_credentials = nil
 
         for _, credential in ipairs(credentials) do
-            if irc_state:has_sasl_mech(credential.mechanism) 
+            if irc_state:has_sasl_mech(credential.mechanism)
             and sasl(task, credential)
             then
                 break
