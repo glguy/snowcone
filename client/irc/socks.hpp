@@ -36,9 +36,10 @@ enum class SocksErrc {
     NoAcceptableMethods,
     AuthenticationFailed,
     UnsupportedEndpointAddress,
+    DomainTooLong,
+    UsernameTooLong,
+    PasswordTooLong,
 };
-
-auto make_socks_error(SocksErrc const err) -> boost::system::error_code;
 
 /// Either a hostname or an address. Hostnames are resolved locally on the proxy server
 using Host = std::variant<std::string_view, boost::asio::ip::address>;
@@ -53,7 +54,13 @@ using Auth = std::variant<NoCredential, UsernamePasswordCredential>;
 
 namespace detail
 {
-using namespace std::placeholders;
+auto make_socks_error(SocksErrc const err) -> boost::system::error_code;
+
+inline auto push_buffer(std::vector<std::uint8_t>&buffer, auto const& thing) -> void
+{
+    buffer.push_back(thing.size());
+    std::copy(thing.begin(), thing.end(), std::back_inserter(buffer));
+}
 
 uint8_t const version_tag = 5;
 uint8_t const reserved = 0;
@@ -125,10 +132,32 @@ struct SocksImplementation
     template <typename Self>
     void step(Self& self, Start)
     {
+        if (auto const* const host = std::get_if<std::string_view>(&host_))
+        {
+            if (host->size() >= 256)
+            {
+                self.complete(make_socks_error(SocksErrc::DomainTooLong), {});
+                return;
+            }
+        }
+        if (auto const* const plain = std::get_if<UsernamePasswordCredential>(&auth_))
+        {
+            if (plain->username.size() >= 256)
+            {
+                self.complete(make_socks_error(SocksErrc::UsernameTooLong), {});
+                return;
+            }
+            if (plain->password.size() >= 256)
+            {
+                self.complete(make_socks_error(SocksErrc::PasswordTooLong), {});
+                return;
+            }
+        }
+
         AuthMethod method = auth_.index() == 0 ? AuthMethod::NoAuth : AuthMethod::UsernamePassword;
         buffer_ = {version_tag, 1 /* number of methods */, uint8_t(method)};
         boost::asio::async_write(socket_, boost::asio::buffer(buffer_),
-            std::bind_front(std::move(self), HelloSent{}));
+            boost::asio::prepend(std::move(self), HelloSent{}));
     }
 
     // Waiting for server to choose authentication method
@@ -137,7 +166,7 @@ struct SocksImplementation
     {
         buffer_.resize(2); // version, method
         boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
-            std::bind_front(std::move(self), HelloRecvd{}));
+            boost::asio::prepend(std::move(self), HelloRecvd{}));
     }
 
     // Send TCP connection request for the domain name and port
@@ -151,10 +180,12 @@ struct SocksImplementation
         }
 
         AuthMethod method = static_cast<AuthMethod>(buffer_[1]);
-        if (AuthMethod::NoAuth == method && auth_.index() == 0) {
+        if (AuthMethod::NoAuth == method && auth_.index() == 0)
+        {
             send_connect(self);
         }
-        else if (AuthMethod::UsernamePassword == method && auth_.index() == 1) {
+        else if (AuthMethod::UsernamePassword == method && auth_.index() == 1)
+        {
             send_usernamepassword(self);
         }
         else
@@ -169,13 +200,11 @@ struct SocksImplementation
         buffer_ = {
             1, // version
         };
-        buffer_.push_back(std::get<1>(auth_).username.size());
-        std::copy(std::get<1>(auth_).username.begin(), std::get<1>(auth_).username.end(), std::back_inserter(buffer_));
-        buffer_.push_back(std::get<1>(auth_).password.size());
-        std::copy(std::get<1>(auth_).password.begin(), std::get<1>(auth_).password.end(), std::back_inserter(buffer_));
+        push_buffer(buffer_, std::get<1>(auth_).username);
+        push_buffer(buffer_, std::get<1>(auth_).password);
 
         boost::asio::async_write(socket_, boost::asio::buffer(buffer_),
-            std::bind_front(std::move(self), AuthSent{}));
+            boost::asio::prepend(std::move(self), AuthSent{}));
     }
 
     template <typename Self>
@@ -183,7 +212,7 @@ struct SocksImplementation
     {
         buffer_.resize(2); // version, status
         boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
-            std::bind_front(std::move(self), AuthRecvd{}));
+            boost::asio::prepend(std::move(self), AuthRecvd{}));
     }
 
     template <typename Self>
@@ -216,7 +245,7 @@ struct SocksImplementation
         std::copy_n(port_.data(), 2, std::back_inserter(buffer_));
 
         boost::asio::async_write(socket_, boost::asio::buffer(buffer_),
-            std::bind_front(std::move(self), ConnectSent{}));
+            boost::asio::prepend(std::move(self), ConnectSent{}));
     }
 
     // Wait for response to the connection request
@@ -225,7 +254,7 @@ struct SocksImplementation
     {
         buffer_.resize(4); // version, reply, reserved, address-tag
         boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
-            std::bind_front(std::move(self), ReplyRecvd{}));
+            boost::asio::prepend(std::move(self), ReplyRecvd{}));
     }
 
     // Waiting on the remaining variable-sized address portion of the response
@@ -249,13 +278,13 @@ struct SocksImplementation
                 // ipv4 + port = 6 bytes
                 buffer_.resize(6);
                 boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
-                    std::bind_front(std::move(self), FinishIpv4{}));
+                    boost::asio::prepend(std::move(self), FinishIpv4{}));
                 return;
             case AddressType::IPv6:
                 // ipv6 + port = 18 bytes
                 buffer_.resize(18);
                 boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
-                    std::bind_front(std::move(self), FinishIpv6{}));
+                    boost::asio::prepend(std::move(self), FinishIpv6{}));
                 return;
             default:
                 self.complete(make_socks_error(SocksErrc::UnsupportedEndpointAddress), {});

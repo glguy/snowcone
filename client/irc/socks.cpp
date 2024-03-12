@@ -12,11 +12,6 @@
 namespace socks5
 {
 
-auto make_socks_error(SocksErrc const err) -> boost::system::error_code
-{
-    return boost::system::error_code{int(err), theSocksErrCategory};
-}
-
 const SocksErrCategory theSocksErrCategory;
 
 const char* SocksErrCategory::name() const noexcept
@@ -54,6 +49,12 @@ std::string SocksErrCategory::message(int ev) const
             return "server rejected authentication";
         case SocksErrc::UnsupportedEndpointAddress:
             return "server sent unknown endpoint address";
+        case SocksErrc::DomainTooLong:
+            return "domain name too long";
+        case SocksErrc::UsernameTooLong:
+            return "username too long";
+        case SocksErrc::PasswordTooLong:
+            return "password too long";
         default:
             return "(unrecognized error)";
     }
@@ -62,6 +63,11 @@ std::string SocksErrCategory::message(int ev) const
 namespace detail
 {
 
+auto make_socks_error(SocksErrc const err) -> boost::system::error_code
+{
+    return boost::system::error_code{int(err), theSocksErrCategory};
+}
+
 template<class... Ts>
 struct overloaded : Ts... { using Ts::operator()...; };
 template<class... Ts>
@@ -69,21 +75,18 @@ overloaded(Ts...) -> overloaded<Ts...>;
 
 auto push_host(Host const& host, std::vector<uint8_t> &buffer) -> void
 {
-    auto const go = [&buffer](AddressType const ty, auto const thing) -> void {
-        buffer.push_back(uint8_t(ty));
-        buffer.push_back(thing.size());
-        std::copy(thing.begin(), thing.end(), std::back_inserter(buffer));
-    };
-
     std::visit(overloaded {
-        [go](std::string_view const hostname) {
-            go(AddressType::DomainName, hostname);
+        [&buffer](std::string_view const hostname) {
+            buffer.push_back(uint8_t(AddressType::DomainName));
+            push_buffer(buffer, hostname);
         },
-        [go](boost::asio::ip::address const& address){
+        [&buffer](boost::asio::ip::address const& address){
             if (address.is_v4()) {
-                go(AddressType::IPv4, address.to_v4().to_bytes());
+                buffer.push_back(uint8_t(AddressType::IPv4));
+                push_buffer(buffer, address.to_v4().to_bytes());
             } else if (address.is_v6()) {
-                go(AddressType::IPv6, address.to_v6().to_bytes());
+                buffer.push_back(uint8_t(AddressType::IPv6));
+                push_buffer(buffer, address.to_v6().to_bytes());
             } else {
                 throw std::logic_error{"unexpected address type"};
             }
