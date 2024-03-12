@@ -157,7 +157,7 @@ struct SocksImplementation
         AuthMethod method = auth_.index() == 0 ? AuthMethod::NoAuth : AuthMethod::UsernamePassword;
         buffer_ = {version_tag, 1 /* number of methods */, uint8_t(method)};
         boost::asio::async_write(socket_, boost::asio::buffer(buffer_),
-            boost::asio::prepend(std::move(self), HelloSent{}));
+            std::bind_front(std::move(self), HelloSent{}));
     }
 
     // Waiting for server to choose authentication method
@@ -166,7 +166,7 @@ struct SocksImplementation
     {
         buffer_.resize(2); // version, method
         boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
-            boost::asio::prepend(std::move(self), HelloRecvd{}));
+            std::bind_front(std::move(self), HelloRecvd{}));
     }
 
     // Send TCP connection request for the domain name and port
@@ -204,7 +204,7 @@ struct SocksImplementation
         push_buffer(buffer_, std::get<1>(auth_).password);
 
         boost::asio::async_write(socket_, boost::asio::buffer(buffer_),
-            boost::asio::prepend(std::move(self), AuthSent{}));
+            std::bind_front(std::move(self), AuthSent{}));
     }
 
     template <typename Self>
@@ -212,7 +212,7 @@ struct SocksImplementation
     {
         buffer_.resize(2); // version, status
         boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
-            boost::asio::prepend(std::move(self), AuthRecvd{}));
+            std::bind_front(std::move(self), AuthRecvd{}));
     }
 
     template <typename Self>
@@ -245,7 +245,7 @@ struct SocksImplementation
         std::copy_n(port_.data(), 2, std::back_inserter(buffer_));
 
         boost::asio::async_write(socket_, boost::asio::buffer(buffer_),
-            boost::asio::prepend(std::move(self), ConnectSent{}));
+            std::bind_front(std::move(self), ConnectSent{}));
     }
 
     // Wait for response to the connection request
@@ -254,7 +254,7 @@ struct SocksImplementation
     {
         buffer_.resize(4); // version, reply, reserved, address-tag
         boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
-            boost::asio::prepend(std::move(self), ReplyRecvd{}));
+            std::bind_front(std::move(self), ReplyRecvd{}));
     }
 
     // Waiting on the remaining variable-sized address portion of the response
@@ -278,13 +278,13 @@ struct SocksImplementation
                 // ipv4 + port = 6 bytes
                 buffer_.resize(6);
                 boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
-                    boost::asio::prepend(std::move(self), FinishIpv4{}));
+                    std::bind_front(std::move(self), FinishIpv4{}));
                 return;
             case AddressType::IPv6:
                 // ipv6 + port = 18 bytes
                 buffer_.resize(18);
                 boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
-                    boost::asio::prepend(std::move(self), FinishIpv6{}));
+                    std::bind_front(std::move(self), FinishIpv6{}));
                 return;
             default:
                 self.complete(make_socks_error(SocksErrc::UnsupportedEndpointAddress), {});
