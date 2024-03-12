@@ -12,6 +12,11 @@
 namespace socks5
 {
 
+auto make_socks_error(SocksErrc const err) -> boost::system::error_code
+{
+    return boost::system::error_code{int(err), theSocksErrCategory};
+}
+
 const SocksErrCategory theSocksErrCategory;
 
 const char* SocksErrCategory::name() const noexcept
@@ -41,6 +46,14 @@ std::string SocksErrCategory::message(int ev) const
             return "command not supported";
         case SocksErrc::AddressNotSupported:
             return "address type not supported";
+        case SocksErrc::WrongVersion:
+            return "bad server protocol version";
+        case SocksErrc::NoAcceptableMethods:
+            return "server rejected authentication methods";
+        case SocksErrc::AuthenticationFailed:
+            return "server rejected authentication";
+        case SocksErrc::UnsupportedEndpointAddress:
+            return "server sent unknown endpoint address";
         default:
             return "(unrecognized error)";
     }

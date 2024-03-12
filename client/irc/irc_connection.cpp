@@ -43,6 +43,10 @@ auto irc_connection::basic_connect(
     socket.set_option(boost::asio::ip::tcp::no_delay(true));
     if (not socks_host.empty())
     {
-        co_await socks5::async_connect(socket, socks_host, socks_port, socks_user, socks_pass, boost::asio::use_awaitable);
+        socks5::Auth socks_auth
+          = socks_user.empty() && socks_pass.empty()
+          ? socks5::Auth{socks5::NoCredential{}}
+          : socks5::Auth{socks5::UsernamePasswordCredential{socks_user, socks_pass}};
+        co_await socks5::async_connect(socket, socks_host, socks_port, socks_auth, boost::asio::use_awaitable);
     }
 }
