@@ -68,11 +68,6 @@ auto make_socks_error(SocksErrc const err) -> boost::system::error_code
     return boost::system::error_code{int(err), theSocksErrCategory};
 }
 
-template<class... Ts>
-struct overloaded : Ts... { using Ts::operator()...; };
-template<class... Ts>
-overloaded(Ts...) -> overloaded<Ts...>;
-
 auto push_host(Host const& host, std::vector<uint8_t> &buffer) -> void
 {
     std::visit(overloaded {

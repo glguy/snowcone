@@ -71,8 +71,8 @@ auto App::winch_thread() -> boost::asio::awaitable<void>
         co_await winch.async_wait(boost::asio::use_awaitable);
         endwin();
         refresh();
-        l_ncurses_resize(this->L);
-        lua_callback(this->L, "on_resize", 0);
+        l_ncurses_resize(L);
+        lua_callback(L, "on_resize", 0);
     }
 }
 

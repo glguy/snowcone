@@ -31,7 +31,6 @@ return function(task)
         irc_state.sasl_credentials = {configuration.sasl_credentials.default}
     end
 
-    send('CAP', 'LS', '302')
     Task('cap negotiation', irc_state.tasks, cap_negotiation.LS)
 
     if configuration.pass then

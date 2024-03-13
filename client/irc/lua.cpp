@@ -31,18 +31,9 @@ auto l_close_irc(lua_State * const L) -> int
 
     if (auto const irc = w->lock())
     {
-        auto const error = irc->close();
-        if (error)
-        {
-            luaL_pushfail(L);
-            lua_pushstring(L, error.message().c_str());
-            return 2;
-        }
-        else
-        {
-            lua_pushboolean(L, 1);
-            return 1;
-        }
+        irc->close();
+        lua_pushboolean(L, 1);
+        return 1;
     }
     else
     {

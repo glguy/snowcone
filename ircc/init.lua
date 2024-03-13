@@ -445,6 +445,8 @@ local function startup()
             port                = {type = 'number'},
             socks_host          = {type = 'string'},
             socks_port          = {type = 'number'},
+            socks_username      = {type = 'string'},
+            socks_password      = {type = 'string'},
             tls                 = {type = 'boolean'},
             tls_client_cert     = {type = 'string'},
             tls_client_key      = {type = 'string'},

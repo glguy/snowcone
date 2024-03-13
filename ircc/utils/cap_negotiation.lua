@@ -71,6 +71,7 @@ local ls_commands = Set{'CAP', N.RPL_WELCOME}
 
 -- Used for the initial capability negotiation during registration
 function M.LS(task)
+    send('CAP', 'LS', '302')
     local more = true
     while more do
         local irc = task:wait_irc(ls_commands)

@@ -65,7 +65,7 @@ auto l_dnslookup(lua_State *const L) -> int
 
     resolver->async_resolve(std::string_view{hostname, len}, "", [L, resolver](
         boost::system::error_code const& error,
-        Resolver::results_type results
+        Resolver::results_type const results
     ) {
         // get the callback
         lua_rawgetp(L, LUA_REGISTRYINDEX, resolver);
