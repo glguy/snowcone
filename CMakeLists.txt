@@ -33,6 +33,7 @@ if (LIBIDN_FOUND)
 add_subdirectory(mystringprep)
 endif()
 
+add_subdirectory(mysocks5)
 add_subdirectory(ircmsg)
 add_subdirectory(myncurses)
 add_subdirectory(mybase64)

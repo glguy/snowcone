@@ -9,7 +9,7 @@ extern "C" {
 
 auto push_string(lua_State *const L, std::string_view const str) -> char const *
 {
-    return lua_pushlstring(L, str.data(), str.size());
+    return lua_pushlstring(L, std::data(str), std::size(str));
 }
 
 auto mutable_string_arg(lua_State * const L, int const i) -> char*

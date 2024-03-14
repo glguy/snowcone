@@ -2,7 +2,6 @@ local class = require 'pl.class'
 local Set = require 'pl.Set'
 local User = require  'components.User'
 
--- irc_state
 -- .caps_ls        - set of string   - create in LS - consume at end of LS
 -- .caps_list      - array of string - list of enabled caps - consume after LIST
 -- .caps_available - set of string   - created by LS and NEW
@@ -122,14 +121,14 @@ function isupport_logic:INVEX(arg)
     if arg == true then
         arg = 'I'
     end
-    irc_state.invex = arg
+    self.invex = arg
 end
 
 function isupport_logic:EXCEPTS(arg)
     if arg == true then
         arg = 'e'
     end
-    irc_state.excepts = arg
+    self.excepts = arg
 end
 
 function isupport_logic:PREFIX(arg)

@@ -1,6 +1,5 @@
 local send = require_ 'utils.send'
 local cap_negotiation = require 'utils.cap_negotiation'
-local Task = require 'components.Task'
 local N = require 'utils.numerics'
 local Set = require 'pl.Set'
 local challenge   = require_ 'utils.challenge'
@@ -31,7 +30,7 @@ return function(task)
         irc_state.sasl_credentials = {configuration.sasl_credentials.default}
     end
 
-    Task('cap negotiation', irc_state.tasks, cap_negotiation.LS)
+    cap_negotiation.LS(task)
 
     if configuration.pass then
         local pass = configuration.pass
@@ -65,7 +64,7 @@ return function(task)
 
     -- Establish operator privs
     if configuration.oper_username and configuration.challenge_key then
-        Task('challenge', irc_state.tasks, challenge)
+        challenge(task)
     elseif configuration.oper_username and configuration.oper_password then
         send('OPER', configuration.oper_username,
             {content=configuration.oper_password, secret=true})

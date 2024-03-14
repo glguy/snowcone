@@ -1,6 +1,6 @@
 #include "tls_connection.hpp"
 
-#include "socks.hpp"
+#include <socks5.hpp>
 
 #include <openssl/ssl.h>
 

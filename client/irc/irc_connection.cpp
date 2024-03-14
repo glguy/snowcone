@@ -1,6 +1,6 @@
 #include "irc_connection.hpp"
 
-#include "socks.hpp"
+#include <socks5.hpp>
 
 extern "C" {
 #include <lua.h>

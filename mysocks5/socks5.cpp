@@ -1,12 +1,9 @@
-#include "socks.hpp"
+#include "socks5.hpp"
 
 #include <boost/asio.hpp>
 
-#include <array>
 #include <iterator>
-#include <span>
 #include <stdexcept>
-#include <tuple>
 #include <vector>
 
 namespace socks5
