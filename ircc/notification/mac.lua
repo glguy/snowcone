@@ -1,5 +1,5 @@
 local function esc(str)
-    return str:gsub('([\\"])', '\\%1')
+    return (str:gsub('([\\"])', '\\%1'))
 end
 
 local M = {}
