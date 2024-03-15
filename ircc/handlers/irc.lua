@@ -1,5 +1,6 @@
 -- Logic for IRC messages
 local tablex      = require 'pl.tablex'
+local Set         = require 'pl.Set'
 
 local N           = require_ 'utils.numerics'
 local send        = require_ 'utils.send'
@@ -56,7 +57,7 @@ end
 M[N.RPL_LISTSTART] = function()
     Task('channel list', irc_state.tasks, function(self)
         local list = {}
-        local list_commands = {[N.RPL_LIST]=true, [N.RPL_LISTEND]=true}
+        local list_commands = Set{N.RPL_LIST, N.RPL_LISTEND}
         while true do
             local irc = self:wait_irc(list_commands)
 

@@ -101,37 +101,37 @@ end
 -- the irc_state, not the isupport_logic table!
 local isupport_logic = {}
 
-function isupport_logic:CHANTYPES(arg)
-    self.chantypes = arg or '&#'
+function isupport_logic.CHANTYPES(irc, arg)
+    irc.chantypes = arg or '&#'
 end
 
-function isupport_logic:STATUSMSG(arg)
-    self.statusmsg = arg or ''
+function isupport_logic.STATUSMSG(irc, arg)
+    irc.statusmsg = arg or ''
 end
 
-function isupport_logic:MONITOR(arg)
+function isupport_logic.MONITOR(irc, arg)
     if arg then
-        self.monitor = {}
+        irc.monitor = {}
     else
-        self.monitor = nil
+        irc.monitor = nil
     end
 end
 
-function isupport_logic:INVEX(arg)
+function isupport_logic.INVEX(irc, arg)
     if arg == true then
         arg = 'I'
     end
-    self.invex = arg
+    irc.invex = arg
 end
 
-function isupport_logic:EXCEPTS(arg)
+function isupport_logic.EXCEPTS(irc, arg)
     if arg == true then
         arg = 'e'
     end
-    self.excepts = arg
+    irc.excepts = arg
 end
 
-function isupport_logic:PREFIX(arg)
+function isupport_logic.PREFIX(irc, arg)
     local modes, prefixes = arg:match '^%((.*)%)(.*)$'
     local prefix_to_mode, mode_to_prefix = {}, {}
     for i = 1, #modes do
@@ -139,20 +139,20 @@ function isupport_logic:PREFIX(arg)
         prefix_to_mode[prefix] = mode
         mode_to_prefix[mode] = prefix
     end
-    self.prefix_to_mode = prefix_to_mode
-    self.mode_to_prefix = mode_to_prefix
+    irc.prefix_to_mode = prefix_to_mode
+    irc.mode_to_prefix = mode_to_prefix
 end
 
-function isupport_logic:CHANMODES(arg)
-    self.modes_A, self.modes_B, self.modes_C, self.modes_D =
+function isupport_logic.CHANMODES(irc, arg)
+    irc.modes_A, irc.modes_B, irc.modes_C, irc.modes_D =
         arg:match '^([^,]*),([^,]*),([^,]*),([^,]*)'
 end
 
-function isupport_logic:CHATHISTORY(arg)
+function isupport_logic.CHATHISTORY(irc, arg)
     local n = tonumber(arg)
     -- 0 indicates "no limit"
     if n ~= nil and n > 0 then
-        self.max_chat_history = n
+        irc.max_chat_history = n
     end
 end
 
@@ -162,7 +162,7 @@ function M:set_isupport(key, val)
     self.isupport[key] = val
     local f = isupport_logic[key]
     if f then
-        f(self, val) -- invoke on self, not as methods on isupport_logic
+        f(self, val)
     end
 end
 
