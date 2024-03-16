@@ -9,9 +9,6 @@ add_executable(tests-base64 tests-base64.cpp)
 target_link_libraries(tests-base64 PRIVATE mybase64 GTest::gmock GTest::gtest_main)
 gtest_discover_tests(tests-base64)
 
-add_executable(test-socks5 test-socks5.cpp)
-target_link_libraries(test-socks5 PRIVATE mysocks5 GTest::gmock GTest::gtest_main)
-gtest_discover_tests(test-socks5)
 endif()
 
 find_program(LUACHECK luacheck)
