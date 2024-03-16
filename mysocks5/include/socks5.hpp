@@ -152,8 +152,7 @@ struct SocksImplementation
     /// @param self enclosing intermediate completion handler
     template <typename Next, std::size_t N, typename Self>
     auto transact(Self& self) -> void {
-        auto const b = boost::asio::buffer(buffer_);
-        boost::asio::async_write(socket_, b,
+        boost::asio::async_write(socket_, boost::asio::buffer(buffer_),
             std::bind_front(std::move(self), Sent<Next, N>{}));
     }
 
@@ -161,8 +160,7 @@ struct SocksImplementation
     auto step(Self& self, Sent<Next, N>) -> void
     {
         buffer_.resize(N);
-        auto const b = boost::asio::buffer(buffer_);
-        boost::asio::async_read(socket_, b,
+        boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
             std::bind_front(std::move(self), Next{}));
     }
 
