@@ -9,6 +9,7 @@
 #include <memory>
 #include <span>
 #include <stdexcept>
+#include <vector>
 
 namespace
 {
@@ -113,8 +114,12 @@ namespace
         template <typename MutableBufferSequence, typename CompletionToken>
         auto async_read_some(const MutableBufferSequence &buffers, CompletionToken &&token)
         {
+            std::vector<boost::asio::mutable_buffer> buffers_copy;
+            for (auto&& buffer : buffers) {
+                buffers_copy.push_back(boost::asio::buffer(buffer.data(), buffer.size()));
+            }
             return boost::asio::async_initiate<CompletionToken, void(boost::system::error_code, std::size_t)>(
-                [](auto handler, const MutableBufferSequence &buffers, std::deque<std::unique_ptr<Step>> &steps)
+                [](auto handler, std::vector<boost::asio::mutable_buffer> buffers, std::deque<std::unique_ptr<Step>> &steps)
                 {
                     if (steps.empty())
                         throw std::runtime_error{"no steps"};
@@ -139,15 +144,19 @@ namespace
                     }
                     handler(ec, transfer);
                 },
-                token, buffers, steps_);
+                token, std::move(buffers_copy), steps_);
         }
 
         // Simulate async write operation
         template <typename ConstBufferSequence, typename CompletionToken>
         auto async_write_some(const ConstBufferSequence &buffers, CompletionToken &&token)
         {
+            std::vector<boost::asio::const_buffer> buffers_copy;
+            for (auto&& buffer : buffers) {
+                buffers_copy.push_back(boost::asio::buffer(buffer.data(), buffer.size()));
+            }
             return boost::asio::async_initiate<CompletionToken, void(boost::system::error_code, std::size_t)>(
-                [](auto handler, const ConstBufferSequence &buffers, std::deque<std::unique_ptr<Step>> &steps)
+                [](auto handler, std::vector<boost::asio::const_buffer> buffers, std::deque<std::unique_ptr<Step>> &steps)
                 {
                     if (steps.empty())
                         throw std::runtime_error{"no steps"};
@@ -172,7 +181,7 @@ namespace
                     }
                     handler(ec, transfer);
                 },
-                token, buffers, steps_);
+                token, std::move(buffers_copy), steps_);
         }
 
         auto read_step(std::string str) -> void
