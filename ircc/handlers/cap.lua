@@ -23,9 +23,9 @@ function CAP.NEW(capsarg)
         if irc_state.caps_available[cap] and not irc_state.caps_enabled[cap] then
             table.insert(req, cap)
         end
-        if next(req) then
-            Task('cap negotiation', irc_state.tasks, cap_negotiation.REQ, req)
-        end
+    end
+    if next(req) then
+        Task('cap negotiation', irc_state.tasks, cap_negotiation.REQ, req)
     end
 end
 
