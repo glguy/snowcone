@@ -26,7 +26,7 @@ These are the baseline dependencies
 
 ```sh
 # Debian build dependencies
-apt install cmake pkg-config liblua5.4-dev libboost-dev libidn-dev libssl-dev libncurses-dev libgeoip-dev lua-mmdb lua-penlight lua-rex-pcre2-dev
+apt install cmake pkg-config liblua5.4-dev libidn-dev libssl-dev libncurses-dev libgeoip-dev lua-mmdb lua-penlight lua-rex-pcre2-dev
 # Optional on x86_64
 apt install libhyperscan-dev
 # Optional on arm64
@@ -35,7 +35,7 @@ apt install libvectorscan-dev
 apt install libgmock-dev libgtest-dev lua-check
 
 # Homebrew
-brew install cmake pkg-config lua luarocks boost libidn ncurses openssl pcre2
+brew install cmake pkg-config lua luarocks libidn ncurses openssl pcre2
 # Optional on x86_64
 brew install hyperscan
 # Optional on arm64
@@ -50,11 +50,6 @@ luarocks install lrexlib-pcre2 PCRE2_DIR=/opt/homebrew/opt/pcre2
 Snowcone can also make use of doxygen, luacheck, libhyperscan/libvectorscan.
 
 ## Building and running
-
-I have presets `intel-mac`, `arm-mac`, `debian-gcc` CMake presets that set
-up the needed environment variables (see CMakePresets.json). Note that Debian's
-`gcc-12` and `boost` packages are currently incompatible, so you have to
-install `gcc-11` there.
 
 ```sh
 cmake --preset arm-mac

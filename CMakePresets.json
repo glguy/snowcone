@@ -2,7 +2,7 @@
     "version": 6,
     "configurePresets": [
         {
-            "name": "debian-gcc",
+            "name": "linux",
             "description": "Configure for Debian Bookworm",
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
@@ -10,10 +10,6 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "On"
-            },
-            "environment": {
-                "CC": "gcc-11",
-                "CXX": "g++-11"
             }
         },
         {
@@ -49,8 +45,8 @@
     ],
     "buildPresets": [
         {
-            "name": "debian-gcc",
-            "configurePreset": "debian-gcc"
+            "name": "linux",
+            "configurePreset": "linux"
         },
         {
             "name": "arm-mac",
@@ -63,8 +59,8 @@
     ],
     "testPresets": [
         {
-            "name": "debian-gcc",
-            "configurePreset": "debian-gcc"
+            "name": "linux",
+            "configurePreset": "linux"
         },
         {
             "name": "arm-mac",
