@@ -29,6 +29,8 @@ extern "C" {
 #include "mystringprep.h"
 #endif
 
+#include "process.hpp"
+
 #include <algorithm>
 #include <csignal>
 #include <cstring>
@@ -249,6 +251,7 @@ luaL_Reg const applib_module[] = {
     { "time", l_time },
     { "to_base64", l_to_base64 },
     { "xor_strings", l_xor_strings },
+    { "execute", l_execute},
     {}
 };
 

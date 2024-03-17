@@ -21,7 +21,7 @@ pkg_check_modules(LIBIDN            IMPORTED_TARGET libidn)
 
 find_package(OpenSSL REQUIRED)
 
-set(BOOST_INCLUDE_LIBRARIES asio endian system)
+set(BOOST_INCLUDE_LIBRARIES asio endian process system)
 set(BOOST_ENABLE_CMAKE ON)
 include(FetchContent)
 FetchContent_Declare(
