@@ -1,5 +1,4 @@
 -- https://ircv3.net/specs/extensions/sasl-3.1
--- https://ircv3.net/specs/extensions/sasl-3.1
 
 local Set = require 'pl.Set'
 local file = require 'pl.file'
@@ -10,27 +9,34 @@ local sasl_commands = Set{
     N.RPL_SASLSUCCESS,
     N.ERR_SASLFAIL,
     N.ERR_SASLABORTED,
-    N.RPL_SASLMECHS,
-    N.ERR_SASLALREADY,
-    N.ERR_SASLTOOLONG,
     "AUTHENTICATE",
 }
 
--- Takes a binary argument, base64 encodes it, and chunks it into multiple
--- AUTHENTICATE commands
+-- Transmit the AUTHENTICATE message for the given raw SASL message.
+--
+-- body (string): unencoded SASL bytes
+-- secret (bool): message contains sensitive information
+--
+-- > The response is encoded in Base64 (RFC 4648), then split to 400-byte
+-- > chunks, and each chunk is sent as a separate `AUTHENTICATE` command.
+-- > Empty (zero-length) responses are sent as `AUTHENTICATE +`. If the last
+-- > chunk was exactly 400 bytes long, it must also be followed by
+-- > `AUTHENTICATE +` to signal end of response.
 local function send_authenticate(body, secret)
-    if body then
-        body = snowcone.to_base64(body)
-        local n = #body
-        for i = 1, n, 400 do
-            send('AUTHENTICATE', {content=string.sub(body, i, i+399), secret=secret})
-        end
-        if n % 400 == 0 then
-            send('AUTHENTICATE', '+')
-        end
-    else
-        send('AUTHENTICATE', '*')
+    body = snowcone.to_base64(body)
+    local n = #body
+    for i = 1, n, 400 do
+        send('AUTHENTICATE', {content=string.sub(body, i, i+399), secret=secret})
     end
+    if n % 400 == 0 then
+        send('AUTHENTICATE', '+')
+    end
+end
+
+-- > The client can abort an authentication by sending an asterisk as
+-- > the data. The server will send a 906 numeric.
+local function abort_sasl()
+    send('AUTHENTICATE', '*')
 end
 
 local function mechanism_factory(mechanism, authcid, password, key, authzid)
@@ -91,39 +97,28 @@ return function(task, credentials)
 
     local outcome = true
     local chunks = {}
-    local n = 0
     while true do
         local irc = task:wait_irc(sasl_commands)
         local command = irc.command
         if command == 'AUTHENTICATE' then
             local chunk = irc[1]
-            if chunk == '+' then
-                chunk = ''
+            if chunk ~= '+' then
+                local bytes = assert(snowcone.from_base64(chunk), 'Bad base64 in AUTHENTICATE')
+                table.insert(chunks, bytes)
             end
 
-            n = n + 1
-            chunks[n] = chunk
-
             if #chunk < 400 then
-                local payload = snowcone.from_base64(table.concat(chunks))
-                chunks = {}
-                n = 0
-
-                if payload == nil then
-                    status('sasl', 'Bad base64 in AUTHENTICATE')
-                    send_authenticate() -- abort
-                    outcome = false
-                else
-                    local success, message, secret = coroutine.resume(impl, payload)
-                    if success then
-                        if message then
-                            send_authenticate(message, secret)
-                        end
-                    else
-                        status('sasl', 'Mechanism error: %s', message)
-                        send_authenticate() -- abort
-                        outcome = false
+                local payload = table.concat(chunks)
+                chunks = {} -- prepare for next message
+                local success, message, secret = coroutine.resume(impl, payload)
+                if success then
+                    if message then
+                        send_authenticate(message, secret)
                     end
+                else
+                    status('sasl', 'Mechanism error: %s', message)
+                    abort_sasl()
+                    outcome = false
                 end
             end
         elseif command == N.RPL_SASLSUCCESS then
@@ -143,14 +138,6 @@ return function(task, credentials)
         elseif command == N.ERR_SASLABORTED then
             -- "<client> :SASL authentication aborted"
             status('sasl', 'SASL aborted')
-            return false
-        elseif command == N.ERR_SASLALREADY then
-            -- "<client> :You have already authenticated using SASL"
-            status('sasl', 'SASL already complete')
-            return false
-        elseif command == N.ERR_NICKLOCKED then
-            -- "<client> :You must use a nick assigned to you
-            status('sasl', 'Must use assigned nickname')
             return false
         end
     end

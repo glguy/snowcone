@@ -639,4 +639,14 @@ M[N.RPL_LOGGEDOUT] = function()
     irc_state:set_account(nil)
 end
 
+-- "<client> :You have already authenticated using SASL"
+M[N.ERR_SASLALREADY] = function()
+    status('sasl', 'SASL already complete')
+end
+
+-- "<client> :You must use a nick assigned to you
+M[N.ERR_NICKLOCKED] = function()
+    status('sasl', 'Must use assigned nickname')
+end
+
 return M
