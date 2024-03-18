@@ -21,15 +21,21 @@ pkg_check_modules(LIBIDN            IMPORTED_TARGET libidn)
 
 find_package(OpenSSL REQUIRED)
 
-set(BOOST_INCLUDE_LIBRARIES asio endian process system)
-set(BOOST_ENABLE_CMAKE ON)
-include(FetchContent)
-FetchContent_Declare(
-  Boost
-  URL https://github.com/boostorg/boost/releases/download/boost-1.84.0/boost-1.84.0.tar.xz
-  URL_HASH SHA1=938073443cc99490dff05288eb74c55ff424ca00
-)
-FetchContent_MakeAvailable(Boost)
+find_package(Boost 1.83.0 COMPONENTS filesystem)
+if(Boost_FOUND)
+    set(BOOST_TARGETS Boost::headers Boost::filesystem)
+else()
+    set(BOOST_INCLUDE_LIBRARIES asio endian process system)
+    set(BOOST_ENABLE_CMAKE ON)
+    include(FetchContent)
+    FetchContent_Declare(
+    Boost
+    URL https://github.com/boostorg/boost/releases/download/boost-1.84.0/boost-1.84.0.tar.xz
+    URL_HASH SHA1=938073443cc99490dff05288eb74c55ff424ca00
+    )
+    FetchContent_MakeAvailable(Boost)
+    set(BOOST_TARGETS Boost::asio Boost::endian Boost::process)
+endif()
 
 if(GEOIP_FOUND)
 add_subdirectory(mygeoip)
