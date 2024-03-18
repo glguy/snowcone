@@ -239,6 +239,16 @@ function M:add_caps(capsarg)
     end
 end
 
+function M:del_caps(capsarg)
+    for cap in capsarg:gmatch '[^ ]+' do
+        self.caps_available[cap] = nil
+        self.caps_enabled[cap] = nil
+        if 'sasl' == cap then
+            self:set_sasl_mechs(nil)
+        end
+    end
+end
+
 --- Set the list of supported SASL mechanisms
 --- Input comma-separated string when supported
 --- Input nil to clear setting

@@ -5,13 +5,7 @@ local cap_negotiation = require 'utils.cap_negotiation'
 local CAP = {}
 
 function CAP.DEL(capsarg)
-    for cap in capsarg:gmatch '[^ ]+' do
-        irc_state.caps_available[cap] = nil
-        irc_state.caps_enabled[cap] = nil
-        if 'sasl' == cap then
-            irc_state:set_sasl_mechs(nil)
-        end
-    end
+    irc_state:del_caps(capsarg)
 end
 
 function CAP.NEW(capsarg)
