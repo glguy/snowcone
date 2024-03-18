@@ -7,7 +7,7 @@ stds = {
             snowcone = {
               fields = {"to_base64", "from_base64", "dnslookup", "pton", "shutdown", "newtimer",
                 "setmodule", "raise", "xor_strings", "isalnum", "irccase", "parse_irc_tags",
-                "SIGINT", "SIGTSTP", "connect", "parse_irc" },
+                "SIGINT", "SIGTSTP", "connect", "parse_irc", "execute" },
             },
         },
     },

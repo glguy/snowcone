@@ -2,9 +2,9 @@ local M = {}
 
 local function report(exitcode, stdout, stderr)
     if 0 ~= exitcode then
-        sasl('notify', 'unexpected exit: %d', exitcode)
-        if '' ~= stdout then sasl('notify', 'stdout: %s', stdout) end
-        if '' ~= stderr then sasl('notify', 'stderr: %s', stderr) end
+        status('notify', 'unexpected exit: %d', exitcode)
+        if '' ~= stdout then status('notify', 'stdout: %s', stdout) end
+        if '' ~= stderr then status('notify', 'stderr: %s', stderr) end
     end
 end
 
