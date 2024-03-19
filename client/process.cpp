@@ -38,7 +38,7 @@ struct Process : public std::enable_shared_from_this<Process>
                 self->complete();
             },
         boost::process::search_path(file),
-        boost::process::args += args,
+        boost::process::args += std::move(args),
         boost::process::std_in  < boost::process::null,
         boost::process::std_out > stdout_,
         boost::process::std_err > stderr_);

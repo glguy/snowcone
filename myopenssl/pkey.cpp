@@ -210,7 +210,7 @@ luaL_Reg const PkeyMethods[] {
 
     /***
     Return public key as raw bytes.
-    
+
     @function get_raw_public
     @treturn string raw key bytes
     @raise openssl error on failure
@@ -221,7 +221,7 @@ luaL_Reg const PkeyMethods[] {
 
         std::size_t out_len;
         auto success = EVP_PKEY_get_raw_public_key(pkey, nullptr, &out_len);
-        if (0 >= success)
+        if (0 == success)
         {
             openssl_failure(L, "EVP_PKEY_get_raw_public_key");
         }
@@ -230,13 +230,177 @@ luaL_Reg const PkeyMethods[] {
         auto const out = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, out_len));
 
         success = EVP_PKEY_get_raw_public_key(pkey, out, &out_len);
-        if (0 >= success)
+        if (0 == success)
         {
             openssl_failure(L, "EVP_PKEY_get_raw_public_key");
         }
 
         luaL_pushresultsize(&B, out_len);
         return 1;
+    }},
+
+    /***
+    Return private key as raw bytes.
+
+    @function get_raw_private
+    @treturn string raw key bytes
+    @raise openssl error on failure
+    */
+    {"get_raw_private", [](auto const L)
+    {
+        auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
+
+        std::size_t out_len;
+        auto success = EVP_PKEY_get_raw_private_key(pkey, nullptr, &out_len);
+        if (0 == success)
+        {
+            openssl_failure(L, "EVP_PKEY_get_raw_private_key");
+        }
+
+        luaL_Buffer B;
+        auto const out = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, out_len));
+
+        success = EVP_PKEY_get_raw_private_key(pkey, out, &out_len);
+        if (0 == success)
+        {
+            openssl_failure(L, "EVP_PKEY_get_raw_private_key");
+        }
+
+        luaL_pushresultsize(&B, out_len);
+        return 1;
+    }},
+
+    {"to_private_pem", [](auto const L)
+    {
+        auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
+        auto const cipher_name = luaL_optlstring(L, 2, nullptr, nullptr);
+        std::size_t pass_len;
+        auto const pass = reinterpret_cast<unsigned char const*>(luaL_optlstring(L, 3, nullptr, &pass_len));
+
+        EVP_CIPHER const* cipher = nullptr;
+        if (nullptr != cipher_name)
+        {
+            cipher = EVP_get_cipherbyname(cipher_name);
+            if (nullptr == cipher)
+            {
+                openssl_failure(L, "EVP_get_cipherbyname");
+            }
+        }
+
+        auto const bio = BIO_new(BIO_s_mem());
+        if (nullptr == bio)
+        {
+            openssl_failure(L, "BIO_new");
+        }
+
+        if (0 == PEM_write_bio_PrivateKey(bio, pkey, cipher, pass, pass_len, nullptr, nullptr))
+        {
+            BIO_free_all(bio);
+            openssl_failure(L, "PEM_write_bio_PrivateKey");
+        }
+        char * data;
+        auto const len = BIO_get_mem_data(bio, &data);
+        lua_pushlstring(L, data, len);
+        BIO_free_all(bio);
+        return 1;
+    }},
+
+    {"to_public_pem", [](auto const L)
+    {
+        auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
+        auto const bio = BIO_new(BIO_s_mem());
+        if (nullptr == bio)
+        {
+            openssl_failure(L, "BIO_new");
+        }
+        if (0 == PEM_write_bio_PUBKEY(bio, pkey))
+        {
+            BIO_free_all(bio);
+            openssl_failure(L, "PEM_write_bio_PUBKEY");
+        }
+        char * data;
+        auto const len = BIO_get_mem_data(bio, &data);
+        lua_pushlstring(L, data, len);
+        BIO_free_all(bio);
+        return 1;
+    }},
+
+    {"export", [](auto const L)
+    {
+        auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
+
+        std::size_t out_len;
+        auto cb = [L](OSSL_PARAM const* const params){
+            for (auto cursor = params; cursor->key; cursor++)
+            {
+                lua_pushlstring(L, reinterpret_cast<char const*>(cursor->data), cursor->data_size);
+                lua_setfield(L, -2, cursor->key);
+            }
+            return 1; // success
+        };
+
+        lua_newtable(L);
+        auto success = EVP_PKEY_export(pkey, EVP_PKEY_KEYPAIR, Invoke<decltype(cb)>::invoke, &cb);
+        if (0 == success)
+        {
+            openssl_failure(L, "EVP_PKEY_export");
+        }
+
+        return 1;
+    }},
+
+    {"set_param", [](auto const L)
+    {
+        auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
+        auto const name = luaL_checkstring(L, 2);
+
+        auto const settable = EVP_PKEY_settable_params(pkey);
+        if (nullptr == settable)
+        {
+            openssl_failure(L, "EVP_PKEY_settable_params");
+        }
+
+        for (auto cursor = settable; cursor->key; cursor++)
+        {
+            if (0 == strcmp(cursor->key, name))
+            {
+                switch (cursor->data_type) {
+                    default:
+                        luaL_error(L, "type not supported %d", cursor->data_type);
+                    case OSSL_PARAM_UTF8_STRING: {
+                        auto const str = luaL_checkstring(L, 3);
+                        auto const success = EVP_PKEY_set_utf8_string_param(pkey, name, str);
+                        if (not success)
+                        {
+                            openssl_failure(L, "EVP_PKEY_set_utf8_string_param");
+                        }
+                        return 0;
+                    }
+                    case OSSL_PARAM_OCTET_STRING: {
+                        std::size_t len;
+                        auto const str = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 3, &len));
+                        auto const success = EVP_PKEY_set_octet_string_param(pkey, name, str, len);
+                        if (not success)
+                        {
+                            openssl_failure(L, "EVP_PKEY_set_octet_string_param");
+                        }
+                        return 0;
+                    }
+                    case OSSL_PARAM_UNSIGNED_INTEGER:
+                    case OSSL_PARAM_INTEGER: {
+                        auto const n = luaL_checkinteger(L, 3);
+                        auto const success = EVP_PKEY_set_int_param(pkey, name, n);
+                        if (not success)
+                        {
+                            openssl_failure(L, "EVP_PKEY_set_octet_string_param");
+                        }
+                        return 0;
+                    }
+                }
+            }
+        }
+
+        return luaL_error(L, "unknown parameter %s", name);
     }},
 
     {}
@@ -310,6 +474,35 @@ auto l_read_pkey(lua_State * const L) -> int
     if (nullptr == pkey)
     {
         openssl_failure(L, priv ? "PEM_read_bio_PrivateKey" : "PEM_read_bio_PUBKEY");
+    }
+
+    push_evp_pkey(L, pkey);
+    return 1;
+}
+
+auto l_gen_pkey(lua_State* const L) -> int
+{
+    auto const type = luaL_checkstring(L, 1);
+    EVP_PKEY* pkey;
+
+    if (0 == strcmp("RSA", type))
+    {
+        std::size_t const size = luaL_checkinteger(L, 2);
+        pkey = EVP_PKEY_Q_keygen(nullptr, nullptr, type, size);
+    }
+    else if (0 == strcmp("EC", type))
+    {
+        auto const curve = luaL_checkstring(L, 2);
+        pkey = EVP_PKEY_Q_keygen(nullptr, nullptr, type, curve);
+    }
+    else if (0 == strcmp("X25519", type) || 0 == strcmp("X448", type) || 0 == strcmp("ED25519", type) || 0 == strcmp("ED448", type) || 0 == strcmp("SM2", type))
+    {
+        pkey = EVP_PKEY_Q_keygen(nullptr, nullptr, type);
+    }
+
+    if (nullptr == pkey)
+    {
+        openssl_failure(L, "EVP_PKEY_Q_keygen");
     }
 
     push_evp_pkey(L, pkey);

@@ -62,6 +62,7 @@ extern "C" auto luaopen_myopenssl(lua_State * const L) -> int
         {"get_digest", myopenssl::l_get_digest},
         {"read_raw", myopenssl::l_read_raw},
         {"read_pkey", myopenssl::l_read_pkey},
+        {"gen_pkey", myopenssl::l_gen_pkey},
         {}
     };
 
