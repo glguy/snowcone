@@ -403,6 +403,13 @@ function quit()
     end
 end
 
+function set_talk_target(target)
+    if target ~= talk_target then
+        talk_target_old = talk_target
+        talk_target = target
+    end
+end
+
 local function startup()
     -- initialize global variables
     for k,v in pairs(defaults) do

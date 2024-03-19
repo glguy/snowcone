@@ -52,6 +52,8 @@ stds = {
             -- /talk view
             "buffers", -- mapping of all buffers
             "talk_target", -- name of active buffer
+            "talk_target_old", -- name of previous buffer
+            "set_talk_target", -- function to update talk_target
 
             -- /status view
             "status", -- function to record a message in the status buffer

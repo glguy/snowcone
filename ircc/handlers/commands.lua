@@ -88,7 +88,7 @@ add_command('close', '', function()
 
     if talk_target and view == 'buffer' then
         buffers[talk_target] = nil
-        talk_target = next(buffers)
+        set_talk_target(next(buffers))
         if not talk_target then
             view = 'console'
         end
@@ -96,7 +96,7 @@ add_command('close', '', function()
 end)
 
 add_command('talk', '$g', function(target)
-    talk_target = snowcone.irccase(target)
+    set_talk_target(snowcone.irccase(target))
     view = 'buffer'
 
     if irc_state and irc_state.phase == 'connected' then

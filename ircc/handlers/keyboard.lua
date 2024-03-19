@@ -55,10 +55,18 @@ local M = {
         end
 
         if best_target then
-            talk_target = best_target
+            set_talk_target(best_target)
             view = 'buffer'
         end
     end,
+
+    [meta 's'] = function()
+        if view == 'buffer' then
+            talk_target_old, talk_target = talk_target, talk_target_old
+        elseif talk_target then
+            view = 'buffer'
+        end
+    end
 }
 
 for i, v in ipairs(main_views) do

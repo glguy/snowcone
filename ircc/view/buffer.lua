@@ -68,7 +68,7 @@ local keys = {
         local first_target
         for k, _ in tablex.sort(buffers) do
             if current < k then
-                talk_target = k
+                set_talk_target(k)
                 return
             end
             if not first_target then
@@ -76,7 +76,7 @@ local keys = {
             end
         end
         if first_target then
-            talk_target = first_target
+            set_talk_target(first_target)
         end
     end,
 
@@ -87,7 +87,7 @@ local keys = {
         local function backward(x,y) return x > y end
         for k, _ in tablex.sort(buffers, backward) do
             if current > k then
-                talk_target = k
+                set_talk_target(k)
                 return
             end
             if not first_target then
@@ -95,7 +95,7 @@ local keys = {
             end
         end
         if first_target then
-            talk_target = first_target
+            set_talk_target(first_target)
         end
     end,
 

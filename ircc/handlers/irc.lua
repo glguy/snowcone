@@ -303,6 +303,7 @@ function M.NICK(irc)
     end
 
     if talk_target and talk_target == oldkey then
+        -- don't call set_talk_target; it's a rename
         talk_target = newkey
     end
 end
