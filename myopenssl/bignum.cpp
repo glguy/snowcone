@@ -7,6 +7,7 @@ extern "C"
 #include <lauxlib.h>
 }
 
+#include <cstring>
 #include <memory>
 
 namespace myopenssl {
