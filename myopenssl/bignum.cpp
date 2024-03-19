@@ -244,11 +244,24 @@ auto push_bignum(lua_State* const L, BIGNUM* const bn) -> void
 
 auto l_bignum(lua_State* const L) -> int
 {
+    // pass existing bignums through
+    auto const type_name = luaL_typename(L, 1);
+    if (nullptr != type_name && 0 == strcmp(bignum_name, type_name)) {
+        lua_settop(L, 1);
+        return 1;
+    }
+
     auto const str = luaL_tolstring(L, 1, nullptr);
     BIGNUM* bn = nullptr;
-    BN_dec2bn(&bn, str);
-    push_bignum(L, bn);
-    return 1;
+    if (1 == BN_dec2bn(&bn, str))
+    {
+        push_bignum(L, bn);
+        return 1;
+    }
+    else
+    {
+        return luaL_error(L, "bad bignum string");
+    }
 }
 
 } // namespace myopenssl
