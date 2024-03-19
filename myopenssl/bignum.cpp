@@ -27,7 +27,9 @@ thread_local std::unique_ptr<BN_CTX, BN_CTX_Deleter> bn_ctx{BN_CTX_new()};
 
 auto checkbignum(lua_State* const L, int idx) -> BIGNUM*&
 {
-    return *reinterpret_cast<BIGNUM**>(luaL_checkudata(L, idx, bignum_name));
+    auto& bn = *reinterpret_cast<BIGNUM**>(luaL_checkudata(L, idx, bignum_name));
+    luaL_argcheck(L, nullptr != bn, 1, "panic: bignum not allocated");
+    return bn;       
 }
 
 template <int X, bool B>
@@ -57,127 +59,111 @@ luaL_Reg const MT[] = {
     {"__add", [](auto const L) {
         auto const a = checkbignum(L, 1);
         auto const b = checkbignum(L, 2);
-        auto const r = BN_new();
+        auto& r = push_bignum(L);
 
         if (1 == BN_add(r, a, b))
         {
-            push_bignum(L, r);
             return 1;
         }
         else
         {
-            BN_free(r);
             return luaL_error(L, "bignum failure");
         }
     }},
     {"__sub", [](auto const L) {
         auto const a = checkbignum(L, 1);
         auto const b = checkbignum(L, 2);
-        auto const r = BN_new();
+        auto& r = push_bignum(L);
 
         if (1 == BN_sub(r, a, b))
         {
-            push_bignum(L, r);
             return 1;
         }
         else
         {
-            BN_free(r);
             return luaL_error(L, "bignum failure");
         }
     }},
     {"__mul", [](auto const L) {
         auto const a = checkbignum(L, 1);
         auto const b = checkbignum(L, 2);
-        auto const r = BN_new();
+        auto& r = push_bignum(L);
 
         if (1 == BN_mul(r, a, b, bn_ctx.get()))
         {
-            push_bignum(L, r);
             return 1;
         }
         else
         {
-            BN_free(r);
             return luaL_error(L, "bignum failure");
         }
     }},
     {"__idiv", [](auto const L){
         auto const a = checkbignum(L, 1);
         auto const b = checkbignum(L, 2);
-        auto const r = BN_new();
+        auto& r = push_bignum(L);
 
         if (1 == BN_div(r, nullptr, a, b, bn_ctx.get()))
         {
-            push_bignum(L, r);
             return 1;
         }
         else
         {
-            BN_free(r);
             return luaL_error(L, "bignum failure");
         }
     }},
     {"__mod", [](auto const L){
         auto const a = checkbignum(L, 1);
         auto const b = checkbignum(L, 2);
-        auto const r = BN_new();
+        auto& r = push_bignum(L);
 
         if (1 == BN_div(nullptr, r, a, b, bn_ctx.get()))
         {
-            push_bignum(L, r);
             return 1;
         }
         else
         {
-            BN_free(r);
             return luaL_error(L, "bignum failure");
         }
     }},
     {"__pow", [](auto const L){
         auto const a = checkbignum(L, 1);
         auto const p = checkbignum(L, 2);
-        BIGNUM* r = BN_new();
+        auto& r = push_bignum(L);
 
         if (1 == BN_exp(r, a, p, bn_ctx.get()))
         {
-            push_bignum(L, r);
             return 1;
         }
         else
         {
-            BN_free(r);
             return luaL_error(L, "bignum failure");
         }
     }},
     {"__unm", [](auto const L){
         auto const a = checkbignum(L, 1);
-        auto const r = BN_dup(a);
+        auto& r = push_bignum(L);
+        r = BN_dup(a);
         BN_set_negative(r, !BN_is_negative(r));
-        push_bignum(L, r);
         return 1;
     }},
     {"__shl", [](auto const L){
         auto const a = checkbignum(L, 1);
         auto const n = luaL_checkinteger(L, 2);
-        auto const r = BN_new();
+        auto& r = push_bignum(L);
         if (1 == BN_lshift(r, a, n)) {
-            push_bignum(L, r);
             return 1;
         } else {
-            BN_free(r);
             return luaL_error(L, "bignum failure"); 
         }
     }},
     {"__shr", [](auto const L){
         auto const a = checkbignum(L, 1);
         auto const n = luaL_checkinteger(L, 2);
-        auto const r = BN_new();
+        auto& r = push_bignum(L);
         if (1 == BN_rshift(r, a, n)) {
-            push_bignum(L, r);
             return 1;
         } else {
-            BN_free(r);
             return luaL_error(L, "bignum failure"); 
         }
     }},
@@ -192,19 +178,15 @@ luaL_Reg const Methods[] = {
     {"div_mod", [](auto const L) {
         auto const a = checkbignum(L, 1);
         auto const b = checkbignum(L, 2);
-        auto const d = BN_new();
-        auto const m = BN_new();
+        auto& d = push_bignum(L);
+        auto& m = push_bignum(L);
 
         if (1 == BN_div(d, m, a, b, bn_ctx.get()))
         {
-            push_bignum(L, d);
-            push_bignum(L, m);
             return 2;
         }
         else
         {
-            BN_free(d);
-            BN_free(m);
             return luaL_error(L, "bignum failure");
         }
     }},
@@ -212,13 +194,11 @@ luaL_Reg const Methods[] = {
         auto const a = checkbignum(L, 1);
         auto const p = checkbignum(L, 2);
         auto const m = checkbignum(L, 3);
-        auto const r = BN_new();
+        auto& r = push_bignum(L);
 
         if (1 == BN_mod_exp(r, a, p, m, bn_ctx.get())) {
-            push_bignum(L, r);
             return 1;
         } else {
-            BN_free(r);
             return luaL_error(L, "bignum failure"); 
         }
     }},
@@ -227,10 +207,10 @@ luaL_Reg const Methods[] = {
 
 } // namespace
 
-auto push_bignum(lua_State* const L, BIGNUM* const bn) -> void
+auto push_bignum(lua_State* const L) -> BIGNUM*&
 {
-    auto const ptr = reinterpret_cast<BIGNUM**>(lua_newuserdatauv(L, sizeof bn, 0));
-    *ptr = bn;
+    auto const ptr = reinterpret_cast<BIGNUM**>(lua_newuserdatauv(L, sizeof (BIGNUM*), 0));
+    *ptr = nullptr;
 
     // Configure userdata's metatable
     if (luaL_newmetatable(L, bignum_name))
@@ -241,6 +221,7 @@ auto push_bignum(lua_State* const L, BIGNUM* const bn) -> void
         lua_setfield(L, -2, "__index");
     }
     lua_setmetatable(L, -2);
+    return *ptr;
 }
 
 auto l_bignum(lua_State* const L) -> int
@@ -253,10 +234,9 @@ auto l_bignum(lua_State* const L) -> int
     }
 
     auto const str = luaL_tolstring(L, 1, nullptr);
-    BIGNUM* bn = nullptr;
-    if (1 == BN_dec2bn(&bn, str))
+    auto& r = push_bignum(L);
+    if (1 == BN_dec2bn(&r, str))
     {
-        push_bignum(L, bn);
         return 1;
     }
     else

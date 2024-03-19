@@ -330,7 +330,6 @@ luaL_Reg const PkeyMethods[] {
     {
         auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
 
-        std::size_t out_len;
         auto cb = [L](OSSL_PARAM const* const params){
             for (auto cursor = params; cursor->key; cursor++)
             {
@@ -338,16 +337,9 @@ luaL_Reg const PkeyMethods[] {
                 {
                     case OSSL_PARAM_UNSIGNED_INTEGER:
                     case OSSL_PARAM_INTEGER: {
-
-                        if (cursor->data_size <= sizeof (long))
-                        {
-                            long value;
-                            OSSL_PARAM_get_long(cursor, &value);
-                            lua_pushinteger(L, value);
-                        } else {
-                            BIGNUM *bn = nullptr;
-                            OSSL_PARAM_get_BN(cursor, &bn);
-                            push_bignum(L, bn);
+                        auto& r = push_bignum(L);
+                        if (0 == OSSL_PARAM_get_BN(cursor, &r)) {
+                            return 0; // failure
                         }
                         break;
                     }
@@ -361,12 +353,11 @@ luaL_Reg const PkeyMethods[] {
         };
 
         lua_newtable(L);
-        auto success = EVP_PKEY_export(pkey, EVP_PKEY_KEYPAIR, Invoke<decltype(cb)>::invoke, &cb);
+        auto const success = EVP_PKEY_export(pkey, EVP_PKEY_KEYPAIR, Invoke<decltype(cb)>::invoke, &cb);
         if (0 == success)
         {
             openssl_failure(L, "EVP_PKEY_export");
         }
-
         return 1;
     }},
 
