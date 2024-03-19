@@ -7,6 +7,7 @@ public/private key object
 #include "pkey.hpp"
 #include "invoke.hpp"
 #include "errors.hpp"
+#include "bignum.hpp"
 
 extern "C" {
 #include <lua.h>
@@ -333,7 +334,27 @@ luaL_Reg const PkeyMethods[] {
         auto cb = [L](OSSL_PARAM const* const params){
             for (auto cursor = params; cursor->key; cursor++)
             {
-                lua_pushlstring(L, reinterpret_cast<char const*>(cursor->data), cursor->data_size);
+                switch (cursor->data_type)
+                {
+                    case OSSL_PARAM_UNSIGNED_INTEGER:
+                    case OSSL_PARAM_INTEGER: {
+
+                        if (cursor->data_size <= sizeof (long))
+                        {
+                            long value;
+                            OSSL_PARAM_get_long(cursor, &value);
+                            lua_pushinteger(L, value);
+                        } else {
+                            BIGNUM *bn = nullptr;
+                            OSSL_PARAM_get_BN(cursor, &bn);
+                            push_bignum(L, bn);
+                        }
+                        break;
+                    }
+                    default:
+                        lua_pushlstring(L, reinterpret_cast<char const*>(cursor->data), cursor->data_size);
+                        break;
+                }
                 lua_setfield(L, -2, cursor->key);
             }
             return 1; // success

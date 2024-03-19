@@ -8,6 +8,7 @@ myopenssl module
 
 #include "digest.hpp"
 #include "pkey.hpp"
+#include "bignum.hpp"
 
 #include <openssl/evp.h>
 
@@ -63,6 +64,7 @@ extern "C" auto luaopen_myopenssl(lua_State * const L) -> int
         {"read_raw", myopenssl::l_read_raw},
         {"read_pkey", myopenssl::l_read_pkey},
         {"gen_pkey", myopenssl::l_gen_pkey},
+        {"bignum", myopenssl::l_bignum},
         {}
     };
 
