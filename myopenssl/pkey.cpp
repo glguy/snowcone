@@ -360,47 +360,45 @@ luaL_Reg const PkeyMethods[] {
             openssl_failure(L, "EVP_PKEY_settable_params");
         }
 
-        for (auto cursor = settable; cursor->key; cursor++)
+        auto const param = OSSL_PARAM_locate_const(settable, name);
+        if (nullptr == param)
         {
-            if (0 == strcmp(cursor->key, name))
-            {
-                switch (cursor->data_type) {
-                    default:
-                        luaL_error(L, "type not supported %d", cursor->data_type);
-                    case OSSL_PARAM_UTF8_STRING: {
-                        auto const str = luaL_checkstring(L, 3);
-                        auto const success = EVP_PKEY_set_utf8_string_param(pkey, name, str);
-                        if (not success)
-                        {
-                            openssl_failure(L, "EVP_PKEY_set_utf8_string_param");
-                        }
-                        return 0;
-                    }
-                    case OSSL_PARAM_OCTET_STRING: {
-                        std::size_t len;
-                        auto const str = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 3, &len));
-                        auto const success = EVP_PKEY_set_octet_string_param(pkey, name, str, len);
-                        if (not success)
-                        {
-                            openssl_failure(L, "EVP_PKEY_set_octet_string_param");
-                        }
-                        return 0;
-                    }
-                    case OSSL_PARAM_UNSIGNED_INTEGER:
-                    case OSSL_PARAM_INTEGER: {
-                        auto const n = luaL_checkinteger(L, 3);
-                        auto const success = EVP_PKEY_set_int_param(pkey, name, n);
-                        if (not success)
-                        {
-                            openssl_failure(L, "EVP_PKEY_set_octet_string_param");
-                        }
-                        return 0;
-                    }
+            return luaL_error(L, "unknown parameter %s", name);
+        }
+        
+        switch (param->data_type) {
+            default:
+                luaL_error(L, "type not supported %d", param->data_type);
+            case OSSL_PARAM_UTF8_STRING: {
+                auto const str = luaL_checkstring(L, 3);
+                auto const success = EVP_PKEY_set_utf8_string_param(pkey, name, str);
+                if (not success)
+                {
+                    openssl_failure(L, "EVP_PKEY_set_utf8_string_param");
                 }
+                return 0;
+            }
+            case OSSL_PARAM_OCTET_STRING: {
+                std::size_t len;
+                auto const str = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 3, &len));
+                auto const success = EVP_PKEY_set_octet_string_param(pkey, name, str, len);
+                if (not success)
+                {
+                    openssl_failure(L, "EVP_PKEY_set_octet_string_param");
+                }
+                return 0;
+            }
+            case OSSL_PARAM_UNSIGNED_INTEGER:
+            case OSSL_PARAM_INTEGER: {
+                auto const n = luaL_checkinteger(L, 3);
+                auto const success = EVP_PKEY_set_int_param(pkey, name, n);
+                if (not success)
+                {
+                    openssl_failure(L, "EVP_PKEY_set_octet_string_param");
+                }
+                return 0;
             }
         }
-
-        return luaL_error(L, "unknown parameter %s", name);
     }},
 
     {}
