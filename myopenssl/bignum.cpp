@@ -108,8 +108,8 @@ luaL_Reg const MT[] = {
         return 0;
     }},
     {"__add", Wrap<BN_add>::wrap},
-    {"__sub", Wrap<BN_add>::wrap},
-    {"__mul", Wrap<BN_add>::wrap},
+    {"__sub", Wrap<BN_sub>::wrap},
+    {"__mul", Wrap<BN_mul>::wrap},
     {"__idiv", [](auto const L){
         auto const a = checkbignum(L, 1);
         auto const b = checkbignum(L, 2);
