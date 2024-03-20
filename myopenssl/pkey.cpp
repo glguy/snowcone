@@ -209,68 +209,6 @@ luaL_Reg const PkeyMethods[] {
         return 1;
     }},
 
-    /***
-    Return public key as raw bytes.
-
-    @function get_raw_public
-    @treturn string raw key bytes
-    @raise openssl error on failure
-    */
-    {"get_raw_public", [](auto const L)
-    {
-        auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
-
-        std::size_t out_len;
-        auto success = EVP_PKEY_get_raw_public_key(pkey, nullptr, &out_len);
-        if (0 == success)
-        {
-            openssl_failure(L, "EVP_PKEY_get_raw_public_key");
-        }
-
-        luaL_Buffer B;
-        auto const out = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, out_len));
-
-        success = EVP_PKEY_get_raw_public_key(pkey, out, &out_len);
-        if (0 == success)
-        {
-            openssl_failure(L, "EVP_PKEY_get_raw_public_key");
-        }
-
-        luaL_pushresultsize(&B, out_len);
-        return 1;
-    }},
-
-    /***
-    Return private key as raw bytes.
-
-    @function get_raw_private
-    @treturn string raw key bytes
-    @raise openssl error on failure
-    */
-    {"get_raw_private", [](auto const L)
-    {
-        auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
-
-        std::size_t out_len;
-        auto success = EVP_PKEY_get_raw_private_key(pkey, nullptr, &out_len);
-        if (0 == success)
-        {
-            openssl_failure(L, "EVP_PKEY_get_raw_private_key");
-        }
-
-        luaL_Buffer B;
-        auto const out = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, out_len));
-
-        success = EVP_PKEY_get_raw_private_key(pkey, out, &out_len);
-        if (0 == success)
-        {
-            openssl_failure(L, "EVP_PKEY_get_raw_private_key");
-        }
-
-        luaL_pushresultsize(&B, out_len);
-        return 1;
-    }},
-
     {"to_private_pem", [](auto const L)
     {
         auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));

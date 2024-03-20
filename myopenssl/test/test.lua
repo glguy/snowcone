@@ -27,7 +27,7 @@ local pub_key_raw =
     "\xc8\x5b\x24\x85\x07\x76\x25\x69\x36\x2f\x93\x2c\x2f\x29\xaf\x22\z
      \xa5\x03\x4c\xc4\xcb\xb3\x90\x4e\x27\xd3\xe5\x5b\xbd\x05\x9a\x7c"
 local priv_key = myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, true, priv_key_raw)
-assert(priv_key:get_raw_public() == pub_key_raw)
+assert(priv_key:export().pub == pub_key_raw)
 
 local pem = io.open('test/rsa.pem'):read('a')
 local priv = myopenssl.read_pkey(pem, true)
@@ -35,3 +35,5 @@ priv:sign('a message') -- just make sure it doesn't blow up
 
 pem = io.open('test/encrsa.pem'):read('a')
 myopenssl.read_pkey(pem, true, 'password')
+
+print 'ok'

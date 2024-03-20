@@ -22,7 +22,7 @@ return function(authzid, authcid, client_seckey)
             string.sub(server_response, 65, 96)
 
         local server_pubkey = myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, false, server_pubkey_raw)
-        local client_pubkey_raw = client_seckey:get_raw_public()
+        local client_pubkey_raw = client_seckey:export().pub
         local shared_secret = client_seckey:derive(server_pubkey)
 
         -- ECDH_X25519_KDF()
