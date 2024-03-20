@@ -37,7 +37,7 @@ template <typename> struct WrapArg;
 // Populate the parameter with a new bignum output argument
 // pushing the result value onto the Lua stack
 template <> struct WrapArg<BIGNUM*> {
-    BIGNUM* operator()(lua_State * const L, int&, int& r) {
+    static auto arg(lua_State * const L, int&, int& r) -> BIGNUM* {
         r++;
         return push_bignum(L, BN_new());
     }
@@ -45,33 +45,33 @@ template <> struct WrapArg<BIGNUM*> {
 
 // Populate the parameter with a bignum argument
 template <> struct WrapArg<BIGNUM const*> {
-    BIGNUM const* operator()(lua_State * const L, int& a, int&) {
+    static auto arg(lua_State * const L, int& a, int&) -> BIGNUM const* {
         return checkbignum(L, ++a);
     }
 };
 
 // Populate the parameter with an int argument
 template <> struct WrapArg<int> {
-    int operator()(lua_State * const L, int& a, int&) {
+    static auto arg(lua_State * const L, int& a, int&) -> int {
         return luaL_checkinteger(L, ++a);
     }
 };
 
 template <> struct WrapArg<BN_CTX*> {
-    BN_CTX* operator()(lua_State * const L, int&, int&) {
+    static auto arg(lua_State * const L, int&, int&) -> BN_CTX* {
         return bn_ctx.get();
     }
 };
 
-template <typename Func, Func func>
-struct Wrap_ {};
+template <auto op>
+struct Wrap;
 
 template <typename... Args, int (*op)(Args...)>
-struct Wrap_<int (*)(Args...), op> {
-    static int wrap(lua_State* const L) {
+struct Wrap<op> {
+    static auto wrap(lua_State* const L) -> int {
         int a = 0;
         int r = 0;
-        int result = op(WrapArg<Args>{}(L, a, r)...);
+        int result = op(WrapArg<Args>::arg(L, a, r)...);
         if (1 == result) {
             return r;
         } else {
@@ -79,9 +79,6 @@ struct Wrap_<int (*)(Args...), op> {
         }
     }
 };
-
-template <auto T>
-using Wrap = Wrap_<decltype(T), T>;
 
 template <int X, bool B>
 auto compare_bignum(lua_State* const L) -> int
