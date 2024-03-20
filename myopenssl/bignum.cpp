@@ -63,9 +63,11 @@ template <> struct WrapArg<BN_CTX*> {
     }
 };
 
-template <typename... Args>
-struct Wrap {
-    template <int (*op)(Args...)>
+template <typename Func, Func func>
+struct Wrap {};
+
+template <typename... Args, int (*op)(Args...)>
+struct Wrap<int (*)(Args...), op> {
     static int wrap(lua_State* const L) {
         int a = 0;
         int r = 0;
@@ -102,9 +104,9 @@ luaL_Reg const MT[] = {
         bn = nullptr;
         return 0;
     }},
-    {"__add", Wrap<BIGNUM*, BIGNUM const*, BIGNUM const*>::wrap<BN_add>},
-    {"__sub", Wrap<BIGNUM*, BIGNUM const*, BIGNUM const*>::wrap<BN_sub>},
-    {"__mul", Wrap<BIGNUM*, BIGNUM const*, BIGNUM const*, BN_CTX*>::wrap<BN_mul>},
+    {"__add", Wrap<decltype(&BN_add), &BN_add>::wrap},
+    {"__sub", Wrap<decltype(&BN_add), &BN_add>::wrap},
+    {"__mul", Wrap<decltype(&BN_add), &BN_add>::wrap},
     {"__idiv", [](auto const L){
         auto const a = checkbignum(L, 1);
         auto const b = checkbignum(L, 2);
@@ -133,15 +135,15 @@ luaL_Reg const MT[] = {
             return luaL_error(L, "bignum failure");
         }
     }},
-    {"__pow", Wrap<BIGNUM*, BIGNUM const*, BIGNUM const*, BN_CTX*>::wrap<BN_exp>},
+    {"__pow", Wrap<decltype(&BN_exp), &BN_exp>::wrap},
     {"__unm", [](auto const L){
         auto const a = checkbignum(L, 1);
         auto const r = push_bignum(L, BN_dup(a));
         BN_set_negative(r, !BN_is_negative(r));
         return 1;
     }},
-    {"__shl", Wrap<BIGNUM*, BIGNUM const*, int>::wrap<BN_lshift>},
-    {"__shr", Wrap<BIGNUM*, BIGNUM const*, int>::wrap<BN_rshift>},
+    {"__shl", Wrap<decltype(&BN_lshift), &BN_lshift>::wrap},
+    {"__shr", Wrap<decltype(&BN_rshift), &BN_rshift>::wrap},
     {"__eq", compare_bignum<0, true>},
     {"__lt", compare_bignum<-1, true>},
     {"__gt", compare_bignum<1, true>},
@@ -150,8 +152,8 @@ luaL_Reg const MT[] = {
 };
 
 luaL_Reg const Methods[] = {
-    {"div_mod", Wrap<BIGNUM*, BIGNUM*, BIGNUM const*, BIGNUM const*, BN_CTX*>::wrap<BN_div>},
-    {"mod_exp", Wrap<BIGNUM*, BIGNUM const*, BIGNUM const*, BIGNUM const*, BN_CTX*>::wrap<BN_mod_exp>},
+    {"div_mod", Wrap<decltype(&BN_div), &BN_div>::wrap},
+    {"mod_exp", Wrap<decltype(&BN_mod_exp), &BN_mod_exp>::wrap},
     {}
 };
 
