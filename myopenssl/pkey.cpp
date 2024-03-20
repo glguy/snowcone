@@ -275,7 +275,7 @@ luaL_Reg const PkeyMethods[] {
                 {
                     case OSSL_PARAM_UNSIGNED_INTEGER:
                     case OSSL_PARAM_INTEGER: {
-                        auto r = push_bignum(L, BN_new());
+                        auto r = push_bignum(L);
                         if (0 == OSSL_PARAM_get_BN(cursor, &r)) {
                             return 0; // failure
                         }

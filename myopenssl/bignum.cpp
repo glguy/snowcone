@@ -8,7 +8,9 @@ extern "C"
 }
 
 #include <cstring>
+#include <functional>
 #include <memory>
+#include <tuple>
 
 namespace myopenssl {
 
@@ -32,32 +34,32 @@ auto checkbignum(lua_State* const L, int idx) -> BIGNUM*&
     return bn;
 }
 
-template <typename> struct WrapArg;
+template <typename> struct Arg;
 
 // Populate the parameter with a new bignum output argument
 // pushing the result value onto the Lua stack
-template <> struct WrapArg<BIGNUM*> {
+template <> struct Arg<BIGNUM*> {
     static auto arg(lua_State * const L, int&, int& r) -> BIGNUM* {
         r++;
-        return push_bignum(L, BN_new());
+        return push_bignum(L);
     }
 };
 
 // Populate the parameter with a bignum argument
-template <> struct WrapArg<BIGNUM const*> {
+template <> struct Arg<BIGNUM const*> {
     static auto arg(lua_State * const L, int& a, int&) -> BIGNUM const* {
         return checkbignum(L, ++a);
     }
 };
 
 // Populate the parameter with an int argument
-template <> struct WrapArg<int> {
+template <> struct Arg<int> {
     static auto arg(lua_State * const L, int& a, int&) -> int {
         return luaL_checkinteger(L, ++a);
     }
 };
 
-template <> struct WrapArg<BN_CTX*> {
+template <> struct Arg<BN_CTX*> {
     static auto arg(lua_State * const L, int&, int&) -> BN_CTX* {
         return bn_ctx.get();
     }
@@ -71,8 +73,8 @@ struct Wrap<op> {
     static auto wrap(lua_State* const L) -> int {
         int a = 0;
         int r = 0;
-        int result = op(WrapArg<Args>::arg(L, a, r)...);
-        if (1 == result) {
+        // tuple initializer forces the sequencing needed
+        if (1 == std::apply(op, std::tuple{Arg<Args>::arg(L, a, r)...})) {
             return r;
         } else {
             openssl_failure(L, "bignum failure");
@@ -110,7 +112,7 @@ luaL_Reg const MT[] = {
     {"__idiv", [](auto const L){
         auto const a = checkbignum(L, 1);
         auto const b = checkbignum(L, 2);
-        auto const r = push_bignum(L, BN_new());
+        auto const r = push_bignum(L);
 
         if (1 == BN_div(r, nullptr, a, b, bn_ctx.get()))
         {
@@ -124,7 +126,7 @@ luaL_Reg const MT[] = {
     {"__mod", [](auto const L){
         auto const a = checkbignum(L, 1);
         auto const b = checkbignum(L, 2);
-        auto const r = push_bignum(L, BN_new());
+        auto const r = push_bignum(L);
 
         if (1 == BN_mod(r, a, b, bn_ctx.get()))
         {
@@ -186,7 +188,7 @@ auto l_bignum(lua_State* const L) -> int
 
     std::size_t len;
     auto const str = luaL_tolstring(L, 1, &len);
-    auto r = push_bignum(L, BN_new());
+    auto r = push_bignum(L);
     if (0 != BN_dec2bn(&r, str))
     {
         return 1;
