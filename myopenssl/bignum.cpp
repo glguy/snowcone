@@ -64,10 +64,10 @@ template <> struct WrapArg<BN_CTX*> {
 };
 
 template <typename Func, Func func>
-struct Wrap {};
+struct Wrap_ {};
 
 template <typename... Args, int (*op)(Args...)>
-struct Wrap<int (*)(Args...), op> {
+struct Wrap_<int (*)(Args...), op> {
     static int wrap(lua_State* const L) {
         int a = 0;
         int r = 0;
@@ -79,6 +79,9 @@ struct Wrap<int (*)(Args...), op> {
         }
     }
 };
+
+template <auto T>
+using Wrap = Wrap_<decltype(T), T>;
 
 template <int X, bool B>
 auto compare_bignum(lua_State* const L) -> int
@@ -104,9 +107,9 @@ luaL_Reg const MT[] = {
         bn = nullptr;
         return 0;
     }},
-    {"__add", Wrap<decltype(&BN_add), &BN_add>::wrap},
-    {"__sub", Wrap<decltype(&BN_add), &BN_add>::wrap},
-    {"__mul", Wrap<decltype(&BN_add), &BN_add>::wrap},
+    {"__add", Wrap<BN_add>::wrap},
+    {"__sub", Wrap<BN_add>::wrap},
+    {"__mul", Wrap<BN_add>::wrap},
     {"__idiv", [](auto const L){
         auto const a = checkbignum(L, 1);
         auto const b = checkbignum(L, 2);
@@ -135,15 +138,15 @@ luaL_Reg const MT[] = {
             return luaL_error(L, "bignum failure");
         }
     }},
-    {"__pow", Wrap<decltype(&BN_exp), &BN_exp>::wrap},
+    {"__pow", Wrap<BN_exp>::wrap},
     {"__unm", [](auto const L){
         auto const a = checkbignum(L, 1);
         auto const r = push_bignum(L, BN_dup(a));
         BN_set_negative(r, !BN_is_negative(r));
         return 1;
     }},
-    {"__shl", Wrap<decltype(&BN_lshift), &BN_lshift>::wrap},
-    {"__shr", Wrap<decltype(&BN_rshift), &BN_rshift>::wrap},
+    {"__shl", Wrap<BN_lshift>::wrap},
+    {"__shr", Wrap<BN_rshift>::wrap},
     {"__eq", compare_bignum<0, true>},
     {"__lt", compare_bignum<-1, true>},
     {"__gt", compare_bignum<1, true>},
@@ -152,8 +155,8 @@ luaL_Reg const MT[] = {
 };
 
 luaL_Reg const Methods[] = {
-    {"div_mod", Wrap<decltype(&BN_div), &BN_div>::wrap},
-    {"mod_exp", Wrap<decltype(&BN_mod_exp), &BN_mod_exp>::wrap},
+    {"div_mod", Wrap<BN_div>::wrap},
+    {"mod_exp", Wrap<BN_mod_exp>::wrap},
     {}
 };
 
