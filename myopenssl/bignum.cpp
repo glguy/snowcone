@@ -1,3 +1,9 @@
+/***
+arbitrary precision integers
+
+@classmod bignum
+*/
+
 #include "bignum.hpp"
 #include "errors.hpp"
 
@@ -155,7 +161,26 @@ luaL_Reg const MT[] = {
 };
 
 luaL_Reg const Methods[] = {
+    /***
+    Compute the divisor and modulus at the same time.
+    @function bignum:div_mod
+    @tparam bignum dividend
+    @tparam bignum divisor
+    @treturn bignum quotient
+    @treturn bignum modulus
+    @raise openssl error on failure
+    */
     {"div_mod", Wrap<BN_div>::wrap},
+
+    /***
+    Compute the exponent with a modulus
+    @function pkey:mod_exp
+    @tparam bignum a
+    @tparam bignum p
+    @tparam bignum m
+    @treturn bignum (a^p) mod m
+    @raise openssl error on failure
+    */
     {"mod_exp", Wrap<BN_mod_exp>::wrap},
     {}
 };
