@@ -65,8 +65,7 @@ template <> struct Arg<BN_CTX*> {
     }
 };
 
-template <auto op>
-struct Wrap;
+template <auto> struct Wrap;
 
 template <typename... Args, int (*op)(Args...)>
 struct Wrap<op> {
@@ -106,9 +105,6 @@ luaL_Reg const MT[] = {
         bn = nullptr;
         return 0;
     }},
-    {"__add", Wrap<BN_add>::wrap},
-    {"__sub", Wrap<BN_sub>::wrap},
-    {"__mul", Wrap<BN_mul>::wrap},
     {"__idiv", [](auto const L){
         auto const a = checkbignum(L, 1);
         auto const b = checkbignum(L, 2);
@@ -137,13 +133,18 @@ luaL_Reg const MT[] = {
             return luaL_error(L, "bignum failure");
         }
     }},
-    {"__pow", Wrap<BN_exp>::wrap},
     {"__unm", [](auto const L){
         auto const a = checkbignum(L, 1);
         auto const r = push_bignum(L, BN_dup(a));
         BN_set_negative(r, !BN_is_negative(r));
         return 1;
     }},
+
+    // derived implementations
+    {"__add", Wrap<BN_add>::wrap},
+    {"__sub", Wrap<BN_sub>::wrap},
+    {"__mul", Wrap<BN_mul>::wrap},
+    {"__pow", Wrap<BN_exp>::wrap},
     {"__shl", Wrap<BN_lshift>::wrap},
     {"__shr", Wrap<BN_rshift>::wrap},
     {"__eq", compare_bignum<0, true>},
@@ -189,7 +190,8 @@ auto l_bignum(lua_State* const L) -> int
     std::size_t len;
     auto const str = luaL_tolstring(L, 1, &len);
     auto r = push_bignum(L);
-    if (0 != BN_dec2bn(&r, str))
+    // ensure that the whole string was actually used
+    if (len == BN_dec2bn(&r, str))
     {
         return 1;
     }
