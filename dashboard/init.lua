@@ -859,6 +859,7 @@ function connect()
         configuration.tls_client_key,
         configuration.tls_client_password,
         configuration.tls_verify_host,
+        configuration.tls_sni_host,
         configuration.socks_host,
         configuration.socks_port,
         configuration.socks_username,

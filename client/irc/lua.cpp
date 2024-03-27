@@ -236,13 +236,14 @@ auto l_start_irc(lua_State *const L) -> int
     auto const client_key = luaL_optlstring(L, 5, client_cert, nullptr);
     auto const client_key_password = luaL_optlstring(L, 6, "", nullptr);
     auto const verify = luaL_optlstring(L, 7, host, nullptr);
-    auto const socks_host = luaL_optlstring(L, 8, "", nullptr);
-    auto const socks_port = luaL_optinteger(L, 9, 0);
-    auto const socks_user = luaL_optlstring(L, 10, "", nullptr);
-    auto const socks_pass = luaL_optlstring(L, 11, "", nullptr);
+    auto const sni = luaL_optlstring(L, 8, host, nullptr);
+    auto const socks_host = luaL_optlstring(L, 9, "", nullptr);
+    auto const socks_port = luaL_optinteger(L, 10, 0);
+    auto const socks_user = luaL_optlstring(L, 11, "", nullptr);
+    auto const socks_pass = luaL_optlstring(L, 12, "", nullptr);
 
-    luaL_checkany(L, 12); // callback
-    lua_settop(L, 12);
+    luaL_checkany(L, 13); // callback
+    lua_settop(L, 13);
 
     // consume the callback function and name it
     auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -250,7 +251,7 @@ auto l_start_irc(lua_State *const L) -> int
     auto const a = App::from_lua(L);
     auto &io_context = a->io_context;
 
-    auto const with_socket_params = [tls, irc_cb, &verify, &client_cert, &client_key, &client_key_password, &io_context, L, a](auto params) -> int
+    auto const with_socket_params = [tls, irc_cb, verify, sni, client_cert, client_key, client_key_password, &io_context, L, a](auto params) -> int
     {
         if (tls)
         {
@@ -266,6 +267,7 @@ auto l_start_irc(lua_State *const L) -> int
 
                 TlsConnectParams<decltype(params)> tlsParams;
                 tlsParams.verify = verify;
+                tlsParams.sni = sni;
                 tlsParams.base = params;
                 boost::asio::co_spawn(
                     io_context,

@@ -223,6 +223,7 @@ struct TlsConnectParams
     using stream_type = boost::asio::ssl::stream<typename T::stream_type>;
 
     std::string verify;
+    std::string sni;
 
     T base;
 
@@ -236,7 +237,11 @@ struct TlsConnectParams
         {
             stream.set_verify_mode(boost::asio::ssl::verify_peer);
             stream.set_verify_callback(boost::asio::ssl::host_name_verification(verify));
-            SSL_set_tlsext_host_name(stream.native_handle(), verify.c_str());
+        }
+
+        if (not sni.empty())
+        {
+            SSL_set_tlsext_host_name(stream.native_handle(), sni.c_str());
         }
         co_await stream.async_handshake(stream.client, boost::asio::use_awaitable);
         peer_fingerprint(os, stream.native_handle());
