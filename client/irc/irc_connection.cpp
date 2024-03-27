@@ -7,9 +7,10 @@ extern "C" {
 #include <lauxlib.h>
 }
 
-irc_connection::irc_connection(boost::asio::io_context& io_context, lua_State *L)
+irc_connection::irc_connection(boost::asio::io_context& io_context, lua_State *L, std::shared_ptr<AnyStream> stream)
     : write_timer{io_context, boost::asio::steady_timer::time_point::max()}
     , L{L}
+    , stream_{stream}
 {
 }
 
@@ -27,26 +28,5 @@ auto irc_connection::write(char const * const cmd, size_t const n, int const ref
     if (idle)
     {
         write_timer.cancel_one();
-    }
-}
-
-auto irc_connection::basic_connect(
-    tcp_socket& socket,
-    boost::asio::ip::tcp::resolver::results_type const& endpoints,
-    std::string_view const socks_host,
-    uint16_t const socks_port,
-    std::string_view const socks_user,
-    std::string_view const socks_pass
-) -> boost::asio::awaitable<void>
-{
-    co_await boost::asio::async_connect(socket, endpoints, boost::asio::use_awaitable);
-    socket.set_option(boost::asio::ip::tcp::no_delay(true));
-    if (not socks_host.empty())
-    {
-        socks5::Auth socks_auth
-          = socks_user.empty() && socks_pass.empty()
-          ? socks5::Auth{socks5::NoCredential{}}
-          : socks5::Auth{socks5::UsernamePasswordCredential{socks_user, socks_pass}};
-        co_await socks5::async_connect(socket, socks_host, socks_port, socks_auth, boost::asio::use_awaitable);
     }
 }

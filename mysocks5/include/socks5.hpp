@@ -355,8 +355,8 @@ auto async_connect(
     return
         boost::asio::async_compose<CompletionToken, Signature>
         (detail::SocksImplementation<AsyncStream>{socket, host, port, auth},
-         token,
-         socket);
+         token, socket
+         );
 }
 
 } // namespace socks5

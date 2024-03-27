@@ -146,6 +146,7 @@ views = {
     bouncer = require_ 'view.bouncer',
     buffer = require_ 'view.buffer',
     session = require_ 'view.session',
+    channel = require_ 'view.channel',
 }
 
 main_views = {'console', 'status'}
@@ -340,17 +341,13 @@ function conn_handlers.MSG(irc)
 end
 
 function conn_handlers.CON(fingerprint)
-    if fingerprint == '' then
-        status('irc', 'connecting plain')
-    else
-        status('irc', 'connecting tls: %s', fingerprint)
-    end
+    status('irc', 'connected: %s', fingerprint)
 
-    local want_fingerprint = configuration.tls_fingerprint
+    local want_fingerprint = configuration.fingerprint
     if objective ~= 'connect' then
         disconnect()
-    elseif want_fingerprint and want_fingerprint ~= fingerprint then
-        status('irc', 'expected fingerprint: %s', want_fingerprint)
+    elseif want_fingerprint and not string.match(fingerprint, want_fingerprint) then
+        status('irc', 'bad fingerprint')
         disconnect()
     else
         Task('irc registration', irc_state.tasks, irc_registration)
@@ -459,7 +456,7 @@ local function startup()
             tls_client_key      = {type = 'string'},
             tls_client_password = {type = 'string'},
             tls_verify_host     = {type = 'string'},
-            tls_fingerprint     = {type = 'string'},
+            fingerprint         = {type = 'string'},
             nick                = {type = 'string', pattern = '^[^\n\r\x00 ]+$', required = true},
             user                = {type = 'string', pattern = '^[^\n\r\x00 ]+$'},
             gecos               = {type = 'string', pattern = '^[^\n\r\x00]+$'},

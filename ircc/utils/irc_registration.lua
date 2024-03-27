@@ -47,7 +47,7 @@ return function(task)
     send('NICK', nick)
     irc_state.nick = nick -- optimistic
 
-    send('USER', user, '*', '*', gecos)
+    send('USER', user, '0', '*', gecos)
 
     -- "<client> :Welcome to the <networkname> Network, <nick>[!<user>@<host>]"
     local irc = task:wait_irc(Set{N.RPL_WELCOME})

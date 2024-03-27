@@ -36,5 +36,5 @@ return function()
     send('NICK', nick)
     irc_state.nick = nick -- optimistic
 
-    send('USER', user, '*', '*', gecos)
+    send('USER', user, '0', '*', gecos)
 end
