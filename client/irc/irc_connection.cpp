@@ -7,9 +7,10 @@ extern "C" {
 #include <lauxlib.h>
 }
 
-irc_connection::irc_connection(boost::asio::io_context& io_context, lua_State *L, std::shared_ptr<AnyStream> stream)
+irc_connection::irc_connection(boost::asio::io_context& io_context, lua_State *L, int irc_cb, std::shared_ptr<AnyStream> stream)
     : write_timer{io_context, boost::asio::steady_timer::time_point::max()}
     , L{L}
+    , irc_cb_{irc_cb}
     , stream_{stream}
 {
 }
@@ -18,6 +19,7 @@ irc_connection::~irc_connection() {
     for (auto const ref : write_refs) {
         luaL_unref(L, LUA_REGISTRYINDEX, ref);
     }
+    luaL_unref(L, LUA_REGISTRYINDEX, irc_cb_);
 }
 
 auto irc_connection::write(char const * const cmd, size_t const n, int const ref) -> void

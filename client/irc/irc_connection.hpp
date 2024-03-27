@@ -20,13 +20,14 @@ class irc_connection final : public std::enable_shared_from_this<irc_connection>
 {
     boost::asio::steady_timer write_timer;
     lua_State *L;
+    int irc_cb_;
     std::deque<int> write_refs;
     std::deque<boost::asio::const_buffer> write_buffers;
 
 public:
     std::shared_ptr<AnyStream> stream_; // exposed for reading
 
-    irc_connection(boost::asio::io_context&, lua_State *L, std::shared_ptr<AnyStream>);
+    irc_connection(boost::asio::io_context&, lua_State *L, int, std::shared_ptr<AnyStream>);
     ~irc_connection();
 
     auto operator=(irc_connection const&) -> irc_connection& = delete;

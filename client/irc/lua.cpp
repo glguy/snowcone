@@ -262,7 +262,7 @@ auto l_start_irc(lua_State *const L) -> int
                 (boost::asio::ssl::stream<boost::asio::ip::tcp::socket>{io_context, *cxt});
                 stream->set_buffer_size(irc_connection::irc_buffer_size);
 
-                auto const irc = std::make_shared<irc_connection>(io_context, a->L, stream);
+                auto const irc = std::make_shared<irc_connection>(io_context, a->L, irc_cb, stream);
                 pushirc(L, irc);
 
                 TlsConnectParams<decltype(params)> tlsParams;
@@ -276,6 +276,7 @@ auto l_start_irc(lua_State *const L) -> int
             }
             else
             {
+                luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);
                 auto const &failure = std::get<1>(result);
                 auto const message = failure.error.message();
                 luaL_pushfail(L);
@@ -286,7 +287,7 @@ auto l_start_irc(lua_State *const L) -> int
         else
         {
             auto const stream = std::make_shared<TcpStream>(boost::asio::ip::tcp::socket{io_context});
-            auto const irc = std::make_shared<irc_connection>(io_context, a->L, stream);
+            auto const irc = std::make_shared<irc_connection>(io_context, a->L, irc_cb, stream);
             pushirc(L, irc);
 
             boost::asio::co_spawn(io_context,
