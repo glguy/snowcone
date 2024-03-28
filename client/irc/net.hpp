@@ -54,7 +54,7 @@ protected:
 public:
     using executor_type = boost::asio::any_io_executor;
 
-    virtual ~AnyStream() {}
+    virtual ~AnyStream();
 
     virtual auto get_executor() noexcept -> executor_type = 0;
 
@@ -124,7 +124,7 @@ public:
         close_stream(stream_);
     }
 
-    auto get_stream() -> boost::asio::ip::tcp::socket&
+    auto get_stream() -> boost::asio::ip::tcp::socket &
     {
         return stream_;
     }
