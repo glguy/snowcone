@@ -36,6 +36,9 @@ public:
      */
     LineBuffer(std::size_t n) : buffer(n), end_{buffer.begin()} {}
 
+    // can't copy the iterator member safely
+    LineBuffer(LineBuffer const&) = delete;
+
     /**
      * @brief Get the available buffer space
      *
