@@ -241,9 +241,15 @@ auto l_start_irc(lua_State *const L) -> int
     auto const socks_port = luaL_optinteger(L, 10, 0);
     auto const socks_user = luaL_optlstring(L, 11, "", nullptr);
     auto const socks_pass = luaL_optlstring(L, 12, "", nullptr);
+    auto const bind_host = luaL_optlstring(L, 13, "", nullptr);
+    auto const bind_port = luaL_optinteger(L, 14, 0);
 
-    luaL_checkany(L, 13); // callback
-    lua_settop(L, 13);
+    luaL_argcheck(L, 1 <= port && port <= 0xffff, 3, "port out of range");
+    luaL_argcheck(L, 0 <= socks_port && socks_port <= 0xffff, 10, "port out of range");
+    luaL_argcheck(L, 0 <= bind_port && bind_port <= 0xffff, 14, "port out of range");
+
+    luaL_checkany(L, 15); // callback
+    lua_settop(L, 15);
 
     auto const a = App::from_lua(L);
     auto &io_context = a->io_context;
@@ -274,7 +280,7 @@ auto l_start_irc(lua_State *const L) -> int
                 auto const stream = std::make_shared<TlsStream<boost::asio::ip::tcp::socket>>
                 (boost::asio::ssl::stream<boost::asio::ip::tcp::socket>{io_context, *cxt});
                 stream->set_buffer_size(irc_connection::irc_buffer_size);
-                
+
                 return finish(std::move(tlsParams), stream);
             }
             else
@@ -294,27 +300,36 @@ auto l_start_irc(lua_State *const L) -> int
 
     if (strcmp(socks_host, "") && socks_port != 0)
     {
-        SocksConnectParams<TcpConnectParams> params;
-        
+        SocksConnectParams<TcpConnectParams> params {
+
         // The IRC hostname and port is sent over to the SOCKS server
-        params.host = host;
-        params.port = port;
-        
-        params.auth = strcmp(socks_user, "") || strcmp(socks_pass, "")
+            .host = host,
+            .port = static_cast<std::uint16_t>(port),
+
+            .auth = strcmp(socks_user, "") || strcmp(socks_pass, "")
                           ? socks5::Auth{socks5::UsernamePasswordCredential{socks_user, socks_pass}}
-                          : socks5::Auth{socks5::NoCredential{}};
-        
+                          : socks5::Auth{socks5::NoCredential{}},
+
         // The underlying TCP connection is to the actual socks server
-        params.base.host = socks_host;
-        params.base.port = socks_port;
-        
+            .base = {
+                .host = socks_host,
+                .port = static_cast<std::uint16_t>(socks_port),
+                .bind_host = bind_host,
+                .bind_port = static_cast<std::uint16_t>(bind_port),
+            },
+        };
+
         return with_socket_params(params);
     }
     else
     {
-        TcpConnectParams params;
-        params.host = host;
-        params.port = port;
+        TcpConnectParams params {
+            .host = host,
+            .port = static_cast<std::uint16_t>(port),
+            .bind_host = bind_host,
+            .bind_port = static_cast<std::uint16_t>(bind_port),
+        };
+
         return with_socket_params(params);
     }
 }

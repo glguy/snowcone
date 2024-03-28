@@ -268,6 +268,8 @@ function connect()
         configuration.socks_port,
         configuration.socks_username,
         configuration.socks_password,
+        configuration.bind_host,
+        configuration.bind_port,
         function(event, arg)
             conn_handlers[event](arg)
         end)
@@ -451,6 +453,8 @@ local function startup()
             socks_port          = {type = 'number'},
             socks_username      = {type = 'string'},
             socks_password      = {type = 'string'},
+            bind_host           = {type = 'string'},
+            bind_port           = {type = 'number'},
             tls                 = {type = 'boolean'},
             tls_client_cert     = {type = 'string'},
             tls_client_key      = {type = 'string'},

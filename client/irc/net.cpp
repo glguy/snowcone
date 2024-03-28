@@ -14,16 +14,28 @@ auto TcpStream::async_write_some_(const_buffers buffers, boost::asio::any_comple
     stream_.async_write_some(buffers, std::move(handler));
 }
 
-auto TcpConnectParams::connect(std::ostream& os, stream_type &stream) -> boost::asio::awaitable<void>
+auto TcpConnectParams::connect(std::ostream &os, stream_type &stream) -> boost::asio::awaitable<void>
 {
-    auto const endpoints = co_await boost::asio::ip::tcp::resolver{stream.get_executor()}
-                                .async_resolve(host, std::to_string(port), boost::asio::use_awaitable);
+    auto resolver = boost::asio::ip::tcp::resolver{stream.get_executor()};
 
-    os << "tcp=" << co_await boost::asio::async_connect(stream, endpoints, boost::asio::use_awaitable);
+    if (not bind_host.empty() || bind_port != 0)
+    {
+        auto const entries =
+            co_await resolver.async_resolve(bind_host, std::to_string(bind_port), boost::asio::use_awaitable);
+        auto const &entry = *entries.begin();
+
+        stream.open(entry.endpoint().protocol());
+        stream.bind(entry);
+    }
+
+    auto const entries =
+        co_await resolver.async_resolve(host, std::to_string(port), boost::asio::use_awaitable);
+
+    os << "tcp=" << co_await boost::asio::async_connect(stream, entries, boost::asio::use_awaitable);
     stream.set_option(boost::asio::ip::tcp::no_delay(true));
 }
 
-auto peer_fingerprint(std::ostream& os, SSL const* const ssl) -> void
+auto peer_fingerprint(std::ostream &os, SSL const *const ssl) -> void
 {
     unsigned char md[EVP_MAX_MD_SIZE];
     unsigned int md_len = 0; // if the digest somehow fails, use 0
@@ -34,7 +46,8 @@ auto peer_fingerprint(std::ostream& os, SSL const* const ssl) -> void
 
     // Server fingerprint representation
     os << std::hex << std::setfill('0');
-    for (unsigned i = 0; i < md_len; i++) {
+    for (unsigned i = 0; i < md_len; i++)
+    {
         os << std::setw(2) << int{md[i]};
     }
 }

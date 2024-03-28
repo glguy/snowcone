@@ -191,7 +191,10 @@ struct TcpConnectParams
     using stream_type = boost::asio::ip::tcp::socket;
 
     std::string host;
-    std::uint64_t port;
+    std::uint16_t port;
+
+    std::string bind_host;
+    std::uint16_t bind_port;
 
     auto connect(std::ostream& os, stream_type &stream) -> boost::asio::awaitable<void>;
 };
@@ -204,8 +207,8 @@ struct SocksConnectParams
     std::string host;
     std::uint16_t port;
     socks5::Auth auth;
-
     T base;
+
 
     auto connect(std::ostream& os, stream_type &stream) -> boost::asio::awaitable<void>
     {
