@@ -126,7 +126,7 @@ struct SocksImplementation
     /// @param state protocol state tag value
     /// @param error error code of read/write operation
     /// @param size bytes read or written
-    /// @param 
+    /// @param
     template <typename Self, typename State = Start>
     auto operator()(
         Self& self,
@@ -218,7 +218,7 @@ struct SocksImplementation
         {
             send_usernamepassword(self);
         }
-        
+
     }
 
     template <typename Self>

@@ -2,7 +2,7 @@
  * @file mybase64.hpp
  * @author Eric Mertens (emertens@gmail.com)
  * @brief Base64 encoding and decoding
- * 
+ *
  */
 #pragma once
 
@@ -24,7 +24,7 @@ inline constexpr auto decoded_size(std::size_t len) -> std::size_t
 
 /**
  * @brief Encode a string into base64
- * 
+ *
  * @param input input text
  * @param output Target buffer for encoded value
  */
@@ -32,7 +32,7 @@ auto encode(std::string_view input, char* output) -> void;
 
 /**
  * @brief Decode a base64 encoded string
- * 
+ *
  * @param input Base64 input text
  * @param output Target buffer for decoded value
  * @param outlen Output parameter for decoded length

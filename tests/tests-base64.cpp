@@ -116,7 +116,7 @@ TEST(Base64, Ones) {
     size_t outlen;
     ASSERT_TRUE(mybase64::decode(output, reinterpret_cast<char*>(&decoded), &outlen));
     ASSERT_EQ(outlen, sizeof(decoded));
-    
+
     ASSERT_EQ(decoded, UINT32_C(0xffffffff));
 }
 

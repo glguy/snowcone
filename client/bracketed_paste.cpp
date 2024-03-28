@@ -15,7 +15,7 @@ auto BracketedPaste::install() -> void
     define_key("\x1b[200~", start_paste);
     define_key("\x1b[201~", end_paste);
     define_key("\x1b[I", focus_gained);
-    define_key("\x1b[O", focus_lost);    
+    define_key("\x1b[O", focus_lost);
 }
 BracketedPaste::~BracketedPaste()
 {

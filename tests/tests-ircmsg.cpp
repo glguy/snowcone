@@ -105,7 +105,7 @@ TEST(Irc, TwoTags) {
 TEST(Irc, FirstTagNoValue) {
   char input[] = "@key;yek=eulav :prefix command";
   EXPECT_EQ(
-    parse_irc_message(input), 
+    parse_irc_message(input),
     ircmsg({{"key", {}}, {"yek", "eulav"}}, "prefix", "command", {}));
 }
 

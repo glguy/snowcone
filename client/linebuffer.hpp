@@ -24,8 +24,8 @@ class LineBuffer
 {
     std::vector<char> buffer;
 
-    // [buffer.begin(), end_) contains buffered data
-    // [end_, buffer.end()) is available buffer space
+    // [std::begin(buffer), end_) contains buffered data
+    // [end_, std::end(buffer)) is available buffer space
     std::vector<char>::iterator end_;
 
 public:
@@ -38,6 +38,9 @@ public:
 
     // can't copy the iterator member safely
     LineBuffer(LineBuffer const&) = delete;
+    auto operator=(LineBuffer const&) -> LineBuffer& = delete;
+    LineBuffer(LineBuffer &&) = delete;
+    auto operator=(LineBuffer &&) -> LineBuffer& = delete;
 
     /**
      * @brief Get the available buffer space
@@ -63,38 +66,32 @@ public:
      */
     auto add_bytes(std::size_t n, std::invocable<char *> auto line_cb) -> void
     {
+        // Remember where to resume looking for \n
         auto const start = end_;
+
+        // Record added bytes as part of the populated buffer
         std::advance(end_, n);
 
-        // new data is now located in [start, end_)
-
         // cursor marks the beginning of the current line
-        auto cursor = buffer.begin();
+        auto cursor = std::begin(buffer);
 
         for (auto nl = std::find(start, end_, '\n');
              nl != end_;
              nl = std::find(cursor, end_, '\n'))
         {
             // Null-terminate the line. Support both \n and \r\n
-            if (cursor < nl && *std::prev(nl) == '\r')
-            {
-                *std::prev(nl) = '\0';
-            }
-            else
-            {
-                *nl = '\0';
-            }
+            *(cursor < nl && *std::prev(nl) == '\r' ? std::prev(nl) : nl) = '\0';
 
             line_cb(&*cursor);
 
             cursor = std::next(nl);
         }
 
-        // If any lines were processed, move all processed lines to
-        // the front of the buffer
-        if (cursor != buffer.begin())
+        // If any lines were processed remove any remaining partial line
+        // to the front of the buffer.
+        if (cursor != std::begin(buffer))
         {
-            end_ = std::move(cursor, end_, buffer.begin());
+            end_ = std::move(cursor, end_, std::begin(buffer));
         }
     }
 };

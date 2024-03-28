@@ -15,7 +15,7 @@ auto push_string(lua_State * L, std::string_view str) -> char const *;
 
 /**
  * @brief Check argument as a mutable string and pushes buffer onto Lua stack
- * 
+ *
  * @param L Lua
  * @param i Argument index
  * @return Pointer to mutable copy of string

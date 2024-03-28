@@ -5,15 +5,20 @@
 
 namespace {
 class parser {
+    /// @brief Remaining unparsed string
     char* msg_;
+
+    /// @brief Sentinel used for parsers constructed with nullptr
     inline static char empty[1];
 
+    /// @brief Drop leading spaces
     inline void trim() {
         while (*msg_ == ' ') msg_++;
     }
 
 public:
-    parser(char* msg) : msg_(msg) {
+    /// @brief Construct new parser from a mutable borrow of a null-terminated string
+    parser(char* const msg) : msg_{msg} {
         if (msg_ == nullptr) {
             msg_ = empty;
         } else {
@@ -21,17 +26,25 @@ public:
         }
     }
 
+    parser(parser const&) = delete;
+    auto operator=(parser const&) -> parser& = delete;
+
+    /// @brief Consume and return the next space-separated token
+    /// @return Null-terminated string
     char* word() {
         auto const start = msg_;
         while (*msg_ != '\0' && *msg_ != ' ') msg_++;
         if (*msg_ != '\0') { // prepare for next token
-            *msg_++ = '\0';
+            *msg_++ = '\0'; // replace space with terminator
             trim();
         }
         return start;
     }
 
-    bool match(char c) {
+    /// @brief Match and consume specified character
+    /// @param c Character to match
+    /// @return true if consumed and false if not
+    bool match(char const c) {
         if (c == *msg_) {
             msg_++;
             return true;
@@ -39,10 +52,14 @@ public:
         return false;
     }
 
+    /// @brief Predicate for empty string parse target
+    /// @return true if empty and false otherwise
     bool isempty() const {
         return *msg_ == '\0';
     }
 
+    /// @brief Return remaining unparsed string
+    /// @return Null-terminated string
     char const* peek() {
         return msg_;
     }
@@ -87,7 +104,7 @@ auto parse_irc_tags(char* str) -> std::vector<irctag>
 
     do {
         auto val = strsep(&str, ";");
-        auto key = strsep(&val, "=");
+        auto const key = strsep(&val, "=");
         if ('\0' == *key) {
             throw irc_parse_error(irc_error_code::MISSING_TAG);
         }
@@ -101,7 +118,7 @@ auto parse_irc_tags(char* str) -> std::vector<irctag>
     return tags;
 }
 
-auto parse_irc_message(char* msg) -> ircmsg
+auto parse_irc_message(char* const msg) -> ircmsg
 {
     parser p {msg};
     ircmsg out;
@@ -139,7 +156,7 @@ auto ircmsg::hassource() const -> bool
     return source.data() != nullptr;
 }
 
-auto operator<<(std::ostream& out, irc_error_code code) -> std::ostream&
+auto operator<<(std::ostream& out, irc_error_code const code) -> std::ostream&
 {
     switch(code) {
         case irc_error_code::MISSING_COMMAND: out << "MISSING COMMAND"; return out;

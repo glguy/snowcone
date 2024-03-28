@@ -23,7 +23,7 @@ App::App()
     : io_context{}, stdin_poll{io_context, STDIN_FILENO}, winch{io_context, SIGWINCH}
 {
     L = luaL_newstate();
-    
+
     lua_pushlightuserdata(L, this);
     lua_rawsetp(L, LUA_REGISTRYINDEX, &app_key);
 }

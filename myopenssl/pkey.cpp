@@ -315,7 +315,7 @@ luaL_Reg const PkeyMethods[] {
         {
             return luaL_error(L, "unknown parameter %s", name);
         }
-        
+
         switch (param->data_type) {
             default:
                 luaL_error(L, "type not supported %d", param->data_type);
