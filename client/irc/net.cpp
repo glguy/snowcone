@@ -4,8 +4,6 @@
 
 #include <iomanip>
 
-AnyStream::~AnyStream() {}
-
 auto TcpStream::async_read_some_(mutable_buffers buffers, boost::asio::any_completion_handler<void(boost::system::error_code, std::size_t)> handler) -> void
 {
     stream_.async_read_some(buffers, std::move(handler));

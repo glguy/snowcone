@@ -12,8 +12,9 @@
 
 #include <boost/asio/buffer.hpp>
 
+#include <algorithm>
 #include <concepts>
-#include <string>
+#include <vector>
 
 /**
  * @brief Fixed-size buffer with line-oriented dispatch
@@ -21,11 +22,11 @@
  */
 class LineBuffer
 {
-    std::string buffer;
+    std::vector<char> buffer;
 
-    // [0, used_) contains buffered data
-    // [used_, size) is available buffer space
-    std::size_t used_;
+    // [buffer.begin(), end_) contains buffered data
+    // [end_, buffer.end()) is available buffer space
+    std::vector<char>::iterator end_;
 
 public:
     /**
@@ -33,7 +34,7 @@ public:
      *
      * @param n Buffer size
      */
-    LineBuffer(std::size_t n) : buffer(n, '\0'), used_{0} {}
+    LineBuffer(std::size_t n) : buffer(n), end_{buffer.begin()} {}
 
     /**
      * @brief Get the available buffer space
@@ -42,7 +43,7 @@ public:
      */
     auto get_buffer() -> boost::asio::mutable_buffer
     {
-        return boost::asio::buffer(&buffer[used_], buffer.size() - used_);
+        return boost::asio::buffer(&*end_, std::distance(end_, buffer.end()));
     }
 
     /**
@@ -59,39 +60,38 @@ public:
      */
     auto add_bytes(std::size_t n, std::invocable<char *> auto line_cb) -> void
     {
-        auto const start = used_;
-        used_ += n;
+        auto const start = end_;
+        std::advance(end_, n);
 
-        // new data is now located in [start, used_)
+        // new data is now located in [start, end_)
 
         // cursor marks the beginning of the current line
-        auto cursor = 0;
+        auto cursor = buffer.begin();
 
-        for (auto nl = buffer.find('\n', start);
-             nl != buffer.npos;
-             nl = buffer.find('\n', cursor))
+        for (auto nl = std::find(start, end_, '\n');
+             nl != end_;
+             nl = std::find(cursor, end_, '\n'))
         {
             // Null-terminate the line. Support both \n and \r\n
-            if (cursor < nl && buffer[nl - 1] == '\r')
+            if (cursor < nl && *std::prev(nl) == '\r')
             {
-                buffer[nl - 1] = '\0';
+                *std::prev(nl) = '\0';
             }
             else
             {
-                buffer[nl] = '\0';
+                *nl = '\0';
             }
 
-            line_cb(&buffer[cursor]);
+            line_cb(&*cursor);
 
-            cursor = nl + 1;
+            cursor = std::next(nl);
         }
 
         // If any lines were processed, move all processed lines to
         // the front of the buffer
-        if (cursor != 0)
+        if (cursor != buffer.begin())
         {
-            buffer.erase(0, cursor);
-            used_ -= cursor;
+            end_ = std::move(cursor, end_, buffer.begin());
         }
     }
 };
