@@ -9,16 +9,10 @@
 #include <span>
 #include <sstream>
 #include <string>
+#include <functional>
 
 namespace
 {
-
-    template <typename T>
-    auto remove_constness(T const *ptr) -> T *
-    {
-        return const_cast<T *>(ptr);
-    }
-
     auto close_stream(boost::asio::ip::tcp::socket &stream) -> void
     {
         stream.shutdown(stream.shutdown_both);
@@ -40,26 +34,21 @@ class AnyStream
 {
 protected:
     using Sig = void(boost::system::error_code, std::size_t);
-    using mutable_buffers = std::span<boost::asio::mutable_buffer>;
-    using const_buffers = std::span<boost::asio::const_buffer>;
+    using handler_type = boost::asio::any_completion_handler<Sig>;
+    using mutable_buffers = std::span<const boost::asio::mutable_buffer>;
+    using const_buffers = std::span<const boost::asio::const_buffer>;
 
-    virtual auto async_read_some_(
-        mutable_buffers,
-        boost::asio::any_completion_handler<Sig> handler) -> void = 0;
-
-    virtual auto async_write_some_(
-        const_buffers,
-        boost::asio::any_completion_handler<Sig> handler) -> void = 0;
+    virtual auto async_read_some_(mutable_buffers, handler_type) -> void = 0;
+    virtual auto async_write_some_(const_buffers, handler_type) -> void = 0;
 
 public:
-    using executor_type = boost::asio::any_io_executor;
-
     virtual ~AnyStream() {}
 
+    // AsyncReadStream and AsyncWriteStream type requirement
+    using executor_type = boost::asio::any_io_executor;
     virtual auto get_executor() noexcept -> executor_type = 0;
 
-    virtual auto close() -> void = 0;
-
+    // AsyncReadStream type requirement
     template <
         typename MutableBufferSequence,
         boost::asio::completion_token_for<Sig> Token>
@@ -67,20 +56,17 @@ public:
         MutableBufferSequence &&buffers,
         Token &&token)
     {
-        mutable_buffers const buffer_span{
-            remove_constness(boost::asio::buffer_sequence_begin(buffers)),
-            remove_constness(boost::asio::buffer_sequence_end(buffers))};
-
+        using namespace std::placeholders;
         return boost::asio::async_initiate<Token, Sig>(
-            [](boost::asio::any_completion_handler<Sig> handler,
-               AnyStream *self,
-               mutable_buffers buffers
-            ) {
-                self->async_read_some_(buffers, std::move(handler));
-            },
-            token, this, buffer_span);
+            std::bind(&AnyStream::async_read_some_, _2, _3, _1),
+            token,
+            this,
+            mutable_buffers{
+                boost::asio::buffer_sequence_begin(buffers),
+                boost::asio::buffer_sequence_end(buffers)});
     }
 
+    // AsyncWriteStream type requirement
     template <
         typename ConstBufferSequence,
         boost::asio::completion_token_for<Sig> Token>
@@ -88,25 +74,26 @@ public:
         ConstBufferSequence &&buffers,
         Token &&token)
     {
-        const_buffers const buffer_span{
-            remove_constness(boost::asio::buffer_sequence_begin(buffers)),
-            remove_constness(boost::asio::buffer_sequence_end(buffers))};
-
+        using namespace std::placeholders;
         return boost::asio::async_initiate<Token, Sig>(
-            [](boost::asio::any_completion_handler<Sig> handler, AnyStream *self, const_buffers buffers)
-            {
-                self->async_write_some_(buffers, std::move(handler));
-            },
-            token, this, buffer_span);
+            std::bind(&AnyStream::async_write_some_, _2, _3, _1),
+            token,
+            this,
+            const_buffers{
+                boost::asio::buffer_sequence_begin(buffers),
+                boost::asio::buffer_sequence_end(buffers)});
     }
+
+    // Gracefully tear down the network stream
+    virtual auto close() -> void = 0;
 };
 
 class TcpStream final : public AnyStream
 {
     boost::asio::ip::tcp::socket stream_;
 
-    auto async_read_some_(mutable_buffers buffers, boost::asio::any_completion_handler<Sig> handler) -> void override;
-    auto async_write_some_(const_buffers buffers, boost::asio::any_completion_handler<Sig> handler) -> void override;
+    auto async_read_some_(mutable_buffers, handler_type) -> void override;
+    auto async_write_some_(const_buffers, handler_type) -> void override;
 
 public:
     TcpStream(boost::asio::ip::tcp::socket &&stream)
@@ -135,12 +122,12 @@ class TlsStream final : public AnyStream
 {
     boost::asio::ssl::stream<S> stream_;
 
-    auto async_read_some_(mutable_buffers buffers, boost::asio::any_completion_handler<Sig> handler) -> void override
+    auto async_read_some_(mutable_buffers buffers, handler_type handler) -> void override
     {
         stream_.async_read_some(buffers, std::move(handler));
     }
 
-    auto async_write_some_(const_buffers buffers, boost::asio::any_completion_handler<Sig> handler) -> void override
+    auto async_write_some_(const_buffers buffers, handler_type handler) -> void override
     {
         stream_.async_write_some(buffers, std::move(handler));
     }
