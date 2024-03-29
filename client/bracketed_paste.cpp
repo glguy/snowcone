@@ -19,7 +19,7 @@ auto BracketedPaste::install() -> void
 }
 BracketedPaste::~BracketedPaste()
 {
-    puts("\x1b[?1004l"); // disable bracketed paste
+    puts("\x1b[?1004l"); // disable focus reporting
     puts("\x1b[?2004l"); // disable bracketed paste
     fflush(stdout);
 }

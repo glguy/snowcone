@@ -6,10 +6,10 @@
 #include <socks5.hpp>
 
 #include <cstdint>
-#include <span>
-#include <sstream>
-#include <string>
 #include <functional>
+#include <iosfwd>
+#include <span>
+#include <string>
 
 namespace
 {
