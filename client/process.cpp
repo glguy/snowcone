@@ -9,8 +9,6 @@ extern "C"
 #include <boost/asio.hpp>
 #include <boost/process.hpp>
 
-#include <cstring>
-#include <cstdlib>
 #include <memory>
 #include <vector>
 
@@ -18,71 +16,99 @@ extern "C"
 #include "safecall.hpp"
 #include "strings.hpp"
 
-struct Process : public std::enable_shared_from_this<Process>
+namespace {
+
+using ExecSig = void(boost::system::error_code, int, std::string, std::string);
+
+template <boost::asio::completion_handler_for<ExecSig> Handler>
+class Exec : public std::enable_shared_from_this<Exec<Handler>>
 {
-    Process(App & app)
-    : app_{app}
-    , stdout_{app.io_context}
-    , stderr_{app.io_context}
-    , completions_{0}
+    Handler handler_;
+    boost::process::async_pipe stdout_;
+    boost::process::async_pipe stderr_;
+
+    int stage_ = 0;
+
+    boost::system::error_code error_code_;
+    int exit_code_;
+    std::string stdout_text_;
+    std::string stderr_text_;
+
+public:
+    Exec(Handler&& handler, boost::asio::io_context& io_context)
+    : handler_{handler}
+    , stdout_{io_context}
+    , stderr_{io_context}
     {}
 
-    auto start(char const* file, std::vector<std::string> args) -> void
+    auto start(
+        boost::asio::io_context& io_context,
+        boost::filesystem::path file,
+        std::vector<std::string> args
+    ) -> void
     {
-        read_loop(stdout_, stdout_txt_);
-        read_loop(stderr_, stderr_txt_);
+        boost::asio::async_read(
+            stdout_,
+            boost::asio::dynamic_buffer(stdout_text_),
+            [self = this->shared_from_this()](boost::system::error_code err, std::size_t)
+            {
+                self->complete(err);
+            }
+        );
+        boost::asio::async_read(
+            stderr_,
+            boost::asio::dynamic_buffer(stderr_text_),
+            [self = this->shared_from_this()](boost::system::error_code err, std::size_t)
+            {
+                self->complete(err);
+            }
+        );
         boost::process::async_system(
-            app_.io_context,
-            [self = shared_from_this()](boost::system::error_code, int exitcode) {
-                self->exitcode_ = exitcode;
-                self->complete();
+            io_context,
+            [self = this->shared_from_this()](boost::system::error_code err, int exit_code)
+            {
+                self->exit_code_ = exit_code;
+                self->complete(err);
             },
-        boost::process::search_path(file),
-        boost::process::args += std::move(args),
-        boost::process::std_in  < boost::process::null,
-        boost::process::std_out > stdout_,
-        boost::process::std_err > stderr_);
+            boost::process::search_path(file),
+            boost::process::args += std::move(args),
+            boost::process::std_in  < boost::process::null,
+            boost::process::std_out > stdout_,
+            boost::process::std_err > stderr_);
     }
 
 private:
-    auto complete() -> void
-    {
-        completions_++;
-        if (completions_ == 3){
-            // get callback
-            lua_rawgetp(app_.L, LUA_REGISTRYINDEX, this);
-            // forget callback
-            lua_pushnil(app_.L);
-            lua_rawsetp(app_.L, LUA_REGISTRYINDEX, this);
-
-            lua_pushinteger(app_.L, exitcode_);
-            push_string(app_.L, stdout_txt_);
-            push_string(app_.L, stderr_txt_);
-            safecall(app_.L, "process complete callback", 3);
+    auto complete(boost::system::error_code err) -> void {
+        if (err) error_code_ = err;
+        if (++stage_ == 3) {
+            handler_(error_code_, exit_code_, std::move(stdout_text_), std::move(stderr_text_));
         }
     }
-
-    auto read_loop(boost::process::async_pipe& pipe, std::string& buf) -> void
-    {
-        boost::asio::async_read(
-            pipe,
-            boost::asio::dynamic_buffer(buf),
-            [self = shared_from_this()](boost::system::error_code, std::size_t)
-            {
-                self->complete();
-            }
-        );
-    }
-
-    App& app_;
-    boost::process::async_pipe stdout_;
-    boost::process::async_pipe stderr_;
-    int completions_;
-
-    std::string stdout_txt_;
-    std::string stderr_txt_;
-    int exitcode_;
 };
+
+template <
+    boost::asio::completion_token_for<ExecSig> CompletionToken>
+auto async_exec(
+    boost::asio::io_context& io_context,
+    boost::filesystem::path file,
+    std::vector<std::string> args,
+    CompletionToken&& token)
+{
+    return boost::asio::async_initiate<CompletionToken, ExecSig>(
+        [](
+            boost::asio::completion_handler_for<ExecSig> auto handler,
+            boost::asio::io_context& io_context,
+            boost::filesystem::path file,
+            std::vector<std::string> args)
+        {
+            std::make_shared<Exec<decltype(handler)>>(std::move(handler), io_context)
+            ->start(io_context, file, std::move(args));
+        },
+        token, io_context, std::move(file), std::move(args)
+    );
+}
+
+}
 
 auto l_execute(lua_State* L) -> int
 {
@@ -111,12 +137,22 @@ auto l_execute(lua_State* L) -> int
         lua_pop(L, 1);
     }
 
-    auto const process = std::make_shared<Process>(*App::from_lua(L));
-
     lua_pushvalue(L, 3);
-    lua_rawsetp(L, LUA_REGISTRYINDEX, process.get());
+    auto const cb = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    process->start(file, std::move(args));
+    async_exec(App::from_lua(L)->io_context, file, std::move(args),
+        [L, cb](boost::system::error_code err, int exitcode, std::string stdout, std::string stderr)
+        {
+            // get callback
+            lua_rawgeti(L, LUA_REGISTRYINDEX, cb);
+            luaL_unref(L, LUA_REGISTRYINDEX, cb);
+
+            lua_pushinteger(L, exitcode);
+            push_string(L, stdout);
+            push_string(L, stderr);
+            safecall(L, "process complete callback", 3);
+        }
+    );
 
     lua_pushboolean(L, true);
     return 1;
