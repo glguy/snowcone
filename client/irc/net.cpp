@@ -4,12 +4,12 @@
 
 #include <iomanip>
 
-auto TcpStream::async_read_some_(mutable_buffers buffers, boost::asio::any_completion_handler<void(boost::system::error_code, std::size_t)> handler) -> void
+auto TcpStream::async_read_some_(mutable_buffers buffers, handler_type handler) -> void
 {
     stream_.async_read_some(buffers, std::move(handler));
 }
 
-auto TcpStream::async_write_some_(const_buffers buffers, boost::asio::any_completion_handler<void(boost::system::error_code, std::size_t)> handler) -> void
+auto TcpStream::async_write_some_(const_buffers buffers, handler_type handler) -> void
 {
     stream_.async_write_some(buffers, std::move(handler));
 }

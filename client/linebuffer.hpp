@@ -26,7 +26,11 @@ class LineBuffer
 
     // [std::begin(buffer), end_) contains buffered data
     // [end_, std::end(buffer)) is available buffer space
+    std::vector<char>::iterator start_;
+    std::vector<char>::iterator search_;
     std::vector<char>::iterator end_;
+
+    bool ready_;
 
 public:
     /**
@@ -34,7 +38,12 @@ public:
      *
      * @param n Buffer size
      */
-    LineBuffer(std::size_t n) : buffer(n), end_{buffer.begin()} {}
+    LineBuffer(std::size_t n)
+    : buffer(n)
+    , start_{buffer.begin()}
+    , search_{buffer.begin()}
+    , end_{buffer.begin()}
+    {}
 
     // can't copy the iterator member safely
     LineBuffer(LineBuffer const&) = delete;
@@ -64,34 +73,19 @@ public:
      * @param n Bytes written to the last call of get_buffer
      * @param line_cb Callback function to run on each completed line
      */
-    auto add_bytes(std::size_t n, std::invocable<char *> auto line_cb) -> void
+    auto add_bytes(std::size_t const n) -> void
     {
-        // Remember where to resume looking for \n
-        auto const start = end_;
-
-        // Record added bytes as part of the populated buffer
         std::advance(end_, n);
-
-        // cursor marks the beginning of the current line
-        auto cursor = std::begin(buffer);
-
-        for (auto nl = std::find(start, end_, '\n');
-             nl != end_;
-             nl = std::find(cursor, end_, '\n'))
-        {
-            // Null-terminate the line. Support both \n and \r\n
-            *(cursor < nl && *std::prev(nl) == '\r' ? std::prev(nl) : nl) = '\0';
-
-            line_cb(&*cursor);
-
-            cursor = std::next(nl);
-        }
-
-        // If any lines were processed remove any remaining partial line
-        // to the front of the buffer.
-        if (cursor != std::begin(buffer))
-        {
-            end_ = std::move(cursor, end_, std::begin(buffer));
-        }
     }
+
+    /**
+     * @brief Return the next null-terminated line in the buffer
+     * 
+     * This function should be repeatedly called until it returns
+     * nullptr at which point it will clean up the buffer relocating
+     * the partial line to the front of the buffer.
+     * 
+     * @return null-terminated line or nullptr if no line is ready
+     */
+    auto next_line() -> char*;
 };

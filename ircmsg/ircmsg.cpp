@@ -142,10 +142,10 @@ auto parse_irc_message(char* const msg) -> ircmsg
     /* MESSAGE ARGUMENTS */
     while (!p.isempty()) {
         if (p.match(':')) {
-            out.args.push_back(p.peek());
+            out.args.emplace_back(p.peek());
             break;
         }
-        out.args.push_back(p.word());
+        out.args.emplace_back(p.word());
     }
 
     return out;

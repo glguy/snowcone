@@ -107,7 +107,7 @@ auto l_execute(lua_State* L) -> int
             lua_pushstring(L, "bad argument");
             return 2;
         }
-        args.push_back(lua_tostring(L, -1));
+        args.emplace_back(lua_tostring(L, -1));
         lua_pop(L, 1);
     }
 

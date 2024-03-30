@@ -119,32 +119,6 @@ namespace
         return ssl_context;
     }
 
-    auto handle_read(char *line, lua_State *L, int irc_cb) -> void
-    {
-        while (*line == ' ')
-        {
-            line++;
-        }
-        if (*line != '\0')
-        {
-            try
-            {
-                auto const msg = parse_irc_message(line); // might throw
-                lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
-                lua_pushstring(L, "MSG");
-                pushircmsg(L, msg);
-                safecall(L, "irc message", 2);
-            }
-            catch (irc_parse_error const &e)
-            {
-                lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
-                lua_pushstring(L, "BAD");
-                lua_pushinteger(L, static_cast<lua_Integer>(e.code));
-                safecall(L, "irc parse error", 2);
-            }
-        }
-    }
-
     auto pushirc(lua_State *const L, std::shared_ptr<irc_connection> irc) -> void
     {
         auto const w = new_udata<std::weak_ptr<irc_connection>>(L, 1, [L]()
@@ -192,21 +166,38 @@ namespace
 
             for (LineBuffer buff{irc_connection::irc_buffer_size};;)
             {
-                auto target = buff.get_buffer();
-
+                auto const target = buff.get_buffer();
                 if (target.size() == 0)
                 {
                     throw std::runtime_error{"line buffer full"};
                 }
 
                 bool need_flush = false;
-                buff.add_bytes(
-                    co_await irc->stream_->async_read_some(target, boost::asio::use_awaitable),
-                    [L, irc_cb, &need_flush](auto const line)
+                buff.add_bytes(co_await irc->stream_->async_read_some(target, boost::asio::use_awaitable));
+                while (auto line = buff.next_line())
+                {
+                    // skip leading whitespace and ignore empty lines
+                    while (*line == ' ') { line++; }
+                    if (*line != '\0')
                     {
-                        handle_read(line, L, irc_cb);
                         need_flush = true;
-                    });
+                        try
+                        {
+                            auto const msg = parse_irc_message(line); // might throw
+                            lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
+                            lua_pushstring(L, "MSG");
+                            pushircmsg(L, msg);
+                            safecall(L, "irc message", 2);
+                        }
+                        catch (irc_parse_error const &e)
+                        {
+                            lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
+                            lua_pushstring(L, "BAD");
+                            lua_pushinteger(L, static_cast<lua_Integer>(e.code));
+                            safecall(L, "irc parse error", 2);
+                        }
+                    }
+                }
 
                 if (need_flush)
                 {

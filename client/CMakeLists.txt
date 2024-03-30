@@ -2,7 +2,7 @@
 add_executable(snowcone
     main.cpp app.cpp applib.cpp bracketed_paste.cpp
     safecall.cpp timer.cpp dnslookup.cpp strings.cpp
-    process.cpp irc/net.cpp
+    process.cpp linebuffer.cpp irc/net.cpp
     irc/irc_connection.cpp irc/lua.cpp
     )
 target_link_libraries(snowcone PRIVATE
