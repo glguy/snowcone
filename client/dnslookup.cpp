@@ -56,7 +56,7 @@ auto l_dnslookup(lua_State *const L) -> int
         luaL_setfuncs(L, Methods, 0);
         lua_setfield(L, -2, "__index");
     });
-    std::construct_at(resolver, App::from_lua(L)->io_context);
+    std::construct_at(resolver, App::from_lua(L)->get_executor());
 
     lua_rotate(L, -2, 1); // swap the callback and the udata
 

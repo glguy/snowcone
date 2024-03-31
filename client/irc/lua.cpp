@@ -243,13 +243,13 @@ auto l_start_irc(lua_State *const L) -> int
     lua_settop(L, 15);
 
     auto const a = App::from_lua(L);
-    auto &io_context = a->io_context;
+    auto &io_context = a->get_executor();
 
     auto const with_socket_params = [tls, verify, sni, client_cert, client_key, client_key_password, &io_context, L, a](Connectable auto params) -> int
     {
         auto const finish = [L, &io_context, a](Connectable auto params, auto stream) {
             auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
-            auto const irc = std::make_shared<irc_connection>(io_context, a->L, irc_cb, stream);
+            auto const irc = std::make_shared<irc_connection>(io_context, a->get_lua(), irc_cb, stream);
             pushirc(L, irc);
 
             boost::asio::co_spawn(

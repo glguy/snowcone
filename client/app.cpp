@@ -20,10 +20,11 @@ extern "C"
 static char app_key;
 
 App::App()
-    : io_context{}, stdin_poll{io_context, STDIN_FILENO}, winch{io_context, SIGWINCH}
+    : io_context{}
+    , stdin_poll{io_context, STDIN_FILENO}
+    , winch{io_context, SIGWINCH}
 {
     L = luaL_newstate();
-
     lua_pushlightuserdata(L, this);
     lua_rawsetp(L, LUA_REGISTRYINDEX, &app_key);
 }
@@ -41,14 +42,17 @@ auto App::from_lua(lua_State *const L) -> App *
     return a;
 }
 
-auto App::do_mouse(int y, int x) -> void
+namespace
+{
+
+auto do_mouse(lua_State* const L, int const y, int const x) -> void
 {
     lua_pushinteger(L, y);
     lua_pushinteger(L, x);
     lua_callback(L, "on_mouse", 2);
 }
 
-auto App::do_keyboard(long key) const -> void
+auto do_keyboard(lua_State* const L, long const key) -> void
 {
     lua_pushinteger(L, key);
     auto const success = lua_callback(L, "on_keyboard", 1);
@@ -59,11 +63,13 @@ auto App::do_keyboard(long key) const -> void
     }
 }
 
-auto App::do_paste(std::string_view const paste) const -> void
+auto do_paste(lua_State* const L, std::string_view const paste) -> void
 {
     push_string(L, paste);
     lua_callback(L, "on_paste", 1);
 }
+
+} // namespace
 
 auto App::winch_thread() -> boost::asio::awaitable<void>
 {
@@ -93,7 +99,7 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
             {
                 if (BracketedPaste::end_paste == key)
                 {
-                    do_paste(paste);
+                    do_paste(L, paste);
                     paste.clear();
                     in_paste = false;
                 }
@@ -105,7 +111,7 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
             else if (key == '\x1b')
             {
                 key = getch();
-                do_keyboard(ERR == key ? '\x1b' : -key);
+                do_keyboard(L, ERR == key ? '\x1b' : -key);
             }
             else if (KEY_MOUSE == key)
             {
@@ -113,7 +119,7 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
                 getmouse(&ev);
                 if (ev.bstate == BUTTON1_CLICKED)
                 {
-                    do_mouse(ev.y, ev.x);
+                    do_mouse(L, ev.y, ev.x);
                 }
             }
             else if (BracketedPaste::start_paste == key)
@@ -122,19 +128,19 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
             }
             else if (BracketedPaste::focus_gained == key)
             {
-                do_keyboard(-KEY_RESUME);
+                do_keyboard(L, -KEY_RESUME);
             }
             else if (BracketedPaste::focus_lost == key)
             {
-                do_keyboard(-KEY_EXIT);
+                do_keyboard(L, -KEY_EXIT);
             }
             else if (key > 0xff)
             {
-                do_keyboard(-key);
+                do_keyboard(L, -key);
             }
             else if (isascii(key))
             {
-                do_keyboard(key);
+                do_keyboard(L, key);
             }
             else
             {
@@ -143,7 +149,7 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
                 size_t const r = mbrtowc(&code, &c, 1, &mbstate);
                 if (r < (size_t)-2)
                 {
-                    do_keyboard(code);
+                    do_keyboard(L, code);
                 }
             }
         }

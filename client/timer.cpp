@@ -88,6 +88,6 @@ auto l_new_timer(lua_State *const L) -> int
         luaL_setfuncs(L, Methods, 0);
         lua_setfield(L, -2, "__index");
     });
-    std::construct_at(timer, App::from_lua(L)->io_context);
+    std::construct_at(timer, App::from_lua(L)->get_executor());
     return 1;
 }

@@ -80,9 +80,10 @@ auto main(int argc, char const* argv[]) -> int
 
     auto nc = NC{};
     auto a = App{};
+    auto const L = a.get_lua();
 
-    prepare_globals(a.L, argc, argv);
-    if (load_logic(a.L, argv[1])) {
+    prepare_globals(L, argc, argv);
+    if (load_logic(L, argv[1])) {
         a.startup();
     }
 }

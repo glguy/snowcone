@@ -12,25 +12,30 @@
 
 struct lua_State;
 
-struct App
+class App
 {
     boost::asio::io_context io_context;
     boost::asio::posix::stream_descriptor stdin_poll;
     boost::asio::signal_set winch;
-
     lua_State * L;
 
+public:
     App();
     ~App();
 
     static auto from_lua(lua_State *) -> App *;
-
-    auto do_mouse(int y, int x) -> void;
-    auto do_keyboard(long key) const -> void;
-    auto do_paste(std::string_view) const -> void;
-
     auto startup() -> void;
     auto shutdown() -> void;
+
+    auto get_executor() -> boost::asio::io_context&
+    {
+        return io_context;
+    }
+
+    auto get_lua() const -> lua_State*
+    {
+        return L;
+    }
 
 private:
     auto winch_thread() -> boost::asio::awaitable<void>;
