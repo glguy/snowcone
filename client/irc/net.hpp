@@ -16,6 +16,7 @@ namespace
     auto close_stream(boost::asio::ip::tcp::socket &stream) -> void
     {
         boost::system::error_code err;
+        stream.shutdown(stream.shutdown_both, err);
         stream.close(err);
     }
 
