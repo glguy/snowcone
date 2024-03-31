@@ -19,10 +19,11 @@ extern "C"
 
 static char app_key;
 
-App::App()
+App::App(char const* const filename)
     : io_context{}
     , stdin_poll{io_context, STDIN_FILENO}
-    , winch{io_context, SIGWINCH}
+    , signals{io_context, SIGWINCH, SIGHUP}
+    , main_source{filename}
 {
     L = luaL_newstate();
     lua_pushlightuserdata(L, this);
@@ -45,11 +46,12 @@ auto App::from_lua(lua_State *const L) -> App *
 namespace
 {
 
-auto do_mouse(lua_State* const L, int const y, int const x) -> void
+auto do_mouse(lua_State* const L, int const y, int const x, bool const shifted) -> void
 {
     lua_pushinteger(L, y);
     lua_pushinteger(L, x);
-    lua_callback(L, "on_mouse", 2);
+    lua_pushboolean(L, shifted);
+    lua_callback(L, "on_mouse", 3);
 }
 
 auto do_keyboard(lua_State* const L, long const key) -> void
@@ -71,14 +73,22 @@ auto do_paste(lua_State* const L, std::string_view const paste) -> void
 
 } // namespace
 
-auto App::winch_thread() -> boost::asio::awaitable<void>
+auto App::signal_thread() -> boost::asio::awaitable<void>
 {
-    for (;;) {
-        co_await winch.async_wait(boost::asio::use_awaitable);
-        endwin();
-        refresh();
-        l_ncurses_resize(L);
-        lua_callback(L, "on_resize", 0);
+    for (;;)
+    {
+        switch (co_await signals.async_wait(boost::asio::use_awaitable))
+        {
+            case SIGHUP:
+                reload();
+                break;
+            case SIGWINCH:
+                endwin();
+                refresh();
+                l_ncurses_resize(L);
+                lua_callback(L, "on_resize", 0);
+                break;
+        }
     }
 }
 
@@ -88,12 +98,10 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
     bool in_paste = false;
     mbstate_t mbstate{};
 
-    for(;;) {
-        co_await stdin_poll.async_wait(
-            boost::asio::posix::stream_descriptor::wait_read,
-            boost::asio::use_awaitable);
-
-        for (int key; ERR != (key = getch());)
+    for(;;)
+    {
+        co_await stdin_poll.async_wait(stdin_poll.wait_read, boost::asio::use_awaitable);
+        for (int key; key = getch(), ERR != key;)
         {
             if (in_paste)
             {
@@ -117,9 +125,9 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
             {
                 MEVENT ev;
                 getmouse(&ev);
-                if (ev.bstate == BUTTON1_CLICKED)
+                if (ev.bstate & BUTTON1_CLICKED)
                 {
-                    do_mouse(L, ev.y, ev.x);
+                    do_mouse(L, ev.y, ev.x, ev.bstate & BUTTON_SHIFT);
                 }
             }
             else if (BracketedPaste::start_paste == key)
@@ -159,12 +167,27 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
 auto App::startup() -> void
 {
     boost::asio::co_spawn(io_context, stdin_thread(), boost::asio::detached);
-    boost::asio::co_spawn(io_context, winch_thread(), boost::asio::detached);
+    boost::asio::co_spawn(io_context, signal_thread(), boost::asio::detached);
     io_context.run();
 }
 
 auto App::shutdown() -> void
 {
     stdin_poll.close();
-    winch.cancel();
+    signals.cancel();
+}
+
+auto App::reload() -> bool
+{
+    auto const r = luaL_loadfile(L, main_source);
+    if (LUA_OK == r) {
+        safecall(L, "reload", 0);
+        return true;
+    } else {
+        auto const err = lua_tolstring(L, -1, nullptr);
+        endwin();
+        std::cerr << "error in reload:load: " << err << std::endl;
+        lua_pop(L, 1);
+        return false;
+    }
 }

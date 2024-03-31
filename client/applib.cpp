@@ -278,22 +278,6 @@ auto l_print(lua_State* const L) -> int
 
 } // end of lua support namespace
 
-
-auto load_logic(lua_State* const L, char const* const filename) -> bool
-{
-    auto const r = luaL_loadfile(L, filename);
-    if (LUA_OK == r) {
-        safecall(L, "load_logic", 0);
-        return true;
-    } else {
-        auto const err = lua_tolstring(L, -1, nullptr);
-        endwin();
-        std::cerr << "error in load_logic:load: " << err << std::endl;
-        lua_pop(L, 1);
-        return false;
-    }
-}
-
 auto lua_callback(lua_State* const L, char const* const key, int args) -> bool
 {
     auto const module_ty = lua_rawgetp(L, LUA_REGISTRYINDEX, &logic_module);

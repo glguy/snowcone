@@ -16,16 +16,18 @@ class App
 {
     boost::asio::io_context io_context;
     boost::asio::posix::stream_descriptor stdin_poll;
-    boost::asio::signal_set winch;
+    boost::asio::signal_set signals;
     lua_State * L;
+    char const* main_source;
 
 public:
-    App();
+    App(char const*);
     ~App();
 
     static auto from_lua(lua_State *) -> App *;
     auto startup() -> void;
     auto shutdown() -> void;
+    auto reload() -> bool;
 
     auto get_executor() -> boost::asio::io_context&
     {
@@ -38,6 +40,6 @@ public:
     }
 
 private:
-    auto winch_thread() -> boost::asio::awaitable<void>;
+    auto signal_thread() -> boost::asio::awaitable<void>;
     auto stdin_thread() -> boost::asio::awaitable<void>;
 };
