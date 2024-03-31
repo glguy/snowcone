@@ -229,10 +229,10 @@ function M.on_paste(paste)
     end
 end
 
-function M.on_mouse(y, x)
+function M.on_mouse(y, x, shifted)
     for _, button in ipairs(clicks[y] or {}) do
         if button.lo <= x and x < button.hi then
-            button.action()
+            button.action(shifted)
             draw()
         end
     end

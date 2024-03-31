@@ -37,7 +37,7 @@ public:
         noecho();    /* no echo input to screen */
         nonl();      /* no newline on pressing return */
         curs_set(0); /* no cursor */
-        mousemask(BUTTON1_CLICKED, nullptr);
+        mousemask(BUTTON1_CLICKED | BUTTON_SHIFT, nullptr);
         set_escdelay(25);
         nodelay(stdscr, TRUE); /* nonblocking input reads */
         intrflush(stdscr, FALSE);

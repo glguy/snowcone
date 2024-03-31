@@ -387,13 +387,17 @@ function draw_buttons()
 
     yellow()
     if show_reasons == 'reason' then
-        add_button('[ REASON ]', function() show_reasons = 'org' end)
+        add_button('[ REASON ]',
+            function(shifted) show_reasons = shifted and 'ip' or 'org' end)
     elseif show_reasons == 'org' then
-        add_button('[  ORG   ]', function() show_reasons = 'asn' end)
+        add_button('[  ORG   ]',
+            function(shifted) show_reasons = shifted and 'reason' or 'asn' end)
     elseif show_reasons == 'asn' then
-        add_button('[  ASN   ]', function() show_reasons = 'ip' end)
+        add_button('[  ASN   ]',
+            function(shifted) show_reasons = shifted and 'org' or 'ip' end)
     else
-        add_button('[   IP   ]', function() show_reasons = 'reason' end)
+        add_button('[   IP   ]',
+            function(shifted) show_reasons = shifted and 'asn' or 'reason' end)
     end
     addstr ' '
 
@@ -406,9 +410,10 @@ function draw_buttons()
     end
 
     cyan()
-    add_button('[ ' .. kline_duration .. ' ]', function()
+    add_button('[ ' .. kline_duration .. ' ]', function(shifted)
         local i = tablex.find(kline_durations, kline_duration) or 0
-        kline_duration = kline_durations[i % #kline_durations + 1]
+        local delta = shifted and -2 or 0
+        kline_duration = kline_durations[(i + delta) % #kline_durations + 1]
     end)
     addstr ' '
 
@@ -424,17 +429,19 @@ function draw_buttons()
     magenta()
     local klinereason_text =
         string.format('[ %-7s ]', servers.kline_reasons[kline_reason][1])
-    add_button(klinereason_text, function()
-        kline_reason = kline_reason % #servers.kline_reasons + 1
+    add_button(klinereason_text, function(shifted)
+        local delta = shifted and -2 or 0
+        kline_reason = (kline_reason + delta) % #servers.kline_reasons + 1
     end)
     addstr ' '
 
     magenta()
     local klinetag_text =
         string.format('[ %-7s ]', servers.kline_tags[kline_tag] or 'no tag')
-    add_button(klinetag_text, function()
+    add_button(klinetag_text, function(shifted)
         -- increment by one, but use 0 as disabled
-        kline_tag = (kline_tag + 1) % (#servers.kline_tags + 1)
+        local delta = shifted and -1 or 1
+        kline_tag = (kline_tag + delta) % (#servers.kline_tags + 1)
     end)
     addstr ' '
 
@@ -820,10 +827,10 @@ function M.on_paste(paste)
     end
 end
 
-function M.on_mouse(y, x)
+function M.on_mouse(y, x, shifted)
     for _, button in ipairs(clicks[y] or {}) do
         if button.lo <= x and x < button.hi then
-            button.action()
+            button.action(shifted)
             draw()
         end
     end
