@@ -15,19 +15,15 @@ namespace
 {
     auto close_stream(boost::asio::ip::tcp::socket &stream) -> void
     {
-        stream.shutdown(stream.shutdown_both);
+        boost::system::error_code err;
+        stream.close(err);
     }
 
     template <typename T>
     auto close_stream(boost::asio::ssl::stream<T> &stream) -> void
     {
-        stream.async_shutdown([&stream](boost::system::error_code err)
-                              {
-        if (not err) {
-            close_stream(stream.next_layer());
-        } });
+        close_stream(stream.next_layer());
     }
-
 }
 
 class AnyStream
