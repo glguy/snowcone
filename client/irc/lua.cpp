@@ -49,11 +49,10 @@ namespace
         {
             // Wait until after luaL_error to start putting things on the
             // stack that have destructors
-            size_t n;
-            auto const cmd = luaL_checklstring(L, 2, &n);
+            auto const cmd = check_string_view(L, 2);
             lua_settop(L, 2);
             auto const ref = luaL_ref(L, LUA_REGISTRYINDEX);
-            irc->write(cmd, n, ref);
+            irc->write(cmd, ref);
 
             lua_pushboolean(L, 1);
             return 1;

@@ -22,10 +22,10 @@ irc_connection::~irc_connection() {
     luaL_unref(L, LUA_REGISTRYINDEX, irc_cb_);
 }
 
-auto irc_connection::write(char const * const cmd, size_t const n, int const ref) -> void
+auto irc_connection::write(std::string_view const cmd, int const ref) -> void
 {
     auto const idle = write_buffers.empty();
-    write_buffers.emplace_back(cmd, n);
+    write_buffers.emplace_back(cmd.data(), cmd.size());
     write_refs.push_back(ref);
     if (idle)
     {

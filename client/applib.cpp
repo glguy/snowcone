@@ -47,7 +47,7 @@ char logic_module;
 auto l_pton(lua_State* const L) -> int
 {
     auto const p = luaL_checkstring(L, 1);
-    bool ipv6 = strchr(p, ':');
+    bool const ipv6 = strchr(p, ':');
 
     size_t len;
     int af;
@@ -90,13 +90,12 @@ auto l_raise(lua_State* const L) -> int
 
 auto l_to_base64(lua_State* const L) -> int
 {
-    size_t input_len;
-    auto const input = luaL_checklstring(L, 1, &input_len);
-    auto const outlen = mybase64::encoded_size(input_len);
+    auto const input = check_string_view(L, 1);
+    auto const outlen = mybase64::encoded_size(input.size());
 
     luaL_Buffer B;
     auto const output = luaL_buffinitsize(L, &B, outlen);
-    mybase64::encode({input, input_len}, output);
+    mybase64::encode(input, output);
     luaL_pushresultsize(&B, outlen);
 
     return 1;
@@ -104,15 +103,14 @@ auto l_to_base64(lua_State* const L) -> int
 
 auto l_from_base64(lua_State* const L) -> int
 {
-    size_t input_len;
-    auto const input = luaL_checklstring(L, 1, &input_len);
-    auto const outlen = mybase64::decoded_size(input_len);
+    auto const input = check_string_view(L, 1);
+    auto const outlen = mybase64::decoded_size(input.size());
 
     luaL_Buffer B;
-    auto const output = luaL_buffinitsize(L, &B, outlen);
-    size_t len;
-    if (mybase64::decode({input, input_len}, output, &len)) {
-        luaL_pushresultsize(&B, len);
+    auto const output_first = luaL_buffinitsize(L, &B, outlen);
+    auto const output_last = mybase64::decode(input, output_first);
+    if (output_last) {
+        luaL_pushresultsize(&B, std::distance(output_first, output_last));
         return 1;
     } else {
         return 0;
@@ -128,20 +126,19 @@ auto l_setmodule(lua_State* const L) -> int
 
 auto l_xor_strings(lua_State* const L) -> int
 {
-    size_t l1, l2;
-    auto const s1 = luaL_checklstring(L, 1, &l1);
-    auto const s2 = luaL_checklstring(L, 2, &l2);
+    auto const s1 = check_string_view(L, 1);
+    auto const s2 = check_string_view(L, 2);
 
-    if (l1 != l2) {
+    if (s1.size() != s2.size()) {
         return luaL_error(L, "xor_strings: length mismatch");
     }
 
     luaL_Buffer B;
-    auto const output = luaL_buffinitsize(L, &B, l1);
+    auto const output = luaL_buffinitsize(L, &B, s1.size());
 
-    std::transform(s1, s1+l1, s2, output, std::bit_xor());
+    std::transform(std::begin(s1), std::end(s1), std::begin(s2), output, std::bit_xor());
 
-    luaL_pushresultsize(&B, l1);
+    luaL_pushresultsize(&B, s1.size());
     return 1;
 }
 
@@ -178,15 +175,14 @@ int l_irccase(lua_State* L) {
         "\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7"
         "\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff";
 
-    size_t n;
-    auto const str = luaL_checklstring(L, 1, &n);
+    auto const str = check_string_view(L, 1);
 
     luaL_Buffer B;
-    auto const output = luaL_buffinitsize(L, &B, n);
-    std::transform(str, str+n, output, [charmap](char c) {
+    auto const output = luaL_buffinitsize(L, &B, str.size());
+    std::transform(std::begin(str), std::end(str), output, [charmap](char c) {
         return charmap[uint8_t(c)];
     });
-    luaL_pushresultsize(&B, n);
+    luaL_pushresultsize(&B, str.size());
     return 1;
 }
 

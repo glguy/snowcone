@@ -36,7 +36,7 @@ class Exec : public std::enable_shared_from_this<Exec<Handler>>
 
 public:
     Exec(Handler&& handler, boost::asio::io_context& io_context)
-    : handler_{handler}
+    : handler_{std::move(handler)}
     , stdout_{io_context}
     , stderr_{io_context}
     {}

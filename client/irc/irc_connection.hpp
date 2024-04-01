@@ -36,7 +36,7 @@ public:
     irc_connection(irc_connection &&) = delete;
 
     // Queue messages for writing
-    auto write(char const * const cmd, size_t const n, int const ref) -> void;
+    auto write(std::string_view cmd, int const ref) -> void;
 
     auto close() -> void { stream_->close(); }
 

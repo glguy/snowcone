@@ -22,3 +22,5 @@ auto push_string(lua_State * L, std::string_view str) -> char const *;
  * @throw Raise Lua error for bad argument
  */
 auto mutable_string_arg(lua_State* L, int i) -> char*;
+
+auto check_string_view(lua_State * L, int arg) -> std::string_view;

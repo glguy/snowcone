@@ -21,9 +21,9 @@ auto encode(std::string_view const input, char* output) -> void
 
   while (end - cursor >= 3)
   {
-    uint32_t buffer = uint8_t(*cursor++);
-    buffer <<= 8; buffer |= uint8_t(*cursor++);
-    buffer <<= 8; buffer |= uint8_t(*cursor++);
+    std::uint32_t buffer = std::uint8_t(*cursor++);
+    buffer <<= 8; buffer |= std::uint8_t(*cursor++);
+    buffer <<= 8; buffer |= std::uint8_t(*cursor++);
 
     *output++ = alphabet[(buffer >> 6 * 3) % 64];
     *output++ = alphabet[(buffer >> 6 * 2) % 64];
@@ -33,8 +33,8 @@ auto encode(std::string_view const input, char* output) -> void
 
   if (cursor < end)
   {
-    uint32_t buffer = uint8_t(*cursor++) << 10;
-    if (cursor < end) buffer |= uint8_t(*cursor) << 2;
+    std::uint32_t buffer = std::uint8_t(*cursor++) << 10;
+    if (cursor < end) buffer |= std::uint8_t(*cursor) << 2;
 
     *output++ = alphabet[(buffer >> 12) % 64];
     *output++ = alphabet[(buffer >> 6) % 64];
@@ -44,9 +44,9 @@ auto encode(std::string_view const input, char* output) -> void
   *output = '\0';
 }
 
-auto decode(std::string_view const input, char* const output, std::size_t* const outlen) -> bool
+auto decode(std::string_view const input, char* output) -> char*
 {
-    static int8_t const alphabet_values[] = {
+    static std::int8_t const alphabet_values[256] = {
         -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
         -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
         -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
@@ -81,33 +81,31 @@ auto decode(std::string_view const input, char* const output, std::size_t* const
         -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
     };
 
-    uint32_t buffer = 1;
-    char* cursor = output;
+    std::uint32_t buffer = 1;
 
-    for (char c : input) {
-        int8_t const value = alphabet_values[uint8_t(c)];
+    for (auto const c : input) {
+        auto const value = alphabet_values[uint8_t(c)];
         if (-1 == value) continue;
 
         buffer = (buffer << 6) | value;
 
         if (buffer & 1<<6*4) {
-            *cursor++ = buffer >> 8*2;
-            *cursor++ = buffer >> 8*1;
-            *cursor++ = buffer >> 8*0;
+            *output++ = buffer >> 8*2;
+            *output++ = buffer >> 8*1;
+            *output++ = buffer >> 8*0;
             buffer = 1;
         }
     }
 
     if (buffer & 1<<6*3) {
-      *cursor++ = buffer >> 10;
-      *cursor++ = buffer >> 2;
+      *output++ = buffer >> 10;
+      *output++ = buffer >> 2;
     } else if (buffer & 1<<6*2) {
-      *cursor++ = buffer >> 4;
+      *output++ = buffer >> 4;
     } else if (buffer & 1<<6*1) {
-      return false;
+      return nullptr;
     }
-    *outlen = cursor - output;
-    return true;
+    return output;
 }
 
 } // namespace

@@ -44,8 +44,7 @@ luaL_Reg const Methods[] = {
 
 auto l_dnslookup(lua_State *const L) -> int
 {
-    std::size_t len;
-    auto const hostname = luaL_checklstring(L, 1, &len);
+    auto const hostname = check_string_view(L, 1);
     luaL_checkany(L, 2); // callback
     lua_settop(L, 2);
 
@@ -63,7 +62,7 @@ auto l_dnslookup(lua_State *const L) -> int
     // Store the callback
     lua_rawsetp(L, LUA_REGISTRYINDEX, resolver);
 
-    resolver->async_resolve(std::string_view{hostname, len}, "", [L, resolver](
+    resolver->async_resolve(hostname, "", [L, resolver](
         boost::system::error_code const& error,
         Resolver::results_type const results
     ) {

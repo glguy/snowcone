@@ -35,10 +35,8 @@ auto encode(std::string_view input, char* output) -> void;
  *
  * @param input Base64 input text
  * @param output Target buffer for decoded value
- * @param outlen Output parameter for decoded length
- * @return true success
- * @return false failure
+ * @return pointer to end of output on success
  */
-auto decode(std::string_view input, char* output, std::size_t* outlen) -> bool;
+auto decode(std::string_view input, char* output) -> char*;
 
 } // namespace

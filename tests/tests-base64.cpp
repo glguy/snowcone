@@ -10,6 +10,12 @@
 
 namespace {
 
+auto decode_string_view(std::string_view const input, char * const output) -> std::string_view
+{
+    auto const last = mybase64::decode(input, output);
+    return last ? std::string_view{output, last} : std::string_view{};
+}
+
 TEST(Base64, EncodeFoobar)
 {
     char buffer[9];
@@ -39,35 +45,15 @@ TEST(Base64, EncodeFoobar)
 
 TEST(Base64, DecodeFoobar)
 {
-    size_t len;
     char buffer[6];
 
-    ASSERT_TRUE(mybase64::decode("", buffer, &len));
-    ASSERT_EQ(len, 0);
-
-    ASSERT_TRUE(mybase64::decode("Zg==", buffer, &len));
-    ASSERT_EQ(len, 1);
-    EXPECT_EQ(std::string_view(buffer, len), "f");
-
-    ASSERT_TRUE(mybase64::decode("Zm8=", buffer, &len));
-    ASSERT_EQ(len, 2);
-    EXPECT_EQ(std::string_view(buffer, len), "fo");
-
-    ASSERT_TRUE(mybase64::decode("Zm9v", buffer, &len));
-    ASSERT_EQ(len, 3);
-    EXPECT_EQ(std::string_view(buffer, len), "foo");
-
-    ASSERT_TRUE(mybase64::decode("Zm9vYg==", buffer, &len));
-    ASSERT_EQ(len, 4);
-    EXPECT_EQ(std::string_view(buffer, len), "foob");
-
-    ASSERT_TRUE(mybase64::decode("Zm9vYmE=", buffer, &len));
-    ASSERT_EQ(len, 5);
-    EXPECT_EQ(std::string_view(buffer, len), "fooba");
-
-    ASSERT_TRUE(mybase64::decode("Zm9vYmFy", buffer, &len));
-    ASSERT_EQ(len, 6);
-    EXPECT_EQ(std::string_view(buffer, len), "foobar");
+    ASSERT_EQ(decode_string_view("", buffer), "");
+    ASSERT_EQ(decode_string_view("Zg==", buffer), "f");
+    ASSERT_EQ(decode_string_view("Zm8=", buffer), "fo");
+    ASSERT_EQ(decode_string_view("Zm9v", buffer), "foo");
+    ASSERT_EQ(decode_string_view("Zm9vYg==", buffer), "foob");
+    ASSERT_EQ(decode_string_view("Zm9vYmE=", buffer), "fooba");
+    ASSERT_EQ(decode_string_view("Zm9vYmFy", buffer), "foobar");
 }
 
 TEST(Base64, Exhaust1)
@@ -76,33 +62,22 @@ TEST(Base64, Exhaust1)
          i <= std::numeric_limits<char>::max();
          i++)
     {
-        char input = i;
+        char input[1] {char(i)};
         char output64[5];
-        char recovered;
-        size_t len;
+        char recovered[1];
 
-        mybase64::encode({&input, 1}, output64);
-        ASSERT_TRUE(mybase64::decode(output64, &recovered, &len));
-        EXPECT_EQ(len, 1);
-        EXPECT_EQ(recovered, input);
+        mybase64::encode({input, 1}, output64);
+        ASSERT_EQ(mybase64::decode(output64, recovered), recovered+1);
+        EXPECT_EQ(recovered[0], input[0]);
     }
 }
 
 TEST(Base64, Zeros) {
-    size_t len;
     char buffer[6];
 
-    ASSERT_TRUE(mybase64::decode("AA==", buffer, &len));
-    ASSERT_EQ(len, 1);
-    EXPECT_EQ(std::string_view(buffer, len), std::string_view("\0", 1));
-
-    ASSERT_TRUE(mybase64::decode("AAA=", buffer, &len));
-    ASSERT_EQ(len, 2);
-    EXPECT_EQ(std::string_view(buffer, len), std::string_view("\0\0", 2));
-
-    ASSERT_TRUE(mybase64::decode("AAAA", buffer, &len));
-    ASSERT_EQ(len, 3);
-    EXPECT_EQ(std::string_view(buffer, len), std::string_view("\0\0\0", 3));
+    ASSERT_EQ(decode_string_view("AA==", buffer), std::string_view("\0", 1));
+    ASSERT_EQ(decode_string_view("AAA=", buffer), std::string_view("\0\0", 2));
+    ASSERT_EQ(decode_string_view("AAAA", buffer), std::string_view("\0\0\0", 3));
 }
 
 TEST(Base64, Ones) {
@@ -114,23 +89,20 @@ TEST(Base64, Ones) {
 
     uint32_t decoded {};
     size_t outlen;
-    ASSERT_TRUE(mybase64::decode(output, reinterpret_cast<char*>(&decoded), &outlen));
-    ASSERT_EQ(outlen, sizeof(decoded));
+    ASSERT_EQ(mybase64::decode(output, reinterpret_cast<char*>(&decoded)), reinterpret_cast<char*>(&decoded) + 4);
 
     ASSERT_EQ(decoded, UINT32_C(0xffffffff));
 }
 
 TEST(Base64, Junk) {
-    size_t len;
     char buffer[6];
 
     char input[] = "AAAAAA";
     input[2] = -128;
     input[4] = 0;
 
-    ASSERT_TRUE(mybase64::decode({input, 6}, buffer, &len));
-    ASSERT_EQ(len, 3);
-    EXPECT_EQ(std::string_view(buffer, len), std::string_view("\0\0\0", 3));
+    ASSERT_EQ(mybase64::decode({input, 6}, buffer), buffer + 3);
+    EXPECT_EQ(std::string_view(buffer, buffer + 3), std::string_view("\0\0\0", 3));
 }
 
 } // namespace
