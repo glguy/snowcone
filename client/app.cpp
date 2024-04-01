@@ -77,7 +77,8 @@ auto App::signal_thread() -> boost::asio::awaitable<void>
 {
     for (;;)
     {
-        switch (co_await signals.async_wait(boost::asio::use_awaitable))
+        auto const sig = co_await signals.async_wait(boost::asio::use_awaitable);
+        switch (sig)
         {
             case SIGHUP:
                 reload();
