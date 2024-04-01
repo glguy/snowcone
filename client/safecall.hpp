@@ -17,3 +17,16 @@ struct lua_State;
  * @return Result of lua_pcall
  */
 int safecall(lua_State* L, char const* location, int args);
+
+/**
+ * @brief Find the main thread corresponding to an arbitrary thread.
+ * 
+ * This is used when registering callbacks so that the callbacks
+ * are always run on the main thread. Continuation threads both need
+ * to be resumed in a specific way and are also likely to be collected
+ * before the callback completes.
+ * 
+ * @param L any thread 
+ * @return main thread
+ */
+auto main_lua_state(lua_State* const L) -> lua_State*;

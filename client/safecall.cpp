@@ -33,3 +33,11 @@ int safecall(lua_State* const L, char const* const location, int const args)
     }
     return status;
 }
+
+auto main_lua_state(lua_State* const L) -> lua_State*
+{
+    lua_rawgeti(L, LUA_REGISTRYINDEX, LUA_RIDX_MAINTHREAD);
+    auto const main_L = lua_tothread(L, -1);
+    lua_pop(L, 1);
+    return main_L;
+}

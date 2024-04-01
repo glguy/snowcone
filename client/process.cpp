@@ -141,7 +141,7 @@ auto l_execute(lua_State* L) -> int
     auto const cb = luaL_ref(L, LUA_REGISTRYINDEX);
 
     async_exec(App::from_lua(L)->get_executor(), file, std::move(args),
-        [L, cb](boost::system::error_code err, int exitcode, std::string stdout, std::string stderr)
+        [L = main_lua_state(L), cb](boost::system::error_code err, int exitcode, std::string stdout, std::string stderr)
         {
             // get callback
             lua_rawgeti(L, LUA_REGISTRYINDEX, cb);
