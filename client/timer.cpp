@@ -42,8 +42,10 @@ luaL_Reg const Methods[] {
         // store the callback function
         lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
 
+        auto const app = App::from_lua(L);
+
         timer->expires_after(std::chrono::milliseconds{start});
-        timer->async_wait([L = main_lua_state(L), timer](auto const error) {
+        timer->async_wait([L = app->get_lua(), timer](auto const error) {
             if (!error) {
                 // get the callback
                 lua_rawgetp(L, LUA_REGISTRYINDEX, timer);

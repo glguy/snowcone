@@ -47,6 +47,7 @@ auto l_dnslookup(lua_State *const L) -> int
     auto const hostname = check_string_view(L, 1);
     luaL_checkany(L, 2); // callback
     lua_settop(L, 2);
+    auto const app = App::from_lua(L);
 
     auto const resolver = new_udata<Resolver>(L, 0, [L](){
         // Build metatable the first time
@@ -55,14 +56,14 @@ auto l_dnslookup(lua_State *const L) -> int
         luaL_setfuncs(L, Methods, 0);
         lua_setfield(L, -2, "__index");
     });
-    std::construct_at(resolver, App::from_lua(L)->get_executor());
+    std::construct_at(resolver, app->get_executor());
 
     lua_rotate(L, -2, 1); // swap the callback and the udata
 
     // Store the callback
     lua_rawsetp(L, LUA_REGISTRYINDEX, resolver);
 
-    resolver->async_resolve(hostname, "", [L = main_lua_state(L), resolver](
+    resolver->async_resolve(hostname, "", [L = app->get_lua(), resolver](
         boost::system::error_code const& error,
         Resolver::results_type const results
     ) {

@@ -15,6 +15,7 @@ extern "C"
 #include "app.hpp"
 #include "safecall.hpp"
 #include "strings.hpp"
+#include "userdata.hpp"
 
 namespace {
 
@@ -112,36 +113,33 @@ auto async_exec(
 
 auto l_execute(lua_State* L) -> int
 {
-    char const* file = lua_tostring(L, 1);
+    char const* file = luaL_checkstring(L, 1);
+    auto const n = luaL_len(L, 2);
+    luaL_checkany(L, 3);
+    lua_settop(L, 3);
 
-    if (file == nullptr)
-    {
-        luaL_pushfail(L);
-        lua_pushstring(L, "bad file");
-        return 2;
-    }
-
-    auto const n = lua_rawlen(L, 2);
-    std::vector<std::string> args;
+    auto& args = new_object<std::vector<std::string>>(L);
     args.reserve(n);
 
-    for (int i = 1; i <= n; i++)
+    for (lua_Integer i = 1; i <= n; i++)
     {
-        auto const ty = lua_rawgeti(L, 2, i);
-        if (ty != LUA_TSTRING) {
-            luaL_pushfail(L);
-            lua_pushstring(L, "bad argument");
-            return 2;
-        }
-        args.emplace_back(lua_tostring(L, -1));
-        lua_pop(L, 1);
+        auto const ty = lua_geti(L, 2, i);
+        std::size_t len;
+        auto const str = luaL_tolstring(L, -1, &len);
+        args.emplace_back(str, len);
+        lua_pop(L, 2);
     }
 
     lua_pushvalue(L, 3);
     auto const cb = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    async_exec(App::from_lua(L)->get_executor(), file, std::move(args),
-        [L = main_lua_state(L), cb](boost::system::error_code err, int exitcode, std::string stdout, std::string stderr)
+    auto const app = App::from_lua(L);
+    async_exec(app->get_executor(), file, std::move(args),
+        [L = app->get_lua(), cb](
+            boost::system::error_code const err,
+            int const exitcode,
+            std::string const stdout,
+            std::string const stderr)
         {
             // get callback
             lua_rawgeti(L, LUA_REGISTRYINDEX, cb);
@@ -153,7 +151,5 @@ auto l_execute(lua_State* L) -> int
             safecall(L, "process complete callback", 3);
         }
     );
-
-    lua_pushboolean(L, true);
-    return 1;
+    return 0;
 }
