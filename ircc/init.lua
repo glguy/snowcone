@@ -71,6 +71,7 @@ local defaults = {
     messages = OrderedMap(1000), -- Raw IRC protocol messages
     buffers = {}, -- [irccase(target)] = {name=string, messages=OrderedMap, seen=number}
     status_messages = OrderedMap(100),
+    channel_list = OrderedMap(10000),
     editor = Editor(),
     view = 'console',
     uptime = 0, -- seconds since startup
@@ -108,6 +109,7 @@ function status(category, fmt, ...)
         time = os.date("!%H:%M:%S"),
         text = text,
         category = category,
+        timestamp = uptime,
     })
     status_message = text
 end
@@ -146,6 +148,7 @@ views = {
     bouncer = require_ 'view.bouncer',
     buffer = require_ 'view.buffer',
     session = require_ 'view.session',
+    list = require_ 'view.list',
 }
 
 main_views = {'console', 'status'}

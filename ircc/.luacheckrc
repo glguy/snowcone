@@ -59,6 +59,7 @@ stds = {
             "status", -- function to record a message in the status buffer
             "status_message", -- current message printed in the status bar
             "status_messages", -- OrderedMap of messages for /status
+            "channel_list",
 
             -- /console view
             "messages", -- OrderedMap of the recent IRC messages
