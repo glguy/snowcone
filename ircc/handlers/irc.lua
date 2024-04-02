@@ -384,8 +384,8 @@ function M.MODE(irc)
                 polarity = true
             elseif m == '-' then
                 polarity = false
-            elseif m == 'o' then
-                irc_state.oper = polarity
+            else
+                irc_state.mode[m] = polarity or nil
             end
         end
 
@@ -552,6 +552,22 @@ M[N.RPL_CHANNELMODEIS] = function(irc)
         end
     end
 end
+
+M[N.RPL_UMODEIS] = function(irc)
+    local polarity = true
+    local modes = {}
+    for m in irc[2]:gmatch '.' do
+        if m == '+' then
+            polarity = true
+        elseif m == '-' then
+            polarity = false
+        else
+            modes[m] = polarity or nil
+        end
+    end
+    irc_state.mode = modes
+end
+
 
 -----------------------------------------------------------------------
 

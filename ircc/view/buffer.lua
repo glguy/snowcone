@@ -2,6 +2,7 @@ local tablex = require 'pl.tablex'
 
 local addircstr = require_ 'utils.irc_formatting'
 local drawing = require 'utils.drawing'
+local scrub = require 'utils.scrub'
 
 local hscroll = 0
 
@@ -21,7 +22,7 @@ local function render_irc(irc)
         green()
     end
 
-    add_button(string.format(' %16.16s', source), function()
+    add_button(string.format(' %16.16s', scrub(source)), function()
         focus = {irc=irc}
         view = 'console'
     end, true)
@@ -29,7 +30,7 @@ local function render_irc(irc)
     local statusmsg = irc.statusmsg
     if statusmsg then
         red()
-        addstr(statusmsg)
+        addstr(scrub(statusmsg))
     else
         addstr ' '
     end

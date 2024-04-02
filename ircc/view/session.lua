@@ -1,3 +1,4 @@
+local scrub = require 'utils.scrub'
 local tablex = require 'pl.tablex'
 
 local M = {
@@ -20,6 +21,12 @@ function M:render()
     normal()
     addstr '\n'
 
+    addstr '    Mode: '
+    for k, _ in tablex.sort(irc_state.mode) do
+        addstr(scrub(k))
+    end
+    addstr '\n'
+
     addstr '    Caps:'
     bold()
     for k, v in tablex.sort(irc_state.caps_available) do
@@ -28,10 +35,10 @@ function M:render()
         else
             red()
         end
-        addstr ' ' addstr(k)
+        addstr ' ' addstr(scrub(k))
         if v ~= true then
             addstr '='
-            addstr(v)
+            addstr(scrub(v))
         end
     end
     normal()
@@ -40,7 +47,7 @@ function M:render()
     addstr 'Channels:'
     bold()
     for _, v in tablex.sort(irc_state.channels) do
-        addstr ' ' addstr(v.name)
+        addstr ' ' addstr(scrub(v.name))
     end
     normal()
     addstr '\n'
@@ -50,10 +57,10 @@ function M:render()
         for k, v in tablex.sort(irc_state.monitor) do
             if v.user then
                 green()
-                addstr ' ' addstr(v.user.nick)
+                addstr ' ' addstr(scrub(v.user.nick))
             else
                 red()
-                addstr ' ' addstr(k:lower())
+                addstr ' ' addstr(scrub(k:lower()))
             end
         end
         normal()

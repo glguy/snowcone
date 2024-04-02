@@ -28,9 +28,9 @@ class Exec : public std::enable_shared_from_this<Exec<Handler>>
     boost::process::async_pipe stdout_;
     boost::process::async_pipe stderr_;
 
-    int stage_ = 0;
-
+    int stage_;
     boost::system::error_code error_code_;
+
     int exit_code_;
     std::string stdout_text_;
     std::string stderr_text_;
@@ -40,6 +40,7 @@ public:
     : handler_{std::move(handler)}
     , stdout_{io_context}
     , stderr_{io_context}
+    , stage_{0}
     {}
 
     auto start(

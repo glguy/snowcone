@@ -2,6 +2,7 @@ local addircstr = require_ 'utils.irc_formatting'
 local parse_snote = require 'utils.parse_snote'
 local drawing = require 'utils.drawing'
 local numerics = require 'utils.numerics'
+local scrub = require 'utils.scrub'
 local tablex = require 'pl.tablex'
 local hide_snow = false
 local show_raw = false
@@ -35,7 +36,7 @@ local function pretty_source(source)
             yellow()
         end
     end
-    addstr(string.format('%16.16s ', source))
+    addstr(string.format('%16.16s ', scrub(source)))
     normal()
 end
 
@@ -156,14 +157,14 @@ local function draw_focus(irc, snotice)
         addstr '      tags:'
         for k, v in tablex.sort(irc.tags) do
             cyan()
-            if show_raw then k = rawstr(k) end
+            if show_raw then k = rawstr(k) else k = scrub(k) end
             mvaddstr(ncurses.getyx(), 12, k)
             if v == '' then
                 addstr '\n'
             else
                 normal()
                 addstr ': '
-                if show_raw then v = rawstr(v) end
+                if show_raw then v = rawstr(v) else v = scrub(v) end
                 addstr(v, '\n')
             end
         end
@@ -176,7 +177,7 @@ local function draw_focus(irc, snotice)
         blue()
         addstr '    source: '
         normal()
-        addstr(irc.source, '\n')
+        addstr(scrub(irc.source), '\n')
     end
 
     --
@@ -187,7 +188,7 @@ local function draw_focus(irc, snotice)
     local cmd_color = palette[irc.command] or function() end
     cmd_color()
     bold()
-    addstr(irc.command)
+    addstr(scrub(irc.command))
     bold_()
 
     if not show_raw then

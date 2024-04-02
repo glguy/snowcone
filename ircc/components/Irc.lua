@@ -18,6 +18,7 @@ local User = require  'components.User'
 -- .batches
 -- .isupport
 -- .sasl_mechs     - set of string   - SASL mechanisms supported
+-- .mode           - set of string   - user mode letters
 
 local M = class()
 M._name = 'Irc'
@@ -66,6 +67,7 @@ function M:_init(conn)
 
     self.batches = {}
     self.channels = {}
+    self.mode = {}
 
     self.chantypes = '&#' -- updated by ISUPPORT
     self.monitor = nil -- map irccased nickname mapped to {nick=str, online=bool}
