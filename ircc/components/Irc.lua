@@ -192,6 +192,10 @@ function M:add_monitor(nick, online)
     end
 end
 
+function M:del_monitor(nick)
+    self.monitor[snowcone.irccase(nick)] = nil
+end
+
 function M:has_monitor()
     return self.monitor ~= nil
 end

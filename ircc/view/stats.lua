@@ -7,7 +7,9 @@ local M = {
 }
 
 local function list_stats(name, data)
-    addstr(string.format('%16s %10d %10d\n', name, data.n, data.max))
+    addstr(string.format('%16s %10d %10d ', name, data.n, data.max))
+    add_button('[CLEAR]', function() data:reset() end)
+    addstr '\n'
 end
 
 
@@ -67,6 +69,7 @@ function M:render()
     normal()
     list_stats('/console', messages)
     list_stats('/status', status_messages)
+    list_stats('/list', channel_list)
 
     for _, buffer in pairs(buffers) do
         list_stats(buffer.name, buffer.messages)

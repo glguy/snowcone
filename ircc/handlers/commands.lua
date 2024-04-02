@@ -83,7 +83,7 @@ add_command('close', '', function()
     and irc_state:is_monitored(talk_target)
     then
         send('MONITOR', '-', talk_target)
-        irc_state.monitor[snowcone.irccase(talk_target)] = nil
+        irc_state:del_monitor(talk_target)
     end
 
     if talk_target and view == 'buffer' then
@@ -169,6 +169,14 @@ end)
 
 add_command('nick', '$g', function(nick)
     send('NICK', nick)
+end)
+
+add_command('list', '$R', function(arg)
+    if arg == '' then
+        send('LIST')
+    else
+        send('LIST', arg)
+    end
 end)
 
 add_command('challenge', '', function()

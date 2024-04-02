@@ -109,4 +109,13 @@ function OrderedMap:_init(n, keyfn)
     self.keyfn = keyfn
 end
 
+function OrderedMap:reset()
+    self.index = {}
+    self.keys = {}
+    self.vals = {}
+    self.n = 0
+    self.ticker = 0
+    -- preserves .max and .keyfn
+end
+
 return OrderedMap

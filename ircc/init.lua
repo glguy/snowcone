@@ -148,7 +148,7 @@ views = {
     bouncer = require_ 'view.bouncer',
     buffer = require_ 'view.buffer',
     session = require_ 'view.session',
-    list = require_ 'view.list',
+    channels = require_ 'view.channels',
 }
 
 main_views = {'console', 'status'}

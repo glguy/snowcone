@@ -253,6 +253,7 @@ function M.NICK(irc)
         if newkey == irc_state.recover_nick then
             irc_state.recover_nick = nil
             send('MONITOR', '-', newnick)
+            irc_state:del_monitor(newnick)
         end
     end
 
@@ -290,18 +291,6 @@ function M.NICK(irc)
         if rename then
             buffers[oldkey] = nil
             buffers[newkey] = buffer
-        end
-    end
-
-    if rename then
-        local monitor = irc_state.monitor[oldkey]
-        if monitor then
-            if rename then
-                monitor[oldkey] = nil
-                monitor[newkey] = monitor
-                send('MONITOR', '+', newnick)
-                send('MONITOR', '-', oldnick)
-            end
         end
     end
 
