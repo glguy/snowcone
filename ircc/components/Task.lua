@@ -17,6 +17,7 @@ end
 
 function M:cancel()
     self.queue[self] = nil
+    coroutine.close(self)
 end
 
 function M:wait_irc(command_set)
