@@ -42,14 +42,10 @@ luaL_Reg const Methods[] {
         // store the callback function
         lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
 
-        // A timer might get started from a arbitrary thread, but
-        // timers always run on the main thread.
-        lua_rawgeti(L, LUA_REGISTRYINDEX, LUA_RIDX_MAINTHREAD);
-        auto const L_ = lua_tothread(L, -1);
-        lua_pop(L, 1);
+        auto const app = App::from_lua(L);
 
         timer->expires_after(std::chrono::milliseconds{start});
-        timer->async_wait([L = L_, timer](auto const error) {
+        timer->async_wait([L = app->get_lua(), timer](auto const error) {
             if (!error) {
                 // get the callback
                 lua_rawgetp(L, LUA_REGISTRYINDEX, timer);
