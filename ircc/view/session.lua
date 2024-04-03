@@ -21,6 +21,13 @@ function M:render()
     normal()
     addstr '\n'
 
+    if irc_state.nick then
+        addstr '    Nick: '
+        bold()
+        addstr(scrub(irc_state.nick), '\n')
+        normal()
+    end
+
     addstr '    Mode: '
     for k, _ in tablex.sort(irc_state.mode) do
         addstr(scrub(k))
