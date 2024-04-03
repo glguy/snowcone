@@ -64,9 +64,12 @@ auto l_dnslookup(lua_State *const L) -> int
     lua_rawsetp(L, LUA_REGISTRYINDEX, resolver);
 
     resolver->async_resolve(hostname, "", [L = app->get_lua(), resolver](
-        boost::system::error_code const& error,
+        boost::system::error_code const error,
         Resolver::results_type const results
     ) {
+        // on abort the callback has already been cleaned up
+        if (boost::asio::error::operation_aborted == error) return;
+
         // get the callback
         lua_rawgetp(L, LUA_REGISTRYINDEX, resolver);
 

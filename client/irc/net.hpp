@@ -39,7 +39,7 @@ protected:
     virtual auto async_write_some_(const_buffers, handler_type) -> void = 0;
 
 public:
-    virtual ~AnyStream() {}
+    virtual ~AnyStream() = default;
 
     // AsyncReadStream and AsyncWriteStream type requirement
     using executor_type = boost::asio::any_io_executor;

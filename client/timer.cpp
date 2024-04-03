@@ -33,6 +33,9 @@ luaL_Reg const MT[] {
 };
 
 luaL_Reg const Methods[] {
+    /// @param self
+    /// @param delay milliseconds
+    /// @param callback
     {"start", [](auto const L) {
         auto const timer = check_udata<Timer>(L, 1);
         auto const start = luaL_checkinteger(L, 2);
@@ -46,7 +49,7 @@ luaL_Reg const Methods[] {
 
         timer->expires_after(std::chrono::milliseconds{start});
         timer->async_wait([L = app->get_lua(), timer](auto const error) {
-            if (!error) {
+            if (not error) {
                 // get the callback
                 lua_rawgetp(L, LUA_REGISTRYINDEX, timer);
                 // forget the callback
