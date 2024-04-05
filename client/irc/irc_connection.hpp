@@ -12,7 +12,7 @@ extern "C" {
 #include <memory>
 #include <optional>
 
-#include "net.hpp"
+#include "../net/stream.hpp"
 
 struct lua_State;
 

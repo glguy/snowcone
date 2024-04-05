@@ -6,6 +6,7 @@
 #include "../userdata.hpp"
 
 #include "irc_connection.hpp"
+#include "../net/connect.hpp"
 #include "../strings.hpp"
 
 #include <ircmsg.hpp>
