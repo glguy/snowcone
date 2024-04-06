@@ -25,9 +25,7 @@ class irc_connection final : public std::enable_shared_from_this<irc_connection>
     std::deque<boost::asio::const_buffer> write_buffers;
 
 public:
-    using stream_type = Stream<
-        boost::asio::ip::tcp::socket,
-        boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>;
+    using stream_type = CommonStream;
 
     stream_type stream_; // exposed for reading
 

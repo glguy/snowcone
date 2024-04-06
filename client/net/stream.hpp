@@ -4,9 +4,6 @@
 #include <boost/asio/ssl.hpp>
 
 #include <cstdint>
-#include <functional>
-#include <span>
-#include <string>
 #include <variant>
 
 template <typename... Ts>
