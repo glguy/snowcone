@@ -2,39 +2,33 @@
 
 #include "stream.hpp"
 
-namespace
-{
-auto close_stream(boost::asio::ip::tcp::socket &stream) -> void;
+auto stream_close(boost::asio::ip::tcp::socket& stream) -> void;
 
 template <typename T>
-auto close_stream(boost::asio::ssl::stream<T> &stream) -> void
+auto stream_close(boost::asio::ssl::stream<T>& stream) -> void
 {
-    close_stream(stream.next_layer());
-}
-} // namespace
-
-template <typename T>
-auto TlsStream<T>::async_read_some_(mutable_buffers buffers, handler_type handler) -> void
-{
-    stream_.async_read_some(buffers, std::move(handler));
+    stream_close(stream.next_layer());
 }
 
-template <typename T>
-auto TlsStream<T>::async_write_some_(const_buffers buffers, handler_type handler) -> void
+template <typename... Ts>
+auto Stream<Ts...>::close() -> void
 {
-    stream_.async_write_some(buffers, std::move(handler));
+    std::visit([](auto& x){ stream_close(x); }, impl_);
 }
 
-template <typename T>
-auto TlsStream<T>::close() -> void
-{
-    close_stream(stream_);
-}
+auto stream_set_buffer_size(boost::asio::ip::tcp::socket&, std::size_t const) -> void;
 
 template <typename T>
-auto TlsStream<T>::set_buffer_size(std::size_t const size) -> void
+auto stream_set_buffer_size(boost::asio::ssl::stream<T>& stream, std::size_t const n) -> void
 {
-    auto const ssl = stream_.native_handle();
-    BIO_set_buffer_size(SSL_get_rbio(ssl), size);
-    BIO_set_buffer_size(SSL_get_wbio(ssl), size);
+    stream_set_buffer_size(stream.next_layer(), n);
+    auto const ssl = stream.native_handle();
+    BIO_set_buffer_size(SSL_get_rbio(ssl), n);
+    BIO_set_buffer_size(SSL_get_wbio(ssl), n);
+}
+
+template <typename... Ts>
+auto Stream<Ts...>::set_buffer_size(std::size_t const n) -> void
+{
+    std::visit([n](auto& x) { stream_set_buffer_size(x, n);}, impl_);
 }

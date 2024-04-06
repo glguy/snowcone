@@ -9,7 +9,7 @@
 #include <string>
 
 template <typename T>
-concept Connectable = requires(T a, std::ostream& os, typename T::stream_type &stream) {
+concept Connectable = requires(T const a, std::ostream& os, typename T::stream_type &stream) {
     // Check for the presence of a typedef named stream_type
     typename T::stream_type;
 
@@ -36,7 +36,7 @@ struct TcpConnectParams
     std::uint16_t bind_port;
 
     /// @brief Connect to TCP endpoint
-    auto connect(std::ostream& os, stream_type &stream) -> boost::asio::awaitable<void>;
+    auto connect(std::ostream& os, stream_type &stream) const -> boost::asio::awaitable<void>;
 };
 
 template <Connectable T>
@@ -57,7 +57,7 @@ struct SocksConnectParams
     T base;
 
     /// @brief Connect underlying stream and then negotiate SOCKS5 CONNECT
-    auto connect(std::ostream& os, stream_type &stream) -> boost::asio::awaitable<void>;
+    auto connect(std::ostream& os, stream_type &stream) const -> boost::asio::awaitable<void>;
 };
 
 template <Connectable T>
@@ -75,7 +75,7 @@ struct TlsConnectParams
     T base;
 
     /// @brief Connect underlying stream and then initiate TLS session
-    auto connect(std::ostream& os, stream_type &stream) -> boost::asio::awaitable<void>;
+    auto connect(std::ostream& os, stream_type &stream) const -> boost::asio::awaitable<void>;
 };
 
 extern template class SocksConnectParams<TcpConnectParams>;

@@ -25,9 +25,18 @@ class irc_connection final : public std::enable_shared_from_this<irc_connection>
     std::deque<boost::asio::const_buffer> write_buffers;
 
 public:
-    std::shared_ptr<AnyStream> stream_; // exposed for reading
+    using stream_type = Stream<
+        boost::asio::ip::tcp::socket,
+        boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>;
 
-    irc_connection(boost::asio::io_context&, lua_State *L, int, std::shared_ptr<AnyStream>);
+    stream_type stream_; // exposed for reading
+
+    auto get_stream() -> stream_type&
+    {
+        return stream_;
+    }
+
+    irc_connection(boost::asio::io_context&, lua_State *L, int, stream_type&&);
     ~irc_connection();
 
     auto operator=(irc_connection const&) -> irc_connection& = delete;
@@ -38,7 +47,7 @@ public:
     // Queue messages for writing
     auto write(std::string_view cmd, int const ref) -> void;
 
-    auto close() -> void { stream_->close(); }
+    auto close() -> void { stream_.close(); }
 
     static std::size_t const irc_buffer_size = 131'072;
 
@@ -46,7 +55,7 @@ public:
     auto write_thread_actual() -> void
     {
         boost::asio::async_write(
-            *stream_,
+            stream_,
             write_buffers,
             [weak = weak_from_this(), n = write_buffers.size()]
             (boost::system::error_code const& error, std::size_t)

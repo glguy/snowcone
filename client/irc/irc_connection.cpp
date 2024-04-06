@@ -7,11 +7,11 @@ extern "C" {
 #include <lauxlib.h>
 }
 
-irc_connection::irc_connection(boost::asio::io_context& io_context, lua_State *L, int irc_cb, std::shared_ptr<AnyStream> stream)
+irc_connection::irc_connection(boost::asio::io_context& io_context, lua_State *L, int irc_cb, stream_type&& stream)
     : write_timer{io_context, boost::asio::steady_timer::time_point::max()}
     , L{L}
     , irc_cb_{irc_cb}
-    , stream_{stream}
+    , stream_{std::move(stream)}
 {
 }
 

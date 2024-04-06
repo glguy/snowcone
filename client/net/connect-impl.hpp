@@ -6,7 +6,7 @@
 #include <iomanip>
 
 template <Connectable T>
-auto SocksConnectParams<T>::connect(std::ostream& os, stream_type &stream) -> boost::asio::awaitable<void>
+auto SocksConnectParams<T>::connect(std::ostream& os, stream_type &stream) const -> boost::asio::awaitable<void>
 {
     co_await base.connect(os, stream);
     os << " socks=";
@@ -18,7 +18,7 @@ auto peer_fingerprint(std::ostream &os, SSL const *const ssl) -> void;
 }
 
 template <Connectable T>
-auto TlsConnectParams<T>::connect(std::ostream& os, stream_type &stream) -> boost::asio::awaitable<void>
+auto TlsConnectParams<T>::connect(std::ostream& os, stream_type &stream) const -> boost::asio::awaitable<void>
 {
     co_await base.connect(os, stream.next_layer());
     os << " tls=";

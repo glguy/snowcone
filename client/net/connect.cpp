@@ -21,7 +21,7 @@ auto peer_fingerprint(std::ostream &os, SSL const *const ssl) -> void
 }
 } // namespace
 
-auto TcpConnectParams::connect(std::ostream &os, stream_type &stream) -> boost::asio::awaitable<void>
+auto TcpConnectParams::connect(std::ostream &os, stream_type &stream) const -> boost::asio::awaitable<void>
 {
     auto resolver = boost::asio::ip::tcp::resolver{stream.get_executor()};
 
