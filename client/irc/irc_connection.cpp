@@ -80,3 +80,8 @@ auto irc_connection::write_thread_actual() -> void
             }
         });
 }
+
+auto irc_connection::push_cb() const -> void
+{
+    lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb_);
+}

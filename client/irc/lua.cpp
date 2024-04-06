@@ -144,20 +144,19 @@ namespace
 
     template <typename T>
     auto connect_thread(
-        T params,
-        boost::asio::io_context &io_context,
+        T const params,
         std::shared_ptr<irc_connection> const irc,
-        lua_State *const L,
-        int irc_cb) -> boost::asio::awaitable<void>
+        lua_State* const L
+    ) -> boost::asio::awaitable<void>
     {
         try
         {
             std::ostringstream os;
             co_await params.connect(os, std::get<typename T::stream_type>(irc->get_stream().get_impl()));
             {
-                lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb); // function
-                lua_pushstring(L, "CON");                  // argument 1
-                push_string(L, os.str());                  // argument 2
+                irc->push_cb();
+                lua_pushstring(L, "CON");
+                push_string(L, os.str());
                 safecall(L, "successful connect", 2);
             }
 
@@ -183,14 +182,14 @@ namespace
                         try
                         {
                             auto const msg = parse_irc_message(line); // might throw
-                            lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
+                            irc->push_cb();
                             lua_pushstring(L, "MSG");
                             pushircmsg(L, msg);
                             safecall(L, "irc message", 2);
                         }
                         catch (irc_parse_error const &e)
                         {
-                            lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
+                            irc->push_cb();
                             lua_pushstring(L, "BAD");
                             lua_pushinteger(L, static_cast<lua_Integer>(e.code));
                             safecall(L, "irc parse error", 2);
@@ -200,7 +199,7 @@ namespace
 
                 if (need_flush)
                 {
-                    lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
+                    irc->push_cb();
                     lua_pushstring(L, "FLUSH");
                     safecall(L, "irc parse error", 1);
                 }
@@ -208,7 +207,7 @@ namespace
         }
         catch (std::exception const &e)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
+            irc->push_cb();
             lua_pushstring(L, "END");
             lua_pushstring(L, e.what());
             safecall(L, "end of connection", 2);
@@ -258,7 +257,7 @@ auto l_start_irc(lua_State *const L) -> int
 
             boost::asio::co_spawn(
                 io_context,
-                connect_thread(params, io_context, irc, L, irc_cb), boost::asio::detached);
+                connect_thread(params, irc, L), boost::asio::detached);
             return 1;
         };
 

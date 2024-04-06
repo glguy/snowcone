@@ -52,6 +52,8 @@ public:
     // Either write data now or wait for there to be data
     auto write_thread() -> void;
 
+    auto push_cb() const -> void;
+
 private:
     // There's data now, actually write it
     auto write_thread_actual() -> void;
