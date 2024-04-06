@@ -238,6 +238,16 @@ function M.NOTICE(irc)
     route_to_buffer(target, message, irc)
 end
 
+function M.WALLOPS(irc)
+    local nick = split_nuh(irc.source)
+    status('wallops', '%s: %s', nick, irc[1])
+end
+
+function M.OPERWALL(irc)
+    local nick = split_nuh(irc.source)
+    status('operwall', '%s: %s', nick, irc[1])
+end
+
 function M.NICK(irc)
     local oldnick = parse_source(irc.source)
     local newnick = irc[1]
