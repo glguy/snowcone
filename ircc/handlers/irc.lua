@@ -16,6 +16,25 @@ local function parse_source(source)
     return string.match(source, '^(.-)!(.-)@(.*)$')
 end
 
+--- Add an IRC message to a buffer and update other metadata
+---@param buffer_name string
+---@param irc table
+---@param mention boolean
+local function add_to_buffer(buffer_name, irc, mention)
+    local buffer_key = snowcone.irccase(buffer_name)
+    local buffer = buffers[buffer_key]
+    if buffer then
+        buffer.name = buffer_name
+    else
+        buffer = Buffer(buffer_name)
+        buffers[buffer_key] = buffer
+    end
+    buffer.messages:insert(true, irc)
+    if mention then
+        buffer.mention = true
+    end
+end
+
 local M = {}
 
 function M.ERROR()
@@ -84,7 +103,9 @@ end
 -- Channel metadata
 
 function M.TOPIC(irc)
-    irc_state:get_channel(irc[1]).topic = irc[2]
+    local target = irc[1]
+    irc_state:get_channel(target).topic = irc[2]
+    add_to_buffer(target, irc, false)
 end
 
 -- "<client> <channel> :<topic>"
@@ -160,7 +181,7 @@ local function do_notify(target, nick, text)
     end
 end
 
-local function route_to_buffer(target, text, irc)
+local function route_chat_to_buffer(target, text, irc)
     local buffer_target
     local mention
     local nick = split_nuh(irc.source)
@@ -194,17 +215,8 @@ local function route_to_buffer(target, text, irc)
     end
 
     -- will be nil in the case of a message from a server
-    local buffer
     if buffer_target then
-        local buffer_key = snowcone.irccase(buffer_target)
-        buffer = buffers[buffer_key]
-        if not buffer then
-            buffer = Buffer(buffer_target)
-            buffers[buffer_key] = buffer
-        end
-        buffer.name = buffer_target
-        buffer.messages:insert(true, irc)
-        buffer.mention = mention
+        add_to_buffer(buffer_target, irc, mention)
     end
 end
 
@@ -228,14 +240,14 @@ function M.PRIVMSG(irc)
         end
     end
 
-    route_to_buffer(target, message, irc)
+    route_chat_to_buffer(target, message, irc)
 end
 
 function M.NOTICE(irc)
     local prefix, target = split_statusmsg(irc[1])
     local message = irc[2]
     irc.statusmsg = prefix
-    route_to_buffer(target, message, irc)
+    route_chat_to_buffer(target, message, irc)
 end
 
 function M.WALLOPS(irc)
@@ -291,6 +303,7 @@ function M.NICK(irc)
                 channel.members[oldkey] = nil
                 channel.members[newkey] = member
             end
+            add_to_buffer(channel.name, irc, false)
         end
     end
 
@@ -302,6 +315,7 @@ function M.NICK(irc)
             buffers[oldkey] = nil
             buffers[newkey] = buffer
         end
+        add_to_buffer(newnick, irc, false)
     end
 
     if talk_target and talk_target == oldkey then
@@ -453,6 +467,7 @@ function M.MODE(irc)
                 end
             end
         end
+        add_to_buffer(target, irc, false)
     end
 end
 
@@ -579,6 +594,7 @@ function M.JOIN(irc)
 
     local user = irc_state:get_user(who)
     irc_state:get_channel(channel).members[snowcone.irccase(who)] = Member(user)
+    add_to_buffer(channel, irc, false)
 end
 
 -- "<client> <symbol> <channel> :[prefix]<nick>{ [prefix]<nick>}"
@@ -607,6 +623,7 @@ function M.PART(irc)
     else
         irc_state:get_channel(channel).members[snowcone.irccase(who)] = nil
     end
+    add_to_buffer(channel, irc, false)
 end
 
 function M.QUIT(irc)
@@ -614,7 +631,14 @@ function M.QUIT(irc)
     local key = snowcone.irccase(nick)
 
     for _, channel in pairs(irc_state.channels) do
-        channel.members[snowcone.irccase(nick)] = nil
+        if channel.members[key] then
+            add_to_buffer(channel.name, irc, false)
+        end
+        channel.members[key] = nil
+    end
+
+    if buffers[key] then
+        add_to_buffer(nick, irc, false)
     end
 
     irc_state.users[key] = nil
@@ -628,12 +652,45 @@ function M.KICK(irc)
     else
         irc_state:get_channel(channel).members[snowcone.irccase(target)] = nil
     end
+    add_to_buffer(channel, irc, false)
 end
 
 function M.AWAY(irc)
     local nick = split_nuh(irc.source)
     local user = irc_state:get_user(nick)
     user.away = irc[1] -- will be nil when BACK
+end
+
+function M.ACCOUNT(irc)
+    -- the client doesn't track user account names
+
+    local nick = split_nuh(irc.source)
+    local key = snowcone.irccase(nick)
+    for _, channel in pairs(irc_state.channels) do
+        local member = channel.members[key]
+        if member then
+            add_to_buffer(channel.name, irc, false)
+        end
+    end
+    if buffers[key] then
+        add_to_buffer(nick, irc, false)
+    end
+end
+
+function M.CHGHOST(irc)
+    -- the client doesn't track user hostnames
+
+    local nick = split_nuh(irc.source)
+    local key = snowcone.irccase(nick)
+    for _, channel in pairs(irc_state.channels) do
+        local member = channel.members[key]
+        if member then
+            add_to_buffer(channel.name, irc, false)
+        end
+    end
+    if buffers[key] then
+        add_to_buffer(nick, irc, false)
+    end
 end
 
 -- "<client> <nick> :<message>"

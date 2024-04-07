@@ -36,7 +36,8 @@
             "installDir": "${sourceDir}/out/install/${presetName}",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": "On"
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "On",
+                "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "On"
             },
             "environment": {
                 "PKG_CONFIG_PATH": "/usr/local/opt/ncurses/lib/pkgconfig"

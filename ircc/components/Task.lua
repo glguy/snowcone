@@ -1,5 +1,3 @@
----@alias Set table
-
 local class = require 'pl.class'
 local Set = require 'pl.Set'
 

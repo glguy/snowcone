@@ -3,9 +3,15 @@
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 
-#include <cstdint>
+#include <cstddef>
 #include <variant>
 
+/// @brief Abstraction over a choice of Boost ASIO stream types.
+///
+/// AsyncReadStream and AsyncWriteStream operations will dispatch
+/// to the underlying stream representation representation.
+///
+/// @tparam ...Ts These types should satisfy AsyncReadStream and AsyncWriteStream
 template <typename... Ts>
 struct Stream
 {
@@ -13,12 +19,19 @@ struct Stream
 
     // AsyncReadStream and AsyncWriteStream type requirement
     using executor_type = boost::asio::any_io_executor;
+
+    /// @brief Get executor associated with this stream
     auto get_executor() noexcept -> executor_type
     {
-        return std::visit([](auto& x) -> executor_type { return x.get_executor(); }, impl_);
+        return std::visit([](auto&& x) noexcept -> executor_type {
+            return x.get_executor();
+        }, impl_);
     }
 
-    // AsyncReadStream type requirement
+    /// @brief AsyncReadStream method
+    /// @param buffers Buffers to read into
+    /// @param token Completion token for read operation
+    /// @return Return determined by completion token
     template <
         typename MutableBufferSequence,
         boost::asio::completion_token_for<void(boost::system::error_code, std::size_t)> Token>
@@ -26,12 +39,15 @@ struct Stream
         MutableBufferSequence &&buffers,
         Token &&token)
     {
-        return std::visit([&](auto& x) {
+        return std::visit([&](auto&& x) {
             return x.async_read_some(std::forward<MutableBufferSequence>(buffers), std::forward<Token>(token));
         }, impl_);
     }
 
-    // AsyncWriteStream type requirement
+    /// @brief AsyncWriteStream method
+    /// @param buffers Buffers to write from
+    /// @param token Completion token for write operation
+    /// @return Return determined by completion token
     template <
         typename ConstBufferSequence,
         boost::asio::completion_token_for<void(boost::system::error_code, std::size_t)> Token>
@@ -39,18 +55,19 @@ struct Stream
         ConstBufferSequence &&buffers,
         Token &&token)
     {
-        return std::visit([&](auto& x) {
+        return std::visit([&](auto&& x) {
             return x.async_write_some(std::forward<ConstBufferSequence>(buffers), std::forward<Token>(token));
         }, impl_);
     }
 
-    // Gracefully tear down the network stream
+    /// @brief Gracefully tear down the network stream
     auto close() -> void;
 
-    // Update send and receive buffer sizes
+    /// @brief Update send and receive buffer sizes
     auto set_buffer_size(std::size_t const size) -> void;
 
-    auto get_impl() -> std::variant<Ts...>&
+    /// @brief Access underlying stream
+    auto get_impl() noexcept -> std::variant<Ts...>&
     {
         return impl_;
     }

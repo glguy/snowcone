@@ -3,14 +3,92 @@ local tablex = require 'pl.tablex'
 local addircstr = require_ 'utils.irc_formatting'
 local drawing = require 'utils.drawing'
 local scrub = require 'utils.scrub'
+local split_nuh   = require_ 'utils.split_nick_user_host'
 
 local hscroll = 0
+
+local function chat_renderer(irc)
+    local action = 'PRIVMSG' == irc.command and irc[2]:match '^\x01ACTION (.*)\x01$'
+    local text = action or irc[2]
+    addircstr(text:sub(hscroll))
+end
+
+local command_renderer = {
+    PRIVMSG = chat_renderer,
+    NOTICE = chat_renderer,
+}
+
+function command_renderer.JOIN(irc)
+    italic()
+    local _, u, h = split_nuh(irc.source)
+    addstr('joined ', scrub(u), '@', scrub(h))
+    local account = irc[2]
+    if account then
+        if '*' ~= account then
+            addstr(' <', scrub(account), '>')
+        end
+        addstr ' '
+        addircstr(irc[3])
+    end
+end
+
+function command_renderer.PART(irc)
+    italic()
+    addstr 'parted '
+    addircstr(irc[1])
+end
+
+function command_renderer.QUIT(irc)
+    italic()
+    addstr 'quit '
+    addircstr(irc[1])
+end
+
+function command_renderer.NICK(irc)
+    italic()
+    addstr('set nick ', scrub(irc[1]))
+end
+
+function command_renderer.KICK(irc)
+    italic()
+    addstr('kicked ', scrub(irc[2]), ': ')
+    addircstr(irc[3])
+end
+
+function command_renderer.MODE(irc)
+    italic()
+    addstr 'set mode'
+    for i = 2, #irc do
+        addstr(' ', scrub(irc[i]))
+    end
+end
+
+function command_renderer.TOPIC(irc)
+    italic()
+    addstr 'set topic '
+    addircstr(irc[2])
+end
+
+function command_renderer.ACCOUNT(irc)
+    italic()
+    local account = irc[1]
+    if '*' == account then
+        addstr 'logged out'
+    else
+        addstr('logged in as ', scrub(account))
+    end
+end
+
+function command_renderer.CHGHOST(irc)
+    italic()
+    addstr('set host ', scrub(irc[1]), '@', scrub(irc[2]))
+end
 
 local function render_irc(irc)
     local command = irc.command
     local source = irc.source:match '^(.-)([.!])' or irc.source
-    local action = irc[2]:match '^\x01ACTION (.*)\x01$'
-    local text = action or irc[2]
+
+    local action = 'PRIVMSG' == command and irc[2]:match '^\x01ACTION (.*)\x01$'
 
     if source == '>>>' then
         red()
@@ -20,6 +98,8 @@ local function render_irc(irc)
         cyan()
     elseif command == 'NOTICE' then
         green()
+    else
+        magenta()
     end
 
     add_button(string.format(' %16.16s', scrub(source)), function()
@@ -35,7 +115,8 @@ local function render_irc(irc)
         addstr ' '
     end
 
-    addircstr(string.sub(text, hscroll))
+    local h = command_renderer[irc.command]
+    if h then h(irc) end
 end
 
 local M = {
