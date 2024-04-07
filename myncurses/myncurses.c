@@ -9,10 +9,13 @@
 #include "lualib.h"
 
 #include "myncurses.h"
+#include "window.h"
 
 static int l_erase(lua_State *L)
 {
-    if (ERR == erase()) {
+    WINDOW* const win = optwindow(L, 1);
+
+    if (ERR == werase(win)) {
         return luaL_error(L, "erase: ncurses error");
     }
     return 0;
@@ -20,7 +23,9 @@ static int l_erase(lua_State *L)
 
 static int l_clear(lua_State *L)
 {
-    if (ERR == clear()) {
+    WINDOW* const win = optwindow(L, 1);
+
+    if (ERR == wclear(win)) {
         return luaL_error(L, "clear: ncurses error");
     }
     return 0;
@@ -28,7 +33,9 @@ static int l_clear(lua_State *L)
 
 static int l_refresh(lua_State *L)
 {
-    if (ERR == refresh()) {
+    WINDOW* const win = optwindow(L, 1);
+
+    if (ERR == wrefresh(win)) {
         return luaL_error(L, "refresh: ncurses error");
     }
     return 0;
@@ -36,8 +43,10 @@ static int l_refresh(lua_State *L)
 
 static int l_attron(lua_State *L)
 {
-    int a = luaL_checkinteger(L, 1);
-    if (ERR == attr_on(a, NULL)) {
+    int const a = luaL_checkinteger(L, 1);
+    WINDOW* const win = optwindow(L, 2);
+
+    if (ERR == wattr_on(win, a, NULL)) {
         return luaL_error(L, "attron: ncurses error");
     }
     return 0;
@@ -45,8 +54,10 @@ static int l_attron(lua_State *L)
 
 static int l_attroff(lua_State *L)
 {
-    int a = luaL_checkinteger(L, 1);
-    if (ERR == attr_off(a, NULL)) {
+    int const a = luaL_checkinteger(L, 1);
+    WINDOW* const win = optwindow(L, 2);
+
+    if (ERR == wattr_off(win, a, NULL)) {
         return luaL_error(L, "attroff: ncurses error");
     }
     return 0;
@@ -56,7 +67,9 @@ static int l_attrset(lua_State *L)
 {
     int const a = luaL_checkinteger(L, 1);
     int const color = luaL_checkinteger(L, 2);
-    if (ERR == attr_set(a, color, NULL)) {
+    WINDOW* const win = optwindow(L, 3);
+
+    if (ERR == wattr_set(win, a, color, NULL)) {
         return luaL_error(L, "attrset: ncurses error");
     }
     return 0;
@@ -102,8 +115,10 @@ static int l_mvaddstr(lua_State *L)
 
 static int l_getyx(lua_State *L)
 {
+    WINDOW* const win = optwindow(L, 1);
+
     int y, x;
-    getyx(stdscr, y, x);
+    getyx(win, y, x);
     lua_pushinteger(L, y);
     lua_pushinteger(L, x);
     return 2;
@@ -121,6 +136,8 @@ static int l_colorset(lua_State *L)
     lua_Integer back = luaL_optinteger(L, 2, -1);
     luaL_argcheck(L, -1 <= back && back <= 7, 2, "out of range");
 
+    WINDOW* const win = optwindow(L, 3);
+
     int* pair = &color_map[fore+1][back+1];
     if (0 == *pair && (fore >= 0 || back >= 0)) {
         if (assigned < COLOR_PAIRS) {
@@ -130,7 +147,7 @@ static int l_colorset(lua_State *L)
         }
     }
 
-    if (ERR == color_set(*pair, NULL)) {
+    if (ERR == wcolor_set(win, *pair, NULL)) {
         return luaL_error(L, "color_set: ncurses error");
     }
 
@@ -141,7 +158,8 @@ static int l_move(lua_State *L)
 {
     lua_Integer y = luaL_checkinteger(L, 1);
     lua_Integer x = luaL_checkinteger(L, 2);
-    if (ERR == move(y, x))
+    WINDOW* const win = optwindow(L, 3);
+    if (ERR == wmove(win, y, x))
     {
         return luaL_error(L, "move");
     }
@@ -190,6 +208,8 @@ static luaL_Reg lib[] = {
     {"move", l_move},
     {"beep", l_beep},
     {"flash", l_flash},
+
+    {"newwin", l_newwin},
     {},
 };
 
