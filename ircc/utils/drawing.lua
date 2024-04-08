@@ -90,75 +90,79 @@ local input_mode_palette = {
     filter = ncurses.cyan,
 }
 
-function M.draw_status_bar()
+function M.draw_status_bar(win)
     local titlecolor = ncurses.white
 
-    ncurses.colorset(ncurses.black, titlecolor)
-    mvaddstr(tty_height-1, 0, string.format('%-8.8s', view))
+    ncurses.colorset(ncurses.black, titlecolor, win)
+    ncurses.move(0, 0, win)
+
+    win:addstr(string.format('%-8.8s', view))
 
     if input_mode then
         local input_mode_color = input_mode_palette[input_mode]
-        ncurses.colorset(titlecolor, input_mode_color)
-        addstr('')
-        ncurses.colorset(ncurses.white, input_mode_color)
-        addstr(input_mode)
-        ncurses.colorset(input_mode_color)
-        addstr('')
+        ncurses.colorset(titlecolor, input_mode_color, win)
+        win:addstr('')
+        ncurses.colorset(ncurses.white, input_mode_color, win)
+        win:addstr(input_mode)
+        ncurses.colorset(input_mode_color, nil, win)
+        win:addstr('')
 
         if 1 < editor.first then
-            yellow()
-            addstr('…')
-            ncurses.colorset(input_mode_color)
+            yellow(win)
+            win:addstr('…')
+            ncurses.colorset(input_mode_color, nil, win)
         else
-            addstr(' ')
+            win:addstr(' ')
         end
 
         if input_mode == 'filter' then
             if matching.compile(editor:content()) then
-                green()
+                green(win)
             else
-                red()
+                red(win)
             end
         end
 
-        local y0, x0 = ncurses.getyx()
+        local y0, x0 = ncurses.getyx(win)
 
-        addstr(editor.before_cursor)
+        win:addstr(editor.before_cursor)
 
         -- cursor overflow: clear and redraw
-        local y1, x1 = ncurses.getyx()
+        local y1, x1 = ncurses.getyx(win)
         if x1 == tty_width - 1 then
-            yellow()
-            mvaddstr(y0, x0-1, '…' .. string.rep(' ', tty_width)) -- erase line
-            ncurses.colorset(input_mode_color)
+            yellow(win)
+            ncurses.move(y0, x0-1, win)
+            win:addstr('…' .. string.rep(' ', tty_width)) -- erase line
+            ncurses.colorset(input_mode_color, nil, win)
             editor:overflow()
-            mvaddstr(y0, x0, editor.before_cursor)
-            y1, x1 = ncurses.getyx()
+            ncurses.move(y0, x0, win)
+            win:addstr(editor.before_cursor)
+            y1, x1 = ncurses.getyx(win)
         end
 
-        addstr(editor.at_cursor)
-        ncurses.move(y1, x1)
+        win:addstr(editor.at_cursor)
+        ncurses.move(y1, x1, win)
         ncurses.cursset(1)
     else
-        ncurses.colorset(titlecolor)
-        addstr('')
-        normal()
+        ncurses.colorset(titlecolor, nil, win)
+        win:addstr('')
+        normal(win)
 
-        views[view]:draw_status()
+        views[view]:draw_status(win)
 
         if status_message then
-            irc_formatting(' ' .. status_message)
+            irc_formatting(' ' .. status_message, win)
         end
 
         if scroll ~= 0 then
-            addstr(string.format(' SCROLL %d', scroll))
+            win:addstr(string.format(' SCROLL %d', scroll))
         end
 
         if filter ~= nil then
-            yellow()
-            addstr(' FILTER ')
-            normal()
-            addstr(string.format('%q', filter))
+            yellow(win)
+            win:addstr(' FILTER ')
+            normal(win)
+            win:addstr(string.format('%q', filter))
         end
 
         add_click(tty_height-1, 0, 9, next_view)

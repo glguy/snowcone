@@ -32,23 +32,23 @@ do
     local yellow_ = ncurses.yellow
     local white_ = ncurses.white
 
-    function normal()        attrset(WA_NORMAL, 0)   end
-    function bold()          attron(WA_BOLD)         end
-    function bold_()         attroff(WA_BOLD)        end
-    function italic()        attron(WA_ITALIC)       end
-    function italic_()       attroff(WA_ITALIC)      end
-    function reversevideo()  attron(WA_REVERSE)      end
-    function reversevideo_() attroff(WA_REVERSE)     end
-    function underline()     attron(WA_UNDERLINE)    end
-    function underline_()    attroff(WA_UNDERLINE)   end
-    function red()           colorset(red_)          end
-    function green()         colorset(green_)        end
-    function blue()          colorset(blue_)         end
-    function cyan()          colorset(cyan_)         end
-    function black()         colorset(black_)        end
-    function magenta()       colorset(magenta_)      end
-    function yellow()        colorset(yellow_)       end
-    function white()         colorset(white_)        end
+    function normal(w)        attrset(WA_NORMAL, 0, w)   end
+    function bold(w)          attron(WA_BOLD, w)         end
+    function bold_(w)         attroff(WA_BOLD, w)        end
+    function italic(w)        attron(WA_ITALIC, w)       end
+    function italic_(w)       attroff(WA_ITALIC, w)      end
+    function reversevideo(w)  attron(WA_REVERSE, w)      end
+    function reversevideo_(w) attroff(WA_REVERSE, w)     end
+    function underline(w)     attron(WA_UNDERLINE, w)    end
+    function underline_(w)    attroff(WA_UNDERLINE, w)   end
+    function red(w)           colorset(red_, nil, w)     end
+    function green(w)         colorset(green_, nil, w)   end
+    function blue(w)          colorset(blue_, nil, w)    end
+    function cyan(w)          colorset(cyan_, nil, w)    end
+    function black(w)         colorset(black_, nil, w)   end
+    function magenta(w)       colorset(magenta_, nil, w) end
+    function yellow(w)        colorset(yellow_, nil, w)  end
+    function white(w)         colorset(white_, nil, w)   end
 end
 
 function require_(name)
@@ -92,6 +92,23 @@ end
 function reset_filter()
     filter = nil
 end
+
+-- Make windows ==================================================
+
+if win_status then
+    win_status:delwin()
+end
+win_status = ncurses.newwin(1, tty_width, tty_height-1, 0)
+
+if win_main then
+    win_main:delwin()
+end
+win_main = ncurses.newwin(tty_height-1, tty_width-26, 0, 26)
+
+if win_side then
+    win_side:delwin()
+end
+win_side = ncurses.newwin(tty_height-1, 26, 0, 0)
 
 --  Helper functions ==================================================
 
@@ -173,11 +190,18 @@ end
 
 local function draw()
     clicks = {}
+    ncurses.erase(win_status)
+    ncurses.erase(win_side)
+    ncurses.erase(win_main)
     ncurses.erase()
-    normal()
-    views[view]:render()
-    drawing.draw_status_bar()
+
+    normal(win_main)
+    views[view]:render(win_side, win_main)
+    drawing.draw_status_bar(win_status)
     ncurses.refresh()
+    ncurses.refresh(win_main)
+    ncurses.refresh(win_side)
+    ncurses.refresh(win_status)
 end
 
 -- Callback Logic =====================================================

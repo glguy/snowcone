@@ -124,6 +124,17 @@ static int l_getyx(lua_State *L)
     return 2;
 }
 
+static int l_getmaxyx(lua_State *L)
+{
+    WINDOW* const win = optwindow(L, 1);
+
+    int y, x;
+    getmaxyx(win, y, x);
+    lua_pushinteger(L, y);
+    lua_pushinteger(L, x);
+    return 2;
+}
+
 static int l_colorset(lua_State *L)
 {
     // map [fore][back] to a pair number - zero for unassigned (except for [-1][-1])
@@ -194,6 +205,7 @@ static luaL_Reg lib[] = {
     {"addstr", l_addstr},
     {"mvaddstr", l_mvaddstr},
     {"getyx", l_getyx},
+    {"getmaxyx", l_getmaxyx},
 
     {"refresh", l_refresh},
     {"erase", l_erase},

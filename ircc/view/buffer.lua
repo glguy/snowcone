@@ -236,17 +236,17 @@ function M:render()
     end
 end
 
-function M:draw_status()
+function M:draw_status(win)
     -- not connected
     if not irc_state or irc_state.phase ~= 'connected' then
-        yellow()
+        yellow(win)
 
     -- Render joined channels in green and stale buffers in red
     elseif irc_state:is_channel_name(talk_target) then
         if irc_state:get_channel(talk_target) then
-            green()
+            green(win)
         else
-            red()
+            red(win)
         end
 
     -- render online users in green, offline in red
@@ -254,36 +254,36 @@ function M:draw_status()
         local entry = irc_state:get_monitor(talk_target)
         if entry.user then
             if entry.user.away then
-                magenta()
+                magenta(win)
             else
-                green()
+                green(win)
             end
         else
-            red()
+            red(win)
         end
 
     -- When monitor isn't available indicate uncertainty with yellow
     else
-        yellow()
+        yellow(win)
     end
 
     do
         local buffer = buffers[talk_target]
         local name = buffer and buffer.name or talk_target
-        bold()
-        addstr(name, '')
-        normal()
+        bold(win)
+        win:addstr(name, '')
+        normal(win)
     end
 
     -- render channel names with unseen messages in yellow
     for _, buffer in tablex.sort(buffers) do
         if buffer.seen < buffer.messages.n then
             if buffer.mention then
-                magenta()
+                magenta(win)
             else
-                yellow()
+                yellow(win)
             end
-            addstr(buffer.name, '')
+            win:addstr(buffer.name, '')
         end
     end
 end

@@ -7,71 +7,81 @@ local M = {
     draw_status = function() end,
 }
 
-function M:render()
-    green()
-    addstr('          -= IRC session =-\n')
-    normal()
-    addstr '\n'
+function M:render(win_side, win_main)
+
+    local function label(txt)
+        local y, _x = ncurses.getyx(win_main)
+        ncurses.move(y, 0, win_side)
+        win_side:addstr(string.format('%24s:', txt))
+    end
+
+    ncurses.move(0,0, win_main)
+
+    green(win_main)
+    win_main:addstr('          -= IRC session =-\n')
+    normal(win_main)
+    win_main:addstr '\n'
 
     if not irc_state then return end
 
-    addstr '   Phase: '
-    bold()
-    addstr(irc_state.phase)
-    normal()
-    addstr '\n'
+    label 'Phase'
+    bold(win_main)
+    win_main:addstr(irc_state.phase)
+    normal(win_main)
+    win_main:addstr '\n'
 
     if irc_state.nick then
-        addstr '    Nick: '
-        bold()
-        addstr(scrub(irc_state.nick), '\n')
-        normal()
+        label('Nick')
+        bold(win_main)
+        win_main:addstr(scrub(irc_state.nick), '\n')
+        normal(win_main)
     end
 
-    addstr '    Mode: '
+    label 'Mode'
     for k, _ in tablex.sort(irc_state.mode) do
-        addstr(scrub(k))
+        win_main:addstr(scrub(k))
     end
-    addstr '\n'
+    win_main:addstr('\n')
 
-    addstr '    Caps:'
-    bold()
+    label 'Caps'
+    bold(win_main)
     for k, v in tablex.sort(irc_state.caps_available) do
         if irc_state.caps_enabled[k] then
-            green()
+            green(win_main)
         else
-            red()
+            red(win_main)
         end
-        addstr ' ' addstr(scrub(k))
+        win_main:addstr(scrub(k))
         if v ~= true then
-            addstr '='
-            addstr(scrub(v))
+            win_main:addstr '='
+            win_main:addstr(scrub(v))
         end
+        win_main:addstr(' ')
     end
-    normal()
-    addstr '\n'
+    normal(win_main)
+    win_main:addstr '\n'
 
-    addstr 'Channels:'
-    bold()
+    label 'Channels'
+    bold(win_main)
     for _, v in tablex.sort(irc_state.channels) do
-        addstr ' ' addstr(scrub(v.name))
+        win_main:addstr(scrub(v.name), ' ')
     end
-    normal()
-    addstr '\n'
+    normal(win_main)
+    win_main:addstr('\n')
 
     if irc_state.monitor then
-        addstr ' Monitor:'
+        label 'Monitor'
         for k, v in tablex.sort(irc_state.monitor) do
             if v.user then
-                green()
-                addstr ' ' addstr(scrub(v.user.nick))
+                green(win_main)
+                win_main:addstr(' ', scrub(v.user.nick))
             else
-                red()
-                addstr ' ' addstr(scrub(k:lower()))
+                red(win_main)
+                win_main:addstr(' ', scrub(k:lower()))
             end
         end
-        normal()
-        addstr '\n'
+        normal(win_main)
+        win_main:addstr '\n'
     end
 end
 
