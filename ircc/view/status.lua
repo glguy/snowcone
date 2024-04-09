@@ -17,14 +17,6 @@ local keys = {
         scroll = scroll - math.max(1, tty_height - 3)
         scroll = math.max(scroll, 0)
     end,
-    [-ncurses.KEY_RIGHT] = function()
-        local scroll_unit = math.max(1, tty_width - 26)
-        hscroll = math.max(0, math.min(550 - scroll_unit, hscroll + scroll_unit))
-    end,
-    [-ncurses.KEY_LEFT] = function()
-        local scroll_unit = math.max(1, tty_width - 26)
-        hscroll = math.max(0, hscroll - scroll_unit)
-    end,
 }
 
 function M:keypress(key)
@@ -41,6 +33,13 @@ local function show_entry(entry)
     return matching.safematch(entry.text, current_filter)
 end
 
+local function draw_entry(win, entry)
+    blue(win)
+    win:waddstr(string.format(' %-10.10s ', entry.category or '-'))
+    normal(win)
+    addircstr(win, entry.text)
+end
+
 function M:render(win)
     magenta(win)
     bold(win)
@@ -48,12 +47,7 @@ function M:render(win)
     bold_(win)
 
     local rows = math.max(0, tty_height - 2)
-    drawing.draw_rotation(win, 1, rows, status_messages, show_entry, function(win, entry)
-        blue(win)
-        win:waddstr(string.format(' %-10.10s ', entry.category or '-'))
-        normal(win)
-        addircstr(win, entry.text)
-    end)
+    drawing.draw_rotation(win, 1, rows, status_messages, show_entry, draw_entry)
 end
 
 return M

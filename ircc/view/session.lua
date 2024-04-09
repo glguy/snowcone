@@ -1,26 +1,9 @@
 local scrub = require 'utils.scrub'
 local tablex = require 'pl.tablex'
 
-local keys = {
-    [-ncurses.KEY_RIGHT] = function()
-        local scroll_unit = math.max(1, tty_width - 26)
-        hscroll = math.max(0, math.min(550 - scroll_unit, hscroll + scroll_unit))
-    end,
-    [-ncurses.KEY_LEFT] = function()
-        local scroll_unit = math.max(1, tty_width - 26)
-        hscroll = math.max(0, hscroll - scroll_unit)
-    end,
-}
-
 local M = {
     title = 'session',
-    keypress = function(self, key)
-        local h = keys[key]
-        if h then
-            h()
-            return true -- consume
-        end
-    end,
+    keypress = function() end,
     draw_status = function() end,
 }
 

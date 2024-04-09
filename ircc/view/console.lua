@@ -114,14 +114,6 @@ local keys = {
         scroll = scroll - math.max(1, tty_height - 1)
         scroll = math.max(scroll, 0)
     end,
-    [-ncurses.KEY_RIGHT] = function()
-        local scroll_unit = math.max(1, tty_width - 26)
-        hscroll = math.max(0, math.min(550 - scroll_unit, hscroll + scroll_unit))
-    end,
-    [-ncurses.KEY_LEFT] = function()
-        local scroll_unit = math.max(1, tty_width - 26)
-        hscroll = math.max(0, hscroll - scroll_unit)
-    end,
     [meta 'h'] = function() hide_snow = not hide_snow end,
     [meta 'r'] = function() show_raw = not show_raw end,
 }

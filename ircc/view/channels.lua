@@ -8,8 +8,6 @@ local M = {
     draw_status = function() end,
 }
 
-local hscroll = 0
-
 local keys = {
     [-ncurses.KEY_PPAGE] = function()
         local elts = math.min(channel_list.n, channel_list.max)
@@ -20,14 +18,6 @@ local keys = {
     [-ncurses.KEY_NPAGE] = function()
         scroll = scroll - math.max(1, tty_height - 3)
         scroll = math.max(scroll, 0)
-    end,
-    [-ncurses.KEY_RIGHT] = function()
-        local scroll_unit = math.max(1, tty_width - 26)
-        hscroll = math.max(0, math.min(1024 - scroll_unit, hscroll + scroll_unit))
-    end,
-    [-ncurses.KEY_LEFT] = function()
-        local scroll_unit = math.max(1, tty_width - 26)
-        hscroll = math.max(0, hscroll - scroll_unit)
     end,
 }
 
@@ -47,22 +37,24 @@ local function show_entry(entry)
         or matching.safematch(entry.topic, current_filter)
 end
 
+local function draw_entry(win, entry)
+    green(win)
+    win:waddstr(' ', scrub(entry.channel))
+    blue(win)
+    win:waddstr(' ', entry.users, ' ')
+    normal(win)
+    addircstr(win, entry.topic)
+end
+
 function M:render(win)
     magenta(win)
     bold(win)
-    win:waddstr('         channel users topic ')
+    win:waddstr('         channels: ', channel_list.n, ' ')
     add_button(win, '[REFRESH]', function() send('LIST') end)
     bold_(win)
 
     local rows = math.max(0, tty_height - 2)
-    drawing.draw_rotation(win, 1, rows, channel_list, show_entry, function(win, entry)
-        green(win)
-        win:waddstr(' ', scrub(entry.channel))
-        blue(win)
-        win:waddstr(' ', entry.users, ' ')
-        normal(win)
-        addircstr(win, entry.topic:sub(hscroll))
-    end)
+    drawing.draw_rotation(win, 1, rows, channel_list, show_entry, draw_entry)
 end
 
 return M

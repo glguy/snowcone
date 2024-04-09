@@ -37,6 +37,7 @@ stds = {
             "main_views", -- sequence of views mapped to keyboard shortcuts
             "uptime", -- seconds the client has been open
             "scroll", -- number of lines scrolled back
+            "hscroll", -- columns scrolled right
             "editor", -- input textbox state
             "filter", -- pattern used to filter chat messages
             "terminal_focus", -- true when terminal has focus

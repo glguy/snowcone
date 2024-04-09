@@ -67,7 +67,16 @@ local M = {
         elseif talk_target then
             set_view 'buffer'
         end
-    end
+    end,
+
+    [-ncurses.KEY_RIGHT] = function()
+        local scroll_unit = math.max(1, tty_width - 26)
+        hscroll = math.max(0, math.min(550 - scroll_unit, hscroll + scroll_unit))
+    end,
+    [-ncurses.KEY_LEFT] = function()
+        local scroll_unit = math.max(1, tty_width - 26)
+        hscroll = math.max(0, hscroll - scroll_unit)
+    end,
 }
 
 for i, v in ipairs(main_views) do
