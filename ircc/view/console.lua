@@ -163,7 +163,7 @@ local function draw_focus(win, irc, snotice)
         for k, v in tablex.sort(irc.tags) do
             cyan(win)
             if show_raw then k = rawstr(k) else k = scrub(k) end
-            ncurses.move(ncurses.getyx(win), 12, win)
+            win:wmove(ncurses.getyx(win), 12)
             win:waddstr(k)
             if v == '' then
                 win:waddstr '\n'

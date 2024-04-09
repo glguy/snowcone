@@ -72,11 +72,11 @@ function M.draw_rotation(win, start, rows, data, show_entry, draw)
             last_time = os.date '!%H:%M:%S'
 
             yellow(win)
-            ncurses.move(y, 0, win)
+            win:wmove(y, 0)
             win:waddstr(last_time, divider_string)
         elseif entry then
             normal(win)
-            ncurses.move(y, 0, win)
+            win:wmove(y, 0)
             local time = entry.time
             if time == last_time then
                 win:waddstr '        '
@@ -102,7 +102,7 @@ function M.draw_status_bar(win)
     local titlecolor = ncurses.white
 
     ncurses.colorset(ncurses.black, titlecolor, win)
-    ncurses.move(0, 0, win)
+    win:wmove(0, 0)
 
     win:waddstr(string.format('%-8.8s', view))
 
@@ -139,17 +139,17 @@ function M.draw_status_bar(win)
         local y1, x1 = ncurses.getyx(win)
         if x1 == tty_width - 1 then
             yellow(win)
-            ncurses.move(y0, x0-1, win)
+            win:wmove(y0, x0-1)
             win:waddstr('…' .. string.rep(' ', tty_width)) -- erase line
             ncurses.colorset(input_mode_color, nil, win)
             editor:overflow()
-            ncurses.move(y0, x0, win)
+            win:wmove(y0, x0)
             win:waddstr(editor.before_cursor)
             y1, x1 = ncurses.getyx(win)
         end
 
         win:waddstr(editor.at_cursor)
-        ncurses.move(y1, x1, win)
+        win:wmove(y1, x1)
         ncurses.cursset(1)
     else
         ncurses.colorset(titlecolor, nil, win)

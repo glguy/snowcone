@@ -30,8 +30,7 @@ function M:render(win)
         win:waddstr(string.format('%14s: ', txt))
     end
 
-    ncurses.move(0,0, win)
-
+    win:wmove(0, 0)
     green(win)
     win:waddstr('          -= IRC session =-\n')
     normal(win)

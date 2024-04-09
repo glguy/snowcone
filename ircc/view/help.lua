@@ -36,7 +36,7 @@ function M:render(win)
     local x = 0
 
     for _, str in tablex.sort(entries) do
-        ncurses.move(y, x, win)
+        win:wmove(y, x)
         win:waddstr(str)
 
         if tty_height <= y+2 then
