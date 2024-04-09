@@ -99,6 +99,26 @@ static int l_wmove(lua_State* const L)
     return 0;
 }
 
+static int l_werase(lua_State* const L)
+{
+    WINDOW* const win = checkwindow(L, 1);
+    if (ERR == werase(win))
+    {
+        return luaL_error(L, "werase: ncurses error");
+    }
+    return 0;
+}
+
+static int l_wclear(lua_State* const L)
+{
+    WINDOW* const win = checkwindow(L, 1);
+    if (ERR == wclear(win))
+    {
+        return luaL_error(L, "wclear: ncurses error");
+    }
+    return 0;
+}
+
 static int l_waddstr(lua_State* const L)
 {
     WINDOW* const win = checkwindow(L, 1);
@@ -122,6 +142,8 @@ static luaL_Reg const Methods[] = {
     {"delwin", l_delwin},
     {"wresize", l_wresize},
     {"wmove", l_wmove},
+    {"werase", l_werase},
+    {"wclear", l_wclear},
     {"prefresh", l_prefresh},
     {"pnoutrefresh", l_pnoutrefresh},
     {"waddstr", l_waddstr},

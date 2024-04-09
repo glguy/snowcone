@@ -198,13 +198,15 @@ end
 local function draw()
     clicks = {}
     ncurses.erase()
-    ncurses.erase(thepad)
-    ncurses.erase(inputwin)
+    thepad:werase()
+    inputwin:werase()
+
     normal(thepad)
     views[view]:render(thepad)
     drawing.draw_status_bar(inputwin)
+
     ncurses.noutrefresh()
-    thepad:pnoutrefresh(0, hscroll, 0, 0, tty_height-1, tty_width-1)
+    thepad:pnoutrefresh(0, hscroll, 0, 0, tty_height-2, tty_width-1)
     ncurses.noutrefresh(inputwin)
     ncurses.doupdate()
 end
