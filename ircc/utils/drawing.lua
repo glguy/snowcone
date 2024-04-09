@@ -1,17 +1,27 @@
-local irc_formatting = require 'utils.irc_formatting'
+local addircstr = require 'utils.irc_formatting'
 local matching = require 'utils.matching'
+
+local divider_string =
+--  00:00:00
+           "········································································\z
+    1···············································································\z
+    2···············································································\z
+    3···············································································\z
+    4···············································································\z
+    5···············································································\z
+    6·····································································"
 local M = {}
 
-function M.fade_time(timestamp, time)
+function M.fade_time(win, timestamp, time)
     local age = uptime - timestamp
     if age < 8 then
-        white()
-        addstr(string.sub(time, 1, 8-age))
-        cyan()
-        addstr(string.sub(time, 9-age, 8))
+        white(win)
+        win:waddstr(string.sub(time, 1, 8-age))
+        cyan(win)
+        win:waddstr(string.sub(time, 9-age, 8))
     else
-        cyan()
-        addstr(time)
+        cyan(win)
+        win:waddstr(time)
     end
 end
 
@@ -51,9 +61,8 @@ local function rotating_window(source, rows, predicate)
     return window
 end
 
-function M.draw_rotation(start, rows, data, show_entry, draw)
+function M.draw_rotation(win, start, rows, data, show_entry, draw)
     local window = rotating_window(data, rows, show_entry)
-    local clear_string = string.rep(' ', tty_width)
 
     local last_time
     for i = 1, rows do
@@ -61,25 +70,24 @@ function M.draw_rotation(start, rows, data, show_entry, draw)
         local y = start + i - 1
         if entry == 'divider' then
             last_time = os.date '!%H:%M:%S'
-            yellow()
-            mvaddstr(y, 0, last_time, string.rep('·', tty_width-8))
-            normal()
+
+            yellow(win)
+            ncurses.move(y, 0, win)
+            win:waddstr(last_time, divider_string)
         elseif entry then
-            normal()
-            mvaddstr(y, 0, clear_string)
-            ncurses.move(y, 0)
+            normal(win)
+            ncurses.move(y, 0, win)
             local time = entry.time
             if time == last_time then
-                addstr '        '
+                win:waddstr '        '
             else
                 last_time = time
-                M.fade_time(entry.timestamp or 0, entry.time)
+                M.fade_time(win, entry.timestamp or 0, entry.time)
             end
-            normal()
-            draw(entry)
+            normal(win)
+            draw(win, entry)
         else
-            normal()
-            mvaddstr(y, 0, clear_string)
+            normal(win)
         end
     end
 end
@@ -96,23 +104,23 @@ function M.draw_status_bar(win)
     ncurses.colorset(ncurses.black, titlecolor, win)
     ncurses.move(0, 0, win)
 
-    win:addstr(string.format('%-8.8s', view))
+    win:waddstr(string.format('%-8.8s', view))
 
     if input_mode then
         local input_mode_color = input_mode_palette[input_mode]
         ncurses.colorset(titlecolor, input_mode_color, win)
-        win:addstr('')
+        win:waddstr('')
         ncurses.colorset(ncurses.white, input_mode_color, win)
-        win:addstr(input_mode)
+        win:waddstr(input_mode)
         ncurses.colorset(input_mode_color, nil, win)
-        win:addstr('')
+        win:waddstr('')
 
         if 1 < editor.first then
             yellow(win)
-            win:addstr('…')
+            win:waddstr('…')
             ncurses.colorset(input_mode_color, nil, win)
         else
-            win:addstr(' ')
+            win:waddstr(' ')
         end
 
         if input_mode == 'filter' then
@@ -125,44 +133,44 @@ function M.draw_status_bar(win)
 
         local y0, x0 = ncurses.getyx(win)
 
-        win:addstr(editor.before_cursor)
+        win:waddstr(editor.before_cursor)
 
         -- cursor overflow: clear and redraw
         local y1, x1 = ncurses.getyx(win)
         if x1 == tty_width - 1 then
             yellow(win)
             ncurses.move(y0, x0-1, win)
-            win:addstr('…' .. string.rep(' ', tty_width)) -- erase line
+            win:waddstr('…' .. string.rep(' ', tty_width)) -- erase line
             ncurses.colorset(input_mode_color, nil, win)
             editor:overflow()
             ncurses.move(y0, x0, win)
-            win:addstr(editor.before_cursor)
+            win:waddstr(editor.before_cursor)
             y1, x1 = ncurses.getyx(win)
         end
 
-        win:addstr(editor.at_cursor)
+        win:waddstr(editor.at_cursor)
         ncurses.move(y1, x1, win)
         ncurses.cursset(1)
     else
         ncurses.colorset(titlecolor, nil, win)
-        win:addstr('')
+        win:waddstr('')
         normal(win)
 
         views[view]:draw_status(win)
 
         if status_message then
-            irc_formatting(' ' .. status_message, win)
+            addircstr(win, ' ' .. status_message)
         end
 
         if scroll ~= 0 then
-            win:addstr(string.format(' SCROLL %d', scroll))
+            win:waddstr(string.format(' SCROLL %d', scroll))
         end
 
         if filter ~= nil then
             yellow(win)
-            win:addstr(' FILTER ')
+            win:waddstr(' FILTER ')
             normal(win)
-            win:addstr(string.format('%q', filter))
+            win:waddstr(string.format('%q', filter))
         end
 
         add_click(tty_height-1, 0, 9, next_view)

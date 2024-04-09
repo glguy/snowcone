@@ -6,6 +6,7 @@ local M = {
         editor:reset()
         input_mode = nil
         scroll = 0
+        hscroll = 0
     end,
 
     [-ncurses.KEY_RESUME] = function()
@@ -56,7 +57,7 @@ local M = {
 
         if best_target then
             set_talk_target(best_target)
-            view = 'buffer'
+            set_view 'buffer'
         end
     end,
 
@@ -64,13 +65,13 @@ local M = {
         if view == 'buffer' then
             talk_target_old, talk_target = talk_target, talk_target_old
         elseif talk_target then
-            view = 'buffer'
+            set_view 'buffer'
         end
     end
 }
 
 for i, v in ipairs(main_views) do
-    M[-(ncurses.KEY_F1 - 1 + i)] = function() view = v end
+    M[-(ncurses.KEY_F1 - 1 + i)] = function() set_view(v) end
 end
 
 return M

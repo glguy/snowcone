@@ -41,6 +41,17 @@ static int l_refresh(lua_State *L)
     return 0;
 }
 
+
+static int l_noutrefresh(lua_State *L)
+{
+    WINDOW* const win = optwindow(L, 1);
+
+    if (ERR == wnoutrefresh(win)) {
+        return luaL_error(L, "wnoutrefresh: ncurses error");
+    }
+    return 0;
+}
+
 static int l_attron(lua_State *L)
 {
     int const a = luaL_checkinteger(L, 1);
@@ -135,6 +146,15 @@ static int l_getmaxyx(lua_State *L)
     return 2;
 }
 
+static int l_doupdate(lua_State* const L)
+{
+    if (ERR == doupdate())
+    {
+        return luaL_error(L, "doupdate: ncurses error");
+    }
+    return 0;
+}
+
 static int l_colorset(lua_State *L)
 {
     // map [fore][back] to a pair number - zero for unassigned (except for [-1][-1])
@@ -208,6 +228,7 @@ static luaL_Reg lib[] = {
     {"getmaxyx", l_getmaxyx},
 
     {"refresh", l_refresh},
+    {"noutrefresh", l_noutrefresh},
     {"erase", l_erase},
     {"clear", l_clear},
 
@@ -222,6 +243,8 @@ static luaL_Reg lib[] = {
     {"flash", l_flash},
 
     {"newwin", l_newwin},
+    {"newpad", l_newpad},
+    {"doupdate", l_doupdate},
     {},
 };
 

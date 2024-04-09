@@ -31,6 +31,7 @@ stds = {
             "plugins", -- map of loaded plugins
             "irc_state", -- state of the current IRC connection
             "input_mode", -- current input mode: filter, talk, command
+            "set_view", -- function to update current view
             "view", -- name of the currently rendering view
             "views", -- table of all the available views
             "main_views", -- sequence of views mapped to keyboard shortcuts

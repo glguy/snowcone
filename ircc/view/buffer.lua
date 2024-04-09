@@ -5,12 +5,10 @@ local drawing = require 'utils.drawing'
 local scrub = require 'utils.scrub'
 local split_nuh   = require_ 'utils.split_nick_user_host'
 
-local hscroll = 0
-
-local function chat_renderer(irc)
+local function chat_renderer(win, irc)
     local action = 'PRIVMSG' == irc.command and irc[2]:match '^\x01ACTION (.*)\x01$'
     local text = action or irc[2]
-    addircstr(text:sub(hscroll))
+    addircstr(win, text)
 end
 
 local command_renderer = {
@@ -18,105 +16,105 @@ local command_renderer = {
     NOTICE = chat_renderer,
 }
 
-function command_renderer.JOIN(irc)
-    italic()
+function command_renderer.JOIN(win, irc)
+    italic(win)
     local _, u, h = split_nuh(irc.source)
-    addstr('joined ', scrub(u), '@', scrub(h))
+    win:waddstr('joined ', scrub(u), '@', scrub(h))
     local account = irc[2]
     if account then
         if '*' ~= account then
-            addstr(' <', scrub(account), '>')
+            win:waddstr(' <', scrub(account), '>')
         end
-        addstr ' '
-        addircstr(irc[3])
+        win:waddstr ' '
+        addircstr(win, irc[3])
     end
 end
 
-function command_renderer.PART(irc)
-    italic()
-    addstr 'parted '
-    addircstr(irc[1])
+function command_renderer.PART(win, irc)
+    italic(win)
+    win:waddstr 'parted '
+    addircstr(win, irc[1])
 end
 
-function command_renderer.QUIT(irc)
-    italic()
-    addstr 'quit '
-    addircstr(irc[1])
+function command_renderer.QUIT(win, irc)
+    italic(win)
+    win:waddstr 'quit '
+    addircstr(win, irc[1])
 end
 
-function command_renderer.NICK(irc)
-    italic()
-    addstr('set nick ', scrub(irc[1]))
+function command_renderer.NICK(win, irc)
+    italic(win)
+    win:waddstr('set nick ', scrub(irc[1]))
 end
 
-function command_renderer.KICK(irc)
-    italic()
-    addstr('kicked ', scrub(irc[2]), ': ')
-    addircstr(irc[3])
+function command_renderer.KICK(win, irc)
+    italic(win)
+    win:waddstr('kicked ', scrub(irc[2]), ': ')
+    addircstr(win, irc[3])
 end
 
-function command_renderer.MODE(irc)
-    italic()
-    addstr 'set mode'
+function command_renderer.MODE(win, irc)
+    italic(win)
+    win:waddstr 'set mode'
     for i = 2, #irc do
-        addstr(' ', scrub(irc[i]))
+        win:waddstr(' ', scrub(irc[i]))
     end
 end
 
-function command_renderer.TOPIC(irc)
-    italic()
-    addstr 'set topic '
-    addircstr(irc[2])
+function command_renderer.TOPIC(win, irc)
+    italic(win)
+    win:waddstr 'set topic '
+    addircstr(win, irc[2])
 end
 
-function command_renderer.ACCOUNT(irc)
-    italic()
+function command_renderer.ACCOUNT(win, irc)
+    italic(win)
     local account = irc[1]
     if '*' == account then
-        addstr 'logged out'
+        win:waddstr 'logged out'
     else
-        addstr('logged in as ', scrub(account))
+        win:waddstr('logged in as ', scrub(account))
     end
 end
 
-function command_renderer.CHGHOST(irc)
-    italic()
-    addstr('set host ', scrub(irc[1]), '@', scrub(irc[2]))
+function command_renderer.CHGHOST(win, irc)
+    italic(win)
+    win:waddstr('set host ', scrub(irc[1]), '@', scrub(irc[2]))
 end
 
-local function render_irc(irc)
+local function render_irc(win, irc)
     local command = irc.command
     local source = irc.source:match '^(.-)([.!])' or irc.source
 
     local action = 'PRIVMSG' == command and irc[2]:match '^\x01ACTION (.*)\x01$'
 
     if source == '>>>' then
-        red()
+        red(win)
     elseif action then
-        blue()
+        blue(win)
     elseif command == 'PRIVMSG' then
-        cyan()
+        cyan(win)
     elseif command == 'NOTICE' then
-        green()
+        green(win)
     else
-        magenta()
+        magenta(win)
     end
 
-    add_button(string.format(' %16.16s', scrub(source)), function()
+    add_button(win, string.format(' %16.16s', scrub(source)), function()
         focus = {irc=irc}
-        view = 'console'
+        set_view 'console'
     end, true)
 
     local statusmsg = irc.statusmsg
     if statusmsg then
-        red()
-        addstr(scrub(statusmsg))
+        red(win)
+        win:waddstr(scrub(statusmsg))
     else
-        addstr ' '
+        win:waddstr ' '
     end
 
     local h = command_renderer[irc.command]
-    if h then h(irc) end
+    if h then h(win, irc) end
 end
 
 local M = {
@@ -199,7 +197,7 @@ end
 
 local matching = require 'utils.matching'
 
-local function draw_messages(buffer)
+local function draw_messages(win, buffer)
     local current_filter = matching.current_pattern()
     local show_irc
     if current_filter then
@@ -217,22 +215,22 @@ local function draw_messages(buffer)
         end
     end
 
-    local start = ncurses.getyx()
+    local start = ncurses.getyx(win)
     local rows = math.max(0, tty_height - 1 - start)
 
     buffer:look()
 
-    drawing.draw_rotation(start, rows, buffer.messages, show_irc, render_irc)
+    drawing.draw_rotation(win, start, rows, buffer.messages, show_irc, render_irc)
 end
 
-function M:render()
+function M:render(win)
     local buffer = buffers[talk_target]
     if buffer then
         if terminal_focus and notification_muted[talk_target] then
             require(configuration.notification_module).dismiss(notification_muted[talk_target])
             notification_muted[talk_target] = nil
         end
-        draw_messages(buffer)
+        draw_messages(win, buffer)
     end
 end
 
@@ -271,7 +269,7 @@ function M:draw_status(win)
         local buffer = buffers[talk_target]
         local name = buffer and buffer.name or talk_target
         bold(win)
-        win:addstr(name, '')
+        win:waddstr(name, '')
         normal(win)
     end
 
@@ -283,7 +281,7 @@ function M:draw_status(win)
             else
                 yellow(win)
             end
-            win:addstr(buffer.name, '')
+            win:waddstr(buffer.name, '')
         end
     end
 end

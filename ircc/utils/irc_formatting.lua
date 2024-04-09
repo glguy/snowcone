@@ -8,7 +8,7 @@ local irc_colors = {
     [99] = ncurses.default,
 }
 
-return function(str, win)
+return function(win, str)
     local on_b, on_b_
     local on_u, on_u_
     local on_r, on_r_
@@ -31,7 +31,7 @@ return function(str, win)
         prefix, ctrl, str = string.match(str, '^([^\x00-\x1f\x7f]*)(.?)(.*)$')
 
         if prefix ~= '' then
-            if win then win:addstr(prefix) else addstr(prefix) end
+            win:waddstr(prefix)
         end
 
         -- done
@@ -41,7 +41,7 @@ return function(str, win)
 
         -- ^B - bold
         elseif ctrl == '\x02' then
-            on_b()
+            on_b(win)
             on_b, on_b_ = on_b_, on_b
 
         -- ^O - reset
@@ -68,22 +68,22 @@ return function(str, win)
 
         -- ^_ - underline
         elseif ctrl == '\x1f' then
-            on_u()
+            on_u(win)
             on_u, on_u_ = on_u_, on_u
 
         -- ^V - reverse video
         elseif ctrl == '\x16' then
-            on_r()
+            on_r(win)
             on_r, on_r_ = on_r_, on_r
 
         -- ^] - italic
         elseif ctrl == '\x1d' then
-            on_i()
+            on_i(win)
             on_i, on_i_ = on_i_, on_i
 
         -- unsupported control character
         else
-            if win then win:addstr(scrub(ctl)) else addstr(scrub(ctrl)) end
+            win:waddstr(scrub(ctrl))
         end
     end
 

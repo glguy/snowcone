@@ -6,76 +6,82 @@ local M = {
     draw_status = function() end,
 }
 
-local function list_stats(name, data)
-    addstr(string.format('%16s %10d %10d ', name, data.n, data.max))
-    add_button('[CLEAR]', function() data:reset() end)
-    addstr '\n'
+local function list_stats(win, name, data)
+    win:waddstr(string.format('%-20s %10d %10d ', name, data.n, data.max))
+    add_button(win, '[CLEAR]', function() data:reset() end)
+    win:waddstr '\n'
 end
 
 
-function M:render()
-    green()
-    addstr('          -= stats =-\n')
-    normal()
+function M:render(win)
 
-    addstr '\n'
+    local function label(txt)
+        win:waddstr(string.format('%14s: ', txt))
+    end
 
-    addstr('Lua version:  ')
-    bold()
-    addstr(_VERSION)
-    bold_()
-    addstr '\n'
+    green(win)
+    win:waddstr('          -= stats =-\n')
+    normal(win)
 
-    addstr("Lua memory:   ")
-    bold()
-    addstr(string.format('%-10s ', pretty.number(collectgarbage 'count' * 1024, 'M')))
-    bold_()
-    add_button('[GC]', function() collectgarbage() end)
-    addstr '\n'
+    win:waddstr '\n'
 
-    addstr('Uptime:       ')
-    bold()
-    addstr(uptime)
-    bold_()
-    addstr '\n'
+    label 'Lua version'
+    bold(win)
+    win:waddstr(_VERSION)
+    bold_(win)
+    win:waddstr '\n'
 
-    addstr('Idle:         ')
-    bold()
-    addstr(irc_state and (uptime - irc_state.liveness) or 'N/A')
-    bold_()
-    addstr '\n'
+    label 'Lua memory'
+    bold(win)
+    win:waddstr(string.format('%-10s ', pretty.number(collectgarbage 'count' * 1024, 'M')))
+    bold_(win)
+    add_button(win, '[GC]', function() collectgarbage() end)
+    win:waddstr '\n'
 
-    addstr('Plugins:      ')
-    bold()
+    label 'Uptime'
+    bold(win)
+    win:waddstr(uptime)
+    bold_(win)
+    win:waddstr '\n'
+
+    label 'Idle'
+    bold(win)
+    win:waddstr(irc_state and (uptime - irc_state.liveness) or 'N/A')
+    bold_(win)
+    win:waddstr '\n'
+
+    label 'Plugins'
+    bold(win)
     local first_plugin = true
     for script_name, plugin in pairs(plugins) do
         if first_plugin then
             first_plugin = false
         else
-            bold_()
-            addstr(', ')
-            bold()
+            bold_(win)
+            win:waddstr(', ')
+            bold(win)
         end
-        addstr(plugin.name or script_name)
+        win:waddstr(plugin.name or script_name)
     end
-    bold_()
-    addstr '\n'
+    bold_(win)
+    win:waddstr '\n'
 
-    addstr '\n'
+    win:waddstr '\n'
 
-    green()
-    addstr('         dataset         .n       .max\n')
+    green(win)
 
-    normal()
-    list_stats('/console', messages)
-    list_stats('/status', status_messages)
-    list_stats('/list', channel_list)
+    win:waddstr('dataset                      .n       .max\n')
+
+    normal(win)
+    list_stats(win, '/console', messages)
+    list_stats(win, '/status', status_messages)
+    list_stats(win, '/list', channel_list)
 
     for _, buffer in pairs(buffers) do
-        list_stats(buffer.name, buffer.messages)
+        list_stats(win, buffer.name, buffer.messages)
     end
 
-    addstr '\n'
+    win:waddstr '\n'
 end
 
 return M

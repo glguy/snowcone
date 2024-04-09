@@ -24,20 +24,20 @@ for name, numeric in pairs(numerics) do
     end
 end
 
-local function pretty_source(source)
+local function pretty_source(win, source)
     if source == '>>>' then
-        red()
+        red(win)
     else
         local head, kind = string.match(source, '^(.-)([.!])')
         source = head or source
         if kind == '!' then
-            cyan()
+            cyan(win)
         else
-            yellow()
+            yellow(win)
         end
     end
-    addstr(string.format('%16.16s ', scrub(source)))
-    normal()
+    win:waddstr(string.format('%16.16s ', scrub(source)))
+    normal(win)
 end
 
 -- Predicate for server notices
@@ -58,44 +58,42 @@ local function set_focus(irc)
     end
 end
 
-local function render_irc(irc)
-    addstr ' '
-
+local function render_irc(win, irc)
     local snote_text = match_snotice(irc)
     if snote_text ~= nil then
-        pretty_source(irc.source)
-        magenta()
-        bold()
-        add_button('SNOW ', function() set_focus(irc) end, true)
-        bold_()
-        cyan()
-        addstr ':'
-        normal()
-        addircstr(snote_text)
+        pretty_source(win, irc.source)
+        magenta(win)
+        bold(win)
+        add_button(win, 'SNOW ', function() set_focus(irc) end, true)
+        bold_(win)
+        cyan(win)
+        win:waddstr ':'
+        normal(win)
+        addircstr(win, snote_text)
         return
     end
 
     if irc.source then
-        pretty_source(irc.source)
+        pretty_source(win, irc.source)
     else
-        addstr(string.rep(' ', 17))
+        win:waddstr(string.rep(' ', 17))
     end
 
     local color = palette[irc.command]
-    if color then color() end
-    bold()
-    add_button(string.format('%4.4s', irc.command), function() set_focus(irc) end, true)
-    normal()
+    if color then color(win) end
+    bold(win)
+    add_button(win, string.format('%4.4s', irc.command), function() set_focus(irc) end, true)
+    normal(win)
 
     local n = #irc
     for i,arg in ipairs(irc) do
         if i == n and (arg == '' or arg:startswith ':' or arg:match ' ') then
-            cyan()
-            addstr ' :'
-            normal()
-            addircstr(arg)
+            cyan(win)
+            win:waddstr ' :'
+            normal(win)
+            addircstr(win, arg)
         else
-            addircstr(' '..arg)
+            addircstr(win, ' '..arg)
         end
     end
 end
@@ -115,6 +113,14 @@ local keys = {
     [-ncurses.KEY_NPAGE] = function()
         scroll = scroll - math.max(1, tty_height - 1)
         scroll = math.max(scroll, 0)
+    end,
+    [-ncurses.KEY_RIGHT] = function()
+        local scroll_unit = math.max(1, tty_width - 26)
+        hscroll = math.max(0, math.min(550 - scroll_unit, hscroll + scroll_unit))
+    end,
+    [-ncurses.KEY_LEFT] = function()
+        local scroll_unit = math.max(1, tty_width - 26)
+        hscroll = math.max(0, hscroll - scroll_unit)
     end,
     [meta 'h'] = function() hide_snow = not hide_snow end,
     [meta 'r'] = function() show_raw = not show_raw end,
@@ -147,25 +153,25 @@ local function rawstr(str)
     return '"' .. str .. '"'
 end
 
-local function draw_focus(irc, snotice)
-
+local function draw_focus(win, irc, snotice)
     --
     -- MESSAGE TAGS
     --
     if next(irc.tags) then
-        blue()
-        addstr '      tags:'
+        blue(win)
+        win:waddstr '      tags:'
         for k, v in tablex.sort(irc.tags) do
-            cyan()
+            cyan(win)
             if show_raw then k = rawstr(k) else k = scrub(k) end
-            mvaddstr(ncurses.getyx(), 12, k)
+            ncurses.move(ncurses.getyx(win), 12, win)
+            win:waddstr(k)
             if v == '' then
-                addstr '\n'
+                win:waddstr '\n'
             else
-                normal()
-                addstr ': '
+                normal(win)
+                win:waddstr ': '
                 if show_raw then v = rawstr(v) else v = scrub(v) end
-                addstr(v, '\n')
+                win:waddstr(v, '\n')
             end
         end
     end
@@ -174,70 +180,71 @@ local function draw_focus(irc, snotice)
     -- SOURCE
     --
     if irc.source then
-        blue()
-        addstr '    source: '
-        normal()
-        addstr(scrub(irc.source), '\n')
+        blue(win)
+        win:waddstr '    source: '
+        normal(win)
+        win:waddstr(scrub(irc.source), '\n')
     end
 
     --
     -- COMMAND
     --
-    blue()
-    addstr '   command: '
+    blue(win)
+    win:waddstr '   command: '
     local cmd_color = palette[irc.command] or function() end
-    cmd_color()
-    bold()
-    addstr(scrub(irc.command))
-    bold_()
+    cmd_color(win)
+    bold(win)
+    win:waddstr(scrub(irc.command))
+    bold_(win)
 
     if not show_raw then
         local name = numeric_names[irc.command]
         if name then
-            addstr(' - ', name)
+            win:waddstr(' - ', name)
         end
     end
-    addstr '\n'
+    win:waddstr '\n'
 
     --
     -- ARGUMENTS
     --
     for i, v in ipairs(irc) do
-        blue()
-        addstr(string.format('%10d: ', i))
-        normal()
+        blue(win)
+        win:waddstr(string.format('%10d: ', i))
+        normal(win)
         if show_raw then
-            addstr(rawstr(v))
+            win:waddstr(rawstr(v))
         else
-            addircstr(v)
+            addircstr(win, v)
         end
-        addstr '\n'
+        win:waddstr '\n'
     end
 
     --
     -- DECODED SNOTE BODY
     --
     if snotice ~= nil then
-        addstr '\n'
-        blue()
-        addstr(string.format('%10s: ', 'name'))
-        magenta()
-        addstr(snotice.name, '\n')
+        win:waddstr '\n'
+        blue(win)
+        win:waddstr(string.format('%10s: ', 'name'))
+        magenta(win)
+        win:waddstr(snotice.name, '\n')
 
         for k, v in tablex.sort(snotice) do
             if k ~= 'name' then
-                blue()
-                addstr(string.format('%10s: ', k))
-                normal()
-                addstr(v, '\n')
+                blue(win)
+                win:waddstr(k)
+                normal(win)
+                win:waddstr(scrub(v), '\n')
             end
         end
     end
 
-    addstr '─'
-    add_button('[CLOSE]', function() focus = nil end)
-    local _, x = ncurses.getyx()
-    addstr(string.rep('─', tty_width - x))
+    win:waddstr '─'
+    add_button(win, '[CLOSE]', function() focus = nil end)
+    local _, x = ncurses.getyx(win)
+    win:waddstr(string.rep('─', tty_width - x))
+    win:waddstr '\n'
 end
 
 local squelch_commands = {
@@ -246,7 +253,7 @@ local squelch_commands = {
     AWAY = true,
 }
 
-local function draw_messages()
+local function draw_messages(win)
     local current_filter
     if input_mode == 'filter' then
         current_filter = editor:content()
@@ -275,16 +282,16 @@ local function draw_messages()
         end
     end
 
-    local start = ncurses.getyx()
+    local start = ncurses.getyx(win)
     local rows = math.max(0, tty_height - 1 - start)
-    drawing.draw_rotation(start, rows, messages, show_irc, render_irc)
+    drawing.draw_rotation(win, start, rows, messages, show_irc, render_irc)
 end
 
-function M:render()
+function M:render(win)
     if focus ~= nil then
-        draw_focus(focus.irc, focus.snotice)
+        draw_focus(win, focus.irc, focus.snotice)
     end
-    draw_messages()
+    draw_messages(win)
 end
 
 function M:draw_status() end

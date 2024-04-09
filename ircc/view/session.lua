@@ -1,87 +1,106 @@
 local scrub = require 'utils.scrub'
 local tablex = require 'pl.tablex'
 
+local keys = {
+    [-ncurses.KEY_RIGHT] = function()
+        local scroll_unit = math.max(1, tty_width - 26)
+        hscroll = math.max(0, math.min(550 - scroll_unit, hscroll + scroll_unit))
+    end,
+    [-ncurses.KEY_LEFT] = function()
+        local scroll_unit = math.max(1, tty_width - 26)
+        hscroll = math.max(0, hscroll - scroll_unit)
+    end,
+}
+
 local M = {
     title = 'session',
-    keypress = function() end,
+    keypress = function(self, key)
+        local h = keys[key]
+        if h then
+            h()
+            return true -- consume
+        end
+    end,
     draw_status = function() end,
 }
 
-function M:render(win_side, win_main)
+function M:render(win)
 
     local function label(txt)
-        local y, _x = ncurses.getyx(win_main)
-        ncurses.move(y, 0, win_side)
-        win_side:addstr(string.format('%24s:', txt))
+        win:waddstr(string.format('%14s: ', txt))
     end
 
-    ncurses.move(0,0, win_main)
+    ncurses.move(0,0, win)
 
-    green(win_main)
-    win_main:addstr('          -= IRC session =-\n')
-    normal(win_main)
-    win_main:addstr '\n'
+    green(win)
+    win:waddstr('          -= IRC session =-\n')
+    normal(win)
+    win:waddstr '\n'
 
     if not irc_state then return end
 
     label 'Phase'
-    bold(win_main)
-    win_main:addstr(irc_state.phase)
-    normal(win_main)
-    win_main:addstr '\n'
+    bold(win)
+    win:waddstr(irc_state.phase)
+    normal(win)
+    win:waddstr '\n'
 
     if irc_state.nick then
         label('Nick')
-        bold(win_main)
-        win_main:addstr(scrub(irc_state.nick), '\n')
-        normal(win_main)
+        bold(win)
+        win:waddstr(scrub(irc_state.nick), '\n')
+        normal(win)
     end
 
     label 'Mode'
     for k, _ in tablex.sort(irc_state.mode) do
-        win_main:addstr(scrub(k))
+        win:waddstr(scrub(k))
     end
-    win_main:addstr('\n')
+    win:waddstr('\n')
 
     label 'Caps'
-    bold(win_main)
+    bold(win)
     for k, v in tablex.sort(irc_state.caps_available) do
         if irc_state.caps_enabled[k] then
-            green(win_main)
+            green(win)
         else
-            red(win_main)
+            red(win)
         end
-        win_main:addstr(scrub(k))
+        local text = scrub(k)
         if v ~= true then
-            win_main:addstr '='
-            win_main:addstr(scrub(v))
+            text = text .. '=' .. scrub(v)
         end
-        win_main:addstr(' ')
+        local _, x = ncurses.getyx(win)
+        if x + #text > tty_width then
+            win:waddstr('\n                ', text, ' ')
+        else
+            win:waddstr(text, ' ')
+        end
     end
-    normal(win_main)
-    win_main:addstr '\n'
+    normal(win)
+    win:waddstr '\n'
 
     label 'Channels'
-    bold(win_main)
+    bold(win)
     for _, v in tablex.sort(irc_state.channels) do
-        win_main:addstr(scrub(v.name), ' ')
+        win:waddstr(scrub(v.name), ' ')
     end
-    normal(win_main)
-    win_main:addstr('\n')
+    normal(win)
+    win:waddstr('\n')
 
     if irc_state.monitor then
         label 'Monitor'
         for k, v in tablex.sort(irc_state.monitor) do
             if v.user then
-                green(win_main)
-                win_main:addstr(' ', scrub(v.user.nick))
+                green(win)
+                win:waddstr(' ', scrub(v.user.nick))
             else
-                red(win_main)
-                win_main:addstr(' ', scrub(k:lower()))
+                red(win)
+                win:waddstr(' ', scrub(k:lower()))
             end
         end
-        normal(win_main)
-        win_main:addstr '\n'
+        normal(win)
+        win:waddstr '\n'
     end
 end
 

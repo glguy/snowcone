@@ -40,7 +40,41 @@ static int l_delwin(lua_State* const L)
     return 0;
 }
 
-static int l_resize(lua_State* const L)
+static int l_prefresh(lua_State* const L)
+{
+    WINDOW* const win = checkwindow(L, 1);
+    lua_Integer const pminrow = luaL_checkinteger(L, 2);
+    lua_Integer const pmincol = luaL_checkinteger(L, 3);
+    lua_Integer const sminrow = luaL_checkinteger(L, 4);
+    lua_Integer const smincol = luaL_checkinteger(L, 5);
+    lua_Integer const smaxrow = luaL_checkinteger(L, 6);
+    lua_Integer const smaxcol = luaL_checkinteger(L, 7);
+
+    if (ERR == prefresh(win, pminrow, pmincol, sminrow, smincol, smaxrow, smaxcol))
+    {
+        return luaL_error(L, "prefresh failed");
+    }
+    return 0;
+}
+
+static int l_pnoutrefresh(lua_State* const L)
+{
+    WINDOW* const win = checkwindow(L, 1);
+    lua_Integer const pminrow = luaL_checkinteger(L, 2);
+    lua_Integer const pmincol = luaL_checkinteger(L, 3);
+    lua_Integer const sminrow = luaL_checkinteger(L, 4);
+    lua_Integer const smincol = luaL_checkinteger(L, 5);
+    lua_Integer const smaxrow = luaL_checkinteger(L, 6);
+    lua_Integer const smaxcol = luaL_checkinteger(L, 7);
+
+    if (ERR == pnoutrefresh(win, pminrow, pmincol, sminrow, smincol, smaxrow, smaxcol))
+    {
+        return luaL_error(L, "pnoutrefresh failed");
+    }
+    return 0;
+}
+
+static int l_wresize(lua_State* const L)
 {
     WINDOW* const win = checkwindow(L, 1);
     lua_Integer const lines = luaL_checkinteger(L, 2);
@@ -52,7 +86,7 @@ static int l_resize(lua_State* const L)
     return 0;
 }
 
-static int l_addstr(lua_State *L)
+static int l_waddstr(lua_State *L)
 {
     WINDOW* const win = checkwindow(L, 1);
 
@@ -72,10 +106,27 @@ static luaL_Reg const MT[] = {
 
 static luaL_Reg const Methods[] = {
     {"delwin", l_delwin},
-    {"resize", l_resize},
-    {"addstr", l_addstr},
+    {"wresize", l_wresize},
+    {"prefresh", l_prefresh},
+    {"pnoutrefresh", l_pnoutrefresh},
+    {"waddstr", l_waddstr},
     {}
 };
+
+void pushwindow(lua_State* const L, WINDOW* const win)
+{
+    WINDOW** const uptr = lua_newuserdatauv(L, sizeof win, 0);
+    *uptr = win;
+
+    if (luaL_newmetatable(L, "WINDOW"))
+    {
+        luaL_setfuncs(L, MT, 0);
+        luaL_newlibtable(L, Methods);
+        luaL_setfuncs(L, Methods, 0);
+        lua_setfield(L, -2, "__index");
+    }
+    lua_setmetatable(L, -2);
+}
 
 int l_newwin(lua_State* const L)
 {
@@ -88,20 +139,25 @@ int l_newwin(lua_State* const L)
 
     if (NULL == result)
     {
-        return luaL_error(L, "newwin failed");
+        return luaL_error(L, "newwin: ncurses error");
     }
 
-    WINDOW** const uptr = lua_newuserdatauv(L, sizeof result, 0);
-    *uptr = result;
+    pushwindow(L, result);
+    return 1;
+}
 
-    if (luaL_newmetatable(L, "WINDOW"))
+int l_newpad(lua_State* const L)
+{
+    lua_Integer const nlines = luaL_checkinteger(L, 1);
+    lua_Integer const ncols = luaL_checkinteger(L, 2);
+
+    WINDOW *const result = newpad(nlines, ncols);
+
+    if (NULL == result)
     {
-        luaL_setfuncs(L, MT, 0);
-        luaL_newlibtable(L, Methods);
-        luaL_setfuncs(L, Methods, 0);
-        lua_setfield(L, -2, "__index");
+        return luaL_error(L, "newpad: ncurses error");
     }
-    lua_setmetatable(L, -2);
 
+    pushwindow(L, result);
     return 1;
 }

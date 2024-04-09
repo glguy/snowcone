@@ -72,7 +72,7 @@ add_command('disconnect', '', function()
 end)
 
 for k, _ in pairs(views) do
-    add_command(k, '', function() view = k end)
+    add_command(k, '', function() set_view(k) end)
 end
 
 -- Pretending to be an IRC client
@@ -90,14 +90,14 @@ add_command('close', '', function()
         buffers[talk_target] = nil
         set_talk_target(next(buffers))
         if not talk_target then
-            view = 'console'
+            set_view 'console'
         end
     end
 end)
 
 add_command('talk', '$g', function(target)
     set_talk_target(snowcone.irccase(target))
-    view = 'buffer'
+    set_view 'buffer'
 
     if irc_state and irc_state.phase == 'connected' then
         -- join the channel if it's a channel and we're not in it

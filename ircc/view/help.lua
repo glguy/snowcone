@@ -6,11 +6,11 @@ local M = {
     draw_status = function() end,
 }
 
-function M:render()
-    magenta()
-    bold()
-    addstr 'Commands\n'
-    normal()
+function M:render(win)
+    magenta(win)
+    bold(win)
+    win:waddstr 'Commands\n'
+    normal(win)
 
     local entries = {}
     local width = 1
@@ -36,7 +36,8 @@ function M:render()
     local x = 0
 
     for _, str in tablex.sort(entries) do
-        mvaddstr(y, x, str)
+        ncurses.move(y, x, win)
+        win:waddstr(str)
 
         if tty_height <= y+2 then
             y = 1

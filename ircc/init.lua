@@ -76,6 +76,7 @@ local defaults = {
     view = 'console',
     uptime = 0, -- seconds since startup
     scroll = 0,
+    hscroll = 0,
     status_message = '',
     objective = 'connect', -- exit, idle
     terminal_focus = true,
@@ -95,20 +96,19 @@ end
 
 -- Make windows ==================================================
 
-if win_status then
-    win_status:delwin()
+local thepad
+local inputwin
+local function make_layout()
+    if thepad then
+        thepad:delwin()
+    end
+    thepad = ncurses.newpad(tty_height-1, 550);
+    if inputwin then
+        inputwin:delwin()
+    end
+    inputwin = ncurses.newwin(1, tty_width, tty_height - 1, 0);
 end
-win_status = ncurses.newwin(1, tty_width, tty_height-1, 0)
-
-if win_main then
-    win_main:delwin()
-end
-win_main = ncurses.newwin(tty_height-1, tty_width-26, 0, 26)
-
-if win_side then
-    win_side:delwin()
-end
-win_side = ncurses.newwin(tty_height-1, 26, 0, 0)
+make_layout()
 
 --  Helper functions ==================================================
 
@@ -145,12 +145,12 @@ function add_click(y, lo, hi, action)
     end
 end
 
-function add_button(text, action, plain)
-    local y1,x1 = ncurses.getyx()
-    if not plain then reversevideo() end
-    addstr(text)
-    if not plain then reversevideo_() end
-    local _, x2 = ncurses.getyx()
+function add_button(win, text, action, plain)
+    local y1,x1 = ncurses.getyx(win)
+    if not plain then reversevideo(win) end
+    win:waddstr(text)
+    if not plain then reversevideo_(win) end
+    local _, x2 = ncurses.getyx(win)
     add_click(y1, x1, x2, action)
 end
 
@@ -170,38 +170,43 @@ views = {
 
 main_views = {'console', 'status'}
 
+function set_view(v)
+    scroll = 0
+    hscroll = 0
+    view = v
+end
+
 function next_view()
+    hscroll = 0
     local current = tablex.find(main_views, view)
     if current then
-        view = main_views[current % #main_views + 1]
+        set_view(main_views[current % #main_views + 1])
     else
-        view = main_views[1]
+        set_view(main_views[1])
     end
 end
 
 function prev_view()
     local current = tablex.find(main_views, view)
     if current then
-        view = main_views[(current - 2) % #main_views + 1]
+        set_view(main_views[(current - 2) % #main_views + 1])
     else
-        view = main_views[1]
+        set_view(main_views[1])
     end
 end
 
 local function draw()
     clicks = {}
-    ncurses.erase(win_status)
-    ncurses.erase(win_side)
-    ncurses.erase(win_main)
     ncurses.erase()
-
-    normal(win_main)
-    views[view]:render(win_side, win_main)
-    drawing.draw_status_bar(win_status)
-    ncurses.refresh()
-    ncurses.refresh(win_main)
-    ncurses.refresh(win_side)
-    ncurses.refresh(win_status)
+    ncurses.erase(thepad)
+    ncurses.erase(inputwin)
+    normal(thepad)
+    views[view]:render(thepad)
+    drawing.draw_status_bar(inputwin)
+    ncurses.noutrefresh()
+    thepad:pnoutrefresh(0, hscroll, 0, 0, tty_height-1, tty_width-1)
+    ncurses.noutrefresh(inputwin)
+    ncurses.doupdate()
 end
 
 -- Callback Logic =====================================================
@@ -270,6 +275,7 @@ function M.print(str)
 end
 
 function M.on_resize()
+    make_layout()
     draw()
 end
 
@@ -560,6 +566,6 @@ end
 local success, error_message = pcall(startup)
 if not success then
     status('startup', 'Error: %s', error_message)
-    view = 'status'
+    set_view 'status'
     draw()
 end
