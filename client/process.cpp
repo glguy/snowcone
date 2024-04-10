@@ -21,109 +21,96 @@ namespace {
 
 using ExecSig = void(boost::system::error_code, int, std::string, std::string);
 
-class Exec
+template <boost::asio::completion_handler_for<ExecSig> Handler>
+class Exec : public std::enable_shared_from_this<Exec<Handler>>
 {
-    // Parameters
-    boost::asio::io_context& io_context;
-    boost::filesystem::path file_;
-    std::vector<std::string> args_;
-
-    // Resources
+    Handler handler_;
     boost::process::async_pipe stdout_;
     boost::process::async_pipe stderr_;
 
-    // Results
     int stage_;
     boost::system::error_code error_code_;
+
     int exit_code_;
     std::string stdout_text_;
     std::string stderr_text_;
 
 public:
-    struct PipeComplete {};
-    struct ExitComplete {};
-
-    Exec(boost::asio::io_context& io_context,
-        boost::filesystem::path file,
-        std::vector<std::string> args
-    )
-    : io_context{io_context}
-    , file_{std::move(file)}
-    , args_{std::move(args)}
+    Exec(Handler&& handler, boost::asio::io_context& io_context)
+    : handler_{std::move(handler)}
     , stdout_{io_context}
     , stderr_{io_context}
     , stage_{0}
     {}
 
-    template <typename Self>
-    auto operator()(Self& self) -> void
+    auto start(
+        boost::asio::io_context& io_context,
+        boost::filesystem::path file,
+        std::vector<std::string> args
+    ) -> void
     {
-        auto const self_ = std::make_shared<Self>(std::move(self));
         boost::asio::async_read(
             stdout_,
             boost::asio::dynamic_buffer(stdout_text_),
-            [self_](boost::system::error_code const err, std::size_t)
+            [self = this->shared_from_this()](boost::system::error_code err, std::size_t)
             {
-                (*self_)(PipeComplete{}, err);
-            });
+                self->complete(err);
+            }
+        );
         boost::asio::async_read(
             stderr_,
             boost::asio::dynamic_buffer(stderr_text_),
-            [self_](boost::system::error_code const err, std::size_t)
+            [self = this->shared_from_this()](boost::system::error_code err, std::size_t)
             {
-                (*self_)(PipeComplete{}, err);
+                self->complete(err);
             }
         );
         boost::process::async_system(
             io_context,
-            [self_](boost::system::error_code const err, int const exit_code)
+            [self = this->shared_from_this()](boost::system::error_code err, int exit_code)
             {
-                (*self_)(ExitComplete{}, err, exit_code);
+                self->exit_code_ = exit_code;
+                self->complete(err);
             },
-            boost::process::search_path(file_),
-            boost::process::args += std::move(args_),
+            boost::process::search_path(file),
+            boost::process::args += std::move(args),
             boost::process::std_in  < boost::process::null,
             boost::process::std_out > stdout_,
             boost::process::std_err > stderr_);
     }
 
-    // Completion handler for the async_read on the async_pipes
-    auto operator()(auto& self, PipeComplete, boost::system::error_code const err) -> void
-    {
-        step(self, err);
-    }
-
-    // Completion handler for async_system
-    auto operator()(auto& self, ExitComplete, boost::system::error_code const err, int const exit_code) -> void
-    {
-        exit_code_ = exit_code;
-        step(self, err);
-    }
-
 private:
-    auto step(auto& self, boost::system::error_code err) -> void {
+    auto complete(boost::system::error_code err) -> void {
         if (err) error_code_ = err;
         if (++stage_ == 3) {
-            self.complete(error_code_, exit_code_, std::move(stdout_text_), std::move(stderr_text_));
+            handler_(error_code_, exit_code_, std::move(stdout_text_), std::move(stderr_text_));
         }
     }
 };
 
 template <
-boost::asio::completion_token_for<ExecSig> CompletionToken>
+    boost::asio::completion_token_for<ExecSig> CompletionToken>
 auto async_exec(
     boost::asio::io_context& io_context,
     boost::filesystem::path file,
     std::vector<std::string> args,
     CompletionToken&& token)
 {
-    return boost::asio::async_compose<CompletionToken, ExecSig>(
-        Exec{io_context, std::move(file), std::move(args)},
-        token, io_context
+    return boost::asio::async_initiate<CompletionToken, ExecSig>(
+        [](
+            boost::asio::completion_handler_for<ExecSig> auto handler,
+            boost::asio::io_context& io_context,
+            boost::filesystem::path file,
+            std::vector<std::string> args)
+        {
+            std::make_shared<Exec<decltype(handler)>>(std::move(handler), io_context)
+            ->start(io_context, file, std::move(args));
+        },
+        token, io_context, std::move(file), std::move(args)
     );
 }
 
-} // namespace
+}
 
 auto l_execute(lua_State* L) -> int
 {
