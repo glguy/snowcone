@@ -25,18 +25,18 @@ end
 
 --- Cancel the wait_irc timer if one is set
 function M:cancel_timer()
-    local timer = self.timer
+    local timer = self.timer_handle
     if timer then
         timer.cancel()
-        self.timer = nil
+        self.timer_handle = nil
     end
 end
 
 function M:cancel_dnslookup()
-    local dnslookup = self.dnslookup
-    if dnslookup then
-        dnslookup:cancel()
-        self.dnslookup = nil
+    local h = self.dnslookup_handle
+    if h then
+        h:cancel()
+        self.h = nil
     end
 end
 
@@ -45,7 +45,7 @@ function M:cancel()
     self.queue[self] = nil
     self:cancel_timer()
     self:cancel_dnslookup()
-    coroutine.close(self)
+    coroutine.close(self.co)
 end
 
 --- suspend the Task waiting for an IRC command
@@ -54,9 +54,9 @@ end
 function M:wait_irc(command_set, timeout)
     if timeout then
         local timer = snowcone.newtimer()
-        self.timer = timer
+        self.timer_handle = timer
         timer:start(timeout, function()
-            self.timer = nil
+            self.timer_handle = nil
             self:resume_irc(nil)
         end)
     end
@@ -68,17 +68,17 @@ end
 ---@param timeout integer milliseconds to sleep
 function M:sleep(timeout)
     local timer = snowcone.newtimer()
-    self.timer = timer
+    self.timer_handle = timer
     timer:start(timeout, function()
-        self.timer = nil
+        self.timer_handle = nil
         self:resume()
     end)
     return coroutine.yield()
 end
 
 function M:dnslookup(name)
-    self.dnslookup = snowcone.dnslookup(name, function(...)
-        self.dnslookup = nil
+    self.dnslookup_handle = snowcone.dnslookup(name, function(...)
+        self.dnslookup_handle = nil
         self:resume(...)
     end)
     return coroutine.yield()

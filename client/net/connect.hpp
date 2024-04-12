@@ -8,81 +8,44 @@
 #include <iosfwd>
 #include <string>
 
+/**
+ * @brief Connect to TCP service
+ * 
+ * @param os connection information output stream
+ * @param stream unconnected socket
+ * @param host remote hostname
+ * @param port remote port number
+ * @param bind_host optional local hostname
+ * @param bind_port optional local port number
+ * @return boost::asio::awaitable<void> 
+ */
+auto tcp_connect(
+    std::ostream& os,
+    boost::asio::ip::tcp::socket& stream,
+    std::string_view host, std::uint16_t port,
+    std::string_view bind_host, std::uint16_t bind_port
+) -> boost::asio::awaitable<void>;
+
+/**
+ * @brief Initiate TLS handshake over an established stream
+ * 
+ * @param os connection information output stream
+ * @param stream connected stream
+ * @param verify optional hostname for certificate verification
+ * @param sni optional hostname for SNI negotiation
+ * @return coroutine handle
+ */
 template <typename T>
-concept Connectable = requires(T const a, std::ostream& os, typename T::stream_type &stream) {
-    // Check for the presence of a typedef named stream_type
-    typename T::stream_type;
+auto tls_connect(
+    std::ostream& os,
+    boost::asio::ssl::stream<T>& stream,
+    std::string const& verify,
+    std::string const& sni
+    ) -> boost::asio::awaitable<void>;
 
-    // Check for the method with the correct signature
-    {
-        a.connect(os, stream)
-    } -> std::same_as<boost::asio::awaitable<void>>;
-};
-
-struct TcpConnectParams
-{
-    using stream_type = boost::asio::ip::tcp::socket;
-
-    /// @brief remote endpoint hostname
-    std::string host;
-
-    /// @brief remote endpoint port
-    std::uint16_t port;
-
-    /// @brief optional local endpoint hostname
-    std::string bind_host;
-
-    /// @brief optional local endpoint port
-    std::uint16_t bind_port;
-
-    /// @brief Connect to TCP endpoint
-    auto connect(std::ostream& os, stream_type &stream) const -> boost::asio::awaitable<void>;
-};
-
-template <Connectable T>
-struct SocksConnectParams
-{
-    using stream_type = typename T::stream_type;
-
-    /// @brief hostname used in socks5 CONNECT command
-    std::string host;
-
-    /// @brief port used in socks5 CONNECT command
-    std::uint16_t port;
-
-    /// @brief authentication mechanism used in SOCKS5 protocol
-    socks5::Auth auth;
-
-    /// @brief Underlying connection parameters
-    T base;
-
-    /// @brief Connect underlying stream and then negotiate SOCKS5 CONNECT
-    auto connect(std::ostream& os, stream_type &stream) const -> boost::asio::awaitable<void>;
-};
-
-template <Connectable T>
-struct TlsConnectParams
-{
-    using stream_type = boost::asio::ssl::stream<typename T::stream_type>;
-
-    /// @brief Hostname to verify on remote certificate (if not empty)
-    std::string verify;
-
-    /// @brief Hostname to use with SNI to request specific certificate (if not empty)
-    std::string sni;
-
-    /// @brief Underlying connection parameters
-    T base;
-
-    /// @brief Connect underlying stream and then initiate TLS session
-    auto connect(std::ostream& os, stream_type &stream) const -> boost::asio::awaitable<void>;
-};
-
-extern template class SocksConnectParams<TcpConnectParams>;
-extern template class TlsConnectParams<TcpConnectParams>;
-extern template class TlsConnectParams<SocksConnectParams<TcpConnectParams>>;
-
-static_assert(Connectable<TcpConnectParams>);
-static_assert(Connectable<SocksConnectParams<TcpConnectParams>>);
-static_assert(Connectable<TlsConnectParams<SocksConnectParams<TcpConnectParams>>>);
-static_assert(Connectable<TlsConnectParams<TcpConnectParams>>);
+extern template auto tls_connect(
+    std::ostream& os,
+    boost::asio::ssl::stream<boost::asio::ip::tcp::socket>& stream,
+    std::string const& verify,
+    std::string const& sni
+    ) -> boost::asio::awaitable<void>;

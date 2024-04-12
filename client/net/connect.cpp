@@ -21,7 +21,12 @@ auto peer_fingerprint(std::ostream &os, SSL const *const ssl) -> void
 }
 } // namespace
 
-auto TcpConnectParams::connect(std::ostream &os, stream_type &stream) const -> boost::asio::awaitable<void>
+auto tcp_connect(
+    std::ostream& os,
+    boost::asio::ip::tcp::socket& stream,
+    std::string_view host, std::uint16_t port,
+    std::string_view bind_host, std::uint16_t bind_port
+) -> boost::asio::awaitable<void>
 {
     auto resolver = boost::asio::ip::tcp::resolver{stream.get_executor()};
 
@@ -42,6 +47,9 @@ auto TcpConnectParams::connect(std::ostream &os, stream_type &stream) const -> b
     stream.set_option(boost::asio::ip::tcp::no_delay(true));
 }
 
-template class SocksConnectParams<TcpConnectParams>;
-template class TlsConnectParams<TcpConnectParams>;
-template class TlsConnectParams<SocksConnectParams<TcpConnectParams>>;
+template auto tls_connect(
+    std::ostream& os,
+    boost::asio::ssl::stream<boost::asio::ip::tcp::socket>& stream,
+    std::string const& verify,
+    std::string const& sni
+    ) -> boost::asio::awaitable<void>;

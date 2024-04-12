@@ -18,17 +18,19 @@ struct lua_State;
 
 class irc_connection final : public std::enable_shared_from_this<irc_connection>
 {
+public:
+    using stream_type = CommonStream;
+    static std::size_t const irc_buffer_size = 131'072;
+
+private:
     boost::asio::steady_timer write_timer;
     lua_State *L;
     int irc_cb_;
     std::deque<int> write_refs;
     std::deque<boost::asio::const_buffer> write_buffers;
+    stream_type stream_;
 
 public:
-    using stream_type = CommonStream;
-
-    stream_type stream_; // exposed for reading
-
     auto get_stream() -> stream_type&
     {
         return stream_;
@@ -47,7 +49,6 @@ public:
 
     auto close() -> void { stream_.close(); }
 
-    static std::size_t const irc_buffer_size = 131'072;
 
     // Either write data now or wait for there to be data
     auto write_thread() -> void;

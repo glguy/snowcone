@@ -21,9 +21,9 @@ struct Stream
     using executor_type = boost::asio::any_io_executor;
 
     /// @brief Get executor associated with this stream
-    auto get_executor() noexcept -> executor_type
+    auto get_executor() -> executor_type
     {
-        return std::visit([](auto&& x) noexcept -> executor_type {
+        return std::visit([](auto&& x) -> executor_type {
             return x.get_executor();
         }, impl_);
     }
@@ -62,9 +62,6 @@ struct Stream
 
     /// @brief Gracefully tear down the network stream
     auto close() -> void;
-
-    /// @brief Update send and receive buffer sizes
-    auto set_buffer_size(std::size_t const size) -> void;
 
     /// @brief Access underlying stream
     auto get_impl() noexcept -> std::variant<Ts...>&

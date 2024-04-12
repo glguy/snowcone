@@ -5,23 +5,19 @@
 #include <boost/io/ios_state.hpp>
 #include <iomanip>
 
-template <Connectable T>
-auto SocksConnectParams<T>::connect(std::ostream& os, stream_type &stream) const -> boost::asio::awaitable<void>
-{
-    co_await base.connect(os, stream);
-    os << " socks=";
-    os << co_await socks5::async_connect(stream, host, port, auth, boost::asio::use_awaitable);
-}
-
 namespace {
 auto peer_fingerprint(std::ostream &os, SSL const *const ssl) -> void;
 }
 
-template <Connectable T>
-auto TlsConnectParams<T>::connect(std::ostream& os, stream_type &stream) const -> boost::asio::awaitable<void>
+template <typename T>
+auto tls_connect(
+    std::ostream& os,
+    boost::asio::ssl::stream<T>& stream,
+    std::string const& verify,
+    std::string const& sni
+) -> boost::asio::awaitable<void>
 {
-    co_await base.connect(os, stream.next_layer());
-    os << " tls=";
+    os << "tls=";
 
     // TLS connection
     if (not verify.empty())

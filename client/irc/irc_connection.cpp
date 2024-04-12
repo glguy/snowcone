@@ -19,7 +19,6 @@ irc_connection::~irc_connection() {
     for (auto const ref : write_refs) {
         luaL_unref(L, LUA_REGISTRYINDEX, ref);
     }
-    luaL_unref(L, LUA_REGISTRYINDEX, irc_cb_);
 }
 
 auto irc_connection::write(std::string_view const cmd, int const ref) -> void
