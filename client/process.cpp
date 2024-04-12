@@ -22,7 +22,7 @@ namespace {
 using ExecSig = void(boost::system::error_code, int, std::string, std::string);
 
 template <boost::asio::completion_handler_for<ExecSig> Handler>
-class Exec : public std::enable_shared_from_this<Exec<Handler>>
+struct Exec
 {
     Handler handler_;
     boost::process::async_pipe stdout_;
@@ -35,7 +35,6 @@ class Exec : public std::enable_shared_from_this<Exec<Handler>>
     std::string stdout_text_;
     std::string stderr_text_;
 
-public:
     Exec(Handler&& handler, boost::asio::io_context& io_context)
     : handler_{std::move(handler)}
     , stdout_{io_context}
@@ -43,49 +42,61 @@ public:
     , stage_{0}
     {}
 
-    auto start(
-        boost::asio::io_context& io_context,
-        boost::filesystem::path file,
-        std::vector<std::string> args
-    ) -> void
+    auto operator()(boost::system::error_code err, std::size_t) -> void
     {
-        boost::asio::async_read(
-            stdout_,
-            boost::asio::dynamic_buffer(stdout_text_),
-            [self = this->shared_from_this()](boost::system::error_code err, std::size_t)
-            {
-                self->complete(err);
-            }
-        );
-        boost::asio::async_read(
-            stderr_,
-            boost::asio::dynamic_buffer(stderr_text_),
-            [self = this->shared_from_this()](boost::system::error_code err, std::size_t)
-            {
-                self->complete(err);
-            }
-        );
-        boost::process::async_system(
-            io_context,
-            [self = this->shared_from_this()](boost::system::error_code err, int exit_code)
-            {
-                self->exit_code_ = exit_code;
-                self->complete(err);
-            },
-            boost::process::search_path(file),
-            boost::process::args += std::move(args),
-            boost::process::std_in  < boost::process::null,
-            boost::process::std_out > stdout_,
-            boost::process::std_err > stderr_);
+        complete(err);
     }
 
-private:
     auto complete(boost::system::error_code err) -> void {
         if (err) error_code_ = err;
         if (++stage_ == 3) {
             handler_(error_code_, exit_code_, std::move(stdout_text_), std::move(stderr_text_));
         }
     }
+};
+
+// N.B. This is a lambda so that template argument inference
+// is delayed until function application and not when passed
+// to async_initiate.
+constexpr auto initiation = []
+<boost::asio::completion_handler_for<ExecSig> Handler>
+(
+    Handler&& handler,
+    boost::asio::io_context& io_context,
+    boost::filesystem::path file,
+    std::vector<std::string> args
+) -> void
+{
+    auto const self = std::make_shared<Exec<Handler>>(std::move(handler), io_context);
+    boost::asio::async_read(
+        self->stdout_,
+        boost::asio::dynamic_buffer(self->stdout_text_),
+        [self](boost::system::error_code err, std::size_t)
+        {
+            self->complete(err);
+        }
+    );
+    boost::asio::async_read(
+        self->stderr_,
+        boost::asio::dynamic_buffer(self->stderr_text_),
+        [self](boost::system::error_code err, std::size_t)
+        {
+            self->complete(err);
+        }
+    );
+    boost::process::async_system(
+        io_context,
+        [self](boost::system::error_code err, int exit_code)
+        {
+            self->exit_code_ = exit_code;
+            self->complete(err);
+        },
+        boost::process::search_path(file),
+        boost::process::args += std::move(args),
+        boost::process::std_in  < boost::process::null,
+        boost::process::std_out > self->stdout_,
+        boost::process::std_err > self->stderr_
+    );
 };
 
 template <
@@ -97,20 +108,11 @@ auto async_exec(
     CompletionToken&& token)
 {
     return boost::asio::async_initiate<CompletionToken, ExecSig>(
-        [](
-            boost::asio::completion_handler_for<ExecSig> auto handler,
-            boost::asio::io_context& io_context,
-            boost::filesystem::path file,
-            std::vector<std::string> args)
-        {
-            std::make_shared<Exec<decltype(handler)>>(std::move(handler), io_context)
-            ->start(io_context, file, std::move(args));
-        },
-        token, io_context, std::move(file), std::move(args)
+        initiation, token, io_context, std::move(file), std::move(args)
     );
 }
 
-}
+} // namespace
 
 auto l_execute(lua_State* L) -> int
 {
