@@ -190,7 +190,6 @@ auto set_cloexec(int const fd) -> void
 }
 
 auto connect(
-    App& app,
     std::shared_ptr<irc_connection> irc,
     Settings settings
 ) -> boost::asio::awaitable<std::string>
@@ -205,13 +204,21 @@ auto connect(
         std::swap(settings.port, settings.socks_port);
     }
 
+    auto& socket = std::get<socket_type>(irc->get_stream().get_impl());
+
+    // Optionally bind the local socket
+    if (not settings.bind_host.empty() || settings.bind_port != 0)
+    {
+        co_await tcp_bind(socket, settings.bind_host, settings.bind_port);
+    }
+
     // Establish underlying TCP connection
     {
-        auto& socket = std::get<socket_type>(irc->get_stream().get_impl());
-        co_await tcp_connect(os, socket, settings.host, settings.port, settings.bind_host, settings.bind_port);
+        co_await tcp_connect(socket, settings.host, settings.port);
         // Connecting will create the actual socket, so set buffer size afterward
         set_buffer_size(socket, irc_connection::irc_buffer_size);
         set_cloexec(socket.native_handle());
+        os << "tcp=" << socket.remote_endpoint();
     }
 
     // Optionally negotiate SOCKS connection
@@ -219,12 +226,10 @@ auto connect(
         auto auth = not settings.socks_user.empty() || not settings.socks_pass.empty()
                 ? socks5::Auth{socks5::UsernamePasswordCredential{std::move(settings.socks_user), std::move(settings.socks_pass)}}
                 : socks5::Auth{socks5::NoCredential{}};
-        os << " socks=";
-        os << co_await socks5::async_connect(
+        os << " socks="
+           << co_await socks5::async_connect(
             irc->get_stream(),
-            std::move(settings.socks_host),
-            settings.port,
-            std::move(auth),
+            std::move(settings.socks_host), settings.port, std::move(auth),
             boost::asio::use_awaitable);
     }
 
@@ -232,9 +237,10 @@ auto connect(
     if (settings.tls)
     {
         auto cxt = build_ssl_context(settings.client_cert, settings.client_key, settings.client_key_password);
-        tls_type stream {std::move(std::get<socket_type>(irc->get_stream().get_impl())), cxt};
+        tls_type stream {std::move(socket), cxt};
         set_buffer_size(stream, irc_connection::irc_buffer_size);
-        co_await tls_connect(os << " ", stream, settings.verify, settings.sni);
+        co_await tls_connect(stream, settings.verify, settings.sni);
+        peer_fingerprint(os << " tls=", stream.native_handle());
         irc->get_stream().get_impl() = std::move(stream);
     }
 
@@ -242,16 +248,15 @@ auto connect(
 }
 
 auto session_thread(
-    App& app,
     int irc_cb,
     std::shared_ptr<irc_connection> irc,
     Settings settings
 ) -> boost::asio::awaitable<void>
 {
-    auto const L = app.get_lua();
+    auto const L = irc->get_lua();
 
     {
-        auto const fingerprint = co_await connect(app, irc, std::move(settings));
+        auto const fingerprint = co_await connect(irc, std::move(settings));
         lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
         push_string(L, "CON"sv);
         push_string(L, fingerprint);
@@ -348,7 +353,7 @@ auto l_start_irc(lua_State *const L) -> int
     pushirc(L, irc);
 
     boost::asio::co_spawn(
-        io_context, session_thread(a, irc_cb, irc, std::move(settings)),
+        io_context, session_thread(irc_cb, irc, std::move(settings)),
         [&a, irc_cb](std::exception_ptr const e) {
             auto const L = a.get_lua();
 

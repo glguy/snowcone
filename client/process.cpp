@@ -2,8 +2,8 @@
 
 extern "C"
 {
-#include "lua.h"
-#include "lauxlib.h"
+#include <lua.h>
+#include <lauxlib.h>
 }
 
 #include <boost/asio.hpp>
@@ -129,7 +129,7 @@ auto async_exec(
 
 auto l_execute(lua_State* L) -> int
 {
-    auto const file = luaL_checkstring(L, 1);
+    auto const file = check_string_view(L, 1);
     auto const n = luaL_len(L, 2);
     luaL_checkany(L, 3);
     std::size_t input_len;

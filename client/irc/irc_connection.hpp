@@ -34,6 +34,11 @@ public:
     {
         return stream_;
     }
+    
+    auto get_lua() const -> lua_State*
+    {
+        return L;
+    }
 
     irc_connection(boost::asio::io_context&, lua_State *L, stream_type&&);
     ~irc_connection();

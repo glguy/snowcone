@@ -20,10 +20,13 @@
  * @return boost::asio::awaitable<void>
  */
 auto tcp_connect(
-    std::ostream& os,
     boost::asio::ip::tcp::socket& stream,
-    std::string_view host, std::uint16_t port,
-    std::string_view bind_host, std::uint16_t bind_port
+    std::string_view host, std::uint16_t port
+) -> boost::asio::awaitable<void>;
+
+auto tcp_bind(
+    boost::asio::ip::tcp::socket& stream,
+    std::string_view host, std::uint16_t port
 ) -> boost::asio::awaitable<void>;
 
 /**
@@ -37,14 +40,14 @@ auto tcp_connect(
  */
 template <typename T>
 auto tls_connect(
-    std::ostream& os,
     boost::asio::ssl::stream<T>& stream,
     std::string const& verify,
     std::string const& sni
     ) -> boost::asio::awaitable<void>;
 
+auto peer_fingerprint(std::ostream &os, SSL const *const ssl) -> void;
+
 extern template auto tls_connect(
-    std::ostream& os,
     boost::asio::ssl::stream<boost::asio::ip::tcp::socket>& stream,
     std::string const& verify,
     std::string const& sni

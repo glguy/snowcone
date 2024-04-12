@@ -151,7 +151,7 @@ auto l_isalnum(lua_State* const L) -> int
     return 1;
 }
 
-int l_irccase(lua_State* L) {
+auto l_irccase(lua_State* const L) -> int {
     char const* const charmap =
         "\x00\x01\x02\x03\x04\x05\x06\x07"
         "\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f"

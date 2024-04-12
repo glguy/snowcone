@@ -10,7 +10,7 @@ extern "C" {
 #include <cstdio>
 #include <iostream>
 
-int safecall(lua_State* const L, char const* const location, int const args)
+int safecall(lua_State* const L, std::string_view const location, int const args)
 {
     lua_pushcfunction(L, [](auto const L){
         auto const msg = luaL_tolstring(L, 1, nullptr);

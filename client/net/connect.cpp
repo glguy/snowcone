@@ -2,7 +2,6 @@
 
 #include <boost/asio.hpp>
 
-namespace {
 auto peer_fingerprint(std::ostream &os, SSL const *const ssl) -> void
 {
     unsigned char md[EVP_MAX_MD_SIZE];
@@ -19,36 +18,34 @@ auto peer_fingerprint(std::ostream &os, SSL const *const ssl) -> void
         os << std::setw(2) << int{md[i]};
     }
 }
-} // namespace
 
-auto tcp_connect(
-    std::ostream& os,
+auto tcp_bind(
     boost::asio::ip::tcp::socket& stream,
-    std::string_view host, std::uint16_t port,
-    std::string_view bind_host, std::uint16_t bind_port
+    std::string_view host, std::uint16_t port
 ) -> boost::asio::awaitable<void>
 {
     auto resolver = boost::asio::ip::tcp::resolver{stream.get_executor()};
+    auto const entries =
+        co_await resolver.async_resolve(host, std::to_string(port), boost::asio::use_awaitable);
+    auto const &entry = *entries.begin();
+    stream.open(entry.endpoint().protocol());
+    stream.bind(entry);
+}
 
-    if (not bind_host.empty() || bind_port != 0)
-    {
-        auto const entries =
-            co_await resolver.async_resolve(bind_host, std::to_string(bind_port), boost::asio::use_awaitable);
-        auto const &entry = *entries.begin();
-
-        stream.open(entry.endpoint().protocol());
-        stream.bind(entry);
-    }
-
+auto tcp_connect(
+    boost::asio::ip::tcp::socket& stream,
+    std::string_view host, std::uint16_t port
+) -> boost::asio::awaitable<void>
+{
+    auto resolver = boost::asio::ip::tcp::resolver{stream.get_executor()};
     auto const entries =
         co_await resolver.async_resolve(host, std::to_string(port), boost::asio::use_awaitable);
 
-    os << "tcp=" << co_await boost::asio::async_connect(stream, entries, boost::asio::use_awaitable);
+    co_await boost::asio::async_connect(stream, entries, boost::asio::use_awaitable);
     stream.set_option(boost::asio::ip::tcp::no_delay(true));
 }
 
 template auto tls_connect(
-    std::ostream& os,
     boost::asio::ssl::stream<boost::asio::ip::tcp::socket>& stream,
     std::string const& verify,
     std::string const& sni
