@@ -10,14 +10,14 @@
 
 /**
  * @brief Connect to TCP service
- * 
+ *
  * @param os connection information output stream
  * @param stream unconnected socket
  * @param host remote hostname
  * @param port remote port number
  * @param bind_host optional local hostname
  * @param bind_port optional local port number
- * @return boost::asio::awaitable<void> 
+ * @return boost::asio::awaitable<void>
  */
 auto tcp_connect(
     std::ostream& os,
@@ -28,7 +28,7 @@ auto tcp_connect(
 
 /**
  * @brief Initiate TLS handshake over an established stream
- * 
+ *
  * @param os connection information output stream
  * @param stream connected stream
  * @param verify optional hostname for certificate verification

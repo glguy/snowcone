@@ -2,7 +2,9 @@
 
 #include <string_view>
 
-struct lua_State;
+extern "C" {
+#include <lua.h>
+}
 
 /**
  * @brief Push string_view value onto Lua stack
@@ -11,7 +13,10 @@ struct lua_State;
  * @param str string
  * @return char const* string in Lua memory
  */
-auto push_string(lua_State * L, std::string_view str) -> char const *;
+inline auto push_string(lua_State * const L, std::string_view const str) -> char const *
+{
+    return lua_pushlstring(L, std::data(str), std::size(str));
+}
 
 /**
  * @brief Check argument as a mutable string and pushes buffer onto Lua stack

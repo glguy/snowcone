@@ -19,11 +19,15 @@ extern "C"
 
 #include <charconv> // from_chars
 #include <memory>
+#include <system_error>
 #include <string>
 #include <variant>
+#include <fcntl.h>
 
 namespace
 {
+
+using namespace std::literals::string_view_literals;
 
 using socket_type = boost::asio::ip::tcp::socket;
 using tls_type = boost::asio::ssl::stream<socket_type>;
@@ -41,7 +45,7 @@ auto l_close_irc(lua_State *const L) -> int
     else
     {
         luaL_pushfail(L);
-        lua_pushstring(L, "irc handle destructed");
+        push_string(L, "irc handle destructed"sv);
         return 2;
     }
 }
@@ -174,14 +178,24 @@ auto set_buffer_size(socket_type& socket, std::size_t const size) -> void
     socket.set_option(socket_type::receive_buffer_size{static_cast<int>(size)});
 }
 
+auto set_cloexec(int const fd) -> void
+{
+    auto const flags = fcntl(fd, F_GETFD);
+    if (-1 == flags) {
+        throw std::system_error{errno, std::generic_category(), "failed to get file descriptor flags"};
+    }
+    if (-1 == fcntl(fd, F_SETFD, flags | FD_CLOEXEC)) {
+        throw std::system_error{errno, std::generic_category(), "failed to set file descriptor flags"};
+    }
+}
+
 auto connect(
     App& app,
     std::shared_ptr<irc_connection> irc,
     Settings settings
-) -> boost::asio::awaitable<void>
+) -> boost::asio::awaitable<std::string>
 {
     std::ostringstream os;
-    auto const L = app.get_lua();
 
     // If we're going to use SOCKS then the TCP connection host is actually the socks
     // server and then the IRC server gets passed over the SOCKS protocol
@@ -197,6 +211,7 @@ auto connect(
         co_await tcp_connect(os, socket, settings.host, settings.port, settings.bind_host, settings.bind_port);
         // Connecting will create the actual socket, so set buffer size afterward
         set_buffer_size(socket, irc_connection::irc_buffer_size);
+        set_cloexec(socket.native_handle());
     }
 
     // Optionally negotiate SOCKS connection
@@ -223,21 +238,26 @@ auto connect(
         irc->get_stream().get_impl() = std::move(stream);
     }
 
-    irc->push_cb();
-    lua_pushstring(L, "CON");
-    push_string(L, os.str());
-    safecall(L, "successful connect", 2);
+    co_return os.str();
 }
 
 auto session_thread(
     App& app,
+    int irc_cb,
     std::shared_ptr<irc_connection> irc,
     Settings settings
 ) -> boost::asio::awaitable<void>
 {
-    co_await connect(app, irc, std::move(settings));
-
     auto const L = app.get_lua();
+
+    {
+        auto const fingerprint = co_await connect(app, irc, std::move(settings));
+        lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
+        push_string(L, "CON"sv);
+        push_string(L, fingerprint);
+        safecall(L, "successful connect", 2);
+    }
+
     irc->write_thread();
 
     for (LineBuffer buff{irc_connection::irc_buffer_size};;)
@@ -256,29 +276,19 @@ auto session_thread(
             while (*line == ' ') { line++; }
             if (*line != '\0')
             {
+                auto const msg = parse_irc_message(line); // might throw
+                lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
+                push_string(L, "MSG"sv);
+                pushircmsg(L, msg);
+                safecall(L, "irc message", 2);
                 need_flush = true;
-                try
-                {
-                    auto const msg = parse_irc_message(line); // might throw
-                    irc->push_cb();
-                    lua_pushstring(L, "MSG");
-                    pushircmsg(L, msg);
-                    safecall(L, "irc message", 2);
-                }
-                catch (irc_parse_error const &e)
-                {
-                    irc->push_cb();
-                    lua_pushstring(L, "BAD");
-                    lua_pushinteger(L, static_cast<lua_Integer>(e.code));
-                    safecall(L, "irc parse error", 2);
-                }
             }
         }
 
         if (need_flush)
         {
-            irc->push_cb();
-            lua_pushstring(L, "FLUSH");
+            lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
+            push_string(L, "FLUSH"sv);
             safecall(L, "irc parse error", 1);
         }
     }
@@ -333,24 +343,23 @@ auto l_start_irc(lua_State *const L) -> int
     auto const irc = std::make_shared<irc_connection>(
         io_context,
         L,
-        irc_cb,
         irc_connection::stream_type{socket_type{io_context}}
     );
     pushirc(L, irc);
 
     boost::asio::co_spawn(
-        io_context, session_thread(a, irc, std::move(settings)),
+        io_context, session_thread(a, irc_cb, irc, std::move(settings)),
         [&a, irc_cb](std::exception_ptr const e) {
             auto const L = a.get_lua();
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
             luaL_unref(a.get_lua(), LUA_REGISTRYINDEX, irc_cb);
-            lua_pushstring(L, "END");
+            push_string(L, "END"sv);
 
             try {
                 std::rethrow_exception(e);
             } catch (std::exception const& ex) {
-                lua_pushstring(L, ex.what());
+                push_string(L, ex.what());
             } catch (...) {
                 lua_pushnil(L);
             }

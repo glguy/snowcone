@@ -48,6 +48,13 @@ auto operator<<(std::ostream& out, irc_error_code) -> std::ostream&;
 struct irc_parse_error : public std::exception {
     irc_error_code code;
     irc_parse_error(irc_error_code code) : code(code) {}
+    auto what() const noexcept -> char const* override {
+        switch (code) {
+        case irc_error_code::MISSING_TAG: return "irc parse error: missing tag";
+        case irc_error_code::MISSING_COMMAND: return "irc parse error: missing tag";
+        default: return "irc parse error: unknown";
+        }
+    }
 };
 
 /**

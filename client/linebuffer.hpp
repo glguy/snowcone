@@ -30,8 +30,6 @@ class LineBuffer
     std::vector<char>::iterator search_;
     std::vector<char>::iterator end_;
 
-    bool ready_;
-
 public:
     /**
      * @brief Construct a new Line Buffer object
@@ -47,8 +45,8 @@ public:
 
     // can't copy the iterator member safely
     LineBuffer(LineBuffer const&) = delete;
-    auto operator=(LineBuffer const&) -> LineBuffer& = delete;
     LineBuffer(LineBuffer &&) = delete;
+    auto operator=(LineBuffer const&) -> LineBuffer& = delete;
     auto operator=(LineBuffer &&) -> LineBuffer& = delete;
 
     /**
@@ -80,11 +78,11 @@ public:
 
     /**
      * @brief Return the next null-terminated line in the buffer
-     * 
+     *
      * This function should be repeatedly called until it returns
      * nullptr at which point it will clean up the buffer relocating
      * the partial line to the front of the buffer.
-     * 
+     *
      * @return null-terminated line or nullptr if no line is ready
      */
     auto next_line() -> char*;

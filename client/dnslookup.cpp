@@ -83,14 +83,14 @@ auto l_dnslookup(lua_State *const L) -> int
         {
             returns = 2;
             luaL_pushfail(L);
-            lua_pushstring(L, error.message().c_str());
+            push_string(L, error.message());
         }
         else
         {
             returns = 1;
             lua_createtable(L, results.size(), 0);
             lua_Integer i = 1;
-            for (auto const& result : results)
+            for (auto&& result : results)
             {
                 push_string(L, result.endpoint().address().to_string());
                 lua_rawseti(L, -2, i++);

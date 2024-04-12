@@ -7,10 +7,9 @@ extern "C" {
 #include <lauxlib.h>
 }
 
-irc_connection::irc_connection(boost::asio::io_context& io_context, lua_State *L, int irc_cb, stream_type&& stream)
+irc_connection::irc_connection(boost::asio::io_context& io_context, lua_State *L, stream_type&& stream)
     : write_timer{io_context, boost::asio::steady_timer::time_point::max()}
     , L{L}
-    , irc_cb_{irc_cb}
     , stream_{std::move(stream)}
 {
 }
@@ -78,9 +77,4 @@ auto irc_connection::write_thread_actual() -> void
                 }
             }
         });
-}
-
-auto irc_connection::push_cb() const -> void
-{
-    lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb_);
 }

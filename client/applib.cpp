@@ -42,6 +42,8 @@ extern "C" {
 
 namespace { // lua support for app
 
+using namespace std::literals::string_view_literals;
+
 char logic_module;
 
 auto l_pton(lua_State* const L) -> int
@@ -67,7 +69,7 @@ auto l_pton(lua_State* const L) -> int
         return 1;
     case 0:
         luaL_pushfail(L);
-        lua_pushstring(L, "pton: bad address");
+        push_string(L, "pton: bad address"sv);
         return 2;
     default: {
         auto const e = errno;
@@ -279,7 +281,7 @@ auto lua_callback(lua_State* const L, char const* const key, int args) -> bool
     auto const module_ty = lua_rawgetp(L, LUA_REGISTRYINDEX, &logic_module);
     if (module_ty != LUA_TNIL)
     {
-        lua_pushstring(L, key);
+        push_string(L, key);
         lua_rotate(L, -(args + 2), 2);
         return LUA_OK == safecall(L, key, args + 1);
     }
@@ -325,7 +327,7 @@ auto prepare_globals(lua_State* const L, int const argc, char const * const * co
     /* populate arg */
     lua_createtable(L, argc - 2, 2);
     for (int i = 0; i < argc; i++) {
-        lua_pushstring(L, argv[i]);
+        push_string(L, argv[i]);
         lua_rawseti(L, -2, i-1);
     }
     lua_setglobal(L, "arg");
