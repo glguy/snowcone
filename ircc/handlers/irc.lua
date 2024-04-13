@@ -1,6 +1,5 @@
 -- Logic for IRC messages
 local tablex      = require 'pl.tablex'
-local Set         = require 'pl.Set'
 
 local N           = require_ 'utils.numerics'
 local send        = require_ 'utils.send'
@@ -8,7 +7,6 @@ local split_nuh   = require_ 'utils.split_nick_user_host'
 local Buffer      = require  'components.Buffer'
 local Channel     = require  'components.Channel'
 local Member      = require  'components.Member'
-local Task        = require  'components.Task'
 local split_statusmsg = require 'utils.split_statusmsg'
 
 local function parse_source(source)

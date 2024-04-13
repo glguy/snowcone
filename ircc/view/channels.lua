@@ -1,7 +1,6 @@
 local drawing = require 'utils.drawing'
 local scrub = require 'utils.scrub'
 local addircstr = require 'utils.irc_formatting'
-local send = require 'utils.send'
 
 local M = {
     title = 'list',

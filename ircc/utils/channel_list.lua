@@ -29,7 +29,7 @@ return function(arg)
             -- "<client> :End of /LIST"
             elseif N.RPL_LISTEND == irc.command then
                 return
-            
+
                 -- "<client> :Start of /LIST"
             elseif N.RPL_LISTSTART == irc.command then
                 -- some servers don't send this
