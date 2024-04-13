@@ -172,10 +172,11 @@ add_command('nick', '$g', function(nick)
 end)
 
 add_command('list', '$R', function(arg)
+    local channel_list_task = require 'utils.channel_list'
     if arg == '' then
-        send('LIST')
+        channel_list_task()
     else
-        send('LIST', arg)
+        channel_list_task(arg)
     end
 end)
 

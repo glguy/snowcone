@@ -84,6 +84,12 @@ function M:render(win)
         normal(win)
         win:waddstr '\n'
     end
+
+    label 'Tasks'
+    for k, _ in pairs(irc_state.tasks) do
+        win:waddstr(k.name, '; ')
+    end
+    win:waddstr '\n'
 end
 
 return M

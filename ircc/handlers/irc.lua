@@ -7,7 +7,6 @@ local send        = require_ 'utils.send'
 local split_nuh   = require_ 'utils.split_nick_user_host'
 local Buffer      = require  'components.Buffer'
 local Channel     = require  'components.Channel'
-local OrderedMap  = require_ 'components.OrderedMap'
 local Member      = require  'components.Member'
 local Task        = require  'components.Task'
 local split_statusmsg = require 'utils.split_statusmsg'
@@ -70,33 +69,6 @@ end
 
 M[N.RPL_SNOMASK] = function(irc)
     status('irc', 'snomask %s', irc[2])
-end
-
------------------------------------------------------------------------
-
-M[N.RPL_LISTSTART] = function()
-    Task('channel list', irc_state.tasks, function(self)
-        channel_list = OrderedMap(10000)
-        local list_commands = Set{N.RPL_LIST, N.RPL_LISTEND}
-        while true do
-            local irc = self:wait_irc(list_commands)
-            -- "<client> <channel> <client count> :<topic>"
-            if irc.command == N.RPL_LIST then
-                local channel = irc[2]
-                channel_list:insert(channel, {
-                    time = os.date("!%H:%M:%S"),
-                    timestamp = uptime,
-                    channel = channel,
-                    users = math.tointeger(irc[3]),
-                    topic = irc[4],
-                })
-
-            -- "<client> :End of /LIST"
-            else
-                return
-            end
-        end
-    end)
 end
 
 -----------------------------------------------------------------------
