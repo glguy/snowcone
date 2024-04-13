@@ -16,6 +16,27 @@ extern "C" {
 
 struct lua_State;
 
+struct Settings
+{
+    bool tls;
+    std::string host;
+    std::uint16_t port;
+
+    std::string client_cert;
+    std::string client_key;
+    std::string client_key_password;
+    std::string verify;
+    std::string sni;
+
+    std::string socks_host;
+    std::uint16_t socks_port;
+    std::string socks_user;
+    std::string socks_pass;
+
+    std::string bind_host;
+    std::uint16_t bind_port;
+};
+
 class irc_connection final : public std::enable_shared_from_this<irc_connection>
 {
 public:
@@ -55,6 +76,8 @@ public:
 
     // Either write data now or wait for there to be data
     auto write_thread() -> void;
+
+    auto connect(Settings settings) -> boost::asio::awaitable<std::string>;
 
 private:
     // There's data now, actually write it

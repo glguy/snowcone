@@ -138,11 +138,9 @@ struct SocksImplementation
         if (error)
         {
             self.complete(error, {});
+            return;
         }
-        else
-        {
-            step(self, state);
-        }
+        step(self, state);
     }
 
     /// @brief Write the buffer to the socket and then read N bytes back into the buffer
@@ -153,7 +151,10 @@ struct SocksImplementation
     template <typename Next, std::size_t N, typename Self>
     auto transact(Self& self) -> void {
         boost::asio::async_write(socket_, boost::asio::buffer(buffer_),
-            std::bind_front(std::move(self), Sent<Next, N>{}));
+            [self = std::move(self)](boost::system::error_code const err, std::size_t n) mutable {
+                self(Sent<Next, N>{}, err, n);
+            }
+        );
     }
 
     template <typename Self, typename Next, std::size_t N>
@@ -161,7 +162,10 @@ struct SocksImplementation
     {
         buffer_.resize(N);
         boost::asio::async_read(socket_, boost::asio::buffer(buffer_),
-            std::bind_front(std::move(self), Next{}));
+            [self = std::move(self)](boost::system::error_code const err, std::size_t n) mutable {
+                self(Next{}, err, n);
+            }
+        );
     }
 
     // Send hello and offer authentication methods
@@ -209,6 +213,7 @@ struct SocksImplementation
         if (method != static_cast<AuthMethod>(buffer_[1]))
         {
             self.complete(make_socks_error(SocksErrc::NoAcceptableMethods), {});
+            return;
         }
         if (AuthMethod::NoAuth == method)
         {

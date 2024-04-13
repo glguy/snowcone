@@ -6,6 +6,8 @@
  *
  */
 
+#include <string_view>
+
 struct lua_State;
 
 /**
@@ -16,4 +18,4 @@ struct lua_State;
  * @param args Number of function arguments on Lua stack
  * @return Result of lua_pcall
  */
-int safecall(lua_State* L, char const* location, int args);
+int safecall(lua_State* L, std::string_view location, int args);
