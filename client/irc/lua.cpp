@@ -102,6 +102,7 @@ auto pushirc(lua_State *const L, std::weak_ptr<irc_connection> irc) -> void
 }
 
 auto session_thread(
+    boost::asio::io_context& io_context,
     int irc_cb,
     std::shared_ptr<irc_connection> irc,
     Settings settings
@@ -110,10 +111,12 @@ auto session_thread(
     auto const L = irc->get_lua();
 
     {
-        auto const fingerprint = co_await irc->connect(std::move(settings));
+        auto res = co_await connect_stream(io_context, std::move(settings));
+        irc->set_stream(std::move(res.first));
+
         lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
         push_string(L, "CON"sv);
-        push_string(L, fingerprint);
+        push_string(L, res.second);
         safecall(L, "successful connect", 2);
     }
 
@@ -194,20 +197,17 @@ auto l_start_irc(lua_State *const L) -> int
         .socks_pass = socks_pass,
         .bind_host = bind_host,
         .bind_port = static_cast<std::uint16_t>(bind_port),
+        .buffer_size = irc_connection::irc_buffer_size,
     };
 
     auto& a = *App::from_lua(L);
     auto& io_context = a.get_executor();
 
-    auto const irc = std::make_shared<irc_connection>(
-        io_context,
-        L,
-        irc_connection::stream_type{socket_type{io_context}}
-    );
+    auto const irc = std::make_shared<irc_connection>(io_context, L);
     pushirc(L, irc);
 
     boost::asio::co_spawn(
-        io_context, session_thread(irc_cb, irc, std::move(settings)),
+        io_context, session_thread(io_context, irc_cb, irc, std::move(settings)),
         [&a, irc_cb](std::exception_ptr const e) {
             auto const L = a.get_lua();
 

@@ -7,48 +7,34 @@
 
 #include <iosfwd>
 #include <string>
+#include <tuple>
 
-/**
- * @brief Connect to TCP service
- *
- * @param os connection information output stream
- * @param stream unconnected socket
- * @param host remote hostname
- * @param port remote port number
- * @param bind_host optional local hostname
- * @param bind_port optional local port number
- * @return boost::asio::awaitable<void>
- */
-auto tcp_connect(
-    boost::asio::ip::tcp::socket& stream,
-    std::string_view host, std::uint16_t port
-) -> boost::asio::awaitable<void>;
+#include "stream.hpp"
 
-auto tcp_bind(
-    boost::asio::ip::tcp::socket& stream,
-    std::string_view host, std::uint16_t port
-) -> boost::asio::awaitable<void>;
+struct Settings
+{
+    bool tls;
+    std::string host;
+    std::uint16_t port;
 
-/**
- * @brief Initiate TLS handshake over an established stream
- *
- * @param os connection information output stream
- * @param stream connected stream
- * @param verify optional hostname for certificate verification
- * @param sni optional hostname for SNI negotiation
- * @return coroutine handle
- */
-template <typename T>
-auto tls_connect(
-    boost::asio::ssl::stream<T>& stream,
-    std::string const& verify,
-    std::string const& sni
-    ) -> boost::asio::awaitable<void>;
+    std::string client_cert;
+    std::string client_key;
+    std::string client_key_password;
+    std::string verify;
+    std::string sni;
 
-auto peer_fingerprint(std::ostream &os, SSL const *const ssl) -> void;
+    std::string socks_host;
+    std::uint16_t socks_port;
+    std::string socks_user;
+    std::string socks_pass;
 
-extern template auto tls_connect(
-    boost::asio::ssl::stream<boost::asio::ip::tcp::socket>& stream,
-    std::string const& verify,
-    std::string const& sni
-    ) -> boost::asio::awaitable<void>;
+    std::string bind_host;
+    std::uint16_t bind_port;
+
+    std::size_t buffer_size;
+};
+
+auto connect_stream(
+    boost::asio::io_context& io_context,
+    Settings settings
+) -> boost::asio::awaitable<std::pair<CommonStream, std::string>>;
