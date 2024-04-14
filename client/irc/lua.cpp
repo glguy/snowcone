@@ -29,8 +29,8 @@ namespace
 
 using namespace std::literals::string_view_literals;
 
-using socket_type = boost::asio::ip::tcp::socket;
-using tls_type = boost::asio::ssl::stream<socket_type>;
+using tcp_type = boost::asio::ip::tcp::socket;
+using tls_type = boost::asio::ssl::stream<tcp_type>;
 
 auto l_close_irc(lua_State *const L) -> int
 {
@@ -242,9 +242,9 @@ auto pushircmsg(lua_State *const L, ircmsg const &msg) -> void
         lua_setfield(L, -2, "source");
     }
 
-    int code;
-    auto res = std::from_chars(msg.command.begin(), msg.command.end(), code);
-    if (*res.ptr == '\0')
+    lua_Integer code;
+    auto const [last, ec] = std::from_chars(msg.command.begin(), msg.command.end(), code);
+    if (ec == std::errc{} && last == msg.command.end())
     {
         lua_pushinteger(L, code);
     }

@@ -3,17 +3,28 @@
 #include <boost/asio.hpp>
 #include <boost/io/ios_state.hpp>
 
+#include <array>
 #include <iomanip>
+#include <vector>
 
 namespace {
 
+using tcp_type = boost::asio::ip::tcp::socket;
+using tls_type = boost::asio::ssl::stream<tcp_type>;
+
+/**
+ * @brief Set up certificate verification, SNI, and perform TLS handshake
+ * 
+ * @param stream 
+ * @param verify optional hostname to verify on server certificate
+ * @param sni optional hostname to send for SNI
+ */
 auto tls_connect(
-    boost::asio::ssl::stream<boost::asio::ip::tcp::socket>& stream,
+    tls_type& stream,
     std::string const& verify,
     std::string const& sni
 ) -> boost::asio::awaitable<void>
 {
-    // TLS connection
     if (not verify.empty())
     {
         stream.set_verify_mode(boost::asio::ssl::verify_peer);
@@ -27,6 +38,9 @@ auto tls_connect(
     co_await stream.async_handshake(stream.client, boost::asio::use_awaitable);
 }
 
+/**
+ * @brief Write SHA2-256 digest of the public-key to the output stream
+ */
 auto peer_fingerprint(std::ostream &os, SSL const *const ssl) -> void
 {
     unsigned char md[EVP_MAX_MD_SIZE];
@@ -44,9 +58,13 @@ auto peer_fingerprint(std::ostream &os, SSL const *const ssl) -> void
     }
 }
 
+/**
+ * @brief Bind the socket to a specific local IP address or port
+ */
 auto tcp_bind(
-    boost::asio::ip::tcp::socket& stream,
-    std::string_view host, std::uint16_t port
+    tcp_type& stream,
+    std::string_view const host,
+    std::uint16_t const port
 ) -> boost::asio::awaitable<void>
 {
     auto resolver = boost::asio::ip::tcp::resolver{stream.get_executor()};
@@ -57,30 +75,33 @@ auto tcp_bind(
     stream.bind(entry);
 }
 
+/**
+ * @brief Establish a new TCP connection to the given remote hostname and port
+ */
 auto tcp_connect(
-    boost::asio::ip::tcp::socket& stream,
-    std::string_view host, std::uint16_t port
-) -> boost::asio::awaitable<void>
+    tcp_type& stream,
+    std::string_view const host,
+    std::uint16_t const port
+) -> boost::asio::awaitable<boost::asio::ip::tcp::endpoint>
 {
     auto resolver = boost::asio::ip::tcp::resolver{stream.get_executor()};
     auto const entries =
         co_await resolver.async_resolve(host, std::to_string(port), boost::asio::use_awaitable);
 
-    co_await boost::asio::async_connect(stream, entries, boost::asio::use_awaitable);
-    stream.set_option(boost::asio::ip::tcp::no_delay(true));
+    co_return co_await boost::asio::async_connect(stream, entries, boost::asio::use_awaitable);
 }
 
-auto set_buffer_size(boost::asio::ssl::stream<boost::asio::ip::tcp::socket>& stream, std::size_t const n) -> void
+auto set_buffer_size(tls_type& stream, std::size_t const n) -> void
 {
     auto const ssl = stream.native_handle();
     BIO_set_buffer_size(SSL_get_rbio(ssl), n);
     BIO_set_buffer_size(SSL_get_wbio(ssl), n);
 }
 
-auto set_buffer_size(boost::asio::ip::tcp::socket& socket, std::size_t const size) -> void
+auto set_buffer_size(tcp_type& socket, std::size_t const n) -> void
 {
-    socket.set_option(boost::asio::ip::tcp::socket::send_buffer_size{static_cast<int>(size)});
-    socket.set_option(boost::asio::ip::tcp::socket::receive_buffer_size{static_cast<int>(size)});
+    socket.set_option(tcp_type::send_buffer_size{static_cast<int>(n)});
+    socket.set_option(tcp_type::receive_buffer_size{static_cast<int>(n)});
 }
 
 auto set_cloexec(int const fd) -> void
@@ -94,10 +115,47 @@ auto set_cloexec(int const fd) -> void
     }
 }
 
+template <std::size_t... Ns>
+auto constexpr sum() -> std::size_t { return (0 + ... + Ns); }
+
+/**
+ * @brief Build's the string format required for the ALPN extension
+ * 
+ * @tparam Ns sizes of each protocol name
+ * @return encoded protocol names
+ */
+template<std::size_t... Ns>
+auto constexpr alpn_encode(const char(&...protocols)[Ns]) -> std::array<unsigned char, sum<Ns...>()>
+{
+    auto result = std::array<unsigned char, sum<Ns...>()>{};
+    auto cursor = std::begin(result);
+    auto const encode = [&cursor]<std::size_t N>(char const (&protocol)[N])
+    {
+        static_assert(N > 0, "Protocol name must be null-terminated");
+        static_assert(N < 256, "Protocol name too long");
+        if (protocol[N-1] != '\0') throw "Protocol name not null-terminated";
+        
+        // Prefixed length byte
+        *cursor++ = N - 1;
+
+        // Add string skipping null terminator
+        cursor = std::copy(std::begin(protocol), std::end(protocol) - 1, cursor);
+    };
+    (encode(protocols), ...);
+    return result;
+}
+
+auto set_alpn(tls_type& stream) -> void
+{
+    auto const protos = alpn_encode("irc");
+    SSL_set_alpn_protos(stream.native_handle(), protos.data(), protos.size());
+}
+
 auto build_ssl_context(
     std::string const &client_cert,
     std::string const &client_key,
-    std::string const &client_key_password) -> boost::asio::ssl::context
+    std::string const &client_key_password
+) -> boost::asio::ssl::context
 {
     boost::system::error_code error;
     boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
@@ -153,7 +211,7 @@ auto connect_stream(
         std::swap(settings.port, settings.socks_port);
     }
 
-    boost::asio::ip::tcp::socket socket{io_context};
+    tcp_type socket{io_context};
 
     // Optionally bind the local socket
     if (not settings.bind_host.empty() || settings.bind_port != 0)
@@ -163,11 +221,10 @@ auto connect_stream(
 
     // Establish underlying TCP connection
     {
-        co_await tcp_connect(socket, settings.host, settings.port);
-        // Connecting will create the actual socket, so set buffer size afterward
+        os << "tcp=" << co_await tcp_connect(socket, settings.host, settings.port);
+        socket.set_option(boost::asio::ip::tcp::no_delay(true));
         set_buffer_size(socket, settings.buffer_size);
         set_cloexec(socket.native_handle());
-        os << "tcp=" << socket.remote_endpoint();
     }
 
     // Optionally negotiate SOCKS connection
@@ -175,23 +232,25 @@ auto connect_stream(
         auto auth = not settings.socks_user.empty() || not settings.socks_pass.empty()
                 ? socks5::Auth{socks5::UsernamePasswordCredential{settings.socks_user, settings.socks_pass}}
                 : socks5::Auth{socks5::NoCredential{}};
-        auto const endpoint =
-            co_await socks5::async_connect(
+        os << " socks="
+           << co_await socks5::async_connect(
                 socket, settings.socks_host, settings.socks_port, std::move(auth),
                 boost::asio::use_awaitable);
-        os << " socks=" << endpoint;
     }
 
     // Optionally negotiate TLS session
     if (settings.tls)
     {
         auto cxt = build_ssl_context(settings.client_cert, settings.client_key, settings.client_key_password);
-        boost::asio::ssl::stream<boost::asio::ip::tcp::socket> stream {std::move(socket), cxt};
+        tls_type stream {std::move(socket), cxt};
         set_buffer_size(stream, settings.buffer_size);
+        set_alpn(stream);
         co_await tls_connect(stream, settings.verify, settings.sni);
         peer_fingerprint(os << " tls=", stream.native_handle());
         co_return std::pair{CommonStream{std::move(stream)}, os.str()};
     }
-
-    co_return std::pair{CommonStream{std::move(socket)}, os.str()};
+    else
+    {
+        co_return std::pair{CommonStream{std::move(socket)}, os.str()};
+    }
 }
