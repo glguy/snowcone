@@ -123,6 +123,7 @@ return {
     [ctrl 'T'              ] = function() editor:swap() end,
     [meta 'f'              ] = function() editor:move_next_word() end,
     [meta 'b'              ] = function() editor:move_prev_word() end,
+    [meta 'k'              ] = function() editor:hexinput() end,
     [-ncurses.KEY_LEFT     ] = function() editor:move_left() end,
     [-ncurses.KEY_RIGHT    ] = function() editor:move_right() end,
     [-ncurses.KEY_HOME     ] = function() editor:move_to_beg() end,

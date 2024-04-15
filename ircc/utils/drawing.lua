@@ -1,5 +1,6 @@
 local addircstr = require 'utils.irc_formatting'
 local matching = require 'utils.matching'
+local scrub = require 'utils.scrub'
 
 local divider_string =
 --  00:00:00
@@ -133,7 +134,7 @@ function M.draw_status_bar(win)
 
         local y0, x0 = ncurses.getyx(win)
 
-        win:waddstr(editor.before_cursor)
+        win:waddstr(scrub(editor.before_cursor))
 
         -- cursor overflow: clear and redraw
         local y1, x1 = ncurses.getyx(win)
@@ -144,11 +145,11 @@ function M.draw_status_bar(win)
             ncurses.colorset(input_mode_color, nil, win)
             editor:overflow()
             win:wmove(y0, x0)
-            win:waddstr(editor.before_cursor)
+            win:waddstr(scrub(editor.before_cursor))
             y1, x1 = ncurses.getyx(win)
         end
 
-        win:waddstr(editor.at_cursor)
+        win:waddstr(scrub(editor.at_cursor))
         win:wmove(y1, x1)
         ncurses.cursset(1)
     else

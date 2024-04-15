@@ -201,6 +201,58 @@ function M:swap()
     end
 end
 
+local hexdigits = {
+    [48] = 0,
+    [49] = 1,
+    [50] = 2,
+    [51] = 3,
+    [52] = 4,
+    [53] = 5,
+    [54] = 6,
+    [55] = 7,
+    [56] = 8,
+    [57] = 9,
+    [65] = 10, [97] = 10,
+    [66] = 11, [98] = 11,
+    [67] = 12, [99] = 12,
+    [68] = 13, [100] = 13,
+    [69] = 14, [101] = 14,
+    [70] = 15, [102] = 15,
+}
+
+-- Look for sequences of 'x' and then hex digits just before the cursor
+function M:hexinput()
+    local b = self.buffer
+    local last = self.cursor - 1
+
+    -- Find the value of i such than i points at: x[0-9a-fA-F]+
+    local first = last
+    while 1 < first do
+        if b[first - 1] == 120 then -- check for 'x'
+
+            -- Compute new value
+            local acc = 0
+            for j = first, last do
+                acc = 16 * acc + hexdigits[b[j]]
+            end
+
+            -- ensure value is valid for the input buffer
+            if acc == 0 or acc == 10 or acc == 13 or acc > 0x10ffff then return end
+
+            -- replace escape sequence with value
+            tablex.removevalues(b, first, last)
+            b[first - 1] = acc -- replaces the 'x'
+
+            self:move(first)
+            return -- done
+        elseif hexdigits[b[first - 1]] then
+            first = first - 1
+        else
+            return -- bad sequence
+        end
+    end
+end
+
 function M:move_to_beg()
     self:move(1)
 end
