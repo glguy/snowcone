@@ -10,8 +10,22 @@ if not uptime then
     app.require_here()
 end
 
-addstr = ncurses.addstr
-mvaddstr = ncurses.mvaddstr
+-- Clean out local modules to make reloads reload more
+do
+    local loaded = package.loaded
+    for k, _ in pairs(loaded) do
+        if k:startswith 'components.'
+        or k:startswith 'handlers.'
+        or k:startswith 'notification.'
+        or k:startswith 'sasl.'
+        or k:startswith 'utils.'
+        or k:startswith 'view.'
+        then
+            loaded[k] = nil
+        end
+    end
+end
+
 do
     -- try to avoid a bunch of table lookups
     local attrset = ncurses.attrset
@@ -23,14 +37,14 @@ do
     local WA_ITALIC = ncurses.WA_ITALIC
     local WA_REVERSE = ncurses.WA_REVERSE
     local WA_UNDERLINE = ncurses.WA_UNDERLINE
-    local red_ = ncurses.red
-    local green_ = ncurses.green
-    local blue_ = ncurses.blue
-    local cyan_ = ncurses.cyan
-    local black_ = ncurses.black
-    local magenta_ = ncurses.magenta
-    local yellow_ = ncurses.yellow
-    local white_ = ncurses.white
+    local red_ = ncurses.COLOR_RED
+    local green_ = ncurses.COLOR_GREEN
+    local blue_ = ncurses.COLOR_BLUE
+    local cyan_ = ncurses.COLOR_CYAN
+    local black_ = ncurses.COLOR_BLACK
+    local magenta_ = ncurses.COLOR_MAGENTA
+    local yellow_ = ncurses.COLOR_YELLOW
+    local white_ = ncurses.COLOR_WHITE
 
     function normal(w)        attrset(WA_NORMAL, 0, w)   end
     function bold(w)          attron(WA_BOLD, w)         end
@@ -51,21 +65,16 @@ do
     function white(w)         colorset(white_, nil, w)   end
 end
 
-function require_(name)
-    package.loaded[name] = nil
-    return require(name)
-end
-
 -- Local modules ======================================================
 
-local drawing            = require_ 'utils.drawing'
-local Editor             = require_ 'components.Editor'
-local Irc                = require_ 'components.Irc'
-local irc_registration   = require_ 'utils.irc_registration'
-local OrderedMap         = require_ 'components.OrderedMap'
-local plugin_manager     = require_ 'utils.plugin_manager'
-local send               = require_ 'utils.send'
-local Task               = require_ 'components.Task'
+local drawing            = require 'utils.drawing'
+local Editor             = require 'components.Editor'
+local Irc                = require 'components.Irc'
+local irc_registration   = require 'utils.irc_registration'
+local OrderedMap         = require 'components.OrderedMap'
+local plugin_manager     = require 'utils.plugin_manager'
+local send               = require 'utils.send'
+local Task               = require 'components.Task'
 local defaults = {
     -- state
     messages = OrderedMap(1000), -- Raw IRC protocol messages
@@ -157,15 +166,15 @@ end
 -- Screen rendering ===================================================
 
 views = {
-    stats = require_ 'view.stats',
-    console = require_ 'view.console',
-    status = require_ 'view.status',
-    plugins = require_ 'view.plugins',
-    help = require_ 'view.help',
-    bouncer = require_ 'view.bouncer',
-    buffer = require_ 'view.buffer',
-    session = require_ 'view.session',
-    channels = require_ 'view.channels',
+    stats = require 'view.stats',
+    console = require 'view.console',
+    status = require 'view.status',
+    plugins = require 'view.plugins',
+    help = require 'view.help',
+    bouncer = require 'view.bouncer',
+    buffer = require 'view.buffer',
+    session = require 'view.session',
+    channels = require 'view.channels',
 }
 
 main_views = {'console', 'status'}
@@ -215,8 +224,8 @@ end
 
 local M = {}
 
-local key_handlers = require_ 'handlers.keyboard'
-local input_handlers = require_ 'handlers.input'
+local key_handlers = require 'handlers.keyboard'
+local input_handlers = require 'handlers.input'
 function M.on_keyboard(key)
     -- buffer text editing
     if input_mode and 0x20 <= key and (key < 0x7f or 0xa0 <= key) then
@@ -317,7 +326,7 @@ function connect()
 end
 
 -- a global allows these to be replaced on a live connection
-irc_handlers = require_ 'handlers.irc'
+irc_handlers = require 'handlers.irc'
 
 function conn_handlers.FLUSH()
     draw()
@@ -452,7 +461,7 @@ local function startup()
         end
     end
 
-    commands = require_ 'handlers.commands'
+    commands = require 'handlers.commands'
 
     -- Load configuration =============================================
 

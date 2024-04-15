@@ -3,9 +3,9 @@ local drawing = require 'utils.drawing'
 
 local palette = {red, green, yellow, blue, magenta, cyan, white}
 local colormap =
-  { black = ncurses.black, red = ncurses.red, green = ncurses.green,
-    yellow = ncurses.yellow, blue = ncurses.blue, magenta = ncurses.magenta,
-    cyan = ncurses.cyan, white = ncurses.white, }
+  { black = ncurses.COLOR_BLACK, red = ncurses.COLOR_RED, green = ncurses.COLOR_GREEN,
+    yellow = ncurses.COLOR_YELLOW, blue = ncurses.COLOR_BLUE, magenta = ncurses.COLOR_MAGENTA,
+    cyan = ncurses.COLOR_CYAN, white = ncurses.COLOR_WHITE, }
 
 local function in_rotation(region, a1, a2)
     local ips = mrs[region] or {}

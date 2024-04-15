@@ -128,7 +128,7 @@ function M:render()
         end)
 
         addstr(string.format(' %3d ', i))
-        ncurses.colorset(watch.color or ncurses.red)
+        ncurses.colorset(watch.color or ncurses.COLOR_RED)
         addstr('◆')
         blue()
         addstr(string.format(' %4d', watch.hits))

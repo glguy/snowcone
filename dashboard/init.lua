@@ -24,14 +24,14 @@ function reversevideo() ncurses.attron(ncurses.WA_REVERSE)      end
 function reversevideo_()ncurses.attroff(ncurses.WA_REVERSE)     end
 function underline()    ncurses.attron(ncurses.WA_UNDERLINE)    end
 function underline_()   ncurses.attroff(ncurses.WA_UNDERLINE)   end
-function red()          ncurses.colorset(ncurses.red)           end
-function green()        ncurses.colorset(ncurses.green)         end
-function blue()         ncurses.colorset(ncurses.blue)          end
-function cyan()         ncurses.colorset(ncurses.cyan)          end
-function black()        ncurses.colorset(ncurses.black)         end
-function magenta()      ncurses.colorset(ncurses.magenta)       end
-function yellow()       ncurses.colorset(ncurses.yellow)        end
-function white()        ncurses.colorset(ncurses.white)         end
+function red()          ncurses.colorset(ncurses.COLOR_RED)           end
+function green()        ncurses.colorset(ncurses.COLOR_GREEN)         end
+function blue()         ncurses.colorset(ncurses.COLOR_BLUE)          end
+function cyan()         ncurses.colorset(ncurses.COLOR_CYAN)          end
+function black()        ncurses.colorset(ncurses.COLOR_BLACK)         end
+function magenta()      ncurses.colorset(ncurses.COLOR_MAGENTA)       end
+function yellow()       ncurses.colorset(ncurses.COLOR_YELLOW)        end
+function white()        ncurses.colorset(ncurses.COLOR_WHITE)         end
 
 function require_(name)
     package.loaded[name] = nil
@@ -305,18 +305,18 @@ end
 -- Screen rendering ===================================================
 
 function draw_global_load(title, tracker)
-    local titlecolor = ncurses.white
+    local titlecolor = ncurses.COLOR_WHITE
     if kline_ready() then
-        titlecolor = ncurses.red
+        titlecolor = ncurses.COLOR_RED
     end
 
-    ncurses.colorset(ncurses.black, titlecolor)
+    ncurses.colorset(ncurses.COLOR_BLACK, titlecolor)
     mvaddstr(tty_height-1, 0, string.format('%-8.8s', view))
 
     if input_mode then
-        ncurses.colorset(titlecolor, ncurses.blue)
+        ncurses.colorset(titlecolor, ncurses.COLOR_BLUE)
         addstr('')
-        ncurses.colorset(ncurses.white, ncurses.blue)
+        ncurses.colorset(ncurses.COLOR_WHITE, ncurses.COLOR_BLUE)
         addstr(input_mode)
         blue()
         addstr('')
@@ -521,9 +521,9 @@ local view_server_load = require_ 'view.server_load'
 local view_simple_load = require_ 'view.simple_load'
 views = {
     cliconn = view_recent_conn(users, 'cliconn', conn_tracker),
-    connload = view_server_load('Connection History', 'cliconn', ncurses.green, conn_tracker),
+    connload = view_server_load('Connection History', 'cliconn', ncurses.COLOR_GREEN, conn_tracker),
     cliexit = view_recent_conn(exits, 'cliexit', exit_tracker),
-    exitload = view_server_load('Disconnection History', 'cliexit', ncurses.red, exit_tracker),
+    exitload = view_server_load('Disconnection History', 'cliexit', ncurses.COLOR_RED, exit_tracker),
     netcount = require_ 'view.netcount',
     bans = require_ 'view.bans',
     stats = require_ 'view.stats',

@@ -1,9 +1,9 @@
 local tablex = require 'pl.tablex'
 
-local addircstr = require_ 'utils.irc_formatting'
+local addircstr = require 'utils.irc_formatting'
 local drawing = require 'utils.drawing'
 local scrub = require 'utils.scrub'
-local split_nuh   = require_ 'utils.split_nick_user_host'
+local split_nuh   = require 'utils.split_nick_user_host'
 
 local function chat_renderer(win, irc)
     local action = 'PRIVMSG' == irc.command and irc[2]:match '^\x01ACTION (.*)\x01$'

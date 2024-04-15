@@ -12,9 +12,9 @@ local N = require 'utils.numerics'
 local matching = require 'utils.matching'
 
 local colormap =
-  { black = ncurses.black, red = ncurses.red, green = ncurses.green,
-    yellow = ncurses.yellow, blue = ncurses.blue, magenta = ncurses.magenta,
-    cyan = ncurses.cyan, white = ncurses.white, }
+  { black = ncurses.COLOR_BLACK, red = ncurses.COLOR_RED, green = ncurses.COLOR_GREEN,
+    yellow = ncurses.COLOR_YELLOW, blue = ncurses.COLOR_BLUE, magenta = ncurses.COLOR_MAGENTA,
+    cyan = ncurses.COLOR_CYAN, white = ncurses.COLOR_WHITE, }
 
 local M = {}
 

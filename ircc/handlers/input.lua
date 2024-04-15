@@ -1,6 +1,6 @@
 -- input mode key handlers
 
-local send = require_ 'utils.send'
+local send = require 'utils.send'
 
 local execute = {}
 

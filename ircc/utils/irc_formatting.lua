@@ -1,11 +1,11 @@
 local scrub = require 'utils.scrub'
 
 local irc_colors = {
-    [0] = ncurses.white, ncurses.black, ncurses.blue, ncurses.green,
-          ncurses.red, ncurses.cyan, ncurses.magenta, ncurses.yellow,
-          ncurses.white, ncurses.black, ncurses.blue, ncurses.green,
-          ncurses.red, ncurses.cyan, ncurses.magenta, ncurses.yellow,
-    [99] = ncurses.default,
+    [0] = ncurses.COLOR_WHITE, ncurses.COLOR_BLACK, ncurses.COLOR_BLUE, ncurses.COLOR_GREEN,
+          ncurses.COLOR_RED, ncurses.COLOR_CYAN, ncurses.COLOR_MAGENTA, ncurses.COLOR_YELLOW,
+          ncurses.COLOR_WHITE, ncurses.COLOR_BLACK, ncurses.COLOR_BLUE, ncurses.COLOR_GREEN,
+          ncurses.COLOR_RED, ncurses.COLOR_CYAN, ncurses.COLOR_MAGENTA, ncurses.COLOR_YELLOW,
+    [99] = ncurses.COLOR_DEFAULT,
 }
 
 return function(win, str)

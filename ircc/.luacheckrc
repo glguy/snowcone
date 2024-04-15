@@ -15,7 +15,6 @@ stds = {
         read_globals = {"tty_height", "tty_width", "mygeoip", "ncurses", "mystringprep", "hsfilter", "myopenssl"},
         globals = {
             "ctrl", "meta", -- functions for defining keyboard handlers
-            "require_", -- require function that already reloads
             "next_view", -- function to advance the view
             "prev_view", -- function to retreat the view
             "quit", -- function to shutdown the client
@@ -70,7 +69,6 @@ stds = {
             "add_click", "add_button", "draw",
 
             -- ncurses helpers
-            "addstr", "mvaddstr",
             "bold", "bold_", "underline", "underline_", "normal", "reversevideo", "reversevideo_",
             "red", "green", "cyan", "black", "yellow", "magenta", "white", "blue", "italic", "italic_"
             },

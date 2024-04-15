@@ -1,9 +1,9 @@
 -- Logic for IRC messages
 local tablex      = require 'pl.tablex'
 
-local N           = require_ 'utils.numerics'
-local send        = require_ 'utils.send'
-local split_nuh   = require_ 'utils.split_nick_user_host'
+local N           = require 'utils.numerics'
+local send        = require 'utils.send'
+local split_nuh   = require 'utils.split_nick_user_host'
 local Buffer      = require  'components.Buffer'
 local Channel     = require  'components.Channel'
 local Member      = require  'components.Member'
@@ -42,7 +42,7 @@ function M.PING(irc)
     send('PONG', irc[1])
 end
 
-local cap_cmds = require_ 'handlers.cap'
+local cap_cmds = require 'handlers.cap'
 function M.CAP(irc)
     -- irc[1] is a nickname or *
     local h = cap_cmds[irc[2]]
@@ -190,7 +190,7 @@ local function route_chat_to_buffer(target, text, irc)
     end
 end
 
-local ctcp_handlers = require_ 'handlers.ctcp'
+local ctcp_handlers = require 'handlers.ctcp'
 function M.PRIVMSG(irc)
     local prefix, target = split_statusmsg(irc[1])
     local message = irc[2]
@@ -294,7 +294,7 @@ function M.NICK(irc)
     end
 end
 
-local batch_handlers = require_ 'handlers.batch'
+local batch_handlers = require 'handlers.batch'
 function M.BATCH(irc)
     local polarity = irc[1]:sub(1,1)
     local name = irc[1]:sub(2)

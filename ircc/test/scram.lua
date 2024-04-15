@@ -1,4 +1,4 @@
-local scram = require_ 'sasl.scram'
+local scram = require 'sasl.scram'
 
 local c1 = 'n,,n=user,r=fyko+d2lbbFgONRv9qkxdawL'
 local s1 = 'r=fyko+d2lbbFgONRv9qkxdawL3rfcNHYJY1ZVvWVs7j,s=QSXCR+Q6sek8bf92,i=4096'

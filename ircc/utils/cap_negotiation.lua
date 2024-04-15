@@ -1,5 +1,5 @@
 local N = require 'utils.numerics'
-local sasl = require_ 'sasl'
+local sasl = require 'sasl'
 local send = require 'utils.send'
 local Set  = require 'pl.Set'
 

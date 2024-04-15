@@ -67,7 +67,7 @@ function M.connect(ev)
                 entry.ip  and safematch(ev.nick .. '!' .. ev.user .. '@' .. ev.ip .. '#' .. ev.gecos, watch.regexp)
             then
                 watch.hits = watch.hits + 1
-                entry.mark = watch.color or ncurses.red
+                entry.mark = watch.color or ncurses.COLOR_RED
                 if watch.beep  then ncurses.beep () end
                 if watch.flash then ncurses.flash() end
             end

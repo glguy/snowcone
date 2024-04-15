@@ -30,7 +30,7 @@ function M:render(win)
                     win:waddstr(val)
                 end
             end
-            addstr '\n'
+            win:waddstr '\n'
             if nil ~= e then
                 blue(win)
                 win:waddstr('      error: ')

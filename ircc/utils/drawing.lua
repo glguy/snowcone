@@ -93,15 +93,15 @@ function M.draw_rotation(win, start, rows, data, show_entry, draw)
 end
 
 local input_mode_palette = {
-    command = ncurses.blue,
-    talk = ncurses.green,
-    filter = ncurses.cyan,
+    command = ncurses.COLOR_BLUE,
+    talk = ncurses.COLOR_GREEN,
+    filter = ncurses.COLOR_CYAN,
 }
 
 function M.draw_status_bar(win)
-    local titlecolor = ncurses.white
+    local titlecolor = ncurses.COLOR_WHITE
 
-    ncurses.colorset(ncurses.black, titlecolor, win)
+    ncurses.colorset(ncurses.COLOR_BLACK, titlecolor, win)
     win:wmove(0, 0)
 
     win:waddstr(string.format('%-8.8s', view))
@@ -110,7 +110,7 @@ function M.draw_status_bar(win)
         local input_mode_color = input_mode_palette[input_mode]
         ncurses.colorset(titlecolor, input_mode_color, win)
         win:waddstr('')
-        ncurses.colorset(ncurses.white, input_mode_color, win)
+        ncurses.colorset(ncurses.COLOR_WHITE, input_mode_color, win)
         win:waddstr(input_mode)
         ncurses.colorset(input_mode_color, nil, win)
         win:waddstr('')

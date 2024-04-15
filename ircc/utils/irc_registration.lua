@@ -1,8 +1,8 @@
-local send = require_ 'utils.send'
+local send = require 'utils.send'
 local cap_negotiation = require 'utils.cap_negotiation'
 local N = require 'utils.numerics'
 local Set = require 'pl.Set'
-local challenge   = require_ 'utils.challenge'
+local challenge   = require 'utils.challenge'
 
 return function(task)
     if configuration.capabilities then

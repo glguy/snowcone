@@ -1,4 +1,4 @@
-local addircstr = require_ 'utils.irc_formatting'
+local addircstr = require 'utils.irc_formatting'
 local parse_snote = require 'utils.parse_snote'
 local drawing = require 'utils.drawing'
 local numerics = require 'utils.numerics'

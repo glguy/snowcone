@@ -2,7 +2,7 @@
 
 local Set = require 'pl.Set'
 local file = require 'pl.file'
-local send = require_ 'utils.send'
+local send = require 'utils.send'
 local N = require 'utils.numerics'
 
 local sasl_commands = Set{
@@ -43,36 +43,36 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid)
     if mechanism == 'PLAIN' then
         assert(authcid, "missing sasl `username`")
         assert(password, "missing sasl `password`")
-        return require_ 'sasl.plain' (authzid, authcid, password)
+        return require 'sasl.plain' (authzid, authcid, password)
     elseif mechanism == 'EXTERNAL' then
-        return require_ 'sasl.external' (authzid)
+        return require 'sasl.external' (authzid)
     elseif mechanism == 'ECDSA-NIST256P-CHALLENGE' then
         assert(authcid, "missing sasl `username`")
         assert(key, "missing sasl `key`")
         key = assert(file.read(key))
         key = assert(myopenssl.read_pkey(key, true, password))
-        return require_ 'sasl.ecdsa' (authzid, authcid, key)
+        return require 'sasl.ecdsa' (authzid, authcid, key)
     elseif mechanism == 'ECDH-X25519-CHALLENGE' then
         assert(authcid, "missing sasl `username`")
         assert(key, 'missing sasl `key`')
         key = assert(snowcone.from_base64(key), 'bad base64 in private sasl `key`')
         key = assert(myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, true, key))
-        return require_ 'sasl.ecdh' (authzid, authcid, key)
+        return require 'sasl.ecdh' (authzid, authcid, key)
     elseif mechanism == 'SCRAM-SHA-1'   then
         assert(authcid, "missing sasl `username`")
         assert(password, "missing sasl `password`")
-        return require_ 'sasl.scram' ('sha1', authzid, authcid, password)
+        return require 'sasl.scram' ('sha1', authzid, authcid, password)
     elseif mechanism == 'SCRAM-SHA-256' then
         assert(authcid, "missing sasl `username`")
         assert(password, "missing sasl `password`")
-        return require_ 'sasl.scram' ('sha256', authzid, authcid, password)
+        return require 'sasl.scram' ('sha256', authzid, authcid, password)
     elseif mechanism == 'SCRAM-SHA-512' then
         assert(authcid, "missing sasl `username`")
         assert(password, "missing sasl `password`")
-        return require_ 'sasl.scram' ('sha512', authzid, authcid, password)
+        return require 'sasl.scram' ('sha512', authzid, authcid, password)
     elseif mechanism == 'ANONYMOUS' then
         assert(authcid, "missing sasl `username`")
-        return require_ 'sasl.anonymous' (authcid)
+        return require 'sasl.anonymous' (authcid)
     else
         error 'unknown mechanism'
     end
