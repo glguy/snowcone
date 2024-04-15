@@ -19,13 +19,15 @@ local command_renderer = {
 function command_renderer.JOIN(win, irc)
     italic(win)
     local _, u, h = split_nuh(irc.source)
-    win:waddstr('joined ', scrub(u), '@', scrub(h))
+    win:waddstr('joined ')
+    italic_(win)
+    win:waddstr(scrub(u), '@', scrub(h))
     local account = irc[2]
     if account then
         if '*' ~= account then
-            win:waddstr(' <', scrub(account), '>')
+            win:waddstr(' a:', scrub(account))
         end
-        win:waddstr ' '
+        win:waddstr ' r:'
         addircstr(win, irc[3])
     end
 end
@@ -49,13 +51,16 @@ end
 
 function command_renderer.KICK(win, irc)
     italic(win)
-    win:waddstr('kicked ', scrub(irc[2]), ': ')
+    win:waddstr('kicked ')
+    italic_(win)
+    win:waddstr(scrub(irc[2]), ': ')
     addircstr(win, irc[3])
 end
 
 function command_renderer.MODE(win, irc)
     italic(win)
     win:waddstr 'set mode'
+    italic_(win)
     for i = 2, #irc do
         win:waddstr(' ', scrub(irc[i]))
     end
@@ -73,13 +78,18 @@ function command_renderer.ACCOUNT(win, irc)
     if '*' == account then
         win:waddstr 'logged out'
     else
-        win:waddstr('logged in as ', scrub(account))
+        win:waddstr('logged in as ')
+        italic_(win)
+        win:waddstr(scrub(account))
     end
 end
 
 function command_renderer.CHGHOST(win, irc)
     italic(win)
-    win:waddstr('set host ', scrub(irc[1]), '@', scrub(irc[2]))
+    win:waddstr('set host ')
+    italic_(win)
+
+    win:waddstr(scrub(irc[1]), '@', scrub(irc[2]))
 end
 
 local function render_irc(win, irc)
