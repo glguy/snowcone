@@ -75,10 +75,10 @@ function M:render(win)
         for k, v in tablex.sort(irc_state.monitor) do
             if v.user then
                 green(win)
-                win:waddstr(' ', scrub(v.user.nick))
+                win:waddstr(scrub(v.user.nick), ' ')
             else
                 red(win)
-                win:waddstr(' ', scrub(k:lower()))
+                win:waddstr(scrub(k:lower()), ' ')
             end
         end
         normal(win)

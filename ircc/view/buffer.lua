@@ -201,8 +201,6 @@ local function draw_messages(win, buffer)
             else
                 haystack = irc.command .. ' ' .. table.concat(irc, ' ')
             end
-
-            print(haystack, current_filter)
             return matching.safematch(haystack, current_filter)
         end
     end
