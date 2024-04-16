@@ -19,14 +19,18 @@ local command_renderer = {
 function command_renderer.JOIN(win, irc)
     italic(win)
     local _, u, h = split_nuh(irc.source)
-    win:waddstr('joined ')
-    italic_(win)
+    win:waddstr('join ')
+    normal(win)
     win:waddstr(scrub(u), '@', scrub(h))
     local account = irc[2]
     if account then
         if '*' ~= account then
-            win:waddstr(' a:', scrub(account))
+            magenta(win)
+            win:waddstr(' a:')
+            normal(win)
+            win:waddstr(scrub(account))
         end
+        magenta(win)
         win:waddstr ' r:'
         addircstr(win, irc[3])
     end
@@ -34,7 +38,7 @@ end
 
 function command_renderer.PART(win, irc)
     italic(win)
-    win:waddstr 'parted '
+    win:waddstr 'part '
     addircstr(win, irc[1])
 end
 
@@ -46,12 +50,14 @@ end
 
 function command_renderer.NICK(win, irc)
     italic(win)
-    win:waddstr('set nick ', scrub(irc[1]))
+    win:waddstr('nick ')
+    normal(win)
+    win:waddstr(scrub(irc[1]))
 end
 
 function command_renderer.KICK(win, irc)
     italic(win)
-    win:waddstr('kicked ')
+    win:waddstr('kick ')
     italic_(win)
     win:waddstr(scrub(irc[2]), ': ')
     addircstr(win, irc[3])
@@ -59,7 +65,7 @@ end
 
 function command_renderer.MODE(win, irc)
     italic(win)
-    win:waddstr 'set mode'
+    win:waddstr 'mode'
     italic_(win)
     for i = 2, #irc do
         win:waddstr(' ', scrub(irc[i]))
@@ -68,7 +74,7 @@ end
 
 function command_renderer.TOPIC(win, irc)
     italic(win)
-    win:waddstr 'set topic '
+    win:waddstr 'topic '
     addircstr(win, irc[2])
 end
 
@@ -76,9 +82,9 @@ function command_renderer.ACCOUNT(win, irc)
     italic(win)
     local account = irc[1]
     if '*' == account then
-        win:waddstr 'logged out'
+        win:waddstr 'log-out'
     else
-        win:waddstr('logged in as ')
+        win:waddstr('log-in ')
         italic_(win)
         win:waddstr(scrub(account))
     end
@@ -86,9 +92,8 @@ end
 
 function command_renderer.CHGHOST(win, irc)
     italic(win)
-    win:waddstr('set host ')
+    win:waddstr('host ')
     italic_(win)
-
     win:waddstr(scrub(irc[1]), '@', scrub(irc[2]))
 end
 
