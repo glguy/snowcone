@@ -389,7 +389,7 @@ auto l_read_raw(lua_State * const L) -> int
     return 1;
 }
 
-auto l_read_pkey(lua_State * const L) -> int
+auto l_read_pem(lua_State * const L) -> int
 {
     std::size_t key_len;
     auto const key = luaL_checklstring(L, 1, &key_len);

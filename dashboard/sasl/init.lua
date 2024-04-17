@@ -51,7 +51,7 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid)
     elseif mechanism == 'ECDSA-NIST256P-CHALLENGE' then
         assert(key, "sasl key file not specified `key`")
         key = assert(file.read(key), 'failed to read sasl key file')
-        key = assert(myopenssl.read_pkey(key, true, password))
+        key = assert(myopenssl.read_pem(key, true, password))
         return require_ 'sasl.ecdsa' (authzid, authcid, key)
     elseif mechanism == 'ECDH-X25519-CHALLENGE' then
         assert(key, 'missing private key')

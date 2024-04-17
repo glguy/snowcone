@@ -22,7 +22,7 @@ return function(task)
     local user    = assert(configuration.oper_username, 'missing oper_username')
     local path    = assert(configuration.challenge_key, 'missing challenge_key')
     local rsa_key = assert(file.read(path))
-    local key     = assert(myopenssl.read_pkey(rsa_key, true, configuration.challenge_password))
+    local key     = assert(myopenssl.read_pem(rsa_key, true, configuration.challenge_password))
 
     local n = 0
     local chunks = {}

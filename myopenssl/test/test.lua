@@ -30,10 +30,10 @@ local priv_key = myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, true, priv_
 assert(priv_key:export().pub == pub_key_raw)
 
 local pem = io.open('test/rsa.pem'):read('a')
-local priv = myopenssl.read_pkey(pem, true)
+local priv = myopenssl.read_pem(pem, true)
 priv:sign('a message') -- just make sure it doesn't blow up
 
 pem = io.open('test/encrsa.pem'):read('a')
-myopenssl.read_pkey(pem, true, 'password')
+myopenssl.read_pem(pem, true, 'password')
 
 print 'ok'
