@@ -147,7 +147,7 @@ auto constexpr alpn_encode(const char(&...protocols)[Ns]) -> std::array<unsigned
 
 auto set_alpn(tls_type& stream) -> void
 {
-    auto const protos = alpn_encode("irc");
+    auto constexpr protos = alpn_encode("irc");
     SSL_set_alpn_protos(stream.native_handle(), protos.data(), protos.size());
 }
 

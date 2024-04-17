@@ -13,9 +13,13 @@
 ///
 /// @tparam ...Ts These types should satisfy AsyncReadStream and AsyncWriteStream
 template <typename... Ts>
-struct Stream
+class Stream
 {
     std::variant<Ts...> impl_;
+
+public:
+    template <typename T>
+    Stream(T&& stream) : impl_{std::forward<T>(stream)} {}
 
     // AsyncReadStream and AsyncWriteStream type requirement
     using executor_type = boost::asio::any_io_executor;
@@ -62,12 +66,6 @@ struct Stream
 
     /// @brief Gracefully tear down the network stream
     auto close() -> void;
-
-    /// @brief Access underlying stream
-    auto get_impl() noexcept -> std::variant<Ts...>&
-    {
-        return impl_;
-    }
 };
 
 using CommonStream = Stream<boost::asio::ip::tcp::socket, boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>;
