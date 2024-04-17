@@ -201,6 +201,24 @@ TEST(Irc, Spaces) {
   EXPECT_ANY_THROW(parse_irc_message(input));
 }
 
+TEST(Irc, MixedValidAndUnconventionalTags) {
+    char input[] = "@valid=correct;empty;noValue;strange=@;key\\with\\escapes=\\s\\:\\r\\n :prefix command arg1 :arg2 with space";
+    ircmsg expected {
+        {
+            {"valid", "correct"},
+            {"empty", ""},
+            {"noValue", ""},
+            {"strange", "@"},
+            {"key\\with\\escapes", " ;\r\n"}
+        },
+        "prefix",
+        "command",
+        {"arg1", "arg2 with space"}
+    };
+
+    EXPECT_EQ(parse_irc_message(input), expected);
+}
+
 }
 
 int main(int argc, char **argv) {

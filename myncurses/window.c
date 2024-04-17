@@ -135,6 +135,7 @@ static int l_waddstr(lua_State* const L)
 
 static luaL_Reg const MT[] = {
     {"__gc", l_delwin},
+    {"__close", l_delwin},
     {}
 };
 

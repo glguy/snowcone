@@ -74,6 +74,8 @@ int luaopen_mygeoip(lua_State *L)
         {
                 lua_pushcfunction(L, close_org_db);
                 lua_setfield(L, -2, "__gc");
+                lua_pushcfunction(L, close_org_db);
+                lua_setfield(L, -2, "__close");
 
                 luaL_newlib(L, DbM);
                 lua_setfield(L, -2, "__index");

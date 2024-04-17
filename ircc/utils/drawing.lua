@@ -64,20 +64,17 @@ end
 
 function M.draw_rotation(win, start, rows, data, show_entry, draw)
     local window = rotating_window(data, rows, show_entry)
-
     local last_time
     for i = 1, rows do
         local entry = window[i]
         local y = start + i - 1
+        win:wmove(y, 0)
         if entry == 'divider' then
             last_time = os.date '!%H:%M:%S'
-
             yellow(win)
-            win:wmove(y, 0)
             win:waddstr(last_time, divider_string)
         elseif entry then
             normal(win)
-            win:wmove(y, 0)
             local time = entry.time
             if time == last_time then
                 win:waddstr '        '
@@ -87,8 +84,6 @@ function M.draw_rotation(win, start, rows, data, show_entry, draw)
             end
             normal(win)
             draw(win, entry)
-        else
-            normal(win)
         end
     end
 end

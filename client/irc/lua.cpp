@@ -78,12 +78,15 @@ auto pushirc(lua_State *const L, std::weak_ptr<irc_connection> irc) -> void
 {
     auto const w = new_udata<std::weak_ptr<irc_connection>>(L, 1, [L]()
     {
+        auto constexpr l_gc = [](lua_State* const L) -> int {
+            auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
+            w->~weak_ptr();
+            return 0;
+        };
+
         luaL_Reg const MT[] {
-            {"__gc", [](auto const L) {
-                auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
-                w->~weak_ptr();
-                return 0;
-            }},
+            {"__gc", l_gc},
+            {"__close", l_gc},
             {},
         };
         luaL_setfuncs(L, MT, 0);
@@ -236,7 +239,7 @@ auto pushircmsg(lua_State *const L, ircmsg const &msg) -> void
     pushtags(L, msg.tags);
     lua_setfield(L, -2, "tags");
 
-    if (msg.hassource())
+    if (not msg.source.empty())
     {
         push_string(L, msg.source);
         lua_setfield(L, -2, "source");

@@ -20,15 +20,18 @@ template<> char const* udata_name<Timer> = "steady_timer";
 
 namespace {
 
-luaL_Reg const MT[] {
-    {"__gc", [](auto const L) {
-        auto const timer = check_udata<Timer>(L, 1);
-        lua_pushnil(L);
-        lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
-        timer->~Timer();
-        return 0;
-    }},
+auto l_gc(lua_State* const L) -> int
+{
+    auto const timer = check_udata<Timer>(L, 1);
+    lua_pushnil(L);
+    lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
+    timer->~Timer();
+    return 0;
+}
 
+luaL_Reg const MT[] {
+    {"__gc", l_gc},
+    {"__close", l_gc},
     {}
 };
 

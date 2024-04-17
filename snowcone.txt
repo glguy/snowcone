@@ -179,7 +179,7 @@ FILES
   ~/.config/snowcone/settings.lua
     Connection configuration file using lua syntax
 
-  ~/.config/snowcone/servers.lua  
+  ~/.config/snowcone/servers.lua
     Lua syntax table specifying server addresses and regions.
 
   /usr/share/snowcone/dashboard
@@ -188,7 +188,7 @@ FILES
   /usr/share/snowcone/ircc
     Lua run-time source files for ircc mode
 
-  ~/.config/snowcone/GeoLite2-ASN.mmdb  
+  ~/.config/snowcone/GeoLite2-ASN.mmdb
     If the mmdb Lua library is installed, and the GeoLite2-ASN.mmdb
     database is in the current directory, snowcone will use it to provide
     more information about recent connections.

@@ -97,6 +97,14 @@ auto compare_bignum(lua_State* const L) -> int
     return 1;
 }
 
+auto l_gc(lua_State* const L) -> int
+{
+    auto& bn = checkbignum(L, 1);
+    BN_free(bn);
+    bn = nullptr;
+    return 0;
+}
+
 luaL_Reg const MT[] = {
     {"__tostring", [](auto const L) {
         auto const bn = checkbignum(L, 1);
@@ -105,12 +113,8 @@ luaL_Reg const MT[] = {
         OPENSSL_free(str);
         return 1;
     }},
-    {"__gc", [](auto const L) {
-        auto& bn = checkbignum(L, 1);
-        BN_free(bn);
-        bn = nullptr;
-        return 0;
-    }},
+    {"__gc", l_gc},
+    {"__close", l_gc},
     {"__idiv", [](auto const L){
         auto const a = checkbignum(L, 1);
         auto const b = checkbignum(L, 2);
