@@ -203,7 +203,7 @@ auto l_start_irc(lua_State *const L) -> int
     auto& a = *App::from_lua(L);
     auto& io_context = a.get_executor();
 
-    auto const irc = std::make_shared<irc_connection>(io_context, L);
+    auto const irc = irc_connection::create(io_context, L);
     pushirc(L, irc);
 
     boost::asio::co_spawn(

@@ -9,7 +9,7 @@ extern "C" {
 
 #include "../net/connect.hpp"
 
-irc_connection::irc_connection(boost::asio::io_context& io_context, lua_State *L)
+irc_connection::irc_connection(Private, boost::asio::io_context& io_context, lua_State *L)
     : write_timer{io_context, boost::asio::steady_timer::time_point::max()}
     , L{L}
     , stream_{boost::asio::ip::tcp::socket{io_context}}

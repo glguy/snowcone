@@ -24,14 +24,22 @@ private:
     std::deque<boost::asio::const_buffer> write_buffers;
     stream_type stream_;
 
+
+    struct Private{};
+
 public:
-    irc_connection(boost::asio::io_context&, lua_State *L);
+    irc_connection(Private, boost::asio::io_context&, lua_State *L);
     ~irc_connection();
 
     auto operator=(irc_connection const&) -> irc_connection& = delete;
     auto operator=(irc_connection &&) -> irc_connection& = delete;
     irc_connection(irc_connection const&) = delete;
     irc_connection(irc_connection &&) = delete;
+
+    auto static create(boost::asio::io_context& io_context, lua_State *L) -> std::shared_ptr<irc_connection>
+    {
+        return std::make_shared<irc_connection>(Private{}, io_context, L);
+    }
 
     auto get_stream() -> stream_type&
     {

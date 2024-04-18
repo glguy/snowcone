@@ -165,7 +165,7 @@ auto build_ssl_context(
         ssl_context.set_password_callback(
             [client_key_password](
                 std::size_t const max_size,
-                boost::asio::ssl::context::password_purpose const purpose)
+                boost::asio::ssl::context::password_purpose)
             {
                 return client_key_password.size() <= max_size ? client_key_password : "";
             },
