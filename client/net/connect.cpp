@@ -14,8 +14,8 @@ using tls_type = boost::asio::ssl::stream<tcp_type>;
 
 /**
  * @brief Set up certificate verification, SNI, and perform TLS handshake
- * 
- * @param stream 
+ *
+ * @param stream
  * @param verify optional hostname to verify on server certificate
  * @param sni optional hostname to send for SNI
  */
@@ -120,7 +120,7 @@ auto constexpr sum() -> std::size_t { return (0 + ... + Ns); }
 
 /**
  * @brief Build's the string format required for the ALPN extension
- * 
+ *
  * @tparam Ns sizes of each protocol name
  * @return encoded protocol names
  */
@@ -134,7 +134,7 @@ auto constexpr alpn_encode(const char(&...protocols)[Ns]) -> std::array<unsigned
         static_assert(N > 0, "Protocol name must be null-terminated");
         static_assert(N < 256, "Protocol name too long");
         if (protocol[N-1] != '\0') throw "Protocol name not null-terminated";
-        
+
         // Prefixed length byte
         *cursor++ = N - 1;
 

@@ -18,14 +18,17 @@ template<> char const* udata_name<Resolver> = "dnslookup";
 
 namespace {
 
+auto l_gc(lua_State* const L) -> int {
+    auto const resolver = check_udata<Resolver>(L, 1);
+    lua_pushnil(L);
+    lua_rawsetp(L, LUA_REGISTRYINDEX, resolver);
+    resolver->~Resolver();
+    return 0;
+}
+
 luaL_Reg const MT[] = {
-    {"__gc", [](auto const L) {
-        auto const resolver = check_udata<Resolver>(L, 1);
-        lua_pushnil(L);
-        lua_rawsetp(L, LUA_REGISTRYINDEX, resolver);
-        resolver->~Resolver();
-        return 0;
-    }},
+    {"__gc", l_gc},
+    {"__close", l_gc},
     {}
 };
 

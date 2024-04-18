@@ -7,7 +7,7 @@ struct lua_State;
 
 /**
  * @brief Match a WINDOW argument
- * 
+ *
  * @param L Lua state
  * @param arg Stack index
  * @return Pointer to live WINDOW
@@ -16,7 +16,7 @@ WINDOW* checkwindow(struct lua_State* L, int arg);
 
 /**
  * @brief Match an optional WINDOW argument
- * 
+ *
  * @param L Lua state
  * @param arg Stack index
  * @return Pointer to live WINDOW defaults to stdsrc

@@ -25,15 +25,17 @@ namespace myopenssl {
 
 namespace {
 
-luaL_Reg const PkeyMT[] {
-    { "__gc", [](auto const L)
-    {
-        auto const pkeyPtr = static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
-        EVP_PKEY_free(*pkeyPtr);
-        *pkeyPtr = nullptr;
-        return 0;
-    }},
+auto l_gc(lua_State* const L) -> int
+{
+    auto const pkeyPtr = static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
+    EVP_PKEY_free(*pkeyPtr);
+    *pkeyPtr = nullptr;
+    return 0;
+}
 
+luaL_Reg const PkeyMT[] {
+    {"__gc", l_gc},
+    {"__close", l_gc},
     {}
 };
 
@@ -389,7 +391,7 @@ auto l_read_raw(lua_State * const L) -> int
     return 1;
 }
 
-auto l_read_pkey(lua_State * const L) -> int
+auto l_read_pem(lua_State * const L) -> int
 {
     std::size_t key_len;
     auto const key = luaL_checklstring(L, 1, &key_len);

@@ -5,9 +5,9 @@ A small library for parsing IRC messages.
 ```c
   struct ircmsg parsed;
   char raw[] = "@key=val :nick!user@host PRIVMSG #channel :Hello, world.";
-  
+
   parse_irc_message(raw, &parsed);
-  
+
   /* effective result */
   parsed = (struct ircmsg) {
       .tags_n = 1,

@@ -33,8 +33,6 @@ struct ircmsg
       source{source},
       command{command} {}
 
-      bool hassource() const;
-
       friend bool operator==(ircmsg const&, ircmsg const&) = default;
 };
 
@@ -45,25 +43,46 @@ enum class irc_error_code {
 
 auto operator<<(std::ostream& out, irc_error_code) -> std::ostream&;
 
-struct irc_parse_error : public std::exception {
+struct irc_parse_error final : public std::exception {
     irc_error_code code;
+
     irc_parse_error(irc_error_code code) : code(code) {}
-    auto what() const noexcept -> char const* override {
+
+    auto what() const noexcept -> char const* override
+    {
         switch (code) {
-        case irc_error_code::MISSING_TAG: return "irc parse error: missing tag";
-        case irc_error_code::MISSING_COMMAND: return "irc parse error: missing tag";
-        default: return "irc parse error: unknown";
+        case irc_error_code::MISSING_TAG:
+            return "irc parse error: missing tag";
+        case irc_error_code::MISSING_COMMAND:
+            return "irc parse error: missing command";
+        default:
+            return "irc parse error: unknown error";
         }
     }
 };
 
 /**
+ * @brief Parse an IRC message in place
+ *
  * Parses the given IRC message into a structured format.
- * The original message is mangled to store string fragments
+ * The original message buffer is mangled to store string fragments
  * that are pointed to by the structured message type.
  *
- * Returns zero for success, non-zero for parse error.
+ * @param msg null-terminated character buffer with raw IRC message.
+ * @return parsed IRC message
+ * @throw irc_parse_error on failure
  */
 auto parse_irc_message(char* msg) -> ircmsg;
 
+/**
+ * @brief Parse an IRC tags string in place
+ *
+ * Parses the given IRC tags into a structured format.
+ * The original message buffer is mangled to store string fragments
+ * that are pointed to by the structured message type.
+ *
+ * @param msg null-terminated character buffer with raw IRC tags.
+ * @return parsed IRC tags vector
+ * @throw irc_parse_error on failure
+ */
 auto parse_irc_tags(char* msg) -> std::vector<irctag>;

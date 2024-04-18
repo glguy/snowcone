@@ -50,7 +50,7 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid)
         assert(authcid, "missing sasl `username`")
         assert(key, "missing sasl `key`")
         key = assert(file.read(key))
-        key = assert(myopenssl.read_pkey(key, true, password))
+        key = assert(myopenssl.read_pem(key, true, password))
         return require 'sasl.ecdsa' (authzid, authcid, key)
     elseif mechanism == 'ECDH-X25519-CHALLENGE' then
         assert(authcid, "missing sasl `username`")

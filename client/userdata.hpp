@@ -58,12 +58,16 @@ T* check_udata(lua_State *L, int ud) {
 template <typename T, typename... Args>
 auto new_object(lua_State* const L, Args&&... args) -> T&
 {
+    auto constexpr l_gc = [](lua_State* const L) -> int
+    {
+        auto const ptr = reinterpret_cast<T*>(lua_touserdata(L, 1));
+        ptr->~T();
+        return 0;
+    };
+
     static luaL_Reg const MT[] = {
-        {"__gc", [](auto const L){
-            auto const ptr = reinterpret_cast<T*>(lua_touserdata(L, 1));
-            ptr->~T();
-            return 0;
-        }},
+        {"__gc", l_gc},
+        {"__close", l_gc},
         {}
     };
 

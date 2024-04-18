@@ -60,7 +60,7 @@ public:
 
     /// @brief Return remaining unparsed string
     /// @return Null-terminated string
-    char const* peek() {
+    char const* peek() const {
         return msg_;
     }
 };
@@ -111,7 +111,7 @@ auto parse_irc_tags(char* str) -> std::vector<irctag>
         if (nullptr == val) {
             tags.emplace_back(key, "");
         } else {
-            tags.emplace_back(std::string_view{key, val-1}, unescape_tag_value(val));
+            tags.emplace_back(key, unescape_tag_value(val));
         }
     } while(nullptr != str);
 
@@ -149,11 +149,6 @@ auto parse_irc_message(char* const msg) -> ircmsg
     }
 
     return out;
-}
-
-auto ircmsg::hassource() const -> bool
-{
-    return source.data() != nullptr;
 }
 
 auto operator<<(std::ostream& out, irc_error_code const code) -> std::ostream&
