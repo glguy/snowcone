@@ -31,7 +31,6 @@ auto l_gc(lua_State* const L) -> int
 
 luaL_Reg const MT[] {
     {"__gc", l_gc},
-    {"__close", l_gc},
     {}
 };
 

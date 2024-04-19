@@ -9,15 +9,21 @@ extern "C" {
 
 #include "../net/connect.hpp"
 
-irc_connection::irc_connection(Private, boost::asio::io_context& io_context, lua_State *L)
-    : write_timer{io_context, boost::asio::steady_timer::time_point::max()}
+irc_connection::irc_connection(
+    Private,
+    boost::asio::io_context& io_context,
+    lua_State* const L
+)
+    : stream_{boost::asio::ip::tcp::socket{io_context}}
     , L{L}
-    , stream_{boost::asio::ip::tcp::socket{io_context}}
+    , writing_{false}
 {
 }
 
-irc_connection::~irc_connection() {
-    for (auto const ref : write_refs) {
+irc_connection::~irc_connection()
+{
+    for (auto const ref : write_refs)
+    {
         luaL_unref(L, LUA_REGISTRYINDEX, ref);
     }
 }
@@ -26,57 +32,41 @@ auto irc_connection::write(std::string_view const cmd, int const ref) -> void
 {
     auto const idle = write_buffers.empty();
     write_buffers.emplace_back(cmd.data(), cmd.size());
-    write_refs.push_back(ref);
-    if (idle)
+    write_refs.emplace_back(ref);
+    if (not writing_)
     {
-        write_timer.cancel_one();
+        writing_ = true;
+        write_actual();
     }
 }
 
-auto irc_connection::write_thread() -> void
-{
-    if (write_buffers.empty())
-    {
-        write_timer.async_wait(
-            [weak = weak_from_this()](auto)
-            {
-                if (auto const self = weak.lock())
-                {
-                    if (not self->write_buffers.empty())
-                    {
-                        self->write_thread_actual();
-                    }
-                }
-            }
-        );
-    }
-    else
-    {
-        write_thread_actual();
-    }
-}
-
-auto irc_connection::write_thread_actual() -> void
+auto irc_connection::write_actual() -> void
 {
     boost::asio::async_write(
         stream_,
         write_buffers,
-        [weak = weak_from_this(), n = write_buffers.size()]
+        [weak = weak_from_this(), L = L, refs = std::move(write_refs)]
         (boost::system::error_code const& error, std::size_t)
         {
+            for (auto const ref : refs)
+            {
+                luaL_unref(L, LUA_REGISTRYINDEX, ref);
+            }
             if (not error)
             {
                 if (auto const self = weak.lock())
                 {
-                    for (std::size_t i = 0; i < n; i++)
+                    if (self->write_buffers.empty())
                     {
-                        luaL_unref(self->L, LUA_REGISTRYINDEX, self->write_refs.front());
-                        self->write_buffers.pop_front();
-                        self->write_refs.pop_front();
+                        self->writing_ = false;
                     }
-
-                    self->write_thread();
+                    else
+                    {
+                        self->write_actual();
+                    }
                 }
             }
         });
+    write_buffers.clear();
+    write_refs.clear();
 }

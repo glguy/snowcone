@@ -67,7 +67,6 @@ auto new_object(lua_State* const L, Args&&... args) -> T&
 
     static luaL_Reg const MT[] = {
         {"__gc", l_gc},
-        {"__close", l_gc},
         {}
     };
 

@@ -32,13 +32,13 @@ using namespace std::literals::string_view_literals;
 using tcp_type = boost::asio::ip::tcp::socket;
 using tls_type = boost::asio::ssl::stream<tcp_type>;
 
-auto l_close_irc(lua_State *const L) -> int
+auto l_close_irc(lua_State* const L) -> int
 {
     auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
 
     if (auto const irc = w->lock())
     {
-        irc->close();
+        irc->get_stream().close();
         lua_pushboolean(L, 1);
         return 1;
     }
@@ -50,7 +50,7 @@ auto l_close_irc(lua_State *const L) -> int
     }
 }
 
-auto l_send_irc(lua_State *const L) -> int
+auto l_send_irc(lua_State* const L) -> int
 {
     auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
 
@@ -74,11 +74,12 @@ auto l_send_irc(lua_State *const L) -> int
     }
 }
 
-auto pushirc(lua_State *const L, std::weak_ptr<irc_connection> irc) -> void
+auto pushirc(lua_State* const L, std::weak_ptr<irc_connection> const irc) -> void
 {
     auto const w = new_udata<std::weak_ptr<irc_connection>>(L, 1, [L]()
     {
-        auto constexpr l_gc = [](lua_State* const L) -> int {
+        auto constexpr l_gc = [](lua_State* const L) -> int
+        {
             auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
             w->~weak_ptr();
             return 0;
@@ -86,7 +87,6 @@ auto pushirc(lua_State *const L, std::weak_ptr<irc_connection> irc) -> void
 
         luaL_Reg const MT[] {
             {"__gc", l_gc},
-            {"__close", l_gc},
             {},
         };
         luaL_setfuncs(L, MT, 0);
@@ -122,8 +122,6 @@ auto session_thread(
         push_string(L, res.second);
         safecall(L, "successful connect", 2);
     }
-
-    irc->write_thread();
 
     for (LineBuffer buff{irc_connection::irc_buffer_size};;)
     {
