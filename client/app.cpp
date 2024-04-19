@@ -17,7 +17,7 @@ extern "C"
 #include <iostream>
 #include <unistd.h>
 
-static char app_key;
+static char const app_key;
 
 App::App(char const* const filename)
     : io_context{}
@@ -35,7 +35,7 @@ App::~App()
     lua_close(L);
 }
 
-auto App::from_lua(lua_State *const L) -> App *
+auto App::from_lua(lua_State* const L) -> App *
 {
     lua_rawgetp(L, LUA_REGISTRYINDEX, &app_key);
     auto const a = reinterpret_cast<App*>(lua_touserdata(L, -1));

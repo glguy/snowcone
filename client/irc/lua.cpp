@@ -106,8 +106,8 @@ auto pushirc(lua_State* const L, std::weak_ptr<irc_connection> const irc) -> voi
 
 auto session_thread(
     boost::asio::io_context& io_context,
-    int irc_cb,
-    std::shared_ptr<irc_connection> irc,
+    int const irc_cb,
+    std::shared_ptr<irc_connection> const irc,
     Settings settings
 ) -> boost::asio::awaitable<void>
 {
@@ -159,7 +159,7 @@ auto session_thread(
 
 } // namespace
 
-auto l_start_irc(lua_State *const L) -> int
+auto l_start_irc(lua_State* const L) -> int
 {
     auto const tls = lua_toboolean(L, 1);
     auto const host = luaL_checkstring(L, 2);
@@ -230,7 +230,7 @@ auto l_start_irc(lua_State *const L) -> int
     return 1;
 }
 
-auto pushircmsg(lua_State *const L, ircmsg const &msg) -> void
+auto pushircmsg(lua_State* const L, ircmsg const& msg) -> void
 {
     lua_createtable(L, msg.args.size(), 3);
     pushtags(L, msg.tags);
@@ -262,7 +262,7 @@ auto pushircmsg(lua_State *const L, ircmsg const &msg) -> void
     }
 }
 
-auto pushtags(lua_State *const L, std::vector<irctag> const &tags) -> void
+auto pushtags(lua_State* const L, std::vector<irctag> const& tags) -> void
 {
     lua_createtable(L, 0, tags.size());
     for (auto &&tag : tags)
