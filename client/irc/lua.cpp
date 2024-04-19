@@ -209,11 +209,10 @@ auto l_start_irc(lua_State *const L) -> int
 
     boost::asio::co_spawn(
         io_context, session_thread(io_context, irc_cb, irc, std::move(settings)),
-        [&a, irc_cb](std::exception_ptr const e) {
-            auto const L = a.get_lua();
+        [L, irc_cb](std::exception_ptr const e) {
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
-            luaL_unref(a.get_lua(), LUA_REGISTRYINDEX, irc_cb);
+            luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);
             push_string(L, "END"sv);
 
             try {
