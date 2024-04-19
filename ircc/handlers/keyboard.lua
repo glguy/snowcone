@@ -41,7 +41,7 @@ local M = {
         local best_mention
 
         for k, buffer in pairs(buffers) do
-            if buffer.messages.n > buffer.seen then
+            if 0 < buffer.activity then
                 -- jump to next window alphabetically preferring mentions
                 if not best_target
                 or buffer.mention and not best_mention

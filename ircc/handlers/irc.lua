@@ -17,7 +17,7 @@ end
 ---@param buffer_name string
 ---@param irc table
 ---@param mention boolean
-local function add_to_buffer(buffer_name, irc, mention)
+local function add_to_buffer(buffer_name, irc, mention, activity)
     local buffer_key = snowcone.irccase(buffer_name)
     local buffer = buffers[buffer_key]
     if buffer then
@@ -29,6 +29,9 @@ local function add_to_buffer(buffer_name, irc, mention)
     buffer.messages:insert(true, irc)
     if mention then
         buffer.mention = true
+    end
+    if activity then
+        buffer.activity = buffer.activity + 1
     end
 end
 
@@ -186,7 +189,7 @@ local function route_chat_to_buffer(target, text, irc)
 
     -- will be nil in the case of a message from a server
     if buffer_target then
-        add_to_buffer(buffer_target, irc, mention)
+        add_to_buffer(buffer_target, irc, mention, true)
     end
 end
 
@@ -273,7 +276,7 @@ function M.NICK(irc)
                 channel.members[oldkey] = nil
                 channel.members[newkey] = member
             end
-            add_to_buffer(channel.name, irc, false)
+            add_to_buffer(channel.name, irc, false, false)
         end
     end
 
@@ -285,7 +288,7 @@ function M.NICK(irc)
             buffers[oldkey] = nil
             buffers[newkey] = buffer
         end
-        add_to_buffer(newnick, irc, false)
+        add_to_buffer(newnick, irc, false, false)
     end
 
     if talk_target and talk_target == oldkey then
@@ -437,7 +440,7 @@ function M.MODE(irc)
                 end
             end
         end
-        add_to_buffer(target, irc, false)
+        add_to_buffer(target, irc, false, false)
     end
 end
 
@@ -564,7 +567,7 @@ function M.JOIN(irc)
 
     local user = irc_state:get_user(who)
     irc_state:get_channel(channel).members[snowcone.irccase(who)] = Member(user)
-    add_to_buffer(channel, irc, false)
+    add_to_buffer(channel, irc, false, false)
 end
 
 -- "<client> <symbol> <channel> :[prefix]<nick>{ [prefix]<nick>}"
@@ -593,7 +596,7 @@ function M.PART(irc)
     else
         irc_state:get_channel(channel).members[snowcone.irccase(who)] = nil
     end
-    add_to_buffer(channel, irc, false)
+    add_to_buffer(channel, irc, false, false)
 end
 
 function M.QUIT(irc)
@@ -602,13 +605,13 @@ function M.QUIT(irc)
 
     for _, channel in pairs(irc_state.channels) do
         if channel.members[key] then
-            add_to_buffer(channel.name, irc, false)
+            add_to_buffer(channel.name, irc, false, false)
         end
         channel.members[key] = nil
     end
 
     if buffers[key] then
-        add_to_buffer(nick, irc, false)
+        add_to_buffer(nick, irc, false, false)
     end
 
     irc_state.users[key] = nil
@@ -622,7 +625,7 @@ function M.KICK(irc)
     else
         irc_state:get_channel(channel).members[snowcone.irccase(target)] = nil
     end
-    add_to_buffer(channel, irc, false)
+    add_to_buffer(channel, irc, false, false)
 end
 
 function M.AWAY(irc)
@@ -639,11 +642,11 @@ function M.ACCOUNT(irc)
     for _, channel in pairs(irc_state.channels) do
         local member = channel.members[key]
         if member then
-            add_to_buffer(channel.name, irc, false)
+            add_to_buffer(channel.name, irc, false, false)
         end
     end
     if buffers[key] then
-        add_to_buffer(nick, irc, false)
+        add_to_buffer(nick, irc, false, false)
     end
 end
 
@@ -655,11 +658,11 @@ function M.CHGHOST(irc)
     for _, channel in pairs(irc_state.channels) do
         local member = channel.members[key]
         if member then
-            add_to_buffer(channel.name, irc, false)
+            add_to_buffer(channel.name, irc, false, false)
         end
     end
     if buffers[key] then
-        add_to_buffer(nick, irc, false)
+        add_to_buffer(nick, irc, false, false)
     end
 end
 

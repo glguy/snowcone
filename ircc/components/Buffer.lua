@@ -9,12 +9,12 @@ local maxhistory = 1000
 function M:_init(name)
     self.name = name
     self.messages = OrderedMap(maxhistory)
-    self.seen = 0
+    self.activity = 0
     self.mention = false
 end
 
 function M:look()
-    self.seen = self.messages.n -- mark everything as seen
+    self.activity = 0 -- mark everything as seen
     self.mention = false -- forget mentions
 end
 

@@ -280,7 +280,7 @@ function M:draw_status(win)
 
     -- render channel names with unseen messages in yellow
     for _, buffer in tablex.sort(buffers) do
-        if buffer.seen < buffer.messages.n then
+        if 0 < buffer.activity then
             if buffer.mention then
                 magenta(win)
             else
