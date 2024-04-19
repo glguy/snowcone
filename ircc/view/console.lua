@@ -225,7 +225,7 @@ local function draw_focus(win, irc, snotice)
         for k, v in tablex.sort(snotice) do
             if k ~= 'name' then
                 blue(win)
-                win:waddstr(k)
+                win:waddstr(string.format('%10s: ', k))
                 normal(win)
                 win:waddstr(scrub(v), '\n')
             end
