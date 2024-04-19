@@ -27,6 +27,8 @@ stds = {
             "reconnect_timer", -- timer object that fires a reconnect
 
             -- global client state
+            "main_pad", -- bad used for rendering most of the client
+            "input_win", -- window used to draw the bottom status bar
             "plugins", -- map of loaded plugins
             "irc_state", -- state of the current IRC connection
             "input_mode", -- current input mode: filter, talk, command

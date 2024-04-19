@@ -83,14 +83,14 @@ end
 -- Make windows ==================================================
 
 local function make_layout()
-    if thepad then
-        thepad:delwin()
+    if main_pad then
+        main_pad:delwin()
     end
-    thepad = ncurses.newpad(tty_height-1, 550);
-    if inputwin then
-        inputwin:delwin()
+    main_pad = ncurses.newpad(tty_height-1, 550);
+    if input_win then
+        input_win:delwin()
     end
-    inputwin = ncurses.newwin(1, tty_width, tty_height - 1, 0);
+    input_win = ncurses.newwin(1, tty_width, tty_height - 1, 0);
 end
 make_layout()
 
@@ -182,17 +182,17 @@ end
 local function draw()
     clicks = {}
     ncurses.erase()
-    thepad:werase()
-    inputwin:werase()
+    main_pad:werase()
+    input_win:werase()
 
-    normal(thepad)
-    views[view]:render(thepad)
+    normal(main_pad)
+    views[view]:render(main_pad)
 
-    drawing.draw_status_bar(inputwin)
+    drawing.draw_status_bar(input_win)
 
     ncurses.noutrefresh()
-    thepad:pnoutrefresh(0, hscroll, 0, 0, tty_height-2, tty_width-1)
-    ncurses.noutrefresh(inputwin)
+    main_pad:pnoutrefresh(0, hscroll, 0, 0, tty_height-2, tty_width-1)
+    ncurses.noutrefresh(input_win)
     ncurses.doupdate()
 end
 
