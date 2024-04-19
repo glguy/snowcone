@@ -17,7 +17,7 @@ extern "C"
 #include <iostream>
 #include <unistd.h>
 
-static char const app_key;
+static char const app_key = '\0';
 
 App::App(char const* const filename)
     : io_context{}

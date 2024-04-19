@@ -75,29 +75,6 @@ local OrderedMap         = require 'components.OrderedMap'
 local plugin_manager     = require 'utils.plugin_manager'
 local send               = require 'utils.send'
 local Task               = require 'components.Task'
-local defaults = {
-    -- state
-    messages = OrderedMap(1000), -- Raw IRC protocol messages
-    buffers = {}, -- [irccase(target)] = {name=string, messages=OrderedMap, seen=number}
-    status_messages = OrderedMap(100),
-    channel_list = OrderedMap(10000),
-    editor = Editor(),
-    view = 'console',
-    uptime = 0, -- seconds since startup
-    scroll = 0,
-    hscroll = 0,
-    status_message = '',
-    objective = 'connect', -- exit, idle
-    terminal_focus = true,
-    notification_muted = {},
-
-    tasks = {},
-}
-
-function initialize()
-    tablex.update(_G, defaults)
-    reset_filter()
-end
 
 function reset_filter()
     filter = nil
@@ -105,8 +82,6 @@ end
 
 -- Make windows ==================================================
 
-local thepad
-local inputwin
 local function make_layout()
     if thepad then
         thepad:delwin()
@@ -212,6 +187,7 @@ local function draw()
 
     normal(thepad)
     views[view]:render(thepad)
+
     drawing.draw_status_bar(inputwin)
 
     ncurses.noutrefresh()
@@ -455,10 +431,20 @@ end
 
 local function startup()
     -- initialize global variables
-    for k,v in pairs(defaults) do
-        if not _G[k] then
-            _G[k] = v
-        end
+    if not messages then
+        messages = OrderedMap(1000) -- Raw IRC protocol messages
+        buffers = {} -- [irccase(target)] = {name=string, messages=OrderedMap, seen=number}
+        status_messages = OrderedMap(100)
+        channel_list = OrderedMap(10000)
+        editor = Editor() -- contains history
+        view = 'console'
+        uptime = 0 -- seconds since startup
+        scroll = 0
+        hscroll = 0
+        status_message = '' -- drawn on the bottom line
+        objective = 'connect' -- exit, idle
+        terminal_focus = true
+        notification_muted = {}
     end
 
     commands = require 'handlers.commands'
@@ -488,61 +474,7 @@ local function startup()
     -- Validate configuration =========================================
 
     local schema = require 'utils.schema'
-    local configuration_schema = {
-        type = 'table',
-        fields = {
-            host                = {type = 'string', required = true},
-            port                = {type = 'number'},
-            socks_host          = {type = 'string'},
-            socks_port          = {type = 'number'},
-            socks_username      = {type = 'string'},
-            socks_password      = {type = 'string'},
-            bind_host           = {type = 'string'},
-            bind_port           = {type = 'number'},
-            tls                 = {type = 'boolean'},
-            tls_client_cert     = {type = 'string'},
-            tls_client_key      = {type = 'string'},
-            tls_client_password = {type = 'string'},
-            tls_verify_host     = {type = 'string'},
-            tls_sni_host        = {type = 'string'},
-            fingerprint         = {type = 'string'},
-            nick                = {type = 'string', pattern = '^[^\n\r\x00 ]+$', required = true},
-            user                = {type = 'string', pattern = '^[^\n\r\x00 ]+$'},
-            gecos               = {type = 'string', pattern = '^[^\n\r\x00]+$'},
-            passuser            = {type = 'string', pattern = '^[^\n\r\x00:]*$'},
-            pass                = {type = 'string', pattern = '^[^\n\r\x00]*$'},
-            oper_username       = {type = 'string', pattern = '^[^\n\r\x00 ]+$'},
-            oper_password       = {type = 'string', pattern = '^[^\n\r\x00]*$'},
-            challenge_key       = {type = 'string'},
-            challenge_password  = {type = 'string'},
-            plugin_dir          = {type = 'string'},
-            plugins             = {type = 'table', elements = {type = 'string', required = true}},
-            notification_module = {type = 'string'},
-            capabilities        = {
-                type = 'table',
-                elements = {type = 'string', pattern = '^[^\n\r\x00 ]+$', required = true}
-            },
-            mention_patterns    = {
-                type = 'table',
-                elements = {type = 'string', required = true}
-            },
-            sasl_automatic      = {
-                type = 'table',
-                elements = {type = 'string', required = true}
-            },
-            sasl_credentials    = {
-                type = 'table',
-                assocs = {
-                    type = 'table',
-                    fields = {
-                        mechanism   = {type = 'string', required = true},
-                        username    = {type = 'string'},
-                        password    = {type = 'string'},
-                        key         = {type = 'string'},
-                        authzid     = {type = 'string'},
-            }}},
-        }
-    }
+    local configuration_schema = require 'utils.configuration_schema'
     schema.check(configuration_schema, configuration)
 
     -- Plugins ========================================================
