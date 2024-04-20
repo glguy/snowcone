@@ -75,6 +75,7 @@ local OrderedMap         = require 'components.OrderedMap'
 local plugin_manager     = require 'utils.plugin_manager'
 local send               = require 'utils.send'
 local Task               = require 'components.Task'
+local resolve_password   = require 'utils.resolve_password'
 
 function reset_filter()
     filter = nil
@@ -274,31 +275,33 @@ local conn_handlers = {}
 
 function connect()
     objective = 'connect'
-    local conn, errmsg =
-        snowcone.connect(
-        configuration.tls,
-        configuration.host,
-        configuration.port or configuration.tls and 6697 or 6667,
-        configuration.tls_client_cert,
-        configuration.tls_client_key,
-        configuration.tls_client_password,
-        configuration.tls_verify_host,
-        configuration.tls_sni_host,
-        configuration.socks_host,
-        configuration.socks_port,
-        configuration.socks_username,
-        configuration.socks_password,
-        configuration.bind_host,
-        configuration.bind_port,
-        function(event, arg)
-            conn_handlers[event](arg)
-        end)
-    if conn then
-        status('irc', 'connecting')
-        irc_state = Irc(conn)
-    else
-        status('irc', 'failed to connect: %s', errmsg)
-    end
+    coroutine.wrap(function() -- passwords might need to suspend connecting
+        local conn, errmsg =
+            snowcone.connect(
+            configuration.tls,
+            configuration.host,
+            configuration.port or configuration.tls and 6697 or 6667,
+            configuration.tls_client_cert,
+            configuration.tls_client_key,
+            resolve_password(configuration.tls_client_password),
+            configuration.tls_verify_host,
+            configuration.tls_sni_host,
+            configuration.socks_host,
+            configuration.socks_port,
+            configuration.socks_username,
+            resolve_password(configuration.socks_password),
+            configuration.bind_host,
+            configuration.bind_port,
+            function(event, arg)
+                conn_handlers[event](arg)
+            end)
+        if conn then
+            status('irc', 'connecting')
+            irc_state = Irc(conn)
+        else
+            status('irc', 'failed to connect: %s', errmsg)
+        end
+    end)()
 end
 
 -- a global allows these to be replaced on a live connection

@@ -4,6 +4,7 @@ local Set = require 'pl.Set'
 local file = require 'pl.file'
 local send = require 'utils.send'
 local N = require 'utils.numerics'
+local resolve_password = require 'utils.resolve_password'
 
 local sasl_commands = Set{
     N.RPL_SASLSUCCESS,
@@ -84,7 +85,7 @@ return function(task, credentials)
     local mech_success, impl = pcall(mechanism_factory,
         mechanism,
         credentials.username,
-        credentials.password,
+        resolve_password(credentials.password),
         credentials.key,
         credentials.authzid
     )

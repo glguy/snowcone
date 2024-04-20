@@ -203,13 +203,14 @@ auto l_start_irc(lua_State* const L) -> int
 
     auto& a = *App::from_lua(L);
     auto& io_context = a.get_executor();
+    auto const LMain = a.get_lua();
 
-    auto const irc = irc_connection::create(io_context, L);
+    auto const irc = irc_connection::create(io_context, LMain);
     pushirc(L, irc);
 
     boost::asio::co_spawn(
         io_context, session_thread(io_context, irc_cb, irc, std::move(settings)),
-        [L, irc_cb](std::exception_ptr const e) {
+        [L = LMain, irc_cb](std::exception_ptr const e) {
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
             luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);

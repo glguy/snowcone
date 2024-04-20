@@ -4,6 +4,7 @@ local challenge = require 'utils.challenge'
 local mkcommand = require 'utils.mkcommand'
 local sasl = require 'sasl'
 local send = require 'utils.send'
+local resolve_password = require 'utils.resolve_password'
 
 local M = {}
 
@@ -197,7 +198,7 @@ add_command('oper', '', function()
         status('oper', 'no password configured: `oper_password`')
     else
         send('OPER', configuration.oper_username,
-        {content=configuration.oper_password, secret=true})
+        {content=resolve_password(configuration.oper_password), secret=true})
     end
 end)
 
