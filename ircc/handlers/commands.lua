@@ -1,10 +1,10 @@
-local Buffer = require 'components.Buffer'
-local Task = require 'components.Task'
-local challenge = require 'utils.challenge'
-local mkcommand = require 'utils.mkcommand'
-local sasl = require 'sasl'
-local send = require 'utils.send'
-local resolve_password = require 'utils.resolve_password'
+local Buffer              <const> = require 'components.Buffer'
+local Task                <const> = require 'components.Task'
+local challenge           <const> = require 'utils.challenge'
+local mkcommand           <const> = require 'utils.mkcommand'
+local sasl                <const> = require 'sasl'
+local send                <const> = require 'utils.send'
+local configuration_tools <const> = require 'utils.configuration_tools'
 
 local M = {}
 
@@ -197,8 +197,8 @@ add_command('oper', '', function()
     elseif not configuration.oper_password then
         status('oper', 'no password configured: `oper_password`')
     else
-        send('OPER', configuration.oper_username,
-        {content=resolve_password(configuration.oper_password), secret=true})
+        local password <const> = configuration_tools.resolve_password(configuration.oper_password)
+        send('OPER', configuration.oper_username, {content=password, secret=true})
     end
 end)
 

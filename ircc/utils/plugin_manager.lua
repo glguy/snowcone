@@ -9,9 +9,10 @@ Plugin API:
 
 ]]
 
-local path = require 'pl.path'
-local file = require 'pl.file'
-local pretty = require 'pl.pretty'
+local path                <const> = require 'pl.path'
+local file                <const> = require 'pl.file'
+local pretty              <const> = require 'pl.pretty'
+local configuration_tools <const> = require 'utils.configuration_tools'
 
 local M = {}
 
@@ -26,7 +27,7 @@ end
 
 function M.plugin_path(name, ext)
     local base =
-        configuration.plugin_dir or
+        configuration_tools.resolve_path(configuration.plugin_dir) or
         path.join(config_dir, 'plugins')
     return path.join(base, name .. '.' .. ext)
 end

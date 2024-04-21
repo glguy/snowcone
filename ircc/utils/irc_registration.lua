@@ -1,9 +1,9 @@
-local send = require 'utils.send'
-local cap_negotiation = require 'utils.cap_negotiation'
-local N = require 'utils.numerics'
-local Set = require 'pl.Set'
-local challenge = require 'utils.challenge'
-local resolve_password = require 'utils.resolve_password'
+local cap_negotiation     <const> = require 'utils.cap_negotiation'
+local challenge           <const> = require 'utils.challenge'
+local configuration_tools <const> = require 'utils.configuration_tools'
+local N                   <const> = require 'utils.numerics'
+local send                <const> = require 'utils.send'
+local Set                 <const> = require 'pl.Set'
 
 return function(task)
     if configuration.capabilities then
@@ -34,7 +34,7 @@ return function(task)
     cap_negotiation.LS(task)
 
     if configuration.pass then
-        local pass = resolve_password(configuration.pass)
+        local pass = configuration_tools.resolve_password(configuration.pass)
         if configuration.passuser then
             pass = configuration.passuser .. ':' .. pass
         end
@@ -67,8 +67,8 @@ return function(task)
     if configuration.oper_username and configuration.challenge_key then
         challenge(task)
     elseif configuration.oper_username and configuration.oper_password then
-        send('OPER', configuration.oper_username,
-            {content=resolve_password(configuration.oper_password), secret=true})
+        local password <const> = configuration_tools.resolve_password(configuration.oper_password)
+        send('OPER', configuration.oper_username, {content=password, secret=true})
     else
         -- determine if we're already oper
         send('MODE', irc_state.nick)

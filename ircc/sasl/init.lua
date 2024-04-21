@@ -1,10 +1,10 @@
 -- https://ircv3.net/specs/extensions/sasl-3.1
 
-local Set = require 'pl.Set'
-local file = require 'pl.file'
-local send = require 'utils.send'
-local N = require 'utils.numerics'
-local resolve_password = require 'utils.resolve_password'
+local Set                 <const> = require 'pl.Set'
+local file                <const> = require 'pl.file'
+local send                <const> = require 'utils.send'
+local N                   <const> = require 'utils.numerics'
+local configuration_tools <const> = require 'utils.configuration_tools'
 
 local sasl_commands = Set{
     N.RPL_SASLSUCCESS,
@@ -85,8 +85,8 @@ return function(task, credentials)
     local mech_success, impl = pcall(mechanism_factory,
         mechanism,
         credentials.username,
-        resolve_password(credentials.password),
-        credentials.key,
+        configuration_tools.resolve_password(credentials.password),
+        configuration_tools.resolve_path(credentials.key),
         credentials.authzid
     )
     if not mech_success then

@@ -67,15 +67,15 @@ end
 
 -- Local modules ======================================================
 
-local drawing            = require 'utils.drawing'
-local Editor             = require 'components.Editor'
-local Irc                = require 'components.Irc'
-local irc_registration   = require 'utils.irc_registration'
-local OrderedMap         = require 'components.OrderedMap'
-local plugin_manager     = require 'utils.plugin_manager'
-local send               = require 'utils.send'
-local Task               = require 'components.Task'
-local resolve_password   = require 'utils.resolve_password'
+local drawing             <const> = require 'utils.drawing'
+local Editor              <const> = require 'components.Editor'
+local Irc                 <const> = require 'components.Irc'
+local irc_registration    <const> = require 'utils.irc_registration'
+local OrderedMap          <const> = require 'components.OrderedMap'
+local plugin_manager      <const> = require 'utils.plugin_manager'
+local send                <const> = require 'utils.send'
+local Task                <const> = require 'components.Task'
+local configuration_tools <const> = require 'utils.configuration_tools'
 
 function reset_filter()
     filter = nil
@@ -281,15 +281,15 @@ function connect()
             configuration.tls,
             configuration.host,
             configuration.port or configuration.tls and 6697 or 6667,
-            configuration.tls_client_cert,
-            configuration.tls_client_key,
-            resolve_password(configuration.tls_client_password),
+            configuration_tools.resolve_path(configuration.tls_client_cert),
+            configuration_tools.resolve_path(configuration.tls_client_key),
+            configuration_tools.resolve_password(configuration.tls_client_password),
             configuration.tls_verify_host,
             configuration.tls_sni_host,
             configuration.socks_host,
             configuration.socks_port,
             configuration.socks_username,
-            resolve_password(configuration.socks_password),
+            configuration_tools.resolve_password(configuration.socks_password),
             configuration.bind_host,
             configuration.bind_port,
             function(event, arg)
