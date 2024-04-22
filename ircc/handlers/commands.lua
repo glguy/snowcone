@@ -197,8 +197,10 @@ add_command('oper', '', function()
     elseif not configuration.oper_password then
         status('oper', 'no password configured: `oper_password`')
     else
-        local password <const> = configuration_tools.resolve_password(configuration.oper_password)
-        send('OPER', configuration.oper_username, {content=password, secret=true})
+        coroutine.wrap(function() -- resolve_password can yield
+            local password <const> = configuration_tools.resolve_password(configuration.oper_password)
+            send('OPER', configuration.oper_username, {content=password, secret=true})
+        end)()
     end
 end)
 
