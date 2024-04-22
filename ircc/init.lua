@@ -271,11 +271,50 @@ snowcone.setmodule(function(ev, ...)
     M[ev](...)
 end)
 
+local function teardown()
+    if tick_timer then
+        tick_timer:cancel()
+        tick_timer = nil
+    end
+    snowcone.shutdown()
+end
+
 local conn_handlers = {}
 
 function connect()
-    objective = 'connect'
+
+    -- the connecting mode isn't interruptible due to wait on external process
+    if mode_current == 'idle' then
+        mode_current = 'connecting'
+        mode_timestamp = uptime
+    elseif mode_current == 'connecting' then
+        error 'already connecting'
+    elseif mode_current == 'connected' then
+        error 'already connected'
+    else
+        error 'PANIC: bad mode_current'
+    end
+
     coroutine.wrap(function() -- passwords might need to suspend connecting
+
+        local ok1, tls_client_password = pcall(configuration_tools.resolve_password, configuration.tls_client_password)
+        if not ok1 then
+            status('connect', 'TLS client key password program error: %s', tls_client_password)
+            mode_current = 'idle' -- exits connecting mode
+            mode_timestamp = uptime
+            if mode_target == 'connected' then mode_target = 'idle' end -- don't reconnect
+            return
+        end
+
+        local ok2, socks_password = pcall(configuration_tools.resolve_password, configuration.socks_password)
+        if not ok2 then
+            status('connect', 'SOCKS5 password program error: %s', socks_password)
+            mode_current = 'idle' -- exits connecting mode
+            mode_timestamp = uptime
+            if mode_target == 'connected' then mode_target = 'idle' end -- don't reconnect
+            return
+        end
+
         local conn, errmsg =
             snowcone.connect(
             configuration.tls,
@@ -283,23 +322,28 @@ function connect()
             configuration.port or configuration.tls and 6697 or 6667,
             configuration_tools.resolve_path(configuration.tls_client_cert),
             configuration_tools.resolve_path(configuration.tls_client_key),
-            configuration_tools.resolve_password(configuration.tls_client_password),
+            tls_client_password,
             configuration.tls_verify_host,
             configuration.tls_sni_host,
             configuration.socks_host,
             configuration.socks_port,
             configuration.socks_username,
-            configuration_tools.resolve_password(configuration.socks_password),
+            socks_password,
             configuration.bind_host,
             configuration.bind_port,
             function(event, arg)
                 conn_handlers[event](arg)
             end)
+
         if conn then
             status('irc', 'connecting')
             irc_state = Irc(conn)
+            mode_current = 'connected'
+            mode_timestamp = uptime
         else
             status('irc', 'failed to connect: %s', errmsg)
+            mode_current = 'idle' -- exits connecting mode
+            mode_timestamp = uptime
         end
     end)()
 end
@@ -369,28 +413,28 @@ function conn_handlers.CON(fingerprint)
     status('irc', 'connected: %s', fingerprint)
 
     local want_fingerprint = configuration.fingerprint
-    if objective ~= 'connect' then
+    if mode_target ~= 'connected' then
         disconnect()
     elseif want_fingerprint and not string.match(fingerprint, want_fingerprint) then
         status('irc', 'bad fingerprint')
         disconnect()
     else
+        mode_current = 'connected' -- transition from connecting
+        mode_timestamp = uptime
         Task('irc registration', irc_state.tasks, irc_registration)
     end
 end
 
 function conn_handlers.END(reason)
+    mode_current = 'idle'
+    mode_timestamp = uptime
+
     disconnect()
     status('irc', 'disconnected: %s', reason or 'end of stream')
 
-    if objective == 'exit' then
-        snowcone.shutdown()
-    elseif objective == 'connect' then
-        reconnect_timer = snowcone.newtimer()
-        reconnect_timer:start(1000, function()
-            reconnect_timer = nil
-            connect()
-        end)
+    -- do nothing on idle
+    if mode_target == 'exit' then
+        teardown()
     end
 end
 
@@ -405,23 +449,13 @@ function disconnect()
     end
 end
 
+-- starts the process of quitting the client
 function quit()
-    if tick_timer then
-        tick_timer:cancel()
-        tick_timer = nil
-    end
-    if reconnect_timer then
-        reconnect_timer:cancel()
-        reconnect_timer = nil
-    end
-    if irc_state then
-        objective = 'exit'
+    mode_target = 'exit'
+    if mode_current == 'idle' then
+        teardown()
+    elseif mode_current == 'connected' then
         disconnect()
-    else
-        if objective ~= 'exit' then
-            objective = 'exit'
-            snowcone.shutdown()
-        end
     end
 end
 
@@ -436,7 +470,7 @@ local function startup()
     -- initialize global variables
     if not messages then
         messages = OrderedMap(1000) -- Raw IRC protocol messages
-        buffers = {} -- [irccase(target)] = {name=string, messages=OrderedMap, seen=number}
+        buffers = {} -- [irccase(target)] = {name=string, messages=OrderedMap, activity=number}
         status_messages = OrderedMap(100)
         channel_list = OrderedMap(10000)
         editor = Editor() -- contains history
@@ -445,7 +479,9 @@ local function startup()
         scroll = 0
         hscroll = 0
         status_message = '' -- drawn on the bottom line
-        objective = 'connect' -- exit, idle
+        mode_target = 'connected' -- exit, idle, connected
+        mode_current = 'idle'
+        mode_timestamp = 0 -- time that mode_current changed
         terminal_focus = true
         notification_muted = {}
     end
@@ -492,19 +528,21 @@ local function startup()
             tick_timer:start(1000, cb)
             uptime = uptime + 1
 
-            if irc_state then
+            if mode_current == 'connected' then
                 if irc_state.phase == 'connected' and uptime == irc_state.liveness + 30 then
                     send('PING', os.time())
                 elseif uptime == irc_state.liveness + 60 then
                     disconnect()
                 end
+            elseif mode_current == 'idle' and mode_target == 'connected' and uptime == mode_timestamp + 5 then
+                connect()
             end
             draw()
         end
         tick_timer:start(1000, cb)
     end
 
-    if objective == 'connect' and not irc_state and configuration.host then
+    if mode_target == 'connected' and mode_current == 'idle' and configuration.host then
         connect()
     end
 end

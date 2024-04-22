@@ -59,17 +59,17 @@ end)
 add_command('quit', '', quit)
 
 add_command('connect', '', function()
-    if irc_state then
-        objective = 'connect'
-        disconnect()
-    else
+    mode_target = 'connected'
+    if mode_current == 'idle' then
         connect()
     end
 end)
 
 add_command('disconnect', '', function()
-    objective = 'idle'
-    disconnect()
+    mode_target = 'idle'
+    if mode_current == 'connected' then
+        disconnect()
+    end
 end)
 
 for k, _ in pairs(views) do

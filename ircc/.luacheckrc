@@ -24,7 +24,6 @@ stds = {
             "initialize", -- function to reset all state variable to their defaults
 
             "tick_timer", -- timer object that runs every second
-            "reconnect_timer", -- timer object that fires a reconnect
 
             -- global client state
             "main_pad", -- bad used for rendering most of the client
@@ -43,7 +42,9 @@ stds = {
             "filter", -- pattern used to filter chat messages
             "terminal_focus", -- true when terminal has focus
             "notification_muted", -- notifications we've already seen
-            "objective", -- connect, idle, exit
+            "mode_current", -- connect, connecting, idle
+            "mode_target", -- connect, idle, exit
+            "mode_timestamp", -- uptime value when mode_current changed
             "focus", -- zoomed in message in console
 
             "commands", -- mapping of the global command handlers
