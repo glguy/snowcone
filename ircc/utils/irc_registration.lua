@@ -64,11 +64,19 @@ return function(task)
     status('irc', 'connected')
 
     -- Establish operator privs
-    if configuration.oper_username and configuration.challenge_key then
-        challenge(task)
-    elseif configuration.oper_username and configuration.oper_password then
-        local password <const> = configuration_tools.resolve_password(configuration.oper_password)
-        send('OPER', configuration.oper_username, {content=password, secret=true})
+    if configuration.oper_automatic == 'challenge' then
+        if configuration.oper_username and configuration.challenge_key then
+            challenge(task)
+        else
+            status('oper', 'missing configuration for automatic CHALLENGE')
+        end
+    elseif configuration.oper_automatic == 'oper' then
+        if configuration.oper_username and configuration.oper_password then
+            local password <const> = configuration_tools.resolve_password(configuration.oper_password)
+            send('OPER', configuration.oper_username, {content=password, secret=true})
+        else
+            status('oper', 'missing configuration for automatic OPER')
+        end
     else
         -- determine if we're already oper
         send('MODE', irc_state.nick)

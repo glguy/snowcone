@@ -44,6 +44,7 @@ return {
         passuser            = {type = 'string', pattern = '^[^\n\r\x00:]*$'},
         pass                = password_schema,
 
+        oper_automatic      = {type = 'string'},
         oper_username       = {type = 'string', pattern = '^[^\n\r\x00 ]+$'},
         oper_password       = password_schema,
         challenge_key       = {type = 'string'},
