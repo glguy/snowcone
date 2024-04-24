@@ -1,17 +1,12 @@
 -- Logic for IRC messages
-local tablex      = require 'pl.tablex'
-
-local N           = require 'utils.numerics'
-local send        = require 'utils.send'
-local split_nuh   = require 'utils.split_nick_user_host'
-local Buffer      = require  'components.Buffer'
-local Channel     = require  'components.Channel'
-local Member      = require  'components.Member'
-local split_statusmsg = require 'utils.split_statusmsg'
-
-local function parse_source(source)
-    return string.match(source, '^(.-)!(.-)@(.*)$')
-end
+local tablex          <const> = require 'pl.tablex'
+local Buffer          <const> = require 'components.Buffer'
+local Channel         <const> = require 'components.Channel'
+local Member          <const> = require 'components.Member'
+local N               <const> = require 'utils.numerics'
+local send            <const> = require 'utils.send'
+local split_nuh       <const> = require 'utils.split_nick_user_host'
+local split_statusmsg <const> = require 'utils.split_statusmsg'
 
 --- Add an IRC message to a buffer and update other metadata
 ---@param buffer_name string
@@ -247,7 +242,7 @@ function M.OPERWALL(irc)
 end
 
 function M.NICK(irc)
-    local oldnick = parse_source(irc.source)
+    local oldnick = split_nuh(irc.source)
     local newnick = irc[1]
 
     local oldkey = snowcone.irccase(oldnick)
