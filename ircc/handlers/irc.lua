@@ -25,6 +25,19 @@ local function add_to_buffer(buffer_name, irc, mention, activity)
     else
         buffer = Buffer(buffer_name)
         buffers[buffer_key] = buffer
+
+        if irc_state:has_chathistory() then
+            local maxhistory = buffer.messages.max
+            local amount = irc_state.max_chat_history
+            if nil == amount or amount > maxhistory then
+                amount = maxhistory
+            end
+            if irc.tags.time then
+                send('CHATHISTORY', 'BEFORE', buffer_key, 'timestamp='..irc.tags.time, amount)
+            else
+                send('CHATHISTORY', 'LATEST', buffer_key, '*', amount)
+            end
+        end
     end
     buffer.messages:insert(true, irc)
     if mention then

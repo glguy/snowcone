@@ -101,6 +101,24 @@ add_command('talk', '$g', function(target)
     set_view 'buffer'
 
     if irc_state and irc_state.phase == 'connected' then
+
+        -- prepare the buffer first so that the chathistory command goes out
+        -- before the join command
+        local buffer = buffers[talk_target]
+        if not buffer then
+            buffer = Buffer(target)
+            buffers[talk_target] = buffer
+
+            if irc_state:has_chathistory() then
+                local maxhistory = buffer.messages.max
+                local amount = irc_state.max_chat_history
+                if nil == amount or amount > maxhistory then
+                    amount = maxhistory
+                end
+                send('CHATHISTORY', 'LATEST', target, '*', amount)
+            end
+        end
+
         -- join the channel if it's a channel and we're not in it
         if irc_state:is_channel_name(talk_target) then
             if not irc_state.channels[talk_target] then
@@ -108,21 +126,6 @@ add_command('talk', '$g', function(target)
             end
         elseif irc_state:has_monitor() and not irc_state:is_monitored(talk_target) then
             send('MONITOR', '+', talk_target)
-        end
-
-        local buffer = buffers[talk_target]
-        if not buffer then
-            buffer = Buffer(target)
-            buffers[talk_target] = buffer
-            local maxhistory = buffer.messages.max
-
-            if irc_state:has_chathistory() then
-                local amount = irc_state.max_chat_history
-                if nil == amount or amount > maxhistory then
-                    amount = maxhistory
-                end
-                send('CHATHISTORY', 'LATEST', target, '*', amount)
-            end
         end
     end
 end)
