@@ -5,6 +5,7 @@ local mkcommand           <const> = require 'utils.mkcommand'
 local sasl                <const> = require 'sasl'
 local send                <const> = require 'utils.send'
 local configuration_tools <const> = require 'utils.configuration_tools'
+local file                <const> = require 'pl.file'
 
 local M = {}
 
@@ -279,7 +280,6 @@ end)
 add_command('upload_filterdb', '$r', function(path)
     local send_db = require 'utils.hsfilter'
     local pretty = require 'pl.pretty'
-    local file = require 'pl.file'
 
     local txt = assert(file.read(path))
     local db = assert(pretty.read(txt))
@@ -324,6 +324,35 @@ add_command('upload_filterdb', '$r', function(path)
 
     send_db(exprs, flags, ids, platform)
 
+end)
+
+local function pub64(k)
+    return snowcone.to_base64(k:export().pub)
+end
+
+-- /ecdsa_new <filename.pem>
+-- Generate a new ECDSA private key and NickServ SET PUBKEY command
+add_command('edsa_new', '$g', function(filename)
+    local k = myopenssl.gen_pkey('EC', 'P-256')
+    k:set_param('point-format', 'compressed')
+    file.write(filename, k:to_private_pem())
+    print('/msg NickServ SET PUBKEY ' .. pub64(k))
+end)
+
+-- /ecdsa_fp <filename.pem>
+-- Generate NickServ SET PUBKEY command
+add_command('ecdsa_fp', '$g', function(filename)
+    local pem = assert(file.read(filename))
+    local k = myopenssl.read_pem(pem, true)
+    print('/msg NickServ SET PUBKEY ' .. pub64(k))
+end)
+
+-- /x25519_new
+-- Generate a new X25519 private key and NickServ SET X25519-PUBKEY command
+add_command('x25519_new', '', function()
+    local k = myopenssl.gen_pkey('X25519')
+    print('Private key: ' .. snowcone.to_base64(k:get_raw_private()))
+    print('/msg NickServ SET X25519-PUBKEY ' .. pub64(k))
 end)
 
 return M
