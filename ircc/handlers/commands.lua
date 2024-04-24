@@ -332,7 +332,7 @@ end
 
 -- /ecdsa_new <filename.pem>
 -- Generate a new ECDSA private key and NickServ SET PUBKEY command
-add_command('edsa_new', '$g', function(filename)
+add_command('ecdsa_new', '$g', function(filename)
     local k = myopenssl.gen_pkey('EC', 'P-256')
     k:set_param('point-format', 'compressed')
     file.write(filename, k:to_private_pem())
@@ -353,6 +353,35 @@ add_command('x25519_new', '', function()
     local k = myopenssl.gen_pkey('X25519')
     print('Private key: ' .. snowcone.to_base64(k:get_raw_private()))
     print('/msg NickServ SET X25519-PUBKEY ' .. pub64(k))
+end)
+
+add_command('cert_new', '$g', function(filename)
+    local pkey   <close> = myopenssl.gen_pkey 'ED25519'
+    local x509   <close> = myopenssl.new_x509()
+    local sha512 <close> = myopenssl.get_digest 'sha512'
+
+    -- Populate certificate
+    x509:set_version     (2)
+    x509:set_serialNumber(1)
+    x509:set_issuerName  {CN='snowcone'}
+    x509:set_subjectName {CN='snowcone'}
+    x509:set_notBefore   '19700101000000Z'
+    x509:set_notAfter    '20700101000000Z'
+    x509:set_pubkey      (pkey)
+
+    -- Finish certificate
+    x509:sign(pkey)
+
+    -- Save certificate and private key together
+    file.write(filename, x509:export() .. pkey:to_private_pem())
+
+    -- Compute fingerprint for NickServ
+    local raw_fp = x509:fingerprint(sha512)
+    local fp = {}
+    for i = 1, #raw_fp do
+        fp[i] = string.format('%02X', raw_fp:byte(i))
+    end
+    print('/msg NickServ CERT ADD ' .. table.concat(fp))
 end)
 
 return M

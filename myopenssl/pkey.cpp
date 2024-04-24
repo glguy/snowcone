@@ -33,7 +33,7 @@ auto l_gc(lua_State* const L) -> int
     return 0;
 }
 
-luaL_Reg const PkeyMT[] {
+luaL_Reg const X509MT[] {
     {"__gc", l_gc},
     {"__close", l_gc},
     {}
@@ -43,7 +43,7 @@ luaL_Reg const PkeyMT[] {
 @type pkey
 */
 
-luaL_Reg const PkeyMethods[] {
+luaL_Reg const X509Methods[] {
     /***
     Sign a message using a private key
     @function pkey:sign
@@ -361,10 +361,10 @@ auto push_evp_pkey(lua_State * const L, EVP_PKEY * pkey) -> void
     *static_cast<EVP_PKEY**>(lua_newuserdatauv(L, sizeof pkey, 0)) = pkey;
     if (luaL_newmetatable(L, "pkey"))
     {
-        luaL_setfuncs(L, PkeyMT, 0);
+        luaL_setfuncs(L, X509MT, 0);
 
-        luaL_newlibtable(L, PkeyMethods);
-        luaL_setfuncs(L, PkeyMethods, 0);
+        luaL_newlibtable(L, X509Methods);
+        luaL_setfuncs(L, X509Methods, 0);
         lua_setfield(L, -2, "__index");
     }
     lua_setmetatable(L, -2);

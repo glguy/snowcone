@@ -6,9 +6,10 @@ myopenssl module
 
 #include "myopenssl.hpp"
 
+#include "bignum.hpp"
 #include "digest.hpp"
 #include "pkey.hpp"
-#include "bignum.hpp"
+#include "x509.hpp"
 
 #include <openssl/evp.h>
 
@@ -65,6 +66,7 @@ extern "C" auto luaopen_myopenssl(lua_State * const L) -> int
         {"read_pem", myopenssl::l_read_pem},
         {"gen_pkey", myopenssl::l_gen_pkey},
         {"bignum", myopenssl::l_bignum},
+        {"new_x509", myopenssl::l_new_x509},
         {}
     };
 
