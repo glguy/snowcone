@@ -25,7 +25,7 @@ auto l_gc(lua_State* const L) -> int
     auto const timer = check_udata<Timer>(L, 1);
     lua_pushnil(L);
     lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
-    timer->~Timer();
+    std::destroy_at(timer);
     return 0;
 }
 

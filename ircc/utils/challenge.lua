@@ -26,7 +26,7 @@ return function(task)
     local key <const> = assert(myopenssl.read_pem(rsa_key, true, password))
 
     local n = 0
-    local chunks  <const> = {}
+    local chunks <const> = {}
 
     send('CHALLENGE', user)
     while true do

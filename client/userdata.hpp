@@ -12,6 +12,7 @@ extern "C" {
 }
 
 #include <concepts>
+#include <memory>
 
 template<typename T> char const* udata_name;
 
@@ -61,7 +62,7 @@ auto new_object(lua_State* const L, Args&&... args) -> T&
     auto constexpr l_gc = [](lua_State* const L) -> int
     {
         auto const ptr = reinterpret_cast<T*>(lua_touserdata(L, 1));
-        ptr->~T();
+        std::destroy_at(ptr);
         return 0;
     };
 

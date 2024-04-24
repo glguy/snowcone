@@ -81,7 +81,7 @@ auto pushirc(lua_State* const L, std::weak_ptr<irc_connection> const irc) -> voi
         auto constexpr l_gc = [](lua_State* const L) -> int
         {
             auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
-            w->~weak_ptr();
+            std::destroy_at(w);
             return 0;
         };
 

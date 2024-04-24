@@ -22,7 +22,7 @@ auto l_gc(lua_State* const L) -> int {
     auto const resolver = check_udata<Resolver>(L, 1);
     lua_pushnil(L);
     lua_rawsetp(L, LUA_REGISTRYINDEX, resolver);
-    resolver->~Resolver();
+    std::destroy_at(resolver);
     return 0;
 }
 
