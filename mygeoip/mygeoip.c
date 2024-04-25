@@ -31,7 +31,7 @@ static int get_name_by_addr(lua_State *L)
 {
         GeoIP **geoip = luaL_checkudata(L, 1, db_type_name);
         char const* addr = luaL_checkstring(L, 2);
-        GeoIPLookup gl = {};
+        GeoIPLookup gl = {0};
         char *org = GeoIP_name_by_addr_gl(*geoip, addr, &gl);
         lua_pushstring(L, org);
         free(org);
@@ -42,7 +42,7 @@ static int get_name_by_addr_v6(lua_State *L)
 {
         GeoIP **geoip = luaL_checkudata(L, 1, db_type_name);
         char const* addr = luaL_checkstring(L, 2);
-        GeoIPLookup gl = {};
+        GeoIPLookup gl = {0};
         char *org = GeoIP_name_by_addr_v6_gl(*geoip, addr, &gl);
         lua_pushstring(L, org);
         free(org);
@@ -52,14 +52,14 @@ static int get_name_by_addr_v6(lua_State *L)
 static luaL_Reg M[] =
   {
           {"open_db", open_db},
-          {},
+          {0},
   };
 
 static luaL_Reg DbM[] =
   {
           {"get_name_by_addr", get_name_by_addr},
           {"get_name_by_addr_v6", get_name_by_addr_v6},
-          {},
+          {0},
   };
 
 #define EDITION__STR(_s) #_s
