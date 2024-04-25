@@ -12,6 +12,7 @@ myopenssl module
 #include "x509.hpp"
 
 #include <openssl/evp.h>
+#include <openssl/x509.h>
 
 extern "C" {
 #include <lua.h>
@@ -82,6 +83,9 @@ extern "C" auto luaopen_myopenssl(lua_State * const L) -> int
     lua_pushinteger(L, EVP_PKEY_ED448);
     lua_setfield(L, -2, "EVP_PKEY_ED448");
     lua_setfield(L, -2, "types");
+
+    lua_pushinteger(L, X509_VERSION_3);
+    lua_setfield(L, -2, "X509_VERSION_3");
 
     return 1;
 }

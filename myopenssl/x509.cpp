@@ -11,6 +11,7 @@ extern "C" {
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
 #include <cstddef>
 #include <cstdlib>
@@ -202,6 +203,27 @@ luaL_Reg const X509Methods[] {
         if (0 == result) {
             openssl_failure(L, "X509_set_subject_name");
         }
+        return 0;
+    }},
+    {"add_clientUsageConstraint", [](auto const L) {
+        auto const x509 = *static_cast<X509**>(luaL_checkudata(L, 1, "x509"));
+
+        { // Add Key Usage = Digital Signature (critical)
+            auto const usage = ASN1_BIT_STRING_new();
+            ASN1_BIT_STRING_set_bit(usage, 0, 1); // Allow Digital Signature
+            auto const critical = 1; // key usage MUST be critical
+            X509_add1_ext_i2d(x509, NID_key_usage, usage, critical, X509V3_ADD_DEFAULT);
+            ASN1_BIT_STRING_free(usage);
+        }
+
+        { // Add extended key usage = Client Authentication (critical)
+            auto const usage = sk_ASN1_OBJECT_new_null();
+            sk_ASN1_OBJECT_push(usage, OBJ_nid2obj(NID_client_auth));
+            auto const critical = 1;
+            X509_add1_ext_i2d(x509, NID_ext_key_usage, usage, critical, X509V3_ADD_DEFAULT);
+            sk_ASN1_OBJECT_pop_free(usage, ASN1_OBJECT_free);
+        }
+
         return 0;
     }},
     {}

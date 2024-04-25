@@ -358,16 +358,17 @@ end)
 add_command('cert_new', '$g', function(filename)
     local pkey   <close> = myopenssl.gen_pkey 'ED25519'
     local x509   <close> = myopenssl.new_x509()
-    local sha512 <close> = myopenssl.get_digest 'sha512'
+    local sha512         = myopenssl.get_digest 'sha512'
 
     -- Populate certificate
-    x509:set_version     (2)
+    x509:set_version     (myopenssl.X509_VERSION_3)
     x509:set_serialNumber(1)
     x509:set_issuerName  {CN='snowcone'}
     x509:set_subjectName {CN='snowcone'}
     x509:set_notBefore   '19700101000000Z'
     x509:set_notAfter    '20700101000000Z'
     x509:set_pubkey      (pkey)
+    x509:add_clientUsageConstraint()
 
     -- Finish certificate
     x509:sign(pkey)
