@@ -88,7 +88,6 @@ TEST(Base64, Ones) {
     EXPECT_STREQ(output, "/////w==");
 
     uint32_t decoded {};
-    size_t outlen;
     ASSERT_EQ(mybase64::decode(output, reinterpret_cast<char*>(&decoded)), reinterpret_cast<char*>(&decoded) + 4);
 
     ASSERT_EQ(decoded, UINT32_C(0xffffffff));

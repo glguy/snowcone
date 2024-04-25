@@ -30,7 +30,6 @@ irc_connection::~irc_connection()
 
 auto irc_connection::write(std::string_view const cmd, int const ref) -> void
 {
-    auto const idle = write_buffers.empty();
     write_buffers.emplace_back(cmd.data(), cmd.size());
     write_refs.emplace_back(ref);
     if (not writing_)

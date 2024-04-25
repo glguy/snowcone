@@ -220,7 +220,7 @@ auto l_bignum(lua_State* const L) -> int
     auto const str = luaL_tolstring(L, 1, &len);
     auto r = push_bignum(L);
     // ensure that the whole string was actually used
-    if (len == BN_dec2bn(&r, str))
+    if (len == static_cast<std::size_t>(BN_dec2bn(&r, str)))
     {
         return 1;
     }

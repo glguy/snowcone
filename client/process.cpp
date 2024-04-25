@@ -140,7 +140,7 @@ auto l_execute(lua_State* L) -> int
 
     for (lua_Integer i = 1; i <= n; i++)
     {
-        auto const ty = lua_geti(L, 2, i);
+        lua_geti(L, 2, i);
         std::size_t len;
         auto const str = luaL_tolstring(L, -1, &len);
         args.emplace_back(str, len);
