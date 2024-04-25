@@ -69,6 +69,55 @@ auto to_X509_NAME(lua_State* const L, int const arg) -> X509_NAME*
     return name;
 }
 
+// Allow digital signature key usage
+auto allow_digital_signature(lua_State* const L, X509* const x509) -> void
+{
+    auto const usage = ASN1_BIT_STRING_new();
+    if (nullptr == usage)
+    {
+        openssl_failure(L, "ASN1_BIT_STRING_new");
+    }
+
+    // Allow Digital Signature (0)
+    if (1 != ASN1_BIT_STRING_set_bit(usage, 0, 1))
+    {
+        ASN1_BIT_STRING_free(usage);
+        openssl_failure(L, "ASN1_BIT_STRING_set_bit");
+    }
+    
+    // key usage MUST be critical
+    auto const result = X509_add1_ext_i2d(x509, NID_key_usage, usage, 1, X509V3_ADD_DEFAULT);
+    ASN1_BIT_STRING_free(usage);
+
+    // N.B. this can return 0 and -1 on failure
+    if (1 != result)
+        openssl_failure(L, "X509_add1_ext_i2d");
+}
+
+// Allow client authentication extended key usage
+auto allow_client_auth(lua_State* const L, X509* const x509) -> void
+{
+    auto const usage = sk_ASN1_OBJECT_new_null();
+    if (nullptr == usage)
+    {
+        openssl_failure(L, "sk_ASN1_OBJECT_new_null");
+    }
+
+    if (1 != sk_ASN1_OBJECT_push(usage, OBJ_nid2obj(NID_client_auth)))
+    {
+        sk_ASN1_OBJECT_pop_free(usage, ASN1_OBJECT_free);
+        openssl_failure(L, "sk_ASN1_OBJECT_push");
+    }
+
+    auto const result = X509_add1_ext_i2d(x509, NID_ext_key_usage, usage, 1, X509V3_ADD_DEFAULT);
+    sk_ASN1_OBJECT_pop_free(usage, ASN1_OBJECT_free);
+
+    if (1 != result)
+    {
+        openssl_failure(L, "X509_add1_ext_i2d");
+    }
+}
+
 /***
 @type x509
 */
@@ -86,7 +135,8 @@ luaL_Reg const X509Methods[] {
         auto const x509 = *static_cast<X509**>(luaL_checkudata(L, 1, "x509"));
         auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 2, "pkey"));
 
-        if (0 == X509_set_pubkey(x509, pkey)) {
+        if (0 == X509_set_pubkey(x509, pkey))
+        {
             openssl_failure(L, "X509_set_pubkey");
         }
         return 0;
@@ -101,7 +151,8 @@ luaL_Reg const X509Methods[] {
             md = *static_cast<EVP_MD const**>(luaL_checkudata(L, 3, "digest"));
         }
 
-        if (0 == X509_sign(x509, pkey, md)) {
+        if (0 == X509_sign(x509, pkey, md))
+        {
             openssl_failure(L, "X509_sign");
         }
         return 0;
@@ -114,7 +165,8 @@ luaL_Reg const X509Methods[] {
         luaL_Buffer B;
         unsigned char * bytes = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, len));
 
-        if (0 == X509_digest(x509, md, bytes, &len)) {
+        if (0 == X509_digest(x509, md, bytes, &len))
+        {
             openssl_failure(L, "X509_digest");
         }
         luaL_pushresultsize(&B, len);
@@ -148,7 +200,8 @@ luaL_Reg const X509Methods[] {
         auto const result = X509_set_serialNumber(x509, asnNumber);
         ASN1_INTEGER_free(asnNumber);
 
-        if (0 == result) {
+        if (0 == result)
+        {
             openssl_failure(L, "X509_set_serialNumber");
         }
         return 0;
@@ -161,7 +214,8 @@ luaL_Reg const X509Methods[] {
         auto const result = X509_set1_notBefore(x509, ansTime);
         ASN1_TIME_free(ansTime);
 
-        if (0 == result) {
+        if (0 == result)
+        {
             openssl_failure(L, "X509_set1_notBefore");
         }
         return 0;
@@ -174,7 +228,8 @@ luaL_Reg const X509Methods[] {
         auto const result = X509_set1_notAfter(x509, ansTime);
         ASN1_TIME_free(ansTime);
 
-        if (0 == result) {
+        if (0 == result)
+        {
             openssl_failure(L, "X509_set1_notAfter");
         }
         return 0;
@@ -187,7 +242,8 @@ luaL_Reg const X509Methods[] {
         auto const result = X509_set_issuer_name(x509, name);
         X509_NAME_free(name);
 
-        if (0 == result) {
+        if (0 == result)
+        {
             openssl_failure(L, "X509_set_issuer_name");
         }
         return 0;
@@ -207,23 +263,8 @@ luaL_Reg const X509Methods[] {
     }},
     {"add_clientUsageConstraint", [](auto const L) {
         auto const x509 = *static_cast<X509**>(luaL_checkudata(L, 1, "x509"));
-
-        { // Add Key Usage = Digital Signature (critical)
-            auto const usage = ASN1_BIT_STRING_new();
-            ASN1_BIT_STRING_set_bit(usage, 0, 1); // Allow Digital Signature
-            auto const critical = 1; // key usage MUST be critical
-            X509_add1_ext_i2d(x509, NID_key_usage, usage, critical, X509V3_ADD_DEFAULT);
-            ASN1_BIT_STRING_free(usage);
-        }
-
-        { // Add extended key usage = Client Authentication (critical)
-            auto const usage = sk_ASN1_OBJECT_new_null();
-            sk_ASN1_OBJECT_push(usage, OBJ_nid2obj(NID_client_auth));
-            auto const critical = 1;
-            X509_add1_ext_i2d(x509, NID_ext_key_usage, usage, critical, X509V3_ADD_DEFAULT);
-            sk_ASN1_OBJECT_pop_free(usage, ASN1_OBJECT_free);
-        }
-
+        allow_digital_signature(L, x509);
+        allow_client_auth(L, x509);
         return 0;
     }},
     {}
@@ -247,12 +288,15 @@ auto push_x509(lua_State * const L, X509 * x509) -> void
 
 auto l_new_x509(lua_State* const L) -> int
 {
-    auto const x509 = X509_new();
-    if (nullptr == x509) {
+    if (auto const x509 = X509_new())
+    {
+        push_x509(L, x509);
+        return 1;
+    }
+    else
+    {
         openssl_failure(L, "X509_new");
     }
-    push_x509(L, x509);
-    return 1;
 }
 
 } // namespace myopenssl
