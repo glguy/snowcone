@@ -261,7 +261,7 @@ static luaL_Reg lib[] = {
     {"newwin", l_newwin},
     {"newpad", l_newpad},
     {"doupdate", l_doupdate},
-    {},
+    {0},
 };
 
 void l_ncurses_resize(lua_State* const L)

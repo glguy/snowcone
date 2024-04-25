@@ -35,7 +35,7 @@ static int l_stringprep(lua_State *const L)
 
 static luaL_Reg M[] = {
     {"stringprep", l_stringprep},
-    {}};
+    {0}};
 
 int luaopen_mystringprep(lua_State *L)
 {

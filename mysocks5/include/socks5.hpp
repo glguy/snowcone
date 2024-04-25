@@ -132,7 +132,7 @@ struct SocksImplementation
         Self& self,
         State state = {},
         boost::system::error_code const error = {},
-        std::size_t size = 0
+        std::size_t = 0
     ) -> void
     {
         if (error)
@@ -359,7 +359,7 @@ auto async_connect(
 ) {
     return
         boost::asio::async_compose<CompletionToken, Signature>
-        (detail::SocksImplementation<AsyncStream>{socket, host, port, auth},
+        (detail::SocksImplementation<AsyncStream>{socket, host, port, auth, {}},
          token, socket
          );
 }

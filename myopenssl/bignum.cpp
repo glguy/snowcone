@@ -45,7 +45,7 @@ template <typename> struct Arg;
 // Populate the parameter with a new bignum output argument
 // pushing the result value onto the Lua stack
 template <> struct Arg<BIGNUM*> {
-    static auto arg(lua_State * const L, int&, int& r) -> BIGNUM* {
+    static auto arg(lua_State* const L, int&, int& r) -> BIGNUM* {
         r++;
         return push_bignum(L);
     }
@@ -53,20 +53,20 @@ template <> struct Arg<BIGNUM*> {
 
 // Populate the parameter with a bignum argument
 template <> struct Arg<BIGNUM const*> {
-    static auto arg(lua_State * const L, int& a, int&) -> BIGNUM const* {
+    static auto arg(lua_State* const L, int& a, int&) -> BIGNUM const* {
         return checkbignum(L, ++a);
     }
 };
 
 // Populate the parameter with an int argument
 template <> struct Arg<int> {
-    static auto arg(lua_State * const L, int& a, int&) -> int {
+    static auto arg(lua_State* const L, int& a, int&) -> int {
         return luaL_checkinteger(L, ++a);
     }
 };
 
 template <> struct Arg<BN_CTX*> {
-    static auto arg(lua_State * const L, int&, int&) -> BN_CTX* {
+    static auto arg(lua_State*, int&, int&) -> BN_CTX* {
         return bn_ctx.get();
     }
 };

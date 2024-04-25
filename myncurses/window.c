@@ -136,7 +136,7 @@ static int l_waddstr(lua_State* const L)
 static luaL_Reg const MT[] = {
     {"__gc", l_delwin},
     {"__close", l_delwin},
-    {}
+    {0}
 };
 
 static luaL_Reg const Methods[] = {
@@ -149,7 +149,7 @@ static luaL_Reg const Methods[] = {
     {"pnoutrefresh", l_pnoutrefresh},
     {"waddstr", l_waddstr},
     {"wmove", l_wmove},
-    {}
+    {0}
 };
 
 void pushwindow(lua_State* const L, WINDOW* const win)
