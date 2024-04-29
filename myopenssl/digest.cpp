@@ -19,6 +19,11 @@ extern "C" {
 
 namespace myopenssl {
 
+auto check_digest(lua_State* const L, int const arg) -> EVP_MD const*
+{
+    return *static_cast<EVP_MD const**>(luaL_checkudata(L, 1, "digest"));
+}
+
 namespace {
 
 luaL_Reg const DigestMethods[] {
@@ -34,7 +39,7 @@ luaL_Reg const DigestMethods[] {
     {"digest", [](auto const L)
     {
         // Process arguments
-        auto const type = *static_cast<EVP_MD const**>(luaL_checkudata(L, 1, "digest"));
+        auto const type = check_digest(L, 1);
         std::size_t count;
         auto const data = luaL_checklstring(L, 2, &count);
 
@@ -67,7 +72,7 @@ luaL_Reg const DigestMethods[] {
     */
     {"hmac", [](auto const L)
     {
-        auto const type = *static_cast<EVP_MD const**>(luaL_checkudata(L, 1, "digest"));
+        auto const type = check_digest(L, 1);
         std::size_t data_len;
         auto const data = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 2, &data_len));
         std::size_t key_len;

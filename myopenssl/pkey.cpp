@@ -23,6 +23,13 @@ extern "C" {
 
 namespace myopenssl {
 
+auto check_pkey(lua_State* const L, int const arg) -> EVP_PKEY*
+{
+    auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, arg, "pkey"));
+    luaL_argcheck(L, nullptr != pkey, arg, "pkey already closed");
+    return pkey;
+}
+
 namespace {
 
 auto l_gc(lua_State* const L) -> int
@@ -53,7 +60,7 @@ luaL_Reg const X509Methods[] {
     */
     { "sign", [](auto const L)
     {
-        auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
+        auto const pkey = check_pkey(L, 1);
         std::size_t data_len;
         auto const data = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 2, &data_len));
 
@@ -105,7 +112,7 @@ luaL_Reg const X509Methods[] {
     */
     {"decrypt", [](auto const L)
     {
-        auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
+        auto const pkey = check_pkey(L, 1);;
         std::size_t in_len;
         auto const in = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 2, &in_len));
         auto const format = luaL_optlstring(L, 3, "", nullptr);
@@ -165,8 +172,8 @@ luaL_Reg const X509Methods[] {
     */
     {"derive", [](auto const L)
     {
-        auto const priv = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
-        auto const pub = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 2, "pkey"));
+        auto const priv = check_pkey(L, 1);;
+        auto const pub = check_pkey(L, 2);;
 
         auto const ctx = EVP_PKEY_CTX_new(priv, nullptr);
         if (nullptr == ctx)
@@ -213,7 +220,7 @@ luaL_Reg const X509Methods[] {
 
     {"to_private_pem", [](auto const L)
     {
-        auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
+        auto const pkey = check_pkey(L, 1);;
         auto const cipher_name = luaL_optlstring(L, 2, nullptr, nullptr);
         std::size_t pass_len;
         auto const pass = reinterpret_cast<unsigned char const*>(luaL_optlstring(L, 3, nullptr, &pass_len));
@@ -248,7 +255,7 @@ luaL_Reg const X509Methods[] {
 
     {"to_public_pem", [](auto const L)
     {
-        auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
+        auto const pkey = check_pkey(L, 1);
         auto const bio = BIO_new(BIO_s_mem());
         if (nullptr == bio)
         {
@@ -268,7 +275,7 @@ luaL_Reg const X509Methods[] {
 
     {"export", [](auto const L)
     {
-        auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
+        auto const pkey = check_pkey(L, 1);
 
         auto cb = [L](OSSL_PARAM const* const params){
             for (auto cursor = params; cursor->key; cursor++)
@@ -303,7 +310,7 @@ luaL_Reg const X509Methods[] {
 
     {"set_param", [](auto const L)
     {
-        auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
+        auto const pkey = check_pkey(L, 1);
         auto const name = luaL_checkstring(L, 2);
 
         auto const settable = EVP_PKEY_settable_params(pkey);
