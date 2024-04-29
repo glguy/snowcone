@@ -21,7 +21,7 @@ namespace myopenssl {
 
 auto check_digest(lua_State* const L, int const arg) -> EVP_MD const*
 {
-    return *static_cast<EVP_MD const**>(luaL_checkudata(L, 1, "digest"));
+    return *static_cast<EVP_MD const**>(luaL_checkudata(L, arg, "digest"));
 }
 
 namespace {

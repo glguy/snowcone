@@ -127,20 +127,20 @@ auto add_key_usage(
 // Allow client authentication extended key usage
 auto add_extended_key_usage(lua_State* const L, X509* const x509, int nid) -> void
 {
-    auto const usage = sk_ASN1_OBJECT_new_null();
+    auto const usage = EXTENDED_KEY_USAGE_new();
     if (nullptr == usage)
     {
-        openssl_failure(L, "sk_ASN1_OBJECT_new_null");
+        openssl_failure(L, "EXTENDED_KEY_USAGE_new");
     }
 
     if (1 != sk_ASN1_OBJECT_push(usage, OBJ_nid2obj(nid)))
     {
-        sk_ASN1_OBJECT_pop_free(usage, ASN1_OBJECT_free);
+        EXTENDED_KEY_USAGE_free(usage);
         openssl_failure(L, "sk_ASN1_OBJECT_push");
     }
 
     auto const result = X509_add1_ext_i2d(x509, NID_ext_key_usage, usage, 1, X509V3_ADD_DEFAULT);
-    sk_ASN1_OBJECT_pop_free(usage, ASN1_OBJECT_free);
+    EXTENDED_KEY_USAGE_free(usage);
 
     if (1 != result)
     {
@@ -291,6 +291,27 @@ luaL_Reg const X509Methods[] {
         }
         return 0;
     }},
+    {"add_caConstraint", [](auto const L) {
+        auto const x509 = check_x509(L, 1);
+        auto const cA = lua_toboolean(L, 2);
+
+        auto const bs = BASIC_CONSTRAINTS_new();
+        if (nullptr == bs)
+        {
+            openssl_failure(L, "BASIC_CONSTRAINTS_new");
+        }
+        bs->ca = cA;
+
+        auto const result = X509_add1_ext_i2d(x509, NID_basic_constraints, bs, 1, X509_ADD_FLAG_DEFAULT);
+        BASIC_CONSTRAINTS_free(bs);
+
+        if (1 != result)
+        {
+            openssl_failure(L, "X509_add1_ext_i2d");
+        }
+        return 0;
+    }
+    },
     {"add_clientUsageConstraint", [](auto const L) {
         auto const x509 = check_x509(L, 1);
         add_key_usage(L, x509, {KeyUsage::DigitalSignature, KeyUsage::KeyAgreement});
@@ -301,6 +322,58 @@ luaL_Reg const X509Methods[] {
         auto const x509 = check_x509(L, 1);
         add_key_usage(L, x509, {KeyUsage::DigitalSignature, KeyUsage::KeyEncipherment, KeyUsage::KeyAgreement});
         add_extended_key_usage(L, x509, NID_server_auth);
+        return 0;
+    }},
+    {"add_subjectKeyIdentifier", [](auto const L) {
+        auto const x509 = check_x509(L, 1);
+        std::size_t len;
+        auto const bytes = luaL_checklstring(L, 2, &len);
+
+        auto const key_identifier = ASN1_OCTET_STRING_new();
+        if (nullptr == key_identifier)
+        {
+            openssl_failure(L, "ASN1_OCTET_STRING_new");
+        }
+
+        if (0 == ASN1_OCTET_STRING_set(key_identifier, reinterpret_cast<unsigned char const*>(bytes), len))
+        {
+            ASN1_OCTET_STRING_free(key_identifier);
+            openssl_failure(L, "ASN1_OCTET_STRING_set");
+        }
+
+        auto const result = X509_add1_ext_i2d(x509, NID_subject_key_identifier, key_identifier, 0, X509_ADD_FLAG_DEFAULT);
+        ASN1_OCTET_STRING_free(key_identifier);
+
+        if (1 != result)
+        {
+            openssl_failure(L, "X509_add1_ext_i2d");
+        }
+        return 0;
+    }},
+    {"add_authorityKeyIdentifier", [](auto const L) {
+        auto const x509 = check_x509(L, 1);
+        std::size_t len;
+        auto const bytes = luaL_checklstring(L, 2, &len);
+
+        AUTHORITY_KEYID auth{.keyid = ASN1_OCTET_STRING_new()};
+        if (nullptr == auth.keyid)
+        {
+            openssl_failure(L, "ASN1_OCTET_STRING_new");
+        }
+
+        if (0 == ASN1_OCTET_STRING_set(auth.keyid, reinterpret_cast<unsigned char const*>(bytes), len))
+        {
+            ASN1_OCTET_STRING_free(auth.keyid);
+            openssl_failure(L, "ASN1_OCTET_STRING_set");
+        }
+
+        auto const result = X509_add1_ext_i2d(x509, NID_authority_key_identifier, &auth, 0, X509_ADD_FLAG_DEFAULT);
+        ASN1_OCTET_STRING_free(auth.keyid);
+
+        if (1 != result)
+        {
+            openssl_failure(L, "X509_add1_ext_i2d");
+        }
         return 0;
     }},
     {}

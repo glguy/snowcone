@@ -355,20 +355,29 @@ add_command('x25519_new', '', function()
     print('/msg NickServ SET X25519-PUBKEY ' .. pub64(k))
 end)
 
+-- /cert_new <filename.pem>
+-- Generates a new self-signed certificate for use by an IRC client
 add_command('cert_new', '$g', function(filename)
     local pkey   <close> = myopenssl.gen_pkey 'ED25519'
     local x509   <close> = myopenssl.new_x509()
-    local sha512         = myopenssl.get_digest 'sha512'
+    local sha1   <const> = myopenssl.get_digest 'sha1'
+    local sha512 <const> = myopenssl.get_digest 'sha512'
+
+    local key_id <const> = sha1:digest(pkey:export().pub)
+    local name   <const> = {CN = 'snowcone'}
 
     -- Populate certificate
-    x509:set_version     (myopenssl.X509_VERSION_3)
-    x509:set_serialNumber(1)
-    x509:set_issuerName  {CN='snowcone'}
-    x509:set_subjectName {CN='snowcone'}
-    x509:set_notBefore   '19700101000000Z'
-    x509:set_notAfter    '20700101000000Z'
-    x509:set_pubkey      (pkey)
-    x509:add_clientUsageConstraint()
+    x509:set_version                (myopenssl.X509_VERSION_3)
+    x509:set_serialNumber           (1)
+    x509:set_subjectName            (name)
+    x509:set_issuerName             (name)
+    x509:set_notBefore              '19700101000000Z'
+    x509:set_notAfter               '20700101000000Z'
+    x509:set_pubkey                 (pkey)
+    x509:add_subjectKeyIdentifier   (key_id)
+    x509:add_authorityKeyIdentifier (key_id)
+    x509:add_caConstraint           (true) -- self-signed certs should have this
+    x509:add_clientUsageConstraint  ()
 
     -- Finish certificate
     x509:sign(pkey)
