@@ -174,12 +174,7 @@ luaL_Reg const X509Methods[] {
     {"sign", [](auto const L) {
         auto const x509 = check_x509(L, 1);
         auto const pkey = check_pkey(L, 2);
-
-        EVP_MD const* md {};
-        if (not lua_isnoneornil(L, 3))
-        {
-            md = check_digest(L, 3);
-        }
+        EVP_MD const* md = luaL_opt(L, check_digest, 3, nullptr);
 
         if (0 == X509_sign(x509, pkey, md))
         {
@@ -295,15 +290,8 @@ luaL_Reg const X509Methods[] {
         auto const x509 = check_x509(L, 1);
         auto const cA = lua_toboolean(L, 2);
 
-        auto const bs = BASIC_CONSTRAINTS_new();
-        if (nullptr == bs)
-        {
-            openssl_failure(L, "BASIC_CONSTRAINTS_new");
-        }
-        bs->ca = cA;
-
-        auto const result = X509_add1_ext_i2d(x509, NID_basic_constraints, bs, 1, X509_ADD_FLAG_DEFAULT);
-        BASIC_CONSTRAINTS_free(bs);
+        BASIC_CONSTRAINTS bs{.ca = cA};
+        auto const result = X509_add1_ext_i2d(x509, NID_basic_constraints, &bs, 1, X509_ADD_FLAG_DEFAULT);
 
         if (1 != result)
         {

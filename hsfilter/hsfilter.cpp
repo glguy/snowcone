@@ -9,6 +9,7 @@ extern "C"
 #include <hs.h>
 
 #include <exception>
+#include <optional>
 
 namespace
 {
@@ -89,8 +90,7 @@ namespace
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TTABLE);
     luaL_checktype(L, 3, LUA_TTABLE);
-    auto const has_platform = !lua_isnoneornil(L, 4);
-    auto const platform = has_platform ? get_platform(L, 4) : hs_platform_info{};
+    auto const platform = lua_isnoneornil(L, 4) ? std::optional<hs_platform_info>{} : std::optional{get_platform(L, 4)};
     lua_settop(L, 3);
 
     auto const N = luaL_len(L, 1);
@@ -124,7 +124,7 @@ namespace
       lua_pop(L, 3); // drops the expr, flag, id
     }
 
-    compile(L, exprs, flags, ids, N, has_platform ? &platform : nullptr);
+    compile(L, exprs, flags, ids, N, platform ? &*platform : nullptr);
     return 1;
   }
 

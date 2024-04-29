@@ -14,11 +14,7 @@ WINDOW* checkwindow(lua_State* const L, int const arg)
 
 WINDOW* optwindow(lua_State* const L, int const arg)
 {
-    if (lua_isnoneornil(L, arg))
-    {
-        return stdscr;
-    }
-    return checkwindow(L, arg);
+    return luaL_opt(L, checkwindow, arg, stdscr);
 }
 
 static int l_delwin(lua_State* const L)
