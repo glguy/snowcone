@@ -12,16 +12,16 @@ env:
   BUILD_TESTING: 'On'
 
 jobs:
-  build: 
+  build:
     # The CMake configure and build commands are platform agnostic and should work equally
     # well on Windows or Mac.  You can convert this to a matrix build if you need
     # cross-platform coverage.
     # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Install Dependencies
       run: sudo apt-get install -y libgeoip-dev lua5.4 liblua5.4-dev libssl-dev lua-geoip lua-penlight libgtest-dev libgmock-dev libhyperscan-dev libidn-dev lua-check
 

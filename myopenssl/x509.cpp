@@ -112,7 +112,7 @@ auto add_key_usage(
             openssl_failure(L, "ASN1_BIT_STRING_set_bit");
         }
     }
-    
+
     // key usage MUST be critical
     auto const result = X509_add1_ext_i2d(x509, NID_key_usage, usage, 1, X509V3_ADD_DEFAULT);
     ASN1_BIT_STRING_free(usage);
