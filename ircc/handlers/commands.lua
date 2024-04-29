@@ -377,7 +377,6 @@ add_command('cert_new', '$g', function(filename)
     x509:add_subjectKeyIdentifier   (key_id)
     x509:add_authorityKeyIdentifier (key_id)
     x509:add_caConstraint           (true) -- self-signed certs should have this
-    x509:add_clientUsageConstraint  ()
 
     -- Finish certificate
     x509:sign(pkey)
