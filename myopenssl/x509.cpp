@@ -2,6 +2,7 @@
 #include "digest.hpp"
 #include "errors.hpp"
 #include "pkey.hpp"
+#include "invoke.hpp"
 
 extern "C" {
 #include "lua.h"
@@ -16,6 +17,7 @@ extern "C" {
 
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <initializer_list>
 
 namespace myopenssl {
@@ -171,6 +173,17 @@ luaL_Reg const X509Methods[] {
         }
         return 0;
     }},
+    {"get_pubkey", [](auto const L) {
+        auto const x509 = check_x509(L, 1);
+        auto const pkey = X509_get_pubkey(x509);
+        if (nullptr == pkey)
+        {
+            openssl_failure(L, "X509_get_pubkey");
+        }
+        push_evp_pkey(L, pkey);
+        return 1;
+    }
+    },
     {"sign", [](auto const L) {
         auto const x509 = check_x509(L, 1);
         auto const pkey = check_pkey(L, 2);
@@ -286,6 +299,40 @@ luaL_Reg const X509Methods[] {
         }
         return 0;
     }},
+    {"get_subjectName", [](auto const L) {
+        auto const x509 = check_x509(L, 1);
+
+        // internal pointer
+        auto const name = X509_get_subject_name(x509);
+        if (nullptr == name)
+        {
+            openssl_failure(L, "X509_get_subject_name");
+        }
+
+        auto const entryCount = X509_NAME_entry_count(name);
+        if (0 == entryCount)
+        {
+            openssl_failure(L, "X509_NAME_entry_count");
+        }
+
+        lua_createtable(L, 0, entryCount);
+        for (int i = 0; i < entryCount; ++i) {
+            auto const entry = X509_NAME_get_entry(name, i);
+            auto const object = X509_NAME_ENTRY_get_object(entry);
+            auto const data = X509_NAME_ENTRY_get_data(entry);
+
+            unsigned char *utf8;
+            auto const length = ASN1_STRING_to_UTF8(&utf8, data);
+
+            lua_pushlstring(L, reinterpret_cast<char const*>(utf8), length);
+            lua_setfield(L, -2, OBJ_nid2sn(OBJ_obj2nid(object)));
+
+            // Free the converted UTF-8 string
+            OPENSSL_free(utf8);
+        }
+
+        return 1;
+    }},
     {"add_caConstraint", [](auto const L) {
         auto const x509 = check_x509(L, 1);
         auto const cA = lua_toboolean(L, 2);
@@ -394,6 +441,43 @@ auto l_new_x509(lua_State* const L) -> int
     {
         openssl_failure(L, "X509_new");
     }
+}
+
+auto l_read_x509(lua_State* const L) -> int
+{
+    std::size_t key_len;
+    auto const key = luaL_checklstring(L, 1, &key_len);
+    auto const priv = lua_toboolean(L, 2);
+    std::size_t pass_len;
+    auto const pass = luaL_optlstring(L, 3, "", &pass_len);
+
+    auto cb = [pass, pass_len](char* buf, int size, int) -> int
+    {
+        if (size < 0 || size_t(size) < pass_len)
+        {
+            return -1; // -1:error due to password not fitting
+        }
+        memcpy(buf, pass, pass_len);
+        return pass_len;
+    };
+
+    auto const bio = BIO_new_mem_buf(key, key_len);
+    if (nullptr == bio)
+    {
+        openssl_failure(L, "BIO_new_mem_buf");
+    }
+
+    auto const x509 = PEM_read_bio_X509(bio, nullptr, Invoke<decltype(cb)>::invoke, &cb);
+
+    BIO_free_all(bio);
+
+    if (nullptr == x509)
+    {
+        openssl_failure(L, "PEM_read_bio_X509");
+    }
+
+    push_x509(L, x509);
+    return 1;
 }
 
 } // namespace myopenssl

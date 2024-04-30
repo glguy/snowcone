@@ -363,6 +363,8 @@ luaL_Reg const X509Methods[] {
     {}
 };
 
+} // namespace
+
 auto push_evp_pkey(lua_State * const L, EVP_PKEY * pkey) -> void
 {
     *static_cast<EVP_PKEY**>(lua_newuserdatauv(L, sizeof pkey, 0)) = pkey;
@@ -376,8 +378,6 @@ auto push_evp_pkey(lua_State * const L, EVP_PKEY * pkey) -> void
     }
     lua_setmetatable(L, -2);
 }
-
-} // namespace
 
 auto l_read_raw(lua_State * const L) -> int
 {

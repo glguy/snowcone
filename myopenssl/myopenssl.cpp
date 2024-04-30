@@ -68,6 +68,7 @@ extern "C" auto luaopen_myopenssl(lua_State * const L) -> int
         {"gen_pkey", myopenssl::l_gen_pkey},
         {"bignum", myopenssl::l_bignum},
         {"new_x509", myopenssl::l_new_x509},
+        {"read_x509", myopenssl::l_read_x509},
         {}
     };
 
