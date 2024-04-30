@@ -50,9 +50,6 @@ if (LIBIDN_FOUND)
 add_subdirectory(mystringprep)
 endif()
 
-add_compile_options(-fsanitize=address)
-add_link_options(-fsanitize=address)
-
 add_subdirectory(mysocks5)
 add_subdirectory(ircmsg)
 add_subdirectory(myncurses)
