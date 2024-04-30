@@ -355,42 +355,63 @@ add_command('x25519_new', '', function()
     print('/msg NickServ SET X25519-PUBKEY ' .. pub64(k))
 end)
 
--- /cert_new <filename.pem>
--- Generates a new self-signed certificate for use by an IRC client
-add_command('cert_new', '$g', function(filename)
-    local pkey   <close> = myopenssl.gen_pkey 'ED25519'
-    local x509   <close> = myopenssl.new_x509()
-    local sha1   <const> = myopenssl.get_digest 'sha1'
-    local sha512 <const> = myopenssl.get_digest 'sha512'
-
-    local key_id <const> = sha1:digest(pkey:export().pub)
-    local name   <const> = {CN = 'snowcone'}
-
-    -- Populate certificate
-    x509:set_version                (myopenssl.X509_VERSION_3)
-    x509:set_serialNumber           (1)
-    x509:set_subjectName            (name)
-    x509:set_issuerName             (name)
-    x509:set_notBefore              '19700101000000Z'
-    x509:set_notAfter               '20700101000000Z'
-    x509:set_pubkey                 (pkey)
-    x509:add_subjectKeyIdentifier   (key_id)
-    x509:add_authorityKeyIdentifier (key_id)
-    x509:add_caConstraint           (true) -- self-signed certs should have this
-
-    -- Finish certificate
-    x509:sign(pkey)
-
-    -- Save certificate and private key together
-    file.write(filename, x509:export() .. pkey:to_private_pem())
-
-    -- Compute fingerprint for NickServ
-    local raw_fp = x509:fingerprint(sha512)
-    local fp = {}
+local function cert_fingerprint(x509)
+    local sha512 <const> = myopenssl.get_digest('sha512')
+    local raw_fp <const> = x509:fingerprint(sha512)
+    local fp <const> = {}
     for i = 1, #raw_fp do
         fp[i] = string.format('%02X', raw_fp:byte(i))
     end
-    print('/msg NickServ CERT ADD ' .. table.concat(fp))
+    return table.concat(fp)
+end
+
+--- Compute the key identifier for a public key using the first
+-- recommended method of taking the SHA-1 hash of its DER encoding
+--
+---@param pkey pkey certificate's public key
+---@return string 20-byte SHA-1 digest
+local function mk_key_id(pkey)
+    local sha1 <const> = myopenssl.get_digest 'sha1'
+    return sha1:digest(pkey:export().pub)
+end
+
+-- /cert_new <filename.pem>
+-- Generates a new self-signed certificate for use by an IRC client
+-- and emits the NickServ CERT command to add its fingerprint
+add_command('cert_new', '$g', function(filename)
+
+    local pkey <close> = myopenssl.gen_pkey 'ED25519'
+    local key_id <const> = mk_key_id(pkey)
+
+    local name <const> = {CN = 'snowcone'}
+
+    -- Build certificate
+    local x509 <close> = myopenssl.new_x509()
+    x509:set_version                (myopenssl.X509_VERSION_3)
+    x509:set_serialNumber           (0)
+    x509:set_subjectName            (name)
+    x509:set_issuerName             (name)
+    x509:set_notBefore              ('19700101000000Z')
+    x509:set_notAfter               ('20700101000000Z') -- certificate revocation handled by NickServ
+    x509:set_pubkey                 (pkey)
+    x509:add_subjectKeyIdentifier   (key_id)
+    x509:add_authorityKeyIdentifier (key_id)
+    x509:add_caConstraint           (true)
+    x509:sign(pkey) -- must be last step
+
+    -- Save certificate and private key together
+    file.write(filename, x509:export() .. '\n' .. pkey:to_private_pem())
+
+    print('/msg NickServ CERT ADD ' .. cert_fingerprint(x509))
 end)
+
+-- /cert_fp <filename>
+-- Compute the NickServ command to add this certificate's fingerprint
+add_command('cert_fp', '$g', function(filename)
+    local pem  <const> = assert(file.read(filename))
+    local x509 <close> = myopenssl.read_x509(pem)
+    print('/msg NickServ CERT ADD ' .. cert_fingerprint(x509))
+end)
+
 
 return M
