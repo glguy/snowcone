@@ -24,24 +24,6 @@ local function scram_encode_username(name)
     return string.gsub(name, '[,=]', table)
 end
 
--- Hi() is, essentially, PBKDF2 [RFC2898] with HMAC() as the
--- pseudorandom function (PRF) and with dkLen == output length of
--- HMAC() == output length of H().
-local function hi(digest, secret, salt, iterations)
-    local acc = digest:hmac(salt .. '\0\0\0\1', secret)
-    local result = acc
-    for _ = 2,iterations do
-        acc = digest:hmac(acc, secret)
-        result = xor_strings(result, acc)
-    end
-    return result
-end
-
--- 128-bits of random data base64 encoded to avoid special characters
-local function make_nonce()
-    return to_base64(string.pack('i8', math.random(0)) .. string.pack('i8', math.random(0)))
-end
-
 -- luacheck: ignore 631
 return function(digest_name, authzid, authcid, password, nonce)
     local digest = myopenssl.get_digest(digest_name)
@@ -61,7 +43,7 @@ return function(digest_name, authzid, authcid, password, nonce)
             gs2_header = 'n,,'
         end
         local cbind_input = to_base64(gs2_header)
-        local client_nonce = nonce or make_nonce()
+        local client_nonce = nonce or to_base64(myopenssl.rand(16))
         local client_first_bare = 'n=' .. scram_encode_username(authcid) .. ',r=' .. client_nonce
         local client_first = gs2_header .. client_first_bare
 
@@ -79,7 +61,7 @@ return function(digest_name, authzid, authcid, password, nonce)
         iterations = assert(math.tointeger(iterations), 'bad iteration count')
         assert(iterations <= iteration_limit, 'server pbdkf2 iteration count too high')
 
-        local salted_password = hi(digest, password, salt, iterations)
+        local salted_password = digest:pbkdf2(password, salt, iterations, digest:size())
         local client_key = digest:hmac('Client Key', salted_password)
         local server_key = digest:hmac('Server Key', salted_password)
         local stored_key = digest:digest(client_key)

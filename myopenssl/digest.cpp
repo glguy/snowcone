@@ -91,6 +91,36 @@ luaL_Reg const DigestMethods[] {
         return 1;
     }},
 
+    {"size", [](auto const L)
+    {
+        auto const digest = check_digest(L, 1);
+        lua_pushinteger(L, EVP_MD_get_size(digest));
+        return 1;
+    }},
+
+    {"pbkdf2", [](auto const L)
+    {
+        auto const digest = check_digest(L, 1);
+        std::size_t passlen;
+        auto const pass = luaL_checklstring(L, 2, &passlen);
+        std::size_t saltlen;
+        auto const salt = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 3, &saltlen));
+        auto const iter = luaL_checkinteger(L, 4);
+        auto const keylen = luaL_checkinteger(L, 5);
+
+        luaL_Buffer B;
+        auto const out = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, keylen));
+
+        auto const result = PKCS5_PBKDF2_HMAC(pass, passlen, salt, saltlen, iter, digest, keylen, out);
+        if (result == 0)
+        {
+            openssl_failure(L, "PKCS5_PBKDF2_HMAC");
+        }
+
+        luaL_pushresultsize(&B, keylen);
+        return 1;
+    }},
+
     {}
 };
 

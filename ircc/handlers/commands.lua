@@ -413,5 +413,4 @@ add_command('cert_fp', '$g', function(filename)
     print('/msg NickServ CERT ADD ' .. cert_fingerprint(x509))
 end)
 
-
 return M

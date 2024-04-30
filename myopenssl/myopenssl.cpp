@@ -8,10 +8,12 @@ myopenssl module
 
 #include "bignum.hpp"
 #include "digest.hpp"
+#include "errors.hpp"
 #include "pkey.hpp"
 #include "x509.hpp"
 
 #include <openssl/evp.h>
+#include <openssl/rand.h>
 #include <openssl/x509.h>
 
 extern "C" {
@@ -59,6 +61,28 @@ Types for use with read_raw
 @field EVP_PKEY_ED448 ED448 type
 */
 
+namespace {
+
+auto l_rand(lua_State* const L) -> int
+{
+    auto const num = luaL_checkinteger(L, 1);
+    auto const priv = lua_toboolean(L, 2);
+
+    luaL_Buffer B;
+    auto const buf = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, num));
+
+    auto const result = (priv ? RAND_priv_bytes : RAND_bytes)(buf, num);
+    if (1 != result)
+    {
+        myopenssl::openssl_failure(L, priv ? "RAND_priv_bytes" : "RAND_bytes");
+    }
+
+    luaL_pushresultsize(&B, num);
+    return 1;
+}
+
+} // namespace
+
 extern "C" auto luaopen_myopenssl(lua_State * const L) -> int
 {
     static luaL_Reg const LIB [] {
@@ -69,6 +93,7 @@ extern "C" auto luaopen_myopenssl(lua_State * const L) -> int
         {"bignum", myopenssl::l_bignum},
         {"new_x509", myopenssl::l_new_x509},
         {"read_x509", myopenssl::l_read_x509},
+        {"rand", l_rand},
         {}
     };
 
