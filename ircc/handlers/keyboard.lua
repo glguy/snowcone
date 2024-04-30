@@ -62,7 +62,7 @@ local M = {
     end,
 
     [meta 's'] = function()
-        if view == 'buffer' then
+        if view == 'buffer' and talk_target_old then
             talk_target_old, talk_target = talk_target, talk_target_old
         elseif talk_target then
             set_view 'buffer'
