@@ -220,10 +220,20 @@ luaL_Reg const X509Methods[] {
 
     {"to_private_pem", [](auto const L)
     {
-        auto const pkey = check_pkey(L, 1);;
+        auto const pkey = check_pkey(L, 1);
         auto const cipher_name = luaL_optlstring(L, 2, nullptr, nullptr);
         std::size_t pass_len;
         auto const pass = reinterpret_cast<unsigned char const*>(luaL_optlstring(L, 3, nullptr, &pass_len));
+
+        if (nullptr == cipher_name && nullptr != pass)
+        {
+            return luaL_argerror(L, 2, "missing cipher");
+        }
+
+        if (nullptr != cipher_name && nullptr == pass)
+        {
+            return luaL_argerror(L, 3, "missing password");
+        }
 
         EVP_CIPHER const* cipher = nullptr;
         if (nullptr != cipher_name)
@@ -246,7 +256,7 @@ luaL_Reg const X509Methods[] {
             BIO_free_all(bio);
             openssl_failure(L, "PEM_write_bio_PrivateKey");
         }
-        char * data;
+        char* data;
         auto const len = BIO_get_mem_data(bio, &data);
         lua_pushlstring(L, data, len);
         BIO_free_all(bio);
