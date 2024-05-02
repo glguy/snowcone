@@ -4,7 +4,7 @@ local M = {
         reset_filter()
         status_message = nil
         editor:reset()
-        input_mode = nil
+        set_input_mode()
         scroll = 0
         hscroll = 0
     end,
@@ -26,11 +26,11 @@ local M = {
 
     [ctrl 'S'] = function()
         editor:reset()
-        input_mode = 'filter'
+        set_input_mode 'filter'
     end,
     [string.byte('/')] = function()
         editor:reset()
-        input_mode = 'command'
+        set_input_mode 'command'
     end,
 
     -- jump to next /talk activity (alphabetically)

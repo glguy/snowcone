@@ -6,11 +6,19 @@ local command_schema = {
     },
 }
 
+local prompt_schema = {
+    type = 'table',
+    fields = {
+        prompt = {type = 'string', required = true}
+    },
+}
+
 local password_schema = {
     -- not required - nil means no password
     oneOf = {
         {type = 'string'},
         command_schema,
+        prompt_schema,
      }
 }
 
@@ -21,7 +29,7 @@ return {
         user                = {type = 'string', pattern = '^[^\n\r\x00 ]+$'},
         gecos               = {type = 'string', pattern = '^[^\n\r\x00]+$'},
 
-        host                = {type = 'string', required = true},
+        host                = {type = 'string'},
         port                = {type = 'number'},
 
         socks_host          = {type = 'string'},

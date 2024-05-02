@@ -333,17 +333,29 @@ end
 -- /ecdsa_new <filename.pem>
 -- Generate a new ECDSA private key and NickServ SET PUBKEY command
 add_command('ecdsa_new', '$g', function(filename)
-    local k = myopenssl.gen_pkey('EC', 'P-256')
-    k:set_param('point-format', 'compressed')
-    file.write(filename, k:to_private_pem())
-    print('/msg NickServ SET PUBKEY ' .. pub64(k))
+    coroutine.wrap(function()
+
+        local password = configuration_tools.ask_password('New private key PEM password')
+        local cipher
+        if password ~= '' then
+            cipher = 'aes256'
+        end
+
+        local k = myopenssl.gen_pkey('EC', 'P-256')
+        k:set_param('point-format', 'compressed')
+        file.write(filename,
+            k:to_private_pem(cipher, password)
+            .. '\n' ..
+            k:to_public_pem())
+        print('/msg NickServ SET PUBKEY ' .. pub64(k))
+    end)()
 end)
 
 -- /ecdsa_fp <filename.pem>
 -- Generate NickServ SET PUBKEY command
 add_command('ecdsa_fp', '$g', function(filename)
     local pem = assert(file.read(filename))
-    local k = myopenssl.read_pem(pem, true)
+    local k = myopenssl.read_pem(pem, false)
     print('/msg NickServ SET PUBKEY ' .. pub64(k))
 end)
 
@@ -379,30 +391,37 @@ end
 -- Generates a new self-signed certificate for use by an IRC client
 -- and emits the NickServ CERT command to add its fingerprint
 add_command('cert_new', '$g', function(filename)
+    coroutine.wrap(function()
+        local password = configuration_tools.ask_password('New private key PEM password')
+        local cipher
+        if password ~= '' then
+            cipher = 'aes256'
+        end
 
-    local pkey <close> = myopenssl.gen_pkey 'ED25519'
-    local key_id <const> = mk_key_id(pkey)
+        local pkey <close> = myopenssl.gen_pkey 'ED25519'
+        local key_id <const> = mk_key_id(pkey)
 
-    local name <const> = {CN = 'snowcone'}
+        local name <const> = {CN = 'snowcone'}
 
-    -- Build certificate
-    local x509 <close> = myopenssl.new_x509()
-    x509:set_version                (myopenssl.X509_VERSION_3)
-    x509:set_serialNumber           (0)
-    x509:set_subjectName            (name)
-    x509:set_issuerName             (name)
-    x509:set_notBefore              ('19700101000000Z')
-    x509:set_notAfter               ('20700101000000Z') -- certificate revocation handled by NickServ
-    x509:set_pubkey                 (pkey)
-    x509:add_subjectKeyIdentifier   (key_id)
-    x509:add_authorityKeyIdentifier (key_id)
-    x509:add_caConstraint           (true)
-    x509:sign(pkey) -- must be last step
+        -- Build certificate
+        local x509 <close> = myopenssl.new_x509()
+        x509:set_version                (myopenssl.X509_VERSION_3)
+        x509:set_serialNumber           (0)
+        x509:set_subjectName            (name)
+        x509:set_issuerName             (name)
+        x509:set_notBefore              ('19700101000000Z')
+        x509:set_notAfter               ('20700101000000Z') -- certificate revocation handled by NickServ
+        x509:set_pubkey                 (pkey)
+        x509:add_subjectKeyIdentifier   (key_id)
+        x509:add_authorityKeyIdentifier (key_id)
+        x509:add_caConstraint           (true)
+        x509:sign(pkey) -- must be last step
 
-    -- Save certificate and private key together
-    file.write(filename, x509:export() .. '\n' .. pkey:to_private_pem())
+        -- Save certificate and private key together
+        file.write(filename, x509:export() .. '\n' .. pkey:to_private_pem(cipher, password))
 
-    print('/msg NickServ CERT ADD ' .. cert_fingerprint(x509))
+        print('/msg NickServ CERT ADD ' .. cert_fingerprint(x509))
+    end)()
 end)
 
 -- /cert_fp <filename>

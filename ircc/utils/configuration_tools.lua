@@ -18,6 +18,12 @@ function M.resolve_path(entry)
     return path.join(config_dir, entry)
 end
 
+function M.ask_password(label)
+    local co = coroutine.running()
+    set_input_mode('password', label, co)
+    return assert(coroutine.yield(), 'Password aborted')
+end
+
 function M.resolve_password(entry)
 
     local t = type(entry)
@@ -31,11 +37,20 @@ function M.resolve_password(entry)
     end
 
     if t == 'table' then
-        local exit_code, stdout, stderr = await(snowcone.execute, entry.command, entry.arguments or {})
-        if exit_code == 0 then
-            return (stdout:match '^[^\n]*')
-        else
-            error('Password command failed: ' .. stderr)
+        if entry.command then
+            local exit_code, stdout, stderr = await(snowcone.execute, entry.command, entry.arguments or {})
+            if exit_code == 0 then
+                return (stdout:match '^[^\n]*')
+            else
+                error('Password command failed: ' .. stderr)
+            end
+        elseif entry.prompt then
+            local password = M.ask_password(entry.prompt)
+            if password then
+                return password
+            else
+                error('Password prompt failed')
+            end
         end
     end
 

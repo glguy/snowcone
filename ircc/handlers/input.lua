@@ -4,13 +4,27 @@ local send = require 'utils.send'
 
 local execute = {}
 
+function execute.password()
+    local co = password_coroutine
+    password_coroutine = nil -- hide it so that it doesn't get closed by set_input_mode
+
+    local password = editor:content()
+    editor:reset()
+    set_input_mode()
+
+    local success, err = coroutine.resume(co, password)
+    if not success then
+        status('password', 'password continuation failed: %s', err)
+    end
+end
+
 function execute.filter()
     filter = editor:content()
     if filter == '' then
         filter = nil
     end
     editor:reset()
-    input_mode = nil
+    set_input_mode()
 end
 
 function execute.talk()
@@ -19,12 +33,12 @@ function execute.talk()
         send('PRIVMSG', talk_target, editor:content())
     end
     editor:reset()
-    input_mode = nil
+    set_input_mode()
 end
 
 function execute.command()
     local text = editor:content()
-    input_mode = nil
+    set_input_mode()
 
     -- ignore whitespace commands
     if text:match '^%s*$' then
@@ -45,7 +59,7 @@ function execute.command()
     end
 
     if entry then
-        input_mode = nil
+        set_input_mode()
         status_message = nil
 
         local params = {}

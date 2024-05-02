@@ -189,7 +189,7 @@ local keys = {
     -- enter talk input mode
     [string.byte('t')] = function()
         editor:reset()
-        input_mode = 'talk'
+        set_input_mode 'talk'
     end,
 }
 

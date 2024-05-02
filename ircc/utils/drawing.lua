@@ -103,6 +103,7 @@ local input_mode_palette = {
     command = ncurses.COLOR_BLUE,
     talk = ncurses.COLOR_GREEN,
     filter = ncurses.COLOR_CYAN,
+    password = ncurses.COLOR_RED,
 }
 
 function M.draw_status_bar(win)
@@ -121,6 +122,15 @@ function M.draw_status_bar(win)
         win:waddstr(input_mode)
         ncurses.colorset(input_mode_color, nil, win)
         win:waddstr('')
+
+        if input_mode == 'password' then
+            local n <const> = editor:size()
+            local spinner <const> = {'◇◇◇', '◆◇◇', '◆◆◇', '◆◆◆', '◇◆◆', '◇◇◆'}
+            bold(win)
+            win:waddstr(' ', password_label, ' ', spinner[n % #spinner + 1])
+            ncurses.cursset(0)
+            return
+        end
 
         if 1 < editor.first then
             yellow(win)

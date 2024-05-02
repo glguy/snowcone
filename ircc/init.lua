@@ -459,6 +459,24 @@ function quit()
     end
 end
 
+function set_input_mode(mode, ...)
+    -- remember the possible previous coroutine so we can abort it
+    local co = password_coroutine
+    if co ~= nil then password_coroutine = nil end
+
+    input_mode = mode
+    if mode == 'password' then
+        password_label, password_coroutine = ...
+    end
+
+    if co then
+        local success, msg = coroutine.resume(co)
+        if not success then
+            status('password', 'password continuation error: %s', msg)
+        end
+    end
+end
+
 function set_talk_target(target)
     if target ~= talk_target then
         talk_target_old = talk_target
@@ -534,7 +552,10 @@ local function startup()
                 elseif uptime == irc_state.liveness + 60 then
                     disconnect()
                 end
-            elseif mode_current == 'idle' and mode_target == 'connected' and uptime == mode_timestamp + 5 then
+            elseif mode_current == 'idle'
+            and mode_target == 'connected'
+            and configuration.host
+            and uptime == mode_timestamp + 5 then
                 connect()
             end
             draw()

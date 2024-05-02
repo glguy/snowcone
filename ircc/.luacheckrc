@@ -17,6 +17,7 @@ stds = {
             "ctrl", "meta", -- functions for defining keyboard handlers
             "next_view", -- function to advance the view
             "prev_view", -- function to retreat the view
+            "set_input_mode", -- change input modality
             "quit", -- function to shutdown the client
             "connect",
             "disconnect", -- function to disconnect the current IRC connection
@@ -30,7 +31,9 @@ stds = {
             "input_win", -- window used to draw the bottom status bar
             "plugins", -- map of loaded plugins
             "irc_state", -- state of the current IRC connection
-            "input_mode", -- current input mode: filter, talk, command
+            "input_mode", -- current input mode: filter, talk, command, password
+            "password_coroutine", -- coroutine for password mode
+            "password_label", -- label for password mode
             "set_view", -- function to update current view
             "view", -- name of the currently rendering view
             "views", -- table of all the available views
@@ -58,7 +61,7 @@ stds = {
             "talk_target", -- name of active buffer
             "talk_target_old", -- name of previous buffer
             "set_talk_target", -- function to update talk_target
-
+            
             -- /status view
             "status", -- function to record a message in the status buffer
             "status_message", -- current message printed in the status bar

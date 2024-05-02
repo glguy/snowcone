@@ -22,6 +22,10 @@ function M:content()
     return utf8.char(table.unpack(self.buffer))
 end
 
+function M:size()
+    return #self.buffer
+end
+
 function M:move(x, state)
     self.cursor = x
     if self.first > self.cursor then

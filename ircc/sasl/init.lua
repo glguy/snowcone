@@ -82,10 +82,17 @@ end
 -- Main body for a Task
 return function(task, credentials)
     local mechanism = credentials.mechanism
+
+    local pass_success, password = pcall(configuration_tools.resolve_password, credentials.password)
+    if not pass_success then
+        status('sasl', 'Password resolution failed: %s', password)
+        return false
+    end
+
     local mech_success, impl = pcall(mechanism_factory,
         mechanism,
         credentials.username,
-        configuration_tools.resolve_password(credentials.password),
+        password,
         configuration_tools.resolve_path(credentials.key),
         credentials.authzid
     )
