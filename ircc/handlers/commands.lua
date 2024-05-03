@@ -195,16 +195,16 @@ add_command('challenge', '', function()
     end
 end)
 
-add_command('oper', '', function()
+add_command('oper', '', function(task)
     if not configuration.oper_username then
         status('oper', 'no username configured: `oper_username`')
     elseif not configuration.oper_password then
         status('oper', 'no password configured: `oper_password`')
     else
-        coroutine.wrap(function() -- resolve_password can yield
-            local password <const> = configuration_tools.resolve_password(configuration.oper_password)
+        Task('oper', irc_state.tasks, function() -- resolve_password can yield
+            local password <const> = configuration_tools.resolve_password(task, configuration.oper_password)
             send('OPER', configuration.oper_username, {content=password, secret=true})
-        end)()
+        end)
     end
 end)
 
@@ -333,9 +333,8 @@ end
 -- /ecdsa_new <filename.pem>
 -- Generate a new ECDSA private key and NickServ SET PUBKEY command
 add_command('ecdsa_new', '$g', function(filename)
-    coroutine.wrap(function()
-
-        local password = configuration_tools.ask_password('New private key PEM password')
+    Task('ecdsa_new', client_tasks, function(task)
+        local password = configuration_tools.ask_password(task, 'New private key PEM password')
         local cipher
         if password ~= '' then
             cipher = 'aes256'
@@ -348,7 +347,7 @@ add_command('ecdsa_new', '$g', function(filename)
             .. '\n' ..
             k:to_public_pem())
         print('/msg NickServ SET PUBKEY ' .. pub64(k))
-    end)()
+    end)
 end)
 
 -- /ecdsa_fp <filename.pem>
@@ -391,8 +390,8 @@ end
 -- Generates a new self-signed certificate for use by an IRC client
 -- and emits the NickServ CERT command to add its fingerprint
 add_command('cert_new', '$g', function(filename)
-    coroutine.wrap(function()
-        local password = configuration_tools.ask_password('New private key PEM password')
+    Task('cert_new', client_tasks, function(task)
+        local password = configuration_tools.ask_password(task, 'New private key PEM password')
         local cipher
         if password ~= '' then
             cipher = 'aes256'
@@ -421,7 +420,7 @@ add_command('cert_new', '$g', function(filename)
         file.write(filename, x509:export() .. '\n' .. pkey:to_private_pem(cipher, password))
 
         print('/msg NickServ CERT ADD ' .. cert_fingerprint(x509))
-    end)()
+    end)
 end)
 
 -- /cert_fp <filename>

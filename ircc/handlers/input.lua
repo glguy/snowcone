@@ -5,17 +5,14 @@ local send = require 'utils.send'
 local execute = {}
 
 function execute.password()
-    local co = password_coroutine
-    password_coroutine = nil -- hide it so that it doesn't get closed by set_input_mode
+    local task = password_task
+    password_task = nil -- hide it so that it doesn't get closed by set_input_mode
 
     local password = editor:content()
     editor:reset()
     set_input_mode()
 
-    local success, err = coroutine.resume(co, password)
-    if not success then
-        status('password', 'password continuation failed: %s', err)
-    end
+    task:resume(password)
 end
 
 function execute.filter()

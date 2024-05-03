@@ -305,9 +305,10 @@ function connect()
         error 'PANIC: bad mode_current'
     end
 
-    coroutine.wrap(function() -- passwords might need to suspend connecting
+    Task('connect', client_tasks, function(task) -- passwords might need to suspend connecting
 
-        local ok1, tls_client_password = pcall(configuration_tools.resolve_password, configuration.tls_client_password)
+        local ok1, tls_client_password =
+            pcall(configuration_tools.resolve_password, task, configuration.tls_client_password)
         if not ok1 then
             status('connect', 'TLS client key password program error: %s', tls_client_password)
             mode_current = 'idle' -- exits connecting mode
@@ -316,7 +317,7 @@ function connect()
             return
         end
 
-        local ok2, socks_password = pcall(configuration_tools.resolve_password, configuration.socks_password)
+        local ok2, socks_password = pcall(configuration_tools.resolve_password, task, configuration.socks_password)
         if not ok2 then
             status('connect', 'SOCKS5 password program error: %s', socks_password)
             mode_current = 'idle' -- exits connecting mode
@@ -355,7 +356,7 @@ function connect()
             mode_current = 'idle' -- exits connecting mode
             mode_timestamp = uptime
         end
-    end)()
+    end)
 end
 
 -- a global allows these to be replaced on a live connection
@@ -471,19 +472,16 @@ end
 
 function set_input_mode(mode, ...)
     -- remember the possible previous coroutine so we can abort it
-    local co = password_coroutine
-    if co ~= nil then password_coroutine = nil end
+    local task = password_task
+    if task ~= nil then password_task = nil end
 
     input_mode = mode
     if mode == 'password' then
-        password_label, password_coroutine = ...
+        password_label, password_task = ...
     end
 
-    if co then
-        local success, msg = coroutine.resume(co)
-        if not success then
-            status('password', 'password continuation error: %s', msg)
-        end
+    if task then
+        task:resume()
     end
 end
 
@@ -512,6 +510,7 @@ local function startup()
         mode_timestamp = 0 -- time that mode_current changed
         terminal_focus = true
         notification_muted = {}
+        client_tasks = {} -- tasks not associated with any particular irc_state
     end
 
     commands = require 'handlers.commands'

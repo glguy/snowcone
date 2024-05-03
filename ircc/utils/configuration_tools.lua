@@ -1,4 +1,3 @@
-local await = require 'utils.await'
 local path = require 'pl.path'
 
 local M = {}
@@ -18,13 +17,12 @@ function M.resolve_path(entry)
     return path.join(config_dir, entry)
 end
 
-function M.ask_password(label)
-    local co = coroutine.running()
-    set_input_mode('password', label, co)
+function M.ask_password(task, label)
+    set_input_mode('password', label, task)
     return assert(coroutine.yield(), 'Password aborted')
 end
 
-function M.resolve_password(entry)
+function M.resolve_password(task, entry)
 
     local t = type(entry)
 
@@ -38,14 +36,14 @@ function M.resolve_password(entry)
 
     if t == 'table' then
         if entry.command then
-            local exit_code, stdout, stderr = await(snowcone.execute, entry.command, entry.arguments or {})
+            local exit_code, stdout, stderr = task:execute(entry.command, entry.arguments)
             if exit_code == 0 then
                 return (stdout:match '^[^\n]*')
             else
                 error('Password command failed: ' .. stderr)
             end
         elseif entry.prompt then
-            local password = M.ask_password(entry.prompt)
+            local password = M.ask_password(task, entry.prompt)
             if password then
                 return password
             else

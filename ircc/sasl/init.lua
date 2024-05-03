@@ -83,7 +83,7 @@ end
 return function(task, credentials)
     local mechanism = credentials.mechanism
 
-    local pass_success, password = pcall(configuration_tools.resolve_password, credentials.password)
+    local pass_success, password = pcall(configuration_tools.resolve_password, task, credentials.password)
     if not pass_success then
         status('sasl', 'Password resolution failed: %s', password)
         return false

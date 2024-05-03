@@ -34,7 +34,7 @@ return function(task)
     cap_negotiation.LS(task)
 
     if configuration.pass then
-        local success, pass = pcall(configuration_tools.resolve_password, configuration.pass)
+        local success, pass = pcall(configuration_tools.resolve_password, task, configuration.pass)
         if success then
             if configuration.passuser then
                 pass = configuration.passuser .. ':' .. pass
@@ -76,7 +76,7 @@ return function(task)
         end
     elseif configuration.oper_automatic == 'oper' then
         if configuration.oper_username and configuration.oper_password then
-            local password <const> = configuration_tools.resolve_password(configuration.oper_password)
+            local password <const> = configuration_tools.resolve_password(task, configuration.oper_password)
             send('OPER', configuration.oper_username, {content=password, secret=true})
         else
             status('oper', 'missing configuration for automatic OPER')

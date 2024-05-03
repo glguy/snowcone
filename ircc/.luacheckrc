@@ -25,6 +25,7 @@ stds = {
             "initialize", -- function to reset all state variable to their defaults
 
             "tick_timer", -- timer object that runs every second
+            "client_tasks", -- tasks not associated with an irc connection
 
             -- global client state
             "main_pad", -- bad used for rendering most of the client
@@ -32,7 +33,7 @@ stds = {
             "plugins", -- map of loaded plugins
             "irc_state", -- state of the current IRC connection
             "input_mode", -- current input mode: filter, talk, command, password
-            "password_coroutine", -- coroutine for password mode
+            "password_task", -- coroutine for password mode
             "password_label", -- label for password mode
             "set_view", -- function to update current view
             "view", -- name of the currently rendering view

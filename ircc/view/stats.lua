@@ -50,18 +50,38 @@ function M:render(win)
     bold_(win)
     win:waddstr '\n'
 
+    label 'Tasks'
+    bold(win)
+    do
+        local first_task = true
+        for task, _ in pairs(client_tasks) do
+            if first_task then
+                first_task = false
+            else
+                bold_(win)
+                win:waddstr(', ')
+                bold(win)
+            end
+            win:waddstr(task.name or task)
+        end
+    end
+    bold_(win)
+    win:waddstr '\n'
+
     label 'Plugins'
     bold(win)
-    local first_plugin = true
-    for script_name, plugin in pairs(plugins) do
-        if first_plugin then
-            first_plugin = false
-        else
-            bold_(win)
-            win:waddstr(', ')
-            bold(win)
+    do
+        local first_plugin = true
+        for script_name, plugin in pairs(plugins) do
+            if first_plugin then
+                first_plugin = false
+            else
+                bold_(win)
+                win:waddstr(', ')
+                bold(win)
+            end
+            win:waddstr(plugin.name or script_name)
         end
-        win:waddstr(plugin.name or script_name)
     end
     bold_(win)
     win:waddstr '\n'
