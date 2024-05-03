@@ -283,6 +283,16 @@ local conn_handlers = {}
 
 function connect()
 
+    if not configuration.host then
+        status('connect', 'Connect host not specified')
+        mode_target = 'idle'
+        if mode_current ~= 'idle' then
+            mode_current = 'idle'
+            mode_timestamp = uptime
+        end
+        return
+    end
+
     -- the connecting mode isn't interruptible due to wait on external process
     if mode_current == 'idle' then
         mode_current = 'connecting'
@@ -554,7 +564,6 @@ local function startup()
                 end
             elseif mode_current == 'idle'
             and mode_target == 'connected'
-            and configuration.host
             and uptime == mode_timestamp + 5 then
                 connect()
             end
@@ -563,7 +572,7 @@ local function startup()
         tick_timer:start(1000, cb)
     end
 
-    if mode_target == 'connected' and mode_current == 'idle' and configuration.host then
+    if mode_target == 'connected' and mode_current == 'idle' then
         connect()
     end
 end
