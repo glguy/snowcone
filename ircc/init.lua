@@ -87,11 +87,12 @@ local function make_layout()
     if main_pad then
         main_pad:delwin()
     end
-    main_pad = ncurses.newpad(tty_height-1, 550);
+    main_pad = ncurses.newpad(tty_height-1, 550)
     if input_win then
         input_win:delwin()
     end
-    input_win = ncurses.newwin(1, tty_width, tty_height - 1, 0);
+    input_win = ncurses.newwin(1, tty_width, tty_height - 1, 0)
+    textbox_pad = ncurses.newpad(1, 1024)
 end
 make_layout()
 
@@ -185,15 +186,21 @@ local function draw()
     ncurses.erase()
     main_pad:werase()
     input_win:werase()
+    textbox_pad:werase()
 
     normal(main_pad)
     views[view]:render(main_pad)
 
-    drawing.draw_status_bar(input_win)
+    drawing.draw_status_bar(input_win, textbox_pad)
 
     ncurses.noutrefresh()
     main_pad:pnoutrefresh(0, hscroll, 0, 0, tty_height-2, tty_width-1)
     ncurses.noutrefresh(input_win)
+
+    if input_mode then
+        local _, ix = ncurses.getyx(input_win)
+        textbox_pad:pnoutrefresh(0, textbox_offset, tty_height-1, ix, tty_height-1, tty_width-1)
+    end
     ncurses.doupdate()
 end
 
@@ -511,6 +518,7 @@ local function startup()
         terminal_focus = true
         notification_muted = {}
         client_tasks = {} -- tasks not associated with any particular irc_state
+        textbox_offset = 0
     end
 
     commands = require 'handlers.commands'

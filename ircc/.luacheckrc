@@ -30,6 +30,8 @@ stds = {
             -- global client state
             "main_pad", -- bad used for rendering most of the client
             "input_win", -- window used to draw the bottom status bar
+            "textbox_offset",
+            "textbox_pad",
             "plugins", -- map of loaded plugins
             "irc_state", -- state of the current IRC connection
             "input_mode", -- current input mode: filter, talk, command, password

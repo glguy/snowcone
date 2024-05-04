@@ -40,11 +40,6 @@ function M:render()
     self.at_cursor = utf8.char(table.unpack(self.buffer, self.cursor))
 end
 
-function M:overflow()
-    self.first = math.max(1, self.cursor - 12)
-    self:render()
-end
-
 function M:reset()
     self.buffer = {}
     self.retrospect = nil

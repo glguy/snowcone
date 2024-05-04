@@ -106,7 +106,7 @@ local input_mode_palette = {
     password = ncurses.COLOR_RED,
 }
 
-function M.draw_status_bar(win)
+function M.draw_status_bar(win, textbox)
     local titlecolor = ncurses.COLOR_WHITE
 
     ncurses.colorset(ncurses.COLOR_BLACK, titlecolor, win)
@@ -132,42 +132,39 @@ function M.draw_status_bar(win)
             return
         end
 
-        if 1 < editor.first then
-            yellow(win)
-            win:waddstr('…')
-            ncurses.colorset(input_mode_color, nil, win)
-        else
-            win:waddstr(' ')
-        end
-
+        ncurses.colorset(input_mode_color, nil, textbox)
         if input_mode == 'filter' then
             if matching.compile(editor:content()) then
-                green(win)
+                green(textbox)
             else
-                red(win)
+                red(textbox)
             end
         end
 
-        local y0, x0 = ncurses.getyx(win)
+        local _, x0 = ncurses.getyx(win)
+        textbox:wmove(0, 0)
+        textbox:waddstr(scrub(editor.before_cursor))
+        local y1, x1 = ncurses.getyx(textbox)
+        textbox:waddstr(scrub(editor.at_cursor))
+        textbox:wmove(y1, x1)
+        ncurses.cursset(1)
 
-        win:waddstr(scrub(editor.before_cursor))
+        local width = tty_width - x0
 
-        -- cursor overflow: clear and redraw
-        local y1, x1 = ncurses.getyx(win)
-        if x1 == tty_width - 1 then
-            yellow(win)
-            win:wmove(y0, x0-1)
-            win:waddstr('…' .. string.rep(' ', tty_width)) -- erase line
-            ncurses.colorset(input_mode_color, nil, win)
-            editor:overflow()
-            win:wmove(y0, x0)
-            win:waddstr(scrub(editor.before_cursor))
-            y1, x1 = ncurses.getyx(win)
+        if x1 - textbox_offset +1 >= width then
+            textbox_offset = x1 - width + 8
         end
 
-        win:waddstr(scrub(editor.at_cursor))
-        win:wmove(y1, x1)
-        ncurses.cursset(1)
+        if textbox_offset > x1 then
+            textbox_offset = math.max(0, x1 - 8)
+        end
+
+        if textbox_offset > 0 then
+            yellow(win)
+            win:waddstr('…')
+        else
+            win:waddstr(' ')
+        end
     else
         ncurses.colorset(titlecolor, nil, win)
         win:waddstr('')
