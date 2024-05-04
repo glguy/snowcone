@@ -151,11 +151,13 @@ function M.draw_status_bar(win, textbox)
 
         local width = tty_width - x0
 
-        if x1 - textbox_offset +1 >= width then
+        -- cursor would exceed the right side of the terminal
+        if x1 - width + 1 >= textbox_offset then
             textbox_offset = x1 - width + 8
         end
 
-        if textbox_offset > x1 then
+        -- cursor would exceed the left side of the terminal
+        if x1 < textbox_offset then
             textbox_offset = math.max(0, x1 - 8)
         end
 

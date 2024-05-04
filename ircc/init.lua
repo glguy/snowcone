@@ -437,16 +437,11 @@ function conn_handlers.CON(fingerprint)
         status('irc', 'bad fingerprint')
         disconnect()
     else
-        mode_current = 'connected' -- transition from connecting
-        mode_timestamp = uptime
         Task('irc registration', irc_state.tasks, irc_registration)
     end
 end
 
 function conn_handlers.END(reason)
-    mode_current = 'idle'
-    mode_timestamp = uptime
-
     disconnect()
     status('irc', 'disconnected: %s', reason or 'end of stream')
 
@@ -464,6 +459,8 @@ function disconnect()
     if irc_state then
         irc_state:close()
         irc_state = nil
+        mode_current = 'idle'
+        mode_timestamp = uptime
     end
 end
 
