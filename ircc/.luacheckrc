@@ -48,7 +48,7 @@ stds = {
             "filter", -- pattern used to filter chat messages
             "terminal_focus", -- true when terminal has focus
             "notification_muted", -- notifications we've already seen
-            "mode_current", -- connect, connecting, idle
+            "mode_current", -- connected, connecting, idle
             "mode_target", -- connect, idle, exit
             "mode_timestamp", -- uptime value when mode_current changed
             "focus", -- zoomed in message in console

@@ -6,6 +6,8 @@ local send                <const> = require 'utils.send'
 local Set                 <const> = require 'pl.Set'
 
 return function(task)
+    irc_state.phase = 'registration'
+
     if configuration.capabilities then
         local wanted = irc_state.caps_wanted
         for _, cap in ipairs(configuration.capabilities) do
