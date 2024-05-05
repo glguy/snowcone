@@ -18,6 +18,14 @@ local keys = {
         scroll = scroll - math.max(1, tty_height - 3)
         scroll = math.max(scroll, 0)
     end,
+    [-ncurses.KEY_PPAGE] = function()
+        local elts = math.min(messages.max, messages.n)
+        scroll = math.min(scroll + 1, elts - tty_height + 2)
+        scroll = math.max(scroll, 0)
+    end,
+    [-ncurses.KEY_NPAGE] = function()
+        scroll = math.max(scroll - 1, 0)
+    end,
 }
 
 function M:keypress(key)

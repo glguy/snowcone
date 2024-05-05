@@ -114,6 +114,16 @@ local keys = {
         scroll = scroll - math.max(1, tty_height - 1)
         scroll = math.max(scroll, 0)
     end,
+    [-ncurses.KEY_UP] = function()
+        local elts = math.min(messages.max, messages.n)
+        scroll = scroll + 1
+        scroll = math.min(scroll, elts - tty_height + 2)
+        scroll = math.max(scroll, 0)
+    end,
+    [-ncurses.KEY_DOWN] = function()
+        scroll = scroll - 1
+        scroll = math.max(scroll, 0)
+    end,
     [meta 'h'] = function() hide_snow = not hide_snow end,
     [meta 'r'] = function() show_raw = not show_raw end,
 }

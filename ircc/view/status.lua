@@ -17,6 +17,14 @@ local keys = {
         scroll = scroll - math.max(1, tty_height - 3)
         scroll = math.max(scroll, 0)
     end,
+    [-ncurses.KEY_UP] = function()
+        local elts = math.min(status_messages.n, status_messages.max)
+        scroll = math.min(scroll + 1, elts - tty_height + 3)
+        scroll = math.max(scroll, 0)
+    end,
+    [-ncurses.KEY_DOWN] = function()
+        scroll = math.max(scroll - 1, 0)
+    end,
 }
 
 function M:keypress(key)
