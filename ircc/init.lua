@@ -560,7 +560,7 @@ local function startup()
             tick_timer:start(1000, cb)
             uptime = uptime + 1
 
-            if mode_current == 'connected' then
+            if irc_state then
                 if irc_state.phase == 'connected' and uptime == irc_state.liveness + 30 then
                     send('PING', os.time())
                 elseif uptime == irc_state.liveness + 60 then

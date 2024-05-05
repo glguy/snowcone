@@ -8,7 +8,6 @@ function M:_init()
     self.buffer = {}        -- Array[Code]
     self.history = {}       -- Array[Array[Code]]
     self.cursor = 1         -- Index into buffer
-    self.first = 1          -- Index into buffer
     self.retrospect = nil   -- Index into history
     self.stash = nil        -- Original buffer when retrospect ~= nil
     self.yank = {}          -- Array[Code]
@@ -28,15 +27,12 @@ end
 
 function M:move(x, state)
     self.cursor = x
-    if self.first > self.cursor then
-        self.first = self.cursor
-    end
     self.state = state
     self:render()
 end
 
 function M:render()
-    self.before_cursor = utf8.char(table.unpack(self.buffer, self.first, self.cursor - 1))
+    self.before_cursor = utf8.char(table.unpack(self.buffer, 1, self.cursor - 1))
     self.at_cursor = utf8.char(table.unpack(self.buffer, self.cursor))
 end
 
