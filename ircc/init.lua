@@ -491,6 +491,8 @@ end
 
 function set_talk_target(target)
     if target ~= talk_target then
+        scroll = 0
+        hscroll = 0
         talk_target_old = talk_target
         talk_target = target
     end
