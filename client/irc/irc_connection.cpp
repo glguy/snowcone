@@ -69,3 +69,8 @@ auto irc_connection::write_actual() -> void
     write_buffers.clear();
     write_refs.clear();
 }
+
+auto irc_connection::close() -> void
+{
+    stream_.close();
+}

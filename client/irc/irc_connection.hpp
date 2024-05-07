@@ -64,6 +64,8 @@ public:
      */
     auto write(std::string_view msg, int ref) -> void;
 
+    auto close() -> void;
+
 private:
     // There's data now, actually write it
     auto write_actual() -> void;

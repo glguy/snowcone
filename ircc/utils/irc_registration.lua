@@ -4,6 +4,7 @@ local configuration_tools <const> = require 'utils.configuration_tools'
 local N                   <const> = require 'utils.numerics'
 local send                <const> = require 'utils.send'
 local Set                 <const> = require 'pl.Set'
+local Task                <const> = require 'components.Task'
 
 return function(task)
     irc_state.phase = 'registration'
@@ -67,12 +68,12 @@ return function(task)
     task:wait_irc(Set{N.RPL_ENDOFMOTD, N.ERR_NOMOTD})
 
     irc_state.phase = 'connected'
-    status('irc', 'connected')
+    status('irc', 'registered')
 
     -- Establish operator privs
     if configuration.oper_automatic == 'challenge' then
         if configuration.oper_username and configuration.challenge_key then
-            challenge(task)
+            Task('challenge', irc_state.tasks, challenge)
         else
             status('oper', 'missing configuration for automatic CHALLENGE')
         end

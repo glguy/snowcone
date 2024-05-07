@@ -38,7 +38,7 @@ auto l_close_irc(lua_State* const L) -> int
 
     if (auto const irc = w->lock())
     {
-        irc->get_stream().close();
+        irc->close();
         lua_pushboolean(L, 1);
         return 1;
     }
