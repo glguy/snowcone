@@ -10,8 +10,8 @@ auto stream_close(boost::asio::ssl::stream<T>& stream) -> void
     stream_close(stream.next_layer());
 }
 
-template <typename... Ts>
-auto Stream<Ts...>::close() -> void
+template <typename Executor, typename... Ts>
+auto Stream<Executor, Ts...>::close() -> void
 {
-    std::visit([](auto&& x){ stream_close(x); }, base());
+    cases([](auto&& x){ stream_close(x); });
 }
