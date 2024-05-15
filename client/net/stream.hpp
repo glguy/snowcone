@@ -8,28 +8,36 @@
 
 /// @brief Abstraction over a choice of Boost ASIO stream types.
 ///
-/// AsyncReadStream and AsyncWriteStream operations will dispatch
-/// to the underlying stream representation representation.
+/// This class template abstracts over multiple Boost ASIO stream types, allowing for
+/// unified AsyncReadStream and AsyncWriteStream operations that dispatch to the
+/// underlying stream representation.
 ///
-/// @tparam ...Ts These types should satisfy AsyncReadStream and AsyncWriteStream
+/// @tparam Executor Type of the executor associated with the stream.
+/// @tparam Ts... Stream types satisfying AsyncReadStream and AsyncWriteStream named type requirements.
 template <typename Executor, typename... Ts>
 class Stream : private std::variant<Ts...>
 {
     using base_type = std::variant<Ts...>;
 
-    auto cases(auto f)
+    /// @brief Apply a callable to the currently active stream variant.
+    /// @tparam F Type of the callable.
+    /// @param f The callable to apply.
+    /// @return The result of the callable.
+    template <typename F>
+    auto cases(F &&f)
     {
-        return std::visit(f, *static_cast<base_type*>(this));
+        return std::visit(std::forward<F>(f), static_cast<base_type &>(*this));
     }
 
 public:
     using base_type::base_type;
     using base_type::emplace;
 
-    // AsyncReadStream and AsyncWriteStream type requirement
+    // The type of the executor associated with the stream.
     using executor_type = Executor;
 
-    /// @brief Get executor associated with this stream
+    /// @brief Get the executor associated with this stream.
+    /// @return The executor associated with the stream.
     auto get_executor() -> executor_type
     {
         return cases([](auto &&x) -> executor_type {
@@ -37,10 +45,12 @@ public:
         });
     }
 
-    /// @brief AsyncReadStream method
-    /// @param buffers Buffers to read into
-    /// @param token Completion token for read operation
-    /// @return Return determined by completion token
+    /// @brief Initiates an asynchronous read operation.
+    /// @tparam MutableBufferSequence Type of the buffer sequence.
+    /// @tparam Token Type of the completion token.
+    /// @param buffers The buffer sequence into which data will be read.
+    /// @param token The completion token for the read operation.
+    /// @return The result determined by the completion token.
     template <
         typename MutableBufferSequence,
         boost::asio::completion_token_for<void(boost::system::error_code, std::size_t)> Token
@@ -50,15 +60,17 @@ public:
         MutableBufferSequence &&buffers,
         Token &&token = boost::asio::default_completion_token_t<executor_type>{}
     ) {
-        return cases([&](auto &&x) {
+        return cases([&buffers, &token](auto &&x) {
             return x.async_read_some(std::forward<MutableBufferSequence>(buffers), std::forward<Token>(token));
         });
     }
 
-    /// @brief AsyncWriteStream method
-    /// @param buffers Buffers to write from
-    /// @param token Completion token for write operation
-    /// @return Return determined by completion token
+    /// @brief Initiates an asynchronous write operation.
+    /// @tparam ConstBufferSequence Type of the buffer sequence.
+    /// @tparam Token Type of the completion token.
+    /// @param buffers The buffer sequence from which data will be written.
+    /// @param token The completion token for the write operation.
+    /// @return The result determined by the completion token.
     template <
         typename ConstBufferSequence,
         boost::asio::completion_token_for<void(boost::system::error_code, std::size_t)> Token
@@ -68,7 +80,7 @@ public:
         ConstBufferSequence &&buffers,
         Token &&token = boost::asio::default_completion_token_t<executor_type>{}
     ) {
-        return cases([&](auto &&x) {
+        return cases([&buffers, &token](auto &&x) {
             return x.async_write_some(std::forward<ConstBufferSequence>(buffers), std::forward<Token>(token));
         });
     }
@@ -77,5 +89,15 @@ public:
     auto close() -> void;
 };
 
-using CommonStream = Stream<boost::asio::any_io_executor, boost::asio::ip::tcp::socket, boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>;
-extern template class Stream<boost::asio::any_io_executor, boost::asio::ip::tcp::socket, boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>;
+// Define a common stream type that can be used with TCP or TLS over TCP.
+using CommonStream = Stream<
+    boost::asio::any_io_executor,
+    boost::asio::ip::tcp::socket,
+    boost::asio::ssl::stream<boost::asio::ip::tcp::socket>
+>;
+
+extern template class Stream<
+    boost::asio::any_io_executor,
+    boost::asio::ip::tcp::socket,
+    boost::asio::ssl::stream<boost::asio::ip::tcp::socket>
+>;
