@@ -13,11 +13,10 @@
 ///
 /// @tparam ...Ts These types should satisfy AsyncReadStream and AsyncWriteStream
 template <typename... Ts>
-class Stream
+struct Stream
 {
     std::variant<Ts...> impl_;
 
-public:
     template <typename T>
     Stream(T&& stream) : impl_{std::forward<T>(stream)} {}
 

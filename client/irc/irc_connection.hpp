@@ -11,6 +11,29 @@
 
 struct lua_State;
 
+struct Settings
+{
+    bool tls;
+    std::string host;
+    std::uint16_t port;
+
+    std::string client_cert;
+    std::string client_key;
+    std::string client_key_password;
+    std::string verify;
+    std::string sni;
+
+    std::string socks_host;
+    std::uint16_t socks_port;
+    std::string socks_user;
+    std::string socks_pass;
+
+    std::string bind_host;
+    std::uint16_t bind_port;
+
+    std::size_t buffer_size;
+};
+
 class irc_connection final : public std::enable_shared_from_this<irc_connection>
 {
 public:
@@ -19,6 +42,7 @@ public:
 
 private:
     stream_type stream_;
+    boost::asio::ip::tcp::resolver resolver_;
     std::vector<int> write_refs;
     std::vector<boost::asio::const_buffer> write_buffers;
     lua_State *L;
@@ -65,6 +89,8 @@ public:
     auto write(std::string_view msg, int ref) -> void;
 
     auto close() -> void;
+
+    auto connect(Settings) -> boost::asio::awaitable<std::string>;
 
 private:
     // There's data now, actually write it
