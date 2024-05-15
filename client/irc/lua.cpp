@@ -6,7 +6,6 @@
 #include "../userdata.hpp"
 
 #include "irc_connection.hpp"
-#include "../net/connect.hpp"
 #include "../strings.hpp"
 
 #include <ircmsg.hpp>
@@ -114,12 +113,11 @@ auto session_thread(
     auto const L = irc->get_lua();
 
     {
-        auto res = co_await connect_stream(io_context, std::move(settings));
-        irc->set_stream(std::move(res.first));
+        auto const fingerprint = co_await irc->connect(std::move(settings));
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
         push_string(L, "CON"sv);
-        push_string(L, res.second);
+        push_string(L, fingerprint);
         safecall(L, "successful connect", 2);
     }
 

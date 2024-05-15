@@ -12,24 +12,29 @@
 /// to the underlying stream representation representation.
 ///
 /// @tparam ...Ts These types should satisfy AsyncReadStream and AsyncWriteStream
-template <typename... Ts>
-class Stream
+template <typename Executor, typename... Ts>
+class Stream : private std::variant<Ts...>
 {
-    std::variant<Ts...> impl_;
+    using base_type = std::variant<Ts...>;
+
+    auto cases(auto f)
+    {
+        return std::visit(f, *static_cast<base_type*>(this));
+    }
 
 public:
-    template <typename T>
-    Stream(T&& stream) : impl_{std::forward<T>(stream)} {}
+    using base_type::base_type;
+    using base_type::emplace;
 
     // AsyncReadStream and AsyncWriteStream type requirement
-    using executor_type = boost::asio::any_io_executor;
+    using executor_type = Executor;
 
     /// @brief Get executor associated with this stream
     auto get_executor() -> executor_type
     {
-        return std::visit([](auto&& x) -> executor_type {
+        return cases([](auto &&x) -> executor_type {
             return x.get_executor();
-        }, impl_);
+        });
     }
 
     /// @brief AsyncReadStream method
@@ -38,14 +43,16 @@ public:
     /// @return Return determined by completion token
     template <
         typename MutableBufferSequence,
-        boost::asio::completion_token_for<void(boost::system::error_code, std::size_t)> Token>
+        boost::asio::completion_token_for<void(boost::system::error_code, std::size_t)> Token
+            = boost::asio::default_completion_token_t<executor_type>
+        >
     auto async_read_some(
         MutableBufferSequence &&buffers,
-        Token &&token)
-    {
-        return std::visit([&](auto&& x) {
+        Token &&token = boost::asio::default_completion_token_t<executor_type>{}
+    ) {
+        return cases([&](auto &&x) {
             return x.async_read_some(std::forward<MutableBufferSequence>(buffers), std::forward<Token>(token));
-        }, impl_);
+        });
     }
 
     /// @brief AsyncWriteStream method
@@ -54,19 +61,21 @@ public:
     /// @return Return determined by completion token
     template <
         typename ConstBufferSequence,
-        boost::asio::completion_token_for<void(boost::system::error_code, std::size_t)> Token>
+        boost::asio::completion_token_for<void(boost::system::error_code, std::size_t)> Token
+            = boost::asio::default_completion_token_t<executor_type>
+        >
     auto async_write_some(
         ConstBufferSequence &&buffers,
-        Token &&token)
-    {
-        return std::visit([&](auto&& x) {
+        Token &&token = boost::asio::default_completion_token_t<executor_type>{}
+    ) {
+        return cases([&](auto &&x) {
             return x.async_write_some(std::forward<ConstBufferSequence>(buffers), std::forward<Token>(token));
-        }, impl_);
+        });
     }
 
     /// @brief Gracefully tear down the network stream
     auto close() -> void;
 };
 
-using CommonStream = Stream<boost::asio::ip::tcp::socket, boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>;
-extern template class Stream<boost::asio::ip::tcp::socket, boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>;
+using CommonStream = Stream<boost::asio::any_io_executor, boost::asio::ip::tcp::socket, boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>;
+extern template class Stream<boost::asio::any_io_executor, boost::asio::ip::tcp::socket, boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>;

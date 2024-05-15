@@ -7,4 +7,4 @@ auto stream_close(boost::asio::ip::tcp::socket &stream) -> void
     stream.close(err);
 }
 
-template class Stream<boost::asio::ip::tcp::socket, boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>;
+template class Stream<boost::asio::any_io_executor, boost::asio::ip::tcp::socket, boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>;
