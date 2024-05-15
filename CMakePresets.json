@@ -24,7 +24,7 @@
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "On"
             },
             "environment": {
-                "PKG_CONFIG_PATH": "/opt/homebrew/opt/ncurses/lib/pkgconfig"
+                "PKG_CONFIG_PATH": "/opt/homebrew/opt/ncurses/lib/pkgconfig:/opt/homebrew/opt/libarchive/lib/pkgconfig"
             }
         },
         {
@@ -40,7 +40,7 @@
                 "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "On"
             },
             "environment": {
-                "PKG_CONFIG_PATH": "/usr/local/opt/ncurses/lib/pkgconfig"
+                "PKG_CONFIG_PATH": "/usr/local/opt/ncurses/lib/pkgconfig:/usr/local/opt/libarchive/lib/pkgconfig"
             }
         }
     ],

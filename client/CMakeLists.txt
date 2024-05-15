@@ -20,4 +20,8 @@ if(LIBIDN_FOUND)
 target_link_libraries(snowcone PRIVATE mystringprep)
 endif()
 
+if (LIBARCHIVE_FOUND)
+target_link_libraries(snowcone PRIVATE myarchive)
+endif()
+
 install(TARGETS snowcone DESTINATION "${CMAKE_INSTALL_BINDIR}")

@@ -19,6 +19,7 @@ pkg_check_modules(NCURSESW REQUIRED IMPORTED_TARGET ncursesw>=6)
 pkg_check_modules(GEOIP             IMPORTED_TARGET geoip)
 pkg_check_modules(LIBHS             IMPORTED_TARGET libhs)
 pkg_check_modules(LIBIDN            IMPORTED_TARGET libidn)
+pkg_check_modules(LIBARCHIVE        IMPORTED_TARGET libarchive)
 
 find_package(OpenSSL REQUIRED)
 
@@ -48,6 +49,10 @@ endif()
 
 if (LIBIDN_FOUND)
 add_subdirectory(mystringprep)
+endif()
+
+if (LIBARCHIVE_FOUND)
+add_subdirectory(myarchive)
 endif()
 
 add_subdirectory(mysocks5)

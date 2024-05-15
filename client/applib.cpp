@@ -29,6 +29,10 @@ extern "C" {
 #include "mystringprep.h"
 #endif
 
+#ifdef LIBARCHIVE_FOUND
+#include "myarchive.h"
+#endif
+
 #include "process.hpp"
 
 #include <algorithm>
@@ -313,6 +317,11 @@ auto prepare_globals(lua_State* const L, int const argc, char const * const * co
     lua_pop(L, 1);
 #endif
 
+#ifdef LIBARCHIVE_FOUND
+    luaL_requiref(L, "myarchive", luaopen_myarchive, 1);
+    lua_pop(L, 1);
+#endif
+
     luaL_newlib(L, applib_module);
     lua_pushinteger(L, SIGINT);
     lua_setfield(L, -2, "SIGINT");
@@ -323,6 +332,13 @@ auto prepare_globals(lua_State* const L, int const argc, char const * const * co
     /* Overwrite the lualib print with the custom one */
     lua_pushcfunction(L, l_print);
     lua_setglobal(L, "print");
+
+    lua_setwarnf(L, [](void* const ud, char const* const msg, int const tocont) {
+        auto const L = reinterpret_cast<lua_State*>(ud);
+        lua_pushstring(L, msg);
+        lua_pushboolean(L, tocont);
+        lua_callback(L, "warning", 2);
+    }, L);
 
     /* populate arg */
     lua_createtable(L, argc - 2, 2);
