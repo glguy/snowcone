@@ -87,32 +87,6 @@ using tcp_type = boost::asio::ip::tcp::socket;
 using tls_type = boost::asio::ssl::stream<tcp_type>;
 
 /**
- * @brief Set up certificate verification, SNI, and perform TLS handshake
- *
- * @param stream
- * @param verify optional hostname to verify on server certificate
- * @param sni optional hostname to send for SNI
- */
-auto tls_connect(
-    tls_type& stream,
-    std::string const& verify,
-    std::string const& sni
-) -> boost::asio::awaitable<void>
-{
-    if (not verify.empty())
-    {
-        stream.set_verify_mode(boost::asio::ssl::verify_peer);
-        stream.set_verify_callback(boost::asio::ssl::host_name_verification(verify));
-    }
-
-    if (not sni.empty())
-    {
-        SSL_set_tlsext_host_name(stream.native_handle(), sni.c_str());
-    }
-    co_await stream.async_handshake(stream.client, boost::asio::use_awaitable);
-}
-
-/**
  * @brief Write SHA2-256 digest of the public-key to the output stream
  */
 auto peer_fingerprint(std::ostream &os, SSL const *const ssl) -> void
@@ -122,7 +96,7 @@ auto peer_fingerprint(std::ostream &os, SSL const *const ssl) -> void
     auto const cert = SSL_get0_peer_certificate(ssl);
     X509_pubkey_digest(cert, EVP_sha256(), md, &md_len);
 
-    boost::io::ios_flags_saver saver{os};
+    const boost::io::ios_flags_saver saver{os};
 
     // Server fingerprint representation
     os << std::hex << std::setfill('0');
@@ -130,39 +104,6 @@ auto peer_fingerprint(std::ostream &os, SSL const *const ssl) -> void
     {
         os << std::setw(2) << int{md[i]};
     }
-}
-
-/**
- * @brief Bind the socket to a specific local IP address or port
- */
-auto tcp_bind(
-    tcp_type& stream,
-    boost::asio::ip::tcp::resolver& resolver,
-    std::string_view const host,
-    std::uint16_t const port
-) -> boost::asio::awaitable<void>
-{
-    auto const entries =
-        co_await resolver.async_resolve(host, std::to_string(port), boost::asio::use_awaitable);
-    auto const &entry = *entries.begin();
-    stream.open(entry.endpoint().protocol());
-    stream.bind(entry);
-}
-
-/**
- * @brief Establish a new TCP connection to the given remote hostname and port
- */
-auto tcp_connect(
-    tcp_type& stream,
-    boost::asio::ip::tcp::resolver& resolver,
-    std::string_view const host,
-    std::uint16_t const port
-) -> boost::asio::awaitable<boost::asio::ip::tcp::endpoint>
-{
-    auto const entries =
-        co_await resolver.async_resolve(host, std::to_string(port), boost::asio::use_awaitable);
-
-    co_return co_await boost::asio::async_connect(stream, entries, boost::asio::use_awaitable);
 }
 
 auto set_buffer_size(tls_type& stream, std::size_t const n) -> void
@@ -290,12 +231,20 @@ auto irc_connection::connect(
     // Optionally bind the local socket
     if (not settings.bind_host.empty() || settings.bind_port != 0)
     {
-        co_await tcp_bind(socket, resolver_, settings.bind_host, settings.bind_port);
+        auto const entries =
+            co_await resolver_.async_resolve(settings.host, std::to_string(settings.port), boost::asio::use_awaitable);
+        auto const &entry = *entries.begin();
+        socket.open(entry.endpoint().protocol());
+        socket.bind(entry);
     }
 
     // Establish underlying TCP connection
     {
-        os << "tcp=" << co_await tcp_connect(socket, resolver_, settings.host, settings.port);
+        auto const entries =
+            co_await resolver_.async_resolve(settings.host, std::to_string(settings.port), boost::asio::use_awaitable);
+
+        os << "tcp=" << co_await boost::asio::async_connect(socket, entries, boost::asio::use_awaitable);
+
         socket.set_option(boost::asio::ip::tcp::no_delay(true));
         set_buffer_size(socket, settings.buffer_size);
         set_cloexec(socket.native_handle());
@@ -304,8 +253,8 @@ auto irc_connection::connect(
     // Optionally negotiate SOCKS connection
     if (use_socks) {
         auto auth = not settings.socks_user.empty() || not settings.socks_pass.empty()
-                ? socks5::Auth{socks5::UsernamePasswordCredential{settings.socks_user, settings.socks_pass}}
-                : socks5::Auth{socks5::NoCredential{}};
+            ? socks5::Auth{socks5::UsernamePasswordCredential{settings.socks_user, settings.socks_pass}}
+            : socks5::Auth{socks5::NoCredential{}};
         os << " socks="
            << co_await socks5::async_connect(
                 socket,
@@ -317,12 +266,26 @@ auto irc_connection::connect(
     if (settings.tls)
     {
         auto cxt = build_ssl_context(settings.client_cert, settings.client_key, settings.client_key_password);
-        
+
+        // Upgrade stream_ to use TLS and invalidate socket
         auto& stream = stream_.emplace<tls_type>(tls_type{std::move(socket), cxt});
 
         set_buffer_size(stream, settings.buffer_size);
         set_alpn(stream);
-        co_await tls_connect(stream, settings.verify, settings.sni);
+
+        if (not settings.verify.empty())
+        {
+            stream.set_verify_mode(boost::asio::ssl::verify_peer);
+            stream.set_verify_callback(boost::asio::ssl::host_name_verification(settings.verify));
+        }
+
+        if (not settings.sni.empty())
+        {
+            SSL_set_tlsext_host_name(stream.native_handle(), settings.sni.c_str());
+        }
+
+        co_await stream.async_handshake(stream.client, boost::asio::use_awaitable);
+
         peer_fingerprint(os << " tls=", stream.native_handle());
     }
 
