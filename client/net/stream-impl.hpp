@@ -13,5 +13,5 @@ auto stream_close(boost::asio::ssl::stream<T>& stream) -> void
 template <typename... Ts>
 auto Stream<Ts...>::close() -> void
 {
-    std::visit([](auto&& x){ stream_close(x); }, impl_);
+    std::visit([](auto&& x){ stream_close(x); }, base());
 }

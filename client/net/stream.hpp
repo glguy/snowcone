@@ -13,12 +13,19 @@
 ///
 /// @tparam ...Ts These types should satisfy AsyncReadStream and AsyncWriteStream
 template <typename... Ts>
-struct Stream
+class Stream : private std::variant<Ts...>
 {
-    std::variant<Ts...> impl_;
+    using base_type = std::variant<Ts...>;
 
+    auto base() -> base_type& {
+        return *static_cast<base_type*>(this);
+    }
+
+public:
     template <typename T>
-    Stream(T&& stream) : impl_{std::forward<T>(stream)} {}
+    Stream(T&& stream) : base_type{std::forward<T>(stream)} {}
+
+    using base_type::emplace;
 
     // AsyncReadStream and AsyncWriteStream type requirement
     using executor_type = boost::asio::any_io_executor;
@@ -28,7 +35,7 @@ struct Stream
     {
         return std::visit([](auto&& x) -> executor_type {
             return x.get_executor();
-        }, impl_);
+        }, base());
     }
 
     /// @brief AsyncReadStream method
@@ -44,7 +51,7 @@ struct Stream
     {
         return std::visit([&](auto&& x) {
             return x.async_read_some(std::forward<MutableBufferSequence>(buffers), std::forward<Token>(token));
-        }, impl_);
+        }, base());
     }
 
     /// @brief AsyncWriteStream method
@@ -60,7 +67,7 @@ struct Stream
     {
         return std::visit([&](auto&& x) {
             return x.async_write_some(std::forward<ConstBufferSequence>(buffers), std::forward<Token>(token));
-        }, impl_);
+        }, base());
     }
 
     /// @brief Gracefully tear down the network stream

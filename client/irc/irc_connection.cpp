@@ -277,7 +277,7 @@ auto irc_connection::connect(
     std::ostringstream os;
 
     // replace previous socket and ensure it's a tcp socket
-    auto& socket = stream_.impl_.emplace<tcp_type>(stream_.get_executor());
+    auto& socket = stream_.emplace<tcp_type>(stream_.get_executor());
 
     // If we're going to use SOCKS then the TCP connection host is actually the socks
     // server and then the IRC server gets passed over the SOCKS protocol
@@ -318,9 +318,7 @@ auto irc_connection::connect(
     {
         auto cxt = build_ssl_context(settings.client_cert, settings.client_key, settings.client_key_password);
         
-        // extract
-        tls_type stream1 {std::move(socket), cxt};
-        auto& stream = stream_.impl_.emplace<tls_type>(std::move(stream1));
+        auto& stream = stream_.emplace<tls_type>(tls_type{std::move(socket), cxt});
 
         set_buffer_size(stream, settings.buffer_size);
         set_alpn(stream);
