@@ -1,6 +1,6 @@
 #include "stream-impl.hpp"
 
-auto stream_close(boost::asio::ip::tcp::socket &stream) -> void
+auto stream_close(boost::asio::ip::tcp::socket& stream) -> void
 {
     boost::system::error_code err;
     stream.shutdown(stream.shutdown_both, err);

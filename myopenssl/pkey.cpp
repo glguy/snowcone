@@ -112,7 +112,7 @@ luaL_Reg const X509Methods[] {
     */
     {"decrypt", [](auto const L)
     {
-        auto const pkey = check_pkey(L, 1);;
+        auto const pkey = check_pkey(L, 1);
         std::size_t in_len;
         auto const in = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 2, &in_len));
         auto const format = luaL_optlstring(L, 3, "", nullptr);
@@ -172,8 +172,8 @@ luaL_Reg const X509Methods[] {
     */
     {"derive", [](auto const L)
     {
-        auto const priv = check_pkey(L, 1);;
-        auto const pub = check_pkey(L, 2);;
+        auto const priv = check_pkey(L, 1);
+        auto const pub = check_pkey(L, 2);
 
         auto const ctx = EVP_PKEY_CTX_new(priv, nullptr);
         if (nullptr == ctx)

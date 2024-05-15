@@ -37,17 +37,18 @@ public:
      * @param n Buffer size
      */
     LineBuffer(std::size_t n)
-    : buffer(n)
-    , start_{buffer.begin()}
-    , search_{buffer.begin()}
-    , end_{buffer.begin()}
-    {}
+        : buffer(n)
+        , start_{buffer.begin()}
+        , search_{buffer.begin()}
+        , end_{buffer.begin()}
+    {
+    }
 
     // can't copy the iterator member safely
     LineBuffer(LineBuffer const&) = delete;
-    LineBuffer(LineBuffer &&) = delete;
+    LineBuffer(LineBuffer&&) = delete;
     auto operator=(LineBuffer const&) -> LineBuffer& = delete;
-    auto operator=(LineBuffer &&) -> LineBuffer& = delete;
+    auto operator=(LineBuffer&&) -> LineBuffer& = delete;
 
     /**
      * @brief Get the available buffer space

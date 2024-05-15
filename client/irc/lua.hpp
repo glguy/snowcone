@@ -18,4 +18,4 @@ struct ircmsg;
 auto l_start_irc(lua_State* L) -> int;
 
 auto pushtags(lua_State* L, std::vector<irctag> const& tags) -> void;
-auto pushircmsg(lua_State *const L, ircmsg const &msg) -> void;
+auto pushircmsg(lua_State* const L, ircmsg const& msg) -> void;

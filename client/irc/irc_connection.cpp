@@ -3,8 +3,8 @@
 #include <socks5.hpp>
 
 extern "C" {
-#include <lua.h>
 #include <lauxlib.h>
+#include <lua.h>
 }
 
 #include <boost/io/ios_state.hpp>
@@ -49,9 +49,7 @@ auto irc_connection::write_actual() -> void
     boost::asio::async_write(
         stream_,
         write_buffers,
-        [weak = weak_from_this(), L = L, refs = std::move(write_refs)]
-        (boost::system::error_code const& error, std::size_t)
-        {
+        [weak = weak_from_this(), L = L, refs = std::move(write_refs)](boost::system::error_code const& error, std::size_t) {
             for (auto const ref : refs)
             {
                 luaL_unref(L, LUA_REGISTRYINDEX, ref);
@@ -70,7 +68,8 @@ auto irc_connection::write_actual() -> void
                     }
                 }
             }
-        });
+        }
+    );
     write_buffers.clear();
     write_refs.clear();
 }
@@ -89,14 +88,14 @@ using tls_type = boost::asio::ssl::stream<tcp_type>;
 /**
  * @brief Write SHA2-256 digest of the public-key to the output stream
  */
-auto peer_fingerprint(std::ostream &os, SSL const *const ssl) -> void
+auto peer_fingerprint(std::ostream& os, SSL const* const ssl) -> void
 {
     unsigned char md[EVP_MAX_MD_SIZE];
     unsigned int md_len = 0; // if the digest somehow fails, use 0
     auto const cert = SSL_get0_peer_certificate(ssl);
     X509_pubkey_digest(cert, EVP_sha256(), md, &md_len);
 
-    const boost::io::ios_flags_saver saver{os};
+    boost::io::ios_flags_saver const saver{os};
 
     // Server fingerprint representation
     os << std::hex << std::setfill('0');
@@ -122,10 +121,12 @@ auto set_buffer_size(tcp_type& socket, std::size_t const n) -> void
 auto set_cloexec(int const fd) -> void
 {
     auto const flags = fcntl(fd, F_GETFD);
-    if (-1 == flags) {
+    if (-1 == flags)
+    {
         throw std::system_error{errno, std::generic_category(), "failed to get file descriptor flags"};
     }
-    if (-1 == fcntl(fd, F_SETFD, flags | FD_CLOEXEC)) {
+    if (-1 == fcntl(fd, F_SETFD, flags | FD_CLOEXEC))
+    {
         throw std::system_error{errno, std::generic_category(), "failed to set file descriptor flags"};
     }
 }
@@ -139,16 +140,16 @@ auto constexpr sum() -> std::size_t { return (0 + ... + Ns); }
  * @tparam Ns sizes of each protocol name
  * @return encoded protocol names
  */
-template<std::size_t... Ns>
-auto constexpr alpn_encode(const char(&...protocols)[Ns]) -> std::array<unsigned char, sum<Ns...>()>
+template <std::size_t... Ns>
+auto constexpr alpn_encode(char const (&... protocols)[Ns]) -> std::array<unsigned char, sum<Ns...>()>
 {
     auto result = std::array<unsigned char, sum<Ns...>()>{};
     auto cursor = std::begin(result);
-    auto const encode = [&cursor]<std::size_t N>(char const (&protocol)[N])
-    {
+    auto const encode = [&cursor]<std::size_t N>(char const(&protocol)[N]) {
         static_assert(N > 0, "Protocol name must be null-terminated");
         static_assert(N < 256, "Protocol name too long");
-        if (protocol[N-1] != '\0') throw "Protocol name not null-terminated";
+        if (protocol[N - 1] != '\0')
+            throw "Protocol name not null-terminated";
 
         // Prefixed length byte
         *cursor++ = N - 1;
@@ -167,9 +168,9 @@ auto set_alpn(tls_type& stream) -> void
 }
 
 auto build_ssl_context(
-    std::string const &client_cert,
-    std::string const &client_key,
-    std::string const &client_key_password
+    std::string const& client_cert,
+    std::string const& client_key,
+    std::string const& client_key_password
 ) -> boost::asio::ssl::context
 {
     boost::system::error_code error;
@@ -180,11 +181,12 @@ auto build_ssl_context(
         ssl_context.set_password_callback(
             [client_key_password](
                 std::size_t const max_size,
-                boost::asio::ssl::context::password_purpose)
-            {
+                boost::asio::ssl::context::password_purpose
+            ) {
                 return client_key_password.size() <= max_size ? client_key_password : "";
             },
-            error);
+            error
+        );
         if (error)
         {
             throw std::runtime_error{"password callback: " + error.to_string()};
@@ -223,7 +225,8 @@ auto irc_connection::connect(
     // If we're going to use SOCKS then the TCP connection host is actually the socks
     // server and then the IRC server gets passed over the SOCKS protocol
     auto const use_socks = not settings.socks_host.empty() && settings.socks_port != 0;
-    if (use_socks) {
+    if (use_socks)
+    {
         std::swap(settings.host, settings.socks_host);
         std::swap(settings.port, settings.socks_port);
     }
@@ -231,17 +234,15 @@ auto irc_connection::connect(
     // Optionally bind the local socket
     if (not settings.bind_host.empty() || settings.bind_port != 0)
     {
-        auto const entries =
-            co_await resolver_.async_resolve(settings.host, std::to_string(settings.port), boost::asio::use_awaitable);
-        auto const &entry = *entries.begin();
+        auto const entries = co_await resolver_.async_resolve(settings.host, std::to_string(settings.port), boost::asio::use_awaitable);
+        auto const& entry = *entries.begin();
         socket.open(entry.endpoint().protocol());
         socket.bind(entry);
     }
 
     // Establish underlying TCP connection
     {
-        auto const entries =
-            co_await resolver_.async_resolve(settings.host, std::to_string(settings.port), boost::asio::use_awaitable);
+        auto const entries = co_await resolver_.async_resolve(settings.host, std::to_string(settings.port), boost::asio::use_awaitable);
 
         os << "tcp=" << co_await boost::asio::async_connect(socket, entries, boost::asio::use_awaitable);
 
@@ -251,15 +252,17 @@ auto irc_connection::connect(
     }
 
     // Optionally negotiate SOCKS connection
-    if (use_socks) {
+    if (use_socks)
+    {
         auto auth = not settings.socks_user.empty() || not settings.socks_pass.empty()
             ? socks5::Auth{socks5::UsernamePasswordCredential{settings.socks_user, settings.socks_pass}}
             : socks5::Auth{socks5::NoCredential{}};
         os << " socks="
            << co_await socks5::async_connect(
-                socket,
-                settings.socks_host, settings.socks_port, std::move(auth),
-                boost::asio::use_awaitable);
+                  socket,
+                  settings.socks_host, settings.socks_port, std::move(auth),
+                  boost::asio::use_awaitable
+              );
     }
 
     // Optionally negotiate TLS session

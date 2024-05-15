@@ -17,14 +17,14 @@ class App
     boost::asio::io_context io_context;
     boost::asio::posix::stream_descriptor stdin_poll;
     boost::asio::signal_set signals;
-    lua_State * L;
+    lua_State* L;
     char const* main_source;
 
 public:
     App(char const*);
     ~App();
 
-    static auto from_lua(lua_State *) -> App *;
+    static auto from_lua(lua_State*) -> App*;
     auto startup() -> void;
     auto shutdown() -> void;
     auto reload() -> bool;

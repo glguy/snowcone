@@ -6,10 +6,9 @@
 #include "safecall.hpp"
 #include "strings.hpp"
 
-extern "C"
-{
-#include <lua.h>
+extern "C" {
 #include <lauxlib.h>
+#include <lua.h>
 }
 
 #include <ncurses.h>
@@ -35,7 +34,7 @@ App::~App()
     lua_close(L);
 }
 
-auto App::from_lua(lua_State* const L) -> App *
+auto App::from_lua(lua_State* const L) -> App*
 {
     lua_rawgetp(L, LUA_REGISTRYINDEX, &app_key);
     auto const a = reinterpret_cast<App*>(lua_touserdata(L, -1));
@@ -43,8 +42,7 @@ auto App::from_lua(lua_State* const L) -> App *
     return a;
 }
 
-namespace
-{
+namespace {
 
 auto do_mouse(lua_State* const L, int const y, int const x, bool const shifted) -> void
 {
@@ -80,15 +78,15 @@ auto App::signal_thread() -> boost::asio::awaitable<void>
         auto const sig = co_await signals.async_wait(boost::asio::use_awaitable);
         switch (sig)
         {
-            case SIGHUP:
-                reload();
-                break;
-            case SIGWINCH:
-                endwin();
-                refresh();
-                l_ncurses_resize(L);
-                lua_callback(L, "on_resize", 0);
-                break;
+        case SIGHUP:
+            reload();
+            break;
+        case SIGWINCH:
+            endwin();
+            refresh();
+            l_ncurses_resize(L);
+            lua_callback(L, "on_resize", 0);
+            break;
         }
     }
 }
@@ -99,7 +97,7 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
     bool in_paste = false;
     mbstate_t mbstate{};
 
-    for(;;)
+    for (;;)
     {
         co_await stdin_poll.async_wait(stdin_poll.wait_read, boost::asio::use_awaitable);
         for (int key; key = getch(), ERR != key;)
@@ -181,10 +179,13 @@ auto App::shutdown() -> void
 auto App::reload() -> bool
 {
     auto const r = luaL_loadfile(L, main_source);
-    if (LUA_OK == r) {
+    if (LUA_OK == r)
+    {
         safecall(L, "reload", 0);
         return true;
-    } else {
+    }
+    else
+    {
         auto const err = lua_tolstring(L, -1, nullptr);
         endwin();
         std::cerr << "error in reload:load: " << err << std::endl;

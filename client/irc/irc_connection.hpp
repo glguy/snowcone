@@ -45,23 +45,25 @@ private:
     boost::asio::ip::tcp::resolver resolver_;
     std::vector<int> write_refs;
     std::vector<boost::asio::const_buffer> write_buffers;
-    lua_State *L;
+    lua_State* L;
     bool writing_;
 
-    struct Private{};
+    struct Private
+    {
+    };
 
 public:
     irc_connection(Private, boost::asio::io_context&, lua_State*);
     ~irc_connection();
 
     auto operator=(irc_connection const&) -> irc_connection& = delete;
-    auto operator=(irc_connection &&) -> irc_connection& = delete;
+    auto operator=(irc_connection&&) -> irc_connection& = delete;
     irc_connection(irc_connection const&) = delete;
-    irc_connection(irc_connection &&) = delete;
+    irc_connection(irc_connection&&) = delete;
 
     auto static create(boost::asio::io_context& io_context, lua_State* const L) -> std::shared_ptr<irc_connection>
     {
-        return std::make_shared<irc_connection>(Private{}, io_context, L);
+        return std::make_shared<irc_connection>(Private {}, io_context, L);
     }
 
     auto get_stream() -> stream_type&

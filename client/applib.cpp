@@ -14,9 +14,9 @@
 #include <myopenssl.hpp>
 
 extern "C" {
+#include <lauxlib.h>
 #include <lua.h>
 #include <lualib.h>
-#include <lauxlib.h>
 }
 
 #include <ncurses.h>
@@ -38,11 +38,11 @@ extern "C" {
 #include <algorithm>
 #include <csignal>
 #include <cstring>
+#include <ctime>
 #include <functional>
 #include <iostream>
 #include <iterator>
 #include <locale>
-#include <ctime>
 
 namespace { // lua support for app
 
@@ -59,15 +59,19 @@ auto l_pton(lua_State* const L) -> int
     int af;
     char buffer[16];
 
-    if (ipv6) {
+    if (ipv6)
+    {
         af = AF_INET6;
         len = 16;
-    } else {
+    }
+    else
+    {
         af = AF_INET;
         len = 4;
     }
 
-    switch (inet_pton(af, p, buffer)) {
+    switch (inet_pton(af, p, buffer))
+    {
     case 1:
         lua_pushlstring(L, buffer, len);
         return 1;
@@ -87,7 +91,8 @@ auto l_pton(lua_State* const L) -> int
 auto l_raise(lua_State* const L) -> int
 {
     auto const s = luaL_checkinteger(L, 1);
-    if (0 != raise(s)) {
+    if (0 != raise(s))
+    {
         auto const e = errno;
         return luaL_error(L, "raise: %s", strerror(e));
     }
@@ -115,10 +120,13 @@ auto l_from_base64(lua_State* const L) -> int
     luaL_Buffer B;
     auto const output_first = luaL_buffinitsize(L, &B, outlen);
     auto const output_last = mybase64::decode(input, output_first);
-    if (output_last) {
+    if (output_last)
+    {
         luaL_pushresultsize(&B, std::distance(output_first, output_last));
         return 1;
-    } else {
+    }
+    else
+    {
         return 0;
     }
 }
@@ -135,7 +143,8 @@ auto l_xor_strings(lua_State* const L) -> int
     auto const s1 = check_string_view(L, 1);
     auto const s2 = check_string_view(L, 2);
 
-    if (s1.size() != s2.size()) {
+    if (s1.size() != s2.size())
+    {
         return luaL_error(L, "xor_strings: length mismatch");
     }
 
@@ -155,31 +164,31 @@ auto l_isalnum(lua_State* const L) -> int
     return 1;
 }
 
-auto l_irccase(lua_State* const L) -> int {
-    char const* const charmap =
-        "\x00\x01\x02\x03\x04\x05\x06\x07"
-        "\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f"
-        "\x10\x11\x12\x13\x14\x15\x16\x17"
-        "\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f"
-        " !\"#$%&'()*+,-./0123456789:;<=>?"
-        "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
-        "`ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^\x7f"
-        "\x80\x81\x82\x83\x84\x85\x86\x87"
-        "\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f"
-        "\x90\x91\x92\x93\x94\x95\x96\x97"
-        "\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f"
-        "\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7"
-        "\xa8\xa9\xaa\xab\xac\xad\xae\xaf"
-        "\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7"
-        "\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf"
-        "\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7"
-        "\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf"
-        "\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7"
-        "\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf"
-        "\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7"
-        "\xe8\xe9\xea\xeb\xec\xed\xee\xef"
-        "\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7"
-        "\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff";
+auto l_irccase(lua_State* const L) -> int
+{
+    char const* const charmap = "\x00\x01\x02\x03\x04\x05\x06\x07"
+                                "\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f"
+                                "\x10\x11\x12\x13\x14\x15\x16\x17"
+                                "\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f"
+                                " !\"#$%&'()*+,-./0123456789:;<=>?"
+                                "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
+                                "`ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^\x7f"
+                                "\x80\x81\x82\x83\x84\x85\x86\x87"
+                                "\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f"
+                                "\x90\x91\x92\x93\x94\x95\x96\x97"
+                                "\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f"
+                                "\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7"
+                                "\xa8\xa9\xaa\xab\xac\xad\xae\xaf"
+                                "\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7"
+                                "\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf"
+                                "\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7"
+                                "\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf"
+                                "\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7"
+                                "\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf"
+                                "\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7"
+                                "\xe8\xe9\xea\xeb\xec\xed\xee\xef"
+                                "\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7"
+                                "\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff";
 
     auto const str = check_string_view(L, 1);
 
@@ -198,7 +207,7 @@ auto l_shutdown(lua_State* const L) -> int
     return 0;
 }
 
-auto l_time(lua_State * const L) -> int
+auto l_time(lua_State* const L) -> int
 {
     timespec now;
     if (TIME_UTC == timespec_get(&now, TIME_UTC))
@@ -213,14 +222,17 @@ auto l_time(lua_State * const L) -> int
     }
 }
 
-auto l_parse_irc_tags(lua_State * const L) -> int
+auto l_parse_irc_tags(lua_State* const L) -> int
 {
     auto const buf = mutable_string_arg(L, 1);
 
-    try {
+    try
+    {
         pushtags(L, parse_irc_tags(buf));
         return 1;
-    } catch (irc_parse_error const& e) {
+    }
+    catch (irc_parse_error const& e)
+    {
         return 0;
     }
 }
@@ -229,45 +241,50 @@ auto l_parse_irc(lua_State* const L) -> int
 {
     auto const buf = mutable_string_arg(L, 1);
 
-    try {
+    try
+    {
         pushircmsg(L, parse_irc_message(buf));
         return 1;
-    } catch (irc_parse_error const& e) {
+    }
+    catch (irc_parse_error const& e)
+    {
         return 0;
     }
 }
 
 luaL_Reg const applib_module[] = {
-    { "connect", l_start_irc },
-    { "dnslookup", l_dnslookup },
-    { "from_base64", l_from_base64 },
-    { "irccase", l_irccase },
-    { "isalnum", l_isalnum },
-    { "newtimer", l_new_timer },
-    { "parse_irc_tags", l_parse_irc_tags },
-    { "parse_irc", l_parse_irc },
-    { "pton", l_pton },
-    { "raise", l_raise },
-    { "setmodule", l_setmodule },
-    { "shutdown", l_shutdown },
-    { "time", l_time },
-    { "to_base64", l_to_base64 },
-    { "xor_strings", l_xor_strings },
-    { "execute", l_execute},
+    {"connect", l_start_irc},
+    {"dnslookup", l_dnslookup},
+    {"from_base64", l_from_base64},
+    {"irccase", l_irccase},
+    {"isalnum", l_isalnum},
+    {"newtimer", l_new_timer},
+    {"parse_irc_tags", l_parse_irc_tags},
+    {"parse_irc", l_parse_irc},
+    {"pton", l_pton},
+    {"raise", l_raise},
+    {"setmodule", l_setmodule},
+    {"shutdown", l_shutdown},
+    {"time", l_time},
+    {"to_base64", l_to_base64},
+    {"xor_strings", l_xor_strings},
+    {"execute", l_execute},
     {}
 };
 
 auto l_print(lua_State* const L) -> int
 {
-    auto const n = lua_gettop(L);  /* number of arguments */
+    auto const n = lua_gettop(L); /* number of arguments */
 
     luaL_Buffer b;
     luaL_buffinit(L, &b);
 
-    for (int i = 1; i <= n; i++) {
-            (void)luaL_tolstring(L, i, nullptr); // leaves string on stack
-            luaL_addvalue(&b); // consumes string
-            if (i<n) luaL_addchar(&b, '\t');
+    for (int i = 1; i <= n; i++)
+    {
+        (void)luaL_tolstring(L, i, nullptr); // leaves string on stack
+        luaL_addvalue(&b); // consumes string
+        if (i < n)
+            luaL_addchar(&b, '\t');
     }
 
     luaL_pushresult(&b);
@@ -296,7 +313,7 @@ auto lua_callback(lua_State* const L, char const* const key, int args) -> bool
     }
 }
 
-auto prepare_globals(lua_State* const L, int const argc, char const * const * const argv) -> void
+auto prepare_globals(lua_State* const L, int const argc, char const* const* const argv) -> void
 {
     /* setup libraries */
     luaL_openlibs(L);
@@ -335,9 +352,10 @@ auto prepare_globals(lua_State* const L, int const argc, char const * const * co
 
     /* populate arg */
     lua_createtable(L, argc - 2, 2);
-    for (int i = 0; i < argc; i++) {
+    for (int i = 0; i < argc; i++)
+    {
         push_string(L, argv[i]);
-        lua_rawseti(L, -2, i-1);
+        lua_rawseti(L, -2, i - 1);
     }
     lua_setglobal(L, "arg");
 

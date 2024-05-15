@@ -17,4 +17,4 @@ struct lua_State;
  * @param L Lua state
  * @return 0
  */
-auto l_dnslookup(lua_State *L) -> int;
+auto l_dnslookup(lua_State* L) -> int;

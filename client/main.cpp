@@ -5,10 +5,9 @@
 #include "ircmsg.hpp"
 #include "safecall.hpp"
 
-extern "C"
-{
-#include <lua.h>
+extern "C" {
 #include <lauxlib.h>
+#include <lua.h>
 }
 
 #include <ncurses.h>
@@ -33,9 +32,9 @@ public:
         initscr();
         start_color();
         use_default_colors();
-        raw();       /* pass through all they keys */
-        noecho();    /* no echo input to screen */
-        nonl();      /* no newline on pressing return */
+        raw(); /* pass through all they keys */
+        noecho(); /* no echo input to screen */
+        nonl(); /* no newline on pressing return */
         curs_set(0); /* no cursor */
         mousemask(BUTTON1_CLICKED | BUTTON_SHIFT, nullptr);
         set_escdelay(25);
@@ -46,9 +45,9 @@ public:
     }
 
     NC(NC const&) = delete;
-    NC(NC &&) = delete;
+    NC(NC&&) = delete;
     auto operator=(NC const&) -> NC& = delete;
-    auto operator=(NC &&) -> NC& = delete;
+    auto operator=(NC&&) -> NC& = delete;
 
     ~NC()
     {
@@ -60,21 +59,23 @@ auto main(int argc, char const* argv[]) -> int
 {
     if (argc < 2)
     {
-        std::cerr <<
-            "Usage: snowcone MODE [--config=PATH]\n"
-            "  Modes:\n"
-            "    ircc               - chat client\n"
-            "    dashboard          - server notice dashboard\n"
-            "    path/to/init.lua   - arbitrary Lua script\n"
-            " \n"
-            "  --config=PATH        - override configuration file\n"
-            "                         (default ~/.config/snowcone/settings.lua)\n";
+        std::cerr << "Usage: snowcone MODE [--config=PATH]\n"
+                     "  Modes:\n"
+                     "    ircc               - chat client\n"
+                     "    dashboard          - server notice dashboard\n"
+                     "    path/to/init.lua   - arbitrary Lua script\n"
+                     " \n"
+                     "  --config=PATH        - override configuration file\n"
+                     "                         (default ~/.config/snowcone/settings.lua)\n";
         return EXIT_FAILURE;
     }
 
-    if (not strcmp("dashboard", argv[1])) {
+    if (not strcmp("dashboard", argv[1]))
+    {
         argv[1] = CMAKE_INSTALL_FULL_DATAROOTDIR "/snowcone/dashboard/init.lua";
-    } else if (not strcmp("ircc", argv[1])) {
+    }
+    else if (not strcmp("ircc", argv[1]))
+    {
         argv[1] = CMAKE_INSTALL_FULL_DATAROOTDIR "/snowcone/ircc/init.lua";
     }
 
@@ -83,7 +84,8 @@ auto main(int argc, char const* argv[]) -> int
     auto const L = a.get_lua();
 
     prepare_globals(L, argc, argv);
-    if (a.reload()) {
+    if (a.reload())
+    {
         a.startup();
     }
 }

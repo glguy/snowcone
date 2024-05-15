@@ -13,5 +13,5 @@ auto stream_close(boost::asio::ssl::stream<T>& stream) -> void
 template <typename Executor, typename... Ts>
 auto Stream<Executor, Ts...>::close() -> void
 {
-    cases([](auto&& x){ stream_close(x); });
+    cases([](auto&& x) { stream_close(x); });
 }

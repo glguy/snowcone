@@ -5,26 +5,24 @@
 #include "../safecall.hpp"
 #include "../userdata.hpp"
 
-#include "irc_connection.hpp"
 #include "../strings.hpp"
+#include "irc_connection.hpp"
 
 #include <ircmsg.hpp>
 
-extern "C"
-{
-#include <lua.h>
+extern "C" {
 #include <lauxlib.h>
+#include <lua.h>
 }
 
 #include <charconv> // from_chars
-#include <memory>
-#include <system_error>
-#include <string>
-#include <variant>
 #include <fcntl.h>
+#include <memory>
+#include <string>
+#include <system_error>
+#include <variant>
 
-namespace
-{
+namespace {
 
 using namespace std::literals::string_view_literals;
 
@@ -75,23 +73,21 @@ auto l_send_irc(lua_State* const L) -> int
 
 auto pushirc(lua_State* const L, std::weak_ptr<irc_connection> const irc) -> void
 {
-    auto const w = new_udata<std::weak_ptr<irc_connection>>(L, 1, [L]()
-    {
-        auto constexpr l_gc = [](lua_State* const L) -> int
-        {
+    auto const w = new_udata<std::weak_ptr<irc_connection>>(L, 1, [L]() {
+        auto constexpr l_gc = [](lua_State* const L) -> int {
             auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
             std::destroy_at(w);
             return 0;
         };
 
-        luaL_Reg const MT[] {
+        luaL_Reg const MT[]{
             {"__gc", l_gc},
             {},
         };
         luaL_setfuncs(L, MT, 0);
 
         // Setup class methods for IRC objects
-        luaL_Reg const Methods[] {
+        luaL_Reg const Methods[]{
             {"send", l_send_irc},
             {"close", l_close_irc},
             {}
@@ -134,7 +130,10 @@ auto session_thread(
         while (auto line = buff.next_line())
         {
             // skip leading whitespace and ignore empty lines
-            while (*line == ' ') { line++; }
+            while (*line == ' ')
+            {
+                line++;
+            }
             if (*line != '\0')
             {
                 auto const msg = parse_irc_message(line); // might throw
@@ -209,16 +208,20 @@ auto l_start_irc(lua_State* const L) -> int
     boost::asio::co_spawn(
         io_context, session_thread(io_context, irc_cb, irc, std::move(settings)),
         [L = LMain, irc_cb](std::exception_ptr const e) {
-
             lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
             luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);
             push_string(L, "END"sv);
 
-            try {
+            try
+            {
                 std::rethrow_exception(e);
-            } catch (std::exception const& ex) {
+            }
+            catch (std::exception const& ex)
+            {
                 push_string(L, ex.what());
-            } catch (...) {
+            }
+            catch (...)
+            {
                 lua_pushnil(L);
             }
 
@@ -264,7 +267,7 @@ auto pushircmsg(lua_State* const L, ircmsg const& msg) -> void
 auto pushtags(lua_State* const L, std::vector<irctag> const& tags) -> void
 {
     lua_createtable(L, 0, tags.size());
-    for (auto &&tag : tags)
+    for (auto&& tag : tags)
     {
         push_string(L, tag.key);
         push_string(L, tag.val);
@@ -273,4 +276,4 @@ auto pushtags(lua_State* const L, std::vector<irctag> const& tags) -> void
 }
 
 template <>
-char const *udata_name<std::weak_ptr<irc_connection>> = "irc_connection";
+char const* udata_name<std::weak_ptr<irc_connection>> = "irc_connection";
