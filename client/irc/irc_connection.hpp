@@ -28,9 +28,6 @@ struct Settings
     std::string socks_user;
     std::string socks_pass;
 
-    std::string bind_host;
-    std::uint16_t bind_port;
-
     std::size_t buffer_size;
 };
 

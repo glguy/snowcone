@@ -347,8 +347,6 @@ function connect()
             configuration.socks_port,
             configuration.socks_username,
             socks_password,
-            configuration.bind_host,
-            configuration.bind_port,
             function(event, arg)
                 conn_handlers[event](arg)
             end)

@@ -37,9 +37,6 @@ return {
         socks_username      = {type = 'string'},
         socks_password      = password_schema,
 
-        bind_host           = {type = 'string'},
-        bind_port           = {type = 'number'},
-
         tls                 = {type = 'boolean'},
         tls_client_cert     = {type = 'string'},
         tls_client_key      = {type = 'string'},

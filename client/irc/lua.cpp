@@ -169,13 +169,10 @@ auto l_start_irc(lua_State* const L) -> int
     auto const socks_port = luaL_optinteger(L, 10, 0);
     auto const socks_user = luaL_optlstring(L, 11, "", nullptr);
     auto const socks_pass = luaL_optlstring(L, 12, "", nullptr);
-    auto const bind_host = luaL_optlstring(L, 13, "", nullptr);
-    auto const bind_port = luaL_optinteger(L, 14, 0);
-    luaL_checkany(L, 15); // callback
-    lua_settop(L, 15);
+    luaL_checkany(L, 13); // callback
+    lua_settop(L, 13);
     luaL_argcheck(L, 1 <= port && port <= 0xffff, 3, "port out of range");
     luaL_argcheck(L, 0 <= socks_port && socks_port <= 0xffff, 10, "port out of range");
-    luaL_argcheck(L, 0 <= bind_port && bind_port <= 0xffff, 14, "port out of range");
 
     auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
 
@@ -192,8 +189,6 @@ auto l_start_irc(lua_State* const L) -> int
         .socks_port = static_cast<std::uint16_t>(socks_port),
         .socks_user = socks_user,
         .socks_pass = socks_pass,
-        .bind_host = bind_host,
-        .bind_port = static_cast<std::uint16_t>(bind_port),
         .buffer_size = irc_connection::irc_buffer_size,
     };
 

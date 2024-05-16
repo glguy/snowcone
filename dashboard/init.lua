@@ -871,8 +871,6 @@ function connect()
         configuration.socks_port,
         configuration.socks_username,
         configuration.socks_password,
-        configuration.bind_host,
-        configuration.bind_port,
         on_irc)
     if conn_ then
         status('irc', 'connecting')

@@ -231,15 +231,6 @@ auto irc_connection::connect(
         std::swap(settings.port, settings.socks_port);
     }
 
-    // Optionally bind the local socket
-    if (not settings.bind_host.empty() || settings.bind_port != 0)
-    {
-        auto const entries = co_await resolver_.async_resolve(settings.bind_host, std::to_string(settings.bind_port), boost::asio::use_awaitable);
-        auto const& entry = *entries.begin();
-        socket.open(entry.endpoint().protocol());
-        socket.bind(entry);
-    }
-
     // Establish underlying TCP connection
     {
         auto const entries = co_await resolver_.async_resolve(settings.host, std::to_string(settings.port), boost::asio::use_awaitable);
