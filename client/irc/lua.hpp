@@ -6,11 +6,11 @@
  *
  */
 
+#include <vector>
+
 struct lua_State;
 struct irctag;
 struct ircmsg;
-
-#include <vector>
 
 /**
  * @brief Starts the connection for the app

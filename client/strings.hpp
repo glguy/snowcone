@@ -1,10 +1,10 @@
 #pragma once
 
-#include <string_view>
-
 extern "C" {
 #include <lua.h>
 }
+
+#include <string_view>
 
 /**
  * @brief Push string_view value onto Lua stack
@@ -13,7 +13,7 @@ extern "C" {
  * @param str string
  * @return char const* string in Lua memory
  */
-inline auto push_string(lua_State * const L, std::string_view const str) -> char const *
+inline auto push_string(lua_State* const L, std::string_view const str) -> char const*
 {
     return lua_pushlstring(L, std::data(str), std::size(str));
 }
@@ -28,4 +28,4 @@ inline auto push_string(lua_State * const L, std::string_view const str) -> char
  */
 auto mutable_string_arg(lua_State* L, int i) -> char*;
 
-auto check_string_view(lua_State * L, int arg) -> std::string_view;
+auto check_string_view(lua_State* L, int arg) -> std::string_view;

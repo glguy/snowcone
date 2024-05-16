@@ -1,8 +1,8 @@
 #pragma once
 
-struct lua_State;
-
 #include <openssl/evp.h>
+
+struct lua_State;
 
 namespace myopenssl {
 

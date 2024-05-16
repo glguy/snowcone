@@ -1,7 +1,8 @@
 #include "window.h"
 
-#include <lua.h>
 #include <lauxlib.h>
+#include <lua.h>
+
 #include <ncurses.h>
 
 WINDOW* checkwindow(lua_State* const L, int const arg)
@@ -120,7 +121,8 @@ static int l_waddstr(lua_State* const L)
     WINDOW* const win = checkwindow(L, 1);
 
     int const n = lua_gettop(L);
-    for (int i = 2; i <= n; i++) {
+    for (int i = 2; i <= n; i++)
+    {
         size_t len;
         char const* const str = luaL_checklstring(L, i, &len);
         (void)waddnstr(win, str, len);
@@ -170,7 +172,7 @@ int l_newwin(lua_State* const L)
     lua_Integer const begin_y = luaL_checkinteger(L, 3);
     lua_Integer const begin_x = luaL_checkinteger(L, 4);
 
-    WINDOW *const result = newwin(nlines, ncols, begin_y, begin_x);
+    WINDOW* const result = newwin(nlines, ncols, begin_y, begin_x);
 
     if (NULL == result)
     {
@@ -186,7 +188,7 @@ int l_newpad(lua_State* const L)
     lua_Integer const nlines = luaL_checkinteger(L, 1);
     lua_Integer const ncols = luaL_checkinteger(L, 2);
 
-    WINDOW *const result = newpad(nlines, ncols);
+    WINDOW* const result = newpad(nlines, ncols);
 
     if (NULL == result)
     {

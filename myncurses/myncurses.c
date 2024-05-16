@@ -1,21 +1,22 @@
 #define _XOPEN_SOURCE 600
 
-#include <stdlib.h>
-#include <assert.h>
-
-#include <ncurses.h>
-#include "lua.h"
-#include "lauxlib.h"
-#include "lualib.h"
-
 #include "myncurses.h"
 #include "window.h"
+
+#include <lauxlib.h>
+#include <lua.h>
+#include <lualib.h>
+#include <ncurses.h>
+
+#include <assert.h>
+#include <stdlib.h>
 
 static int l_erase(lua_State* const L)
 {
     WINDOW* const win = optwindow(L, 1);
 
-    if (ERR == werase(win)) {
+    if (ERR == werase(win))
+    {
         return luaL_error(L, "erase: ncurses error");
     }
     return 0;
@@ -25,7 +26,8 @@ static int l_clear(lua_State* const L)
 {
     WINDOW* const win = optwindow(L, 1);
 
-    if (ERR == wclear(win)) {
+    if (ERR == wclear(win))
+    {
         return luaL_error(L, "clear: ncurses error");
     }
     return 0;
@@ -35,18 +37,19 @@ static int l_refresh(lua_State* const L)
 {
     WINDOW* const win = optwindow(L, 1);
 
-    if (ERR == wrefresh(win)) {
+    if (ERR == wrefresh(win))
+    {
         return luaL_error(L, "refresh: ncurses error");
     }
     return 0;
 }
 
-
 static int l_noutrefresh(lua_State* const L)
 {
     WINDOW* const win = optwindow(L, 1);
 
-    if (ERR == wnoutrefresh(win)) {
+    if (ERR == wnoutrefresh(win))
+    {
         return luaL_error(L, "wnoutrefresh: ncurses error");
     }
     return 0;
@@ -57,7 +60,8 @@ static int l_attron(lua_State* const L)
     lua_Integer const a = luaL_checkinteger(L, 1);
     WINDOW* const win = optwindow(L, 2);
 
-    if (ERR == wattr_on(win, a, NULL)) {
+    if (ERR == wattr_on(win, a, NULL))
+    {
         return luaL_error(L, "wattr_on: ncurses error");
     }
     return 0;
@@ -68,7 +72,8 @@ static int l_attroff(lua_State* const L)
     lua_Integer const a = luaL_checkinteger(L, 1);
     WINDOW* const win = optwindow(L, 2);
 
-    if (ERR == wattr_off(win, a, NULL)) {
+    if (ERR == wattr_off(win, a, NULL))
+    {
         return luaL_error(L, "wattr_off: ncurses error");
     }
     return 0;
@@ -80,7 +85,8 @@ static int l_attrget(lua_State* const L)
 
     attr_t attrs;
     short colorpair;
-    if (ERR == wattr_get(win, &attrs, &colorpair, NULL)) {
+    if (ERR == wattr_get(win, &attrs, &colorpair, NULL))
+    {
         return luaL_error(L, "wattr_get: ncurses error");
     }
 
@@ -89,13 +95,14 @@ static int l_attrget(lua_State* const L)
     return 2;
 }
 
-static int l_attrset(lua_State *const L)
+static int l_attrset(lua_State* const L)
 {
     int const a = luaL_checkinteger(L, 1);
     int const color = luaL_checkinteger(L, 2);
     WINDOW* const win = optwindow(L, 3);
 
-    if (ERR == wattr_set(win, a, color, NULL)) {
+    if (ERR == wattr_set(win, a, color, NULL))
+    {
         return luaL_error(L, "wattr_set: ncurses error");
     }
     return 0;
@@ -104,7 +111,8 @@ static int l_attrset(lua_State *const L)
 static int l_addstr(lua_State* const L)
 {
     int const n = lua_gettop(L);
-    for (int i = 1; i <= n; i++) {
+    for (int i = 1; i <= n; i++)
+    {
         size_t len;
         char const* const str = luaL_checklstring(L, i, &len);
         addnstr(str, len);
@@ -124,13 +132,17 @@ static int l_mvaddstr(lua_State* const L)
 
     if (0 <= y && 0 <= x && y < wy && x < wx)
     {
-        if (n < 3) {
+        if (n < 3)
+        {
             move(y, x);
-        } else {
+        }
+        else
+        {
             char const* const str = luaL_checklstring(L, 3, &len);
             mvaddnstr(y, x, str, len);
 
-            for (int i = 4; i <= n; i++) {
+            for (int i = 4; i <= n; i++)
+            {
                 char const* const str = luaL_checklstring(L, i, &len);
                 addnstr(str, len);
             }
@@ -184,16 +196,19 @@ static int l_colorset(lua_State* const L)
 
     WINDOW* const win = optwindow(L, 3);
 
-    int* pair = &color_map[fore+1][back+1];
-    if (0 == *pair && (fore >= 0 || back >= 0)) {
-        if (assigned < COLOR_PAIRS) {
+    int* pair = &color_map[fore + 1][back + 1];
+    if (0 == *pair && (fore >= 0 || back >= 0))
+    {
+        if (assigned < COLOR_PAIRS)
+        {
             *pair = assigned++;
             int result = init_pair(*pair, fore, back);
             assert(ERR != result);
         }
     }
 
-    if (ERR == wcolor_set(win, *pair, NULL)) {
+    if (ERR == wcolor_set(win, *pair, NULL))
+    {
         return luaL_error(L, "color_set: ncurses error");
     }
 
@@ -279,37 +294,70 @@ void l_ncurses_resize(lua_State* const L)
 #define LCURSES__STR(_s) #_s
 #define LCURSES_STR(_s) LCURSES__STR(_s)
 
-#define CCR(n, v) do { \
-	lua_pushinteger(L, v); \
-	lua_setfield(L, -2, n); \
-} while(0)
+#define CCR(n, v)               \
+    do                          \
+    {                           \
+        lua_pushinteger(L, v);  \
+        lua_setfield(L, -2, n); \
+    }                           \
+    while (0)
 
 #define CC(s) CCR(#s, s)
 #define CF(i) CCR(LCURSES_STR(LCURSES_SPLICE(KEY_F, i)), KEY_F(i))
 
-int luaopen_myncurses(lua_State *L)
+int luaopen_myncurses(lua_State* L)
 {
     luaL_newlib(L, lib);
 
     /* colors */
-    CC(COLOR_BLACK);    CC(COLOR_RED);      CC(COLOR_GREEN);
-    CC(COLOR_YELLOW);   CC(COLOR_BLUE);     CC(COLOR_MAGENTA);
-    CC(COLOR_CYAN);     CC(COLOR_WHITE);    CCR("COLOR_DEFAULT", -1);
+    CC(COLOR_BLACK);
+    CC(COLOR_RED);
+    CC(COLOR_GREEN);
+    CC(COLOR_YELLOW);
+    CC(COLOR_BLUE);
+    CC(COLOR_MAGENTA);
+    CC(COLOR_CYAN);
+    CC(COLOR_WHITE);
+    CCR("COLOR_DEFAULT", -1);
 
-	/* attributes */
-	CC(WA_NORMAL);      CC(WA_STANDOUT);    CC(WA_UNDERLINE);
-	CC(WA_REVERSE);     CC(WA_BLINK);       CC(WA_DIM);
-	CC(WA_BOLD);        CC(WA_ALTCHARSET);  CC(WA_ITALIC);
+    /* attributes */
+    CC(WA_NORMAL);
+    CC(WA_STANDOUT);
+    CC(WA_UNDERLINE);
+    CC(WA_REVERSE);
+    CC(WA_BLINK);
+    CC(WA_DIM);
+    CC(WA_BOLD);
+    CC(WA_ALTCHARSET);
+    CC(WA_ITALIC);
 
-	CC(KEY_DOWN);       CC(KEY_UP);         CC(KEY_END);
-	CC(KEY_LEFT);       CC(KEY_RIGHT);      CC(KEY_HOME);
-	CC(KEY_BACKSPACE);  CC(KEY_PPAGE);      CC(KEY_NPAGE);
-    CC(KEY_DC);         CC(KEY_BTAB);
+    CC(KEY_DOWN);
+    CC(KEY_UP);
+    CC(KEY_END);
+    CC(KEY_LEFT);
+    CC(KEY_RIGHT);
+    CC(KEY_HOME);
+    CC(KEY_BACKSPACE);
+    CC(KEY_PPAGE);
+    CC(KEY_NPAGE);
+    CC(KEY_DC);
+    CC(KEY_BTAB);
 
-    CC(KEY_RESUME);     CC(KEY_EXIT);
+    CC(KEY_RESUME);
+    CC(KEY_EXIT);
 
-	CF( 1); CF( 2); CF( 3); CF( 4); CF( 5); CF( 6); CF( 7);
-    CF( 8); CF( 9); CF(10); CF(11); CF(12);
+    CF(1);
+    CF(2);
+    CF(3);
+    CF(4);
+    CF(5);
+    CF(6);
+    CF(7);
+    CF(8);
+    CF(9);
+    CF(10);
+    CF(11);
+    CF(12);
 
     return 1;
 }

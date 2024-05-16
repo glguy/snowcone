@@ -1,8 +1,9 @@
 #pragma once
 
-template <typename> struct Invoke_;
+template <typename>
+struct Invoke_;
 template <typename F, typename R, typename... Ts>
-struct Invoke_<R (F::*) (Ts...) const>
+struct Invoke_<R (F::*)(Ts...) const>
 {
     static R invoke(Ts... args, void* u)
     {

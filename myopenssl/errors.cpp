@@ -3,11 +3,12 @@
 #include "invoke.hpp"
 
 extern "C" {
-#include <lua.h>
 #include <lauxlib.h>
+#include <lua.h>
 }
 
 #include <openssl/err.h>
+
 #include <cstdlib>
 
 [[noreturn]]
@@ -18,7 +19,7 @@ auto myopenssl::openssl_failure(lua_State* L, char const* func) -> void
     luaL_addstring(&B, "OpenSSL error in ");
     luaL_addstring(&B, func);
 
-    auto cb = [&B](const char *str, size_t len) -> int {
+    auto cb = [&B](char const* str, size_t len) -> int {
         luaL_addchar(&B, '\n');
         luaL_addlstring(&B, str, len);
         return 1; // 1:success 0:failure

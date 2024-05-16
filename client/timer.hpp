@@ -18,4 +18,4 @@ struct lua_State;
  * @param L Lua state
  * @return 1
  */
-auto l_new_timer(lua_State *L) -> int;
+auto l_new_timer(lua_State* L) -> int;

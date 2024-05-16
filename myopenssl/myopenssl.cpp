@@ -17,8 +17,8 @@ myopenssl module
 #include <openssl/x509.h>
 
 extern "C" {
-#include <lua.h>
 #include <lauxlib.h>
+#include <lua.h>
 }
 
 /***
@@ -83,9 +83,9 @@ auto l_rand(lua_State* const L) -> int
 
 } // namespace
 
-extern "C" auto luaopen_myopenssl(lua_State * const L) -> int
+extern "C" auto luaopen_myopenssl(lua_State* const L) -> int
 {
-    static luaL_Reg const LIB [] {
+    static luaL_Reg const LIB[]{
         {"get_digest", myopenssl::l_get_digest},
         {"read_raw", myopenssl::l_read_raw},
         {"read_pem", myopenssl::l_read_pem},

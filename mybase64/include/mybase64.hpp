@@ -9,8 +9,7 @@
 #include <cstddef>
 #include <string_view>
 
-namespace mybase64
-{
+namespace mybase64 {
 
 inline constexpr auto encoded_size(std::size_t len) -> std::size_t
 {

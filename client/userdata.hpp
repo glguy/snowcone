@@ -7,14 +7,15 @@
  */
 
 extern "C" {
-#include <lua.h>
 #include <lauxlib.h>
+#include <lua.h>
 }
 
 #include <concepts>
 #include <memory>
 
-template<typename T> char const* udata_name;
+template <typename T>
+char const* udata_name;
 
 /**
  * @brief Push a new userdata onto the stack
@@ -28,11 +29,13 @@ template<typename T> char const* udata_name;
  * @return T* Pointer to allocated space
  */
 template <typename T>
-T * new_udata(lua_State * const L, int const nuvalue, std::invocable auto push_metatable) {
+T* new_udata(lua_State* const L, int const nuvalue, std::invocable auto push_metatable)
+{
 
-    auto const ptr = static_cast<T*>(lua_newuserdatauv(L, sizeof (T), nuvalue));
+    auto const ptr = static_cast<T*>(lua_newuserdatauv(L, sizeof(T), nuvalue));
 
-    if (luaL_newmetatable(L, udata_name<T>)) {
+    if (luaL_newmetatable(L, udata_name<T>))
+    {
         push_metatable();
     }
     lua_setmetatable(L, -2);
@@ -51,7 +54,8 @@ T * new_udata(lua_State * const L, int const nuvalue, std::invocable auto push_m
  * @return T* Pointer to allocation
  */
 template <typename T>
-T* check_udata(lua_State *L, int ud) {
+T* check_udata(lua_State* L, int ud)
+{
     return static_cast<T*>(luaL_checkudata(L, ud, udata_name<T>));
 }
 
@@ -59,8 +63,7 @@ T* check_udata(lua_State *L, int ud) {
 template <typename T, typename... Args>
 auto new_object(lua_State* const L, Args&&... args) -> T&
 {
-    auto constexpr l_gc = [](lua_State* const L) -> int
-    {
+    auto constexpr l_gc = [](lua_State* const L) -> int {
         auto const ptr = reinterpret_cast<T*>(lua_touserdata(L, 1));
         std::destroy_at(ptr);
         return 0;
@@ -71,7 +74,7 @@ auto new_object(lua_State* const L, Args&&... args) -> T&
         {}
     };
 
-    auto const ptr = reinterpret_cast<T*>(lua_newuserdatauv(L, sizeof (T), 0));
+    auto const ptr = reinterpret_cast<T*>(lua_newuserdatauv(L, sizeof(T), 0));
 
     luaL_newlibtable(L, MT);
     luaL_setfuncs(L, MT, 0);

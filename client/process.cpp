@@ -1,5 +1,10 @@
 #include "process.hpp"
 
+#include "app.hpp"
+#include "safecall.hpp"
+#include "strings.hpp"
+#include "userdata.hpp"
+
 extern "C" {
 #include <lauxlib.h>
 #include <lua.h>
@@ -10,11 +15,6 @@ extern "C" {
 
 #include <memory>
 #include <vector>
-
-#include "app.hpp"
-#include "safecall.hpp"
-#include "strings.hpp"
-#include "userdata.hpp"
 
 namespace {
 

@@ -5,14 +5,14 @@
 #include "ircmsg.hpp"
 #include "safecall.hpp"
 
+#include <myncurses.h>
+
 extern "C" {
 #include <lauxlib.h>
 #include <lua.h>
 }
 
 #include <ncurses.h>
-
-#include <myncurses.h>
 
 #include <clocale>
 #include <cstring>

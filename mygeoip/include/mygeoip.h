@@ -4,9 +4,9 @@
 extern "C" {
 #endif
 
-#include "lua.h"
+struct lua_State;
 
-int luaopen_mygeoip(lua_State *L);
+int luaopen_mygeoip(lua_State* L);
 
 #ifdef __cplusplus
 }

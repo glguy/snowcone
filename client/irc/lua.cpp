@@ -3,9 +3,8 @@
 #include "../app.hpp"
 #include "../linebuffer.hpp"
 #include "../safecall.hpp"
-#include "../userdata.hpp"
-
 #include "../strings.hpp"
+#include "../userdata.hpp"
 #include "irc_connection.hpp"
 
 #include <ircmsg.hpp>

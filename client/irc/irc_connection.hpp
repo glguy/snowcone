@@ -1,13 +1,13 @@
 #pragma once
 
+#include "../net/stream.hpp"
+
 #include <boost/asio.hpp>
 
 #include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
-
-#include "../net/stream.hpp"
 
 struct lua_State;
 
@@ -63,7 +63,7 @@ public:
 
     auto static create(boost::asio::io_context& io_context, lua_State* const L) -> std::shared_ptr<irc_connection>
     {
-        return std::make_shared<irc_connection>(Private {}, io_context, L);
+        return std::make_shared<irc_connection>(Private{}, io_context, L);
     }
 
     auto get_stream() -> stream_type&

@@ -6,7 +6,7 @@ extern "C" {
 
 struct lua_State;
 
-int luaopen_mystringprep(struct lua_State *L);
+int luaopen_mystringprep(struct lua_State* L);
 
 #ifdef __cplusplus
 }

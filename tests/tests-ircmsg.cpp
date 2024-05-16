@@ -1,4 +1,4 @@
-#include "ircmsg.hpp"
+#include <ircmsg.hpp>
 
 #include <gtest/gtest.h>
 
