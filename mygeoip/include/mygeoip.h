@@ -6,7 +6,7 @@ extern "C" {
 
 struct lua_State;
 
-int luaopen_mygeoip(lua_State* L);
+int luaopen_mygeoip(struct lua_State* L);
 
 #ifdef __cplusplus
 }
