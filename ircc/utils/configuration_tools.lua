@@ -2,6 +2,9 @@ local path = require 'pl.path'
 
 local M = {}
 
+--- func desc
+---@param entry string | nil
+---@return string | nil
 function M.resolve_path(entry)
     -- no path provided in configuration file
     if entry == nil then
@@ -17,6 +20,10 @@ function M.resolve_path(entry)
     return path.join(config_dir, entry)
 end
 
+--- Get a password using an input mode
+---@param task any
+---@param label string
+---@return string
 function M.ask_password(task, label)
     set_input_mode('password', label, task)
     return assert(coroutine.yield(), 'Password aborted')

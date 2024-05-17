@@ -23,6 +23,7 @@ return function(task)
     local path <const> = assert(configuration_tools.resolve_path(configuration.challenge_key), 'missing challenge_key')
     local rsa_key <const> = assert(file.read(path))
     local password <const> = configuration_tools.resolve_password(task, configuration.challenge_password)
+    ---@type pkey
     local key <const> = assert(myopenssl.read_pem(rsa_key, true, password))
 
     local n = 0

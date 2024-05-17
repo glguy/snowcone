@@ -1,5 +1,4 @@
 #include "lua.hpp"
-
 #include "../app.hpp"
 #include "../linebuffer.hpp"
 #include "../safecall.hpp"
@@ -98,6 +97,24 @@ auto pushirc(lua_State* const L, std::weak_ptr<irc_connection> const irc) -> voi
     std::construct_at(w, irc);
 }
 
+// Get the next complete line skipping over empty lines
+auto get_nonempty_line(LineBuffer& buff) -> char*
+{
+    char* line;
+    while ((line = buff.next_line()))
+    {
+        while (*line == ' ')
+        {
+            line++;
+        }
+        if ('\0' != *line)
+        {
+            break;
+        }
+    }
+    return line;
+}
+
 auto session_thread(
     boost::asio::io_context& io_context,
     int const irc_cb,
@@ -124,31 +141,17 @@ auto session_thread(
             throw std::runtime_error{"line buffer full"};
         }
 
-        bool need_flush = false;
         buff.add_bytes(co_await irc->get_stream().async_read_some(target, boost::asio::use_awaitable));
-        while (auto line = buff.next_line())
+        for (auto line = get_nonempty_line(buff); nullptr != line; /* empty */)
         {
-            // skip leading whitespace and ignore empty lines
-            while (*line == ' ')
-            {
-                line++;
-            }
-            if (*line != '\0')
-            {
-                auto const msg = parse_irc_message(line); // might throw
-                lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
-                push_string(L, "MSG"sv);
-                pushircmsg(L, msg);
-                safecall(L, "irc message", 2);
-                need_flush = true;
-            }
-        }
+            auto const msg = parse_irc_message(line); // might throw
+            line = get_nonempty_line(buff); // pre-load next line
 
-        if (need_flush)
-        {
             lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
-            push_string(L, "FLUSH"sv);
-            safecall(L, "irc parse error", 1);
+            push_string(L, "MSG"sv);
+            pushircmsg(L, msg);
+            lua_pushboolean(L, nullptr == line); // draw on last line
+            safecall(L, "irc message", 3);
         }
     }
 }

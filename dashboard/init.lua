@@ -726,9 +726,6 @@ function irc_event.END(txt)
     end
 end
 
-function irc_event.FLUSH()
-end
-
 local irc_handlers = require_ 'handlers.irc'
 function irc_event.MSG(irc)
     local time
@@ -767,10 +764,6 @@ function irc_event.MSG(irc)
             end
         end
     end
-end
-
-function irc_event.BAD(code)
-    status('irc', 'message parse error: %d', code)
 end
 
 local function on_irc(event, irc)

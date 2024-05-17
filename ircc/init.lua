@@ -6,6 +6,7 @@ local file   = require 'pl.file'
 local app    = require 'pl.app'
 
 if not uptime then
+    warn '@on'
     require 'pl.stringx'.import()
     app.require_here()
 end
@@ -289,21 +290,14 @@ end
 local conn_handlers = {}
 
 function connect()
-
-    if not configuration.host then
-        status('connect', 'Connect host not specified')
-        mode_target = 'idle'
-        if mode_current ~= 'idle' then
-            mode_current = 'idle'
-            mode_timestamp = uptime
-        end
-        return
-    end
-
-    -- the connecting mode isn't interruptible due to wait on external process
     if mode_current == 'idle' then
-        mode_current = 'connecting'
-        mode_timestamp = uptime
+        if configuration.host then
+            mode_current = 'connecting'
+            mode_timestamp = uptime
+        else
+            status('connect', 'Connect host not specified')
+            return
+        end
     elseif mode_current == 'connecting' then
         error 'already connecting'
     elseif mode_current == 'connected' then
@@ -367,11 +361,7 @@ end
 -- a global allows these to be replaced on a live connection
 irc_handlers = require 'handlers.irc'
 
-function conn_handlers.FLUSH()
-    draw()
-end
-
-function conn_handlers.MSG(irc)
+function conn_handlers.MSG(irc, flush)
 
     -- This can happen in an abrubt teardown due to client rejecting
     -- this connection because of mismatched fingerprint or SASL
@@ -423,6 +413,10 @@ function conn_handlers.MSG(irc)
             end
         end
     end
+
+    if flush then
+        draw()
+    end
 end
 
 function conn_handlers.CON(fingerprint)
@@ -447,10 +441,6 @@ function conn_handlers.END(reason)
     if mode_target == 'exit' then
         teardown()
     end
-end
-
-function conn_handlers.BAD(code)
-    status('irc', 'message parse error: %d', code)
 end
 
 function disconnect()
