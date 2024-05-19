@@ -123,7 +123,7 @@ except: `nick`, `host`, `port`.
     -- the 3 required things
     nick = 'snowconer',
     host = "irc.libera.chat",
-    port = "6697",
+    port = 6697,
 
     user = 'myuser',
     gecos = 'your realname text',
