@@ -89,11 +89,17 @@ return function(task, credentials)
         return false
     end
 
+    local key_success, key = pcall(configuration_tools.resolve_password, task, credentials.key)
+    if not key_success then
+        status('sasl', 'Key resolution failed: %s', key)
+        return false
+    end
+
     local mech_success, impl = pcall(mechanism_factory,
         mechanism,
         credentials.username,
         password,
-        configuration_tools.resolve_path(credentials.key),
+        key,
         credentials.authzid
     )
     if not mech_success then

@@ -328,33 +328,33 @@ function connect()
             return
         end
 
-        local tls_client_cert = configuration_tools.resolve_path(configuration.tls_client_cert)
-        local tls_client_key = configuration_tools.resolve_path(configuration.tls_client_key)
+        local ok3, tls_client_cert =
+        pcall(configuration_tools.resolve_password, task, configuration.tls_client_cert)
+        if not ok3 then
+            failure('TLS client cert error: %s', tls_client_cert)
+            return
+        end
+
+        local ok4, tls_client_key =
+            pcall(configuration_tools.resolve_password, task, configuration.tls_client_key)
+        if not ok4 then
+            failure('TLS client key error: %s', tls_client_key)
+            return
+        end
+
         if not tls_client_key then tls_client_key = tls_client_cert end
 
         if tls_client_cert then
-            local pem, err = file.read(tls_client_cert)
-            if not pem then
-                failure('Read client cert failed: %s', err)
-                return
-            end
-            local ok
-            ok, tls_client_cert = pcall(myopenssl.read_x509, pem)
-            if not ok then
+            ok3, tls_client_cert = pcall(myopenssl.read_x509, tls_client_cert)
+            if not ok3 then
                 failure('Parse client cert failed: %s', tls_client_cert)
                 return
             end
         end
 
         if tls_client_key then
-            local pem, err = file.read(tls_client_key)
-            if not pem then
-                failure('Read client key failed: %s', err)
-                return
-            end
-            local ok
-            ok, tls_client_key = pcall(myopenssl.read_pem, pem, true, tls_client_password)
-            if not ok then
+            ok4, tls_client_key = pcall(myopenssl.read_pem, tls_client_key, true, tls_client_password)
+            if not ok4 then
                 failure('Parse client key failed: %s', tls_client_key)
                 return
             end

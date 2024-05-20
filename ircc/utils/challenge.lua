@@ -1,4 +1,3 @@
-local file                <const> = require 'pl.file'
 local Set                 <const> = require 'pl.Set'
 local N                   <const> = require 'utils.numerics'
 local send                <const> = require 'utils.send'
@@ -20,11 +19,12 @@ local commands2 <const> = Set{
 return function(task)
     -- make sure we have a username and a key before bothering the server
     local user <const> = assert(configuration.oper_username, 'missing oper_username')
-    local path <const> = assert(configuration_tools.resolve_path(configuration.challenge_key), 'missing challenge_key')
-    local rsa_key <const> = assert(file.read(path))
+    local rsa_pem <const> =
+        assert(configuration_tools.resolve_password(task, configuration.challenge_key),
+            'missing challenge_key')
     local password <const> = configuration_tools.resolve_password(task, configuration.challenge_password)
     ---@type pkey
-    local key <const> = assert(myopenssl.read_pem(rsa_key, true, password))
+    local key <const> = assert(myopenssl.read_pem(rsa_pem, true, password))
 
     local n = 0
     local chunks <const> = {}

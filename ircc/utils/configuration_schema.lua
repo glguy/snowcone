@@ -13,12 +13,20 @@ local prompt_schema = {
     },
 }
 
+local file_schema = {
+    type = 'table',
+    fields = {
+        file = {type = 'string', required = true}
+    },
+}
+
 local password_schema = {
     -- not required - nil means no password
     oneOf = {
         {type = 'string'},
         command_schema,
         prompt_schema,
+        file_schema,
      }
 }
 
@@ -38,8 +46,8 @@ return {
         socks_password      = password_schema,
 
         tls                 = {type = 'boolean'},
-        tls_client_cert     = {type = 'string'},
-        tls_client_key      = {type = 'string'},
+        tls_client_cert     = password_schema,
+        tls_client_key      = password_schema,
         tls_client_password = password_schema,
         tls_verify_host     = {type = 'string'},
         tls_sni_host        = {type = 'string'},
@@ -52,7 +60,7 @@ return {
         oper_automatic      = {type = 'string'},
         oper_username       = {type = 'string', pattern = '^[^\n\r\x00 ]+$'},
         oper_password       = password_schema,
-        challenge_key       = {type = 'string'},
+        challenge_key       = password_schema,
         challenge_password  = password_schema,
 
         plugin_dir          = {type = 'string'},
@@ -81,7 +89,7 @@ return {
                     mechanism   = {type = 'string', required = true},
                     username    = {type = 'string'},
                     password    = password_schema,
-                    key         = {type = 'string'},
+                    key         = password_schema,
                     authzid     = {type = 'string'},
         }}},
     }

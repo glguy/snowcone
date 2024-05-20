@@ -1,7 +1,6 @@
 -- https://ircv3.net/specs/extensions/sasl-3.1
 
 local Set                 <const> = require 'pl.Set'
-local file                <const> = require 'pl.file'
 local send                <const> = require 'utils.send'
 local N                   <const> = require 'utils.numerics'
 local configuration_tools <const> = require 'utils.configuration_tools'
@@ -50,7 +49,6 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid)
     elseif mechanism == 'ECDSA-NIST256P-CHALLENGE' then
         assert(authcid, "missing sasl `username`")
         assert(key, "missing sasl `key`")
-        key = assert(file.read(key))
         key = assert(myopenssl.read_pem(key, true, password))
         return require 'sasl.ecdsa' (authzid, authcid, key)
     elseif mechanism == 'ECDH-X25519-CHALLENGE' then
@@ -89,11 +87,17 @@ return function(task, credentials)
         return false
     end
 
+    local key_success, key = pcall(configuration_tools.resolve_password, task, credentials.key)
+    if not key_success then
+        status('sasl', 'Key resolution failed: %s', key)
+        return false
+    end
+
     local mech_success, impl = pcall(mechanism_factory,
         mechanism,
         credentials.username,
         password,
-        configuration_tools.resolve_path(credentials.key),
+        key,
         credentials.authzid
     )
     if not mech_success then

@@ -195,13 +195,13 @@ add_command('challenge', '', function()
     end
 end)
 
-add_command('oper', '', function(task)
+add_command('oper', '', function()
     if not configuration.oper_username then
         status('oper', 'no username configured: `oper_username`')
     elseif not configuration.oper_password then
         status('oper', 'no password configured: `oper_password`')
     else
-        Task('oper', irc_state.tasks, function() -- resolve_password can yield
+        Task('oper', irc_state.tasks, function(task)
             local password <const> = configuration_tools.resolve_password(task, configuration.oper_password)
             send('OPER', configuration.oper_username, {content=password, secret=true})
         end)

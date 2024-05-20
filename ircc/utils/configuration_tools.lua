@@ -1,3 +1,4 @@
+local file = require 'pl.file'
 local path = require 'pl.path'
 
 local M = {}
@@ -56,6 +57,8 @@ function M.resolve_password(task, entry)
             else
                 error('Password prompt failed')
             end
+        elseif entry.file then
+            return assert(file.read(M.resolve_path(entry.file)))
         end
     end
 

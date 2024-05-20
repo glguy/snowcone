@@ -10,6 +10,7 @@ local Task = require 'components.Task'
 local utils_time = require 'utils.time'
 local N = require 'utils.numerics'
 local matching = require 'utils.matching'
+local configuration_tools = require 'utils.configuration_tools'
 
 local colormap =
   { black = ncurses.COLOR_BLACK, red = ncurses.COLOR_RED, green = ncurses.COLOR_GREEN,
@@ -287,8 +288,11 @@ add_command('oper', '', function()
     elseif not configuration.oper_password then
         status('oper', 'no password configured: `oper_password`')
     else
-        send('OPER', configuration.oper_username,
-        {content=configuration.oper_password, secret=true})
+        Task(irc_state.tasks, function(task)
+            local oper_password =
+                configuration_tools.resolve_password(task, configuration.oper_password)
+            send('OPER', configuration.oper_username, {content=oper_password, secret=true})
+        end)
     end
 end)
 

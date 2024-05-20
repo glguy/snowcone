@@ -130,8 +130,8 @@ except: `nick`, `host`, `port`.
     pass = 'a server password',
 
     tls = true, -- set to false for plaintext connections
-    tls_client_cert = '/path/to/pem', -- optional
-    tls_client_key = '/path/to/pem', -- defaults to tls_client_cert
+    tls_client_cert = { file = '/path/to/pem' }, -- optional
+    tls_client_key = { file = '/path/to/pem' }, -- defaults to tls_client_cert
     tls_client_password = 'apassword', -- defaults to '' if unspecified
 
     tls_verify_host = 'host.name', -- used to override the hostname in the host key
@@ -162,10 +162,16 @@ except: `nick`, `host`, `port`.
     -- Don't set these unless you run your own network
     oper_username = 'username', -- used with OPER and CHALLENGE commands
     oper_password = 'password', -- used with OPER command
-    challenge_key = '/path/to/pem', -- used with CHALLENGE command
+    challenge_key = { file = '/path/to/pem' }, -- used with CHALLENGE command
     challenge_password = 'password', -- decryption password for challenge pem
 }
 ```
+
+Credentials can be specified as:
+
+* Literal string: `"example"`
+* File contents: `{file="path"}`
+* Command stdout: `{command="executable", arguments={"arg1", "arg2"}}`
 
 ## Dashboard Pre-filter
 

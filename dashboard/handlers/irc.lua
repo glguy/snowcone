@@ -6,6 +6,7 @@ local challenge   = require_ 'utils.challenge'
 local parse_snote = require_ 'utils.parse_snote'
 local send        = require 'utils.send'
 local split_nuh   = require_ 'utils.split_nick_user_host'
+local configuration_tools = require_ 'utils.configuration_tools'
 
 local function parse_source(source)
     return string.match(source, '^(.-)!(.-)@(.*)$')
@@ -57,8 +58,11 @@ local function end_of_registration()
     if configuration.oper_username and configuration.challenge_key then
         Task(irc_state.tasks, challenge)
     elseif configuration.oper_username and configuration.oper_password then
-        send('OPER', configuration.oper_username,
-            {content=configuration.oper_password, secret=true})
+        Task(irc_state.tasks, function(task)
+            local oper_password =
+                configuration_tools.resolve_password(task, configuration.oper_password)
+            send('OPER', configuration.oper_username, {content=oper_password, secret=true})
+        end)
     else
         -- assume we get oper from a proxy
         counter_sync_commands()
