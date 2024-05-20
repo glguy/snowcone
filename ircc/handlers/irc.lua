@@ -77,6 +77,7 @@ M[N.RPL_ISUPPORT] = function(irc)
 end
 
 M[N.RPL_SNOMASK] = function(irc)
+    irc_state.snomask = irc[2]
     status('irc', 'snomask %s', irc[2])
 end
 

@@ -40,6 +40,11 @@ function M:render(win)
     end
     win:waddstr('\n')
 
+    if irc_state.snomask then
+        label 'Snomask'
+        win:waddstr(scrub(irc_state.snomask), '\n')
+    end
+
     label 'Caps'
     bold(win)
     for k, v in tablex.sort(irc_state.caps_available) do
