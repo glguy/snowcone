@@ -171,7 +171,7 @@ Credentials can be specified as:
 
 * Literal string: `"example"`
 * File contents: `{file="path"}`
-* Command stdout: `{command="executable", arguments={"arg1", "arg2"}}`
+* Command stdout: `{command="executable", arguments={"arg1", "arg2"}, multiline=false}`
 
 ## Dashboard Pre-filter
 
