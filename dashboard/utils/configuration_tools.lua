@@ -45,7 +45,11 @@ function M.resolve_password(task, entry)
         if entry.command then
             local exit_code, stdout, stderr = task:execute(entry.command, entry.arguments)
             if exit_code == 0 then
-                return (stdout:match '^[^\n]*')
+                if entry.multiline then
+                    return stdout
+                else
+                    return (stdout:match '^[^\n]*')
+                end
             else
                 error('Password command failed: ' .. stderr)
             end
