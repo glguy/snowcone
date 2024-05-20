@@ -22,6 +22,13 @@ extern "C" {
 
 namespace myopenssl {
 
+auto check_x509(lua_State* const L, int const arg) -> X509*
+{
+    auto const x509 = *static_cast<X509**>(luaL_checkudata(L, arg, "x509"));
+    luaL_argcheck(L, nullptr != x509, arg, "x509 already closed");
+    return x509;
+}
+
 namespace {
 
     auto l_gc(lua_State* const L) -> int
@@ -31,13 +38,6 @@ namespace {
         X509_free(*x509Ptr);
         *x509Ptr = nullptr;
         return 0;
-    }
-
-    auto check_x509(lua_State* const L, int const arg) -> X509*
-    {
-        auto const x509 = *static_cast<X509**>(luaL_checkudata(L, arg, "x509"));
-        luaL_argcheck(L, nullptr != x509, arg, "x509 already closed");
-        return x509;
     }
 
     luaL_Reg const X509MT[]{

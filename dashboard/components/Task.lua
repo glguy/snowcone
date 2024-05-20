@@ -34,4 +34,9 @@ function M:resume(...)
     end
 end
 
+function M:execute(command, args, input)
+    snowcone.execute(command, args or {}, function(...) self:resume(...) end, input)
+    return coroutine.yield()
+end
+
 return M

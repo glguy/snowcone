@@ -168,44 +168,26 @@ auto set_alpn(tls_type& stream) -> void
 }
 
 auto build_ssl_context(
-    std::string const& client_cert,
-    std::string const& client_key,
-    std::string const& client_key_password
+    X509* client_cert,
+    EVP_PKEY* client_key
 ) -> boost::asio::ssl::context
 {
     boost::system::error_code error;
     boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
     ssl_context.set_default_verify_paths();
-    if (not client_key_password.empty())
+
+    if (nullptr != client_cert)
     {
-        ssl_context.set_password_callback(
-            [client_key_password](
-                std::size_t const max_size,
-                boost::asio::ssl::context::password_purpose
-            ) {
-                return client_key_password.size() <= max_size ? client_key_password : "";
-            },
-            error
-        );
-        if (error)
+        if (1 != SSL_CTX_use_certificate(ssl_context.native_handle(), client_cert))
         {
-            throw std::runtime_error{"password callback: " + error.to_string()};
+            throw std::runtime_error{"certificate file"};
         }
     }
-    if (not client_cert.empty())
+    if (nullptr != client_key)
     {
-        ssl_context.use_certificate_file(client_cert, boost::asio::ssl::context::file_format::pem, error);
-        if (error)
+        if (1 != SSL_CTX_use_PrivateKey(ssl_context.native_handle(), client_key))
         {
-            throw std::runtime_error{"certificate file: " + error.to_string()};
-        }
-    }
-    if (not client_key.empty())
-    {
-        ssl_context.use_private_key_file(client_key, boost::asio::ssl::context::file_format::pem, error);
-        if (error)
-        {
-            throw std::runtime_error{"private key: " + error.to_string()};
+            throw std::runtime_error{"private key"};
         }
     }
     return ssl_context;
@@ -259,7 +241,7 @@ auto irc_connection::connect(
     // Optionally negotiate TLS session
     if (settings.tls)
     {
-        auto cxt = build_ssl_context(settings.client_cert, settings.client_key, settings.client_key_password);
+        auto cxt = build_ssl_context(settings.client_cert, settings.client_key);
 
         // Upgrade stream_ to use TLS and invalidate socket
         auto& stream = stream_.emplace<tls_type>(tls_type{std::move(socket), cxt});

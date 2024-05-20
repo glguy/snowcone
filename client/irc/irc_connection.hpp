@@ -4,6 +4,9 @@
 
 #include <boost/asio.hpp>
 
+#include <openssl/evp.h>
+#include <openssl/x509.h>
+
 #include <functional>
 #include <memory>
 #include <optional>
@@ -17,9 +20,8 @@ struct Settings
     std::string host;
     std::uint16_t port;
 
-    std::string client_cert;
-    std::string client_key;
-    std::string client_key_password;
+    X509* client_cert;
+    EVP_PKEY* client_key;
     std::string verify;
     std::string sni;
 

@@ -54,6 +54,7 @@ local utils_time         = require_ 'utils.time'
 local send               = require_ 'utils.send'
 local irc_registration   = require_ 'utils.irc_registration'
 local plugin_manager     = require_ 'utils.plugin_manager'
+local configuration_tools = require_ 'utils.configuration_tools'
 
 -- Load configuration =================================================
 
@@ -88,7 +89,7 @@ if configuration.gecos and string.match(configuration.gecos, '[\n\r]') then
     error 'Invalid character in GECOS'
 end
 
-if configuration.pass and string.match(configuration.pass, '[\n\r]') then
+if type(configuration.pass) == 'string' and string.match(configuration.pass, '[\n\r]') then
     error 'Invalid character in server password'
 end
 
@@ -161,6 +162,7 @@ local defaults = {
     draw_suspend = 'no', -- no: draw normally; eligible: don't draw; suspended: a draw is needed
     drains = {},
     sheds = {},
+    client_tasks = {},
 
     -- settings
     show_reasons = 'reason',
@@ -706,7 +708,7 @@ function irc_event.CON()
     if exiting then
         disconnect()
     else
-        irc_registration()
+        Task(irc_state.tasks, irc_registration)
     end
 end
 
@@ -750,7 +752,7 @@ function irc_event.MSG(irc)
     end
 
     for task, _ in pairs(irc_state.tasks) do
-        if task.want_command[irc.command] then
+        if task.want_command and task.want_command[irc.command] then
             task:resume_irc(irc)
         end
     end
@@ -850,20 +852,66 @@ end
 
 -- declared above so that it's in scope in on_irc
 function connect()
+    Task(client_tasks, function(task) -- passwords might need to suspend connecting
+
+    local ok1, tls_client_password =
+        pcall(configuration_tools.resolve_password, task, configuration.tls_client_password)
+    if not ok1 then
+        status('connect', 'TLS client key password program error: %s', tls_client_password)
+        return
+    end
+
+    local ok2, socks_password = pcall(configuration_tools.resolve_password, task, configuration.socks_password)
+    if not ok2 then
+        status('connect', 'SOCKS5 password program error: %s', socks_password)
+        return
+    end
+
+    local tls_client_cert = configuration_tools.resolve_path(configuration.tls_client_cert)
+    local tls_client_key = configuration_tools.resolve_path(configuration.tls_client_key)
+    if not tls_client_key then tls_client_key = tls_client_cert end
+
+    if tls_client_cert then
+        local pem, err = file.read(tls_client_cert)
+        if not pem then
+            status('connect', 'Read client cert failed: %s', err)
+            return
+        end
+        local ok
+        ok, tls_client_cert = pcall(myopenssl.read_x509, pem)
+        if not ok then
+            status('connect', 'Parse client cert failed: %s', tls_client_cert)
+            return
+        end
+    end
+
+    if tls_client_key then
+        local pem, err = file.read(tls_client_key)
+        if not pem then
+            status('connect', 'Read client key failed: %s', err)
+            return
+        end
+        local ok
+        ok, tls_client_key = pcall(myopenssl.read_pem, pem, true, tls_client_password)
+        if not ok then
+            status('connect', 'Parse client key failed: %s', tls_client_key)
+            return
+        end
+    end
+
     local conn_, errmsg =
         snowcone.connect(
         configuration.tls,
         configuration.host,
         configuration.port,
-        configuration.tls_client_cert,
-        configuration.tls_client_key,
-        configuration.tls_client_password,
+        tls_client_cert,
+        tls_client_key,
         configuration.tls_verify_host,
         configuration.tls_sni_host,
         configuration.socks_host,
         configuration.socks_port,
         configuration.socks_username,
-        configuration.socks_password,
+        socks_password,
         on_irc)
     if conn_ then
         status('irc', 'connecting')
@@ -871,6 +919,7 @@ function connect()
     else
         status('irc', 'failed to connect: %s', errmsg)
     end
+    end)
 end
 
 if not conn and configuration.host and configuration.port then

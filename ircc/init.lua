@@ -308,23 +308,56 @@ function connect()
 
     Task('connect', client_tasks, function(task) -- passwords might need to suspend connecting
 
-        local ok1, tls_client_password =
-            pcall(configuration_tools.resolve_password, task, configuration.tls_client_password)
-        if not ok1 then
-            status('connect', 'TLS client key password program error: %s', tls_client_password)
+        local function failure(...)
+            status('connect', ...)
             mode_current = 'idle' -- exits connecting mode
             mode_timestamp = uptime
             if mode_target == 'connected' then mode_target = 'idle' end -- don't reconnect
+        end
+
+        local ok1, tls_client_password =
+            pcall(configuration_tools.resolve_password, task, configuration.tls_client_password)
+        if not ok1 then
+            failure('TLS client key password program error: %s', tls_client_password)
             return
         end
 
         local ok2, socks_password = pcall(configuration_tools.resolve_password, task, configuration.socks_password)
         if not ok2 then
-            status('connect', 'SOCKS5 password program error: %s', socks_password)
-            mode_current = 'idle' -- exits connecting mode
-            mode_timestamp = uptime
-            if mode_target == 'connected' then mode_target = 'idle' end -- don't reconnect
+            failure('SOCKS5 password program error: %s', socks_password)
             return
+        end
+
+        local tls_client_cert = configuration_tools.resolve_path(configuration.tls_client_cert)
+        local tls_client_key = configuration_tools.resolve_path(configuration.tls_client_key)
+        if not tls_client_key then tls_client_key = tls_client_cert end
+
+        if tls_client_cert then
+            local pem, err = file.read(tls_client_cert)
+            if not pem then
+                failure('Read client cert failed: %s', err)
+                return
+            end
+            local ok
+            ok, tls_client_cert = pcall(myopenssl.read_x509, pem)
+            if not ok then
+                failure('Parse client cert failed: %s', tls_client_cert)
+                return
+            end
+        end
+
+        if tls_client_key then
+            local pem, err = file.read(tls_client_key)
+            if not pem then
+                failure('Read client key failed: %s', err)
+                return
+            end
+            local ok
+            ok, tls_client_key = pcall(myopenssl.read_pem, pem, true, tls_client_password)
+            if not ok then
+                failure('Parse client key failed: %s', tls_client_key)
+                return
+            end
         end
 
         local conn, errmsg =
@@ -332,9 +365,8 @@ function connect()
             configuration.tls,
             configuration.host,
             configuration.port or configuration.tls and 6697 or 6667,
-            configuration_tools.resolve_path(configuration.tls_client_cert),
-            configuration_tools.resolve_path(configuration.tls_client_key),
-            tls_client_password,
+            tls_client_cert,
+            tls_client_key,
             configuration.tls_verify_host,
             configuration.tls_sni_host,
             configuration.socks_host,

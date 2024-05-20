@@ -1,8 +1,9 @@
 local send = require_ 'utils.send'
 local cap_negotiation = require 'utils.cap_negotiation'
 local Task = require 'components.Task'
+local configuration_tools = require 'utils.configuration_tools'
 
-return function()
+return function(task)
     if configuration.capabilities then
         local wanted = irc_state.caps_wanted
         for _, cap in ipairs(configuration.capabilities) do
@@ -22,7 +23,7 @@ return function()
     Task(irc_state.tasks, cap_negotiation.LS)
 
     if configuration.pass then
-        local pass = configuration.pass
+        local pass = configuration_tools.resolve_password(task, configuration.pass)
         if configuration.passuser then
             pass = configuration.passuser .. ':' .. pass
         end

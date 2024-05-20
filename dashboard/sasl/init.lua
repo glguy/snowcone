@@ -1,166 +1,152 @@
-local Set = require 'pl.Set'
-local file = require 'pl.file'
-local send = require_ 'utils.send'
-local N = require 'utils.numerics'
+-- https://ircv3.net/specs/extensions/sasl-3.1
+
+local Set                 <const> = require 'pl.Set'
+local file                <const> = require 'pl.file'
+local send                <const> = require 'utils.send'
+local N                   <const> = require 'utils.numerics'
+local configuration_tools <const> = require 'utils.configuration_tools'
 
 local sasl_commands = Set{
     N.RPL_SASLSUCCESS,
     N.ERR_SASLFAIL,
     N.ERR_SASLABORTED,
-    N.RPL_SASLMECHS,
-    N.ERR_SASLALREADY,
-    N.ERR_SASLTOOLONG,
     "AUTHENTICATE",
 }
 
--- Takes a binary argument, base64 encodes it, and chunks it into multiple
--- AUTHENTICATE commands
+-- Transmit the AUTHENTICATE message for the given raw SASL message.
+--
+-- body (string): unencoded SASL bytes
+-- secret (bool): message contains sensitive information
+--
+-- > The response is encoded in Base64 (RFC 4648), then split to 400-byte
+-- > chunks, and each chunk is sent as a separate `AUTHENTICATE` command.
+-- > Empty (zero-length) responses are sent as `AUTHENTICATE +`. If the last
+-- > chunk was exactly 400 bytes long, it must also be followed by
+-- > `AUTHENTICATE +` to signal end of response.
 local function send_authenticate(body, secret)
-    if body then
-        body = snowcone.to_base64(body)
-        local n = #body
-        for i = 1, n, 400 do
-            send('AUTHENTICATE', {content=string.sub(body, i, i+399), secret=secret})
-        end
-        if n % 400 == 0 then
-            send('AUTHENTICATE', '+')
-        end
-    else
-        send('AUTHENTICATE', '*')
+    body = snowcone.to_base64(body)
+    local n = #body
+    for i = 1, n, 400 do
+        send('AUTHENTICATE', {content=string.sub(body, i, i+399), secret=secret})
+    end
+    if n % 400 == 0 then
+        send('AUTHENTICATE', '+')
     end
 end
 
-local function prep(str, profile)
-    if mystringprep and str then
-        return mystringprep.stringprep(str, profile)
-    else
-        return str
-    end
+-- > The client can abort an authentication by sending an asterisk as
+-- > the data. The server will send a 906 numeric.
+local function abort_sasl()
+    send('AUTHENTICATE', '*')
 end
 
 local function mechanism_factory(mechanism, authcid, password, key, authzid)
-
-    authcid = prep(authcid, mechanism == 'ANONYMOUS' and 'trace' or 'SASLprep')
-    authzid = prep(authzid, 'SASLprep')
-    local saslpassword = prep(password, 'SASLprep')
-
     if mechanism == 'PLAIN' then
-        return require_ 'sasl.plain' (authzid, authcid, saslpassword)
+        assert(authcid, "missing sasl `username`")
+        assert(password, "missing sasl `password`")
+        return require 'sasl.plain' (authzid, authcid, password)
     elseif mechanism == 'EXTERNAL' then
-        return require_ 'sasl.external' (authzid)
+        return require 'sasl.external' (authzid)
     elseif mechanism == 'ECDSA-NIST256P-CHALLENGE' then
-        assert(key, "sasl key file not specified `key`")
-        key = assert(file.read(key), 'failed to read sasl key file')
+        assert(authcid, "missing sasl `username`")
+        assert(key, "missing sasl `key`")
+        key = assert(file.read(key))
         key = assert(myopenssl.read_pem(key, true, password))
-        return require_ 'sasl.ecdsa' (authzid, authcid, key)
+        return require 'sasl.ecdsa' (authzid, authcid, key)
     elseif mechanism == 'ECDH-X25519-CHALLENGE' then
-        assert(key, 'missing private key')
-        key = assert(snowcone.from_base64(key), 'bad base64 in private key')
-        key = assert(myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, true, key))
-        return require_ 'sasl.ecdh' (authzid, authcid, key)
+        assert(authcid, "missing sasl `username`")
+        assert(password, 'missing sasl `password`')
+        password = assert(snowcone.from_base64(password), 'bad base64 in private sasl `password`')
+        password = assert(myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, true, password))
+        return require 'sasl.ecdh' (authzid, authcid, password)
     elseif mechanism == 'SCRAM-SHA-1'   then
-        return require_ 'sasl.scram' ('sha1', authzid, authcid, saslpassword)
+        assert(authcid, "missing sasl `username`")
+        assert(password, "missing sasl `password`")
+        return require 'sasl.scram' ('sha1', authzid, authcid, password)
     elseif mechanism == 'SCRAM-SHA-256' then
-        return require_ 'sasl.scram' ('sha256', authzid, authcid, saslpassword)
+        assert(authcid, "missing sasl `username`")
+        assert(password, "missing sasl `password`")
+        return require 'sasl.scram' ('sha256', authzid, authcid, password)
     elseif mechanism == 'SCRAM-SHA-512' then
-        return require_ 'sasl.scram' ('sha512', authzid, authcid, saslpassword)
+        assert(authcid, "missing sasl `username`")
+        assert(password, "missing sasl `password`")
+        return require 'sasl.scram' ('sha512', authzid, authcid, password)
     elseif mechanism == 'ANONYMOUS' then
-        return require_ 'sasl.anonymous' (authcid)
+        assert(authcid, "missing sasl `username`")
+        return require 'sasl.anonymous' (authcid)
     else
-        error 'bad mechanism'
+        error 'unknown mechanism'
     end
 end
 
 -- Main body for a Task
-return function(task, credentials, disconnect_on_failure)
+return function(task, credentials)
     local mechanism = credentials.mechanism
-    local success, impl = pcall(mechanism_factory,
+
+    local pass_success, password = pcall(configuration_tools.resolve_password, task, credentials.password)
+    if not pass_success then
+        status('sasl', 'Password resolution failed: %s', password)
+        return false
+    end
+
+    local mech_success, impl = pcall(mechanism_factory,
         mechanism,
         credentials.username,
-        credentials.password,
-        credentials.key,
+        password,
+        configuration_tools.resolve_path(credentials.key),
         credentials.authzid
     )
-    if not success then
-        status('sasl', 'Startup failed: %s', mechanism)
-        return
+    if not mech_success then
+        status('sasl', 'Startup failed: %s %s', mechanism, impl)
+        return false
     end
 
     send('AUTHENTICATE', mechanism)
 
+    local outcome = true
     local chunks = {}
-    local n = 0
     while true do
         local irc = task:wait_irc(sasl_commands)
         local command = irc.command
         if command == 'AUTHENTICATE' then
             local chunk = irc[1]
-            if chunk == '+' then
-                chunk = ''
+            if chunk ~= '+' then
+                local bytes = assert(snowcone.from_base64(chunk), 'Bad base64 in AUTHENTICATE')
+                table.insert(chunks, bytes)
             end
 
-            n = n + 1
-            chunks[n] = chunk
-
             if #chunk < 400 then
-                local payload = snowcone.from_base64(table.concat(chunks))
-                chunks = {}
-                n = 0
-
-                local reply, secret
-                if payload == nil then
-                    status('sasl', 'Bad base64 in AUTHENTICATE')
-                else
-                    local message
-                    success, message, secret = coroutine.resume(impl, payload)
-                    if success then
-                        reply = message
-                    else
-                        status('sasl', 'Mechanism error: %s', message)
+                local payload = table.concat(chunks)
+                chunks = {} -- prepare for next message
+                local success, message, secret = coroutine.resume(impl, payload)
+                if success then
+                    if message then
+                        send_authenticate(message, secret)
                     end
+                else
+                    status('sasl', 'Mechanism error: %s', message)
+                    abort_sasl()
+                    outcome = false
                 end
-
-                if not reply and disconnect_on_failure then
-                    goto failure
-                end
-
-                send_authenticate(reply, secret)
             end
         elseif command == N.RPL_SASLSUCCESS then
             -- ensure the mechanism has completed
             -- the end of scram, for example, verifies the server
             if coroutine.status(impl) == 'dead' then
                 status('sasl', 'SASL success')
-                return
+                return outcome
             else
-                status('sasl', 'Unexpected success')
-                goto failure
+                status('sasl', 'SASL erroneous success')
+                return false
             end
         elseif command == N.ERR_SASLFAIL then
             -- "<client> :SASL authentication failed"
             status('sasl', 'SASL failed')
-            goto failure
+            return false
         elseif command == N.ERR_SASLABORTED then
             -- "<client> :SASL authentication aborted"
             status('sasl', 'SASL aborted')
-            goto failure
-        elseif command == N.RPL_SASLMECHS then
-            -- "<client> <mechanisms> :are available SASL mechanisms"
-            status('sasl', 'SASL mechanism unsupported: %s', irc[2])
-            goto failure
-        elseif command == N.ERR_SASLTOOLONG then
-            -- "<client> :SASL message too long"
-            status('sasl', 'SASL too long')
-            goto failure
-        elseif command == N.ERR_SASLALREADY then
-            -- "<client> :You have already authenticated using SASL"
-            status('sasl', 'SASL already complete')
-            goto failure
+            return false
         end
-    end
-
-    ::failure::
-    if disconnect_on_failure then
-        disconnect()
     end
 end

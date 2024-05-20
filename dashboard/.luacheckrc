@@ -7,7 +7,7 @@ stds = {
             snowcone = {
                 fields = {"to_base64", "from_base64", "dnslookup", "pton", "shutdown", "newtimer",
                 "setmodule", "raise", "xor_strings", "isalnum", "irccase", "parse_irc_tags",
-                "SIGINT", "SIGTSTP", "connect" },
+                "SIGINT", "SIGTSTP", "connect", "execute" },
             },
         },
     },
@@ -30,7 +30,7 @@ stds = {
             "irc_state",  "status_message", "input_mode", "servers",
             "view", "views", "uptime", "scroll", "editor",
             "filter", "main_views", "new_channels", "prefilter",
-            "focus", "status_messages", "commands",
+            "focus", "status_messages", "commands", "client_tasks",
 
             -- global load bar state
             "trust_uname", "show_reasons", "kline_duration", "kline_tag",

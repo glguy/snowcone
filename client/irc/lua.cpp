@@ -6,6 +6,9 @@
 #include "../userdata.hpp"
 #include "irc_connection.hpp"
 
+#include <pkey.hpp>
+#include <x509.hpp>
+
 #include <ircmsg.hpp>
 
 extern "C" {
@@ -163,19 +166,18 @@ auto l_start_irc(lua_State* const L) -> int
     auto const tls = lua_toboolean(L, 1);
     auto const host = luaL_checkstring(L, 2);
     auto const port = luaL_checkinteger(L, 3);
-    auto const client_cert = luaL_optlstring(L, 4, "", nullptr);
-    auto const client_key = luaL_optlstring(L, 5, client_cert, nullptr);
-    auto const client_key_password = luaL_optlstring(L, 6, "", nullptr);
-    auto const verify = luaL_optlstring(L, 7, host, nullptr);
-    auto const sni = luaL_optlstring(L, 8, host, nullptr);
-    auto const socks_host = luaL_optlstring(L, 9, "", nullptr);
-    auto const socks_port = luaL_optinteger(L, 10, 0);
-    auto const socks_user = luaL_optlstring(L, 11, "", nullptr);
-    auto const socks_pass = luaL_optlstring(L, 12, "", nullptr);
-    luaL_checkany(L, 13); // callback
-    lua_settop(L, 13);
+    auto const client_cert = luaL_opt(L, myopenssl::check_x509, 4, nullptr);
+    auto const client_key = luaL_opt(L, myopenssl::check_pkey, 5, nullptr);
+    auto const verify = luaL_optlstring(L, 6, host, nullptr);
+    auto const sni = luaL_optlstring(L, 7, host, nullptr);
+    auto const socks_host = luaL_optlstring(L, 8, "", nullptr);
+    auto const socks_port = luaL_optinteger(L, 9, 0);
+    auto const socks_user = luaL_optlstring(L, 10, "", nullptr);
+    auto const socks_pass = luaL_optlstring(L, 11, "", nullptr);
+    luaL_checkany(L, 12); // callback
+    lua_settop(L, 12);
     luaL_argcheck(L, 1 <= port && port <= 0xffff, 3, "port out of range");
-    luaL_argcheck(L, 0 <= socks_port && socks_port <= 0xffff, 10, "port out of range");
+    luaL_argcheck(L, 0 <= socks_port && socks_port <= 0xffff, 9, "port out of range");
 
     auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
 
@@ -185,7 +187,6 @@ auto l_start_irc(lua_State* const L) -> int
         .port = static_cast<std::uint16_t>(port),
         .client_cert = client_cert,
         .client_key = client_key,
-        .client_key_password = client_key_password,
         .verify = verify,
         .sni = sni,
         .socks_host = socks_host,
