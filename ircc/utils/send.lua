@@ -1,3 +1,6 @@
+local split_statusmsg = require 'utils.split_statusmsg'
+local tablex = require 'pl.tablex'
+
 return function(cmd, ...)
 
     if not irc_state then
@@ -56,9 +59,18 @@ return function(cmd, ...)
     messages:insert(true, msg)
 
     if cmd == 'PRIVMSG' or cmd == 'NOTICE' then
-        local buffer = buffers[snowcone.irccase(msg[1])]
-        if buffer then
-            buffer.messages:insert(true, msg)
+        for x in msg[1]:gmatch '[^,]+' do
+            local prefix, target = split_statusmsg(x)
+            local buffer = buffers[snowcone.irccase(target)]
+            if buffer then
+                if prefix then
+                    local dup = tablex.copy(msg)
+                    dup.statusmsg = prefix
+                    buffer.messages:insert(true, dup)
+                else
+                    buffer.messages:insert(true, msg)
+                end
+            end
         end
     end
 end
