@@ -81,10 +81,17 @@ public:
      * @brief Return the next null-terminated line in the buffer
      *
      * This function should be repeatedly called until it returns
-     * nullptr at which point it will clean up the buffer relocating
-     * the partial line to the front of the buffer.
+     * nullptr. After that shift can be used to reclaim the
+     * previously used buffer.
      *
      * @return null-terminated line or nullptr if no line is ready
      */
     auto next_line() -> char*;
+
+    /**
+     * @brief Reclaim used buffer space invalidating all previous
+     * next_line() results;
+     * 
+     */
+    auto shift() -> void;
 };

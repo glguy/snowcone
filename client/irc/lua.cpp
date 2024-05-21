@@ -156,6 +156,7 @@ auto session_thread(
             lua_pushboolean(L, nullptr == line); // draw on last line
             safecall(L, "irc message", 3);
         }
+        buff.shift();
     }
 }
 

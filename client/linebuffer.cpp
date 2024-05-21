@@ -5,12 +5,6 @@ auto LineBuffer::next_line() -> char*
     auto const nl = std::find(search_, end_, '\n');
     if (nl == end_) // no newline found, line incomplete
     {
-        auto const first = std::begin(buffer);
-        if (start_ != first) // relocate incomplete line to front of buffer
-        {
-            end_ = std::move(start_, end_, first);
-            start_ = first;
-        }
         search_ = end_;
         return nullptr;
     }
@@ -22,4 +16,15 @@ auto LineBuffer::next_line() -> char*
     start_ = search_ = std::next(nl);
 
     return &*result;
+}
+
+auto LineBuffer::shift() -> void
+{
+    auto const first = std::begin(buffer);
+    if (start_ != first) // relocate incomplete line to front of buffer
+    {
+        end_ = std::move(start_, end_, first);
+        start_ = first;
+    }
+    search_ = end_;
 }
