@@ -21,10 +21,11 @@ auto LineBuffer::next_line() -> char*
 auto LineBuffer::shift() -> void
 {
     auto const first = std::begin(buffer);
-    if (start_ != first) // relocate incomplete line to front of buffer
+    auto const gap = start_ - first;
+    if (gap != 0) // relocate incomplete line to front of buffer
     {
         end_ = std::move(start_, end_, first);
         start_ = first;
+        search_ -= gap;
     }
-    search_ = end_;
 }
