@@ -22,9 +22,11 @@ extern "C" {
 
 namespace myopenssl {
 
+static char const x509_name[] = "X509*";
+
 auto check_x509(lua_State* const L, int const arg) -> X509*
 {
-    auto const x509 = *static_cast<X509**>(luaL_checkudata(L, arg, "x509"));
+    auto const x509 = *static_cast<X509**>(luaL_checkudata(L, arg, x509_name));
     luaL_argcheck(L, nullptr != x509, arg, "x509 already closed");
     return x509;
 }
@@ -34,7 +36,7 @@ namespace {
     auto l_gc(lua_State* const L) -> int
     {
         // don't use check_x509 to allow for nullptr case
-        X509** const x509Ptr = static_cast<X509**>(luaL_checkudata(L, 1, "x509"));
+        X509** const x509Ptr = static_cast<X509**>(luaL_checkudata(L, 1, x509_name));
         X509_free(*x509Ptr);
         *x509Ptr = nullptr;
         return 0;
@@ -417,7 +419,7 @@ namespace {
     auto push_x509(lua_State* const L, X509* x509) -> void
     {
         *static_cast<X509**>(lua_newuserdatauv(L, sizeof x509, 0)) = x509;
-        if (luaL_newmetatable(L, "x509"))
+        if (luaL_newmetatable(L, x509_name))
         {
             luaL_setfuncs(L, X509MT, 0);
 

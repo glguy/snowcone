@@ -19,9 +19,11 @@ extern "C" {
 
 namespace myopenssl {
 
+static char const digest_name[] = "EVP_MD*";
+
 auto check_digest(lua_State* const L, int const arg) -> EVP_MD const*
 {
-    return *static_cast<EVP_MD const**>(luaL_checkudata(L, arg, "digest"));
+    return *static_cast<EVP_MD const**>(luaL_checkudata(L, arg, digest_name));
 }
 
 namespace {
@@ -127,7 +129,7 @@ namespace {
         *digestPtr = digest;
 
         // Configure userdata's metatable
-        if (luaL_newmetatable(L, "digest"))
+        if (luaL_newmetatable(L, digest_name))
         {
             luaL_newlibtable(L, DigestMethods);
             luaL_setfuncs(L, DigestMethods, 0);

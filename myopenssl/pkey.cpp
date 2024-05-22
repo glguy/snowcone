@@ -23,9 +23,11 @@ extern "C" {
 
 namespace myopenssl {
 
+static char const pkey_name[] = "EVP_PKEY*";
+
 auto check_pkey(lua_State* const L, int const arg) -> EVP_PKEY*
 {
-    auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, arg, "pkey"));
+    auto const pkey = *static_cast<EVP_PKEY**>(luaL_checkudata(L, arg, pkey_name));
     luaL_argcheck(L, nullptr != pkey, arg, "pkey already closed");
     return pkey;
 }
@@ -34,7 +36,7 @@ namespace {
 
     auto l_gc(lua_State* const L) -> int
     {
-        auto const pkeyPtr = static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, "pkey"));
+        auto const pkeyPtr = static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, pkey_name));
         EVP_PKEY_free(*pkeyPtr);
         *pkeyPtr = nullptr;
         return 0;
@@ -373,7 +375,7 @@ namespace {
 auto push_evp_pkey(lua_State* const L, EVP_PKEY* pkey) -> void
 {
     *static_cast<EVP_PKEY**>(lua_newuserdatauv(L, sizeof pkey, 0)) = pkey;
-    if (luaL_newmetatable(L, "pkey"))
+    if (luaL_newmetatable(L, pkey_name))
     {
         luaL_setfuncs(L, X509MT, 0);
 

@@ -83,7 +83,7 @@ luaL_Reg const Methods[]{
 
 auto l_new_timer(lua_State* const L) -> int
 {
-    auto const timer = new_udata<Timer>(L, 0, [L]() {
+    auto const timer = new_udata<Timer>(L, 0, [L] {
         // Build metatable the first time
         luaL_setfuncs(L, MT, 0);
         luaL_newlibtable(L, Methods);

@@ -5,7 +5,7 @@
 #include <lauxlib.h>
 #include <lua.h>
 
-static char const* db_type_name = "geoip db";
+static char const* db_type_name = "GeoIP*";
 
 static int close_org_db(lua_State* L)
 {

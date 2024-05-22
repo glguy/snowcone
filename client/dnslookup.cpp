@@ -53,7 +53,7 @@ auto l_dnslookup(lua_State* const L) -> int
     lua_settop(L, 2);
     auto const app = App::from_lua(L);
 
-    auto const resolver = new_udata<Resolver>(L, 0, [L]() {
+    auto const resolver = new_udata<Resolver>(L, 0, [L] {
         // Build metatable the first time
         luaL_setfuncs(L, MT, 0);
         luaL_newlibtable(L, Methods);

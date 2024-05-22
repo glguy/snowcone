@@ -5,9 +5,11 @@
 
 #include <ncurses.h>
 
+static char const window_name[] = "WINDOW*";
+
 WINDOW* checkwindow(lua_State* const L, int const arg)
 {
-    WINDOW** const uptr = luaL_checkudata(L, arg, "WINDOW");
+    WINDOW** const uptr = luaL_checkudata(L, arg, window_name);
     WINDOW* const win = *uptr;
     luaL_argcheck(L, NULL != win, arg, "WINDOW used after delwin");
     return win;
@@ -20,7 +22,7 @@ WINDOW* optwindow(lua_State* const L, int const arg)
 
 static int l_delwin(lua_State* const L)
 {
-    WINDOW** const uptr = luaL_checkudata(L, 1, "WINDOW");
+    WINDOW** const uptr = luaL_checkudata(L, 1, window_name);
 
     // Allow __gc to work on a explicitly closed window
     if (NULL == *uptr)
@@ -155,7 +157,7 @@ void pushwindow(lua_State* const L, WINDOW* const win)
     WINDOW** const uptr = lua_newuserdatauv(L, sizeof win, 0);
     *uptr = win;
 
-    if (luaL_newmetatable(L, "WINDOW"))
+    if (luaL_newmetatable(L, window_name))
     {
         luaL_setfuncs(L, MT, 0);
         luaL_newlibtable(L, Methods);

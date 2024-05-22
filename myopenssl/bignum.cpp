@@ -21,7 +21,7 @@ namespace myopenssl {
 
 namespace {
 
-    constexpr char const* bignum_name = "bignum";
+    constexpr char const* bignum_name = "BN*";
 
     struct BN_CTX_Deleter
     {
