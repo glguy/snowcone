@@ -71,11 +71,11 @@ namespace detail {
     inline auto push_buffer(std::vector<std::uint8_t>& buffer, auto const& thing) -> void
     {
         buffer.push_back(thing.size());
-        std::copy(thing.begin(), thing.end(), std::back_inserter(buffer));
+        buffer.insert(buffer.end(), thing.begin(), thing.end());
     }
 
-    uint8_t const version_tag = 5;
-    uint8_t const reserved = 0;
+    uint8_t const socks_version_tag = 5;
+    uint8_t const auth_version_tag = 1;
 
     enum class AuthMethod
     {
@@ -111,7 +111,7 @@ namespace detail {
         AsyncStream& socket_;
         Host const host_;
         boost::endian::big_uint16_t const port_;
-        Auth auth_;
+        Auth const auth_;
 
         /// buffer used to back async read/write operations
         std::vector<uint8_t> buffer_;
@@ -122,21 +122,28 @@ namespace detail {
         };
         struct HelloRecvd
         {
+            static const std::size_t READ = 2; // version, method
         };
         struct AuthRecvd
         {
+            static const std::size_t READ = 2; // subversion, status
         };
         struct ReplyRecvd
         {
+            static const std::size_t READ = 4; // version, reply, reserved, address-tag
         };
         struct FinishIpv4
         {
+            static const std::size_t READ = 6; // ipv4 + port = 6 bytes
         };
         struct FinishIpv6
         {
+            static const std::size_t READ = 18; // ipv6 + port = 18 bytes
         };
 
-        template <typename T, std::size_t N>
+        /// @brief State when the application needs to receive some bytes
+        /// @tparam Next State to transistion to after read is successful
+        template <typename Next>
         struct Sent
         {
         };
@@ -160,9 +167,11 @@ namespace detail {
             if (error)
             {
                 self.complete(error, {});
-                return;
             }
-            step(self, state);
+            else
+            {
+                step(self, state);
+            }
         }
 
         /// @brief Write the buffer to the socket and then read N bytes back into the buffer
@@ -170,21 +179,34 @@ namespace detail {
         /// @tparam N number of bytes to read
         /// @tparam Self type of enclosing intermediate completion handler
         /// @param self enclosing intermediate completion handler
-        template <typename Next, std::size_t N, typename Self>
+        template <typename Next, typename Self>
         auto transact(Self& self) -> void
         {
-            boost::asio::async_write(socket_, boost::asio::buffer(buffer_), [self = std::move(self)](boost::system::error_code const err, std::size_t n) mutable {
-                self(Sent<Next, N>{}, err, n);
-            });
+            boost::asio::async_write(
+                socket_,
+                boost::asio::buffer(buffer_),
+                [self = std::move(self)](boost::system::error_code const err, std::size_t const n) mutable {
+                    self(Sent<Next>{}, err, n);
+                }
+            );
         }
 
-        template <typename Self, typename Next, std::size_t N>
-        auto step(Self& self, Sent<Next, N>) -> void
+        auto failure(auto& self, SocksErrc const err) -> void
         {
-            buffer_.resize(N);
-            boost::asio::async_read(socket_, boost::asio::buffer(buffer_), [self = std::move(self)](boost::system::error_code const err, std::size_t n) mutable {
-                self(Next{}, err, n);
-            });
+            self.complete(make_socks_error(err), {});
+        }
+
+        template <typename Self, typename Next>
+        auto step(Self& self, Sent<Next>) -> void
+        {
+            buffer_.resize(Next::READ);
+            boost::asio::async_read(
+                socket_,
+                boost::asio::buffer(buffer_),
+                [self = std::move(self)](boost::system::error_code const err, std::size_t n) mutable {
+                    self(Next{}, err, n);
+                }
+            );
         }
 
         // Send hello and offer authentication methods
@@ -195,52 +217,48 @@ namespace detail {
             {
                 if (host->size() >= 256)
                 {
-                    self.complete(make_socks_error(SocksErrc::DomainTooLong), {});
-                    return;
+                    return failure(self, SocksErrc::DomainTooLong);
                 }
             }
             if (auto const* const plain = std::get_if<UsernamePasswordCredential>(&auth_))
             {
                 if (plain->username.size() >= 256)
                 {
-                    self.complete(make_socks_error(SocksErrc::UsernameTooLong), {});
-                    return;
+                    return failure(self, SocksErrc::UsernameTooLong);
                 }
                 if (plain->password.size() >= 256)
                 {
-                    self.complete(make_socks_error(SocksErrc::PasswordTooLong), {});
-                    return;
+                    return failure(self, SocksErrc::PasswordTooLong);
                 }
             }
 
-            buffer_ = {version_tag, 1 /* number of methods */, uint8_t(method_wanted())};
-            // want: version, method
-            transact<HelloRecvd, 2>(self);
+            buffer_ = {socks_version_tag, 1 /* number of methods */, static_cast<uint8_t>(method_wanted())};
+            transact<HelloRecvd>(self);
         }
 
         // Send TCP connection request for the domain name and port
         template <typename Self>
         auto step(Self& self, HelloRecvd) -> void
         {
-            if (version_tag != buffer_[0])
+            if (socks_version_tag != buffer_[0])
             {
-                self.complete(make_socks_error(SocksErrc::WrongVersion), {});
-                return;
+                return failure(self, SocksErrc::WrongVersion);
             }
 
-            auto const method = method_wanted();
-            if (method != static_cast<AuthMethod>(buffer_[1]))
-            {
-                self.complete(make_socks_error(SocksErrc::NoAcceptableMethods), {});
-                return;
-            }
-            if (AuthMethod::NoAuth == method)
+            auto const wanted = method_wanted();
+            auto const selected = static_cast<AuthMethod>(buffer_[1]);
+
+            if (AuthMethod::NoAuth == wanted && wanted == selected)
             {
                 send_connect(self);
             }
-            else
+            else if (AuthMethod::UsernamePassword == wanted && wanted == selected)
             {
                 send_usernamepassword(self);
+            }
+            else
+            {
+                failure(self, SocksErrc::NoAcceptableMethods);
             }
         }
 
@@ -248,27 +266,26 @@ namespace detail {
         auto send_usernamepassword(Self& self) -> void
         {
             buffer_ = {
-                1, // version
+                auth_version_tag,
             };
             auto const [username, password] = std::get<1>(auth_);
             push_buffer(buffer_, username);
             push_buffer(buffer_, password);
-            // want: subversion, status
-            transact<AuthRecvd, 2>(self);
+            transact<AuthRecvd>(self);
         }
 
         template <typename Self>
         auto step(Self& self, AuthRecvd) -> void
         {
-            if (1 != buffer_[0])
+            if (auth_version_tag != buffer_[0])
             {
-                self.complete(make_socks_error(SocksErrc::WrongVersion), {});
-                return;
+                return failure(self, SocksErrc::WrongVersion);
             }
+
+            // STATUS zero is success, non-zero is failure
             if (0 != buffer_[1])
             {
-                self.complete(make_socks_error(SocksErrc::AuthenticationFailed), {});
-                return;
+                return failure(self, SocksErrc::AuthenticationFailed);
             }
 
             send_connect(self);
@@ -278,45 +295,38 @@ namespace detail {
         auto send_connect(Self& self) -> void
         {
             buffer_ = {
-                version_tag,
-                uint8_t(Command::Connect),
-                reserved,
+                socks_version_tag,
+                static_cast<uint8_t>(Command::Connect),
+                0 /* reserved */,
             };
             push_host(host_, buffer_);
-            std::copy_n(port_.data(), 2, std::back_inserter(buffer_));
-            // want: version, reply, reserved, address-tag
-            transact<ReplyRecvd, 4>(self);
+            buffer_.insert(buffer_.end(), port_.data(), port_.data() + 2);
+
+            transact<ReplyRecvd>(self);
         }
 
         // Waiting on the remaining variable-sized address portion of the response
         template <typename Self>
         auto step(Self& self, ReplyRecvd) -> void
         {
-            if (version_tag != buffer_[0])
+            if (socks_version_tag != buffer_[0])
             {
-                self.complete(make_socks_error(SocksErrc::WrongVersion), {});
-                return;
+                return failure(self, SocksErrc::WrongVersion);
             }
             auto const reply = static_cast<SocksErrc>(buffer_[1]);
             if (SocksErrc::Succeeded != reply)
             {
-                self.complete(make_socks_error(reply), {});
-                return;
+                return failure(self, reply);
             }
 
             switch (static_cast<AddressType>(buffer_[3]))
             {
             case AddressType::IPv4:
-                // ipv4 + port = 6 bytes
-                step(self, Sent<FinishIpv4, 6>{});
-                return;
+                return step(self, Sent<FinishIpv4>{});
             case AddressType::IPv6:
-                // ipv6 + port = 18 bytes
-                step(self, Sent<FinishIpv6, 18>{});
-                return;
+                return step(self, Sent<FinishIpv6>{});
             default:
-                self.complete(make_socks_error(SocksErrc::UnsupportedEndpointAddress), {});
-                return;
+                return failure(self, SocksErrc::UnsupportedEndpointAddress);
             }
         }
 
