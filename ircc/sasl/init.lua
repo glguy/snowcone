@@ -72,6 +72,12 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid)
     elseif mechanism == 'ANONYMOUS' then
         assert(authcid, "missing sasl `username`")
         return require 'sasl.anonymous' (authcid)
+    elseif mechanism == 'AUTHCOOKIE' then
+        assert(authcid, "missing sasl `username`")
+        assert(password, "missing sasl `password`")
+        assert(authzid, "missing sasl `authzid`")
+        -- AUTHCOOKIE uses the same AUTHENTICATE messages as PLAIN
+        return require 'sasl.plain' (authzid, authcid, password)
     else
         error 'unknown mechanism'
     end
