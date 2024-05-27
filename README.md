@@ -112,59 +112,65 @@ out/install/arm-mac/bin/snowcone dashboard
 Default configuration path in order of preference
 
 * Argument to `--config` flag
-* `$XDG_CONFIG_HOME/snowcone/settings.lua`
-* `$HOME/.config/snowcone/settings.lua`
+* `$XDG_CONFIG_HOME/snowcone/settings.toml`
+* `$HOME/.config/snowcone/settings.toml`
 
-Configuration file format is a Lua literal. All fields are optional
-except: `nick`, `host`, `port`.
+Configuration file format is selected by file extension:
 
-```lua
-{
-    -- the 3 required things
-    nick = 'snowconer',
-    host = "irc.libera.chat",
-    port = 6697,
+* `.toml` - parsed as normal TOML
+* `.lua` - Lua module is executed
 
-    user = 'myuser',
-    gecos = 'your realname text',
-    pass = 'a server password',
+```toml
+[identity]
+nick = 'snowcone'
+user = 'myuser'
+gecos = 'your realname text'
 
-    tls = true, -- set to false for plaintext connections
-    tls_client_cert = { file = '/path/to/pem' }, -- optional
-    tls_client_key = { file = '/path/to/pem' }, -- defaults to tls_client_cert
-    tls_client_password = 'apassword', -- defaults to '' if unspecified
+[server]
+host = 'irc.libera.chat'
+password = 'a server password'
 
-    tls_verify_host = 'host.name', -- used to override the hostname in the host key
-    -- most useful when connecting by IP address to a server with a certificate
+# optional; enables TLS
+[tls]
+client_cert.file = '/path/to/pem' # optional; specify TLS client certificate
+client_key.file = '/path/to/pem' # optional; special TLS client private key
+verify_host = 'host.name' # optional; used to override expected hostname; set '' to disable verification
 
-    sasl_credentials = {
-        default = { -- default is what get used at connection time automatically
-            mechanism = 'PLAIN',
-            username = 'username',
-            password = 'somepassword',
-        },
+# optional; enables SASL
+[sasl]
+automatic = ['external', 'plain'] # Automatic SASL mechanisms in fallback order
 
-        use_cert = { -- other names can be invoked with: /sasl <credential name>
-            mechanism = 'EXTERNAL',
-        }
-    },
+# optional; adds a credential named plain
+[sasl.credentials.plain]
+mechanism = 'PLAIN'
+username = 'username'
+password = 'somepassword'
 
-    mention_patterns = { -- Lua's pattern match syntax
-        '%f[%w]yournickname%f[^%w]',
-    },
+# optional; adds a credential named external
+[sasl.credentials.external]
+mechanism = 'EXTERNAL'
 
-    notification_module = 'notification.mac', -- works on macOS using terminal-notifier
-    -- notification_module = 'notification.bell', -- uses normal terminal BELL character
+# optional; adds a highlight pattern
+[mention]
+patterns = [ # Lua's pattern match syntax
+    '%f[%w]yournickname%f[^%w]',
+]
 
-    plugin_dir = '/path/to/plugins',
-    plugins = {}, -- list of plugin names
+[notification]
+module = 'notification.mac' # works on macOS using terminal-notifier
+# module = 'notification.bell' # uses normal terminal BELL character
 
-    -- Don't set these unless you run your own network
-    oper_username = 'username', -- used with OPER and CHALLENGE commands
-    oper_password = 'password', -- used with OPER command
-    challenge_key = { file = '/path/to/pem' }, -- used with CHALLENGE command
-    challenge_password = 'password', -- decryption password for challenge pem
-}
+# optional; configure your network operator credentials
+[oper]
+automatic = false
+username = 'username'
+password = 'password'
+
+# optional; configure your network operator challenge key
+[challenge]
+username = 'username'
+key.file = '/path/to/pem'
+password = 'password' # optional; private key decryption password
 ```
 
 Credentials can be specified as:
@@ -172,6 +178,19 @@ Credentials can be specified as:
 * Literal string: `"example"`
 * File contents: `{file="path"}`
 * Command stdout: `{command="executable", arguments={"arg1", "arg2"}, multiline=false}`
+
+Lua module example
+
+```lua
+return {
+    server = {
+        host = 'irc.libera.chat'
+    },
+    identity = {
+        nick = 'snowcone'
+    }
+}
+```
 
 ## Dashboard Pre-filter
 

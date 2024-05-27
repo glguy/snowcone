@@ -55,13 +55,15 @@ local function end_of_registration()
     irc_state.phase = 'connected'
     status('irc', 'connected')
 
-    if configuration.oper_username and configuration.challenge_key then
+    if configuration.challenge and configuration.challenge.automatic
+    and configuration.challenge.username and configuration.challenge.key then
         Task(irc_state.tasks, challenge)
-    elseif configuration.oper_username and configuration.oper_password then
+    elseif configuration.oper and configuration.oper.automatic
+    and configuration.oper.username and configuration.oper.password then
         Task(irc_state.tasks, function(task)
             local oper_password =
-                configuration_tools.resolve_password(task, configuration.oper_password)
-            send('OPER', configuration.oper_username, {content=oper_password, secret=true})
+                configuration_tools.resolve_password(task, configuration.oper.password)
+            send('OPER', configuration.oper.username, {content=oper_password, secret=true})
         end)
     else
         -- assume we get oper from a proxy
@@ -96,9 +98,9 @@ end
 
 local function new_nickname()
     if irc_state.phase == 'registration' then
-        local nick = string.format('%.10s-%05d', configuration.nick, math.random(0,99999))
+        local nick = string.format('%.10s-%05d', configuration.identity.nick, math.random(0,99999))
         irc_state.nick = nick
-        irc_state.target_nick = configuration.nick
+        irc_state.target_nick = configuration.identity.nick
         send('NICK', nick)
     end
 end

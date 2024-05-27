@@ -273,31 +273,40 @@ add_command('nick', '$g', function(nick)
 end)
 
 add_command('challenge', '', function()
-    if not configuration.oper_username then
-        status('challenge', 'no username configured: `oper_username`')
-    elseif not configuration.challenge_key then
-        status('challenge', 'no challenge key configured: `challenge_key`')
+    if not configuration.challenge then
+        status('challenge', 'no challenge configuration')
+    elseif not configuration.challenge.username then
+        status('challenge', 'no challenge username configured: `challenge.username`')
+    elseif not configuration.challenge.key then
+        status('challenge', 'no challenge key configured: `challenge.key`')
     else
         Task(irc_state.tasks, challenge)
     end
 end)
 
 add_command('oper', '', function()
-    if not configuration.oper_username then
-        status('oper', 'no username configured: `oper_username`')
-    elseif not configuration.oper_password then
-        status('oper', 'no password configured: `oper_password`')
+    if not configuration.oper then
+        status('oper', 'no oper configuration')
+    elseif not configuration.oper.username then
+        status('oper', 'no username configured: `oper.username`')
+    elseif not configuration.oper.password then
+        status('oper', 'no password configured: `oper.password`')
     else
         Task(irc_state.tasks, function(task)
             local oper_password =
-                configuration_tools.resolve_password(task, configuration.oper_password)
-            send('OPER', configuration.oper_username, {content=oper_password, secret=true})
+                configuration_tools.resolve_password(task, configuration.oper.password)
+            send('OPER', configuration.oper.username, {content=oper_password, secret=true})
         end)
     end
 end)
 
 add_command('sasl', '$g', function(name)
-    local credentials = configuration.sasl_credentials
+    if not configuration.sasl then
+        status('sasl', 'no sasl configured')
+        return
+    end
+
+    local credentials = configuration.sasl.credentials
 
     if not credentials then
         status('sasl', 'no sasl credentials configured')

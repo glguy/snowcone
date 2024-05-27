@@ -4,9 +4,9 @@ local Task = require 'components.Task'
 local configuration_tools = require 'utils.configuration_tools'
 
 return function(task)
-    if configuration.capabilities then
+    if configuration.server.capabilities then
         local wanted = irc_state.caps_wanted
-        for _, cap in ipairs(configuration.capabilities) do
+        for _, cap in ipairs(configuration.server.capabilities) do
             local minus, name = cap:match '^(%-?)([^ ]+)$'
             if minus == '-' then
                 wanted[name] = nil
@@ -16,23 +16,24 @@ return function(task)
         end
     end
 
-    local credentials = configuration.sasl_credentials
-    irc_state.sasl_credentials = credentials and credentials.default
+    if configuration.sasl and configuration.sasl.credentials then
+        irc_state.sasl_credentials = configuration.sasl.credentials.default
+    end
 
     send('CAP', 'LS', '302')
     Task(irc_state.tasks, cap_negotiation.LS)
 
     if configuration.pass then
-        local pass = configuration_tools.resolve_password(task, configuration.pass)
-        if configuration.passuser then
-            pass = configuration.passuser .. ':' .. pass
+        local pass = configuration_tools.resolve_password(task, configuration.server.password)
+        if configuration.server.username then
+            pass = configuration.server.username .. ':' .. pass
         end
         send('PASS', {content=pass, secret=true})
     end
 
-    local nick  = configuration.nick
-    local user  = configuration.user  or nick
-    local gecos = configuration.gecos or nick
+    local nick  = configuration.identity.nick
+    local user  = configuration.identity.user  or nick
+    local gecos = configuration.identity.gecos or nick
 
     send('NICK', nick)
     irc_state.nick = nick -- optimistic
