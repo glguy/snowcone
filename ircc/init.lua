@@ -315,20 +315,20 @@ function connect()
             if mode_target == 'connected' then mode_target = 'idle' end -- don't reconnect
         end
 
-	local use_tls = nil ~= configuration.tls
-	local use_socks = nil ~= configuration.socks
+        local use_tls = nil ~= configuration.tls
+        local use_socks = nil ~= configuration.socks
 
-	local ok, tls_client_password, socks_password, tls_clien_cert, tls_client_key
+        local ok, tls_client_password, socks_password, tls_client_cert, tls_client_key
 
-	if use_tls then
-            tls_client_password = configuration.tls.client_password
-            tls_client_key = configuration.tls.client_key
-            tls_client_cert = configuration.tls.client_cert
+        if use_tls then
+                tls_client_password = configuration.tls.client_password
+                tls_client_key = configuration.tls.client_key
+                tls_client_cert = configuration.tls.client_cert
+            end
+
+        if use_socks then
+            socks_password = configuration.socks.password
         end
-
-	if use_socks then
-	    socks_password = configuration.socks.password
-	end
 
         ok, tls_client_password =
             pcall(configuration_tools.resolve_password, task, tls_client_password)
