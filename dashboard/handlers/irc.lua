@@ -53,7 +53,7 @@ end
 
 local function end_of_registration()
     irc_state.phase = 'connected'
-    status('irc', 'connected')
+    status('irc', 'registered')
 
     if configuration.challenge and configuration.challenge.automatic
     and configuration.challenge.username and configuration.challenge.key then

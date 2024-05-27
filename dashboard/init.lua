@@ -724,7 +724,7 @@ local irc_event = {}
 
 function irc_event.CON()
     irc_state = Irc()
-    status('irc', 'connecting')
+    status('irc', 'connected')
     if exiting then
         disconnect()
     else
@@ -892,27 +892,27 @@ function connect()
         ok, tls_client_password =
             pcall(configuration_tools.resolve_password, task, tls_client_password)
         if not ok then
-            failure('TLS client key password program error: %s', tls_client_password)
+            status('connect', 'TLS client key password program error: %s', tls_client_password)
             return
         end
 
         ok, socks_password = pcall(configuration_tools.resolve_password, task, socks_password)
         if not ok then
-            failure('SOCKS5 password program error: %s', socks_password)
+            status('connect', 'SOCKS5 password program error: %s', socks_password)
             return
         end
 
         ok, tls_client_cert =
             pcall(configuration_tools.resolve_password, task, tls_client_cert)
         if not ok then
-            failure('TLS client cert error: %s', tls_client_cert)
+            status('connect', 'TLS client cert error: %s', tls_client_cert)
             return
         end
 
         ok, tls_client_key =
             pcall(configuration_tools.resolve_password, task, tls_client_key)
         if not ok then
-            failure('TLS client key error: %s', tls_client_key)
+            status('connect', 'TLS client key error: %s', tls_client_key)
             return
         end
 
@@ -921,7 +921,7 @@ function connect()
         if tls_client_cert then
             ok, tls_client_cert = pcall(myopenssl.read_x509, tls_client_cert)
             if not ok then
-                failure('Parse client cert failed: %s', tls_client_cert)
+                status('connect', 'Parse client cert failed: %s', tls_client_cert)
                 return
             end
         end
@@ -929,12 +929,12 @@ function connect()
         if tls_client_key then
             ok, tls_client_key = pcall(myopenssl.read_pem, tls_client_key, true, tls_client_password)
             if not ok then
-                failure('Parse client key failed: %s', tls_client_key)
+                status('connect', 'Parse client key failed: %s', tls_client_key)
                 return
             end
         end
 
-        local conn, errmsg =
+        local conn_, errmsg =
             snowcone.connect(
             use_tls,
             configuration.server.host,
@@ -950,8 +950,8 @@ function connect()
             on_irc)
 
         if conn_ then
-            status('irc', 'connecting')
             conn = conn_
+            status('irc', 'connecting')
         else
             status('irc', 'failed to connect: %s', errmsg)
         end
@@ -959,6 +959,6 @@ function connect()
     end)
 end
 
-if not conn and configuration.host then
+if not conn and configuration.server.host then
     connect()
 end
