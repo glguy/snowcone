@@ -60,41 +60,54 @@ local configuration_tools = require_ 'utils.configuration_tools'
 
 do
     local config_home = os.getenv 'XDG_CONFIG_HOME'
-                     or path.join(assert(os.getenv 'HOME', 'HOME not set'), '.config')
+                    or path.join(assert(os.getenv 'HOME', 'HOME not set'), '.config')
     config_dir = path.join(config_home, 'snowcone')
 
     local flags = app.parse_args(arg, {config=true})
-    local settings_filename = flags.config or path.join(config_dir, 'settings.lua')
+    if not flags then
+        error("Failed to parse command line flags")
+    end
+    local settings_filename = flags.config or path.join(config_dir, 'settings.toml')
     local settings_file = file.read(settings_filename)
     if not settings_file then
         error("Failed to read settings file: " .. settings_filename, 0)
     end
-    configuration = pretty.read(settings_file)
-    if not configuration then
-        error("Failed to parse settings file: " .. settings_filename, 0)
+
+    local ext = path.extension(settings_filename)
+    if ext == '.toml' then
+        configuration = assert(snowcone.parse_toml(settings_file))
+    elseif ext == '.lua' then
+        local chunk = assert(load(settings_file, settings_filename, 't'))
+        configuration = chunk()
+    else
+        error ('Unknown configuration file extension: ' .. ext)
     end
 end
 
-if string.match(configuration.nick, '[ \n\r]') then
+if string.match(configuration.identity.nick, '[ \n\r]') then
     error 'Invalid character in nickname'
 end
 
 -- Validate configuration =============================================
 
-if configuration.user and string.match(configuration.user, '[ \n\r]') then
+if configuration.identity.user and string.match(configuration.identity.user, '[ \n\r]') then
     error 'Invalid character in username'
 end
 
-if configuration.gecos and string.match(configuration.gecos, '[\n\r]') then
+if configuration.identity.gecos and string.match(configuration.identity.gecos, '[\n\r]') then
     error 'Invalid character in GECOS'
 end
 
-if type(configuration.pass) == 'string' and string.match(configuration.pass, '[\n\r]') then
+if type(configuration.server.password) == 'string' and string.match(configuration.server.password, '[\n\r]') then
     error 'Invalid character in server password'
 end
 
-if configuration.oper_username and string.match(configuration.oper_username, '[ \n\r]') then
-    error 'Invalid character in operator username'
+if configuration.oper and string.match(configuration.oper.username, '[ \n\r]') then
+    error 'Invalid character in oper username'
+end
+
+if configuration.challenge and string.match(configuration.challenge.username, '[ \n\r]') then
+    error 'Invalid character in challenge username'
 end
 
 -- Load network configuration =========================================
@@ -106,7 +119,7 @@ do
         kline_reasons = { 'banned', "You are banned."},
         kline_tags = {}
     }
-    local conf = configuration.network_filename
+    local conf = configuration.network and configuration.network.servers
     if not conf then
         conf = path.join(config_dir, "servers.lua")
     end
@@ -118,7 +131,7 @@ do
         else
             error('Failed to parse ' .. conf .. '\n' .. lua_err)
         end
-    elseif configuration.network_filename then
+    elseif configuration.network and configuration.network.servers then
         error(file_err)
     end
 end
@@ -711,7 +724,7 @@ local irc_event = {}
 
 function irc_event.CON()
     irc_state = Irc()
-    status('irc', 'connecting')
+    status('irc', 'connected')
     if exiting then
         disconnect()
     else
@@ -861,74 +874,91 @@ end
 function connect()
     Task(client_tasks, function(task) -- passwords might need to suspend connecting
 
-    local ok1, tls_client_password =
-        pcall(configuration_tools.resolve_password, task, configuration.tls_client_password)
-    if not ok1 then
-        status('connect', 'TLS client key password program error: %s', tls_client_password)
-        return
-    end
+        local use_tls = nil ~= configuration.tls
+        local use_socks = nil ~= configuration.socks
 
-    local ok2, socks_password = pcall(configuration_tools.resolve_password, task, configuration.socks_password)
-    if not ok2 then
-        status('connect', 'SOCKS5 password program error: %s', socks_password)
-        return
-    end
+        local ok, tls_client_password, socks_password, tls_client_cert, tls_client_key
 
-    local ok3, tls_client_cert =
-        pcall(configuration_tools.resolve_password, task, configuration.tls_client_cert)
-    if not ok3 then
-        status('connect', 'TLS client cert error: %s', tls_client_cert)
-        return
-    end
+        if use_tls then
+                tls_client_password = configuration.tls.client_password
+                tls_client_key = configuration.tls.client_key
+                tls_client_cert = configuration.tls.client_cert
+            end
 
-    local ok4, tls_client_key =
-        pcall(configuration_tools.resolve_password, task, configuration.tls_client_key)
-    if not ok4 then
-        status('connect', 'TLS client key error: %s', tls_client_key)
-        return
-    end
+        if use_socks then
+            socks_password = configuration.socks.password
+        end
 
-    if not tls_client_key then tls_client_key = tls_client_cert end
-
-    if tls_client_cert then
-        ok3, tls_client_cert = pcall(myopenssl.read_x509, tls_client_cert)
-        if not ok3 then
-            status('connect', 'Parse client cert failed: %s', tls_client_cert)
+        ok, tls_client_password =
+            pcall(configuration_tools.resolve_password, task, tls_client_password)
+        if not ok then
+            status('connect', 'TLS client key password program error: %s', tls_client_password)
             return
         end
-    end
 
-    if tls_client_key then
-        ok4, tls_client_key = pcall(myopenssl.read_pem, tls_client_key, true, tls_client_password)
-        if not ok4 then
-            status('connect', 'Parse client key failed: %s', tls_client_key)
+        ok, socks_password = pcall(configuration_tools.resolve_password, task, socks_password)
+        if not ok then
+            status('connect', 'SOCKS5 password program error: %s', socks_password)
             return
         end
-    end
 
-    local conn_, errmsg =
-        snowcone.connect(
-        configuration.tls,
-        configuration.host,
-        configuration.port,
-        tls_client_cert,
-        tls_client_key,
-        configuration.tls_verify_host,
-        configuration.tls_sni_host,
-        configuration.socks_host,
-        configuration.socks_port,
-        configuration.socks_username,
-        socks_password,
-        on_irc)
-    if conn_ then
-        status('irc', 'connecting')
-        conn = conn_
-    else
-        status('irc', 'failed to connect: %s', errmsg)
-    end
+        ok, tls_client_cert =
+            pcall(configuration_tools.resolve_password, task, tls_client_cert)
+        if not ok then
+            status('connect', 'TLS client cert error: %s', tls_client_cert)
+            return
+        end
+
+        ok, tls_client_key =
+            pcall(configuration_tools.resolve_password, task, tls_client_key)
+        if not ok then
+            status('connect', 'TLS client key error: %s', tls_client_key)
+            return
+        end
+
+        if not tls_client_key then tls_client_key = tls_client_cert end
+
+        if tls_client_cert then
+            ok, tls_client_cert = pcall(myopenssl.read_x509, tls_client_cert)
+            if not ok then
+                status('connect', 'Parse client cert failed: %s', tls_client_cert)
+                return
+            end
+        end
+
+        if tls_client_key then
+            ok, tls_client_key = pcall(myopenssl.read_pem, tls_client_key, true, tls_client_password)
+            if not ok then
+                status('connect', 'Parse client key failed: %s', tls_client_key)
+                return
+            end
+        end
+
+        local conn_, errmsg =
+            snowcone.connect(
+            use_tls,
+            configuration.server.host,
+            configuration.server.port or use_tls and 6697 or 6667,
+            tls_client_cert,
+            tls_client_key,
+            use_tls and configuration.tls.verify_host or nil,
+            use_tls and configuration.tls.sni_host or nil,
+            use_socks and configuration.socks.host or nil,
+            use_socks and configuration.socks.port or nil,
+            use_socks and configuration.socks.username or nil,
+            socks_password,
+            on_irc)
+
+        if conn_ then
+            conn = conn_
+            status('irc', 'connecting')
+        else
+            status('irc', 'failed to connect: %s', errmsg)
+        end
+
     end)
 end
 
-if not conn and configuration.host and configuration.port then
+if not conn and configuration.server.host then
     connect()
 end

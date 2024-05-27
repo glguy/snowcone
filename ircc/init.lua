@@ -568,7 +568,7 @@ local function startup()
         if not flags then
             error("Failed to parse command line flags")
         end
-        local settings_filename = flags.config or path.join(config_dir, 'settings.lua')
+        local settings_filename = flags.config or path.join(config_dir, 'settings.toml')
         local settings_file = file.read(settings_filename)
         if not settings_file then
             error("Failed to read settings file: " .. settings_filename, 0)
@@ -577,8 +577,11 @@ local function startup()
 	local ext = path.extension(settings_filename)
 	if ext == '.toml' then
 	    configuration = assert(snowcone.parse_toml(settings_file))
-        else
-            configuration = assert(pretty.read(settings_file))
+        elseif ext == '.lua' then
+            local chunk = assert(load(settings_file, settings_filename, 't'))
+            configuration = chunk()
+	else
+	    error ('Unknown configuration file extension: ' .. ext)
         end
     end
 

@@ -74,11 +74,7 @@ return function(task)
 
     -- Establish operator privs
     if configuration.challenge and configuration.challenge.automatic then
-        if configuration.challenge.key then
-            Task('challenge', irc_state.tasks, challenge)
-        else
-            status('challenge', 'missing configuration for automatic CHALLENGE')
-        end
+        Task('challenge', irc_state.tasks, challenge)
     elseif configuration.oper and configuration.oper.automatic then
         local password <const> = configuration_tools.resolve_password(task, configuration.oper.password)
         send('OPER', configuration.oper_username, {content=password, secret=true})

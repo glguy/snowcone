@@ -61,6 +61,16 @@ local password_schema = {
      }
 }
 
+local required_password_schema = {
+    required = true,
+    oneOf = {
+        {type = 'string'},
+        command_schema,
+        prompt_schema,
+        file_schema,
+     }
+}
+
 return table {
     identity = required_table {
         nick                = {type = 'string', pattern = '^[^\n\r\x00 ]+$', required = true},
@@ -91,12 +101,12 @@ return table {
     oper = table {
         automatic           = {type = 'boolean'},
         username            = {type = 'string', required = true, pattern = '^[^\n\r\x00 ]+$'},
-        password            = password_schema,
+        password            = required_password_schema,
     },
     challenge = table {
         automatic           = {type = 'boolean'},
 	username            = {type = 'string', required = true},
-        key                 = password_schema,
+        key                 = required_password_schema,
         password            = password_schema,
     },
     plugins = table {
