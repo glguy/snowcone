@@ -481,6 +481,13 @@ function draw_buttons()
             staged_action = nil
         end)
 
+        addstr(' ')
+        yellow()
+        add_button('[ TRACE ]', function()
+            send('MASKTRACE', staged_action.mask)
+            view = 'console'
+        end)
+
     elseif unkline_ready() then
         green()
         add_button('[ CANCEL UNKLINE ]', function()

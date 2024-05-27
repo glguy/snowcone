@@ -4,6 +4,7 @@
 #include "config.hpp"
 #include "dnslookup.hpp"
 #include "irc/lua.hpp"
+#include "parse_toml.hpp"
 #include "safecall.hpp"
 #include "strings.hpp"
 #include "timer.hpp"
@@ -269,6 +270,7 @@ luaL_Reg const applib_module[] = {
     {"to_base64", l_to_base64},
     {"xor_strings", l_xor_strings},
     {"execute", l_execute},
+    {"parse_toml", l_parse_toml},
     {}
 };
 
