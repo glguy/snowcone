@@ -9,9 +9,9 @@ local Task                <const> = require 'components.Task'
 return function(task)
     irc_state.phase = 'registration'
 
-    if configuration.capabilities then
+    if configuration.server.capabilities then
         local wanted = irc_state.caps_wanted
-        for _, cap in ipairs(configuration.capabilities) do
+        for _, cap in ipairs(configuration.server.capabilities) do
             local minus, name = cap:match '^(%-?)([^ ]+)$'
             if minus == '-' then
                 wanted[name] = nil
@@ -21,26 +21,28 @@ return function(task)
         end
     end
 
-    if configuration.sasl_automatic then
-        irc_state.sasl_credentials = {}
-        for _, name in ipairs(configuration.sasl_automatic) do
-            local credential = configuration.sasl_credentials[name]
-            if not credential then
-                error('Unknown credential in sasl_automatic: ' .. name)
+    if configuration.sasl then
+	if configuration.sasl.automatic then
+            irc_state.sasl_credentials = {}
+            for _, name in ipairs(configuration.sasl.automatic) do
+                local credential = configuration.sasl.credentials[name]
+                if not credential then
+                    error('Unknown credential in sasl.automatic: ' .. name)
+                end
+                table.insert(irc_state.sasl_credentials, credential)
             end
-            table.insert(irc_state.sasl_credentials, credential)
+        elseif configuration.sasl.credentials.default then
+            irc_state.sasl_credentials = {configuration.sasl.credentials.default}
         end
-    elseif configuration.sasl_credentials and configuration.sasl_credentials.default then
-        irc_state.sasl_credentials = {configuration.sasl_credentials.default}
     end
 
     cap_negotiation.LS(task)
 
-    if configuration.pass then
-        local success, pass = pcall(configuration_tools.resolve_password, task, configuration.pass)
+    if configuration.server.password then
+        local success, pass = pcall(configuration_tools.resolve_password, task, configuration.server.password)
         if success then
-            if configuration.passuser then
-                pass = configuration.passuser .. ':' .. pass
+            if configuration.server.username then
+                pass = configuration.server.username .. ':' .. pass
             end
             send('PASS', {content=pass, secret=true})
         else
@@ -48,9 +50,9 @@ return function(task)
         end
     end
 
-    local nick  = configuration.nick
-    local user  = configuration.user  or nick
-    local gecos = configuration.gecos or nick
+    local nick  = configuration.identity.nick
+    local user  = configuration.identity.user  or nick
+    local gecos = configuration.identity.gecos or nick
 
     send('NICK', nick)
     irc_state.nick = nick -- optimistic
@@ -71,19 +73,15 @@ return function(task)
     status('irc', 'registered')
 
     -- Establish operator privs
-    if configuration.oper_automatic == 'challenge' then
-        if configuration.oper_username and configuration.challenge_key then
+    if configuration.challenge and configuration.challenge.automatic then
+        if configuration.challenge.key then
             Task('challenge', irc_state.tasks, challenge)
         else
-            status('oper', 'missing configuration for automatic CHALLENGE')
+            status('challenge', 'missing configuration for automatic CHALLENGE')
         end
-    elseif configuration.oper_automatic == 'oper' then
-        if configuration.oper_username and configuration.oper_password then
-            local password <const> = configuration_tools.resolve_password(task, configuration.oper_password)
-            send('OPER', configuration.oper_username, {content=password, secret=true})
-        else
-            status('oper', 'missing configuration for automatic OPER')
-        end
+    elseif configuration.oper and configuration.oper.automatic then
+        local password <const> = configuration_tools.resolve_password(task, configuration.oper.password)
+        send('OPER', configuration.oper_username, {content=password, secret=true})
     else
         -- determine if we're already oper
         send('MODE', irc_state.nick)
@@ -131,6 +129,6 @@ return function(task)
 
     -- start waiting for our nickname
     if irc_state.recover_nick and irc_state:has_monitor() then
-        send('MONITOR', '+', configuration.nick)
+        send('MONITOR', '+', configuration.identity.nick)
     end
 end

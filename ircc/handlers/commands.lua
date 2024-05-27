@@ -186,39 +186,35 @@ add_command('list', '$R', function(arg)
 end)
 
 add_command('challenge', '', function()
-    if not configuration.oper_username then
-        status('challenge', 'no username configured: `oper_username`')
-    elseif not configuration.challenge_key then
-        status('challenge', 'no challenge key configured: `challenge_key`')
+    if not configuration.challenge then
+        status('challenge', 'challenge not configured')
     else
         Task('challenge', irc_state.tasks, challenge)
     end
 end)
 
 add_command('oper', '', function()
-    if not configuration.oper_username then
-        status('oper', 'no username configured: `oper_username`')
-    elseif not configuration.oper_password then
-        status('oper', 'no password configured: `oper_password`')
+    if not configuration.oper then
+        status('oper', 'oper not configured')
     else
         Task('oper', irc_state.tasks, function(task)
-            local password <const> = configuration_tools.resolve_password(task, configuration.oper_password)
-            send('OPER', configuration.oper_username, {content=password, secret=true})
+            local password <const> = configuration_tools.resolve_password(task, configuration.oper.password)
+            send('OPER', configuration.oper.username, {content=password, secret=true})
         end)
     end
 end)
 
 add_command('sasl', '$g', function(name)
-    local credentials = configuration.sasl_credentials
-
-    if not credentials then
-        status('sasl', 'no sasl credentials configured')
+    if not configuration.sasl then
+        status('sasl', 'sasl not configured')
         return
     end
 
+    local credentials = configuration.sasl.credentials
+
     local entry = credentials[name]
     if not entry then
-        status('sasl', 'unknown credentials')
+        status('sasl', 'unknown credential')
     elseif irc_state:has_sasl() then
         Task('sasl', irc_state.tasks, sasl, entry)
     else

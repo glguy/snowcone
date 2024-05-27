@@ -19,15 +19,17 @@ local M = {}
 function M.startup()
     plugins = {}
     if configuration.plugins then
-        for _, plugin_name in ipairs(configuration.plugins) do
-            M.add_plugin(plugin_name)
+        if configuration.plugins.modules then
+            for _, plugin_name in ipairs(configuration.plugins.modules) do
+                M.add_plugin(plugin_name)
+            end
         end
     end
 end
 
 function M.plugin_path(name, ext)
     local base =
-        configuration_tools.resolve_path(configuration.plugin_dir) or
+        configuration_tools.resolve_path(configuration.plugins and configuration.plugins.directory) or
         path.join(config_dir, 'plugins')
     return path.join(base, name .. '.' .. ext)
 end

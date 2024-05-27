@@ -129,7 +129,7 @@ M[N.RPL_MONOFFLINE] = function(irc)
         table.insert(nicks, nick)
 
         if snowcone.irccase(nick) == irc_state.recover_nick then
-            send('NICK', configuration.nick)
+            send('NICK', configuration.identity.nick)
         end
     end
     status('monitor', 'monitor offline: ' .. table.concat(nicks, ', '))
@@ -143,9 +143,9 @@ end
 
 local function new_nickname()
     if irc_state.phase == 'registration' then
-        local nick = string.format('%.10s-%05d', configuration.nick, math.random(0,99999))
+        local nick = string.format('%.10s-%05d', configuration.identity.nick, math.random(0,99999))
         send('NICK', nick)
-        irc_state.recover_nick = snowcone.irccase(configuration.nick)
+        irc_state.recover_nick = snowcone.irccase(configuration.identity.nick)
         irc_state.nick = nick -- optimistic
     end
 end
@@ -157,9 +157,9 @@ M[N.ERR_UNAVAILRESOURCE] = new_nickname
 local function do_notify(target, nick, text)
     local key = snowcone.irccase(target)
     if not terminal_focus
-    and configuration.notification_module then
+    and configuration.notifications then
         local previous = notification_muted[key]
-        notification_muted[key] = require(configuration.notification_module).notify(previous, target, nick, text)
+        notification_muted[key] = require(configuration.notifications.module).notify(previous, target, nick, text)
     end
 end
 
@@ -172,7 +172,7 @@ local function route_chat_to_buffer(target, text, irc)
         buffer_target = target
 
         -- channel messages generate mention on pattern match
-        local mention_patterns = configuration.mention_patterns
+        local mention_patterns = configuration.mention and configuration.mention.patterns
         if mention_patterns then
             for _, pattern in ipairs(mention_patterns) do
                 if text:find(pattern) then

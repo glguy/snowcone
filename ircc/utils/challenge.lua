@@ -18,11 +18,12 @@ local commands2 <const> = Set{
 
 return function(task)
     -- make sure we have a username and a key before bothering the server
-    local user <const> = assert(configuration.oper_username, 'missing oper_username')
+    assert(configuration.challenge, 'missing challenge configuration')
+    local user <const> = assert(configuration.challenge.username, 'missing challenge.username')
     local rsa_pem <const> =
-        assert(configuration_tools.resolve_password(task, configuration.challenge_key),
-            'missing challenge_key')
-    local password <const> = configuration_tools.resolve_password(task, configuration.challenge_password)
+        assert(configuration_tools.resolve_password(task, configuration.challenge.key),
+            'missing challenge.key')
+    local password <const> = configuration_tools.resolve_password(task, configuration.challenge.password)
     ---@type pkey
     local key <const> = assert(myopenssl.read_pem(rsa_pem, true, password))
 
