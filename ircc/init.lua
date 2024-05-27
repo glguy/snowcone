@@ -1,6 +1,5 @@
 -- Library imports
 local tablex = require 'pl.tablex'
-local pretty = require 'pl.pretty'
 local path   = require 'pl.path'
 local file   = require 'pl.file'
 local app    = require 'pl.app'
