@@ -186,10 +186,33 @@ return {
     server = {
         host = 'irc.libera.chat'
     },
+    tls = {}, -- enables TLS with default settings
     identity = {
         nick = 'snowcone'
     }
 }
+```
+
+Tor configuration example
+
+```toml
+[identity]
+nick = 'ghoulguy'
+
+[server]
+host = 'libera75jm6of4wxpxt4aynol3xjmbtxgfyjpu34ss4d7r7q2v5zrpyd.onion'
+
+[tls]
+verify_host = 'palladium.libera.chat'
+
+[socks]
+host = 'localhost'
+port = 9050
+
+[sasl.credentials.default]
+mechanism = 'ECDSA-NIST256P-CHALLENGE'
+username = 'glguy'
+key.file = 'sasl-ecdsa.pem'
 ```
 
 ## Dashboard Pre-filter
