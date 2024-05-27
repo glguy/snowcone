@@ -291,7 +291,7 @@ local conn_handlers = {}
 
 function connect()
     if mode_current == 'idle' then
-        if configuration.host then
+        if configuration.server.host then
             mode_current = 'connecting'
             mode_timestamp = uptime
         else
@@ -315,29 +315,44 @@ function connect()
             if mode_target == 'connected' then mode_target = 'idle' end -- don't reconnect
         end
 
-        local ok1, tls_client_password =
-            pcall(configuration_tools.resolve_password, task, configuration.tls_client_password)
-        if not ok1 then
+	local use_tls = nil ~= configuration.tls
+	local use_socks = nil ~= configuration.socks
+
+	local ok, tls_client_password, socks_password, tls_clien_cert, tls_client_key
+
+	if use_tls then
+            tls_client_password = configuration.tls.client_password
+            tls_client_key = configuration.tls.client_key
+            tls_client_cert = configuration.tls.client_cert
+        end
+
+	if use_socks then
+	    socks_password = configuration.socks.password
+	end
+
+        ok, tls_client_password =
+            pcall(configuration_tools.resolve_password, task, tls_client_password)
+        if not ok then
             failure('TLS client key password program error: %s', tls_client_password)
             return
         end
 
-        local ok2, socks_password = pcall(configuration_tools.resolve_password, task, configuration.socks_password)
-        if not ok2 then
+        ok, socks_password = pcall(configuration_tools.resolve_password, task, socks_password)
+        if not ok then
             failure('SOCKS5 password program error: %s', socks_password)
             return
         end
 
-        local ok3, tls_client_cert =
-        pcall(configuration_tools.resolve_password, task, configuration.tls_client_cert)
-        if not ok3 then
+        ok, tls_client_cert =
+            pcall(configuration_tools.resolve_password, task, tls_client_cert)
+        if not ok then
             failure('TLS client cert error: %s', tls_client_cert)
             return
         end
 
-        local ok4, tls_client_key =
-            pcall(configuration_tools.resolve_password, task, configuration.tls_client_key)
-        if not ok4 then
+        ok, tls_client_key =
+            pcall(configuration_tools.resolve_password, task, tls_client_key)
+        if not ok then
             failure('TLS client key error: %s', tls_client_key)
             return
         end
@@ -345,16 +360,16 @@ function connect()
         if not tls_client_key then tls_client_key = tls_client_cert end
 
         if tls_client_cert then
-            ok3, tls_client_cert = pcall(myopenssl.read_x509, tls_client_cert)
-            if not ok3 then
+            ok, tls_client_cert = pcall(myopenssl.read_x509, tls_client_cert)
+            if not ok then
                 failure('Parse client cert failed: %s', tls_client_cert)
                 return
             end
         end
 
         if tls_client_key then
-            ok4, tls_client_key = pcall(myopenssl.read_pem, tls_client_key, true, tls_client_password)
-            if not ok4 then
+            ok, tls_client_key = pcall(myopenssl.read_pem, tls_client_key, true, tls_client_password)
+            if not ok then
                 failure('Parse client key failed: %s', tls_client_key)
                 return
             end
@@ -362,16 +377,16 @@ function connect()
 
         local conn, errmsg =
             snowcone.connect(
-            configuration.tls,
-            configuration.host,
-            configuration.port or configuration.tls and 6697 or 6667,
+            use_tls,
+            configuration.server.host,
+            configuration.server.port or use_tls and 6697 or 6667,
             tls_client_cert,
             tls_client_key,
-            configuration.tls_verify_host,
-            configuration.tls_sni_host,
-            configuration.socks_host,
-            configuration.socks_port,
-            configuration.socks_username,
+            use_tls and configuration.tls.verify_host,
+            use_tls and configuration.tls.sni_host,
+            use_socks and configuration.socks.host or nil,
+            use_socks and configuration.socks.port or nil,
+            use_socks and configuration.socks.username or nil,
             socks_password,
             function(event, arg)
                 conn_handlers[event](arg)
@@ -454,7 +469,7 @@ end
 function conn_handlers.CON(fingerprint)
     status('irc', 'connected: %s', fingerprint)
 
-    local want_fingerprint = configuration.fingerprint
+    local want_fingerprint = configuration.server.fingerprint
     if mode_target ~= 'connected' then
         disconnect()
     elseif want_fingerprint and not string.match(fingerprint, want_fingerprint) then
@@ -558,9 +573,12 @@ local function startup()
         if not settings_file then
             error("Failed to read settings file: " .. settings_filename, 0)
         end
-        configuration = pretty.read(settings_file)
-        if not configuration then
-            error("Failed to parse settings file: " .. settings_filename, 0)
+
+	local ext = path.extension(settings_filename)
+	if ext == '.toml' then
+	    configuration = assert(snowcone.parse_toml(settings_file))
+        else
+            configuration = assert(pretty.read(settings_file))
         end
     end
 
