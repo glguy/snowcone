@@ -7,12 +7,12 @@ stds = {
             snowcone = {
                 fields = {"to_base64", "from_base64", "dnslookup", "pton", "shutdown", "newtimer",
                 "setmodule", "raise", "xor_strings", "isalnum", "irccase", "parse_irc_tags",
-                "SIGINT", "SIGTSTP", "connect", "execute", "parse_toml" },
+                "SIGINT", "SIGTSTP", "connect", "execute" },
             },
         },
     },
     main = {
-        read_globals = {"tty_height", "tty_width", "mygeoip", "ncurses", "mystringprep", "myopenssl"},
+        read_globals = {"tty_height", "tty_width", "mygeoip", "ncurses", "mystringprep", "myopenssl", "mytoml"},
         globals = {
             -- general functionality
             "require_", "next_view", "prev_view", "entry_to_kline",

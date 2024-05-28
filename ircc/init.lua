@@ -575,7 +575,7 @@ local function startup()
 
 	local ext = path.extension(settings_filename)
 	if ext == '.toml' then
-	    configuration = assert(snowcone.parse_toml(settings_file))
+	    configuration = assert(mytoml.parse_toml(settings_file))
         elseif ext == '.lua' then
             local chunk = assert(load(settings_file, settings_filename, 't'))
             configuration = chunk()

@@ -1,7 +1,5 @@
 #include "parse_toml.hpp"
-#include "strings.hpp"
-
-#include <toml.hpp>
+#include "toml.hpp"
 
 extern "C" {
 #include <lauxlib.h>
@@ -19,7 +17,7 @@ auto push_toml(lua_State* const L, toml::value<std::int64_t> const& value) -> vo
 
 auto push_toml(lua_State* const L, toml::value<std::string> const& value) -> void
 {
-    push_string(L, value.get());
+    lua_pushlstring(L, value->data(), value->size());
 }
 
 auto push_toml(lua_State* const L, toml::value<bool> const& value) -> void
@@ -52,7 +50,7 @@ auto push_toml(lua_State* const L, toml::table const& table) -> void
     lua_createtable(L, 0, table.size());
     for (auto& [k, v] : table)
     {
-        push_string(L, k);
+        lua_pushlstring(L, k.data(), k.length());
         push_toml_node(L, v);
         lua_settable(L, -3);
     }
@@ -76,12 +74,13 @@ auto push_toml_node(lua_State* const L, toml::node const& node) -> void
 
 } // namespace
 
-auto l_parse_toml(lua_State* const L) -> int
+auto mytoml::l_parse_toml(lua_State* const L) -> int
 {
-    auto const src = check_string_view(L, 1);
+    std::size_t len;
+    auto const src = luaL_checklstring(L, 1, &len);
     try
     {
-        push_toml(L, toml::parse(src));
+        push_toml(L, toml::parse(std::string_view{src, len}));
         return 1;
     }
     catch (std::runtime_error const& err)
