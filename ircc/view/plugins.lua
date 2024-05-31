@@ -19,7 +19,7 @@ function M:render(win)
 
         local widget = plugin.widget
         if widget ~= nil then
-            local success, result = pcall(widget)
+            local success, result = pcall(widget, win)
             if success then
                 normal(win)
             else

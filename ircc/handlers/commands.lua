@@ -6,7 +6,6 @@ local sasl                <const> = require 'sasl'
 local send                <const> = require 'utils.send'
 local configuration_tools <const> = require 'utils.configuration_tools'
 local file                <const> = require 'pl.file'
-local pretty_whois        <const> = require 'utils.pretty_whois'
 
 local M = {}
 
@@ -154,10 +153,12 @@ add_command('umode', '$R', function(args)
 end)
 
 add_command('whois', '$g', function(nick)
+    local pretty_whois <const> = require 'utils.pretty_whois'
     pretty_whois(nick, false)
 end)
 
 add_command('wii', '$g', function(nick)
+    local pretty_whois <const> = require 'utils.pretty_whois'
     pretty_whois(nick, true)
 end)
 

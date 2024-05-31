@@ -387,8 +387,8 @@ function connect()
             use_socks and configuration.socks.port or nil,
             use_socks and configuration.socks.username or nil,
             socks_password,
-            function(event, arg)
-                conn_handlers[event](arg)
+            function(event, ...)
+                conn_handlers[event](...)
             end)
 
         if conn then
