@@ -1,7 +1,5 @@
 local Task = require 'components.Task'
-local Set = require 'pl.Set'
 local N = require 'utils.numerics'
-local tablex = require 'pl.tablex'
 local send = require 'utils.send'
 local time = require 'utils.time'
 local ip_org = require 'utils.ip_org'
@@ -54,7 +52,7 @@ return function(nick, remote)
                 end
                 return true
             end,
-            [N.RPL_WHOISSECURE] = function(irc)
+            [N.RPL_WHOISSECURE] = function()
                 secure = true
                 return true
             end,
@@ -82,11 +80,11 @@ return function(nick, remote)
                 account = irc[3]
                 return true
             end,
-            [N.RPL_WHOISHELPOP] = function(irc)
+            [N.RPL_WHOISHELPOP] = function()
                 helpop = true
                 return true
             end,
-            [N.RPL_ENDOFWHOIS] = function(irc)
+            [N.RPL_ENDOFWHOIS] = function()
                 status('whois', '\x0304WHOIS\x03 \x02%s\x02!\x02%s\x02@\x02%s\x02 %s', nick, username, host, info)
                 status('whois', 'channels: \x02%s', table.concat(channels, ' '))
                 status('whois', 'server: \x02%s', server)
@@ -103,7 +101,8 @@ return function(nick, remote)
                 if mask then
                     local org, asn = ip_org(ip)
                     if org then
-                        status('whois', 'mask: \x02%s\x02 ip: \x02%s\x02 asn: \x02%s\x02 org: \x02%s', mask, ip, asn, org)
+                        status('whois', 'mask: \x02%s\x02 ip: \x02%s\x02 asn: \x02%s\x02 org: \x02%s',
+                            mask, ip, asn, org)
                     else
                         status('whois', 'mask: \x02%s\x02 ip: \x02%s', mask, ip)
                     end
@@ -113,7 +112,7 @@ return function(nick, remote)
                     'whois', 'idle:   \x02%s\x02 (\x02%s\x02)',
                     os.date('%c', now - idletime),
                     time.pretty_seconds(idletime))
-                    
+
                 status(
                     'whois', 'signon: \x02%s\x02 (\x02%s\x02)',
                     os.date('%c', signontime),
@@ -129,15 +128,15 @@ return function(nick, remote)
                 return false
             end,
 
-            [N.ERR_NOSUCHSERVER] = function(irc)
+            [N.ERR_NOSUCHSERVER] = function()
                 status('whois', 'whois failed: no such server')
                 return false
             end,
-            [N.ERR_NONICKNAMEGIVEN] = function(irc)
+            [N.ERR_NONICKNAMEGIVEN] = function()
                 status('whois', 'whois failed: no nickname given')
                 return false
             end,
-            [N.ERR_NOSUCHNICK] = function(irc)
+            [N.ERR_NOSUCHNICK] = function()
                 status('whois', 'whois failed: no such nickname')
                 return false
             end,
