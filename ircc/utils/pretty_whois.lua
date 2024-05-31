@@ -4,6 +4,8 @@ local N = require 'utils.numerics'
 local tablex = require 'pl.tablex'
 local send = require 'utils.send'
 local time = require 'utils.time'
+local ip_org = require 'utils.ip_org'
+
 return function(nick, remote)
     Task('whois', irc_state.tasks, function(task)
         if remote then
@@ -21,7 +23,6 @@ return function(nick, remote)
         local secure = false
         local certfp
         local mask, ip
-        local actually
         local specials = {}
         local idletime, signontime
         local account
@@ -49,7 +50,7 @@ return function(nick, remote)
                 operator, privset = irc[3]:match '^is opered as ([^ ]+), privset ([^ ]+)$'
                 if not operator then
                     operator = irc[3]:match '^is opered as ([^ ]+)$'
-                    privset = '(unknown)'
+                    privset = '*'
                 end
                 return true
             end,
@@ -66,7 +67,7 @@ return function(nick, remote)
                 return true
             end,
             [N.RPL_WHOISACTUALLY] = function(irc)
-                actually = irc[3]
+                mask, ip = '*', irc[3]
                 return true
             end,
             [N.RPL_WHOISSPECIAL] = function(irc)
@@ -86,7 +87,7 @@ return function(nick, remote)
                 return true
             end,
             [N.RPL_ENDOFWHOIS] = function(irc)
-                status('whois', '\x02%s\x02!\x02%s\x02@\x02%s\x02 %s', nick, username, host, info)
+                status('whois', '\x0304WHOIS\x03 \x02%s\x02!\x02%s\x02@\x02%s\x02 %s', nick, username, host, info)
                 status('whois', 'channels: \x02%s', table.concat(channels, ' '))
                 status('whois', 'server: \x02%s', server)
                 if away then
@@ -98,19 +99,14 @@ return function(nick, remote)
                 if helpop then
                     status('whois', 'set helpop (+h)')
                 end
-                if secure then
-                    if nil == certfp then
-                        status('whois', 'secure')
+                status('whois', 'secure: \x02%s\x02 certfp: \x02%s', secure, certfp or '*')
+                if mask then
+                    local org, asn = ip_org(ip)
+                    if org then
+                        status('whois', 'mask: \x02%s\x02 ip: \x02%s\x02 asn: \x02%s\x02 org: \x02%s', mask, ip, asn, org)
                     else
-                        status('whois', 'secure certfp: \x02%s', certfp)
+                        status('whois', 'mask: \x02%s\x02 ip: \x02%s', mask, ip)
                     end
-                end
-                if mask and actually then
-                    status('whois', 'mask: \x02%s\x02 ip: \x02%s\x02 actually: \x02%s', mask, ip, actually)
-                elseif mask then
-                    status('whois', 'mask: \x02%s\x02 ip: \x02%s', mask, ip)
-                elseif actually then
-                    status('whois', 'actually: \x02%s', actually)
                 end
                 local now = os.time()
                 status(
