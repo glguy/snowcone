@@ -573,14 +573,14 @@ local function startup()
             error("Failed to read settings file: " .. settings_filename, 0)
         end
 
-	local ext = path.extension(settings_filename)
-	if ext == '.toml' then
-	    configuration = assert(snowcone.parse_toml(settings_file))
+        local ext = path.extension(settings_filename)
+        if ext == '.toml' then
+            configuration = assert(mytoml.parse_toml(settings_file))
         elseif ext == '.lua' then
             local chunk = assert(load(settings_file, settings_filename, 't'))
             configuration = chunk()
-	else
-	    error ('Unknown configuration file extension: ' .. ext)
+        else
+            error ('Unknown configuration file extension: ' .. ext)
         end
     end
 

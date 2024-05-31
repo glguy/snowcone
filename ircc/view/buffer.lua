@@ -241,8 +241,8 @@ end
 function M:render(win)
     local buffer = buffers[talk_target]
     if buffer then
-        if terminal_focus and notification_muted[talk_target] then
-            require(configuration.notification.module).dismiss(notification_muted[talk_target])
+        if terminal_focus and configuration.notifications and notification_muted[talk_target] then
+            require(configuration.notifications.module).dismiss(notification_muted[talk_target])
             notification_muted[talk_target] = nil
         end
         draw_messages(win, buffer)

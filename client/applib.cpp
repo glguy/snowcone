@@ -4,7 +4,6 @@
 #include "config.hpp"
 #include "dnslookup.hpp"
 #include "irc/lua.hpp"
-#include "parse_toml.hpp"
 #include "safecall.hpp"
 #include "strings.hpp"
 #include "timer.hpp"
@@ -13,6 +12,7 @@
 #include <mybase64.hpp>
 #include <myncurses.h>
 #include <myopenssl.hpp>
+#include <mytoml.hpp>
 
 extern "C" {
 #include <lauxlib.h>
@@ -270,7 +270,6 @@ luaL_Reg const applib_module[] = {
     {"to_base64", l_to_base64},
     {"xor_strings", l_xor_strings},
     {"execute", l_execute},
-    {"parse_toml", l_parse_toml},
     {}
 };
 
@@ -324,6 +323,9 @@ auto prepare_globals(lua_State* const L, int const argc, char const* const* cons
     lua_pop(L, 1);
 
     luaL_requiref(L, "myopenssl", luaopen_myopenssl, 1);
+    lua_pop(L, 1);
+
+    luaL_requiref(L, "mytoml", luaopen_mytoml, 1);
     lua_pop(L, 1);
 
 #ifdef LIBHS_FOUND

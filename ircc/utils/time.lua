@@ -36,4 +36,17 @@ function M.parse_duration(str)
     end
 end
 
+function M.pretty_seconds(s)
+    local d, h, m
+    m, s = s // 60, s % 60
+    h, m = m // 60, m % 60
+    d, h = h // 24, h % 24
+
+    if d > 0 then
+        return string.format('%dd %02d:%02d:%02d', d, h, m, s)
+    else
+        return string.format('%02d:%02d:%02d', h, m, s)
+    end
+end
+
 return M

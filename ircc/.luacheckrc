@@ -12,7 +12,7 @@ stds = {
         },
     },
     main = {
-        read_globals = {"tty_height", "tty_width", "mygeoip", "ncurses", "mystringprep", "hsfilter", "myopenssl", "myarchive"},
+        read_globals = {"tty_height", "tty_width", "mygeoip", "ncurses", "mystringprep", "hsfilter", "myopenssl", "myarchive", "mytoml"},
         globals = {
             "ctrl", "meta", -- functions for defining keyboard handlers
             "next_view", -- function to advance the view
