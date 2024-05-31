@@ -91,6 +91,7 @@ auto with_toml(lua_State* const L, std::function<void(toml::node&&)> k) -> void
         if (auto const n = is_lua_array(L); 0 < n)
         {
             toml::array a;
+            a.reserve(n);
 
             for (lua_Integer i = 0; i < n; i++)
             {
