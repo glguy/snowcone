@@ -13,14 +13,6 @@ local function required_table(fields)
     }
 end
 
-local function required_assocs(assocs)
-    return {
-        type = 'table',
-	required = true,
-        assocs = assocs,
-    }
-end
-
 local function array(elements)
     return {
         type = 'table',
@@ -123,8 +115,9 @@ return table {
     },
 
     sasl = table {
-        automatic           = array {type = 'string'},
-        credentials = required_assocs {
+        automatic = array {type = 'string'},
+        credentials = array {
+            name            = {type = 'string'},
             mechanism       = {type = 'string', required = true},
             username        = {type = 'string'},
             password        = password_schema,

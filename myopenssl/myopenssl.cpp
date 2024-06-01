@@ -63,6 +63,14 @@ Types for use with read_raw
 
 namespace {
 
+/***
+Generate random bytes
+
+@function rand
+@tparam integer length number of bytes to generate
+@tparam boolean private generation is for a private key
+@treturn string random bytes
+*/
 auto l_rand(lua_State* const L) -> int
 {
     auto const num = luaL_checkinteger(L, 1);

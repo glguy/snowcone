@@ -123,12 +123,14 @@ Configuration file format is selected by file extension:
 ```toml
 [identity]
 nick = 'snowcone'
-user = 'myuser'
-gecos = 'your realname text'
+user = 'myuser' # optional; defaults to nick
+gecos = 'your realname text' # optional; defaults to nick
 
 [server]
 host = 'irc.libera.chat'
-password = 'a server password'
+username = 'me' # optional; field that get prepended to the server password with ':'
+password = 'a server password' # optional; server password
+# this would generate 'me:a server password' in help password manager interop
 
 # optional; enables TLS
 [tls]
@@ -138,17 +140,24 @@ verify_host = 'host.name' # optional; used to override expected hostname; set ''
 
 # optional; enables SASL
 [sasl]
-automatic = ['external', 'plain'] # Automatic SASL mechanisms in fallback order
+automatic = ['EXTERNAL'] # optional; Automatic SASL mechanisms in fallback order
 
-# optional; adds a credential named plain
-[sasl.credentials.plain]
+# optional; adds a credential with name defaulting to PLAIN
+[[sasl.credentials]]
 mechanism = 'PLAIN'
 username = 'username'
 password = 'somepassword'
 
-# optional; adds a credential named external
-[sasl.credentials.external]
+# optional; adds a credential named EXTERNAL
+[[sasl.credentials]]
 mechanism = 'EXTERNAL'
+
+# optional; adds a credential named mybot
+[[sasl.credentials]]
+name = 'mybot'
+mechanism = 'PLAIN'
+username = 'mybot'
+password = 'another password'
 
 # optional; adds a highlight pattern
 [mention]
@@ -209,7 +218,10 @@ verify_host = 'palladium.libera.chat'
 host = 'localhost'
 port = 9050
 
-[sasl.credentials.default]
+[sasl]
+automatic = ['ECDSA-NIST256P-CHALLENGE']
+
+[[sasl.credentials]]
 mechanism = 'ECDSA-NIST256P-CHALLENGE'
 username = 'glguy'
 key.file = 'sasl-ecdsa.pem'

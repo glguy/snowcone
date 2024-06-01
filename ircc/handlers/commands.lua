@@ -214,7 +214,7 @@ add_command('sasl', '$g', function(name)
 
     local credentials = configuration.sasl.credentials
 
-    local entry = credentials[name]
+    local entry = configuration_tools.get_credential(credentials, name)
     if not entry then
         status('sasl', 'unknown credential')
     elseif irc_state:has_sasl() then

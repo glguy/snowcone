@@ -16,12 +16,9 @@ return function(task)
         end
     end
 
-    if configuration.sasl and configuration.sasl.credentials then
-        if configuration.sasl.automatic then
-            irc_state.sasl_credentials = configuration.sasl.credentials[configuration.sasl.automatic[1]]
-        else
-            irc_state.sasl_credentials = configuration.sasl.credentials.default
-        end
+    if configuration.sasl and configuration.sasl.credentials and configuration.sasl.automatic then
+        irc_state.sasl_credentials =
+            configuration_tools.get_credential(configuration.sasl.credentials, configuration.sasl.automatic[1])
     end
 
     send('CAP', 'LS', '302')

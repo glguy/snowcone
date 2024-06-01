@@ -69,4 +69,14 @@ function M.resolve_password(task, entry)
     error('Bad password entry: ' .. tostring(entry))
 end
 
+-- return the first credential that matches the name
+-- name defaults
+function M.get_credential(credentials, name)
+    for _, credential in ipairs(credentials) do
+        if (credential.name or credential.mechanism) == name then
+            return credential
+        end
+    end
+end
+
 return M
