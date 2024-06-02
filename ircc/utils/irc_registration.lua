@@ -73,7 +73,7 @@ return function(task)
         Task('challenge', irc_state.tasks, challenge)
     elseif configuration.oper and configuration.oper.automatic then
         local password <const> = configuration_tools.resolve_password(task, configuration.oper.password)
-        send('OPER', configuration.oper_username, {content=password, secret=true})
+        send('OPER', configuration.oper.username, {content=password, secret=true})
     else
         -- determine if we're already oper
         send('MODE', irc_state.nick)
