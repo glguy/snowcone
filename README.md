@@ -180,6 +180,11 @@ password = 'password'
 username = 'username'
 key.file = '/path/to/pem'
 password = 'password' # optional; private key decryption password
+
+# optional; configuration for dynamic plugin logic
+[plugins]
+modules = ['liveness'] # optional; the names of the lua files in plugins/
+directory = '/path/to/plugins' # optional; defaults to ~/.config/snowcone/plugins/
 ```
 
 Credentials can be specified as:
