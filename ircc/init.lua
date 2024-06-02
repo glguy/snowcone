@@ -567,10 +567,26 @@ local function startup()
         if not flags then
             error("Failed to parse command line flags")
         end
-        local settings_filename = flags.config or path.join(config_dir, 'settings.toml')
-        local settings_file = file.read(settings_filename)
-        if not settings_file then
-            error("Failed to read settings file: " .. settings_filename, 0)
+        local settings_filename = nil
+        local settings_file = nil
+        if flags.config then
+            settings_filename = flags.config
+            settings_file = file.read(settings_filename)
+            if not settings_file then
+                error("Failed to read settings file: " .. settings_filename, 0)
+            end
+        else
+            local default_settings = {path.join(config_dir, 'settings.lua'), path.join(config_dir, 'settings.toml')}
+            for _, fn in ipairs(default_settings) do
+                settings_filename = fn
+                settings_file = file.read(settings_filename)
+                if settings_file then
+                    break
+                end
+            end
+            if not settings_file then
+                error("Failed to read settings file, tried: " .. table.concat(default_settings, ', '), 0)
+            end
         end
 
         local ext = path.extension(settings_filename)
