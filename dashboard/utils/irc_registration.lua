@@ -24,7 +24,7 @@ return function(task)
     send('CAP', 'LS', '302')
     Task(irc_state.tasks, cap_negotiation.LS)
 
-    if configuration.pass then
+    if configuration.server.password then
         local pass = configuration_tools.resolve_password(task, configuration.server.password)
         if configuration.server.username then
             pass = configuration.server.username .. ':' .. pass
