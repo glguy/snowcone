@@ -34,7 +34,7 @@ function M.REQ(task, request)
         local credentials = irc_state.sasl_credentials
         irc_state.sasl_credentials = nil
         -- transfer directly into sasl task body
-        sasl(task, credentials, irc_state.phase == 'registration')
+        sasl(task, credentials)
     end
 end
 
