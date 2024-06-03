@@ -181,20 +181,25 @@ function prev_view()
     end
 end
 
-local drawing_suspended = false
+-- Number of outstanding tty suspends
+local drawing_suspended = 0
 
 function suspend_tty()
-    drawing_suspended = true
-    snowcone.stop_input()
+    if drawing_suspended == 0 then
+        snowcone.stop_input()
+    end
+    drawing_suspended = drawing_suspended + 1
 end
 
 function resume_tty()
-    drawing_suspended = false
-    snowcone.start_input()
+    drawing_suspended = drawing_suspended - 1
+    if drawing_suspended == 0 then
+        snowcone.start_input()
+    end
 end
 
 local function draw()
-    if drawing_suspended then return end;
+    if 0 < drawing_suspended then return end;
 
     clicks = {}
     ncurses.erase()
