@@ -7,7 +7,8 @@ stds = {
             snowcone = {
               fields = {"to_base64", "from_base64", "dnslookup", "pton", "shutdown", "newtimer",
                 "setmodule", "raise", "xor_strings", "isalnum", "irccase", "parse_irc_tags",
-                "SIGINT", "SIGTSTP", "connect", "parse_irc", "execute", "parse_toml" },
+                "SIGINT", "SIGTSTP", "connect", "parse_irc", "execute", "parse_toml",
+                "start_input", "stop_input" },
             },
         },
     },
@@ -52,6 +53,9 @@ stds = {
             "mode_target", -- connect, idle, exit
             "mode_timestamp", -- uptime value when mode_current changed
             "focus", -- zoomed in message in console
+
+            "suspend_tty", -- stop drawing and processing input
+            "resume_tty", -- resume drawing and processing input
 
             "commands", -- mapping of the global command handlers
             "irc_handlers", -- mapping of IRC message handlers

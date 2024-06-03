@@ -19,7 +19,7 @@ function M.notify(previous, buffer, nick, msg)
              '-sound',    'default',
              '-message',  string.format("\\<%s> %s", nick, msg),
              '-group',    tag},
-            report)
+            report, '')
         return tag
     else
         return previous
@@ -27,7 +27,7 @@ function M.notify(previous, buffer, nick, msg)
 end
 
 function M.dismiss(tag)
-    snowcone.execute('terminal-notifier', {'-remove', tag}, report)
+    snowcone.execute('terminal-notifier', {'-remove', tag}, report, '')
 end
 
 return M

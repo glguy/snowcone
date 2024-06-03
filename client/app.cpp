@@ -163,9 +163,20 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
     }
 }
 
-auto App::startup() -> void
+auto App::start_input() -> void
 {
     boost::asio::co_spawn(io_context, stdin_thread(), boost::asio::detached);
+}
+
+auto App::stop_input() -> void
+{
+    stdin_poll.cancel();
+    endwin();
+}
+
+auto App::startup() -> void
+{
+    start_input();
     boost::asio::co_spawn(io_context, signal_thread(), boost::asio::detached);
     io_context.run();
 }

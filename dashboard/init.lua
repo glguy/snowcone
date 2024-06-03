@@ -188,7 +188,6 @@ local defaults = {
     editor = Editor(),
     versions = {},
     uptimes = {},
-    draw_suspend = 'no', -- no: draw normally; eligible: don't draw; suspended: a draw is needed
     drains = {},
     sheds = {},
     client_tasks = {},
@@ -595,11 +594,26 @@ function prev_view()
     end
 end
 
-function draw()
-    if draw_suspend ~= 'no' then
-        draw_suspend = 'suspended'
-        return
+
+-- Number of outstanding tty suspends
+local drawing_suspended = 0
+
+function suspend_tty()
+    if drawing_suspended == 0 then
+        snowcone.stop_input()
     end
+    drawing_suspended = drawing_suspended + 1
+end
+
+function resume_tty()
+    drawing_suspended = drawing_suspended - 1
+    if drawing_suspended == 0 then
+        snowcone.start_input()
+    end
+end
+
+function draw()
+    if 0 < drawing_suspended then return end
     clicks = {}
     ncurses.erase()
     normal()

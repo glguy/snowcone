@@ -317,7 +317,7 @@ add_command('sasl', '$g', function(name)
     if not entry then
         status('sasl', 'unknown credentials')
     elseif irc_state:has_sasl() then
-        sasl.start(entry)
+        Task(irc_state.tasks, sasl, entry)
     else
         status('sasl', 'sasl not available')
     end
