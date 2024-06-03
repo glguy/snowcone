@@ -33,8 +33,14 @@ function M.REQ(task, request)
     if irc_state:has_sasl() and irc_state.sasl_credentials then
         local credentials = irc_state.sasl_credentials
         irc_state.sasl_credentials = nil
-        -- transfer directly into sasl task body
-        sasl(task, credentials)
+
+        for _, credential in ipairs(credentials) do
+            if irc_state:has_sasl_mech(credential.mechanism)
+            and sasl(task, credential)
+            then
+                break
+            end
+        end
     end
 end
 
@@ -42,31 +48,26 @@ local ls_commands = Set{'CAP', N.RPL_WELCOME}
 
 -- Used for the initial capability negotiation during registration
 function M.LS(task)
-    local caps = {}
-    local last = false
-
-    while not last do
+    send('CAP', 'LS', '302')
+    local more = true
+    while more do
         local irc = task:wait_irc(ls_commands)
         if irc.command == 'CAP' and irc[2] == 'LS' then
             -- CAP * LS * :x y z    -- continuation
             -- CAP * LS :x y z      -- final
-            local x, y = irc[3], irc[4]
-            last = x ~= '*'
-            local capsarg
-            if last then capsarg = x else capsarg = y end
-
-            for cap, eq, arg in capsarg:gmatch '([^ =]+)(=?)([^ ]*)' do
-                caps[cap] = eq == '=' and arg or true
+            local capsarg = irc[3]
+            more = '*' == capsarg
+            if more then
+                capsarg = irc[4]
             end
+            irc_state:add_caps(capsarg)
         elseif irc.command == N.RPL_WELCOME then
             return -- welcome means no cap negotiation
         end
     end
 
-    irc_state.caps_available = caps
-
     local req = {}
-    for cap, _ in pairs(caps) do
+    for cap, _ in pairs(irc_state.caps_available) do
         if irc_state.caps_wanted[cap] then
             table.insert(req, cap)
         end

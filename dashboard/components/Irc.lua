@@ -1,5 +1,6 @@
+local Set = require 'pl.Set'
 local class = require 'pl.class'
-local User = require  'components.User'
+local User = require 'components.User'
 
 -- irc_state
 -- .caps_ls        - set of string   - create in LS - consume at end of LS
@@ -212,6 +213,40 @@ end
 
 function M:clear_partial_mode_list()
     self.partial_mode_list = nil
+end
+
+function M:add_caps(capsarg)
+    for cap, eq, arg in capsarg:gmatch '([^ =]+)(=?)([^ ]*)' do
+        self.caps_available[cap] = eq == '=' and arg or true
+
+        if 'sasl' == cap then
+            self:set_sasl_mechs(arg)
+        end
+    end
+end
+
+function M:del_caps(capsarg)
+    for cap in capsarg:gmatch '[^ ]+' do
+        self.caps_available[cap] = nil
+        self.caps_enabled[cap] = nil
+        if 'sasl' == cap then
+            self:set_sasl_mechs(nil)
+        end
+    end
+end
+
+--- Set the list of supported SASL mechanisms
+--- Input comma-separated string when supported
+--- Input nil to clear setting
+function M:set_sasl_mechs(list)
+    self.sasl_mechs = list and Set(list:split(','))
+end
+
+--- Predicate if a named mechanism might be supported
+--- If we don't know the list (old cap-negotiation version) we assume all are supported
+function M:has_sasl_mech(mech)
+    -- assume we support all mechs if we don't know which ones we support
+    return not self.sasl_mechs or self.sasl_mechs[mech]
 end
 
 return M

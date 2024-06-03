@@ -16,9 +16,15 @@ return function(task)
         end
     end
 
-    if configuration.sasl and configuration.sasl.credentials and configuration.sasl.automatic then
-        irc_state.sasl_credentials =
-            configuration_tools.get_credential(configuration.sasl.credentials, configuration.sasl.automatic[1])
+    if configuration.sasl and configuration.sasl.automatic then
+        irc_state.sasl_credentials = {}
+        for _, name in ipairs(configuration.sasl.automatic) do
+            local credential = configuration_tools.get_credential(configuration.sasl.credentials, name)
+            if not credential then
+                error('Unknown credential in sasl.automatic: ' .. name)
+            end
+            table.insert(irc_state.sasl_credentials, credential)
+        end
     end
 
     send('CAP', 'LS', '302')

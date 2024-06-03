@@ -184,6 +184,11 @@ M[N.RPL_STATSUPTIME] = function(irc)
     uptimes[irc.source] = text
 end
 
+-- <client> <mechanisms> :are available SASL mechanisms
+M[N.RPL_SASLMECHS] = function(irc)
+    irc_state:set_sasl_mechs(irc[2])
+end
+
 local ctcp_handlers = require_ 'handlers.ctcp'
 function M.PRIVMSG(irc)
     local target, message = irc[1], irc[2]

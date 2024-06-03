@@ -5,20 +5,20 @@ local cap_negotiation = require 'utils.cap_negotiation'
 local CAP = {}
 
 function CAP.DEL(capsarg)
-    for cap in capsarg:gmatch '[^ ]+' do
-        irc_state.caps_available[cap] = nil
-        irc_state.caps_enabled[cap] = nil
-    end
+    irc_state:del_caps(capsarg)
 end
 
 function CAP.NEW(capsarg)
+    irc_state:add_caps(capsarg)
+
     local req = {}
-    for cap, eq, arg in capsarg:gmatch '([^ =]+)(=?)([^ ]*)' do
-        irc_state.caps_available[cap] = eq == '=' and arg or true
-        if irc_state.caps_wanted[cap] and not irc_state.caps_enabled[cap] then
+
+    for cap, _ in pairs(irc_state.caps_wanted) do
+        if irc_state.caps_available[cap] and not irc_state.caps_enabled[cap] then
             table.insert(req, cap)
         end
     end
+
     if next(req) then
         Task(irc_state.tasks, cap_negotiation.REQ, req)
     end
