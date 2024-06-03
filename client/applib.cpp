@@ -253,6 +253,18 @@ auto l_parse_irc(lua_State* const L) -> int
     }
 }
 
+auto l_start_input(lua_State* const L) -> int
+{
+    App::from_lua(L)->start_input();
+    return 0;
+}
+
+auto l_stop_input(lua_State* const L) -> int
+{
+    App::from_lua(L)->stop_input();
+    return 0;
+}
+
 luaL_Reg const applib_module[] = {
     {"connect", l_start_irc},
     {"dnslookup", l_dnslookup},
@@ -270,6 +282,8 @@ luaL_Reg const applib_module[] = {
     {"to_base64", l_to_base64},
     {"xor_strings", l_xor_strings},
     {"execute", l_execute},
+    {"stop_input", l_stop_input},
+    {"start_input", l_start_input},
     {}
 };
 

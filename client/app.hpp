@@ -39,6 +39,9 @@ public:
         return L;
     }
 
+    auto start_input() -> void;
+    auto stop_input() -> void;
+
 private:
     auto signal_thread() -> boost::asio::awaitable<void>;
     auto stdin_thread() -> boost::asio::awaitable<void>;

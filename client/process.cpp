@@ -14,6 +14,7 @@ extern "C" {
 #include <boost/process.hpp>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace {
@@ -35,13 +36,13 @@ struct Exec
     std::string stdout_text_;
     std::string stderr_text_;
 
-    Exec(Handler&& handler, boost::asio::io_context& io_context, std::string input)
+    Exec(Handler&& handler, boost::asio::io_context& io_context, std::optional<std::string> input)
         : handler_{std::move(handler)}
         , stdin_{io_context}
         , stdout_{io_context}
         , stderr_{io_context}
-        , stage_{0}
-        , stdin_text_{std::move(input)}
+        , stage_{input ? 0 : 1}
+        , stdin_text_{input ? std::move(*input) : ""}
     {
     }
 
@@ -67,17 +68,23 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
                                 boost::asio::io_context& io_context,
                                 boost::filesystem::path file,
                                 std::vector<std::string> args,
-                                std::string input
+                                std::optional<std::string> input
                             ) -> void {
+    auto const has_input = input.has_value();
     auto const self = std::make_shared<Exec<Handler>>(std::forward<Handler>(handler), io_context, std::move(input));
-    boost::asio::async_write(
-        self->stdin_,
-        boost::asio::buffer(self->stdin_text_),
-        [self](boost::system::error_code, std::size_t) {
-            self->stdin_.close();
-            self->complete();
-        }
-    );
+
+    if (has_input)
+    {
+        boost::asio::async_write(
+            self->stdin_,
+            boost::asio::buffer(self->stdin_text_),
+            [self](boost::system::error_code, std::size_t) {
+                self->stdin_.close();
+                self->complete();
+            }
+        );
+    }
+
     boost::asio::async_read(
         self->stdout_,
         boost::asio::dynamic_buffer(self->stdout_text_),
@@ -92,17 +99,35 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
             self->complete();
         }
     );
-    boost::process::async_system(
-        io_context,
-        [self](boost::system::error_code, int exit_code) {
+    auto const completion =
+        [self](boost::system::error_code, int const exit_code) {
             self->exit_code_ = exit_code;
             self->complete();
-        },
-        boost::process::search_path(file),
-        boost::process::args += std::move(args),
-        boost::process::std_in<self->stdin_, boost::process::std_out> self->stdout_,
-        boost::process::std_err > self->stderr_
-    );
+        };
+
+    if (has_input)
+    {
+        boost::process::async_system(
+            io_context,
+            completion,
+            boost::process::search_path(file),
+            boost::process::args += std::move(args),
+            boost::process::std_in  < self->stdin_,
+            boost::process::std_out > self->stdout_,
+            boost::process::std_err > self->stderr_
+        );
+    }
+    else
+    {
+        boost::process::async_system(
+            io_context,
+            completion,
+            boost::process::search_path(file),
+            boost::process::args += std::move(args),
+            boost::process::std_out > self->stdout_,
+            boost::process::std_err > self->stderr_
+        );
+    }
 };
 
 template <
@@ -111,7 +136,7 @@ auto async_exec(
     boost::asio::io_context& io_context,
     boost::filesystem::path file,
     std::vector<std::string> args,
-    std::string input,
+    std::optional<std::string> input,
     CompletionToken&& token
 )
 {
@@ -128,7 +153,11 @@ auto l_execute(lua_State* L) -> int
     auto const n = luaL_len(L, 2);
     luaL_checkany(L, 3);
     std::size_t input_len;
-    auto const input = luaL_optlstring(L, 4, "", &input_len);
+    auto const input_ptr = luaL_optlstring(L, 4, nullptr, &input_len);
+    std::optional<std::string> input
+        = input_ptr == nullptr
+        ? std::optional<std::string>{}
+        : std::optional<std::string>{{input_ptr, input_len}};
 
     auto& args = new_object<std::vector<std::string>>(L);
     args.reserve(n);
@@ -144,9 +173,8 @@ auto l_execute(lua_State* L) -> int
 
     lua_pushvalue(L, 3);
     auto const cb = luaL_ref(L, LUA_REGISTRYINDEX);
-    boost::process::child c{};
     auto const app = App::from_lua(L);
-    async_exec(app->get_executor(), file, std::move(args), {input, input_len}, [L = app->get_lua(), cb](int const exitcode, std::string const stdout, std::string const stderr) {
+    async_exec(app->get_executor(), file, std::move(args), std::move(input), [L = app->get_lua(), cb](int const exitcode, std::string const stdout, std::string const stderr) {
         // get callback
         lua_rawgeti(L, LUA_REGISTRYINDEX, cb);
         luaL_unref(L, LUA_REGISTRYINDEX, cb);

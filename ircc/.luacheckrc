@@ -53,6 +53,9 @@ stds = {
             "mode_timestamp", -- uptime value when mode_current changed
             "focus", -- zoomed in message in console
 
+            "suspend_tty", -- stop drawing and processing input
+            "resume_tty", -- resume drawing and processing input
+
             "commands", -- mapping of the global command handlers
             "irc_handlers", -- mapping of IRC message handlers
 

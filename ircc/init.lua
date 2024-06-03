@@ -181,7 +181,21 @@ function prev_view()
     end
 end
 
+local drawing_suspended = false
+
+function suspend_tty()
+    drawing_suspended = true
+    snowcone.stop_input()
+end
+
+function resume_tty()
+    drawing_suspended = false
+    snowcone.start_input()
+end
+
 local function draw()
+    if drawing_suspended then return end;
+
     clicks = {}
     ncurses.erase()
     main_pad:werase()

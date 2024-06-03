@@ -25,7 +25,8 @@ local command_schema = {
     fields = {
         command = {type = 'string', required = true},
         arguments = {type = 'table', elements = {type = 'string'}},
-        multiline = {type = 'boolean', required = true},
+        multiline = {type = 'boolean'},
+        use_tty = {type = 'boolean'},
     },
 }
 
