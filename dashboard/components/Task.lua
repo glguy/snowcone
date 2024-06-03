@@ -35,8 +35,19 @@ function M:resume(...)
 end
 
 function M:execute(command, args, input)
-    snowcone.execute(command, args or {}, function(...) self:resume(...) end, input)
+    local use_tty = input == nil
+    if use_tty then
+        suspend_tty()
+    end
+    snowcone.execute(command, args or {},
+    function(...)
+        if use_tty then
+            resume_tty()
+        end
+        self:resume(...)
+    end, input)
     return coroutine.yield()
 end
+
 
 return M

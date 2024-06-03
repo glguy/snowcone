@@ -43,7 +43,11 @@ function M.resolve_password(task, entry)
 
     if t == 'table' then
         if entry.command then
-            local exit_code, stdout, stderr = task:execute(entry.command, entry.arguments)
+            local input
+            if not entry.use_tty then
+                input = ''
+            end
+            local exit_code, stdout, stderr = task:execute(entry.command, entry.arguments, input)
             if exit_code == 0 then
                 if entry.multiline then
                     return stdout

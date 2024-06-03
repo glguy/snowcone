@@ -7,7 +7,8 @@ stds = {
             snowcone = {
                 fields = {"to_base64", "from_base64", "dnslookup", "pton", "shutdown", "newtimer",
                 "setmodule", "raise", "xor_strings", "isalnum", "irccase", "parse_irc_tags",
-                "SIGINT", "SIGTSTP", "connect", "execute", "parse_toml" },
+                "SIGINT", "SIGTSTP", "connect", "execute", "parse_toml",
+                "start_input", "stop_input" },
             },
         },
     },
@@ -18,8 +19,8 @@ stds = {
             "require_", "next_view", "prev_view", "entry_to_kline",
             "add_network_tracker", "quit", "entry_to_unkline",
             "reset_filter", "initialize", "counter_sync_commands",
-            "ctrl", "meta", "status", "plugins", "draw_suspend",
-            "prepare_kline",
+            "ctrl", "meta", "status", "plugins",
+            "prepare_kline", "suspend_tty", "resume_tty",
 
             "conn", "config_dir", "terminal_focus", "configuration",
             "disconnect",
