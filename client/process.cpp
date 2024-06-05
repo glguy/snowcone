@@ -108,7 +108,7 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
             self->complete();
         };
 
-    if (not file.is_absolute())
+    if (not file.has_parent_path())
     {
         file = boost::process::search_path(file);
     }
