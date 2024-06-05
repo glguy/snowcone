@@ -70,7 +70,16 @@ function M:render(win)
     label 'Channels'
     bold(win)
     for _, v in tablex.sort(irc_state.channels) do
-        win:waddstr(scrub(v.name), ' ')
+        local text = scrub(v.name)
+        local _, x = ncurses.getyx(win)
+        if x + #text > tty_width then
+            win:waddstr('\n                ')
+        end
+        add_button(win, text, function()
+            set_talk_target(snowcone.irccase(v.name))
+            set_view 'buffer'
+        end, true)
+        win:waddstr(' ')
     end
     normal(win)
     win:waddstr('\n')
@@ -91,9 +100,11 @@ function M:render(win)
     end
 
     label 'Tasks'
+    bold(win)
     for k, _ in pairs(irc_state.tasks) do
-        win:waddstr(k.name, '; ')
+        win:waddstr(k.name, ' ')
     end
+    bold_(win)
     win:waddstr '\n'
 end
 

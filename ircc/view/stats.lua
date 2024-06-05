@@ -52,18 +52,8 @@ function M:render(win)
 
     label 'Tasks'
     bold(win)
-    do
-        local first_task = true
-        for task, _ in pairs(client_tasks) do
-            if first_task then
-                first_task = false
-            else
-                bold_(win)
-                win:waddstr(', ')
-                bold(win)
-            end
-            win:waddstr(task.name or task)
-        end
+    for task, _ in pairs(client_tasks) do
+        win:waddstr(task.name or task, ' ')
     end
     bold_(win)
     win:waddstr '\n'
