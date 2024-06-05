@@ -4,8 +4,8 @@
 #
 # Example TOML fragment
 #
-# password.command = "sh"
-# password.arguments = ["/path/to/tmux-wrap.sh", "rbw get example"]
+# password.command = "/path/to/tmux-wrap.sh"
+# password.arguments = ["rbw get example"]
 #
 # This script runs a command in a separate tmux window and redirects that
 # command's stderr, stdout, and exit code back to this script.
