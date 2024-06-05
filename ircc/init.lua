@@ -571,9 +571,6 @@ local function apply_override(tab, src)
         elseif 'value' == want and ('iden' == token or 'string' == token or 'number' == token) then
             value = lexeme
             want = 'eol'
-        elseif 'value' == want and 'number' == token then
-            value = tonumber(lexeme)
-            want = 'eol'
         else
             error(
                 'syntax error at \x1f' .. lexeme ..
