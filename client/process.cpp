@@ -105,12 +105,17 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
             self->complete();
         };
 
+    if (not file.is_absolute())
+    {
+        file = boost::process::search_path(file);
+    }
+
     if (has_input)
     {
         boost::process::async_system(
             io_context,
             completion,
-            boost::process::search_path(file),
+            std::move(file),
             boost::process::args += std::move(args),
             boost::process::std_in  < self->stdin_,
             boost::process::std_out > self->stdout_,
@@ -122,7 +127,7 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
         boost::process::async_system(
             io_context,
             completion,
-            boost::process::search_path(file),
+            std::move(file),
             boost::process::args += std::move(args),
             boost::process::std_out > self->stdout_,
             boost::process::std_err > self->stderr_

@@ -17,14 +17,14 @@ set -e
 
 # Validate arguments
 if [ -z "$1" ] || [ "$#" -ne 1 ]; then
-  echo "Usage: $0 <command>"
+  echo "Usage: $0 <command>" >&2
   exit 1
 fi
 COMMAND="$1"
 
 # Ensure we're in a tmux session
 if [ -z "$TMUX" ]; then
-  echo "tmux session not detected"
+  echo "tmux session not detected" >&2
   exit 1
 fi
 
