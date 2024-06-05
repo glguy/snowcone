@@ -56,14 +56,14 @@ function M.resolve_password(task, entry)
                     return (stdout:match '^[^\n]*')
                 end
             else
-                error('Password command failed: ' .. stderr)
+                error('command failed (' .. exit_code .. '): ' .. stderr, 0)
             end
         elseif entry.prompt then
             local password = M.ask_password(task, entry.prompt)
             if password then
                 return password
             else
-                error('Password prompt failed')
+                error('prompt failed', 0)
             end
         elseif entry.file then
             return assert(file.read(M.resolve_path(entry.file)))
