@@ -284,7 +284,7 @@ function M:draw_status(win)
         local buffer = buffers[talk_target]
         local name = buffer and buffer.name or talk_target
         bold(win)
-        win:waddstr(name, '')
+        win:waddstr(scrub(name), '')
         normal(win)
     end
 
@@ -296,7 +296,7 @@ function M:draw_status(win)
             else
                 yellow(win)
             end
-            win:waddstr(buffer.name, '')
+            win:waddstr(scrub(buffer.name), '')
         end
     end
 end

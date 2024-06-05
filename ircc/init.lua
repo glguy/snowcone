@@ -3,6 +3,7 @@ local tablex = require 'pl.tablex'
 local path   = require 'pl.path'
 local file   = require 'pl.file'
 local app    = require 'pl.app'
+local lexer  = require 'pl.lexer'
 
 if not uptime then
     warn '@on'
@@ -551,6 +552,47 @@ function set_talk_target(target)
     end
 end
 
+-- Parse a table assignment of the form: (key '.')* key '=' value
+-- Key and value can be numbers, quoted strings, or unquoted strings
+local function apply_override(tab, src)
+    local keys = {}
+    local key
+    local value
+    local want = 'key'
+    for token, lexeme in lexer.scan(src) do
+        if 'key' == want and ('iden' == token or 'string' == token or 'number' == token) then
+            key = lexeme
+            want = 'separator'
+        elseif 'separator' == want and '.' == token then
+            table.insert(keys, key)
+            want = 'key'
+        elseif 'separator' == want and '=' == token then
+            want = 'value'
+        elseif 'value' == want and ('iden' == token or 'string' == token or 'number' == token) then
+            value = lexeme
+            want = 'eol'
+        elseif 'value' == want and 'number' == token then
+            value = tonumber(lexeme)
+            want = 'eol'
+        else
+            error(
+                'syntax error at \x1f' .. lexeme ..
+                '\x1f got \x02' .. token ..
+                '\x02 expected \x02' .. want ..
+                '\x02 in \x1f' .. src, 0)
+        end
+    end
+
+    -- Parse succeeded; apply change
+    for _, x in ipairs(keys) do
+        if not tab[x] then
+            tab[x] = {}
+        end
+        tab = tab[x]
+    end
+    tab[key] = value
+end
+
 local function startup()
     -- initialize global variables
     if not messages then
@@ -582,7 +624,7 @@ local function startup()
                         or path.join(assert(os.getenv 'HOME', 'HOME not set'), '.config')
         config_dir = path.join(config_home, 'snowcone')
 
-        local flags = app.parse_args(arg, {config=true})
+        local flags, overrides = app.parse_args(arg, {config=true})
         if not flags then
             error("Failed to parse command line flags")
         end
@@ -616,6 +658,10 @@ local function startup()
             configuration = chunk()
         else
             error ('Unknown configuration file extension: ' .. ext)
+        end
+
+        for _, override in ipairs(overrides) do
+            apply_override(configuration, override)
         end
     end
 
