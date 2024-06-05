@@ -19,7 +19,7 @@ extern "C" {
 
 namespace {
 
-using ExecSig = void(int, std::string, std::string);
+using ExecSig = void(boost::system::error_code, int, std::string, std::string);
 
 template <boost::asio::completion_handler_for<ExecSig> Handler>
 struct Exec
@@ -35,6 +35,8 @@ struct Exec
     std::string stdin_text_;
     std::string stdout_text_;
     std::string stderr_text_;
+
+    boost::system::error_code error_code_;
 
     Exec(Handler&& handler, boost::asio::io_context& io_context, std::optional<std::string> input)
         : handler_{std::move(handler)}
@@ -55,7 +57,7 @@ struct Exec
     {
         if (++stage_ == 4)
         {
-            handler_(exit_code_, std::move(stdout_text_), std::move(stderr_text_));
+            handler_(error_code_, exit_code_, std::move(stdout_text_), std::move(stderr_text_));
         }
     }
 };
@@ -100,7 +102,8 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
         }
     );
     auto const completion =
-        [self](boost::system::error_code, int const exit_code) {
+        [self](boost::system::error_code const err, int const exit_code) {
+            self->error_code_ = err;
             self->exit_code_ = exit_code;
             self->complete();
         };
@@ -116,10 +119,10 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
             io_context,
             completion,
             std::move(file),
-            boost::process::args += std::move(args),
-            boost::process::std_in  < self->stdin_,
-            boost::process::std_out > self->stdout_,
-            boost::process::std_err > self->stderr_
+            boost::process::args = std::move(args),
+            boost::process::std_in = self->stdin_,
+            boost::process::std_out = self->stdout_,
+            boost::process::std_err = self->stderr_
         );
     }
     else
@@ -128,9 +131,9 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
             io_context,
             completion,
             std::move(file),
-            boost::process::args += std::move(args),
-            boost::process::std_out > self->stdout_,
-            boost::process::std_err > self->stderr_
+            boost::process::args = std::move(args),
+            boost::process::std_out = self->stdout_,
+            boost::process::std_err = self->stderr_
         );
     }
 };
@@ -179,15 +182,30 @@ auto l_execute(lua_State* L) -> int
     lua_pushvalue(L, 3);
     auto const cb = luaL_ref(L, LUA_REGISTRYINDEX);
     auto const app = App::from_lua(L);
-    async_exec(app->get_executor(), file, std::move(args), std::move(input), [L = app->get_lua(), cb](int const exitcode, std::string const stdout, std::string const stderr) {
-        // get callback
-        lua_rawgeti(L, LUA_REGISTRYINDEX, cb);
-        luaL_unref(L, LUA_REGISTRYINDEX, cb);
+    async_exec(
+        app->get_executor(),
+        file,
+        std::move(args),
+        std::move(input),
+        [L = app->get_lua(), cb](boost::system::error_code const err, int const exitcode, std::string const stdout, std::string const stderr) {
+            // get callback
+            lua_rawgeti(L, LUA_REGISTRYINDEX, cb);
+            luaL_unref(L, LUA_REGISTRYINDEX, cb);
 
-        lua_pushinteger(L, exitcode);
-        push_string(L, stdout);
-        push_string(L, stderr);
-        safecall(L, "process complete callback", 3);
-    });
+            if (err)
+            {
+                luaL_pushfail(L);
+                push_string(L, err.what());
+                safecall(L, "process failure callback", 2);
+            }
+            else
+            {
+                lua_pushinteger(L, exitcode);
+                push_string(L, stdout);
+                push_string(L, stderr);
+                safecall(L, "process complete callback", 3);
+            }
+        }
+    );
     return 0;
 }

@@ -1,10 +1,14 @@
 local M = {}
 
 local function report(exitcode, stdout, stderr)
-    if 0 ~= exitcode then
-        status('notify', 'unexpected exit: %d', exitcode)
-        if '' ~= stdout then status('notify', 'stdout: %s', stdout) end
-        if '' ~= stderr then status('notify', 'stderr: %s', stderr) end
+    if exitcode then
+        if 0 ~= exitcode then
+            status('notify', 'unexpected exit: %d', exitcode)
+            if '' ~= stdout then status('notify', 'stdout: %s', stdout) end
+            if '' ~= stderr then status('notify', 'stderr: %s', stderr) end
+        end
+    else
+        error(stdout) -- contains the error message
     end
 end
 

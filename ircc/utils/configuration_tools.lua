@@ -55,8 +55,10 @@ function M.resolve_password(task, entry)
                 else
                     return (stdout:match '^[^\n]*')
                 end
-            else
+            elseif exit_code then
                 error('command failed (' .. exit_code .. '): ' .. stderr, 0)
+            else
+                error('execute failed: ' .. stdout, 0)
             end
         elseif entry.prompt then
             local password = M.ask_password(task, entry.prompt)
