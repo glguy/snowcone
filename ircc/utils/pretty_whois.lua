@@ -71,47 +71,50 @@ return function(nick, remote)
                 helpop = true
             end,
             [N.RPL_ENDOFWHOIS] = function()
-                status('whois', '\x0303WHOIS\x03 \x02%s\x02!\x02%s\x02@\x02%s\x02 %s',
+                status('whois', '\x0307╔═╡ \x0303WHOIS\x03: \x02%s\x02!\x02%s\x02@\x02%s\x02 %s',
                     nick, username, host, info)
 
                 if mask then
                     local org, asn = ip_org(ip)
-                    status('whois', 'mask: \x02%s\x02 ip: \x02%s\x02 asn: \x02%s\x02 org: \x02%s',
+                    status('whois', '\x0307║\x03    mask: \x02%s\x02 ip: \x02%s\x02 asn: \x02%s\x02 org: \x02%s',
                         mask, ip, asn or '*', org or '*')
                 end
 
                 if operator then
-                    status('whois', 'account: \x02%s\x02 operator: \x02%s\x02 privset: \x02%s\x02 helpop: \x02%s',
+                    status('whois',
+                        '\x0307║\x03 account: \x02%s\x02 operator: \x02%s\x02 privset: \x02%s\x02 helpop: \x02%s',
                         account or '*', operator, privset or '*', helpop)
                 elseif helpop then
-                    status('whois', 'account: \x02%s helpop: \x02%s', account or '*', true)
+                    status('whois', '\x0307║\x03 account: \x02%s helpop: \x02%s', account or '*', true)
                 else
-                    status('whois', 'account: \x02%s', account or '*')
+                    status('whois', '\x0307║\x03 account: \x02%s', account or '*')
                 end
 
-                status('whois', 'secure: \x02%s\x02 certfp: \x02%s', secure, certfp or '*')
+                status('whois', '\x0307║\x03  secure: \x02%s\x02 certfp: \x02%s', secure, certfp or '*')
 
-                status('whois', 'server: \x02%s', server)
+                status('whois', '\x0307║\x03channels: \x02%s', table.concat(channels, ' '))
 
-                status('whois', 'channels: \x02%s', table.concat(channels, ' '))
-
-                local now = os.time()
-                status(
-                    'whois', 'idle:   \x02%s\x02 (\x02%s\x02)',
-                    os.date('%c', now - idletime),
-                    time.pretty_seconds(idletime))
-                status(
-                    'whois', 'signon: \x02%s\x02 (\x02%s\x02)',
-                    os.date('%c', signontime),
-                    time.pretty_seconds(os.time() - signontime))
+                if idletime then
+                    local now = os.time()
+                    status(
+                        'whois', '\x0307║\x03    idle: \x02%s\x02 (\x02%s\x02)',
+                        os.date('%c', now - idletime),
+                        time.pretty_seconds(idletime))
+                    status(
+                        'whois', '\x0307║\x03  signon: \x02%s\x02 (\x02%s\x02)',
+                        os.date('%c', signontime),
+                        time.pretty_seconds(os.time() - signontime))
+                end
 
                 if away then
-                    status('whois', 'away: %s', away)
+                    status('whois', '\x0307║\x03    away: %s', away)
                 end
 
                 for _, special in ipairs(specials) do
-                    status('whois', 'special: \x02%s', special)
+                    status('whois', '\x0307║\x03 special: \x02%s', special)
                 end
+
+                status('whois', '\x0307╚═\x03 server: \x02%s', server)
 
                 return true
             end,
