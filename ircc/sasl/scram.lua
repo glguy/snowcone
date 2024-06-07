@@ -21,7 +21,7 @@ local function scram_encode_username(name)
         [','] = '=2C',
         ['='] = '=3D',
     }
-    return string.gsub(name, '[,=]', table)
+    return (string.gsub(name, '[,=]', table))
 end
 
 -- luacheck: ignore 631
