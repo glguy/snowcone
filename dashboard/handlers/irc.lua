@@ -114,7 +114,11 @@ M[N.ERR_UNAVAILRESOURCE] = new_nickname
 M[N.RPL_TESTMASKGECOS] = function(irc)
     local loc, rem, mask, gecos = table.unpack(irc,2,5)
     local total = math.tointeger(loc) + math.tointeger(rem)
-    if staged_action and '*' == gecos and '*!'..staged_action.mask == mask then
+
+    -- If the current staged_action is for this particular mask update the count
+    if staged_action and staged_action.mask
+    and '*' == gecos
+    and '*!'..staged_action.mask == mask then
         staged_action.count = total
     end
     if gecos == '*' and mask:startswith '*!*@' then

@@ -92,7 +92,7 @@ function M:render()
             local y, x = ncurses.getyx()
             add_click(y, x, x + #entry.mask, function()
                 send('TESTLINE', entry.mask)
-                staged_action = {action = 'unkline'}
+                staged_action = {action = 'unkline', mask = entry.mask}
             end)
         elseif entry.kind == 'dline' then
             local y, x = ncurses.getyx()
