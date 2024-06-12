@@ -105,6 +105,7 @@ return table {
     plugins = table {
         modules             = {type = 'table', elements = {type = 'string'}},
         directory           = {type = 'string'},
+        custom              = {type = 'table'},
     },
 
     notifications = table {
