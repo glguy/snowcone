@@ -85,4 +85,18 @@ function M.get_credential(credentials, name)
     end
 end
 
+function M.get_server_password(task, tab)
+    local password = tab.password
+    if password then
+        password = configuration_tools.resolve_password(task, password)
+        if password then
+            local username = tab.username
+            if username then
+                password = username .. ':' .. pass
+            end
+        end
+    end
+    return password
+end
+
 return M

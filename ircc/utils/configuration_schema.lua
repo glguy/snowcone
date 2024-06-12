@@ -98,7 +98,7 @@ return table {
     },
     challenge = table {
         automatic           = {type = 'boolean'},
-	username            = {type = 'string', required = true},
+	    username            = {type = 'string', required = true},
         key                 = required_password_schema,
         password            = password_schema,
     },

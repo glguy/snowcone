@@ -34,16 +34,13 @@ return function(task)
 
     cap_negotiation.LS(task)
 
-    if configuration.server.password then
-        local success, pass = pcall(configuration_tools.resolve_password, task, configuration.server.password)
-        if success then
-            if configuration.server.username then
-                pass = configuration.server.username .. ':' .. pass
-            end
-            send('PASS', {content=pass, secret=true})
-        else
-            status('PASS', 'Password resolution failed: %s', pass)
+    local success, password = pcall(configuration_tools.get_server_password, task, configuration.server)
+    if success then
+        if password then
+            send('PASS', {content=password, secret=true})
         end
+    else
+        status('PASS', 'Password resolution failed: %s', password)
     end
 
     local nick  = configuration.identity.nick
