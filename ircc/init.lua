@@ -444,6 +444,13 @@ function conn_handlers.MSG(irc, flush)
     end
     irc.timestamp = uptime
 
+    do
+        local source <const> = irc.source
+        if source then
+            irc.nick, irc.user, irc.host = source:match '^([^!]*)!([^@]*)@(.*)$'
+        end
+    end
+
     messages:insert(true, irc)
     irc_state.liveness = uptime
 

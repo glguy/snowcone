@@ -3,7 +3,6 @@ local tablex = require 'pl.tablex'
 local addircstr = require 'utils.irc_formatting'
 local drawing = require 'utils.drawing'
 local scrub = require 'utils.scrub'
-local split_nuh   = require 'utils.split_nick_user_host'
 
 local function chat_renderer(win, irc)
     local action = 'PRIVMSG' == irc.command and irc[2]:match '^\x01ACTION (.*)\x01$'
@@ -18,7 +17,7 @@ local command_renderer = {
 
 function command_renderer.JOIN(win, irc)
     italic(win)
-    local _, u, h = split_nuh(irc.source)
+    local u, h = irc.user, irc.host
     win:waddstr('join ')
     normal(win)
     win:waddstr(scrub(u), '@', scrub(h))
@@ -99,7 +98,7 @@ end
 
 local function render_irc(win, irc)
     local command = irc.command
-    local source = irc.source:match '^(.-)([.!])' or irc.source
+    local source = irc.nick or irc.source:match '^[^.!]*'
 
     local action = 'PRIVMSG' == command and irc[2]:match '^\x01ACTION (.*)\x01$'
 
