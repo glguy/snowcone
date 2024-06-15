@@ -9,7 +9,7 @@ function M:render(win)
     win:waddstr('          -= plugins =-\n')
     normal(win)
 
-    for script_name, plugin in pairs(plugins) do
+    for script_name, plugin in pairs(plugin_manager.plugins) do
         local name = plugin.name or script_name
 
         normal(win)

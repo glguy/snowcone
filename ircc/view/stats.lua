@@ -60,18 +60,8 @@ function M:render(win)
 
     label 'Plugins'
     bold(win)
-    do
-        local first_plugin = true
-        for script_name, plugin in pairs(plugins) do
-            if first_plugin then
-                first_plugin = false
-            else
-                bold_(win)
-                win:waddstr(', ')
-                bold(win)
-            end
-            win:waddstr(plugin.name or script_name)
-        end
+    for _, name in ipairs(plugin_manager:plugin_list()) do
+        win:waddstr(name, ' ')
     end
     bold_(win)
     win:waddstr '\n'

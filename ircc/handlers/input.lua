@@ -47,13 +47,9 @@ function execute.command()
 
     local command, args = text:match '^ *(%g*) *(.*)$'
 
-    local entry = commands[command]
-    if not entry then
-        for _, plugin in pairs(plugins) do
-            entry = plugin.commands[command]
-            if entry then break end
-        end
-    end
+    local entry =
+        commands[command] or
+        plugin_manager:find_command(command)
 
     if entry then
         set_input_mode()
@@ -84,7 +80,7 @@ local function do_tab(dir)
                 end
             end
             -- Plugin command handlers
-            for _, plugin in pairs(plugins) do
+            for _, plugin in pairs(plugin_manager.plugins) do
                 if plugin.commands then
                     for k, _ in pairs(plugin.commands) do
                         if k:startswith(seed) then

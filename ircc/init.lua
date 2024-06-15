@@ -73,11 +73,11 @@ local Editor              <const> = require 'components.Editor'
 local Irc                 <const> = require 'components.Irc'
 local irc_registration    <const> = require 'utils.irc_registration'
 local OrderedMap          <const> = require 'components.OrderedMap'
-local plugin_manager      <const> = require 'utils.plugin_manager'
 local send                <const> = require 'utils.send'
 local Task                <const> = require 'components.Task'
 local configuration_tools <const> = require 'utils.configuration_tools'
 local NotificationManager <const> = require 'components.NotificationManager'
+local PluginManager       <const> = require 'components.PluginManager'
 
 function reset_filter()
     filter = nil
@@ -478,15 +478,7 @@ function conn_handlers.MSG(irc, flush)
         end
     end
 
-    for _, plugin in pairs(plugins) do
-        local h = plugin.irc
-        if h then
-            local success, result = pcall(h, irc)
-            if not success then
-                status(plugin.name, 'irc handler error: %s', result)
-            end
-        end
-    end
+    plugin_manager:dispatch_irc(irc)
 
     if flush then
         draw()
@@ -618,6 +610,7 @@ local function startup()
         client_tasks = {} -- tasks not associated with any particular irc_state
         textbox_offset = 0
         notification_manager = NotificationManager()
+        plugin_manager = PluginManager()
     end
 
     commands = require 'handlers.commands'
@@ -679,7 +672,12 @@ local function startup()
     -- Plugins ========================================================
 
     notification_manager:load(configuration.notifications.module)
-    plugin_manager.startup()
+
+    plugin_manager:load(
+            configuration_tools.resolve_path(configuration.plugins and configuration.plugins.directory) or
+            path.join(config_dir, 'plugins'),
+            configuration.plugins and configuration.plugins.modules or {}
+    )
 
     -- Timers =========================================================
 

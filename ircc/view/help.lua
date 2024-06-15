@@ -26,7 +26,7 @@ function M:render(win)
         do_command(k,v)
     end
 
-    for _, plugin in pairs(plugins) do
+    for _, plugin in pairs(plugin_manager.plugins) do
         for k,v in pairs(plugin.commands) do
             do_command(k,v)
         end

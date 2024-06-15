@@ -33,7 +33,7 @@ stds = {
             "input_win", -- window used to draw the bottom status bar
             "textbox_offset",
             "textbox_pad",
-            "plugins", -- map of loaded plugins
+            "plugin_manager", -- plugin logic
             "irc_state", -- state of the current IRC connection
             "input_mode", -- current input mode: filter, talk, command, password
             "password_task", -- coroutine for password mode
