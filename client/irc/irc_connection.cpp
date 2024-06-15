@@ -172,7 +172,6 @@ auto build_ssl_context(
     EVP_PKEY* client_key
 ) -> boost::asio::ssl::context
 {
-    boost::system::error_code error;
     boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
     ssl_context.set_default_verify_paths();
 
