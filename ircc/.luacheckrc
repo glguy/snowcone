@@ -48,7 +48,7 @@ stds = {
             "editor", -- input textbox state
             "filter", -- pattern used to filter chat messages
             "terminal_focus", -- true when terminal has focus
-            "notification_muted", -- notifications we've already seen
+            "notification_manager", -- notification logic
             "mode_current", -- connected, connecting, idle
             "mode_target", -- connect, idle, exit
             "mode_timestamp", -- uptime value when mode_current changed

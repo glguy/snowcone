@@ -71,7 +71,7 @@ return function(nick, remote)
                 helpop = true
             end,
             [N.RPL_ENDOFWHOIS] = function()
-                status('whois', '\x0307╔═╡ \x0303WHOIS\x03: \x02%s\x02!\x02%s\x02@\x02%s\x02 %s',
+                status('whois', '\x0307╓   \x0303WHOIS\x03: \x02%s\x02!\x02%s\x02@\x02%s\x02 %s',
                     nick, username, host, info)
 
                 if mask then
@@ -114,7 +114,7 @@ return function(nick, remote)
                     status('whois', '\x0307║\x03 special: \x02%s', special)
                 end
 
-                status('whois', '\x0307╚═\x03 server: \x02%s', server)
+                status('whois', '\x0307╙ \x03 server: \x02%s', server)
 
                 return true
             end,

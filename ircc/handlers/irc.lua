@@ -153,15 +153,6 @@ M[N.ERR_ERRONEUSNICKNAME] = new_nickname
 M[N.ERR_NICKNAMEINUSE] = new_nickname
 M[N.ERR_UNAVAILRESOURCE] = new_nickname
 
-local function do_notify(target, nick, text)
-    local key = snowcone.irccase(target)
-    if not terminal_focus
-    and configuration.notifications then
-        local previous = notification_muted[key]
-        notification_muted[key] = require(configuration.notifications.module).notify(previous, target, nick, text)
-    end
-end
-
 local function route_chat_to_buffer(target, text, irc)
     local buffer_target
     local mention
@@ -192,7 +183,7 @@ local function route_chat_to_buffer(target, text, irc)
     end
 
     if mention and buffer_target and nick then
-        do_notify(buffer_target, nick, text)
+        notification_manager:notify(buffer_target, nick, text)
     end
 
     -- will be nil in the case of a message from a server

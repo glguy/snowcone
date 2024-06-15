@@ -77,6 +77,7 @@ local plugin_manager      <const> = require 'utils.plugin_manager'
 local send                <const> = require 'utils.send'
 local Task                <const> = require 'components.Task'
 local configuration_tools <const> = require 'utils.configuration_tools'
+local NotificationManager <const> = require 'components.NotificationManager'
 
 function reset_filter()
     filter = nil
@@ -614,9 +615,9 @@ local function startup()
         mode_current = 'idle'
         mode_timestamp = 0 -- time that mode_current changed
         terminal_focus = true
-        notification_muted = {}
         client_tasks = {} -- tasks not associated with any particular irc_state
         textbox_offset = 0
+        notification_manager = NotificationManager()
     end
 
     commands = require 'handlers.commands'
@@ -677,6 +678,7 @@ local function startup()
 
     -- Plugins ========================================================
 
+    notification_manager:load(configuration.notifications.module)
     plugin_manager.startup()
 
     -- Timers =========================================================
