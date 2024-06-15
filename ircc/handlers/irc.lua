@@ -5,7 +5,6 @@ local Channel         <const> = require 'components.Channel'
 local Member          <const> = require 'components.Member'
 local N               <const> = require 'utils.numerics'
 local send            <const> = require 'utils.send'
-local split_nuh       <const> = require 'utils.split_nick_user_host'
 local split_statusmsg <const> = require 'utils.split_statusmsg'
 
 --- Add an IRC message to a buffer and update other metadata
@@ -166,7 +165,7 @@ end
 local function route_chat_to_buffer(target, text, irc)
     local buffer_target
     local mention
-    local nick = split_nuh(irc.source)
+    local nick = irc.nick
 
     if irc_state:is_channel_name(target) then
         buffer_target = target
@@ -212,7 +211,7 @@ function M.PRIVMSG(irc)
     -- reply only to targetted CTCP requests from staff
     if ctcp and target == irc_state.nick and irc.tags['solanum.chat/oper'] then
         ctcp = ctcp:upper()
-        local nick = split_nuh(irc.source)
+        local nick = irc.nick
         local h = ctcp_handlers[ctcp]
         if h then
             local response = h(ctcp_args)
@@ -233,17 +232,15 @@ function M.NOTICE(irc)
 end
 
 function M.WALLOPS(irc)
-    local nick = split_nuh(irc.source)
-    status('wallops', '%s: %s', nick, irc[1])
+    status('wallops', '%s: %s', irc.nick, irc[1])
 end
 
 function M.OPERWALL(irc)
-    local nick = split_nuh(irc.source)
-    status('operwall', '%s: %s', nick, irc[1])
+    status('operwall', '%s: %s', irc.nick, irc[1])
 end
 
 function M.NICK(irc)
-    local oldnick = split_nuh(irc.source)
+    local oldnick = irc.nick
     local newnick = irc[1]
 
     local oldkey = snowcone.irccase(oldnick)
@@ -568,7 +565,7 @@ end
 -----------------------------------------------------------------------
 
 function M.JOIN(irc)
-    local who = split_nuh(irc.source)
+    local who = irc.nick
     local channel = irc[1]
     if who == irc_state.nick then
         irc_state.channels[snowcone.irccase(channel)] = Channel(channel)
@@ -598,7 +595,7 @@ M[N.RPL_NAMREPLY] = function(irc)
 end
 
 function M.PART(irc)
-    local who = split_nuh(irc.source)
+    local who = irc.nick
     local channel = irc[1]
     if who == irc_state.nick then
         irc_state.channels[snowcone.irccase(channel)] = nil
@@ -609,7 +606,7 @@ function M.PART(irc)
 end
 
 function M.QUIT(irc)
-    local nick = split_nuh(irc.source)
+    local nick = irc.nick
     local key = snowcone.irccase(nick)
 
     for _, channel in pairs(irc_state.channels) do
@@ -638,15 +635,13 @@ function M.KICK(irc)
 end
 
 function M.AWAY(irc)
-    local nick = split_nuh(irc.source)
-    local user = irc_state:get_user(nick)
-    user.away = irc[1] -- will be nil when BACK
+    irc_state:get_user(irc.nick).away = irc[1] -- will be nil when BACK
 end
 
 function M.ACCOUNT(irc)
     -- the client doesn't track user account names
 
-    local nick = split_nuh(irc.source)
+    local nick = irc.nick
     local key = snowcone.irccase(nick)
     for _, channel in pairs(irc_state.channels) do
         local member = channel.members[key]
@@ -662,7 +657,7 @@ end
 function M.CHGHOST(irc)
     -- the client doesn't track user hostnames
 
-    local nick = split_nuh(irc.source)
+    local nick = irc.nick
     local key = snowcone.irccase(nick)
     for _, channel in pairs(irc_state.channels) do
         local member = channel.members[key]
