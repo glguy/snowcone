@@ -449,9 +449,8 @@ auto l_read_x509(lua_State* const L) -> int
 {
     std::size_t key_len;
     auto const key = luaL_checklstring(L, 1, &key_len);
-    auto const priv = lua_toboolean(L, 2);
     std::size_t pass_len;
-    auto const pass = luaL_optlstring(L, 3, "", &pass_len);
+    auto const pass = luaL_optlstring(L, 2, "", &pass_len);
 
     auto cb = [pass, pass_len](char* buf, int size, int) -> int {
         if (size < 0 || size_t(size) < pass_len)
