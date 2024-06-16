@@ -8,7 +8,6 @@
 #include <lualib.h>
 #include <ncurses.h>
 
-#include <assert.h>
 #include <stdlib.h>
 
 static int l_erase(lua_State* const L)
@@ -202,8 +201,7 @@ static int l_colorset(lua_State* const L)
         if (assigned < COLOR_PAIRS)
         {
             *pair = assigned++;
-            int result = init_pair(*pair, fore, back);
-            assert(ERR != result);
+            init_pair(*pair, fore, back);
         }
     }
 

@@ -461,6 +461,10 @@ auto l_gen_pkey(lua_State* const L) -> int
     {
         pkey = EVP_PKEY_Q_keygen(nullptr, nullptr, type);
     }
+    else
+    {
+        return luaL_error(L, "Unknown key type");
+    }
 
     if (nullptr == pkey)
     {
