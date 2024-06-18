@@ -38,6 +38,7 @@ local caps_supported = {
     'cap-notify',
     'chghost',
     'draft/chathistory',
+    'draft/event-playback',
     'extended-join',
     'extended-monitor',
     'invite-notify',

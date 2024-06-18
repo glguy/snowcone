@@ -25,8 +25,8 @@ M['chathistory'] = function(params, messages)
         if command == "PRIVMSG" or command == "NOTICE" then
             local prefix = split_statusmsg(irc[1])
             irc.statusmsg = prefix
-            buffer.messages:insert(true, irc)
         end
+        buffer.messages:insert(true, irc)
     end
 end
 
