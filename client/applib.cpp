@@ -3,6 +3,7 @@
 #include "app.hpp"
 #include "config.hpp"
 #include "dnslookup.hpp"
+#include "httpd.hpp"
 #include "irc/lua.hpp"
 #include "safecall.hpp"
 #include "strings.hpp"
@@ -284,6 +285,7 @@ luaL_Reg const applib_module[] = {
     {"execute", l_execute},
     {"stop_input", l_stop_input},
     {"start_input", l_start_input},
+    {"start_httpd", start_httpd},
     {}
 };
 
