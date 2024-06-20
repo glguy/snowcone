@@ -49,7 +49,7 @@ auto mime_type(beast::string_view const path) -> beast::string_view
     if (iequals(ext, ".css"))
         return "text/css";
     if (iequals(ext, ".txt"))
-        return "text/plain";
+        return "text/plain; charset=utf-8";
     if (iequals(ext, ".js"))
         return "application/javascript";
     if (iequals(ext, ".json"))
