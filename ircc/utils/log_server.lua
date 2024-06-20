@@ -1,6 +1,7 @@
 local scrub <const> = require 'utils.scrub'
+local tablex <const> = require 'pl.tablex'
 
-local M = {}
+local M <const> = {}
 
 local server
 
@@ -32,16 +33,56 @@ local function htmlencode(str)
 end
 
 local routes = {
-    ['^/index.html$'] = function()
-        local reply = {'<ul>'}
+    ['^/$'] = function()
+        local reply = {'<ul><li><a href="/status.html">Status</a><li><a href="/console.html">Console</a>'}
         local i = 1
-        for k in pairs(buffers) do
+        for k in tablex.sort(buffers) do
             i = i + 1
             reply[i] = '<li><a href="/buffer/' .. urlencode(k) .. '.txt">' .. htmlencode(k) .. '</a>'
         end
         i = i + 1
         reply[i] = '</ul>'
         return 'text/html', html(table.concat(reply))
+    end,
+
+    ['^/status.html$'] = function()
+        local reply = {'<p><a href="/">Index</a></p><table>'}
+        local i = 1
+        for entry in status_messages:reveach() do
+            i = i + 1
+            reply[i] =
+                '<tr><td>' .. entry.time .. '</td><td>' .. htmlencode(entry.category) ..
+                '</td><td>' .. htmlencode(entry.text) .. '</td></tr>'
+        end
+        i = i + 1
+        reply[i] = '</table>'
+        return 'text/html; charset=utf-8', html(table.concat(reply))
+    end,
+
+    ['^/console.html$'] = function()
+        local reply = {'<p><a href="/">Index</a></p><table>'}
+        local i = 1
+        for irc in messages:reveach() do
+            local n = #irc
+            local raw
+            if n == 0 then
+                raw = irc.command
+            elseif not (irc[n]:startswith ':' or irc[n]:match ' ') then
+                raw = irc.command .. ' ' .. table.concat(irc, ' ')
+            elseif n > 1 then
+                raw = irc.command .. ' ' .. table.concat(irc, ' ', 1, n-1) .. ' :' .. irc[n]
+            else
+                raw = irc.command .. ' :' .. irc[n]
+            end
+            i = i + 1
+            reply[i] =
+                '<tr><td>' .. irc.time .. '</td><td>' ..
+                htmlencode(scrub(raw)) ..
+                '</td></tr>'
+        end
+        i = i + 1
+        reply[i] = '</table>'
+        return 'text/html; charset=utf-8', html(table.concat(reply))
     end,
 
     ['^/buffer/(.*)%.txt$'] = function(name)
@@ -51,15 +92,17 @@ local routes = {
             error('no such buffer: ' .. name)
         end
 
-        local reply = {}
-        local i = 0
+        local reply = {'<p><a href="/">Index</a></p><pre>'}
+        local i = 1
         for irc in buffer.messages:reveach() do
             if irc.command == 'PRIVMSG' or irc.command == 'NOTICE' then
                 i = i + 1
-                reply[i] =  '<' .. irc.nick .. '> ' .. scrub(irc[2]) .. '\n'
+                reply[i] =  htmlencode('<' .. irc.nick .. '> ' .. scrub(irc[2]) .. '\n')
             end
         end
-        return 'text/plain; charset=utf-8', table.concat(reply)
+        i = i + 1
+        reply[i] = '</pre>'
+        return 'text/html; charset=utf-8', html(table.concat(reply))
     end,
 }
 

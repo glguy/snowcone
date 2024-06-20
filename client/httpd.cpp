@@ -81,16 +81,6 @@ auto handle_request(
     std::string body{body_ptr, len};
     lua_pop(L, 2);
 
-    if (req.method() == http::verb::head)
-    {
-        http::response<http::empty_body> res{http::status::ok, req.version()};
-        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-        res.set(http::field::content_type, content_type);
-        res.content_length(body.size());
-        res.keep_alive(req.keep_alive());
-        return res;
-    }
-
     http::response<http::string_body> res{http::status::ok, req.version()};
     res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
     res.set(http::field::content_type, content_type);
@@ -215,47 +205,47 @@ class Listener : public std::enable_shared_from_this<Listener>
 public:
     Listener(
         net::io_context& ioc,
-        tcp::endpoint const endpoint,
         LuaRef&& cb
     )
         : ioc_{ioc}
         , acceptor_{net::make_strand(ioc)}
         , cb_{std::move(cb)}
     {
+    }
+
+    // Start accepting incoming connections
+    auto run(tcp::endpoint const endpoint) -> void
+    {
         beast::error_code ec;
 
         acceptor_.open(endpoint.protocol(), ec);
         if (ec)
         {
-            fail(cb, ec, "open");
+            fail(cb_, ec, "open");
             return;
         }
 
         acceptor_.set_option(net::socket_base::reuse_address(true), ec);
         if (ec)
         {
-            fail(cb, ec, "set_option");
+            fail(cb_, ec, "set_option");
             return;
         }
 
         acceptor_.bind(endpoint, ec);
         if (ec)
         {
-            fail(cb, ec, "bind");
+            fail(cb_, ec, "bind");
             return;
         }
 
         acceptor_.listen(net::socket_base::max_listen_connections, ec);
         if (ec)
         {
-            fail(cb, ec, "listen");
+            fail(cb_, ec, "listen");
             return;
         }
-    }
 
-    // Start accepting incoming connections
-    auto run() -> void
-    {
         do_accept();
     }
 
@@ -326,9 +316,8 @@ auto start_httpd(lua_State* const L) -> int
         httpd,
         std::make_shared<Listener>(
             App::from_lua(L)->get_executor(),
-            tcp::endpoint{{}, port},
             std::move(cb))
     );
-    (*httpd)->run();
+    (*httpd)->run({{}, port});
     return 1;
 }
