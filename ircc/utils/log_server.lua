@@ -41,7 +41,7 @@ local routes = {
         end
         i = i + 1
         reply[i] = '</ul>'
-        return html(table.concat(reply))
+        return 'text/html', html(table.concat(reply))
     end,
 
     ['^/buffer/(.*)%.txt$'] = function(name)
@@ -59,7 +59,7 @@ local routes = {
                 reply[i] =  '<' .. irc.nick .. '> ' .. scrub(irc[2]) .. '\n'
             end
         end
-        return table.concat(reply)
+        return 'text/plain; charset=utf-8', table.concat(reply)
     end,
 }
 
