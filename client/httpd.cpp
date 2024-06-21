@@ -1,6 +1,6 @@
 #include "httpd.hpp"
-#include "app.hpp"
 #include "LuaRef.hpp"
+#include "app.hpp"
 #include "safecall.hpp"
 #include "strings.hpp"
 #include "userdata.hpp"
@@ -16,8 +16,10 @@ extern "C" {
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/version.hpp>
+#include <boost/beast/websocket.hpp>
 #include <boost/config.hpp>
 #include <cstdlib>
+#include <deque>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -28,10 +30,133 @@ extern "C" {
 namespace beast = boost::beast; // from <boost/beast.hpp>
 namespace http = beast::http; // from <boost/beast/http.hpp>
 namespace net = boost::asio; // from <boost/asio.hpp>
+namespace websocket = beast::websocket;
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 using namespace std::literals::chrono_literals;
 
 namespace {
+
+struct Websocket
+{
+    websocket::stream<beast::tcp_stream> ws_;
+    std::deque<std::string> messages_; // outgoing messages
+    beast::flat_buffer buffer_; // incoming message
+    LuaRef cb_; // on_recv callback
+
+    Websocket(websocket::stream<beast::tcp_stream>&& ws)
+        : ws_{std::move(ws)}
+    {
+    }
+
+    auto send(std::string str) -> void
+    {
+        messages_.push_back(std::move(str));
+        if (1 == messages_.size())
+        {
+            start_send();
+        }
+    }
+
+    auto on_read(boost::system::error_code const ec, std::size_t transferred) -> void
+    {
+        if (ec)
+        {
+            if (cb_)
+            {
+                auto const L = cb_.get_lua();
+                cb_.push();
+                luaL_pushfail(L);
+                push_string(L, ec.what());
+                safecall(L, "wsreaderr", 2);
+            }
+        }
+        else
+        {
+            if (cb_)
+            {
+                auto const L = cb_.get_lua();
+                cb_.push();
+                lua_pushlstring(L, static_cast<char*>(buffer_.data().data()), transferred);
+                safecall(L, "wsread", 1);
+            }
+            start_read();
+        }
+    }
+
+    auto on_send(boost::system::error_code const ec, std::size_t transferred) -> void
+    {
+        messages_.pop_front();
+        if (not ec && not messages_.empty())
+        {
+            start_send();
+        }
+    }
+
+    auto start_send() -> void
+    {
+        ws_.async_write(boost::asio::buffer(messages_.front()), beast::bind_front_handler(&Websocket::on_send, this));
+    }
+
+    auto start_read() -> void
+    {
+        buffer_.clear();
+        ws_.async_read(buffer_, beast::bind_front_handler(&Websocket::on_read, this));
+    }
+
+    auto on_accept(boost::system::error_code const ec) -> void
+    {
+        start_read();
+        if (not messages_.empty())
+        {
+            start_send();
+        }
+    }
+};
+
+luaL_Reg const WsMT[]{
+    {"__gc", [](auto const L) {
+         std::destroy_at(check_udata<Websocket>(L, 1));
+         return 0;
+     }},
+    {}
+};
+
+luaL_Reg const WsM[]{
+    {"send", [](auto const L) {
+         auto const w = check_udata<Websocket>(L, 1);
+         auto const s = check_string_view(L, 2);
+         w->send(std::string{s});
+         return 0;
+     }},
+    {"on_recv", [](auto const L) {
+                auto const w = check_udata<Websocket>(L, 1);
+                lua_settop(L, 2);
+                w->cb_ = LuaRef::create(L);
+                return 0; }},
+    {}
+};
+template <class Body, class Allocator>
+auto handle_websocket(
+    LuaRef const& cb,
+    beast::tcp_stream&& stream,
+    http::request<Body, http::basic_fields<Allocator>> const& req
+) -> void
+{
+    auto const L = cb.get_lua();
+    cb.push();
+    lua_pushstring(L, "WS");
+    push_string(L, req.target());
+    auto const obj = new_udata<Websocket>(L, 0, [L] {
+        luaL_setfuncs(L, WsMT, 0);
+        luaL_newlibtable(L, WsM);
+        luaL_setfuncs(L, WsM, 0);
+        lua_setfield(L, -2, "__index");
+    });
+    std::construct_at(obj, websocket::stream<beast::tcp_stream>{std::move(stream)});
+    obj->ws_.async_accept(req, beast::bind_front_handler(&Websocket::on_accept, obj));
+
+    safecall(L, "wsaccept", 3);
+}
 
 // Return a response for the given request.
 //
@@ -148,7 +273,14 @@ public:
             return fail(cb_, ec, "read");
         }
 
-        send_response(handle_request(cb_, std::move(req_)));
+        if (beast::websocket::is_upgrade(req_))
+        {
+            handle_websocket(std::move(cb_), std::move(stream_), std::move(req_));
+        }
+        else
+        {
+            send_response(handle_request(cb_, std::move(req_)));
+        }
     }
 
     auto send_response(http::message_generator&& msg) -> void
@@ -278,6 +410,9 @@ private:
 };
 
 } // namespace
+
+template <>
+char const* udata_name<Websocket> = "websocket";
 
 template <>
 char const* udata_name<Listener> = "listener";

@@ -5,6 +5,8 @@ extern "C" {
 #include <lua.h>
 }
 
+#include <utility>
+
 class LuaRef
 {
     lua_State* L_;
