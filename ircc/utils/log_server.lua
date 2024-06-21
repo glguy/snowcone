@@ -128,6 +128,7 @@ end
 
 function M.start(port)
     server = snowcone.start_httpd(port, handler)
+    background_resources[server] = true
 end
 
 function M.stop()

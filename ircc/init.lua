@@ -300,6 +300,11 @@ snowcone.setmodule(function(ev, ...)
 end)
 
 local function teardown()
+    for x in pairs(background_resources) do
+        x:close()
+    end
+    background_resources = nil
+
     if tick_timer then
         tick_timer:cancel()
         tick_timer = nil
@@ -611,6 +616,10 @@ local function startup()
         textbox_offset = 0
         notification_manager = NotificationManager()
         plugin_manager = PluginManager()
+        
+        -- anything left behind in background_resources will be closed on teardown
+        background_resources = {}
+        setmetatable(background_resources, { __mode = "k" })
     end
 
     commands = require 'handlers.commands'

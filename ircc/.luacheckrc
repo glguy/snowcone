@@ -27,6 +27,7 @@ stds = {
 
             "tick_timer", -- timer object that runs every second
             "client_tasks", -- tasks not associated with an irc connection
+            "background_resources", -- things that need to be closed on quit
 
             -- global client state
             "main_pad", -- bad used for rendering most of the client

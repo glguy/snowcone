@@ -196,7 +196,7 @@ public:
 //------------------------------------------------------------------------------
 
 // Accepts incoming connections and launches the sessions
-class Listener : public std::enable_shared_from_this<Listener>
+class Listener
 {
     net::io_context& ioc_;
     tcp::acceptor acceptor_;
@@ -260,7 +260,7 @@ private:
         // The new connection gets its own strand
         acceptor_.async_accept(
             net::make_strand(ioc_),
-            beast::bind_front_handler(&Listener::on_accept, shared_from_this())
+            beast::bind_front_handler(&Listener::on_accept, this)
         );
     }
 
@@ -280,7 +280,7 @@ private:
 } // namespace
 
 template <>
-char const* udata_name<std::shared_ptr<Listener>> = "listener";
+char const* udata_name<Listener> = "listener";
 
 auto start_httpd(lua_State* const L) -> int
 {
@@ -288,19 +288,17 @@ auto start_httpd(lua_State* const L) -> int
     lua_settop(L, 2);
     auto cb = LuaRef::create(L);
 
-    auto const httpd = new_udata<std::shared_ptr<Listener>>(L, 0, [L] {
+    auto const httpd = new_udata<Listener>(L, 0, [L] {
         luaL_Reg const M[]{
             {"close", [](auto const L) {
-                 auto const httpd = check_udata<std::shared_ptr<Listener>>(L, 1);
-                 (*httpd)->close();
+                 check_udata<Listener>(L, 1)->close();
                  return 0;
              }},
             {}
         };
         luaL_Reg const MT[]{
             {"__gc", [](auto const L) {
-                 auto const httpd = check_udata<std::shared_ptr<Listener>>(L, 1);
-                 (*httpd)->close();
+                 auto const httpd = check_udata<Listener>(L, 1);
                  std::destroy_at(httpd);
                  return 0;
              }},
@@ -314,10 +312,9 @@ auto start_httpd(lua_State* const L) -> int
 
     std::construct_at(
         httpd,
-        std::make_shared<Listener>(
-            App::from_lua(L)->get_executor(),
-            std::move(cb))
+        App::from_lua(L)->get_executor(),
+        std::move(cb)
     );
-    (*httpd)->run({{}, port});
+    httpd->run({{}, port});
     return 1;
 }
