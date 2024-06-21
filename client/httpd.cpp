@@ -36,31 +36,110 @@ using namespace std::literals::chrono_literals;
 
 namespace {
 
-struct Websocket
+class Websocket : public std::enable_shared_from_this<Websocket>
 {
+    // Note that this class uses a shared_ptr because the stream
+    // destructor for stream specifically must not run while
+    // asynchronous operations are in flight.
+
     websocket::stream<beast::tcp_stream> ws_;
     std::deque<std::string> messages_; // outgoing messages
     beast::flat_buffer buffer_; // incoming message
     LuaRef cb_; // on_recv callback
+    bool closed;
 
-    Websocket(websocket::stream<beast::tcp_stream>&& ws)
-        : ws_{std::move(ws)}
+public:
+    Websocket(beast::tcp_stream&& stream)
+        : ws_{std::move(stream)}
+        , cb_{}
+        , closed{false}
     {
     }
 
-    auto send(std::string str) -> void
+    auto set_callback(LuaRef&& ref) -> void
     {
-        if (ws_.is_open())
+        cb_ = std::move(ref);
+    }
+
+    auto close() -> void
+    {
+        if (not closed)
         {
-            messages_.push_back(std::move(str));
-            if (1 == messages_.size())
+            closed = true;
+            if (messages_.empty())
             {
-                start_send();
+                start_close();
             }
         }
     }
 
-    auto on_read(boost::system::error_code const ec, std::size_t transferred) -> void
+    auto send(std::string str) -> void
+    {
+        if (not closed)
+        {
+            messages_.push_back(std::move(str));
+            if (1 == messages_.size())
+            {
+                start_write();
+            }
+        }
+    }
+
+    template <typename Body, typename Allocator>
+    auto run(http::request<Body, http::basic_fields<Allocator>> const& req) -> void
+    {
+        ws_.async_accept(req, beast::bind_front_handler(&Websocket::on_accept, shared_from_this()));
+    }
+
+private:
+    auto on_accept(boost::system::error_code const ec) -> void
+    {
+        start_read();
+        if (not messages_.empty())
+        {
+            start_write();
+        }
+    }
+
+    auto start_write() -> void
+    {
+        ws_.async_write(
+            net::buffer(messages_.front()),
+            beast::bind_front_handler(&Websocket::on_write, shared_from_this())
+        );
+    }
+
+    auto on_write(boost::system::error_code const ec, std::size_t transferred) -> void
+    {
+        if (ec)
+        {
+            closed = true;
+            messages_.clear();
+        }
+        else
+        {
+            messages_.pop_front();
+            if (not messages_.empty())
+            {
+                start_write();
+            }
+            else if (closed)
+            {
+                start_close();
+            }
+        }
+    }
+
+    auto start_read() -> void
+    {
+        buffer_.clear();
+        ws_.async_read(
+            buffer_,
+            beast::bind_front_handler(&Websocket::on_read, shared_from_this())
+        );
+    }
+
+    auto on_read(boost::system::error_code const ec, std::size_t const transferred) -> void
     {
         if (ec)
         {
@@ -86,48 +165,22 @@ struct Websocket
         }
     }
 
-    auto on_send(boost::system::error_code const ec, std::size_t transferred) -> void
+    auto start_close() -> void
     {
-        if (ec)
-        {
-            messages_.clear();
-        }
-        else
-        {
-            messages_.pop_front();
-            if (not messages_.empty())
-            {
-                start_send();
-            }
-        }
+        ws_.async_close(
+            websocket::close_code::normal,
+            beast::bind_front_handler(&Websocket::on_close, shared_from_this())
+        );
     }
 
-    auto start_send() -> void
+    auto on_close(boost::system::error_code) -> void
     {
-        ws_.async_write(
-            net::buffer(messages_.front()),
-            beast::bind_front_handler(&Websocket::on_send, this));
-    }
-
-    auto start_read() -> void
-    {
-        buffer_.clear();
-        ws_.async_read(buffer_, beast::bind_front_handler(&Websocket::on_read, this));
-    }
-
-    auto on_accept(boost::system::error_code const ec) -> void
-    {
-        start_read();
-        if (not messages_.empty())
-        {
-            start_send();
-        }
     }
 };
 
 luaL_Reg const WsMT[]{
     {"__gc", [](auto const L) {
-         std::destroy_at(check_udata<Websocket>(L, 1));
+         std::destroy_at(check_udata<std::shared_ptr<Websocket>>(L, 1));
          return 0;
      }},
     {}
@@ -135,16 +188,22 @@ luaL_Reg const WsMT[]{
 
 luaL_Reg const WsM[]{
     {"send", [](auto const L) {
-         auto const w = check_udata<Websocket>(L, 1);
+         auto& w = *check_udata<std::shared_ptr<Websocket>>(L, 1);
          auto const s = check_string_view(L, 2);
          w->send(std::string{s});
          return 0;
      }},
+    {"close", [](auto const L) {
+         auto& w = *check_udata<std::shared_ptr<Websocket>>(L, 1);
+         w->close();
+         return 0;
+     }},
     {"on_recv", [](auto const L) {
-                auto const w = check_udata<Websocket>(L, 1);
-                lua_settop(L, 2);
-                w->cb_ = LuaRef::create(L);
-                return 0; }},
+         auto& w = *check_udata<std::shared_ptr<Websocket>>(L, 1);
+         lua_settop(L, 2);
+         w->set_callback(LuaRef::create(L));
+         return 0;
+     }},
     {}
 };
 
@@ -159,16 +218,19 @@ auto handle_websocket(
     cb.push();
     lua_pushstring(L, "WS");
     push_string(L, req.target());
-    auto const obj = new_udata<Websocket>(L, 0, [L] {
+    auto& obj = *new_udata<std::shared_ptr<Websocket>>(L, 0, [L] {
         luaL_setfuncs(L, WsMT, 0);
         luaL_newlibtable(L, WsM);
         luaL_setfuncs(L, WsM, 0);
         lua_setfield(L, -2, "__index");
     });
-    std::construct_at(obj, websocket::stream<beast::tcp_stream>{std::move(stream)});
-    obj->ws_.async_accept(req, beast::bind_front_handler(&Websocket::on_accept, obj));
+    std::construct_at(
+        &obj,
+        std::make_shared<Websocket>(std::move(stream))
+    );
+    obj->run(req);
 
-    safecall(L, "wsaccept", 3);
+    safecall(L, "ws", 3);
 }
 
 // Return a response for the given request.
@@ -341,11 +403,11 @@ public:
 //------------------------------------------------------------------------------
 
 // Accepts incoming connections and launches the sessions
-class Listener
+class Listener : public std::enable_shared_from_this<Listener>
 {
     net::io_context& ioc_;
     tcp::acceptor acceptor_;
-    LuaRef cb_;
+    LuaRef const cb_;
 
 public:
     Listener(
@@ -405,7 +467,7 @@ private:
         // The new connection gets its own strand
         acceptor_.async_accept(
             net::make_strand(ioc_),
-            beast::bind_front_handler(&Listener::on_accept, this)
+            beast::bind_front_handler(&Listener::on_accept, shared_from_this())
         );
     }
 
@@ -422,13 +484,29 @@ private:
     }
 };
 
+luaL_Reg const M[]{
+    {"close", [](auto const L) {
+         auto& l = *check_udata<std::shared_ptr<Listener>>(L, 1);
+         l->close();
+         return 0;
+     }},
+    {}
+};
+luaL_Reg const MT[]{
+    {"__gc", [](auto const L) {
+         std::destroy_at(check_udata<std::shared_ptr<Listener>>(L, 1));
+         return 0;
+     }},
+    {}
+};
+
 } // namespace
 
 template <>
-char const* udata_name<Websocket> = "websocket";
+char const* udata_name<std::shared_ptr<Websocket>> = "websocket";
 
 template <>
-char const* udata_name<Listener> = "listener";
+char const* udata_name<std::shared_ptr<Listener>> = "listener";
 
 auto start_httpd(lua_State* const L) -> int
 {
@@ -436,22 +514,7 @@ auto start_httpd(lua_State* const L) -> int
     lua_settop(L, 2);
     auto cb = LuaRef::create(L);
 
-    auto const httpd = new_udata<Listener>(L, 0, [L] {
-        luaL_Reg const M[]{
-            {"close", [](auto const L) {
-                 check_udata<Listener>(L, 1)->close();
-                 return 0;
-             }},
-            {}
-        };
-        luaL_Reg const MT[]{
-            {"__gc", [](auto const L) {
-                 auto const httpd = check_udata<Listener>(L, 1);
-                 std::destroy_at(httpd);
-                 return 0;
-             }},
-            {}
-        };
+    auto& httpd = *new_udata<std::shared_ptr<Listener>>(L, 0, [L] {
         luaL_setfuncs(L, MT, 0);
         luaL_newlibtable(L, M);
         luaL_setfuncs(L, M, 0);
@@ -459,9 +522,11 @@ auto start_httpd(lua_State* const L) -> int
     });
 
     std::construct_at(
-        httpd,
-        App::from_lua(L)->get_executor(),
-        std::move(cb)
+        &httpd,
+        std::make_shared<Listener>(
+            App::from_lua(L)->get_executor(),
+            std::move(cb)
+        )
     );
     httpd->run({{}, port});
     return 1;

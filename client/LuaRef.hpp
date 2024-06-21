@@ -44,7 +44,6 @@ public:
 
     auto operator=(LuaRef&& value) noexcept -> LuaRef&
     {
-        clear();
         swap(value);
         return *this;
     }
@@ -53,8 +52,7 @@ public:
     {
         if (&value != this)
         {
-            LuaRef temp{value};
-            swap(temp);
+            *this = LuaRef{value};
         }
         return *this;
     }
