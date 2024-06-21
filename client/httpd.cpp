@@ -31,7 +31,7 @@ namespace beast = boost::beast; // from <boost/beast.hpp>
 namespace http = beast::http; // from <boost/beast/http.hpp>
 namespace net = boost::asio; // from <boost/asio.hpp>
 namespace websocket = beast::websocket;
-using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
+using tcp = net::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 using namespace std::literals::chrono_literals;
 
 namespace {
@@ -50,10 +50,13 @@ struct Websocket
 
     auto send(std::string str) -> void
     {
-        messages_.push_back(std::move(str));
-        if (1 == messages_.size())
+        if (ws_.is_open())
         {
-            start_send();
+            messages_.push_back(std::move(str));
+            if (1 == messages_.size())
+            {
+                start_send();
+            }
         }
     }
 
@@ -85,16 +88,25 @@ struct Websocket
 
     auto on_send(boost::system::error_code const ec, std::size_t transferred) -> void
     {
-        messages_.pop_front();
-        if (not ec && not messages_.empty())
+        if (ec)
         {
-            start_send();
+            messages_.clear();
+        }
+        else
+        {
+            messages_.pop_front();
+            if (not messages_.empty())
+            {
+                start_send();
+            }
         }
     }
 
     auto start_send() -> void
     {
-        ws_.async_write(boost::asio::buffer(messages_.front()), beast::bind_front_handler(&Websocket::on_send, this));
+        ws_.async_write(
+            net::buffer(messages_.front()),
+            beast::bind_front_handler(&Websocket::on_send, this));
     }
 
     auto start_read() -> void
@@ -135,6 +147,7 @@ luaL_Reg const WsM[]{
                 return 0; }},
     {}
 };
+
 template <class Body, class Allocator>
 auto handle_websocket(
     LuaRef const& cb,
@@ -147,9 +160,9 @@ auto handle_websocket(
     lua_pushstring(L, "WS");
     push_string(L, req.target());
     auto const obj = new_udata<Websocket>(L, 0, [L] {
-        luaL_setfuncs(L, WsMT, 0);
-        luaL_newlibtable(L, WsM);
-        luaL_setfuncs(L, WsM, 0);
+        luaL_setfuncs(L, Websocket::WsMT, 0);
+        luaL_newlibtable(L, Websocket::WsM);
+        luaL_setfuncs(L, Websocket::WsM, 0);
         lua_setfield(L, -2, "__index");
     });
     std::construct_at(obj, websocket::stream<beast::tcp_stream>{std::move(stream)});
@@ -419,7 +432,7 @@ char const* udata_name<Listener> = "listener";
 
 auto start_httpd(lua_State* const L) -> int
 {
-    boost::asio::ip::port_type const port = lua_tointeger(L, 1);
+    net::ip::port_type const port = lua_tointeger(L, 1);
     lua_settop(L, 2);
     auto cb = LuaRef::create(L);
 
