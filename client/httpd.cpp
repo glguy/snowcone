@@ -160,9 +160,9 @@ auto handle_websocket(
     lua_pushstring(L, "WS");
     push_string(L, req.target());
     auto const obj = new_udata<Websocket>(L, 0, [L] {
-        luaL_setfuncs(L, Websocket::WsMT, 0);
-        luaL_newlibtable(L, Websocket::WsM);
-        luaL_setfuncs(L, Websocket::WsM, 0);
+        luaL_setfuncs(L, WsMT, 0);
+        luaL_newlibtable(L, WsM);
+        luaL_setfuncs(L, WsM, 0);
         lua_setfield(L, -2, "__index");
     });
     std::construct_at(obj, websocket::stream<beast::tcp_stream>{std::move(stream)});
