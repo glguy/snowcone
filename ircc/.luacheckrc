@@ -25,7 +25,6 @@ stds = {
             "reset_filter", -- function to reset message filter
             "initialize", -- function to reset all state variable to their defaults
 
-            "tick_timer", -- timer object that runs every second
             "client_tasks", -- tasks not associated with an irc connection
             "background_resources", -- things that need to be closed on quit
 

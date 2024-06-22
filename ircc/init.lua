@@ -300,15 +300,11 @@ snowcone.setmodule(function(ev, ...)
 end)
 
 local function teardown()
-    for x in pairs(background_resources) do
-        x:close()
+    for object, finalizer in pairs(background_resources) do
+        object[finalizer](object)
     end
     background_resources = nil
 
-    if tick_timer then
-        tick_timer:cancel()
-        tick_timer = nil
-    end
     snowcone.shutdown()
 end
 
@@ -596,8 +592,9 @@ local function apply_override(tab, src)
 end
 
 local function startup()
+    local initial = not messages
     -- initialize global variables
-    if not messages then
+    if initial then
         messages = OrderedMap(1000) -- Raw IRC protocol messages
         buffers = {} -- [irccase(target)] = {name=string, messages=OrderedMap, activity=number}
         status_messages = OrderedMap(100)
@@ -620,6 +617,27 @@ local function startup()
         -- anything left behind in background_resources will be closed on teardown
         background_resources = {}
         setmetatable(background_resources, { __mode = "k" })
+
+        local tick_timer = snowcone.newtimer()
+        background_resources[tick_timer] = 'cancel'
+        local function cb()
+            tick_timer:start(1000, cb)
+            uptime = uptime + 1
+
+            if irc_state then
+                if irc_state.phase == 'connected' and uptime == irc_state.liveness + 30 then
+                    send('PING', os.time())
+                elseif uptime == irc_state.liveness + 60 then
+                    disconnect()
+                end
+            elseif mode_current == 'idle'
+            and mode_target == 'connected'
+            and uptime == mode_timestamp + 5 then
+                connect()
+            end
+            draw()
+        end
+        tick_timer:start(1000, cb)
     end
 
     commands = require 'handlers.commands'
@@ -690,28 +708,6 @@ local function startup()
     )
 
     -- Timers =========================================================
-
-    if not tick_timer then
-        tick_timer = snowcone.newtimer()
-        local function cb()
-            tick_timer:start(1000, cb)
-            uptime = uptime + 1
-
-            if irc_state then
-                if irc_state.phase == 'connected' and uptime == irc_state.liveness + 30 then
-                    send('PING', os.time())
-                elseif uptime == irc_state.liveness + 60 then
-                    disconnect()
-                end
-            elseif mode_current == 'idle'
-            and mode_target == 'connected'
-            and uptime == mode_timestamp + 5 then
-                connect()
-            end
-            draw()
-        end
-        tick_timer:start(1000, cb)
-    end
 
     if mode_target == 'connected' and mode_current == 'idle' then
         connect()
