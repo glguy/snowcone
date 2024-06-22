@@ -616,7 +616,7 @@ local function startup()
         textbox_offset = 0
         notification_manager = NotificationManager()
         plugin_manager = PluginManager()
-        
+
         -- anything left behind in background_resources will be closed on teardown
         background_resources = {}
         setmetatable(background_resources, { __mode = "k" })
@@ -680,7 +680,8 @@ local function startup()
 
     -- Plugins ========================================================
 
-    notification_manager:load(configuration.notifications.module)
+    notification_manager:load(
+        configuration.notifications and configuration.notifications.module)
 
     plugin_manager:load(
             configuration_tools.resolve_path(configuration.plugins and configuration.plugins.directory) or
