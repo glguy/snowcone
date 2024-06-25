@@ -302,8 +302,8 @@ end)
 local function teardown()
     for object, finalizer in pairs(background_resources) do
         object[finalizer](object)
+        background_resources[finalizer] = nil
     end
-    background_resources = nil
 
     snowcone.shutdown()
 end

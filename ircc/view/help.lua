@@ -27,8 +27,10 @@ function M:render(win)
     end
 
     for _, plugin in pairs(plugin_manager.plugins) do
-        for k,v in pairs(plugin.commands) do
-            do_command(k,v)
+        if plugin.commands then
+            for k,v in pairs(plugin.commands) do
+                do_command(k,v)
+            end
         end
     end
 

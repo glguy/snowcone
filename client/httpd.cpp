@@ -19,7 +19,7 @@ extern "C" {
 #include <boost/beast/websocket.hpp>
 #include <boost/config.hpp>
 #include <cstdlib>
-#include <deque>
+#include <queue>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -43,7 +43,7 @@ class Websocket : public std::enable_shared_from_this<Websocket>
     // asynchronous operations are in flight.
 
     websocket::stream<beast::tcp_stream> ws_;
-    std::deque<std::string> messages_; // outgoing messages
+    std::queue<std::string> messages_; // outgoing messages
     beast::flat_buffer buffer_; // incoming message
     LuaRef cb_; // on_recv callback
     bool closed;
@@ -56,7 +56,7 @@ public:
     {
     }
 
-    auto set_callback(LuaRef&& ref) -> void
+    auto set_callback(LuaRef ref) -> void
     {
         cb_ = std::move(ref);
     }
@@ -77,7 +77,7 @@ public:
     {
         if (not closed)
         {
-            messages_.push_back(std::move(str));
+            messages_.push(std::move(str));
             if (1 == messages_.size())
             {
                 start_write();
@@ -109,16 +109,16 @@ private:
         );
     }
 
-    auto on_write(boost::system::error_code const ec, std::size_t transferred) -> void
+    auto on_write(boost::system::error_code const ec, std::size_t) -> void
     {
         if (ec)
         {
             closed = true;
-            messages_.clear();
+            messages_ = {};
         }
         else
         {
-            messages_.pop_front();
+            messages_.pop();
             if (not messages_.empty())
             {
                 start_write();
@@ -139,7 +139,7 @@ private:
         );
     }
 
-    auto on_read(boost::system::error_code const ec, std::size_t const transferred) -> void
+    auto on_read(boost::system::error_code const ec, std::size_t const) -> void
     {
         if (ec)
         {
@@ -158,7 +158,8 @@ private:
             {
                 auto const L = cb_.get_lua();
                 cb_.push();
-                lua_pushlstring(L, static_cast<char*>(buffer_.data().data()), transferred);
+                auto const buf = buffer_.data();                
+                lua_pushlstring(L, static_cast<char*>(buf.data()), buf.size());
                 safecall(L, "wsread", 1);
             }
             start_read();
@@ -348,7 +349,7 @@ public:
             return fail(cb_, ec, "read");
         }
 
-        if (beast::websocket::is_upgrade(req_))
+        if (websocket::is_upgrade(req_))
         {
             handle_websocket(std::move(cb_), std::move(stream_), std::move(req_));
         }
