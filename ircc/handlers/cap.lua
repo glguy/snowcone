@@ -9,12 +9,12 @@ function CAP.DEL(capsarg)
 end
 
 function CAP.NEW(capsarg)
-    irc_state:add_caps(capsarg)
+    local new_caps = irc_state:add_caps(capsarg)
 
     local req = {}
 
     for cap, _ in pairs(irc_state.caps_wanted) do
-        if irc_state.caps_available[cap] and not irc_state.caps_enabled[cap] then
+        if nil ~= new_caps[cap] and not irc_state.caps_enabled[cap] then
             table.insert(req, cap)
         end
     end

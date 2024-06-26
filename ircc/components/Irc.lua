@@ -239,23 +239,29 @@ function M:clear_partial_mode_list()
 end
 
 function M:add_caps(capsarg)
+    local caps = {}
     for cap, eq, arg in capsarg:gmatch '([^ =]+)(=?)([^ ]*)' do
-        self.caps_available[cap] = eq == '=' and arg or true
-
+        local cap_value = eq == '=' and arg or true
+        self.caps_available[cap] = cap_value
+        caps[cap] = cap_value
         if 'sasl' == cap then
             self:set_sasl_mechs(arg)
         end
     end
+    return caps
 end
 
 function M:del_caps(capsarg)
+    local caps = {}
     for cap in capsarg:gmatch '[^ ]+' do
         self.caps_available[cap] = nil
         self.caps_enabled[cap] = nil
+        caps[cap] = true
         if 'sasl' == cap then
             self:set_sasl_mechs(nil)
         end
     end
+    return caps
 end
 
 --- Set the list of supported SASL mechanisms
