@@ -54,6 +54,7 @@ public:
         , cb_{}
         , closed{false}
     {
+        ws_.set_option(websocket::stream_base::timeout::suggested(beast::role_type::server));
     }
 
     auto set_callback(LuaRef ref) -> void
@@ -215,6 +216,8 @@ auto handle_websocket(
     http::request<Body, http::basic_fields<Allocator>> const& req
 ) -> void
 {
+    stream.expires_never();
+
     auto const L = cb.get_lua();
     cb.push();
     lua_pushstring(L, "WS");
