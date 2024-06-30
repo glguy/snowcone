@@ -264,7 +264,15 @@ auto handle_request(
     push_string(L, req.method_string());
     push_string(L, req.target());
     push_string(L, req.body());
-    if (LUA_OK != lua_pcall(L, 3, 2, 0))
+
+    lua_newtable(L);
+    for (auto&& field : req) {
+        push_string(L, field.name_string());
+        push_string(L, field.value());
+        lua_settable(L, -3);
+    }
+
+    if (LUA_OK != lua_pcall(L, 4, 2, 0))
     {
         std::string const err = lua_tostring(L, -1);
         lua_pop(L, 1);
