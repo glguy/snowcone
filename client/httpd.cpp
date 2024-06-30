@@ -263,7 +263,8 @@ auto handle_request(
     cb.push();
     push_string(L, req.method_string());
     push_string(L, req.target());
-    if (LUA_OK != lua_pcall(L, 2, 2, 0))
+    push_string(L, req.body());
+    if (LUA_OK != lua_pcall(L, 3, 2, 0))
     {
         std::string const err = lua_tostring(L, -1);
         lua_pop(L, 1);
