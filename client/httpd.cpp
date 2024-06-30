@@ -541,6 +541,6 @@ auto start_httpd(lua_State* const L) -> int
             std::move(cb)
         )
     );
-    httpd->run({{}, port});
+    httpd->run({net::ip::address_v6{}, port});
     return 1;
 }
