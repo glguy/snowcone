@@ -27,7 +27,7 @@ find_package(Boost 1.83.0 COMPONENTS filesystem)
 if(Boost_FOUND)
     set(BOOST_TARGETS Boost::headers Boost::filesystem)
 else()
-    set(BOOST_INCLUDE_LIBRARIES asio endian process system)
+    set(BOOST_INCLUDE_LIBRARIES asio beast endian process system)
     set(BOOST_ENABLE_CMAKE ON)
     include(FetchContent)
     FetchContent_Declare(
@@ -36,7 +36,7 @@ else()
     URL_HASH SHA1=a2b98cffc63bdc6a74a7134b97c44f61f2b52b04
     )
     FetchContent_MakeAvailable(Boost)
-    set(BOOST_TARGETS Boost::asio Boost::endian Boost::process)
+    set(BOOST_TARGETS Boost::asio Boost::beast Boost::endian Boost::process)
 endif()
 
 if(GEOIP_FOUND)
