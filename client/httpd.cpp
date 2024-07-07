@@ -279,27 +279,28 @@ auto handle_request(
         return server_error(err);
     }
 
-    http::response<http::string_body> res{http::status::ok, req.version()};
-    res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-    res.keep_alive(req.keep_alive());
-
-    auto const content_type_ptr = lua_tostring(L, -3);
-    if (content_type_ptr == nullptr)
+    auto const code = lua_tointeger(L, -3);
+    if (code == 0)
     {
         lua_pop(L, 3);
         return server_error("internal server error");
     }
-    res.set(http::field::content_type, content_type_ptr);
+
+    http::response<http::string_body> res{http::int_to_status(code), req.version()};
+    res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+    res.keep_alive(req.keep_alive());
 
     std::size_t len;
     auto const body_ptr = lua_tolstring(L, -2, &len);
     if (body_ptr == nullptr)
     {
-        lua_pop(L, 3);
-        return server_error("internal server error");
+        res.content_length(0);
     }
-    res.content_length(len);
-    res.body() = {body_ptr, len};
+    else
+    {
+        res.content_length(len);
+        res.body() = {body_ptr, len};
+    }
 
     if (lua_type(L, -1) == LUA_TTABLE)
     {
