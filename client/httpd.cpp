@@ -306,15 +306,15 @@ auto handle_request(
     {
         lua_pushnil(L);
         while (0 != lua_next(L, -2)) {
-            auto const key = lua_tostring(L, -2);
-            auto const val = lua_tostring(L, -1);
+            auto const key = luaL_tolstring(L, -2, nullptr);
+            auto const val = lua_tostring(L, -2);
             if (key == nullptr || val == nullptr)
             {
-                lua_pop(L, 5);
+                lua_pop(L, 6);
                 return server_error("internal server error");
             }
             res.set(key, val);
-            lua_pop(L, 1);
+            lua_pop(L, 2); // remove value and key-copy
         }
     }
 

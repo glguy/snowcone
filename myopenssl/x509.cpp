@@ -65,9 +65,9 @@ namespace {
         lua_pushnil(L); // first key
         while (0 != lua_next(L, arg))
         {
-            auto const field = lua_tostring(L, -2);
+            auto const field = luaL_tolstring(L, -2, nullptr);
             std::size_t len;
-            auto const value = lua_tolstring(L, -1, &len);
+            auto const value = lua_tolstring(L, -2, &len);
 
             if (nullptr == field || nullptr == value)
             {
@@ -76,7 +76,7 @@ namespace {
             }
 
             X509_NAME_add_entry_by_txt(name, field, MBSTRING_UTF8, reinterpret_cast<unsigned char const*>(value), len, -1, 0);
-            lua_pop(L, 1); // remove value but leave key on stack
+            lua_pop(L, 2); // remove value and key-string but leave key on stack
         }
         lua_pop(L, 1); // pop last key
 
