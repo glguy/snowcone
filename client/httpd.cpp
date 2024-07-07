@@ -159,7 +159,7 @@ private:
             {
                 auto const L = cb_.get_lua();
                 cb_.push();
-                auto const buf = buffer_.data();                
+                auto const buf = buffer_.data();
                 lua_pushlstring(L, static_cast<char*>(buf.data()), buf.size());
                 safecall(L, "wsread", 1);
             }
@@ -272,34 +272,53 @@ auto handle_request(
         lua_settable(L, -3);
     }
 
-    if (LUA_OK != lua_pcall(L, 4, 2, 0))
+    if (LUA_OK != lua_pcall(L, 4, 3, 0))
     {
         std::string const err = lua_tostring(L, -1);
         lua_pop(L, 1);
         return server_error(err);
     }
 
-    auto const content_type_ptr = lua_tostring(L, -2);
-
-    std::size_t len;
-    auto const body_ptr = lua_tolstring(L, -1, &len);
-
-    if (content_type_ptr == nullptr || body_ptr == nullptr)
-    {
-        lua_pop(L, 2);
-        return server_error("internal server error");
-    }
-
-    std::string content_type{content_type_ptr};
-    std::string body{body_ptr, len};
-    lua_pop(L, 2);
-
     http::response<http::string_body> res{http::status::ok, req.version()};
     res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-    res.set(http::field::content_type, content_type);
-    res.content_length(body.size());
-    res.body() = std::move(body);
     res.keep_alive(req.keep_alive());
+
+    auto const content_type_ptr = lua_tostring(L, -3);
+    if (content_type_ptr == nullptr)
+    {
+        lua_pop(L, 3);
+        return server_error("internal server error");
+    }
+    res.set(http::field::content_type, content_type_ptr);
+
+    std::size_t len;
+    auto const body_ptr = lua_tolstring(L, -2, &len);
+    if (body_ptr == nullptr)
+    {
+        lua_pop(L, 3);
+        return server_error("internal server error");
+    }
+    res.content_length(len);
+    res.body() = {body_ptr, len};
+
+    if (lua_type(L, -1) == LUA_TTABLE)
+    {
+        lua_pushnil(L);
+        while (0 != lua_next(L, -2)) {
+            auto const key = lua_tostring(L, -2);
+            auto const val = lua_tostring(L, -1);
+            if (key == nullptr || val == nullptr)
+            {
+                lua_pop(L, 5);
+                return server_error("internal server error");
+            }
+            res.set(key, val);
+            lua_pop(L, 1);
+        }
+    }
+
+    lua_pop(L, 3);
+
     return res;
 }
 
