@@ -440,7 +440,8 @@ public:
 class Listener : public std::enable_shared_from_this<Listener>
 {
     net::io_context& ioc_;
-    tcp::acceptor acceptor_;
+    std::vector<tcp::acceptor> acceptors_;
+    tcp::resolver resolver_;
     LuaRef const cb_;
 
 public:
@@ -449,63 +450,86 @@ public:
         LuaRef&& cb
     )
         : ioc_{ioc}
-        , acceptor_{net::make_strand(ioc)}
+        , acceptors_{}
+        , resolver_{ioc}
         , cb_{std::move(cb)}
     {
     }
 
-    // Start accepting incoming connections
-    auto run(tcp::endpoint const endpoint) -> void
+    auto on_resolve(beast::error_code ec, tcp::resolver::results_type const results) -> void
     {
-        beast::error_code ec;
-
-        acceptor_.open(endpoint.protocol(), ec);
         if (ec)
         {
-            fail(cb_, ec, "open");
+            fail(cb_, ec, "resolve");
             return;
         }
 
-        acceptor_.set_option(net::socket_base::reuse_address(true), ec);
-        if (ec)
-        {
-            fail(cb_, ec, "set_option");
-            return;
-        }
+        // Avoid reallocating the acceptors_ vector when emplacing later
+        acceptors_.reserve(results.size());
 
-        acceptor_.bind(endpoint, ec);
-        if (ec)
+        for (auto&& result : results)
         {
-            fail(cb_, ec, "bind");
-            return;
-        }
+            auto const endpoint = result.endpoint();
+            auto& acceptor = acceptors_.emplace_back(net::make_strand(ioc_));
+            acceptor.open(endpoint.protocol(), ec);
+            if (ec)
+            {
+                fail(cb_, ec, "open");
+                return;
+            }
 
-        acceptor_.listen(net::socket_base::max_listen_connections, ec);
-        if (ec)
-        {
-            fail(cb_, ec, "listen");
-            return;
-        }
+            acceptor.set_option(net::socket_base::reuse_address(true), ec);
+            if (ec)
+            {
+                fail(cb_, ec, "set_option");
+                return;
+            }
 
-        do_accept();
+            acceptor.bind(endpoint, ec);
+            if (ec)
+            {
+                fail(cb_, ec, "bind");
+                return;
+            }
+
+            acceptor.listen(net::socket_base::max_listen_connections, ec);
+            if (ec)
+            {
+                fail(cb_, ec, "listen");
+                return;
+            }
+
+            do_accept(acceptor);
+        }
+    }
+
+    // Start accepting incoming connections
+    auto run(std::string_view const host, std::string_view const service) -> void
+    {
+        resolver_.async_resolve(host, service, tcp::resolver::flags::passive,
+            beast::bind_front_handler(&Listener::on_resolve, shared_from_this())
+        );
     }
 
     auto close() -> void
     {
-        acceptor_.close();
+        for (auto& acceptor : acceptors_)
+        {
+            acceptor.close();
+        }
     }
 
 private:
-    auto do_accept() -> void
+    auto do_accept(tcp::acceptor& acceptor) -> void
     {
         // The new connection gets its own strand
-        acceptor_.async_accept(
+        acceptor.async_accept(
             net::make_strand(ioc_),
-            beast::bind_front_handler(&Listener::on_accept, shared_from_this())
+            beast::bind_front_handler(&Listener::on_accept, shared_from_this(), std::ref(acceptor))
         );
     }
 
-    auto on_accept(beast::error_code ec, tcp::socket socket) -> void
+    auto on_accept(tcp::acceptor& acceptor, beast::error_code ec, tcp::socket socket) -> void
     {
         if (ec)
         {
@@ -514,7 +538,7 @@ private:
         }
 
         std::make_shared<Session>(std::move(socket), LuaRef{cb_})->run();
-        do_accept();
+        do_accept(acceptor);
     }
 };
 
@@ -544,8 +568,9 @@ char const* udata_name<std::shared_ptr<Listener>> = "listener";
 
 auto start_httpd(lua_State* const L) -> int
 {
-    net::ip::port_type const port = lua_tointeger(L, 1);
-    lua_settop(L, 2);
+    auto const host = check_string_view(L, 1);
+    auto const service = check_string_view(L, 2);
+    lua_settop(L, 3);
     auto cb = LuaRef::create(L);
 
     auto& httpd = *new_udata<std::shared_ptr<Listener>>(L, 0, [L] {
@@ -562,6 +587,6 @@ auto start_httpd(lua_State* const L) -> int
             std::move(cb)
         )
     );
-    httpd->run({net::ip::address_v6{}, port});
+    httpd->run(host, service);
     return 1;
 }
