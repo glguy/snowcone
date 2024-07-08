@@ -27,12 +27,13 @@ extern "C" {
 #include <thread>
 #include <vector>
 
+
 namespace beast = boost::beast; // from <boost/beast.hpp>
 namespace http = beast::http; // from <boost/beast/http.hpp>
 namespace net = boost::asio; // from <boost/asio.hpp>
 namespace websocket = beast::websocket;
 using tcp = net::ip::tcp; // from <boost/asio/ip/tcp.hpp>
-using namespace std::literals::chrono_literals;
+using namespace std::literals;
 
 namespace {
 
@@ -249,12 +250,12 @@ auto handle_request(
 {
     // Returns a server error response
     auto const server_error =
-        [&req](beast::string_view what) {
+        [&req](std::string_view what) {
             http::response<http::string_body> res{http::status::internal_server_error, req.version()};
             res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
             res.set(http::field::content_type, "text/plain");
             res.keep_alive(req.keep_alive());
-            res.body() = "An error occurred: '" + std::string{what} + "'";
+            res.body() = what;
             res.prepare_payload();
             return res;
         };
@@ -283,7 +284,7 @@ auto handle_request(
     if (code == 0)
     {
         lua_pop(L, 3);
-        return server_error("internal server error");
+        return server_error("internal server error"sv);
     }
 
     http::response<http::string_body> res{http::int_to_status(code), req.version()};
