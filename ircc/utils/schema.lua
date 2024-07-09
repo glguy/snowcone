@@ -1,3 +1,5 @@
+local tablex = require 'pl.tablex'
+
 local M = {}
 
 function M.check(schema, value, path)
@@ -16,7 +18,9 @@ function M.check(schema, value, path)
     if schema.oneOf then
         local msg = "No alternatives available: " .. table.concat(path, '.')
         for i, subschema in ipairs(schema.oneOf) do
+            local save_path = tablex.copy(path)
             local success, submsg = pcall(M.check, subschema, value, path)
+            path = save_path
             if success then return end
             if i > 1 then
                 msg = msg .. "; " .. submsg

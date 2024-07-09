@@ -88,6 +88,7 @@ return table {
         client_cert         = password_schema,
         client_key          = password_schema,
         client_password     = password_schema,
+        use_store           = {type = 'boolean'},
         verify_host         = {type = 'string'},
         sni_host            = {type = 'string'},
     },

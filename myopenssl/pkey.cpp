@@ -17,6 +17,7 @@ extern "C" {
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
+#include <openssl/store.h>
 
 #include <cstddef>
 #include <cstring>
@@ -475,4 +476,34 @@ auto l_gen_pkey(lua_State* const L) -> int
     return 1;
 }
 
-} // namespace myopenssl
+auto l_pkey_from_store(lua_State * const L) -> int
+{
+    auto const key_name = luaL_checkstring(L, 1);
+    
+    auto const store = OSSL_STORE_open(key_name, nullptr, nullptr, nullptr, nullptr);
+    if (nullptr == store)
+    {
+        openssl_failure(L, "OSSL_STORE_open");
+    }
+
+    EVP_PKEY* pkey = nullptr;
+    for (OSSL_STORE_INFO* info = OSSL_STORE_load(store); info != nullptr; info = OSSL_STORE_load(store)) {
+        if (OSSL_STORE_INFO_PKEY == OSSL_STORE_INFO_get_type(info)) {
+            pkey = OSSL_STORE_INFO_get1_PKEY(info);
+            OSSL_STORE_INFO_free(info);
+            break;
+        }
+        OSSL_STORE_INFO_free(info);
+    }
+    OSSL_STORE_close(store);
+
+    if (nullptr == pkey)
+    {
+        luaL_error(L, "private key not found");
+    }
+
+    push_evp_pkey(L, pkey);
+    return 1;
+}
+
+} // namespace openssl

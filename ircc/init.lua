@@ -388,13 +388,21 @@ function connect()
             end
         end
 
-        if tls_client_key then
+    if tls_client_key then
+        if configuration.tls.use_store then
+            ok, tls_client_key = pcall(myopenssl.pkey_from_store, tls_client_key)
+            if not ok then
+                failure('Client key from store failed: %s', tls_client_key)
+                return
+            end
+        else
             ok, tls_client_key = pcall(myopenssl.read_pem, tls_client_key, true, tls_client_password)
             if not ok then
                 failure('Parse client key failed: %s', tls_client_key)
                 return
             end
         end
+    end
 
         local conn, errmsg =
             snowcone.connect(
