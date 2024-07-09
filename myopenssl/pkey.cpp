@@ -16,8 +16,9 @@ extern "C" {
 
 #include <openssl/evp.h>
 #include <openssl/pem.h>
-#include <openssl/rsa.h>
 #include <openssl/store.h>
+#include <openssl/rsa.h>
+#include <openssl/ui.h>
 
 #include <cstddef>
 #include <cstring>
@@ -479,10 +480,19 @@ auto l_gen_pkey(lua_State* const L) -> int
 auto l_pkey_from_store(lua_State * const L) -> int
 {
     auto const key_name = luaL_checkstring(L, 1);
+    auto const pin = luaL_optlstring(L, 2, "", nullptr);
     
-    auto const store = OSSL_STORE_open(key_name, nullptr, nullptr, nullptr, nullptr);
+    auto const ui_method = UI_create_method("pin");
+    UI_method_set_reader(ui_method, [](auto const ui, auto const uis) -> int {
+        auto const udata = UI_get0_user_data(ui);
+        char const* pin = static_cast<char const*>(udata);
+        return 0 == UI_set_result(ui, uis, pin);
+    });
+
+    auto const store = OSSL_STORE_open(key_name, ui_method, (void*)pin, nullptr, nullptr);
     if (nullptr == store)
     {
+        UI_destroy_method(ui_method);
         openssl_failure(L, "OSSL_STORE_open");
     }
 
@@ -495,7 +505,9 @@ auto l_pkey_from_store(lua_State * const L) -> int
         }
         OSSL_STORE_INFO_free(info);
     }
+
     OSSL_STORE_close(store);
+    UI_destroy_method(ui_method);
 
     if (nullptr == pkey)
     {

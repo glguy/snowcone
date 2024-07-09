@@ -390,7 +390,7 @@ function connect()
 
     if tls_client_key then
         if configuration.tls.use_store then
-            ok, tls_client_key = pcall(myopenssl.pkey_from_store, tls_client_key)
+            ok, tls_client_key = pcall(myopenssl.pkey_from_store, tls_client_key, tls_client_password)
             if not ok then
                 failure('Client key from store failed: %s', tls_client_key)
                 return
