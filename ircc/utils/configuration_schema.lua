@@ -102,6 +102,7 @@ return table {
 	    username            = {type = 'string', required = true},
         key                 = required_password_schema,
         password            = password_schema,
+        use_store           = {type = 'boolean'},
     },
     plugins = table {
         modules             = {type = 'table', elements = {type = 'string'}},

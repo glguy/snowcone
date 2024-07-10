@@ -25,7 +25,12 @@ return function(task)
             'missing challenge.key')
     local password <const> = configuration_tools.resolve_password(task, configuration.challenge.password)
     ---@type pkey
-    local key <const> = assert(myopenssl.read_pem(rsa_pem, true, password))
+    local key
+    if configuration.challenge.use_store then
+        key = myopenssl.pkey_from_store(rsa_pem, true, password)
+    else
+        key = myopenssl.read_pem(rsa_pem, true, password)
+    end
 
     local n = 0
     local chunks <const> = {}

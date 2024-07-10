@@ -480,7 +480,8 @@ auto l_gen_pkey(lua_State* const L) -> int
 auto l_pkey_from_store(lua_State * const L) -> int
 {
     auto const key_name = luaL_checkstring(L, 1);
-    auto const pin = luaL_optlstring(L, 2, "", nullptr);
+    auto const priv = lua_toboolean(L, 2);
+    auto const pin = luaL_optlstring(L, 3, "", nullptr);
     
     auto const ui_method = UI_create_method("pin");
     UI_method_set_reader(ui_method, [](auto const ui, auto const uis) -> int {
@@ -498,8 +499,15 @@ auto l_pkey_from_store(lua_State * const L) -> int
 
     EVP_PKEY* pkey = nullptr;
     for (OSSL_STORE_INFO* info = OSSL_STORE_load(store); info != nullptr; info = OSSL_STORE_load(store)) {
-        if (OSSL_STORE_INFO_PKEY == OSSL_STORE_INFO_get_type(info)) {
+        if (priv && OSSL_STORE_INFO_PKEY == OSSL_STORE_INFO_get_type(info))
+        {
             pkey = OSSL_STORE_INFO_get1_PKEY(info);
+            OSSL_STORE_INFO_free(info);
+            break;
+        }
+        else if (not priv && OSSL_STORE_INFO_PUBKEY == OSSL_STORE_INFO_get_type(info))
+        {
+            pkey = OSSL_STORE_INFO_get1_PUBKEY(info);
             OSSL_STORE_INFO_free(info);
             break;
         }
