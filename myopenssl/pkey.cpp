@@ -22,6 +22,7 @@ extern "C" {
 
 #include <cstddef>
 #include <cstring>
+#include <string_view>
 
 namespace myopenssl {
 
@@ -481,16 +482,18 @@ auto l_pkey_from_store(lua_State * const L) -> int
 {
     auto const key_name = luaL_checkstring(L, 1);
     auto const priv = lua_toboolean(L, 2);
-    auto const pin = luaL_optlstring(L, 3, "", nullptr);
-    
+    std::size_t pin_len;
+    auto const pin = luaL_optlstring(L, 3, "", &pin_len);
+    std::string_view pin_sv{pin, pin_len};
+
     auto const ui_method = UI_create_method("pin");
     UI_method_set_reader(ui_method, [](auto const ui, auto const uis) -> int {
         auto const udata = UI_get0_user_data(ui);
-        char const* pin = static_cast<char const*>(udata);
-        return 0 == UI_set_result(ui, uis, pin);
+        auto const pin = static_cast<std::string_view const *>(udata);
+        return 0 == UI_set_result_ex(ui, uis, pin->data(), pin->size());
     });
 
-    auto const store = OSSL_STORE_open(key_name, ui_method, (void*)pin, nullptr, nullptr);
+    auto const store = OSSL_STORE_open(key_name, ui_method, static_cast<void*>(&pin_sv), nullptr, nullptr);
     if (nullptr == store)
     {
         UI_destroy_method(ui_method);
@@ -498,20 +501,18 @@ auto l_pkey_from_store(lua_State * const L) -> int
     }
 
     EVP_PKEY* pkey = nullptr;
-    for (OSSL_STORE_INFO* info = OSSL_STORE_load(store); info != nullptr; info = OSSL_STORE_load(store)) {
-        if (priv && OSSL_STORE_INFO_PKEY == OSSL_STORE_INFO_get_type(info))
+    while (auto const info = OSSL_STORE_load(store)) {
+        auto const ty = OSSL_STORE_INFO_get_type(info);
+        if (priv && OSSL_STORE_INFO_PKEY == ty)
         {
             pkey = OSSL_STORE_INFO_get1_PKEY(info);
-            OSSL_STORE_INFO_free(info);
-            break;
         }
-        else if (not priv && OSSL_STORE_INFO_PUBKEY == OSSL_STORE_INFO_get_type(info))
+        else if (not priv && OSSL_STORE_INFO_PUBKEY == ty)
         {
             pkey = OSSL_STORE_INFO_get1_PUBKEY(info);
-            OSSL_STORE_INFO_free(info);
-            break;
         }
         OSSL_STORE_INFO_free(info);
+        if (pkey) break;
     }
 
     OSSL_STORE_close(store);
@@ -519,7 +520,7 @@ auto l_pkey_from_store(lua_State * const L) -> int
 
     if (nullptr == pkey)
     {
-        luaL_error(L, "private key not found");
+        luaL_error(L, "key not found");
     }
 
     push_evp_pkey(L, pkey);
