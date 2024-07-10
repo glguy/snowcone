@@ -14,6 +14,7 @@ myopenssl module
 
 #include <openssl/evp.h>
 #include <openssl/rand.h>
+#include <openssl/ui.h>
 #include <openssl/x509.h>
 
 extern "C" {
@@ -121,6 +122,9 @@ extern "C" auto luaopen_myopenssl(lua_State* const L) -> int
 
     lua_pushinteger(L, X509_VERSION_3);
     lua_setfield(L, -2, "X509_VERSION_3");
+
+    // OpenSSL's default method will lock-up the client UI
+    UI_set_default_method(UI_null());
 
     return 1;
 }

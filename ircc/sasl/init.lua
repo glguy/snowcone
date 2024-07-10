@@ -39,7 +39,7 @@ local function abort_sasl()
     send('AUTHENTICATE', '*')
 end
 
-local function mechanism_factory(mechanism, authcid, password, key, authzid)
+local function mechanism_factory(mechanism, authcid, password, key, authzid, use_store)
     if mechanism == 'PLAIN' then
         assert(authcid, "missing sasl `username`")
         assert(password, "missing sasl `password`")
@@ -49,14 +49,22 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid)
     elseif mechanism == 'ECDSA-NIST256P-CHALLENGE' then
         assert(authcid, "missing sasl `username`")
         assert(key, "missing sasl `key`")
-        key = assert(myopenssl.read_pem(key, true, password))
+        if use_store then
+            key = myopenssl.pkey_from_store(key, true, password)
+        else
+            key = myopenssl.read_pem(key, true, password)
+        end
         return require 'sasl.ecdsa' (authzid, authcid, key)
     elseif mechanism == 'ECDH-X25519-CHALLENGE' then
         assert(authcid, "missing sasl `username`")
-        assert(password, 'missing sasl `password`')
-        password = assert(snowcone.from_base64(password), 'bad base64 in private sasl `password`')
-        password = assert(myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, true, password))
-        return require 'sasl.ecdh' (authzid, authcid, password)
+        assert(key, 'missing sasl `key`')
+        if use_store then
+            key = myopenssl.pkey_from_store(key, true, password)
+        else
+            key = assert(snowcone.from_base64(password), 'bad base64 in private sasl `key`')
+            key = myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, true, key)
+        end
+        return require 'sasl.ecdh' (authzid, authcid, key)
     elseif mechanism == 'SCRAM-SHA-1'   then
         assert(authcid, "missing sasl `username`")
         assert(password, "missing sasl `password`")
@@ -104,7 +112,8 @@ return function(task, credentials)
         credentials.username,
         password,
         key,
-        credentials.authzid
+        credentials.authzid,
+        credentials.use_store
     )
     if not mech_success then
         status('sasl', 'Startup failed: %s %s', mechanism, impl)

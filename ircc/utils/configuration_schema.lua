@@ -126,6 +126,7 @@ return table {
             username        = {type = 'string'},
             password        = password_schema,
             key             = password_schema,
+            use_store       = {type = 'boolean'},
             authzid         = {type = 'string'},
         }
     },
