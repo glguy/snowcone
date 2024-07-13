@@ -416,7 +416,7 @@ auto l_read_pem(lua_State* const L) -> int
     std::size_t pass_len;
     auto const pass = luaL_optlstring(L, 3, "", &pass_len);
 
-    auto cb = [pass, pass_len](char* buf, int size, int) -> int {
+    auto cb = [pass, pass_len](char* const buf, int const size, int) -> int {
         if (size < 0 || size_t(size) < pass_len)
         {
             return -1; // -1:error due to password not fitting
@@ -482,18 +482,20 @@ auto l_pkey_from_store(lua_State * const L) -> int
 {
     auto const key_name = luaL_checkstring(L, 1);
     auto const priv = lua_toboolean(L, 2);
-    std::size_t pin_len;
-    auto const pin = luaL_optlstring(L, 3, "", &pin_len);
-    std::string_view pin_sv{pin, pin_len};
+    std::size_t pass_len;
+    auto const pass = luaL_optlstring(L, 3, "", &pass_len);
 
-    auto const ui_method = UI_create_method("pin");
-    UI_method_set_reader(ui_method, [](auto const ui, auto const uis) -> int {
-        auto const udata = UI_get0_user_data(ui);
-        auto const pin = static_cast<std::string_view const *>(udata);
-        return 0 == UI_set_result_ex(ui, uis, pin->data(), pin->size());
-    });
-
-    auto const store = OSSL_STORE_open(key_name, ui_method, static_cast<void*>(&pin_sv), nullptr, nullptr);
+    auto cb = [pass, pass_len](char * const buf, int const size, int) -> int
+    {
+        if (size < 0 || size_t(size) < pass_len)
+        {
+            return -1; // -1:error due to password not fitting
+        }
+        memcpy(buf, pass, pass_len);
+        return pass_len;
+    };
+    auto const ui_method = UI_UTIL_wrap_read_pem_callback(Invoke<decltype(cb)>::invoke, 0);
+    auto const store = OSSL_STORE_open(key_name, ui_method, static_cast<void*>(&cb), nullptr, nullptr);
     if (nullptr == store)
     {
         UI_destroy_method(ui_method);
