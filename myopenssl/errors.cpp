@@ -19,13 +19,14 @@ auto myopenssl::openssl_failure(lua_State* L, char const* func) -> void
     luaL_addstring(&B, "OpenSSL error in ");
     luaL_addstring(&B, func);
 
-    auto cb = [&B](char const* str, size_t len) -> int {
+    auto const cb = [&B](char const* str, size_t len) -> int {
         luaL_addchar(&B, '\n');
         luaL_addlstring(&B, str, len);
         return 1; // 1:success 0:failure
     };
 
-    ERR_print_errors_cb(Invoke<decltype(cb)>::invoke, &cb);
+    using Invoker = Invoke<decltype(cb)>;
+    ERR_print_errors_cb(Invoker::invoke, Invoker::prep(cb));
 
     luaL_pushresult(&B);
     lua_error(L);

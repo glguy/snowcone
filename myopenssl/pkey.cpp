@@ -286,7 +286,7 @@ namespace {
         {"export", [](auto const L) {
              auto const pkey = check_pkey(L, 1);
 
-             auto cb = [L](OSSL_PARAM const* const params) {
+             auto const cb = [L](OSSL_PARAM const* const params) {
                  for (auto cursor = params; cursor->key; cursor++)
                  {
                      switch (cursor->data_type)
@@ -310,7 +310,8 @@ namespace {
              };
 
              lua_newtable(L);
-             auto const success = EVP_PKEY_export(pkey, EVP_PKEY_KEYPAIR, Invoke<decltype(cb)>::invoke, &cb);
+             using Invoker = Invoke<decltype(cb)>;
+             auto const success = EVP_PKEY_export(pkey, EVP_PKEY_KEYPAIR, Invoker::invoke, Invoker::prep(cb));
              if (0 == success)
              {
                  openssl_failure(L, "EVP_PKEY_export");
@@ -416,7 +417,7 @@ auto l_read_pem(lua_State* const L) -> int
     std::size_t pass_len;
     auto const pass = luaL_optlstring(L, 3, "", &pass_len);
 
-    auto cb = [pass, pass_len](char* const buf, int const size, int) -> int {
+    auto const cb = [pass, pass_len](char* const buf, int const size, int) -> int {
         if (size < 0 || size_t(size) < pass_len)
         {
             return -1; // -1:error due to password not fitting
@@ -431,8 +432,9 @@ auto l_read_pem(lua_State* const L) -> int
         openssl_failure(L, "BIO_new_mem_buf");
     }
 
+    using Invoker = Invoke<decltype(cb)>;
     auto const pkey
-        = (priv ? PEM_read_bio_PrivateKey : PEM_read_bio_PUBKEY)(bio, nullptr, Invoke<decltype(cb)>::invoke, &cb);
+        = (priv ? PEM_read_bio_PrivateKey : PEM_read_bio_PUBKEY)(bio, nullptr, Invoker::invoke, Invoker::prep(cb));
 
     BIO_free_all(bio);
 
@@ -485,7 +487,7 @@ auto l_pkey_from_store(lua_State * const L) -> int
     std::size_t pass_len;
     auto const pass = luaL_optlstring(L, 3, "", &pass_len);
 
-    auto cb = [pass, pass_len](char * const buf, int const size, int) -> int
+    auto const cb = [pass, pass_len](char * const buf, int const size, int) -> int
     {
         if (size < 0 || size_t(size) < pass_len)
         {
@@ -494,8 +496,9 @@ auto l_pkey_from_store(lua_State * const L) -> int
         memcpy(buf, pass, pass_len);
         return pass_len;
     };
-    auto const ui_method = UI_UTIL_wrap_read_pem_callback(Invoke<decltype(cb)>::invoke, 0);
-    auto const store = OSSL_STORE_open(key_name, ui_method, static_cast<void*>(&cb), nullptr, nullptr);
+    using Invoker = Invoke<decltype(cb)>;
+    auto const ui_method = UI_UTIL_wrap_read_pem_callback(Invoker::invoke, 0);
+    auto const store = OSSL_STORE_open(key_name, ui_method, Invoker::prep(cb), nullptr, nullptr);
     if (nullptr == store)
     {
         UI_destroy_method(ui_method);

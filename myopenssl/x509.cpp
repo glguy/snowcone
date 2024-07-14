@@ -452,7 +452,7 @@ auto l_read_x509(lua_State* const L) -> int
     std::size_t pass_len;
     auto const pass = luaL_optlstring(L, 2, "", &pass_len);
 
-    auto cb = [pass, pass_len](char* buf, int size, int) -> int {
+    auto const cb = [pass, pass_len](char* buf, int size, int) -> int {
         if (size < 0 || size_t(size) < pass_len)
         {
             return -1; // -1:error due to password not fitting
@@ -467,7 +467,8 @@ auto l_read_x509(lua_State* const L) -> int
         openssl_failure(L, "BIO_new_mem_buf");
     }
 
-    auto const x509 = PEM_read_bio_X509(bio, nullptr, Invoke<decltype(cb)>::invoke, &cb);
+    using Invoker = Invoke<decltype(cb)>;
+    auto const x509 = PEM_read_bio_X509(bio, nullptr, Invoker::invoke, Invoker::prep(cb));
 
     BIO_free_all(bio);
 
