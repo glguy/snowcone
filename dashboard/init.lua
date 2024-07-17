@@ -539,7 +539,7 @@ function draw_buttons()
                 reason
             )
             if freeze_account then
-                send('NS', 'FREEZE', 'ON', '%' .. tag)
+                send('NS', 'FREEZE', freeze_account, 'ON', '%' .. tag)
             end
             staged_action = nil
         end)
