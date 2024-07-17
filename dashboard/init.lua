@@ -457,8 +457,14 @@ function draw_buttons()
     end)
     addstr ' '
 
+    local tag = servers.kline_tags[kline_tag]
+
     if add_freeze then
-        red()
+        if tag then
+            red()
+        else
+            yellow()
+        end
     end
     add_button(add_freeze and '[FR]' or '[  ]', function()
         add_freeze = not add_freeze
@@ -476,7 +482,7 @@ function draw_buttons()
 
     magenta()
     local klinetag_text =
-        string.format('[ %-7s ]', servers.kline_tags[kline_tag] or 'no tag')
+        string.format('[ %-7s ]', tag or 'no tag')
     add_button(klinetag_text, function(shifted)
         -- increment by one, but use 0 as disabled
         local delta = shifted and -1 or 1
@@ -495,7 +501,6 @@ function draw_buttons()
         addstr(' ')
         red()
 
-        local tag = servers.kline_tags[kline_tag]
         local freeze_account
         if tag and add_freeze and staged_action.nick then
             local user = users:lookup(staged_action.nick)
