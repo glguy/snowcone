@@ -198,6 +198,7 @@ local defaults = {
     kline_reason = 1,
     kline_tag = 0,
     trust_uname = false,
+    add_freeze = false,
     server_ordering = 'name',
     server_descending = false,
     watches = {},
@@ -456,6 +457,14 @@ function draw_buttons()
     end)
     addstr ' '
 
+    if add_freeze then
+        red()
+    end
+    add_button(add_freeze and '[FR]' or '[  ]', function()
+        add_freeze = not add_freeze
+    end)
+    addstr ' '
+
     magenta()
     local klinereason_text =
         string.format('[ %-7s ]', servers.kline_reasons[kline_reason][1])
@@ -485,13 +494,31 @@ function draw_buttons()
 
         addstr(' ')
         red()
-        local klineText = string.format('[ KLINE %s %s %s ]',
-            staged_action.count and tostring(staged_action.count) or '?',
-            staged_action.nick or '*',
-            staged_action.mask)
+
+        local tag = servers.kline_tags[kline_tag]
+        local freeze_account
+        if tag and add_freeze and staged_action.nick then
+            local user = users:lookup(staged_action.nick)
+            if user then
+                freeze_account = user.account
+            end
+        end
+
+        local klineText
+        if freeze_account then
+            klineText = string.format('[ KLINE %s %s %s FREEZE %s ]',
+                staged_action.count and tostring(staged_action.count) or '?',
+                staged_action.nick or '*',
+                staged_action.mask,
+                freeze_account)
+        else
+            klineText = string.format('[ KLINE %s %s %s ]',
+                staged_action.count and tostring(staged_action.count) or '?',
+                staged_action.nick or '*',
+                staged_action.mask)
+        end
         add_button(klineText, function()
             local reason = servers.kline_reasons[kline_reason][2]
-            local tag = servers.kline_tags[kline_tag]
 
             if tag then
                 if reason:find '|' then
@@ -506,6 +533,9 @@ function draw_buttons()
                 staged_action.mask,
                 reason
             )
+            if freeze_account then
+                send('NS', 'FREEZE', 'ON', '%' .. tag)
+            end
             staged_action = nil
         end)
 

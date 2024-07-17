@@ -36,6 +36,7 @@ stds = {
             -- global load bar state
             "trust_uname", "show_reasons", "kline_duration", "kline_tag",
             "staged_action", "kline_reason", "kline_reasons", "kline_durations",
+            "add_freeze",
 
             -- connection tracking view
             "users", "exits", "mark_filter",
