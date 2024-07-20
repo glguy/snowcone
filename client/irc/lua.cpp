@@ -182,6 +182,9 @@ auto l_start_irc(lua_State* const L) -> int
 
     auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
 
+    if (client_key) EVP_PKEY_up_ref(client_key);
+    if (client_cert) X509_up_ref(client_cert);
+
     Settings settings = {
         .tls = static_cast<bool>(tls),
         .host = host,
@@ -206,7 +209,10 @@ auto l_start_irc(lua_State* const L) -> int
 
     boost::asio::co_spawn(
         io_context, session_thread(io_context, irc_cb, irc, std::move(settings)),
-        [L = LMain, irc_cb](std::exception_ptr const e) {
+        [L = LMain, irc_cb, client_key, client_cert](std::exception_ptr const e) {
+            if (client_key) EVP_PKEY_free(client_key);
+            if (client_cert) X509_free(client_cert);
+
             lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
             luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);
             push_string(L, "END"sv);
