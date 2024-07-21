@@ -14,14 +14,24 @@
 
 struct lua_State;
 
+template <typename T, int(*UpRef)(T*), void(*Free)(T*)>
+class Ref {
+    struct Deleter { auto operator()(auto ptr) { Free(ptr); }};
+    std::unique_ptr<T, Deleter> obj;
+public:
+    Ref() = default;
+    Ref(T* t) : obj{t} { if (t) UpRef(t); }
+    auto get() const -> T* { return obj.get(); }
+};
+
 struct Settings
 {
     bool tls;
     std::string host;
     std::uint16_t port;
 
-    X509* client_cert;
-    EVP_PKEY* client_key;
+    Ref<X509, X509_up_ref, X509_free> client_cert;
+    Ref<EVP_PKEY, EVP_PKEY_up_ref, EVP_PKEY_free> client_key;
     std::string verify;
     std::string sni;
 

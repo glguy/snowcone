@@ -240,7 +240,7 @@ auto irc_connection::connect(
     // Optionally negotiate TLS session
     if (settings.tls)
     {
-        auto cxt = build_ssl_context(settings.client_cert, settings.client_key);
+        auto cxt = build_ssl_context(settings.client_cert.get(), settings.client_key.get());
 
         // Upgrade stream_ to use TLS and invalidate socket
         auto& stream = stream_.emplace<tls_type>(tls_type{std::move(socket), cxt});
