@@ -21,7 +21,7 @@ static char const app_key = '\0';
 App::App(char const* const filename)
     : io_context{}
     , stdin_poll{io_context, STDIN_FILENO}
-    , signals{io_context, SIGWINCH, SIGHUP}
+    , signals{io_context, SIGWINCH, SIGUSR1}
     , main_source{filename}
 {
     L = luaL_newstate();
@@ -78,7 +78,7 @@ auto App::signal_thread() -> boost::asio::awaitable<void>
         auto const sig = co_await signals.async_wait(boost::asio::use_awaitable);
         switch (sig)
         {
-        case SIGHUP:
+        case SIGUSR1:
             reload();
             break;
         case SIGWINCH:
