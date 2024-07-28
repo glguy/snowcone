@@ -39,8 +39,6 @@ struct Settings
     std::uint16_t socks_port;
     std::string socks_user;
     std::string socks_pass;
-
-    std::size_t buffer_size;
 };
 
 class irc_connection final : public std::enable_shared_from_this<irc_connection>

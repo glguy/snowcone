@@ -219,7 +219,7 @@ auto irc_connection::connect(
         os << "tcp=" << co_await boost::asio::async_connect(socket, entries, boost::asio::use_awaitable);
 
         socket.set_option(boost::asio::ip::tcp::no_delay(true));
-        set_buffer_size(socket, settings.buffer_size);
+        set_buffer_size(socket, irc_buffer_size);
         set_cloexec(socket.native_handle());
     }
 
@@ -245,7 +245,7 @@ auto irc_connection::connect(
         // Upgrade stream_ to use TLS and invalidate socket
         auto& stream = stream_.emplace<tls_type>(tls_type{std::move(socket), cxt});
 
-        set_buffer_size(stream, settings.buffer_size);
+        set_buffer_size(stream, irc_buffer_size);
         set_alpn(stream);
 
         if (not settings.verify.empty())

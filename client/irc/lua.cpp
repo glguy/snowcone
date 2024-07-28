@@ -180,8 +180,6 @@ auto l_start_irc(lua_State* const L) -> int
     luaL_argcheck(L, 1 <= port && port <= 0xffff, 3, "port out of range");
     luaL_argcheck(L, 0 <= socks_port && socks_port <= 0xffff, 9, "port out of range");
 
-    auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
-
     Settings settings = {
         .tls = static_cast<bool>(tls),
         .host = host,
@@ -194,16 +192,14 @@ auto l_start_irc(lua_State* const L) -> int
         .socks_port = static_cast<std::uint16_t>(socks_port),
         .socks_user = socks_user,
         .socks_pass = socks_pass,
-        .buffer_size = irc_connection::irc_buffer_size,
     };
 
-    auto& a = *App::from_lua(L);
-    auto& io_context = a.get_executor();
-    auto const LMain = a.get_lua();
+    auto& app = *App::from_lua(L);
+    auto& io_context = app.get_executor();
+    auto const LMain = app.get_lua();
 
     auto const irc = irc_connection::create(io_context, LMain);
-    pushirc(L, irc);
-
+    auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
     boost::asio::co_spawn(
         io_context, session_thread(io_context, irc_cb, irc, std::move(settings)),
         [L = LMain, irc_cb](std::exception_ptr const e) {
@@ -228,6 +224,7 @@ auto l_start_irc(lua_State* const L) -> int
         }
     );
 
+    pushirc(L, irc);
     return 1;
 }
 

@@ -28,7 +28,6 @@ class Stream : private std::variant<Ts...>
     {
         return std::visit(std::forward<F>(f), static_cast<base_type&>(*this));
     }
-    auto demo(char const* const x) { }
 
 public:
     using base_type::base_type;
