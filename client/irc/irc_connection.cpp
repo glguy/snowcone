@@ -18,7 +18,7 @@ irc_connection::irc_connection(
     boost::asio::io_context& io_context,
     lua_State* const L
 )
-    : stream_{boost::asio::ip::tcp::socket{io_context}}
+    : stream_{io_context}
     , resolver_{io_context}
     , L{L}
     , writing_{false}
@@ -201,7 +201,7 @@ auto irc_connection::connect(
     std::ostringstream os;
 
     // replace previous socket and ensure it's a tcp socket
-    auto& socket = stream_.emplace<tcp_type>(stream_.get_executor());
+    auto& socket = stream_.reset();
 
     // If we're going to use SOCKS then the TCP connection host is actually the socks
     // server and then the IRC server gets passed over the SOCKS protocol
@@ -243,7 +243,7 @@ auto irc_connection::connect(
         auto cxt = build_ssl_context(settings.client_cert.get(), settings.client_key.get());
 
         // Upgrade stream_ to use TLS and invalidate socket
-        auto& stream = stream_.emplace<tls_type>(tls_type{std::move(socket), cxt});
+        auto& stream = stream_.upgrade(cxt);
 
         set_buffer_size(stream, irc_buffer_size);
         set_alpn(stream);

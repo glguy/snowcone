@@ -4,7 +4,6 @@ add_executable(snowcone
     safecall.cpp timer.cpp dnslookup.cpp strings.cpp
     process.cpp linebuffer.cpp httpd.cpp
     irc/irc_connection.cpp irc/lua.cpp
-    net/stream.cpp
     )
 target_link_libraries(snowcone PRIVATE
     PkgConfig::NCURSESW PkgConfig::LUA ${BOOST_TARGETS} OpenSSL::SSL

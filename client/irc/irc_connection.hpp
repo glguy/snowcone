@@ -44,7 +44,7 @@ struct Settings
 class irc_connection final : public std::enable_shared_from_this<irc_connection>
 {
 public:
-    using stream_type = CommonStream;
+    using stream_type = Stream;
     static std::size_t const irc_buffer_size = 131'072;
 
 private:
