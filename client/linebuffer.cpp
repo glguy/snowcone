@@ -20,12 +20,12 @@ auto LineBuffer::next_line() -> char*
 
 auto LineBuffer::shift() -> void
 {
-    auto const first = std::begin(buffer);
-    auto const gap = start_ - first;
+    auto const first = std::begin(buffer_);
+    auto const gap = std::distance(start_, first);
     if (gap != 0) // relocate incomplete line to front of buffer
     {
         end_ = std::move(start_, end_, first);
         start_ = first;
-        search_ -= gap;
+        std::advance(search_, gap);
     }
 }

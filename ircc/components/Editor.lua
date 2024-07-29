@@ -220,6 +220,21 @@ function M:hexinput()
     local b = self.buffer
     local last = self.cursor - 1
 
+    -- Support ^A style control characters
+    if 1 < last
+    and b[last - 1] == 0x5e -- '^'
+    then
+        local c = b[last]
+        if 0x41 <= c and c <= 0x5f and c ~= 10 and c ~= 13 -- A-M O-Q S-Z [ \ ] ^ _
+        then 
+            b[last - 1] = c - 0x40 -- replaces the '^' with control character
+            table.remove(b, last)
+            self:move(last)
+            return
+        end
+    end
+
+    -- Support x0123 style unicode values
     -- Find the value of i such than i points at: x[0-9a-fA-F]+
     local first = last
     while 1 < first do

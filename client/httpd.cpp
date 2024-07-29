@@ -58,7 +58,7 @@ public:
         ws_.set_option(websocket::stream_base::timeout::suggested(beast::role_type::server));
     }
 
-    auto set_callback(LuaRef ref) -> void
+    auto set_callback(LuaRef&& ref) -> void
     {
         cb_ = std::move(ref);
     }

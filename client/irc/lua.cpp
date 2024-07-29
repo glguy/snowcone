@@ -37,6 +37,7 @@ auto l_close_irc(lua_State* const L) -> int
     if (auto const irc = w->lock())
     {
         irc->close();
+        w->reset();
         lua_pushboolean(L, 1);
         return 1;
     }
@@ -125,6 +126,9 @@ auto session_thread(
     Settings settings
 ) -> boost::asio::awaitable<void>
 {
+    std::string s;
+    boost::asio::dynamic_string_buffer b{s};
+
     auto const L = irc->get_lua();
 
     {
@@ -138,13 +142,13 @@ auto session_thread(
 
     for (LineBuffer buff{irc_connection::irc_buffer_size};;)
     {
-        auto const target = buff.get_buffer();
+        auto const target = buff.prepare();
         if (target.size() == 0)
         {
             throw std::runtime_error{"line buffer full"};
         }
 
-        buff.add_bytes(co_await irc->get_stream().async_read_some(target, boost::asio::use_awaitable));
+        buff.commit(co_await irc->get_stream().async_read_some(target, boost::asio::use_awaitable));
         for (auto line = get_nonempty_line(buff); nullptr != line; /* empty */)
         {
             auto const msg = parse_irc_message(line); // might throw
