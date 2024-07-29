@@ -23,7 +23,7 @@ pkg_check_modules(LIBARCHIVE        IMPORTED_TARGET libarchive)
 
 find_package(OpenSSL REQUIRED)
 
-find_package(Boost 1.83.0 COMPONENTS filesystem)
+find_package(Boost 1.83.0 CONFIG COMPONENTS filesystem)
 if(Boost_FOUND)
     set(BOOST_TARGETS Boost::headers Boost::filesystem)
 else()
