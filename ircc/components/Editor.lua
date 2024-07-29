@@ -226,7 +226,7 @@ function M:hexinput()
     then
         local c = b[last]
         if 0x41 <= c and c <= 0x5f and c ~= 10 and c ~= 13 -- A-M O-Q S-Z [ \ ] ^ _
-        then 
+        then
             b[last - 1] = c - 0x40 -- replaces the '^' with control character
             table.remove(b, last)
             self:move(last)
