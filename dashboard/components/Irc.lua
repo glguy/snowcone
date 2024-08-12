@@ -39,6 +39,7 @@ local caps_supported = {
     'draft/chathistory',
     'extended-join',
     'invite-notify',
+    'message-tags',
     'multi-prefix',
     'sasl',
     'server-time',

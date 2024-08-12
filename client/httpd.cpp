@@ -10,7 +10,6 @@ extern "C" {
 #include <lua.h>
 }
 
-#include <algorithm>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/beast/core.hpp>
@@ -18,10 +17,12 @@ extern "C" {
 #include <boost/beast/version.hpp>
 #include <boost/beast/websocket.hpp>
 #include <boost/config.hpp>
+
+#include <algorithm>
 #include <cstdlib>
-#include <queue>
 #include <functional>
 #include <iostream>
+#include <queue>
 #include <memory>
 #include <string>
 #include <thread>
@@ -94,7 +95,7 @@ public:
     }
 
 private:
-    auto on_accept(boost::system::error_code const ec) -> void
+    auto on_accept(beast::error_code const ec) -> void
     {
         start_read();
         if (not messages_.empty())
@@ -111,7 +112,7 @@ private:
         );
     }
 
-    auto on_write(boost::system::error_code const ec, std::size_t) -> void
+    auto on_write(beast::error_code const ec, std::size_t) -> void
     {
         if (ec)
         {
@@ -141,7 +142,7 @@ private:
         );
     }
 
-    auto on_read(boost::system::error_code const ec, std::size_t const) -> void
+    auto on_read(beast::error_code const ec, std::size_t const) -> void
     {
         if (ec)
         {
@@ -176,7 +177,7 @@ private:
         );
     }
 
-    auto on_close(boost::system::error_code) -> void
+    auto on_close(beast::error_code) -> void
     {
     }
 };
@@ -515,7 +516,8 @@ public:
     {
         for (auto& acceptor : acceptors_)
         {
-            acceptor.close();
+            beast::error_code ec;
+            acceptor.close(ec);
         }
     }
 
@@ -529,7 +531,7 @@ private:
         );
     }
 
-    auto on_accept(tcp::acceptor& acceptor, beast::error_code ec, tcp::socket socket) -> void
+    auto on_accept(tcp::acceptor& acceptor, beast::error_code const ec, tcp::socket socket) -> void
     {
         if (ec)
         {

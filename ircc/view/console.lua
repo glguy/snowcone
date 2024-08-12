@@ -36,7 +36,7 @@ local function pretty_source(win, source)
             yellow(win)
         end
     end
-    win:waddstr(string.format('%16.16s ', scrub(source)))
+    win:waddstr(string.format(' %16.16s ', scrub(source)))
     normal(win)
 end
 
@@ -76,7 +76,7 @@ local function render_irc(win, irc)
     if irc.source then
         pretty_source(win, irc.source)
     else
-        win:waddstr(string.rep(' ', 17))
+        win:waddstr(string.rep(' ', 18))
     end
 
     local color = palette[irc.command]

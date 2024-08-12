@@ -38,7 +38,7 @@ public:
     /// @return Reference to internal socket object
     auto reset() -> tcp_socket&
     {
-        return base().template emplace<tcp_socket>(get_executor());
+        return base().emplace<tcp_socket>(get_executor());
     }
 
     /// @brief Upgrade a plain TCP socket into a TLS stream.
@@ -47,7 +47,7 @@ public:
     auto upgrade(boost::asio::ssl::context& ctx) -> tls_stream&
     {
         auto socket = std::move(std::get<tcp_socket>(base()));
-        return base().template emplace<tls_stream>(std::move(socket), ctx);
+        return base().emplace<tls_stream>(std::move(socket), ctx);
     }
 
     /// @brief Get underlying basic socket

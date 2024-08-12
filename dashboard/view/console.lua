@@ -35,7 +35,7 @@ local function pretty_source(source)
             yellow()
         end
     end
-    addstr(string.format('%16.16s ', source))
+    addstr(string.format(' %16.16s ', source))
     normal()
 end
 
@@ -77,7 +77,7 @@ local function render_irc(irc)
     if irc.source then
         pretty_source(irc.source)
     else
-        addstr(string.rep(' ', 17))
+        addstr(string.rep(' ', 18))
     end
 
     local color = palette[irc.command]
