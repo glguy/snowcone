@@ -14,7 +14,6 @@ local matches = {
     {'^ +', 'space'},
     {'^%a+', function(word) return 'word', word end},
     {'^|[^|]*|I?', function(regex)
-        print(regex)
         local flags
         if 'I' == string.sub(regex, -1) then
             flags = 'ix'
@@ -23,7 +22,6 @@ local matches = {
             flags = 'x'
             regex = string.sub(regex, 2, -2)
         end
-        print('!', regex)
         local success, result = pcall(rex.new, regex, flags)
         if success then
             return 'regex', result
