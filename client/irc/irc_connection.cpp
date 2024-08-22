@@ -138,6 +138,7 @@ auto constexpr sum() -> std::size_t { return (0 + ... + Ns); }
  * @brief Build's the string format required for the ALPN extension
  *
  * @tparam Ns sizes of each protocol name
+ * @param protocols array of the names of the supported protocols
  * @return encoded protocol names
  */
 template <std::size_t... Ns>
@@ -161,6 +162,11 @@ auto constexpr alpn_encode(char const (&... protocols)[Ns]) -> std::array<unsign
     return result;
 }
 
+/**
+ * @brief Configure the TLS stream to request the IRC protocol.
+ * 
+ * @param stream TLS stream
+ */
 auto set_alpn(tls_type& stream) -> void
 {
     auto constexpr protos = alpn_encode("irc");

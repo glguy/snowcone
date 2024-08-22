@@ -78,11 +78,6 @@ public:
         return stream_;
     }
 
-    auto set_stream(stream_type&& stream)
-    {
-        stream_ = std::move(stream);
-    }
-
     auto get_lua() const -> lua_State*
     {
         return L;
@@ -97,9 +92,19 @@ public:
      */
     auto write(std::string_view msg, int ref) -> void;
 
+    /**
+     * @brief Abruptly close the connection.
+     * 
+     */
     auto close() -> void;
 
-    auto connect(Settings) -> boost::asio::awaitable<std::string>;
+    /**
+     * @brief Initiate a connection to the IRC server
+     * 
+     * @param settings Parameters needed to establish a text stream with the server.
+     * @return Space-separated, key=value pairs describing the connection
+     */
+    auto connect(Settings settings) -> boost::asio::awaitable<std::string>;
 
 private:
     // There's data now, actually write it
