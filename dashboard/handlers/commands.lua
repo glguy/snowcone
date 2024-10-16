@@ -217,7 +217,7 @@ add_command('duration', '$r', function(arg)
     end
 end)
 
-add_command('tag', '$g', function(tag)
+add_command('tag', '$r', function(tag)
     local i = tablex.find(servers.kline_tags, tag)
     if i then
         kline_tag = i
