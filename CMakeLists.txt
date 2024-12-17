@@ -32,8 +32,8 @@ else()
     include(FetchContent)
     FetchContent_Declare(
     Boost
-    URL https://github.com/boostorg/boost/releases/download/boost-1.85.0/boost-1.85.0-cmake.tar.xz
-    URL_HASH SHA1=a2b98cffc63bdc6a74a7134b97c44f61f2b52b04
+    URL https://github.com/boostorg/boost/releases/download/boost-1.87.0/boost-1.87.0-cmake.tar.xz
+    URL_HASH SHA1=4ec86f884ffb57ce7f6a6c6eb05b1af247aba0ac
     )
     FetchContent_MakeAvailable(Boost)
     set(BOOST_TARGETS Boost::asio Boost::beast Boost::endian Boost::process)
