@@ -945,10 +945,10 @@ function connect()
         local ok, tls_client_password, socks_password, tls_client_cert, tls_client_key
 
         if use_tls then
-                tls_client_password = configuration.tls.client_password
-                tls_client_key = configuration.tls.client_key
-                tls_client_cert = configuration.tls.client_cert
-            end
+            tls_client_password = configuration.tls.client_password
+            tls_client_key = configuration.tls.client_key
+            tls_client_cert = configuration.tls.client_cert
+        end
 
         if use_socks then
             socks_password = configuration.socks.password
