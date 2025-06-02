@@ -11,7 +11,9 @@ extern "C" {
 }
 
 #include <boost/asio.hpp>
-#include <boost/process.hpp>
+#include <boost/process/v2/process.hpp>
+#include <boost/process/v2/stdio.hpp>
+#include <boost/process/v2/environment.hpp>
 
 #include <memory>
 #include <optional>
@@ -25,9 +27,10 @@ template <boost::asio::completion_handler_for<ExecSig> Handler>
 struct Exec
 {
     Handler handler_;
-    boost::process::async_pipe stdin_;
-    boost::process::async_pipe stdout_;
-    boost::process::async_pipe stderr_;
+    boost::asio::writable_pipe stdin_;
+    boost::asio::readable_pipe stdout_;
+    boost::asio::readable_pipe stderr_;
+    boost::process::process proc_;
 
     int stage_;
 
@@ -43,6 +46,7 @@ struct Exec
         , stdin_{io_context}
         , stdout_{io_context}
         , stderr_{io_context}
+        , proc_{io_context}
         , stage_{input ? 0 : 1}
         , stdin_text_{input ? std::move(*input) : ""}
     {
@@ -75,6 +79,20 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
     auto const has_input = input.has_value();
     auto const self = std::make_shared<Exec<Handler>>(std::forward<Handler>(handler), io_context, std::move(input));
 
+    if (not file.has_parent_path())
+    {
+        file = boost::process::environment::find_executable(file);
+    }
+
+    self->proc_ = boost::process::process{
+        io_context,
+        file,
+        args,
+        has_input
+          ? boost::process::process_stdio{self->stdin_, self->stdout_, self->stderr_}
+          : boost::process::process_stdio{{}, self->stdout_, self->stderr_}
+    };
+
     if (has_input)
     {
         boost::asio::async_write(
@@ -101,41 +119,14 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
             self->complete();
         }
     );
-    auto const completion =
+
+    self->proc_.async_wait(
         [self](boost::system::error_code const err, int const exit_code) {
             self->error_code_ = err;
             self->exit_code_ = exit_code;
             self->complete();
-        };
-
-    if (not file.has_parent_path())
-    {
-        file = boost::process::search_path(file);
-    }
-
-    if (has_input)
-    {
-        boost::process::async_system(
-            io_context,
-            completion,
-            std::move(file),
-            boost::process::args = std::move(args),
-            boost::process::std_in = self->stdin_,
-            boost::process::std_out = self->stdout_,
-            boost::process::std_err = self->stderr_
-        );
-    }
-    else
-    {
-        boost::process::async_system(
-            io_context,
-            completion,
-            std::move(file),
-            boost::process::args = std::move(args),
-            boost::process::std_out = self->stdout_,
-            boost::process::std_err = self->stderr_
-        );
-    }
+        }
+    );
 };
 
 template <

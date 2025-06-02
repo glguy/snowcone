@@ -27,13 +27,13 @@ find_package(Boost 1.83.0 CONFIG COMPONENTS filesystem)
 if(Boost_FOUND)
     set(BOOST_TARGETS Boost::headers Boost::filesystem)
 else()
-    set(BOOST_INCLUDE_LIBRARIES asio beast endian process system)
+    set(BOOST_INCLUDE_LIBRARIES asio beast endian process system filesystem)
     set(BOOST_ENABLE_CMAKE ON)
     include(FetchContent)
     FetchContent_Declare(
     Boost
-    URL https://github.com/boostorg/boost/releases/download/boost-1.87.0/boost-1.87.0-cmake.tar.xz
-    URL_HASH SHA1=4ec86f884ffb57ce7f6a6c6eb05b1af247aba0ac
+    URL https://github.com/boostorg/boost/releases/download/boost-1.88.0/boost-1.88.0-cmake.tar.xz
+    URL_HASH SHA1=803114180067f5548fb5f528229b09a55bdb1019
     )
     FetchContent_MakeAvailable(Boost)
     set(BOOST_TARGETS Boost::asio Boost::beast Boost::endian Boost::process)
