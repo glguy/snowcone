@@ -22,6 +22,7 @@ extern "C" {
 namespace {
 
 using ExecSig = void(boost::system::error_code, int, std::string, std::string);
+namespace process = boost::process::v2;
 
 template <boost::asio::completion_handler_for<ExecSig> Handler>
 struct Exec
@@ -30,7 +31,7 @@ struct Exec
     boost::asio::writable_pipe stdin_;
     boost::asio::readable_pipe stdout_;
     boost::asio::readable_pipe stderr_;
-    boost::process::process proc_;
+    process::process proc_;
 
     int stage_;
 
@@ -81,16 +82,16 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
 
     if (not file.has_parent_path())
     {
-        file = boost::process::environment::find_executable(file);
+        file = process::environment::find_executable(file);
     }
 
-    self->proc_ = boost::process::process{
+    self->proc_ = process::process{
         io_context,
         file,
         args,
         has_input
-          ? boost::process::process_stdio{self->stdin_, self->stdout_, self->stderr_}
-          : boost::process::process_stdio{{}, self->stdout_, self->stderr_}
+          ? process::process_stdio{self->stdin_, self->stdout_, self->stderr_}
+          : process::process_stdio{{}, self->stdout_, self->stderr_}
     };
 
     if (has_input)
