@@ -25,7 +25,12 @@ find_package(OpenSSL REQUIRED)
 
 find_package(Boost 1.83.0 CONFIG COMPONENTS filesystem process)
 if(Boost_FOUND)
-    set(BOOST_TARGETS Boost::headers Boost::filesystem Boost::process)
+    set(BOOST_TARGETS Boost::headers Boost::filesystem)
+
+    # In boost-1.86 process became a compile library
+    if(Boost_VERSION VERSION_GREATER_EQUAL 108600)
+        list(APPEND BOOST_TARGETS Boost::process)
+    endif()
 else()
     set(BOOST_INCLUDE_LIBRARIES asio beast endian process system filesystem)
     set(BOOST_ENABLE_CMAKE ON)
