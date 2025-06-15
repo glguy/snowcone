@@ -23,9 +23,9 @@ pkg_check_modules(LIBARCHIVE        IMPORTED_TARGET libarchive)
 
 find_package(OpenSSL REQUIRED)
 
-find_package(Boost 1.83.0 CONFIG COMPONENTS filesystem)
+find_package(Boost 1.83.0 CONFIG COMPONENTS filesystem process)
 if(Boost_FOUND)
-    set(BOOST_TARGETS Boost::headers Boost::filesystem)
+    set(BOOST_TARGETS Boost::headers Boost::filesystem Boost::process)
 else()
     set(BOOST_INCLUDE_LIBRARIES asio beast endian process system filesystem)
     set(BOOST_ENABLE_CMAKE ON)

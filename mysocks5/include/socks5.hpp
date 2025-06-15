@@ -191,11 +191,19 @@ namespace detail {
             );
         }
 
+        /// @brief Notify the caller of a failure and terminate the protocol
+        /// @param self intermediate completion handler
+        /// @param err error code to return to the caller
         auto failure(auto& self, SocksErrc const err) -> void
         {
             self.complete(make_socks_error(err), {});
         }
 
+        /// @brief Read bytes needed by Next state from the socket and then proceed to Next state
+        /// @tparam Self type of enclosing intermediate completion handler
+        /// @tparam Next state to transition to after read
+        /// @param self enclosing intermediate completion handler
+        /// @param state protocol state tag
         template <typename Self, typename Next>
         auto step(Self& self, Sent<Next>) -> void
         {
@@ -262,6 +270,9 @@ namespace detail {
             }
         }
 
+        /// @brief Transmit the username and password to the server
+        /// @tparam Self type of enclosing intermediate completion handler
+        /// @param self enclosing intermediate completion handler
         template <typename Self>
         auto send_usernamepassword(Self& self) -> void
         {

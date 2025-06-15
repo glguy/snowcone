@@ -21,7 +21,13 @@ extern "C" {
 
 namespace {
 
-using ExecSig = void(boost::system::error_code, int, std::string, std::string);
+/// @brief Signature for the process execution completion handler.
+/// @param error Error code indicating process or I/O failure (if any).
+/// @param exit_code Exit code returned by the process.
+/// @param stdout_text Captured standard output from the process.
+/// @param stderr_text Captured standard error from the process.
+using ExecSig = void(boost::system::error_code error, int exit_code, std::string stdout_text, std::string stderr_text);
+
 namespace process = boost::process::v2;
 
 template <boost::asio::completion_handler_for<ExecSig> Handler>
@@ -33,6 +39,7 @@ struct Exec
     boost::asio::readable_pipe stderr_;
     process::process proc_;
 
+    /// Count number of outstanding async operations.
     int stage_;
 
     int exit_code_;
@@ -48,7 +55,7 @@ struct Exec
         , stdout_{io_context}
         , stderr_{io_context}
         , proc_{io_context}
-        , stage_{input ? 0 : 1}
+        , stage_{input ? 4 : 3}
         , stdin_text_{input ? std::move(*input) : ""}
     {
     }
@@ -60,7 +67,7 @@ struct Exec
 
     auto complete() -> void
     {
-        if (++stage_ == 4)
+        if (--stage_ == 0)
         {
             handler_(error_code_, exit_code_, std::move(stdout_text_), std::move(stderr_text_));
         }
@@ -84,14 +91,19 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
     {
         file = process::environment::find_executable(file);
     }
+ 
+    using input_binding = decltype(process::process_stdio::in);
+    auto stdin_binding = has_input ? input_binding{self->stdin_} : input_binding{};
 
     self->proc_ = process::process{
         io_context,
         file,
         args,
-        has_input
-          ? process::process_stdio{self->stdin_, self->stdout_, self->stderr_}
-          : process::process_stdio{{}, self->stdout_, self->stderr_}
+        process::process_stdio{
+            .in = std::move(stdin_binding),
+            .out = {self->stdout_},
+            .err = {self->stderr_},
+        }
     };
 
     if (has_input)
@@ -113,6 +125,7 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
             self->complete();
         }
     );
+
     boost::asio::async_read(
         self->stderr_,
         boost::asio::dynamic_buffer(self->stderr_text_),
