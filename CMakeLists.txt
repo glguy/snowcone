@@ -28,7 +28,7 @@ if(Boost_FOUND)
     set(BOOST_TARGETS Boost::headers Boost::filesystem)
 
     # In boost-1.86 process became a compile library
-    if(Boost_VERSION VERSION_GREATER_EQUAL 108600)
+    if(Boost_VERSION VERSION_GREATER_EQUAL 1.86)
         list(APPEND BOOST_TARGETS Boost::process)
     endif()
 else()
