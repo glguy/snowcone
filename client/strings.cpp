@@ -15,7 +15,7 @@ auto mutable_string_arg(lua_State* const L, int const i) -> char*
     return buffer;
 }
 
-auto check_string_view(lua_State* L, int arg) -> std::string_view
+auto check_string_view(lua_State* const L, int const arg) -> std::string_view
 {
     std::size_t len;
     auto const str = luaL_checklstring(L, arg, &len);

@@ -90,10 +90,15 @@ local function make_layout()
         main_pad:delwin()
     end
     main_pad = ncurses.newpad(tty_height-1, 550)
+
     if input_win then
         input_win:delwin()
     end
     input_win = ncurses.newwin(1, tty_width, tty_height - 1, 0)
+
+    if textbox_pad then
+        textbox_pad:delwin()
+    end
     textbox_pad = ncurses.newpad(1, 1024)
 end
 make_layout()

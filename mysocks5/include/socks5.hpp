@@ -58,6 +58,12 @@ using Auth = std::variant<NoCredential, UsernamePasswordCredential>;
 
 namespace detail {
 
+
+    template <typename T>
+    concept RecvState = requires {
+        {  T::READ } -> std::convertible_to<std::size_t>;
+    };
+
     template <class... Ts>
     struct overloaded : Ts...
     {
@@ -143,7 +149,7 @@ namespace detail {
 
         /// @brief State when the application needs to receive some bytes
         /// @tparam Next State to transistion to after read is successful
-        template <typename Next>
+        template <RecvState Next>
         struct Sent
         {
         };
@@ -179,7 +185,7 @@ namespace detail {
         /// @tparam N number of bytes to read
         /// @tparam Self type of enclosing intermediate completion handler
         /// @param self enclosing intermediate completion handler
-        template <typename Next, typename Self>
+        template <RecvState Next, typename Self>
         auto transact(Self& self) -> void
         {
             boost::asio::async_write(
@@ -204,7 +210,7 @@ namespace detail {
         /// @tparam Next state to transition to after read
         /// @param self enclosing intermediate completion handler
         /// @param state protocol state tag
-        template <typename Self, typename Next>
+        template <typename Self, RecvState Next>
         auto step(Self& self, Sent<Next>) -> void
         {
             buffer_.resize(Next::READ);
