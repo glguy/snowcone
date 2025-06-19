@@ -105,6 +105,12 @@ auto peer_fingerprint(std::ostream& os, SSL const* const ssl) -> void
     }
 }
 
+/**
+ * @brief Set size of the read and write buffers on a TLS stream.
+ *
+ * @param stream TLS stream
+ * @param n buffer size in bytes
+ */
 auto set_buffer_size(tls_type& stream, std::size_t const n) -> void
 {
     auto const ssl = stream.native_handle();
@@ -112,12 +118,27 @@ auto set_buffer_size(tls_type& stream, std::size_t const n) -> void
     BIO_set_buffer_size(SSL_get_wbio(ssl), n);
 }
 
+/**
+ * @brief Set size of the read and write buffers on a plain TCP stream.
+ *
+ * @param stream TCP stream
+ * @param n buffer size in bytes
+ */
 auto set_buffer_size(tcp_type& socket, std::size_t const n) -> void
 {
     socket.set_option(tcp_type::send_buffer_size{static_cast<int>(n)});
     socket.set_option(tcp_type::receive_buffer_size{static_cast<int>(n)});
 }
 
+/**
+ * @brief Set the CLOEXEC flag on a file descriptor.
+ *
+ * Sets the flag to close a file descriptor on exec. This ensures
+ * the file descriptor isn't inherited into any spawn processes.
+ * This throws a system_error exception on failure.
+ *
+ * @param fd Open file descriptor
+ */
 auto set_cloexec(int const fd) -> void
 {
     auto const flags = fcntl(fd, F_GETFD);
@@ -135,7 +156,7 @@ template <std::size_t... Ns>
 auto constexpr sum() -> std::size_t { return (0 + ... + Ns); }
 
 /**
- * @brief Build's the string format required for the ALPN extension
+ * @brief Builds the string format required for the ALPN extension
  *
  * @tparam Ns sizes of each protocol name
  * @param protocols array of the names of the supported protocols
@@ -162,48 +183,11 @@ auto constexpr alpn_encode(char const (&... protocols)[Ns]) -> std::array<unsign
     return result;
 }
 
-/**
- * @brief Configure the TLS stream to request the IRC protocol.
- * 
- * @param stream TLS stream
- */
-auto set_alpn(tls_type& stream) -> void
-{
-    auto constexpr protos = alpn_encode("irc");
-    SSL_set_alpn_protos(stream.native_handle(), protos.data(), protos.size());
-}
-
-auto build_ssl_context(
-    X509* client_cert,
-    EVP_PKEY* client_key
-) -> boost::asio::ssl::context
-{
-    boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
-    ssl_context.set_default_verify_paths();
-
-    if (nullptr != client_cert)
-    {
-        if (1 != SSL_CTX_use_certificate(ssl_context.native_handle(), client_cert))
-        {
-            throw std::runtime_error{"certificate file"};
-        }
-    }
-    if (nullptr != client_key)
-    {
-        if (1 != SSL_CTX_use_PrivateKey(ssl_context.native_handle(), client_key))
-        {
-            throw std::runtime_error{"private key"};
-        }
-    }
-    return ssl_context;
-}
-
 } // namespace
 
-auto irc_connection::connect(
-    Settings settings
-) -> boost::asio::awaitable<std::string>
+auto irc_connection::connect(Settings settings) -> boost::asio::awaitable<std::string>
 {
+    // Fingerprint string builder
     std::ostringstream os;
 
     // replace previous socket and ensure it's a tcp socket
@@ -224,7 +208,7 @@ auto irc_connection::connect(
 
         os << "tcp=" << co_await boost::asio::async_connect(socket, entries, boost::asio::use_awaitable);
 
-        socket.set_option(boost::asio::ip::tcp::no_delay(true));
+        socket.set_option(boost::asio::ip::tcp::no_delay{true});
         set_buffer_size(socket, irc_buffer_size);
         set_cloexec(socket.native_handle());
     }
@@ -246,25 +230,53 @@ auto irc_connection::connect(
     // Optionally negotiate TLS session
     if (settings.tls)
     {
-        auto cxt = build_ssl_context(settings.client_cert.get(), settings.client_key.get());
+        boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
+        ssl_context.set_default_verify_paths();
 
         // Upgrade stream_ to use TLS and invalidate socket
-        auto& stream = stream_.upgrade(cxt);
+        auto& stream = stream_.upgrade(ssl_context);
 
+        // Set the client certificate, if specified
+        if (auto const client_cert = settings.client_cert.get())
+        {
+            if (1 != SSL_use_certificate(stream.native_handle(), client_cert))
+            {
+                throw std::runtime_error{"certificate file"};
+            }
+        }
+
+        // Set the client private key, if specified
+        if (auto const client_key = settings.client_key.get())
+        {
+            if (1 != SSL_use_PrivateKey(stream.native_handle(), client_key))
+            {
+                throw std::runtime_error{"private key"};
+            }
+        }
+
+        // Update the BIO buffer sizes
         set_buffer_size(stream, irc_buffer_size);
-        set_alpn(stream);
 
+        // Configure ALPN
+        {
+            auto constexpr protos = alpn_encode("irc");
+            SSL_set_alpn_protos(stream.native_handle(), protos.data(), protos.size());
+        }
+
+        // Configure server certificate verification
         if (not settings.verify.empty())
         {
             stream.set_verify_mode(boost::asio::ssl::verify_peer);
             stream.set_verify_callback(boost::asio::ssl::host_name_verification(settings.verify));
         }
 
+        // Set the SNI hostname, if specified
         if (not settings.sni.empty())
         {
             SSL_set_tlsext_host_name(stream.native_handle(), settings.sni.c_str());
         }
 
+        // Configuration complete, initiate the handshake
         co_await stream.async_handshake(stream.client, boost::asio::use_awaitable);
 
         peer_fingerprint(os << " tls=", stream.native_handle());

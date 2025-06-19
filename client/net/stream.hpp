@@ -7,10 +7,7 @@
 #include <variant>
 
 /// @brief Abstraction over plain-text and TLS streams.
-class Stream : private
-    std::variant<
-        boost::asio::ip::tcp::socket,
-        boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>
+class Stream
 {
 public:
     using tcp_socket = boost::asio::ip::tcp::socket;
@@ -23,22 +20,23 @@ public:
     using lowest_layer_type = tcp_socket::lowest_layer_type;
 
 private:
-    using base_type = std::variant<tcp_socket, tls_stream>;
-    auto base() -> base_type& { return *this; }
-    auto base() const -> base_type const& { return *this; }
+    /// @brief The underlying stream object
+    std::variant<tcp_socket, tls_stream> base;
 
 public:
 
     /// @brief Initialize stream with a plain TCP socket
     /// @param ioc IO context of stream
-    template <typename T>
-    Stream(T&& executor) : base_type{std::in_place_type<tcp_socket>, std::forward<T>(executor)} {}
+    template <typename ExecutionContext>
+    Stream(ExecutionContext & context)
+        : base{std::in_place_type<tcp_socket>, context}
+    {}
 
     /// @brief Reset stream to a plain TCP socket
     /// @return Reference to internal socket object
     auto reset() -> tcp_socket&
     {
-        return base().emplace<tcp_socket>(get_executor());
+        return base.emplace<tcp_socket>(get_executor());
     }
 
     /// @brief Upgrade a plain TCP socket into a TLS stream.
@@ -46,22 +44,22 @@ public:
     /// @return Reference to internal stream object
     auto upgrade(boost::asio::ssl::context& ctx) -> tls_stream&
     {
-        auto socket = std::move(std::get<tcp_socket>(base()));
-        return base().emplace<tls_stream>(std::move(socket), ctx);
+        auto socket = std::move(std::get<tcp_socket>(base));
+        return base.emplace<tls_stream>(std::move(socket), ctx);
     }
 
     /// @brief Get underlying basic socket
     /// @return Reference to underlying socket
     auto lowest_layer() -> lowest_layer_type&
     {
-        return std::visit([](auto&& x) -> decltype(auto) { return x.lowest_layer(); }, base());
+        return std::visit([](auto&& x) -> decltype(auto) { return x.lowest_layer(); }, base);
     }
 
     /// @brief Get underlying basic socket
     /// @return Reference to underlying socket
     auto lowest_layer() const -> lowest_layer_type const&
     {
-        return std::visit([](auto&& x) -> decltype(auto) { return x.lowest_layer(); }, base());
+        return std::visit([](auto&& x) -> decltype(auto) { return x.lowest_layer(); }, base);
     }
 
     /// @brief Get the executor associated with this stream.
@@ -84,7 +82,7 @@ public:
     {
         return std::visit([&buffers, &token](auto&& x) -> decltype(auto) {
             return x.async_read_some(std::forward<MutableBufferSequence>(buffers), std::forward<Token>(token));
-        }, base());
+        }, base);
     }
 
     /// @brief Initiates an asynchronous write operation.
@@ -100,7 +98,7 @@ public:
     {
         return std::visit([&buffers, &token](auto&& x) -> decltype(auto) {
             return x.async_write_some(std::forward<ConstBufferSequence>(buffers), std::forward<Token>(token));
-        }, base());
+        }, base);
     }
 
     /// @brief Tear down the network stream
