@@ -52,6 +52,22 @@ using namespace std::literals::string_view_literals;
 
 char logic_module;
 
+/**
+ * @brief Lua binding for inet_pton.
+ *
+ * Converts an IP address string (argument 1) from presentation to network format.
+ * It detects IPv6 if a colon (':') is present; otherwise, it treats the address as IPv4.
+ * On success, it pushes the binary address on the Lua stack.
+ * On failure, it pushes a failure indicator and an error message.
+ *
+ * param:     string txt presentation-format address
+ * return[1]: string network-format address
+ * return[2]: nil    failure indicator
+ * return[2]: string error message
+ *
+ * @param L Lua state
+ * @return int 1 on success; 2 on error
+ */
 auto l_pton(lua_State* const L) -> int
 {
     auto const p = luaL_checkstring(L, 1);
@@ -90,6 +106,18 @@ auto l_pton(lua_State* const L) -> int
     }
 }
 
+/**
+ * @brief Lua binding for raise – send a signal to the current thread.
+ *
+ * Sends the specified signal (argument 1) to the current thread using the standard C raise() function.
+ * On failure, raises a Lua error with the string representation of errno.
+ *
+ * param:     integer sig  signal number to send
+ * error:     raises a Lua error with the error message on failure
+ *
+ * @param L Lua state
+ * @return int 0 on success; raises Lua error on failure
+ */
 auto l_raise(lua_State* const L) -> int
 {
     auto const s = luaL_checkinteger(L, 1);
@@ -101,6 +129,18 @@ auto l_raise(lua_State* const L) -> int
     return 0;
 }
 
+/**
+ * @brief Lua binding for Base64 encoding.
+ *
+ * Encodes the given string into Base64 format.
+ * On success, it pushes the Base64-encoded string onto the Lua stack.
+ *
+ * param:     string input   input string to encode
+ * return:    string output  Base64-encoded string
+ *
+ * @param L Lua state
+ * @return int 1
+ */
 auto l_to_base64(lua_State* const L) -> int
 {
     auto const input = check_string_view(L, 1);
@@ -114,6 +154,20 @@ auto l_to_base64(lua_State* const L) -> int
     return 1;
 }
 
+/**
+ * @brief Lua binding for Base64 decoding.
+ *
+ * Decodes the given Base64 string into its original binary form.
+ * On success, it pushes the decoded string onto the Lua stack.
+ * On failure (invalid Base64 input), returns 0 values.
+ *
+ * param:     string input   Base64-encoded string to decode
+ * return[1]: string decoded string
+ * return[2]: nil    failure indicator
+ *
+ * @param L Lua state
+ * @return int 1
+ */
 auto l_from_base64(lua_State* const L) -> int
 {
     auto const input = check_string_view(L, 1);
@@ -129,7 +183,8 @@ auto l_from_base64(lua_State* const L) -> int
     }
     else
     {
-        return 0;
+        luaL_pushfail(L);
+        return 1;
     }
 }
 
@@ -140,6 +195,21 @@ auto l_setmodule(lua_State* const L) -> int
     return 0;
 }
 
+/**
+ * @brief XORs two Lua strings of equal length and returns the result as a new string.
+ *
+ * Expects two string arguments on the Lua stack. If the strings are not of equal length,
+ * raises a Lua error. The function performs a byte-wise XOR of the two input strings and
+ * returns the resulting string to Lua.
+ *
+ * param:   string input1
+ * param:   string input2
+ * return:  string input1 xor input2
+ * raise:   string error message on length mismatch
+ *
+ * @param L Lua state
+ * @return int 1 on success; raises Lua error on failure
+ */
 auto l_xor_strings(lua_State* const L) -> int
 {
     auto const s1 = check_string_view(L, 1);
@@ -159,6 +229,17 @@ auto l_xor_strings(lua_State* const L) -> int
     return 1;
 }
 
+/**
+ * @brief Lua binding for isalnum(3)
+ *
+ * Checks if the given integer value corresponds to an alphanumeric character (A-Z, a-z, 0-9).
+ *
+ * param: integer c integer value of the character
+ * return: boolean true for alphanumeric input
+ *
+ * @param L Lua state
+ * @return int 1
+ */
 auto l_isalnum(lua_State* const L) -> int
 {
     auto const i = luaL_checkinteger(L, 1);
@@ -166,6 +247,20 @@ auto l_isalnum(lua_State* const L) -> int
     return 1;
 }
 
+/**
+ * @brief Lua binding for RFC 1459 case mapping.
+ *
+ * Converts the input string to its uppercase form according to RFC 1459 rules,
+ * which are used for case-insensitive comparisons in IRC. This mapping treats
+ * the characters '{', '}', '|', and '^' as equivalent to '[', ']', '\\', and '~'
+ * respectively, in addition to standard ASCII uppercase conversion.
+ *
+ * param:   string input text to normalize
+ * return:  string IRC case normalized text
+ *
+ * @param L Lua state
+ * @return int 1
+ */
 auto l_irccase(lua_State* const L) -> int
 {
     char const* const charmap = "\x00\x01\x02\x03\x04\x05\x06\x07"
@@ -203,12 +298,32 @@ auto l_irccase(lua_State* const L) -> int
     return 1;
 }
 
+/**
+ * @brief Initiate the shutdown process for the client.
+ *
+ * This will tear down the signal and stdin handlers for the process.
+ *
+ * @param L Lua state
+ * @return int 0
+ */
 auto l_shutdown(lua_State* const L) -> int
 {
     App::from_lua(L)->shutdown();
     return 0;
 }
 
+/**
+ * @brief Lua binding for timespec_get(3)
+ *
+ * Gets the seconds and nanoseconds since the 1970 epoch.
+ *
+ * return: integer seconds
+ * return: integer nanoseconds
+ * raise:  error on failure
+ *
+ * @param L Lua state
+ * @return int 2 on success; raises Lua error on failure
+ */
 auto l_time(lua_State* const L) -> int
 {
     timespec now;
@@ -220,10 +335,28 @@ auto l_time(lua_State* const L) -> int
     }
     else
     {
-        return 0;
+        return luaL_error(L, "timespec_get: failed");
     }
 }
 
+/**
+ * @brief Parses a string using IRC tags format.
+ *
+ * IRC tags are key-value pairs separated by ';'. Each key is optionally
+ * followed by a value. The value is delimited with an '='. Escaped characters
+ * in the value position are unescaped. Omitted values are treated as empty
+ * string values.
+ *
+ * Example: key1=value1;key2=value2
+ *
+ * param:       string input Tag input string
+ * return[1]:   table key/value pairs
+ * return[2]:   nil failure indicator
+ * return[2]:   string failure reason
+ *
+ * @param L Lua state
+ * @return int 1 on success; 2 on failure
+ */
 auto l_parse_irc_tags(lua_State* const L) -> int
 {
     auto const buf = mutable_string_arg(L, 1);
@@ -235,10 +368,34 @@ auto l_parse_irc_tags(lua_State* const L) -> int
     }
     catch (irc_parse_error const& e)
     {
-        return 0;
+        luaL_pushfail(L);
+        lua_pushstring(L, e.what());
+        return 2;
     }
 }
 
+/**
+ * @brief Parses a string using IRC tags format.
+ *
+ * IRC tags are key-value pairs separated by ';'. Each key is optionally
+ * followed by a value. The value is delimited with an '='. Escaped characters
+ * in the value position are unescaped. Omitted values are treated as empty
+ * string values.
+ *
+ * IRC messages have the following keys:
+ * - "tags": a required, potentially empty table of the key-value pairs of the tags of the message
+ * - "source": an optional field containing the source of the message
+ * - "command": a required field containing the string name or integer numeric of the command
+ * - [1..]: arguments of the command are stored in integer fields starting a 1
+ * 
+ * param:       string input Tag input string
+ * return[1]:   table IRC message
+ * return[2]:   nil failure indicator
+ * return[2]:   string failure reason
+ *
+ * @param L Lua state
+ * @return int 1 on success; 2 on failure
+ */
 auto l_parse_irc(lua_State* const L) -> int
 {
     auto const buf = mutable_string_arg(L, 1);
@@ -250,7 +407,9 @@ auto l_parse_irc(lua_State* const L) -> int
     }
     catch (irc_parse_error const& e)
     {
-        return 0;
+        luaL_pushfail(L);
+        lua_pushstring(L, e.what());
+        return 2;
     }
 }
 
@@ -314,6 +473,15 @@ auto l_print(lua_State* const L) -> int
 
 } // end of lua support namespace
 
+/**
+ * @brief Invoke the logic callback hook from the logic module.
+ * 
+ * @param L Lua state
+ * @param key name of callback; passed as first function argument to the callback
+ * @param args number of arguments on the stack to use a function arguments
+ * @return true on successful call
+ * @return false on callback failure or no callback found
+ */
 auto lua_callback(lua_State* const L, char const* const key, int args) -> bool
 {
     auto const module_ty = lua_rawgetp(L, LUA_REGISTRYINDEX, &logic_module);
