@@ -24,6 +24,7 @@ extern "C" {
 #include <iostream>
 #include <queue>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -47,7 +48,7 @@ class Websocket : public std::enable_shared_from_this<Websocket>
     websocket::stream<beast::tcp_stream> ws_;
     std::queue<std::string> messages_; // outgoing messages
     beast::flat_buffer buffer_; // incoming message
-    LuaRef cb_; // on_recv callback
+    std::optional<LuaRef> cb_; // on_recv callback
     bool closed;
 
 public:
@@ -61,7 +62,7 @@ public:
 
     auto set_callback(LuaRef&& ref) -> void
     {
-        cb_ = std::move(ref);
+        cb_.emplace(std::move(ref));
     }
 
     auto close() -> void
@@ -148,8 +149,8 @@ private:
         {
             if (cb_)
             {
-                auto const L = cb_.get_lua();
-                cb_.push();
+                auto const L = cb_->get_lua();
+                cb_->push();
                 luaL_pushfail(L);
                 push_string(L, ec.what());
                 safecall(L, "wsreaderr", 2);
@@ -159,8 +160,8 @@ private:
         {
             if (cb_)
             {
-                auto const L = cb_.get_lua();
-                cb_.push();
+                auto const L = cb_->get_lua();
+                cb_->push();
                 auto const buf = buffer_.data();
                 lua_pushlstring(L, static_cast<char*>(buf.data()), buf.size());
                 safecall(L, "wsread", 1);
