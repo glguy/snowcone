@@ -7,7 +7,6 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 #include <variant>
 
 namespace socks5 {
@@ -43,15 +42,15 @@ enum class SocksErrc
 };
 
 /// Either a hostname or an address. Hostnames are resolved locally on the proxy server
-using Host = std::variant<std::string_view, boost::asio::ip::address>;
+using Host = std::variant<std::string, boost::asio::ip::address>;
 
 struct NoCredential
 {
 };
 struct UsernamePasswordCredential
 {
-    std::string_view username;
-    std::string_view password;
+    std::string username;
+    std::string password;
 };
 
 using Auth = std::variant<NoCredential, UsernamePasswordCredential>;
@@ -227,7 +226,7 @@ namespace detail {
         template <typename Self>
         auto step(Self& self, Start) -> void
         {
-            if (auto const* const host = std::get_if<std::string_view>(&host_))
+            if (auto const* const host = std::get_if<std::string>(&host_))
             {
                 if (host->size() >= 256)
                 {

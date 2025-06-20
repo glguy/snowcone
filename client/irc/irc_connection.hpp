@@ -2,6 +2,8 @@
 
 #include "../net/stream.hpp"
 
+#include <socks5.hpp>
+
 #include <boost/asio.hpp>
 
 #include <openssl/evp.h>
@@ -37,8 +39,7 @@ struct Settings
 
     std::string socks_host;
     std::uint16_t socks_port;
-    std::string socks_user;
-    std::string socks_pass;
+    socks5::Auth socks_auth;
 };
 
 class irc_connection final : public std::enable_shared_from_this<irc_connection>

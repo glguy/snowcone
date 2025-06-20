@@ -65,7 +65,7 @@ namespace detail {
 
     auto push_host(Host const& host, std::vector<uint8_t>& buffer) -> void
     {
-        std::visit(overloaded{[&buffer](std::string_view const hostname) {
+        std::visit(overloaded{[&buffer](std::string const& hostname) {
                                   buffer.push_back(uint8_t(AddressType::DomainName));
                                   push_buffer(buffer, hostname);
                               },

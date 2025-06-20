@@ -216,13 +216,10 @@ auto irc_connection::connect(Settings settings) -> boost::asio::awaitable<std::s
     // Optionally negotiate SOCKS connection
     if (use_socks)
     {
-        auto auth = not settings.socks_user.empty() || not settings.socks_pass.empty()
-            ? socks5::Auth{socks5::UsernamePasswordCredential{settings.socks_user, settings.socks_pass}}
-            : socks5::Auth{socks5::NoCredential{}};
         os << " socks="
            << co_await socks5::async_connect(
                   socket,
-                  settings.socks_host, settings.socks_port, std::move(auth),
+                  settings.socks_host, settings.socks_port, std::move(settings.socks_auth),
                   boost::asio::use_awaitable
               );
     }

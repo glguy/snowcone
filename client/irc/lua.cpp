@@ -131,6 +131,8 @@ auto session_thread(
 
     auto const L = irc->get_lua();
 
+    // Connect and invoke the callback function:
+    // cb("CON", fingerprint)
     {
         auto const fingerprint = co_await irc->connect(std::move(settings));
 
@@ -140,6 +142,8 @@ auto session_thread(
         safecall(L, "successful connect", 2);
     }
 
+    // Continuously process lines from the stream and invoke the callback
+    // cb("MSG", ircmsg, redraw)
     for (LineBuffer buff{irc_connection::irc_buffer_size};;)
     {
         auto const target = buff.prepare();
@@ -166,6 +170,32 @@ auto session_thread(
 
 } // namespace
 
+/**
+ * @brief Start a new IRC session
+ *
+ * param:       boolean     Use TLS when connecting
+ * param:       string      IRC server hostname
+ * param:       integer     IRC server port number
+ * param:       X509?       TLS client certificate
+ * param:       PKey?       TLS client private key
+ * param:       string?     Optional hostname to verify on server certificate
+ * param:       string?     Optional hostname to send for TLS SNI
+ * param:       string?     Optional hostname of SOCKS5 proxy server
+ * param:       integer?    Optional port number of SOCKS5 proxy server
+ * param:       string?     Optional username for SOCKS5 proxy server
+ * param:       string?     Optional password for SOCKS5 proxy server
+ * param:       function    Callback function for events on IRC session
+ *
+ * Callback events:
+ * - cb("CON", fingerprint)
+ * - cb("MSG", ircmsg, redraw)
+ * - cb("END", error_message)
+ * 
+ * Callback sequence: (CON MSG*)? END
+ * 
+ * @param L Lua state
+ * @return int 1
+ */
 auto l_start_irc(lua_State* const L) -> int
 {
     auto const tls = lua_toboolean(L, 1);
@@ -184,7 +214,11 @@ auto l_start_irc(lua_State* const L) -> int
     luaL_argcheck(L, 1 <= port && port <= 0xffff, 3, "port out of range");
     luaL_argcheck(L, 0 <= socks_port && socks_port <= 0xffff, 9, "port out of range");
 
-    Settings settings = {
+    auto socks_auth = *socks_user || *socks_pass
+        ? socks5::Auth{socks5::UsernamePasswordCredential{socks_user, socks_pass}}
+        : socks5::Auth{socks5::NoCredential{}};
+
+    Settings settings {
         .tls = static_cast<bool>(tls),
         .host = host,
         .port = static_cast<std::uint16_t>(port),
@@ -194,8 +228,7 @@ auto l_start_irc(lua_State* const L) -> int
         .sni = sni,
         .socks_host = socks_host,
         .socks_port = static_cast<std::uint16_t>(socks_port),
-        .socks_user = socks_user,
-        .socks_pass = socks_pass,
+        .socks_auth = std::move(socks_auth),
     };
 
     auto& app = *App::from_lua(L);
