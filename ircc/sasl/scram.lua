@@ -6,10 +6,16 @@ local MIN_NONCE_LEN = 8
 
 -- https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#pbkdf2
 -- Derived from twice the recommendation as of February 2024
-local PBKDF2_ITERATION_LIMIT = {
+local PBKDF2_ITERATION_MAX = {
     sha1   = 2 * 1300000,
     sha256 = 2 *  600000,
     sha512 = 2 *  210000,
+}
+
+local PBKDF2_ITERATION_MIN = {
+    sha1   = 4096, -- Minimum specified in RFC7677
+    sha256 = 4096, -- Minimum specified in RFC7677
+    sha512 = 10000, -- draft-melnikov-scram-sha-512-05
 }
 
 local xor_strings = snowcone.xor_strings
@@ -27,7 +33,8 @@ end
 -- luacheck: ignore 631
 return function(digest_name, authzid, authcid, password, nonce)
     local digest = myopenssl.get_digest(digest_name)
-    local iteration_limit = assert(PBKDF2_ITERATION_LIMIT[digest_name], 'no iteration limit defined')
+    local iteration_min = assert(PBKDF2_ITERATION_MIN[digest_name], 'no iteration limit defined')
+    local iteration_max = assert(PBKDF2_ITERATION_MAX[digest_name], 'no iteration limit defined')
 
     if mystringprep then
         authcid = mystringprep.stringprep(authcid, 'SASLprep')
@@ -43,7 +50,7 @@ return function(digest_name, authzid, authcid, password, nonce)
             gs2_header = 'n,,'
         end
         local cbind_input = to_base64(gs2_header)
-        local client_nonce = nonce or to_base64(myopenssl.rand(16))
+        local client_nonce = nonce or to_base64(myopenssl.rand(32))
         local client_first_bare = 'n=' .. scram_encode_username(authcid) .. ',r=' .. client_nonce
         local client_first = gs2_header .. client_first_bare
 
@@ -58,8 +65,9 @@ return function(digest_name, authzid, authcid, password, nonce)
         salt = assert(from_base64(salt), 'bad salt encoding')
         assert(server_nonce:startswith(client_nonce), 'server nonce does not match client nonce')
         assert(#server_nonce - #client_nonce >= MIN_NONCE_LEN, 'server nonce too short')
-        iterations = assert(math.tointeger(iterations), 'bad iteration count')
-        assert(iterations <= iteration_limit, 'server pbdkf2 iteration count too high')
+        iterations = assert(math.tointeger(iterations), 'server pbkdf2 iteration count invalid')
+        assert(iterations >= iteration_min, 'server pbdkf2 iteration count too low')
+        assert(iterations <= iteration_max, 'server pbdkf2 iteration count too high')
 
         local salted_password = digest:pbkdf2(password, salt, iterations, digest:size())
         local client_key = digest:hmac('Client Key', salted_password)

@@ -45,11 +45,10 @@ struct Settings
 class irc_connection final : public std::enable_shared_from_this<irc_connection>
 {
 public:
-    using stream_type = Stream;
     static std::size_t const irc_buffer_size = 131'072;
 
 private:
-    stream_type stream_;
+    Stream stream_;
     boost::asio::ip::tcp::resolver resolver_;
     std::vector<int> write_refs;
     std::vector<boost::asio::const_buffer> write_buffers;
@@ -74,7 +73,7 @@ public:
         return std::make_shared<irc_connection>(Private{}, io_context, L);
     }
 
-    auto get_stream() -> stream_type&
+    auto get_stream() -> Stream&
     {
         return stream_;
     }
