@@ -6,60 +6,51 @@ namespace {
 
 TEST(Irc, NoArgs) {
   char input[] = "cmd";
-  EXPECT_EQ(
-    parse_irc_message(input),
-    ircmsg({}, {}, "cmd", {}));
+  ircmsg expect {{}, {}, "cmd", {}};
+  EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, NoArgsTrailing) {
   char input[] = "cmd ";
-  EXPECT_EQ(
-    parse_irc_message(input),
-    ircmsg({}, {}, "cmd", {})
-  );
+  ircmsg expect {{}, {}, "cmd", {}};
+  EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, OneArg) {
   char input[] = "cmd arg";
-  EXPECT_EQ(
-    parse_irc_message(input),
-    ircmsg({}, {}, "cmd", {"arg"}));
+  ircmsg expect {{}, {}, "cmd", {"arg"}};
+  EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, CommandArgSpaced) {
   char input[] = "  cmd  arg  ";
-  EXPECT_EQ(
-    parse_irc_message(input),
-    ircmsg({}, {}, "cmd", {"arg"}));
+  ircmsg expect {{}, {}, "cmd", {"arg"}};
+  EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, CommandArgColon) {
   char input[] = "command arg :arg2";
-  EXPECT_EQ(
-    parse_irc_message(input),
-    ircmsg({}, {}, "command", {"arg", "arg2"}));
+  ircmsg expect {{}, {}, "command", {"arg", "arg2"}};
+  EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, ColonArg) {
   char input[] = "command arg :arg2  more";
-  EXPECT_EQ(
-    parse_irc_message(input),
-    ircmsg({}, {}, "command", {"arg", "arg2  more"}));
+  ircmsg expect {{}, {}, "command", {"arg", "arg2  more"}};
+  EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, InternalColon) {
   char input[] = "command arg:arg2";
-  EXPECT_EQ(
-    parse_irc_message(input),
-    ircmsg({}, {}, "command", {"arg:arg2"}));
+  ircmsg expect {{}, {}, "command", {"arg:arg2"}};
+  EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, MaxArgsColon)
 {
   char input[] = "command 1 2 3 4 5 6 7 8 9 10 11 12 13 14 :15 16";
-  EXPECT_EQ(
-    parse_irc_message(input),
-    ircmsg({}, {}, "command", {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15 16"}));
+  ircmsg expect {{}, {}, "command", {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15 16"}};
+  EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, TestBarePrefix) {
@@ -76,77 +67,70 @@ TEST(Irc, BarePrefixSpace)
 TEST(Irc, Prefix)
 {
   char input[] = ":prefix command arg :arg2 ";
+  ircmsg expect {{}, "prefix", "command", {"arg", "arg2 "}};
   EXPECT_EQ(
     parse_irc_message(input),
-    ircmsg({}, "prefix", "command", {"arg", "arg2 "}));
+    expect);
 }
 
 TEST(Irc, PrefixAndColon) {
   char input[] = ":prefix command arg :";
-  EXPECT_EQ(
-    parse_irc_message(input),
-    ircmsg({}, "prefix", "command", {"arg", ""}));
+  ircmsg expect {{}, "prefix", "command", {"arg", ""}};
+  EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, SimpleTag) {
   char input[] = "@key=val :prefix command arg :";
-  EXPECT_EQ(
-    parse_irc_message(input),
-    ircmsg({{"key", "val"}}, "prefix", "command", {"arg", ""}));
+  ircmsg expect {{{"key", "val"}}, "prefix", "command", {"arg", ""}};
+  EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, TwoTags) {
   char input[] = "@key=val;yek=eulav :prefix command";
-  EXPECT_EQ(
-    parse_irc_message(input),
-    ircmsg({{"key","val"}, {"yek","eulav"}}, "prefix", "command", {}));
+  ircmsg expect {{{"key","val"}, {"yek","eulav"}}, "prefix", "command", {}};
+  EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, FirstTagNoValue) {
   char input[] = "@key;yek=eulav :prefix command";
-  EXPECT_EQ(
-    parse_irc_message(input),
-    ircmsg({{"key", {}}, {"yek", "eulav"}}, "prefix", "command", {}));
+  ircmsg expect {{{"key", {}}, {"yek", "eulav"}}, "prefix", "command", {}};
+  EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, TagEscapes) {
-  ircmsg expect {
-    {{"key", {}}, {"yek", "; \\\r\n"}},
-    "prefix", "command", {}};
+  ircmsg expect {{{"key", {}}, {"yek", "; \\\r\n"}}, "prefix", "command", {}};
   char input[] = "@key;yek=\\:\\s\\\\\\r\\n :prefix command";
   EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, LoneTagNoValue) {
-  ircmsg expect {{{"key",""}}, "pfx", "command", {}};
   char input[] = "@key= :pfx command";
+  ircmsg expect {{{"key",""}}, "pfx", "command", {}};
   EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, TagTrailingBackslash) {
-  struct ircmsg expect = {{{"key","x"}}, {}, "command", {}};
   char input[] = "@key=x\\ command";
+  ircmsg expect {{{"key", "x"}}, {}, "command", {}};
   EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, TagBadEscape) {
-  ircmsg expect {{{"key","x"},{"yek", {}}}, {}, "command", {}};
   char input[] = "@key=\\x\\;yek command";
+  ircmsg expect {{{"key","x"},{"yek", {}}}, {}, "command", {}};
   EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, TagKeyUnescaped) {
   char input[] = "@k\\s=x command";
-  EXPECT_EQ(
-    parse_irc_message(input),
-    ircmsg({{"k\\s", "x"}}, {}, "command", {}));
+  ircmsg expect {{{"k\\s", "x"}}, {}, "command", {}};
+  EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, TwoEmptyTagValues) {
   char input[] = "@key=;yek= command";
-  EXPECT_EQ(
-    parse_irc_message(input),
-    ircmsg({{"key", ""}, {"yek", ""}}, {}, "command", {}));
+  ircmsg expect {{{"key", ""}, {"yek", ""}}, {}, "command", {}};
+  EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, TagNoBody) {
@@ -161,9 +145,8 @@ TEST(Irc, TagLoneSemi) {
 
 TEST(Irc, EmptyPrefix) {
   char input[] = ": command";
-  EXPECT_EQ(
-    parse_irc_message(input),
-    ircmsg({}, "", "command", {}));
+  ircmsg expect {{}, "", "command", {}};
+  EXPECT_EQ(parse_irc_message(input), expect);
 }
 
 TEST(Irc, TagNoKey) {

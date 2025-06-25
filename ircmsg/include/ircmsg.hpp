@@ -9,31 +9,17 @@ struct irctag
     std::string_view key;
     std::string_view val;
 
-    irctag(std::string_view key, std::string_view val) : key{key}, val{val} {}
-
     friend auto operator==(irctag const&, irctag const&) -> bool = default;
 };
 
 struct ircmsg
 {
     std::vector<irctag> tags;
-    std::vector<std::string_view> args;
     std::string_view source;
     std::string_view command;
+    std::vector<std::string_view> args;
 
-    ircmsg() = default;
-
-    ircmsg(
-        std::vector<irctag> && tags,
-        std::string_view source,
-        std::string_view command,
-        std::vector<std::string_view> && args)
-    : tags(std::move(tags)),
-      args(std::move(args)),
-      source{source},
-      command{command} {}
-
-      friend bool operator==(ircmsg const&, ircmsg const&) = default;
+    friend bool operator==(ircmsg const&, ircmsg const&) = default;
 };
 
 enum class irc_error_code {

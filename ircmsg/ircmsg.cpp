@@ -65,6 +65,23 @@ public:
     }
 };
 
+/// @brief Construct a string_view of the tag after unescaping.
+///
+/// This performs the unescaping in-place and the returned
+/// string_view uses the storage of the character pointer
+/// passed in.
+///
+/// The tag escape format recognizes:
+/// - "\\r": '\r'
+/// - "\\n": '\n'
+/// - "\\:": ';'
+/// - "\\s": ' '
+///
+/// When any other escape sequence is used the leading '\\'
+/// is just dropped.
+///
+/// @param val The escaped, null-terminated value
+/// @return The view of the processed value
 std::string_view unescape_tag_value(char* const val)
 {
     // only start copying at the first escape character
@@ -109,15 +126,24 @@ auto parse_irc_tags(char* str) -> std::vector<irctag>
             throw irc_parse_error(irc_error_code::MISSING_TAG);
         }
         if (nullptr == val) {
-            tags.emplace_back(key, "");
+            tags.push_back({key, {}});
         } else {
-            tags.emplace_back(key, unescape_tag_value(val));
+            tags.push_back({key, unescape_tag_value(val)});
         }
     } while(nullptr != str);
 
     return tags;
 }
 
+/// @brief In-place parsing of IRC message
+///
+/// This implementation reuses the storage of the raw message
+/// being parsed. The resulting ircmsg is comprised of
+/// string_view values that point back into the original
+/// allocation.
+///
+/// @param msg The raw IRC message to parse
+/// @return ircmsg pointing into the input buffer
 auto parse_irc_message(char* const msg) -> ircmsg
 {
     parser p {msg};
