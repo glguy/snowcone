@@ -126,9 +126,9 @@ auto parse_irc_tags(char* str) -> std::vector<irctag>
             throw irc_parse_error(irc_error_code::MISSING_TAG);
         }
         if (nullptr == val) {
-            tags.push_back({key, {}});
+            tags.emplace_back(key);
         } else {
-            tags.push_back({key, unescape_tag_value(val)});
+            tags.emplace_back(key, unescape_tag_value(val));
         }
     } while(nullptr != str);
 

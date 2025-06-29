@@ -57,37 +57,10 @@ std::string SocksErrCategory::message(int ev) const
 }
 
 namespace detail {
-
     auto make_socks_error(SocksErrc const err) -> boost::system::error_code
     {
         return boost::system::error_code{int(err), theSocksErrCategory};
     }
-
-    auto push_host(Host const& host, std::vector<uint8_t>& buffer) -> void
-    {
-        std::visit(overloaded{[&buffer](std::string const& hostname) {
-                                  buffer.push_back(uint8_t(AddressType::DomainName));
-                                  push_buffer(buffer, hostname);
-                              },
-                              [&buffer](boost::asio::ip::address const& address) {
-                                  if (address.is_v4())
-                                  {
-                                      buffer.push_back(uint8_t(AddressType::IPv4));
-                                      push_buffer(buffer, address.to_v4().to_bytes());
-                                  }
-                                  else if (address.is_v6())
-                                  {
-                                      buffer.push_back(uint8_t(AddressType::IPv6));
-                                      push_buffer(buffer, address.to_v6().to_bytes());
-                                  }
-                                  else
-                                  {
-                                      throw std::logic_error{"unexpected address type"};
-                                  }
-                              }},
-                   host);
-    }
-
 } // namespace detail
 
 } // namespace socks5

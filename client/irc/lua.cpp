@@ -101,24 +101,41 @@ auto pushirc(lua_State* const L, std::weak_ptr<irc_connection> const irc) -> voi
     std::construct_at(w, irc);
 }
 
-// Get the next complete line skipping over empty lines
-auto get_nonempty_line(LineBuffer& buff) -> char*
+/// Retrieve the next non-empty line from the buffer.
+///
+/// Leading spaces are trimmed from each line before checking for emptiness.
+/// The function returns a pointer to the first non-empty line found, or
+/// `nullptr` if no such line is available.
+///
+/// @param buff Reference to a LineBuffer to read lines from.
+/// @return Pointer to the next non-empty line, or nullptr if none remain.
+auto get_nonempty_line(LineBuffer& buff) -> char *
 {
-    char* line;
-    while ((line = buff.next_line()))
+    while (auto line = buff.next_line())
     {
-        while (*line == ' ')
+        while (' ' == *line)
         {
             line++;
         }
         if ('\0' != *line)
         {
-            break;
+            return line;
         }
     }
-    return line;
+    return nullptr;
 }
 
+/// Coroutine that handles the IRC session.
+/// It connects to the IRC server, reads messages from the stream,
+/// and invokes the provided callback function
+/// with the appropriate events.
+///
+/// @param io_context The IO context to use for asynchronous operations.
+/// @param irc_cb The Lua callback function reference.
+/// @param irc The shared pointer to the IRC connection.
+/// @param settings The settings for the IRC connection.
+/// @return An awaitable that runs the session thread.
+/// @throws std::runtime_error if the line buffer is full.
 auto session_thread(
     boost::asio::io_context& io_context,
     int const irc_cb,
@@ -126,9 +143,6 @@ auto session_thread(
     Settings settings
 ) -> boost::asio::awaitable<void>
 {
-    std::string s;
-    boost::asio::dynamic_string_buffer b{s};
-
     auto const L = irc->get_lua();
 
     // Connect and invoke the callback function:
