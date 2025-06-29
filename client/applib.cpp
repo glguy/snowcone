@@ -359,10 +359,13 @@ auto l_time(lua_State* const L) -> int
  */
 auto l_parse_irc_tags(lua_State* const L) -> int
 {
-    auto const buf = mutable_string_arg(L, 1);
+    auto const txt = check_string_view(L, 1);
 
     try
     {
+        luaL_Buffer B;
+        auto const buf = luaL_buffinitsize(L, &B, txt.size() + 1);
+        strcpy(buf, txt.data());
         pushtags(L, parse_irc_tags(buf));
         return 1;
     }
@@ -398,10 +401,13 @@ auto l_parse_irc_tags(lua_State* const L) -> int
  */
 auto l_parse_irc(lua_State* const L) -> int
 {
-    auto const buf = mutable_string_arg(L, 1);
-
+    auto const txt = check_string_view(L, 1);
+    ircmsg result;
     try
     {
+        luaL_Buffer B;
+        auto const buf = luaL_buffinitsize(L, &B, txt.size() + 1);
+        strcpy(buf, txt.data());
         pushircmsg(L, parse_irc_message(buf));
         return 1;
     }
