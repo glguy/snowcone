@@ -22,7 +22,7 @@ static int open_db(lua_State* L)
     if (NULL == geoip)
         luaL_error(L, "Failed to open");
 
-    GeoIP** ptr = lua_newuserdata(L, sizeof geoip);
+    GeoIP** ptr = lua_newuserdatauv(L, sizeof geoip, 0);
     *ptr = geoip;
     luaL_setmetatable(L, db_type_name);
     return 1;

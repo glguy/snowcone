@@ -706,9 +706,9 @@ local function refresh_rotations()
     for label, entry in pairs(servers.regions or {}) do
         -- luacheck: ignore 231
         local query
-        query = snowcone.dnslookup(entry.hostname, function(addrs, reason)
-            query = nil
-            mrs[label] = Set(addrs)
+        query = snowcone.dnslookup(entry.hostname, function(reason, ...)
+            query = nil -- keeps the resolver alive until the callback is used
+            mrs[label] = Set{...}
             if reason then
                 status('dns', '%s: %s', entry.hostname, reason)
             end
