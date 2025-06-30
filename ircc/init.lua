@@ -649,6 +649,7 @@ local function startup()
                 connect()
             end
             draw()
+            collectgarbage 'step'
         end
         tick_timer:start(1000, cb)
     end

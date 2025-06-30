@@ -744,6 +744,7 @@ if not tick_timer then
         kline_tracker:tick()
         filter_tracker:tick()
         draw()
+        collectgarbage 'step'
     end
     tick_timer:start(1000, cb)
 end
