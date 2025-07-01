@@ -4,10 +4,11 @@ add_executable(snowcone
     safecall.cpp timer.cpp dnslookup.cpp strings.cpp
     process.cpp linebuffer.cpp httpd.cpp
     irc/irc_connection.cpp irc/lua.cpp
+    scheme.cpp
     )
 target_link_libraries(snowcone PRIVATE
     PkgConfig::NCURSESW PkgConfig::LUA ${BOOST_TARGETS} OpenSSL::SSL
-    ircmsg myncurses mybase64 myopenssl mysocks5 mytoml)
+    ircmsg myncurses mybase64 myopenssl mysocks5 mytoml mys7)
 configure_file(config.hpp.in config.hpp @ONLY)
 target_include_directories(snowcone PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 

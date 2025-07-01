@@ -8,6 +8,7 @@
 #include "safecall.hpp"
 #include "strings.hpp"
 #include "timer.hpp"
+#include "scheme.hpp"
 
 #include <ircmsg.hpp>
 #include <mybase64.hpp>
@@ -16,9 +17,9 @@
 #include <mytoml.hpp>
 
 extern "C" {
-#include <lauxlib.h>
-#include <lua.h>
-#include <lualib.h>
+    #include <lauxlib.h>
+    #include <lua.h>
+    #include <lualib.h>
 }
 
 #include <ncurses.h>
@@ -445,7 +446,8 @@ luaL_Reg const applib_module[] = {
     {"stop_input", l_stop_input},
     {"start_input", l_start_input},
     {"start_httpd", start_httpd},
-    {}
+    {"scheme", l_scheme},
+    {} // sentinel
 };
 
 auto l_print(lua_State* const L) -> int
