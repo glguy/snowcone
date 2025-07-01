@@ -1,10 +1,10 @@
 #include "lua.hpp"
 #include "../app.hpp"
-#include "../linebuffer.hpp"
+#include "../net/linebuffer.hpp"
 #include "../safecall.hpp"
 #include "../strings.hpp"
 #include "../userdata.hpp"
-#include "irc_connection.hpp"
+#include "../net/connection.hpp"
 
 #include <pkey.hpp>
 #include <x509.hpp>
@@ -32,7 +32,7 @@ using tls_type = boost::asio::ssl::stream<tcp_type>;
 
 auto l_close_irc(lua_State* const L) -> int
 {
-    auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
+    auto const w = check_udata<std::weak_ptr<connection>>(L, 1);
 
     if (auto const irc = w->lock())
     {
@@ -51,7 +51,7 @@ auto l_close_irc(lua_State* const L) -> int
 
 auto l_send_irc(lua_State* const L) -> int
 {
-    auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
+    auto const w = check_udata<std::weak_ptr<connection>>(L, 1);
 
     if (auto const irc = w->lock())
     {
@@ -59,9 +59,7 @@ auto l_send_irc(lua_State* const L) -> int
         // stack that have destructors
         auto const cmd = check_string_view(L, 2);
         lua_settop(L, 2);
-        auto const ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        irc->write(cmd, ref);
-
+        irc->write(cmd);
         lua_pushboolean(L, 1);
         return 1;
     }
@@ -73,11 +71,11 @@ auto l_send_irc(lua_State* const L) -> int
     }
 }
 
-auto pushirc(lua_State* const L, std::weak_ptr<irc_connection> const irc) -> void
+auto pushirc(lua_State* const L, std::weak_ptr<connection> const irc) -> void
 {
-    auto const w = new_udata<std::weak_ptr<irc_connection>>(L, 1, [L] {
+    auto const w = new_udata<std::weak_ptr<connection>>(L, 1, [L] {
         auto constexpr l_gc = [](lua_State* const L) -> int {
-            auto const w = check_udata<std::weak_ptr<irc_connection>>(L, 1);
+            auto const w = check_udata<std::weak_ptr<connection>>(L, 1);
             std::destroy_at(w);
             return 0;
         };
@@ -138,13 +136,12 @@ auto get_nonempty_line(LineBuffer& buff) -> char *
 /// @throws std::runtime_error if the line buffer is full.
 auto session_thread(
     boost::asio::io_context& io_context,
+    lua_State* const L,
     int const irc_cb,
-    std::shared_ptr<irc_connection> const irc,
+    std::shared_ptr<connection> const irc,
     Settings settings
 ) -> boost::asio::awaitable<void>
 {
-    auto const L = irc->get_lua();
-
     // Connect and invoke the callback function:
     // cb("CON", fingerprint)
     {
@@ -158,7 +155,7 @@ auto session_thread(
 
     // Continuously process lines from the stream and invoke the callback
     // cb("MSG", ircmsg, redraw)
-    for (LineBuffer buff{irc_connection::irc_buffer_size};;)
+    for (LineBuffer buff{connection::irc_buffer_size};;)
     {
         auto const target = buff.prepare();
         if (target.size() == 0)
@@ -249,10 +246,10 @@ auto l_start_irc(lua_State* const L) -> int
     auto& io_context = app.get_executor();
     auto const LMain = app.get_lua();
 
-    auto const irc = irc_connection::create(io_context, LMain);
+    auto const irc = connection::create(io_context);
     auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
     boost::asio::co_spawn(
-        io_context, session_thread(io_context, irc_cb, irc, std::move(settings)),
+        io_context, session_thread(io_context, LMain, irc_cb, irc, std::move(settings)),
         [L = LMain, irc_cb](std::exception_ptr const e) {
             lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
             luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);
@@ -323,4 +320,4 @@ auto pushtags(lua_State* const L, std::vector<irctag> const& tags) -> void
 }
 
 template <>
-char const* udata_name<std::weak_ptr<irc_connection>> = "irc_connection";
+char const* udata_name<std::weak_ptr<connection>> = "irc_connection";

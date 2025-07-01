@@ -1,11 +1,6 @@
-#include "irc_connection.hpp"
+#include "connection.hpp"
 
 #include <socks5.hpp>
-
-extern "C" {
-#include <lauxlib.h>
-#include <lua.h>
-}
 
 #include <boost/io/ios_state.hpp>
 
@@ -13,68 +8,40 @@ extern "C" {
 #include <iomanip>
 #include <vector>
 
-irc_connection::irc_connection(
-    Private,
-    boost::asio::io_context& io_context,
-    lua_State* const L
-)
+connection::connection(boost::asio::io_context& io_context)
     : stream_{io_context}
     , resolver_{io_context}
-    , L{L}
-    , writing_{false}
 {
 }
 
-irc_connection::~irc_connection()
+auto connection::write(std::string_view const cmd) -> void
 {
-    for (auto const ref : write_refs)
-    {
-        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+    if (not cmd.empty()) {
+        send_.insert(end(send_), begin(cmd), end(cmd));
+        if (sending_.empty())
+        {
+            write_actual();
+        }
     }
 }
 
-auto irc_connection::write(std::string_view const cmd, int const ref) -> void
+auto connection::write_actual() -> void
 {
-    write_buffers.emplace_back(cmd.data(), cmd.size());
-    write_refs.emplace_back(ref);
-    if (not writing_)
-    {
-        writing_ = true;
-        write_actual();
-    }
-}
-
-auto irc_connection::write_actual() -> void
-{
+    std::swap(send_, sending_);
     boost::asio::async_write(
         stream_,
-        write_buffers,
-        [weak = weak_from_this(), L = L, refs = std::move(write_refs)](boost::system::error_code const& error, std::size_t) {
-            for (auto const ref : refs)
+        boost::asio::buffer(sending_),
+        [self = shared_from_this()](boost::system::error_code const& error, std::size_t) {
+            self->sending_.clear();
+            if (not error && not self->send_.empty())
             {
-                luaL_unref(L, LUA_REGISTRYINDEX, ref);
-            }
-            if (not error)
-            {
-                if (auto const self = weak.lock())
-                {
-                    if (self->write_buffers.empty())
-                    {
-                        self->writing_ = false;
-                    }
-                    else
-                    {
-                        self->write_actual();
-                    }
-                }
+                self->write_actual();
             }
         }
     );
-    write_buffers.clear();
-    write_refs.clear();
 }
 
-auto irc_connection::close() -> void
+auto connection::close() -> void
 {
     resolver_.cancel();
     stream_.close();
@@ -183,9 +150,17 @@ auto constexpr alpn_encode(char const (&... protocols)[Ns]) -> std::array<unsign
     return result;
 }
 
+auto openssl_error(char const * prefix) -> void {
+    boost::system::error_code ec{
+        static_cast<int>(::ERR_get_error()),
+        boost::asio::error::get_ssl_category()};
+    ::ERR_clear_error();
+    throw boost::system::system_error{ec, prefix};
+}
+
 } // namespace
 
-auto irc_connection::connect(Settings settings) -> boost::asio::awaitable<std::string>
+auto connection::connect(Settings settings) -> boost::asio::awaitable<std::string>
 {
     // Fingerprint string builder
     std::ostringstream os;
@@ -238,7 +213,7 @@ auto irc_connection::connect(Settings settings) -> boost::asio::awaitable<std::s
         {
             if (1 != SSL_use_certificate(stream.native_handle(), client_cert))
             {
-                throw std::runtime_error{"certificate file"};
+                openssl_error("SSL_use_certificate");
             }
         }
 
@@ -247,7 +222,7 @@ auto irc_connection::connect(Settings settings) -> boost::asio::awaitable<std::s
         {
             if (1 != SSL_use_PrivateKey(stream.native_handle(), client_key))
             {
-                throw std::runtime_error{"private key"};
+                openssl_error("SSL_use_PrivateKey");
             }
         }
 
@@ -257,7 +232,12 @@ auto irc_connection::connect(Settings settings) -> boost::asio::awaitable<std::s
         // Configure ALPN
         {
             auto constexpr protos = alpn_encode("irc");
-            SSL_set_alpn_protos(stream.native_handle(), protos.data(), protos.size());
+            // non-standard return behavior
+            if (0 != SSL_set_alpn_protos(stream.native_handle(), protos.data(), protos.size()))
+            {
+                // not documented to set an error code
+                throw std::runtime_error{"SSL_set_alpn_protos"};
+            }
         }
 
         // Configure server certificate verification
@@ -270,7 +250,11 @@ auto irc_connection::connect(Settings settings) -> boost::asio::awaitable<std::s
         // Set the SNI hostname, if specified
         if (not settings.sni.empty())
         {
-            SSL_set_tlsext_host_name(stream.native_handle(), settings.sni.c_str());
+            if (1 != SSL_set_tlsext_host_name(stream.native_handle(), settings.sni.c_str()))
+            {
+                // not documented to set an error code
+                throw std::runtime_error{"SSL_set_tlsext_host_name"};
+            }
         }
 
         // Configuration complete, initiate the handshake
