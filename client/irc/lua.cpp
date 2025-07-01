@@ -242,9 +242,9 @@ auto l_start_irc(lua_State* const L) -> int
         .socks_auth = std::move(socks_auth),
     };
 
-    auto& app = *App::from_lua(L);
-    auto& io_context = app.get_executor();
-    auto const LMain = app.get_lua();
+    auto const app = App::from_lua(L);
+    auto& io_context = app->get_context();
+    auto const LMain = app->get_lua();
 
     auto const irc = connection::create(io_context);
     auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);

@@ -194,7 +194,7 @@ auto l_execute(lua_State* L) -> int
 
     auto const app = App::from_lua(L);
     async_exec(
-        app->get_executor(),
+        app->get_context(),
         file,
         std::move(args),
         std::move(input),

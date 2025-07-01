@@ -29,7 +29,7 @@ public:
     auto shutdown() -> void;
     auto reload() -> bool;
 
-    auto get_executor() -> boost::asio::io_context&
+    auto get_context() -> boost::asio::io_context&
     {
         return io_context;
     }

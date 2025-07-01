@@ -19,7 +19,7 @@ auto l_dnslookup(lua_State* const L) -> int
     luaL_checkany(L, 2); // callback
     lua_settop(L, 2);
     auto const app = App::from_lua(L);
-    auto const resolver = std::make_shared<Resolver>(app->get_executor());
+    auto const resolver = std::make_shared<Resolver>(app->get_context());
 
     // Store the callback
     lua_rawsetp(L, LUA_REGISTRYINDEX, resolver.get());

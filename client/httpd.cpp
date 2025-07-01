@@ -586,7 +586,7 @@ auto start_httpd(lua_State* const L) -> int
     std::construct_at(
         &httpd,
         std::make_shared<Listener>(
-            App::from_lua(L)->get_executor(),
+            App::from_lua(L)->get_context(),
             std::move(cb)
         )
     );
