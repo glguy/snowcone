@@ -352,7 +352,7 @@ end)
 -- Generate NickServ SET PUBKEY command
 add_command('ecdsa_fp', '$g', function(filename)
     local pem = assert(file.read(filename))
-    local k = myopenssl.read_pem(pem, false)
+    local k = myopenssl.read_pem(pem, true)
     print('/msg NickServ SET PUBKEY ' .. pub64(k))
 end)
 
