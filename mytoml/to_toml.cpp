@@ -6,7 +6,6 @@ extern "C" {
 #include <lua.h>
 }
 
-
 #include <functional>
 #include <sstream>
 #include <string>
@@ -55,7 +54,21 @@ auto is_lua_array(lua_State* const L) -> int
     return counter;
 }
 
-auto with_toml(lua_State* const L, std::function<void(toml::node&&)> k) -> void
+auto mk_a_case(toml::array& a)
+{
+    return [&a](toml::node&& v) {
+        a.push_back(std::move(v));
+    };
+}
+
+auto mk_t_case(toml::table& t, std::string_view const key)
+{
+    return [&t, key](toml::node&& v) {
+        t.insert(key, std::move(v));
+    };
+}
+
+auto with_toml(lua_State* const L, std::invocable<toml::node&&> auto k) -> void
 {
     switch (lua_type(L, -1))
     {
@@ -96,9 +109,7 @@ auto with_toml(lua_State* const L, std::function<void(toml::node&&)> k) -> void
             for (lua_Integer i = 0; i < n; i++)
             {
                 lua_geti(L, -1, i + 1);
-                with_toml(L, [&a](toml::node&& v) {
-                    a.push_back(std::move(v));
-                });
+                with_toml(L, mk_a_case(a));
             }
 
             lua_pop(L, 1); // drop the array
@@ -119,9 +130,7 @@ auto with_toml(lua_State* const L, std::function<void(toml::node&&)> k) -> void
                 auto const str = lua_tolstring(L, -2, &len);
                 std::string_view const key{str, len};
 
-                with_toml(L, [&t, key](toml::node&& v) {
-                    t.insert(key, std::move(v));
-                });
+                with_toml(L, mk_t_case(t, key));
             }
 
             lua_pop(L, 1); // drop the table
@@ -140,11 +149,11 @@ auto mytoml::l_to_toml(lua_State* const L) -> int
     lua_settop(L, 1);
     try
     {
-        with_toml(L, [L](toml::node&& t) -> void {
-            std::ostringstream os;
+        std::ostringstream os;
+        with_toml(L, [&os](toml::node&& t) -> void {
             os << toml::node_view{t};
-            lua_pushlstring(L, os.str().data(), os.str().size());
         });
+        lua_pushlstring(L, os.str().data(), os.str().size());
         return 1;
     }
     catch (std::exception const& ex)
