@@ -7,7 +7,7 @@ extern "C" {
 #include <lua.h>
 }
 
-static luaL_Reg M[] {
+static const luaL_Reg M[] {
     {"parse_toml", mytoml::l_parse_toml},
     {"to_toml", mytoml::l_to_toml},
     {}

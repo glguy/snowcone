@@ -150,11 +150,23 @@ auto constexpr alpn_encode(char const (&... protocols)[Ns]) -> std::array<unsign
     return result;
 }
 
-auto openssl_error(char const * prefix) -> void {
+/**
+ * @brief Throws a boost::system::system_error with the latest OpenSSL error.
+ *
+ * Retrieves the most recent OpenSSL error code, clears the OpenSSL error queue,
+ * and throws a boost::system::system_error with the provided prefix and the error code.
+ *
+ * @param prefix A string to prefix the error message.
+ * @throws boost::system::system_error Always throws with the OpenSSL error code and prefix.
+ */
+[[noreturn]] auto openssl_error(char const * const prefix) -> void
+{
     boost::system::error_code ec{
         static_cast<int>(::ERR_get_error()),
         boost::asio::error::get_ssl_category()};
+
     ::ERR_clear_error();
+
     throw boost::system::system_error{ec, prefix};
 }
 

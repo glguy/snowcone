@@ -8,42 +8,48 @@ extern "C" {
 
 namespace {
 
-auto push_toml_node(lua_State* const L, toml::node const& node) -> void;
-
-auto push_toml(lua_State* const L, toml::value<std::int64_t> const& value) -> void
+auto push_atom(lua_State* const L, std::int64_t const value) -> void
 {
-    lua_pushinteger(L, *value);
+    lua_pushinteger(L, value);
 }
 
-auto push_toml(lua_State* const L, toml::value<std::string> const& value) -> void
+auto push_atom(lua_State* const L, std::string const& value) -> void
 {
-    lua_pushlstring(L, value->data(), value->size());
+    lua_pushlstring(L, value.data(), value.size());
 }
 
-auto push_toml(lua_State* const L, toml::value<bool> const& value) -> void
+auto push_atom(lua_State* const L, bool const value) -> void
 {
-    lua_pushboolean(L, value.get());
+    lua_pushboolean(L, value);
 }
 
-auto push_toml(lua_State* const L, toml::value<double> const& value) -> void
+auto push_atom(lua_State* const L, double const value) -> void
 {
-    lua_pushnumber(L, value.get());
+    lua_pushnumber(L, value);
 }
 
-auto push_toml(lua_State* const L, toml::value<toml::date> const& value) -> void
+auto push_atom(lua_State*, toml::date const&) -> void
 {
     throw std::runtime_error{"toml date not supported"};
 }
 
-auto push_toml(lua_State* const L, toml::value<toml::date_time> const& value) -> void
+auto push_atom(lua_State*, toml::date_time const&) -> void
 {
     throw std::runtime_error{"toml datetime not supported"};
 }
 
-auto push_toml(lua_State* const L, toml::value<toml::time> const& value) -> void
+auto push_atom(lua_State*, toml::time const&) -> void
 {
     throw std::runtime_error{"toml time not supported"};
 }
+
+template <typename T>
+auto push_toml(lua_State* const L, toml::value<T> const& value) -> void
+{
+    push_atom(L, value.get());
+}
+
+auto push_toml_node(lua_State* const L, toml::node const& node) -> void;
 
 auto push_toml(lua_State* const L, toml::table const& table) -> void
 {
