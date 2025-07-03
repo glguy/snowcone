@@ -58,16 +58,22 @@ auto with_toml(lua_State* const L, std::invocable<toml::node&&> auto k) -> void
             do
             {
                 entries++;
+                if (not lua_isinteger(L, -2))
+                {
+                    throw std::runtime_error{"bad array index type"};
+                }
+
                 auto const key = lua_tointeger(L, -2);
                 if (key < 1)
                 {
-                    // this could be 0 for non-integer case
-                    throw std::runtime_error{"bad array index"};
+                    throw std::runtime_error{"non-positive array index"};
                 }
+
                 if (key > max_key)
                 {
                     max_key = key;
                 }
+
                 with_toml(L, std::bind(&toml::array::push_back<toml::node>, std::ref(a), _1, toml::preserve_source_value_flags));
             }
             while (0 != lua_next(L, -2));
