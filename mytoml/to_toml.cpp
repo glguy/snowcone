@@ -58,10 +58,11 @@ auto with_toml(lua_State* const L, std::invocable<toml::node&&> auto k) -> void
             do
             {
                 entries++;
-                auto const key = lua_tonumber(L, -2);
+                auto const key = lua_tointeger(L, -2);
                 if (key < 1)
                 {
-                    throw std::runtime_error{"negative array key"};
+                    // this could be 0 for non-integer case
+                    throw std::runtime_error{"bad array index"};
                 }
                 if (key > max_key)
                 {
