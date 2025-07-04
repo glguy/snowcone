@@ -24,6 +24,7 @@ extern "C" {
 
 #include <algorithm>
 #include <cstddef>
+#include <functional>
 
 /***
 Get a digest object by name
