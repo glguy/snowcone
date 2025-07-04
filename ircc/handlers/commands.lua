@@ -325,7 +325,7 @@ add_command('upload_filterdb', '$r', function(path)
 end)
 
 local function pub64(k)
-    return snowcone.to_base64(k:export().pub)
+    return mybase64.to_base64(k:export().pub)
 end
 
 -- /ecdsa_new <filename.pem>
@@ -360,7 +360,7 @@ end)
 -- Generate a new X25519 private key and NickServ SET X25519-PUBKEY command
 add_command('x25519_new', '', function()
     local k = myopenssl.gen_pkey('X25519')
-    print('Private key: ' .. snowcone.to_base64(k:get_raw_private()))
+    print('Private key: ' .. mybase64.to_base64(k:get_raw_private()))
     print('/msg NickServ SET X25519-PUBKEY ' .. pub64(k))
 end)
 

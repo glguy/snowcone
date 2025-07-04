@@ -18,9 +18,9 @@ local PBKDF2_ITERATION_MIN = {
     sha512 = 10000, -- draft-melnikov-scram-sha-512-05
 }
 
-local xor_strings = snowcone.xor_strings
-local to_base64 = snowcone.to_base64
-local from_base64 = snowcone.from_base64
+local xor = myopenssl.xor
+local to_base64 = mybase64.to_base64
+local from_base64 = mybase64.from_base64
 
 local function scram_encode_username(name)
     local table = {
@@ -79,7 +79,7 @@ return function(digest_name, authzid, authcid, password, nonce)
         local client_signature = digest:hmac(auth_message, stored_key)
         local server_signature = digest:hmac(auth_message, server_key)
 
-        local client_proof = xor_strings(client_key, client_signature)
+        local client_proof = xor(client_key, client_signature)
         local proof = 'p=' .. to_base64(client_proof)
         local client_final = client_final_without_proof .. ',' .. proof
 

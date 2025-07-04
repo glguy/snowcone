@@ -22,6 +22,9 @@ extern "C" {
 #include <lua.h>
 }
 
+#include <algorithm>
+#include <cstddef>
+
 /***
 Get a digest object by name
 
@@ -90,6 +93,44 @@ auto l_rand(lua_State* const L) -> int
     return 1;
 }
 
+
+/**
+ * @brief XORs two Lua strings of equal length and returns the result as a new string.
+ *
+ * Expects two string arguments on the Lua stack. The function performs a byte-wise XOR
+ * of the two input strings. Short strings are padded out with zero bytes.
+ *
+ * param:   string input1
+ * param:   string input2
+ * return:  string input1 xor input2
+ *
+ * @param L Lua state
+ * @return int 1 on success
+ */
+auto l_xor(lua_State* const L) -> int
+{
+    std::size_t l1, l2;
+    auto const s1 = luaL_checklstring(L, 1, &l1);
+    auto const s2 = luaL_checklstring(L, 2, &l2);
+
+    auto const lc = std::min(l1, l2);
+    auto const lt = std::max(l1, l2);
+
+    luaL_Buffer B;
+    auto const output = luaL_buffinitsize(L, &B, lt);
+
+    std::transform(s1, s1 + lc, s2, output, std::bit_xor());
+
+    if (l1 < l2) {
+        std::copy(s2 + lc, s2 + l2, output + lc);
+    } else {
+        std::copy(s1 + lc, s1 + l1, output + lc);
+    }
+
+    luaL_pushresultsize(&B, lt);
+    return 1;
+}
+
 } // namespace
 
 extern "C" auto luaopen_myopenssl(lua_State* const L) -> int
@@ -104,6 +145,7 @@ extern "C" auto luaopen_myopenssl(lua_State* const L) -> int
         {"read_x509", myopenssl::l_read_x509},
         {"pkey_from_store", myopenssl::l_pkey_from_store},
         {"rand", l_rand},
+        {"xor", l_xor},
         {}
     };
 

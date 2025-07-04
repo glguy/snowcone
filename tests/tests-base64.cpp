@@ -1,4 +1,4 @@
-#include <mybase64.hpp>
+#include <base64.hpp>
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -12,7 +12,7 @@ namespace {
 
 auto decode_string_view(std::string_view const input, char * const output) -> std::string_view
 {
-    auto const last = mybase64::decode(input, output);
+    auto const last = base64::decode(input, output);
     return last ? std::string_view{output, last} : std::string_view{};
 }
 
@@ -20,25 +20,25 @@ TEST(Base64, EncodeFoobar)
 {
     char buffer[9];
 
-    mybase64::encode("", buffer);
+    base64::encode("", buffer);
     EXPECT_STREQ(buffer, "");
 
-    mybase64::encode("f", buffer);
+    base64::encode("f", buffer);
     EXPECT_STREQ(buffer, "Zg==");
 
-    mybase64::encode("fo", buffer);
+    base64::encode("fo", buffer);
     EXPECT_STREQ(buffer, "Zm8=");
 
-    mybase64::encode("foo", buffer);
+    base64::encode("foo", buffer);
     EXPECT_STREQ(buffer, "Zm9v");
 
-    mybase64::encode("foob", buffer);
+    base64::encode("foob", buffer);
     EXPECT_STREQ(buffer, "Zm9vYg==");
 
-    mybase64::encode("fooba", buffer);
+    base64::encode("fooba", buffer);
     EXPECT_STREQ(buffer, "Zm9vYmE=");
 
-    mybase64::encode("foobar", buffer);
+    base64::encode("foobar", buffer);
     EXPECT_STREQ(buffer, "Zm9vYmFy");
 }
 
@@ -66,8 +66,8 @@ TEST(Base64, Exhaust1)
         char output64[5];
         char recovered[1];
 
-        mybase64::encode({input, 1}, output64);
-        ASSERT_EQ(mybase64::decode(output64, recovered), recovered+1);
+        base64::encode({input, 1}, output64);
+        ASSERT_EQ(base64::decode(output64, recovered), recovered+1);
         EXPECT_EQ(recovered[0], input[0]);
     }
 }
@@ -84,11 +84,11 @@ TEST(Base64, Ones) {
     uint32_t buffer = UINT32_C(0xffffffff);
     char output[9];
 
-    mybase64::encode({reinterpret_cast<char*>(&buffer), sizeof(buffer)}, output);
+    base64::encode({reinterpret_cast<char*>(&buffer), sizeof(buffer)}, output);
     EXPECT_STREQ(output, "/////w==");
 
     uint32_t decoded {};
-    ASSERT_EQ(mybase64::decode(output, reinterpret_cast<char*>(&decoded)), reinterpret_cast<char*>(&decoded) + 4);
+    ASSERT_EQ(base64::decode(output, reinterpret_cast<char*>(&decoded)), reinterpret_cast<char*>(&decoded) + 4);
 
     ASSERT_EQ(decoded, UINT32_C(0xffffffff));
 }
@@ -100,7 +100,7 @@ TEST(Base64, Junk) {
     input[2] = -128;
     input[4] = 0;
 
-    ASSERT_EQ(mybase64::decode({input, 6}, buffer), buffer + 3);
+    ASSERT_EQ(base64::decode({input, 6}, buffer), buffer + 3);
     EXPECT_EQ(std::string_view(buffer, buffer + 3), std::string_view("\0\0\0", 3));
 }
 

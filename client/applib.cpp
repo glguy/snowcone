@@ -129,104 +129,11 @@ auto l_raise(lua_State* const L) -> int
     return 0;
 }
 
-/**
- * @brief Lua binding for Base64 encoding.
- *
- * Encodes the given string into Base64 format.
- * On success, it pushes the Base64-encoded string onto the Lua stack.
- *
- * param:     string input   input string to encode
- * return:    string output  Base64-encoded string
- *
- * @param L Lua state
- * @return int 1
- */
-auto l_to_base64(lua_State* const L) -> int
-{
-    auto const input = check_string_view(L, 1);
-    auto const outlen = mybase64::encoded_size(input.size());
-
-    luaL_Buffer B;
-    auto const output = luaL_buffinitsize(L, &B, outlen);
-    mybase64::encode(input, output);
-    luaL_pushresultsize(&B, outlen);
-
-    return 1;
-}
-
-/**
- * @brief Lua binding for Base64 decoding.
- *
- * Decodes the given Base64 string into its original binary form.
- * On success, it pushes the decoded string onto the Lua stack.
- * On failure (invalid Base64 input), returns 0 values.
- *
- * param:     string input   Base64-encoded string to decode
- * return[1]: string decoded string
- * return[2]: nil    failure indicator
- *
- * @param L Lua state
- * @return int 1
- */
-auto l_from_base64(lua_State* const L) -> int
-{
-    auto const input = check_string_view(L, 1);
-    auto const outlen = mybase64::decoded_size(input.size());
-
-    luaL_Buffer B;
-    auto const output_first = luaL_buffinitsize(L, &B, outlen);
-    auto const output_last = mybase64::decode(input, output_first);
-    if (output_last)
-    {
-        luaL_pushresultsize(&B, std::distance(output_first, output_last));
-        return 1;
-    }
-    else
-    {
-        luaL_pushfail(L);
-        return 1;
-    }
-}
-
 auto l_setmodule(lua_State* const L) -> int
 {
     lua_settop(L, 1);
     lua_rawsetp(L, LUA_REGISTRYINDEX, &logic_module);
     return 0;
-}
-
-/**
- * @brief XORs two Lua strings of equal length and returns the result as a new string.
- *
- * Expects two string arguments on the Lua stack. If the strings are not of equal length,
- * raises a Lua error. The function performs a byte-wise XOR of the two input strings and
- * returns the resulting string to Lua.
- *
- * param:   string input1
- * param:   string input2
- * return:  string input1 xor input2
- * raise:   string error message on length mismatch
- *
- * @param L Lua state
- * @return int 1 on success; raises Lua error on failure
- */
-auto l_xor_strings(lua_State* const L) -> int
-{
-    auto const s1 = check_string_view(L, 1);
-    auto const s2 = check_string_view(L, 2);
-
-    if (s1.size() != s2.size())
-    {
-        return luaL_error(L, "xor_strings: length mismatch");
-    }
-
-    luaL_Buffer B;
-    auto const output = luaL_buffinitsize(L, &B, s1.size());
-
-    std::transform(std::begin(s1), std::end(s1), std::begin(s2), output, std::bit_xor());
-
-    luaL_pushresultsize(&B, s1.size());
-    return 1;
 }
 
 /**
@@ -434,7 +341,6 @@ auto l_stop_input(lua_State* const L) -> int
 luaL_Reg const applib_module[] = {
     {"connect", l_start_irc},
     {"dnslookup", l_dnslookup},
-    {"from_base64", l_from_base64},
     {"irccase", l_irccase},
     {"isalnum", l_isalnum},
     {"newtimer", l_new_timer},
@@ -445,8 +351,6 @@ luaL_Reg const applib_module[] = {
     {"setmodule", l_setmodule},
     {"shutdown", l_shutdown},
     {"time", l_time},
-    {"to_base64", l_to_base64},
-    {"xor_strings", l_xor_strings},
     {"execute", l_execute},
     {"stop_input", l_stop_input},
     {"start_input", l_start_input},
@@ -513,6 +417,9 @@ auto prepare_globals(lua_State* const L, int const argc, char const* const* cons
     lua_pop(L, 1);
 
     luaL_requiref(L, "myopenssl", luaopen_myopenssl, 1);
+    lua_pop(L, 1);
+
+    luaL_requiref(L, "mybase64", luaopen_mybase64, 1);
     lua_pop(L, 1);
 
     luaL_requiref(L, "mytoml", luaopen_mytoml, 1);

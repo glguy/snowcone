@@ -60,6 +60,7 @@ if (LIBARCHIVE_FOUND)
 add_subdirectory(myarchive)
 endif()
 
+add_subdirectory(base64)
 add_subdirectory(mysocks5)
 add_subdirectory(ircmsg)
 add_subdirectory(myncurses)

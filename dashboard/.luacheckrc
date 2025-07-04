@@ -5,15 +5,15 @@ stds = {
     snowcone = {
         read_globals = {
             snowcone = {
-                fields = {"to_base64", "from_base64", "dnslookup", "pton", "shutdown", "newtimer",
-                "setmodule", "raise", "xor_strings", "isalnum", "irccase", "parse_irc_tags",
+                fields = {"dnslookup", "pton", "shutdown", "newtimer",
+                "setmodule", "raise", "isalnum", "irccase", "parse_irc_tags",
                 "SIGINT", "SIGTSTP", "connect", "execute", "parse_toml",
                 "start_input", "stop_input" },
             },
         },
     },
     main = {
-        read_globals = {"tty_height", "tty_width", "mygeoip", "ncurses", "mystringprep", "myopenssl", "mytoml"},
+        read_globals = {"tty_height", "tty_width", "mygeoip", "ncurses", "mybase64", "mystringprep", "myopenssl", "mytoml"},
         globals = {
             -- general functionality
             "require_", "next_view", "prev_view", "entry_to_kline",

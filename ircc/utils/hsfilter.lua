@@ -5,7 +5,7 @@ local function send_db(check, db)
     send('SETFILTER', '*', check, 'NEW')
 
     for i = 1, db:len(), chunksize do
-        local chunk = snowcone.to_base64(db:sub(i, i+chunksize-1))
+        local chunk = mybase64.to_base64(db:sub(i, i+chunksize-1))
         send('SETFILTER', '*', check, '+' .. chunk)
     end
 

@@ -1,5 +1,5 @@
 local sha256  = myopenssl.get_digest 'sha256'
-local xor_strings = snowcone.xor_strings
+local xor = myopenssl.xor
 
 return function(authzid, authcid, client_seckey)
     if mystringprep then
@@ -30,6 +30,6 @@ return function(authzid, authcid, client_seckey)
         local prk = sha256:hmac(ikm, session_salt)
         local better_secret = sha256:hmac("ECDH-X25519-CHALLENGE\1", prk)
 
-        return xor_strings(masked_challenge, better_secret)
+        return xor(masked_challenge, better_secret)
     end)
 end

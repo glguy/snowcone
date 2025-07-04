@@ -49,10 +49,10 @@ return function(task)
     end
 
     local input    <const> = table.concat(chunks)
-    local envelope <const> = assert(snowcone.from_base64(input), 'bad base64')
+    local envelope <const> = assert(mybase64.from_base64(input), 'bad base64')
     local message  <const> = assert(key:decrypt(envelope, 'oaep'))
     local digest   <const> = myopenssl.get_digest('sha1'):digest(message)
-    local response <const> = snowcone.to_base64(digest)
+    local response <const> = mybase64.to_base64(digest)
 
     send('CHALLENGE', '+' .. response)
     local irc     <const> = task:wait_irc(commands2)

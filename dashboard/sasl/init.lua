@@ -24,7 +24,7 @@ local sasl_commands = Set{
 -- > chunk was exactly 400 bytes long, it must also be followed by
 -- > `AUTHENTICATE +` to signal end of response.
 local function send_authenticate(body, secret)
-    body = snowcone.to_base64(body)
+    body = mybase64.to_base64(body)
     local n = #body
     for i = 1, n, 400 do
         send('AUTHENTICATE', {content=string.sub(body, i, i+399), secret=secret})
@@ -56,7 +56,7 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid)
     elseif mechanism == 'ECDH-X25519-CHALLENGE' then
         assert(authcid, "missing sasl `username`")
         assert(password, 'missing sasl `password`')
-        password = assert(snowcone.from_base64(password), 'bad base64 in private sasl `password`')
+        password = assert(mybase64.from_base64(password), 'bad base64 in private sasl `password`')
         password = assert(myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, true, password))
         return require 'sasl.ecdh' (authzid, authcid, password)
     elseif mechanism == 'SCRAM-SHA-1'   then
@@ -117,7 +117,7 @@ return function(task, credentials)
         if command == 'AUTHENTICATE' then
             local chunk = irc[1]
             if chunk ~= '+' then
-                local bytes = assert(snowcone.from_base64(chunk), 'Bad base64 in AUTHENTICATE')
+                local bytes = assert(mybase64.from_base64(chunk), 'Bad base64 in AUTHENTICATE')
                 table.insert(chunks, bytes)
             end
 
