@@ -3,20 +3,21 @@
 #include <array>
 #include <climits>
 #include <cstdint>
+#include <iterator>
 #include <string_view>
 
 namespace base64 {
 
 namespace {
 
-    constexpr std::array<char, 64> alphabet{
+    constexpr auto alphabet = std::array<char, 64>{
         'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
         'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
         'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
         'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'
     };
 
-    constexpr std::array<std::int8_t, 256> alphabet_values = []() constexpr {
+    constexpr auto alphabet_values = []() constexpr -> std::array<std::int8_t, 256> {
         std::array<std::int8_t, 256> result;
         result.fill(-1);
         std::int8_t v = 0;
@@ -36,65 +37,74 @@ auto encode(std::string_view const input, char* output) -> void
     auto cursor = std::begin(input);
     auto const end = std::end(input);
 
-    while (end - cursor >= 3)
-    {
-        std::uint32_t buffer = std::uint8_t(*cursor++);
-        buffer <<= 8;
-        buffer |= std::uint8_t(*cursor++);
-        buffer <<= 8;
-        buffer |= std::uint8_t(*cursor++);
+    std::uint32_t buffer;
 
-        *output++ = alphabet[(buffer >> 6 * 3) % 64];
-        *output++ = alphabet[(buffer >> 6 * 2) % 64];
-        *output++ = alphabet[(buffer >> 6 * 1) % 64];
-        *output++ = alphabet[(buffer >> 6 * 0) % 64];
+    auto const extract = [&buffer](int const i) -> char {
+        return alphabet[0x3f & buffer >> 6 * i];
+    };
+
+    while (std::distance(cursor, end) >= std::ptrdiff_t(3))
+    {
+        buffer  = static_cast<std::uint8_t>(*cursor++) << 8 * 2;
+        buffer |= static_cast<std::uint8_t>(*cursor++) << 8 * 1;
+        buffer |= static_cast<std::uint8_t>(*cursor++) << 8 * 0;
+
+        *output++ = extract(3);
+        *output++ = extract(2);
+        *output++ = extract(1);
+        *output++ = extract(0);
     }
 
     if (cursor < end)
     {
-        std::uint32_t buffer = std::uint8_t(*cursor++) << 10;
+        buffer = static_cast<std::uint8_t>(*cursor++) << (8 * 2 - 6);
         if (cursor < end)
-            buffer |= std::uint8_t(*cursor) << 2;
+            buffer |= static_cast<std::uint8_t>(*cursor) << (8 * 1 - 6);
 
-        *output++ = alphabet[(buffer >> 12) % 64];
-        *output++ = alphabet[(buffer >> 6) % 64];
-        *output++ = cursor < end ? alphabet[(buffer % 64)] : '=';
+        *output++ = extract(2);
+        *output++ = extract(1);
+        *output++ = cursor < end ? extract(0) : '=';
         *output++ = '=';
     }
-    *output = '\0';
 }
 
 auto decode(std::string_view const input, char* output) -> char*
 {
     std::uint32_t buffer = 1;
 
+    auto const filled = [&buffer](int const i) -> bool {
+        return buffer >> 6 * i;
+    };
+
     for (auto const c : input)
     {
-        if (auto const value = alphabet_values[uint8_t(c)]; -1 != value)
+        if (auto const value = alphabet_values[static_cast<std::uint8_t>(c)]; -1 != value)
         {
-            buffer = (buffer << 6) | value;
-            if (buffer & 1 << 6 * 4)
+            buffer = buffer << 6 | value;
+            if (filled(4))
             {
-                *output++ = buffer >> 16;
-                *output++ = buffer >> 8;
-                *output++ = buffer >> 0;
+                *output++ = buffer >> 8 * 2;
+                *output++ = buffer >> 8 * 1;
+                *output++ = buffer >> 8 * 0;
                 buffer = 1;
             }
         }
     }
 
-    if (buffer & 1 << 6 * 3)
+    if (filled(3))
     {
-        *output++ = buffer >> 10;
-        *output++ = buffer >> 2;
+        buffer <<= 6 * 1;
+        *output++ = buffer >> 8 * 2;
+        *output++ = buffer >> 8 * 1;
     }
-    else if (buffer & 1 << 6 * 2)
+    else if (filled(2))
     {
-        *output++ = buffer >> 4;
+        buffer <<= 6 * 2;
+        *output++ = buffer >> 8 * 2;
     }
-    else if (buffer & 1 << 6 * 1)
+    else if (filled(1))
     {
-        return nullptr;
+        return nullptr; // invalid base64 input - report failure
     }
     return output;
 }

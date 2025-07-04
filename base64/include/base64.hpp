@@ -11,19 +11,31 @@
 
 namespace base64 {
 
-inline constexpr auto encoded_size(std::size_t len) -> std::size_t
+/**
+ * @brief Calculate the size of the buffer needed to encode a base64 string
+ * 
+ * @param len Length of the input string
+ * @return size_t Size of the output buffer needed for base64 encoding
+ */
+inline constexpr auto encoded_size(std::size_t const len) -> std::size_t
 {
     return (len + 2) / 3 * 4;
 }
 
-inline constexpr auto decoded_size(std::size_t len) -> std::size_t
+/**
+ * @brief Calculate the size of the buffer needed to decode a base64 string
+ * 
+ * @param len Length of the input base64 string
+ * @return size_t Size of the output buffer needed for base64 decoding
+ */
+inline constexpr auto decoded_size(std::size_t const len) -> std::size_t
 {
     return (len + 3) / 4 * 3;
 }
 
 /**
  * @brief Encode a string into base64
- *
+ * 
  * @param input input text
  * @param output Target buffer for encoded value
  */
@@ -38,4 +50,4 @@ auto encode(std::string_view input, char* output) -> void;
  */
 auto decode(std::string_view input, char* output) -> char*;
 
-} // namespace
+} // namespace base64

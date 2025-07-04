@@ -39,13 +39,12 @@ auto l_from_base64(lua_State* const L) -> int
     if (output_last)
     {
         luaL_pushresultsize(&B, std::distance(output_first, output_last));
-        return 1;
     }
     else
     {
         luaL_pushfail(L);
-        return 1;
     }
+    return 1;
 }
 
 
