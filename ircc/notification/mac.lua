@@ -1,14 +1,12 @@
 local M = {}
 
 local function report(exitcode, stdout, stderr)
-    if exitcode then
-        if 0 ~= exitcode then
-            status('notify', 'unexpected exit: %d', exitcode)
-            if '' ~= stdout then status('notify', 'stdout: %s', stdout) end
-            if '' ~= stderr then status('notify', 'stderr: %s', stderr) end
-        end
-    else
-        error(stdout) -- contains the error message
+    if nil == exitcode then
+        status('notify', 'execute error: %s', stdout)
+    elseif 0 ~= exitcode then
+        status('notify', 'unexpected exit: %d', exitcode)
+        if '' ~= stdout then status('notify', 'stdout: %s', stdout) end
+        if '' ~= stderr then status('notify', 'stderr: %s', stderr) end
     end
 end
 
