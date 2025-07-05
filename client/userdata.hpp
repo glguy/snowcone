@@ -58,28 +58,3 @@ T* check_udata(lua_State* L, int ud)
 {
     return static_cast<T*>(luaL_checkudata(L, ud, udata_name<T>));
 }
-
-// Simple allocator for non-user-facing objects
-template <typename T, typename... Args>
-auto new_object(lua_State* const L, Args&&... args) -> T&
-{
-    auto constexpr l_gc = [](lua_State* const L) -> int {
-        auto const ptr = reinterpret_cast<T*>(lua_touserdata(L, 1));
-        std::destroy_at(ptr);
-        return 0;
-    };
-
-    static luaL_Reg const MT[] = {
-        {"__gc", l_gc},
-        {}
-    };
-
-    auto const ptr = reinterpret_cast<T*>(lua_newuserdatauv(L, sizeof(T), 0));
-
-    luaL_newlibtable(L, MT);
-    luaL_setfuncs(L, MT, 0);
-    lua_setmetatable(L, -2);
-
-    std::construct_at<T>(ptr, std::forward<Args>(args)...);
-    return *ptr;
-}
