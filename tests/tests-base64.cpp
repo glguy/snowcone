@@ -18,28 +18,19 @@ auto decode_string_view(std::string_view const input, char * const output) -> st
 
 TEST(Base64, EncodeFoobar)
 {
-    char buffer[9];
+    auto encode = [](std::string_view input) {
+        std::string output(base64::encoded_size(input.size()), 0);
+        base64::encode(input, output.data());
+        return output;
+    };
 
-    base64::encode("", buffer);
-    EXPECT_STREQ(buffer, "");
-
-    base64::encode("f", buffer);
-    EXPECT_STREQ(buffer, "Zg==");
-
-    base64::encode("fo", buffer);
-    EXPECT_STREQ(buffer, "Zm8=");
-
-    base64::encode("foo", buffer);
-    EXPECT_STREQ(buffer, "Zm9v");
-
-    base64::encode("foob", buffer);
-    EXPECT_STREQ(buffer, "Zm9vYg==");
-
-    base64::encode("fooba", buffer);
-    EXPECT_STREQ(buffer, "Zm9vYmE=");
-
-    base64::encode("foobar", buffer);
-    EXPECT_STREQ(buffer, "Zm9vYmFy");
+    EXPECT_STREQ(encode("").c_str(), "");
+    EXPECT_STREQ(encode("f").c_str(), "Zg==");
+    EXPECT_STREQ(encode("fo").c_str(), "Zm8=");
+    EXPECT_STREQ(encode("foo").c_str(), "Zm9v");
+    EXPECT_STREQ(encode("foob").c_str(), "Zm9vYg==");
+    EXPECT_STREQ(encode("fooba").c_str(), "Zm9vYmE=");
+    EXPECT_STREQ(encode("foobar").c_str(), "Zm9vYmFy");
 }
 
 

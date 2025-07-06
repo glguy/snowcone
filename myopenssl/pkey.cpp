@@ -397,12 +397,10 @@ auto l_read_raw(lua_State* const L) -> int
     std::size_t raw_len;
     auto const raw = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 3, &raw_len));
 
-    auto const pkey = priv
-        ? EVP_PKEY_new_raw_private_key(type, nullptr, raw, raw_len)
-        : EVP_PKEY_new_raw_public_key(type, nullptr, raw, raw_len);
+    auto const pkey = (priv ? EVP_PKEY_new_raw_private_key : EVP_PKEY_new_raw_public_key)(type, nullptr, raw, raw_len);
     if (nullptr == pkey)
     {
-        openssl_failure(L, "EVP_PKEY_new_raw_private_key");
+        openssl_failure(L, priv ? "EVP_PKEY_new_raw_private_key" : "EVP_PKEY_new_raw_public_key");
     }
 
     push_evp_pkey(L, pkey);

@@ -3,7 +3,6 @@
 #include "app.hpp"
 #include "safecall.hpp"
 #include "strings.hpp"
-#include "userdata.hpp"
 
 extern "C" {
 #include <lauxlib.h>
