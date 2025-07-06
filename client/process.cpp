@@ -159,24 +159,6 @@ auto async_exec(
     );
 }
 
-auto gather_execute_args(
-    lua_State* const L,
-    int const arg_index,
-    std::vector<std::string>& args
-) -> void
-{
-    auto const n = luaL_len(L, arg_index);
-    args.reserve(n);
-    for (lua_Integer i = 1; i <= n; i++)
-    {
-        lua_geti(L, arg_index, i);
-        std::size_t len;
-        auto const str = luaL_tolstring(L, -1, &len);
-        args.emplace_back(str, len);
-        lua_pop(L, 2); // pops array element and string representation
-    }
-}
-
 auto l_execute1(lua_State* L) -> int
 {
     // avoids putting objects with destructors
