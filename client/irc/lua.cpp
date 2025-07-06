@@ -52,13 +52,10 @@ auto l_close_irc(lua_State* const L) -> int
 auto l_send_irc(lua_State* const L) -> int
 {
     auto const w = check_udata<std::weak_ptr<connection>>(L, 1);
+    auto const cmd = check_string_view(L, 2);
 
     if (auto const irc = w->lock())
     {
-        // Wait until after luaL_error to start putting things on the
-        // stack that have destructors
-        auto const cmd = check_string_view(L, 2);
-        lua_settop(L, 2);
         irc->write(cmd);
         lua_pushboolean(L, 1);
         return 1;
@@ -66,7 +63,7 @@ auto l_send_irc(lua_State* const L) -> int
     else
     {
         luaL_pushfail(L);
-        luaL_error(L, "irc handle destructed");
+        push_string(L, "irc handle destructed"sv);
         return 2;
     }
 }
@@ -150,7 +147,7 @@ auto session_thread(
         lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
         push_string(L, "CON"sv);
         push_string(L, fingerprint);
-        safecall(L, "successful connect", 2);
+        safecall(L, "successful connect"sv, 2);
     }
 
     // Continuously process lines from the stream and invoke the callback
@@ -173,7 +170,7 @@ auto session_thread(
             push_string(L, "MSG"sv);
             pushircmsg(L, msg);
             lua_pushboolean(L, nullptr == line); // draw on last line
-            safecall(L, "irc message", 3);
+            safecall(L, "irc message"sv, 3);
         }
         buff.shift();
     }

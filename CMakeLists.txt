@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 cmake_policy(SET CMP0135 NEW)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
+set(CXX_STANDARD_REQUIRED On)
 
 project(snowcone
     VERSION 1
