@@ -86,16 +86,14 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
         file = process::environment::find_executable(file);
     }
  
-    decltype(process::process_stdio::in) stdin_binding;
-    if (has_input) stdin_binding = {self->stdin_};
-
     try {
+        using in_t = decltype(process::process_stdio::in);
         self->proc_ = process::process{
             io_context,
             file,
             args,
             process::process_stdio{
-                .in = std::move(stdin_binding),
+                .in = has_input ? in_t{self->stdin_} : in_t{},
                 .out = {self->stdout_},
                 .err = {self->stderr_},
             }
@@ -113,7 +111,8 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
             self->stdin_,
             boost::asio::buffer(self->stdin_text_),
             [self](boost::system::error_code, std::size_t) {
-                self->stdin_.close();
+                boost::system::error_code ec; // ignored
+                self->stdin_.close(ec);
                 self->complete();
             }
         );

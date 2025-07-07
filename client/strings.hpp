@@ -2,8 +2,10 @@
 
 extern "C" {
 #include <lua.h>
+#include <lauxlib.h>
 }
 
+#include <cstddef>
 #include <string_view>
 
 /**
@@ -18,4 +20,9 @@ inline auto push_string(lua_State* const L, std::string_view const str) -> char 
     return lua_pushlstring(L, std::data(str), std::size(str));
 }
 
-auto check_string_view(lua_State* L, int arg) -> std::string_view;
+inline auto check_string_view(lua_State* L, int const arg) -> std::string_view
+{
+    std::size_t len;
+    auto const str = luaL_checklstring(L, arg, &len);
+    return {str, len};
+}

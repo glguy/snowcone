@@ -1,6 +1,6 @@
 # ircmsg
 
-A small library for parsing IRC messages.
+A small library for parsing IRC messages in place.
 
 ```c
   struct ircmsg parsed;
@@ -10,12 +10,10 @@ A small library for parsing IRC messages.
 
   /* effective result */
   parsed = (struct ircmsg) {
-      .tags_n = 1,
       .tags[0].key = "key",
       .tags[0].val = "val",
       .source = "nick!user@host",
       .command = "PRIVMSG",
-      .args_n = 2,
       .args = {"#channel", "Hello, world."},
   };
   ```

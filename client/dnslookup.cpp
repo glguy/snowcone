@@ -19,14 +19,15 @@ auto l_dnslookup(lua_State* const L) -> int
     luaL_checkany(L, 2); // callback
     lua_settop(L, 2);
     auto const app = App::from_lua(L);
-    auto const resolver = std::make_shared<Resolver>(app->get_context());
+    auto resolver = std::make_unique<Resolver>(app->get_context());
 
     // Store the callback
     lua_rawsetp(L, LUA_REGISTRYINDEX, resolver.get());
-
     resolver->async_resolve(hostname, "",
-        [L = app->get_lua(), resolver](boost::system::error_code const error, Resolver::results_type const results)
-    {
+        [L = app->get_lua(), resolver = std::move(resolver)]
+        (boost::system::error_code const error,
+         Resolver::results_type const results
+    ) {
         // get the callback
         lua_rawgetp(L, LUA_REGISTRYINDEX, resolver.get());
 

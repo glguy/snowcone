@@ -11,8 +11,7 @@
 
 static int l_stringprep(lua_State* const L)
 {
-    size_t len;
-    char const* const str = luaL_checklstring(L, 1, &len);
+    char const* const str = luaL_checkstring(L, 1);
     char const* const profile = luaL_checkstring(L, 2);
 
     char* output;
@@ -26,13 +25,12 @@ static int l_stringprep(lua_State* const L)
         return 1;
     default: { // fatal error code
         char const* const err = stringprep_strerror((Stringprep_rc)result);
-        luaL_error(L, "stringprep failed: %s", err);
-        return 0;
+        return luaL_error(L, "stringprep failed: %s", err);
     }
     }
 }
 
-static luaL_Reg M[] = {
+static const luaL_Reg M[] = {
     {"stringprep", l_stringprep},
     {0}
 };
