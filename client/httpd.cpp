@@ -98,10 +98,12 @@ public:
 private:
     auto on_accept(beast::error_code const ec) -> void
     {
-        start_read();
-        if (not messages_.empty())
-        {
-            start_write();
+        if (!ec) {
+            start_read();
+            if (not messages_.empty())
+            {
+                start_write();
+            }
         }
     }
 
