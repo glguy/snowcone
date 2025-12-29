@@ -125,7 +125,7 @@ auto mytoml::l_to_toml(lua_State* const L) -> int
     {
         std::ostringstream os;
         auto const value{export_value(L)};
-        auto const output{toml::format(value)};
+        auto const output{toml::format(value, toml::spec::v(1, 1, 0))};
         lua_pushlstring(L, output.data(), output.size());
         return 1;
     }
