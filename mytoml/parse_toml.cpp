@@ -8,74 +8,60 @@ extern "C" {
 
 namespace {
 
-auto push_atom(lua_State* const L, std::int64_t const value) -> void
+auto push_toml(lua_State* const L, toml::value const& value) -> void
 {
-    lua_pushinteger(L, value);
-}
+    switch (value.type()) {
+        case toml::value_t::array: {
+            auto const & array = value.as_array();
+            lua_createtable(L, array.size(), 0);
+            lua_Integer i = 1;
+            for (auto& x : array)
+            {
+                push_toml(L, x);
+                lua_rawseti(L, -2, i++);
+            }
+            break;
+        }
 
-auto push_atom(lua_State* const L, std::string const& value) -> void
-{
-    lua_pushlstring(L, value.data(), value.size());
-}
+        case toml::value_t::table: {
+            auto const & table = value.as_table();
+            lua_createtable(L, 0, table.size());
+            for (auto& [k, v] : table)
+            {
+                lua_pushlstring(L, k.data(), k.length());
+                push_toml(L, v);
+                lua_settable(L, -3);
+            }
+            break;
+        }
 
-auto push_atom(lua_State* const L, bool const value) -> void
-{
-    lua_pushboolean(L, value);
-}
+        case toml::value_t::boolean: {
+            auto const & boolean = value.as_boolean();
+            lua_pushboolean(L, boolean);
+            break;
+        }
 
-auto push_atom(lua_State* const L, double const value) -> void
-{
-    lua_pushnumber(L, value);
-}
+        case toml::value_t::floating: {
+            auto const & floating = value.as_floating();
+            lua_pushnumber(L, floating);
+            break;
+        }
 
-auto push_atom(lua_State*, toml::date const&) -> void
-{
-    throw std::runtime_error{"toml date not supported"};
-}
+        case toml::value_t::integer: {
+            auto const & integer = value.as_integer();
+            lua_pushinteger(L, integer);
+            break;
+        }
 
-auto push_atom(lua_State*, toml::date_time const&) -> void
-{
-    throw std::runtime_error{"toml datetime not supported"};
-}
+        case toml::value_t::string: {
+            auto const & string = value.as_string();
+            lua_pushlstring(L, string.data(), string.size());
+            break;
+        }
 
-auto push_atom(lua_State*, toml::time const&) -> void
-{
-    throw std::runtime_error{"toml time not supported"};
-}
-
-template <typename T>
-auto push_toml(lua_State* const L, toml::value<T> const& value) -> void
-{
-    push_atom(L, value.get());
-}
-
-auto push_toml_node(lua_State* const L, toml::node const& node) -> void;
-
-auto push_toml(lua_State* const L, toml::table const& table) -> void
-{
-    lua_createtable(L, 0, table.size());
-    for (auto& [k, v] : table)
-    {
-        lua_pushlstring(L, k.data(), k.length());
-        push_toml_node(L, v);
-        lua_settable(L, -3);
+        default:
+            throw std::runtime_error{"toml value not supported"};
     }
-}
-
-auto push_toml(lua_State* const L, toml::array const& array) -> void
-{
-    lua_createtable(L, array.size(), 0);
-    lua_Integer i = 1;
-    for (auto& x : array)
-    {
-        push_toml_node(L, x);
-        lua_rawseti(L, -2, i++);
-    }
-}
-
-auto push_toml_node(lua_State* const L, toml::node const& node) -> void
-{
-    node.visit([L](auto&& n) { push_toml(L, n); });
 }
 
 } // namespace
@@ -86,7 +72,7 @@ auto mytoml::l_parse_toml(lua_State* const L) -> int
     auto const src = luaL_checklstring(L, 1, &len);
     try
     {
-        push_toml(L, toml::parse(std::string_view{src, len}));
+        push_toml(L, toml::parse_str(std::string {src, len}, toml::spec::v(1, 1, 0)));
         return 1;
     }
     catch (std::runtime_error const& err)
