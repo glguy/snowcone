@@ -26,20 +26,24 @@ public:
     auto get() const noexcept -> T* { return obj.get(); }
 };
 
-struct Settings
-{
-    bool tls;
-    std::string host;
-    std::uint16_t port;
-
+struct TlsLayer {
     Ref<X509, X509_up_ref, X509_free> client_cert;
     Ref<EVP_PKEY, EVP_PKEY_up_ref, EVP_PKEY_free> client_key;
     std::string verify;
     std::string sni;
+};
 
-    std::string socks_host;
-    std::uint16_t socks_port;
-    socks5::Auth socks_auth;
+struct SocksLayer {
+    std::string host;
+    std::uint16_t port;
+    socks5::Auth auth;
+};
+
+struct Settings
+{
+    std::string host;
+    std::uint16_t port;
+    std::vector<std::variant<TlsLayer, SocksLayer>> layers;
 };
 
 class connection final : public std::enable_shared_from_this<connection>

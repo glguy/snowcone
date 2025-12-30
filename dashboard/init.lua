@@ -809,7 +809,7 @@ function irc_event.END(txt)
         reconnect_timer = snowcone.newtimer()
         reconnect_timer:start(1000, function()
             reconnect_timer = nil
-            connect()
+            -- connect()
         end)
     end
 end
@@ -939,80 +939,89 @@ end
 -- declared above so that it's in scope in on_irc
 function connect()
     Task(client_tasks, function(task) -- passwords might need to suspend connecting
-
-        local use_tls = nil ~= configuration.tls
-        local use_socks = nil ~= configuration.socks
-
         local ok, tls_client_password, socks_password, tls_client_cert, tls_client_key
+        local layers = {}
 
-        if use_tls then
-            tls_client_password = configuration.tls.client_password
-            tls_client_key = configuration.tls.client_key
-            tls_client_cert = configuration.tls.client_cert
-        end
+        for _, layer in ipairs(configuration.layers or {}) do
+            if layer.type == "tls" then
+                tls_client_password = layer.client_password
+                ok, tls_client_password =
+                    pcall(configuration_tools.resolve_password, task, tls_client_password)
+                if not ok then
+                    status('connect', 'TLS client key password program error: %s', tls_client_password)
+                    return
+                end
 
-        if use_socks then
-            socks_password = configuration.socks.password
-        end
+                tls_client_cert = layer.client_cert
+                ok, tls_client_cert =
+                    pcall(configuration_tools.resolve_password, task, tls_client_cert)
+                if not ok then
+                    status('connect', 'TLS client cert error: %s', tls_client_cert)
+                    return
+                end
 
-        ok, tls_client_password =
-            pcall(configuration_tools.resolve_password, task, tls_client_password)
-        if not ok then
-            status('connect', 'TLS client key password program error: %s', tls_client_password)
-            return
-        end
+                tls_client_key = layer.client_key
+                ok, tls_client_key =
+                    pcall(configuration_tools.resolve_password, task, tls_client_key)
+                if not ok then
+                    status('connect', 'TLS client key error: %s', tls_client_key)
+                    return
+                end
 
-        ok, socks_password = pcall(configuration_tools.resolve_password, task, socks_password)
-        if not ok then
-            status('connect', 'SOCKS5 password program error: %s', socks_password)
-            return
-        end
+                if not tls_client_key then
+                    tls_client_key = tls_client_cert
+                end
 
-        ok, tls_client_cert =
-            pcall(configuration_tools.resolve_password, task, tls_client_cert)
-        if not ok then
-            status('connect', 'TLS client cert error: %s', tls_client_cert)
-            return
-        end
+                if tls_client_cert then
+                    ok, tls_client_cert = pcall(myopenssl.read_x509, tls_client_cert)
+                    if not ok then
+                        status('connect', 'Parse client cert failed: %s', tls_client_cert)
+                        return
+                    end
+                end
 
-        ok, tls_client_key =
-            pcall(configuration_tools.resolve_password, task, tls_client_key)
-        if not ok then
-            status('connect', 'TLS client key error: %s', tls_client_key)
-            return
-        end
+                if tls_client_key then
+                    ok, tls_client_key = pcall(myopenssl.read_pem, tls_client_key, true, tls_client_password)
+                    if not ok then
+                        status('connect', 'Parse client key failed: %s', tls_client_key)
+                        return
+                    end
+                end
 
-        if not tls_client_key then tls_client_key = tls_client_cert end
+                table.insert(layers, {
+                    type = "tls",
+                    client_key = tls_client_key,
+                    client_cert = tls_client_cert,
+                    verify = layer.verify,
+                    sni = layer.sni
+                })
 
-        if tls_client_cert then
-            ok, tls_client_cert = pcall(myopenssl.read_x509, tls_client_cert)
-            if not ok then
-                status('connect', 'Parse client cert failed: %s', tls_client_cert)
-                return
-            end
-        end
+            elseif layer.type == "socks" then
+                socks_password = layer.password
+                ok, socks_password = pcall(configuration_tools.resolve_password, task, socks_password)
+                if not ok then
+                    status('connect', 'SOCKS5 password program error: %s', socks_password)
+                    return
+                end
 
-        if tls_client_key then
-            ok, tls_client_key = pcall(myopenssl.read_pem, tls_client_key, true, tls_client_password)
-            if not ok then
-                status('connect', 'Parse client key failed: %s', tls_client_key)
+                table.insert(layers, {
+                    type = "socks",
+                    host = layer.host,
+                    port = layer.port,
+                    username = layer.username,
+                    password = socks_password
+                })
+            else
+                status('connect', 'bad layer type: %s', layer.type)
                 return
             end
         end
 
         local conn_, errmsg =
             snowcone.connect(
-            use_tls,
             configuration.server.host,
             configuration.server.port or use_tls and 6697 or 6667,
-            tls_client_cert,
-            tls_client_key,
-            use_tls and configuration.tls.verify_host or nil,
-            use_tls and configuration.tls.sni_host or nil,
-            use_socks and configuration.socks.host or nil,
-            use_socks and configuration.socks.port or nil,
-            use_socks and configuration.socks.username or nil,
-            socks_password,
+            layers,
             on_irc)
 
         if conn_ then
@@ -1021,7 +1030,6 @@ function connect()
         else
             status('irc', 'failed to connect: %s', errmsg)
         end
-
     end)
 end
 

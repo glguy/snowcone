@@ -1,10 +1,10 @@
 #include "lua.hpp"
 #include "../app.hpp"
+#include "../net/connection.hpp"
 #include "../net/linebuffer.hpp"
 #include "../safecall.hpp"
 #include "../strings.hpp"
 #include "../userdata.hpp"
-#include "../net/connection.hpp"
 
 #include <pkey.hpp>
 #include <x509.hpp>
@@ -104,7 +104,7 @@ auto pushirc(lua_State* const L, std::weak_ptr<connection> const irc) -> void
 ///
 /// @param buff Reference to a LineBuffer to read lines from.
 /// @return Pointer to the next non-empty line, or nullptr if none remain.
-auto get_nonempty_line(LineBuffer& buff) -> char *
+auto get_nonempty_line(LineBuffer& buff) -> char*
 {
     while (auto line = buff.next_line())
     {
@@ -198,45 +198,85 @@ auto session_thread(
  * - cb("CON", fingerprint)
  * - cb("MSG", ircmsg, redraw)
  * - cb("END", error_message)
- * 
+ *
  * Callback sequence: (CON MSG*)? END
- * 
+ *
  * @param L Lua state
  * @return int 1
  */
 auto l_start_irc(lua_State* const L) -> int
 {
-    auto const tls = lua_toboolean(L, 1);
-    auto const host = luaL_checkstring(L, 2);
-    auto const port = luaL_checkinteger(L, 3);
-    auto const client_cert = luaL_opt(L, myopenssl::check_x509, 4, nullptr);
-    auto const client_key = luaL_opt(L, myopenssl::check_pkey, 5, nullptr);
-    auto const verify = luaL_optlstring(L, 6, host, nullptr);
-    auto const sni = luaL_optlstring(L, 7, host, nullptr);
-    auto const socks_host = luaL_optlstring(L, 8, "", nullptr);
-    auto const socks_port = luaL_optinteger(L, 9, 0);
-    auto const socks_user = luaL_optlstring(L, 10, "", nullptr);
-    auto const socks_pass = luaL_optlstring(L, 11, "", nullptr);
-    luaL_checkany(L, 12); // callback
-    lua_settop(L, 12);
-    luaL_argcheck(L, 1 <= port && port <= 0xffff, 3, "port out of range");
-    luaL_argcheck(L, 0 <= socks_port && socks_port <= 0xffff, 9, "port out of range");
+    auto const host = luaL_checkstring(L, 1);
+    auto const port = luaL_checkinteger(L, 2);
+    luaL_checkany(L, 3); // layers
+    luaL_checkany(L, 4); // callback
+    lua_settop(L, 4);
+    luaL_argcheck(L, 1 <= port && port <= 0xffff, 2, "port out of range");
+    
+    auto const layers_n = luaL_len(L, 3);
+    std::vector<std::variant<TlsLayer, SocksLayer>> layers;
+    layers.reserve(layers_n);
 
-    auto socks_auth = *socks_user || *socks_pass
-        ? socks5::Auth{socks5::UsernamePasswordCredential{socks_user, socks_pass}}
-        : socks5::Auth{socks5::NoCredential{}};
+    for (lua_Integer i{0}; i < layers_n; ++i) {
+        lua_geti(L, 3, i + 1); // 5 - layer table
+        lua_getfield(L, 5, "type"); // 6 - layer type
+        char const * layer_type = lua_tostring(L, 6);
+        if (layer_type == "tls"sv) {
+            
+            TlsLayer layer;
 
-    Settings settings {
-        .tls = static_cast<bool>(tls),
+            lua_getfield(L, 5, "client_cert"); // 7
+            layer.client_cert = luaL_opt(L, myopenssl::check_x509, 7, nullptr);
+            lua_pop(L, 1);
+            
+            lua_getfield(L, 5, "client_key"); // 7
+            layer.client_key = luaL_opt(L, myopenssl::check_pkey, 7, nullptr);
+            lua_pop(L, 1);
+
+            lua_getfield(L, 5, "verify"); // 7
+            layer.verify = luaL_opt(L, lua_tostring, 7, "");
+            lua_pop(L, 1);
+
+            lua_getfield(L, 5, "sni"); // 7
+            layer.sni = luaL_opt(L, lua_tostring, 7, "");
+            lua_pop(L, 1);
+
+            layers.emplace_back(std::move(layer));
+        } else if (layer_type == "socks"sv) {
+            SocksLayer layer;
+
+            lua_getfield(L, 5, "host"); // 7
+            layer.host = luaL_opt(L, lua_tostring, 7, "");
+            lua_pop(L, 1);
+
+            lua_getfield(L, 5, "port"); // 7
+            layer.port = lua_tointeger(L, 7);
+            lua_pop(L, 1);
+
+            lua_getfield(L, 5, "username"); // 7
+            lua_getfield(L, 5, "password"); // 8
+            const char * username = lua_tostring(L, 7);
+            const char * password = lua_tostring(L, 8);
+
+            if (username && password) {
+                layer.auth = socks5::UsernamePasswordCredential {
+                    .username = username,
+                    .password = password,
+                };
+            }
+            
+            lua_pop(L, 2);
+
+            layers.emplace_back(std::move(layer));
+        }
+
+        lua_pop(L, 2); // layer table, layer type   
+    }
+
+    Settings settings{
         .host = host,
         .port = static_cast<std::uint16_t>(port),
-        .client_cert = client_cert,
-        .client_key = client_key,
-        .verify = verify,
-        .sni = sni,
-        .socks_host = socks_host,
-        .socks_port = static_cast<std::uint16_t>(socks_port),
-        .socks_auth = std::move(socks_auth),
+        .layers = std::move(layers),
     };
 
     auto const app = App::from_lua(L);
@@ -248,24 +288,24 @@ auto l_start_irc(lua_State* const L) -> int
     boost::asio::co_spawn(
         io_context, session_thread(io_context, LMain, irc_cb, irc, std::move(settings)),
         [L = LMain, irc_cb](std::exception_ptr const e) {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
-            luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);
-            push_string(L, "END"sv);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
+        luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);
+        push_string(L, "END"sv);
 
-            try
-            {
-                std::rethrow_exception(e);
-            }
-            catch (std::exception const& ex)
-            {
-                push_string(L, ex.what());
-            }
-            catch (...)
-            {
-                lua_pushnil(L);
-            }
+        try
+        {
+            std::rethrow_exception(e);
+        }
+        catch (std::exception const& ex)
+        {
+            push_string(L, ex.what());
+        }
+        catch (...)
+        {
+            lua_pushnil(L);
+        }
 
-            safecall(L, "end of connection", 2);
+        safecall(L, "end of connection", 2);
         }
     );
 

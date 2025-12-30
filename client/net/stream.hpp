@@ -6,67 +6,59 @@
 #include <cstddef>
 #include <variant>
 
-/// @brief Abstraction over plain-text and TLS streams.
-class Stream
+class StreamBase
 {
 public:
-    using tcp_socket = boost::asio::ip::tcp::socket;
-    using tls_stream = boost::asio::ssl::stream<tcp_socket>;
-
-    /// @brief The type of the executor associated with the stream.
     using executor_type = boost::asio::any_io_executor;
+    using lowest_layer_type = boost::asio::ip::tcp::socket::lowest_layer_type;
 
-    /// @brief Type of the lowest layer of this stream
-    using lowest_layer_type = tcp_socket::lowest_layer_type;
+    virtual ~StreamBase() = default;
+    virtual auto lowest_layer() -> lowest_layer_type& = 0;
+    virtual auto lowest_layer() const -> lowest_layer_type const& = 0;
+    virtual auto get_executor() -> executor_type = 0;
+    virtual auto async_read_some(std::vector<boost::asio::mutable_buffer> buffers, boost::asio::any_completion_handler<void(boost::system::error_code, std::size_t)> handler) -> void = 0;
+    virtual auto async_write_some(std::vector<boost::asio::const_buffer> buffers, boost::asio::any_completion_handler<void(boost::system::error_code, std::size_t)> handler) -> void = 0;
+};
 
-private:
-    /// @brief The underlying stream object
-    std::variant<tcp_socket, tls_stream> base;
+class Stream
+{
+    std::shared_ptr<StreamBase> self;
 
 public:
+    /// @brief The type of the executor associated with the stream.
+    using executor_type = StreamBase::executor_type;
 
-    /// @brief Initialize stream with a plain TCP socket
-    /// @param ioc IO context of stream
-    template <typename ExecutionContext>
-    Stream(ExecutionContext & context)
-        : base{std::in_place_type<tcp_socket>, context}
-    {}
+    /// @brief Type of the lowest layer of this stream
+    using lowest_layer_type = StreamBase::lowest_layer_type;
 
     /// @brief Reset stream to a plain TCP socket
     /// @return Reference to internal socket object
-    auto reset() -> tcp_socket&
-    {
-        return base.emplace<tcp_socket>(get_executor());
-    }
+    auto reset(executor_type) -> boost::asio::ip::tcp::socket&;
 
     /// @brief Upgrade a plain TCP socket into a TLS stream.
     /// @param ctx TLS context used for handshake
     /// @return Reference to internal stream object
-    auto upgrade(boost::asio::ssl::context& ctx) -> tls_stream&
-    {
-        auto socket = std::move(std::get<tcp_socket>(base));
-        return base.emplace<tls_stream>(std::move(socket), ctx);
-    }
+    auto upgrade(boost::asio::ssl::context& ctx) -> boost::asio::ssl::stream<Stream>&;
 
     /// @brief Get underlying basic socket
     /// @return Reference to underlying socket
     auto lowest_layer() -> lowest_layer_type&
     {
-        return std::visit([](auto&& x) -> decltype(auto) { return x.lowest_layer(); }, base);
+        return self->lowest_layer();
     }
 
     /// @brief Get underlying basic socket
     /// @return Reference to underlying socket
     auto lowest_layer() const -> lowest_layer_type const&
     {
-        return std::visit([](auto&& x) -> decltype(auto) { return x.lowest_layer(); }, base);
+        return self->lowest_layer();
     }
 
     /// @brief Get the executor associated with this stream.
     /// @return The executor associated with the stream.
-    auto get_executor() -> executor_type const&
+    auto get_executor() -> executor_type
     {
-        return lowest_layer().get_executor();
+        return self->get_executor();
     }
 
     /// @brief Initiates an asynchronous read operation.
@@ -80,9 +72,19 @@ public:
         boost::asio::completion_token_for<void(boost::system::error_code, std::size_t)> Token>
     auto async_read_some(MutableBufferSequence&& buffers, Token&& token) -> decltype(auto)
     {
-        return std::visit([&buffers, &token](auto&& x) -> decltype(auto) {
-            return x.async_read_some(std::forward<MutableBufferSequence>(buffers), std::forward<Token>(token));
-        }, base);
+        return boost::asio::async_initiate<Token, void(boost::system::error_code, std::size_t)>(
+            [](
+                boost::asio::any_completion_handler<void(boost::system::error_code, std::size_t)>&& handler,
+                std::shared_ptr<StreamBase> ptr,
+                MutableBufferSequence && buffers
+            ) {
+                std::vector<boost::asio::mutable_buffer> buf{boost::asio::buffer_sequence_begin(buffers), boost::asio::buffer_sequence_end(buffers)};
+                ptr->async_read_some(std::move(buf), std::move(handler));
+            },
+            token,
+            this->self,
+            std::forward<MutableBufferSequence>(buffers)
+        );
     }
 
     /// @brief Initiates an asynchronous write operation.
@@ -96,17 +98,21 @@ public:
         boost::asio::completion_token_for<void(boost::system::error_code, std::size_t)> Token>
     auto async_write_some(ConstBufferSequence&& buffers, Token&& token) -> decltype(auto)
     {
-        return std::visit([&buffers, &token](auto&& x) -> decltype(auto) {
-            return x.async_write_some(std::forward<ConstBufferSequence>(buffers), std::forward<Token>(token));
-        }, base);
+        return boost::asio::async_initiate<Token, void(boost::system::error_code, std::size_t)>(
+            [](
+                boost::asio::any_completion_handler<void(boost::system::error_code, std::size_t)>&& handler,
+                std::shared_ptr<StreamBase> ptr,
+                ConstBufferSequence && buffers
+            ) {
+                std::vector<boost::asio::const_buffer> buf{boost::asio::buffer_sequence_begin(buffers), boost::asio::buffer_sequence_end(buffers)};
+                ptr->async_write_some(std::move(buf), std::move(handler));
+            },
+            token,
+            this->self,
+            std::forward<ConstBufferSequence>(buffers)
+        );
     }
 
     /// @brief Tear down the network stream
-    auto close() -> void
-    {
-        boost::system::error_code err;
-        auto& socket = lowest_layer();
-        socket.shutdown(socket.shutdown_both, err);
-        socket.lowest_layer().close(err);
-    }
+    auto close() -> void;
 };

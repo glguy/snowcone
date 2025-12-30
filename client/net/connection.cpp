@@ -9,14 +9,15 @@
 #include <vector>
 
 connection::connection(boost::asio::io_context& io_context)
-    : stream_{io_context}
+    : stream_{}
     , resolver_{io_context}
 {
 }
 
 auto connection::write(std::string_view const cmd) -> void
 {
-    if (not cmd.empty()) {
+    if (not cmd.empty())
+    {
         send_.insert(end(send_), begin(cmd), end(cmd));
         if (sending_.empty())
         {
@@ -50,7 +51,7 @@ auto connection::close() -> void
 namespace {
 
 using tcp_type = boost::asio::ip::tcp::socket;
-using tls_type = boost::asio::ssl::stream<tcp_type>;
+using tls_type = boost::asio::ssl::stream<Stream>;
 
 /**
  * @brief Write SHA2-256 digest of the public-key to the output stream
@@ -159,11 +160,12 @@ auto constexpr alpn_encode(char const (&... protocols)[Ns]) -> std::array<unsign
  * @param prefix A string to prefix the error message.
  * @throws boost::system::system_error Always throws with the OpenSSL error code and prefix.
  */
-[[noreturn]] auto openssl_error(char const * const prefix) -> void
+[[noreturn]] auto openssl_error(char const* const prefix) -> void
 {
     boost::system::error_code ec{
         static_cast<int>(::ERR_get_error()),
-        boost::asio::error::get_ssl_category()};
+        boost::asio::error::get_ssl_category()
+    };
 
     ::ERR_clear_error();
 
@@ -178,16 +180,7 @@ auto connection::connect(Settings settings) -> boost::asio::awaitable<std::strin
     std::ostringstream os;
 
     // replace previous socket and ensure it's a tcp socket
-    auto& socket = stream_.reset();
-
-    // If we're going to use SOCKS then the TCP connection host is actually the socks
-    // server and then the IRC server gets passed over the SOCKS protocol
-    auto const use_socks = not settings.socks_host.empty() && settings.socks_port != 0;
-    if (use_socks)
-    {
-        std::swap(settings.host, settings.socks_host);
-        std::swap(settings.port, settings.socks_port);
-    }
+    auto& socket = stream_.reset(resolver_.get_executor());
 
     // Establish underlying TCP connection
     {
@@ -200,79 +193,86 @@ auto connection::connect(Settings settings) -> boost::asio::awaitable<std::strin
         set_cloexec(socket.native_handle());
     }
 
-    // Optionally negotiate SOCKS connection
-    if (use_socks)
+    for (auto&& layer : settings.layers)
     {
-        os << " socks="
-           << co_await socks5::async_connect(
-                  socket,
-                  settings.socks_host, settings.socks_port, std::move(settings.socks_auth),
-                  boost::asio::use_awaitable
-              );
-    }
-
-    // Optionally negotiate TLS session
-    if (settings.tls)
-    {
-        boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
-        ssl_context.set_default_verify_paths();
-
-        // Upgrade stream_ to use TLS and invalidate socket
-        auto& stream = stream_.upgrade(ssl_context);
-
-        // Set the client certificate, if specified
-        if (auto const client_cert = settings.client_cert.get())
+        switch (layer.index())
         {
-            if (1 != SSL_use_certificate(stream.native_handle(), client_cert))
+        case 0: {
+            auto& tls_layer = std::get<0>(layer);
+            boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
+            ssl_context.set_default_verify_paths();
+
+            // Upgrade stream_ to use TLS and invalidate socket
+            auto& stream = stream_.upgrade(ssl_context);
+
+            // Set the client certificate, if specified
+            if (auto const client_cert = tls_layer.client_cert.get())
             {
-                openssl_error("SSL_use_certificate");
+                if (1 != SSL_use_certificate(stream.native_handle(), client_cert))
+                {
+                    openssl_error("SSL_use_certificate");
+                }
             }
-        }
 
-        // Set the client private key, if specified
-        if (auto const client_key = settings.client_key.get())
-        {
-            if (1 != SSL_use_PrivateKey(stream.native_handle(), client_key))
+            // Set the client private key, if specified
+            if (auto const client_key = tls_layer.client_key.get())
             {
-                openssl_error("SSL_use_PrivateKey");
+                if (1 != SSL_use_PrivateKey(stream.native_handle(), client_key))
+                {
+                    openssl_error("SSL_use_PrivateKey");
+                }
             }
-        }
 
-        // Update the BIO buffer sizes
-        set_buffer_size(stream, irc_buffer_size);
+            // Update the BIO buffer sizes
+            set_buffer_size(stream, irc_buffer_size);
 
-        // Configure ALPN
-        {
-            auto constexpr protos = alpn_encode("irc");
-            // non-standard return behavior
-            if (0 != SSL_set_alpn_protos(stream.native_handle(), protos.data(), protos.size()))
+            // Configure ALPN
             {
-                // not documented to set an error code
-                throw std::runtime_error{"SSL_set_alpn_protos"};
+                auto constexpr protos = alpn_encode("irc");
+                // non-standard return behavior
+                if (0 != SSL_set_alpn_protos(stream.native_handle(), protos.data(), protos.size()))
+                {
+                    // not documented to set an error code
+                    throw std::runtime_error{"SSL_set_alpn_protos"};
+                }
             }
-        }
 
-        // Configure server certificate verification
-        if (not settings.verify.empty())
-        {
-            stream.set_verify_mode(boost::asio::ssl::verify_peer);
-            stream.set_verify_callback(boost::asio::ssl::host_name_verification(settings.verify));
-        }
-
-        // Set the SNI hostname, if specified
-        if (not settings.sni.empty())
-        {
-            if (1 != SSL_set_tlsext_host_name(stream.native_handle(), settings.sni.c_str()))
+            // Configure server certificate verification
+            if (not tls_layer.verify.empty())
             {
-                // not documented to set an error code
-                throw std::runtime_error{"SSL_set_tlsext_host_name"};
+                stream.set_verify_mode(boost::asio::ssl::verify_peer);
+                stream.set_verify_callback(boost::asio::ssl::host_name_verification(tls_layer.verify));
             }
+
+            // Set the SNI hostname, if specified
+            if (not tls_layer.sni.empty())
+            {
+                if (1 != SSL_set_tlsext_host_name(stream.native_handle(), tls_layer.sni.c_str()))
+                {
+                    // not documented to set an error code
+                    throw std::runtime_error{"SSL_set_tlsext_host_name"};
+                }
+            }
+
+            // Configuration complete, initiate the handshake
+            co_await stream.async_handshake(stream.client, boost::asio::use_awaitable);
+
+            peer_fingerprint(os << " tls=", stream.native_handle());
+            break;
         }
-
-        // Configuration complete, initiate the handshake
-        co_await stream.async_handshake(stream.client, boost::asio::use_awaitable);
-
-        peer_fingerprint(os << " tls=", stream.native_handle());
+        case 1: {
+            auto& socks_layer = std::get<1>(layer);
+            os << " socks="
+               << co_await socks5::async_connect(
+                      stream_,
+                      socks_layer.host, socks_layer.port, std::move(socks_layer.auth),
+                      boost::asio::use_awaitable
+                  );
+            break;
+        }
+        default:
+            throw std::runtime_error{"Bad layer?"};
+        }
     }
 
     co_return os.str();

@@ -41,7 +41,7 @@ M[N.RPL_ISUPPORT] = function(irc)
     for i = 2, #irc - 1 do
         local token = irc[i]
         -- soju.im/bouncer-networks happens to add _ to the allowed characters
-        local minus, key, equals, val = token:match '^(%-?)([%u%d_]+)(=?)(.*)$'
+        local minus, key, equals, val = token:match '^(%-?)([^=]+)(=?)(.*)$'
         if minus == '-' then
             val = nil
         elseif equals == '' then
