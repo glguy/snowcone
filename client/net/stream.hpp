@@ -11,13 +11,13 @@ class StreamBase
 public:
     using executor_type = boost::asio::any_io_executor;
     using lowest_layer_type = boost::asio::ip::tcp::socket::lowest_layer_type;
-
+    using Sig = void(boost::system::error_code, std::size_t);
     virtual ~StreamBase() = default;
     virtual auto lowest_layer() -> lowest_layer_type& = 0;
     virtual auto lowest_layer() const -> lowest_layer_type const& = 0;
     virtual auto get_executor() -> executor_type = 0;
-    virtual auto async_read_some(std::vector<boost::asio::mutable_buffer> buffers, boost::asio::any_completion_handler<void(boost::system::error_code, std::size_t)> handler) -> void = 0;
-    virtual auto async_write_some(std::vector<boost::asio::const_buffer> buffers, boost::asio::any_completion_handler<void(boost::system::error_code, std::size_t)> handler) -> void = 0;
+    virtual auto async_read_some(std::vector<boost::asio::mutable_buffer> buffers, boost::asio::any_completion_handler<Sig> handler) -> void = 0;
+    virtual auto async_write_some(std::vector<boost::asio::const_buffer> buffers, boost::asio::any_completion_handler<Sig> handler) -> void = 0;
 };
 
 class Stream
@@ -69,21 +69,23 @@ public:
     /// @return The result determined by the completion token.
     template <
         typename MutableBufferSequence,
-        boost::asio::completion_token_for<void(boost::system::error_code, std::size_t)> Token>
-    auto async_read_some(MutableBufferSequence&& buffers, Token&& token) -> decltype(auto)
+        boost::asio::completion_token_for<StreamBase::Sig> Token>
+    auto async_read_some(MutableBufferSequence const& buffers, Token&& token) -> decltype(auto)
     {
-        return boost::asio::async_initiate<Token, void(boost::system::error_code, std::size_t)>(
+        return boost::asio::async_initiate<Token, StreamBase::Sig>(
             [](
-                boost::asio::any_completion_handler<void(boost::system::error_code, std::size_t)>&& handler,
+                boost::asio::any_completion_handler<StreamBase::Sig>&& handler,
                 std::shared_ptr<StreamBase> ptr,
-                MutableBufferSequence && buffers
+                std::vector<boost::asio::mutable_buffer> buffers
             ) {
-                std::vector<boost::asio::mutable_buffer> buf{boost::asio::buffer_sequence_begin(buffers), boost::asio::buffer_sequence_end(buffers)};
-                ptr->async_read_some(std::move(buf), std::move(handler));
+                ptr->async_read_some(
+                    std::move(buffers),
+                    std::move(handler)
+                );
             },
             token,
             this->self,
-            std::forward<MutableBufferSequence>(buffers)
+            std::vector<boost::asio::mutable_buffer>{boost::asio::buffer_sequence_begin(buffers), boost::asio::buffer_sequence_end(buffers)}
         );
     }
 
@@ -95,21 +97,23 @@ public:
     /// @return The result determined by the completion token.
     template <
         typename ConstBufferSequence,
-        boost::asio::completion_token_for<void(boost::system::error_code, std::size_t)> Token>
-    auto async_write_some(ConstBufferSequence&& buffers, Token&& token) -> decltype(auto)
+        boost::asio::completion_token_for<StreamBase::Sig> Token>
+    auto async_write_some(ConstBufferSequence const& buffers, Token&& token) -> decltype(auto)
     {
-        return boost::asio::async_initiate<Token, void(boost::system::error_code, std::size_t)>(
+        return boost::asio::async_initiate<Token, StreamBase::Sig>(
             [](
-                boost::asio::any_completion_handler<void(boost::system::error_code, std::size_t)>&& handler,
+                boost::asio::any_completion_handler<StreamBase::Sig>&& handler,
                 std::shared_ptr<StreamBase> ptr,
-                ConstBufferSequence && buffers
+                std::vector<boost::asio::const_buffer> buffers
             ) {
-                std::vector<boost::asio::const_buffer> buf{boost::asio::buffer_sequence_begin(buffers), boost::asio::buffer_sequence_end(buffers)};
-                ptr->async_write_some(std::move(buf), std::move(handler));
+                ptr->async_write_some(
+                    std::move(buffers),
+                    std::move(handler)
+                );
             },
             token,
             this->self,
-            std::forward<ConstBufferSequence>(buffers)
+            std::vector<boost::asio::const_buffer>{boost::asio::buffer_sequence_begin(buffers), boost::asio::buffer_sequence_end(buffers)}
         );
     }
 

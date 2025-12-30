@@ -78,19 +78,25 @@ return table {
         username             = {type = 'string', pattern = '^[^\n\r\x00:]*$'},
         password             = password_schema,
     },
-    socks = table {
-        host                = {type = 'string'},
-        port                = {type = 'number'},
-        username            = {type = 'string'},
-        password            = password_schema,
-    },
-    tls = table {
-        client_cert         = password_schema,
-        client_key          = password_schema,
-        client_password     = password_schema,
-        use_store           = {type = 'boolean'},
-        verify_host         = {type = 'string'},
-        sni_host            = {type = 'string'},
+    layers = array {
+        oneOf = {
+            table {
+                type                = {type = 'string', pattern = '^socks$' },
+                host                = {type = 'string'},
+                port                = {type = 'number'},
+                username            = {type = 'string'},
+                password            = password_schema,
+            },
+            table {
+                type                = {type = 'string', pattern = '^tls$' },
+                client_cert         = password_schema,
+                client_key          = password_schema,
+                client_password     = password_schema,
+                use_store           = {type = 'boolean'},
+                verify_host         = {type = 'string'},
+                sni_host            = {type = 'string'},
+            },
+        },
     },
     oper = table {
         automatic           = {type = 'boolean'},

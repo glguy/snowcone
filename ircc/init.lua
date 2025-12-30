@@ -341,87 +341,97 @@ function connect()
             if mode_target == 'connected' then mode_target = 'idle' end -- don't reconnect
         end
 
-        local use_tls = nil ~= configuration.tls
-        local use_socks = nil ~= configuration.socks
-
         local ok, tls_client_password, socks_password, tls_client_cert, tls_client_key
+        local layers = {}
 
-        if use_tls then
-            tls_client_password = configuration.tls.client_password
-            tls_client_key = configuration.tls.client_key
-            tls_client_cert = configuration.tls.client_cert
-        end
-
-        if use_socks then
-            socks_password = configuration.socks.password
-        end
-
-        ok, tls_client_password =
-            pcall(configuration_tools.resolve_password, task, tls_client_password)
-        if not ok then
-            failure('TLS client key password program error: %s', tls_client_password)
-            return
-        end
-
-        ok, socks_password = pcall(configuration_tools.resolve_password, task, socks_password)
-        if not ok then
-            failure('SOCKS5 password program error: %s', socks_password)
-            return
-        end
-
-        ok, tls_client_cert =
-            pcall(configuration_tools.resolve_password, task, tls_client_cert)
-        if not ok then
-            failure('TLS client cert error: %s', tls_client_cert)
-            return
-        end
-
-        ok, tls_client_key =
-            pcall(configuration_tools.resolve_password, task, tls_client_key)
-        if not ok then
-            failure('TLS client key error: %s', tls_client_key)
-            return
-        end
-
-        if not tls_client_key then tls_client_key = tls_client_cert end
-
-        if tls_client_cert then
-            ok, tls_client_cert = pcall(myopenssl.read_x509, tls_client_cert)
-            if not ok then
-                failure('Parse client cert failed: %s', tls_client_cert)
-                return
-            end
-        end
-
-        if tls_client_key then
-            if configuration.tls.use_store then
-                ok, tls_client_key = pcall(myopenssl.pkey_from_store, tls_client_key, true, tls_client_password)
+        for _, layer in ipairs(configuration.layers or {}) do
+            if layer.type == "tls" then
+                tls_client_password = layer.client_password
+                ok, tls_client_password =
+                    pcall(configuration_tools.resolve_password, task, tls_client_password)
                 if not ok then
-                    failure('Client key from store failed: %s', tls_client_key)
+                    failure('TLS client key password program error: %s', tls_client_password)
                     return
                 end
+
+                tls_client_cert = layer.client_cert
+                ok, tls_client_cert =
+                    pcall(configuration_tools.resolve_password, task, tls_client_cert)
+                if not ok then
+                    failure('TLS client cert error: %s', tls_client_cert)
+                    return
+                end
+
+                tls_client_key = layer.client_key
+                ok, tls_client_key =
+                    pcall(configuration_tools.resolve_password, task, tls_client_key)
+                if not ok then
+                    failure('TLS client key error: %s', tls_client_key)
+                    return
+                end
+
+                if not tls_client_key then
+                    tls_client_key = tls_client_cert
+                end
+
+                if tls_client_cert then
+                    ok, tls_client_cert = pcall(myopenssl.read_x509, tls_client_cert)
+                    if not ok then
+                        failure('Parse client cert failed: %s', tls_client_cert)
+                        return
+                    end
+                end
+
+                if tls_client_key then
+                    if layer.use_store then
+                        ok, tls_client_key = pcall(myopenssl.pkey_from_store, tls_client_key, true, tls_client_password)
+                        if not ok then
+                            failure('Load client key failed: %s', tls_client_key)
+                        return
+                    end
+                    else
+                        ok, tls_client_key = pcall(myopenssl.read_pem, tls_client_key, true, tls_client_password)
+                        if not ok then
+                            failure('Parse client key failed: %s', tls_client_key)
+                            return
+                        end
+                    end
+                end
+
+                table.insert(layers, {
+                    type = "tls",
+                    client_key = tls_client_key,
+                    client_cert = tls_client_cert,
+                    verify = layer.verify_host,
+                    sni = layer.sni_host
+                })
+
+            elseif layer.type == "socks" then
+                socks_password = layer.password
+                ok, socks_password = pcall(configuration_tools.resolve_password, task, socks_password)
+                if not ok then
+                    failure('SOCKS5 password program error: %s', socks_password)
+                    return
+                end
+
+                table.insert(layers, {
+                    type = "socks",
+                    host = layer.host,
+                    port = layer.port,
+                    username = layer.username,
+                    password = socks_password
+                })
             else
-                ok, tls_client_key = pcall(myopenssl.read_pem, tls_client_key, true, tls_client_password)
-                if not ok then
-                    failure('Parse client key failed: %s', tls_client_key)
-                    return
-                end
+                failure('bad layer type: %s', layer.type)
+                return
             end
         end
 
         local conn, errmsg =
             snowcone.connect(
-            use_tls,
             configuration.server.host,
             configuration.server.port or use_tls and 6697 or 6667,
-            tls_client_cert,
-            tls_client_key,
-            use_tls and configuration.tls.verify_host or nil,
-            use_tls and configuration.tls.sni_host or nil,
-            use_socks and configuration.socks.host or nil,
-            use_socks and configuration.socks.port or nil,
-            use_socks and configuration.socks.username or nil,
-            socks_password,
+            layers,
             function(event, ...)
                 conn_handlers[event](...)
             end)
