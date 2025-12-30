@@ -421,6 +421,12 @@ function connect()
                     username = layer.username,
                     password = socks_password
                 })
+            elseif layer.type == "http" then
+                table.insert(layers, {
+                    type = "http",
+                    host = layer.host,
+                    port = layer.port,
+                })
             else
                 failure('bad layer type: %s', layer.type)
                 return

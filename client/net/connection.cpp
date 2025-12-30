@@ -1,6 +1,7 @@
 #include "connection.hpp"
 
 #include <socks5.hpp>
+#include <httpconnect.hpp>
 
 #include <boost/io/ios_state.hpp>
 
@@ -198,7 +199,7 @@ auto connection::connect(Settings settings) -> boost::asio::awaitable<std::strin
         switch (layer.index())
         {
         case 0: {
-            auto& tls_layer = std::get<0>(layer);
+            auto const& tls_layer = std::get<0>(layer);
             boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
             ssl_context.set_default_verify_paths();
 
@@ -261,13 +262,23 @@ auto connection::connect(Settings settings) -> boost::asio::awaitable<std::strin
             break;
         }
         case 1: {
-            auto& socks_layer = std::get<1>(layer);
+            auto const& socks_layer = std::get<1>(layer);
             os << " socks="
                << co_await socks5::async_connect(
                       stream_,
                       socks_layer.host, socks_layer.port, std::move(socks_layer.auth),
                       boost::asio::use_awaitable
                   );
+            break;
+        }
+        case 2: {
+            auto const& http_layer = std::get<2>(layer);
+            co_await httpconnect::async_connect(
+                      stream_,
+                      http_layer.host, http_layer.port,
+                      boost::asio::use_awaitable
+                  );
+            os << " http";
             break;
         }
         default:

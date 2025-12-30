@@ -212,9 +212,9 @@ auto l_start_irc(lua_State* const L) -> int
     luaL_checkany(L, 4); // callback
     lua_settop(L, 4);
     luaL_argcheck(L, 1 <= port && port <= 0xffff, 2, "port out of range");
-    
+
     auto const layers_n = luaL_len(L, 3);
-    std::vector<std::variant<TlsLayer, SocksLayer>> layers;
+    std::vector<AnyLayer> layers;
     layers.reserve(layers_n);
 
     for (lua_Integer i{0}; i < layers_n; ++i) {
@@ -222,13 +222,13 @@ auto l_start_irc(lua_State* const L) -> int
         lua_getfield(L, 5, "type"); // 6 - layer type
         char const * layer_type = lua_tostring(L, 6);
         if (layer_type == "tls"sv) {
-            
+
             TlsLayer layer;
 
             lua_getfield(L, 5, "client_cert"); // 7
             layer.client_cert = luaL_opt(L, myopenssl::check_x509, 7, nullptr);
             lua_pop(L, 1);
-            
+
             lua_getfield(L, 5, "client_key"); // 7
             layer.client_key = luaL_opt(L, myopenssl::check_pkey, 7, nullptr);
             lua_pop(L, 1);
@@ -263,14 +263,28 @@ auto l_start_irc(lua_State* const L) -> int
                     .username = username,
                     .password = password,
                 };
+            } else {
+                layer.auth = socks5::NoCredential{};
             }
-            
+
             lua_pop(L, 2);
+
+            layers.emplace_back(std::move(layer));
+        } else if (layer_type == "http"sv) {
+            HttpLayer layer;
+
+            lua_getfield(L, 5, "host"); // 7
+            layer.host = luaL_opt(L, lua_tostring, 7, "");
+            lua_pop(L, 1);
+
+            lua_getfield(L, 5, "port"); // 7
+            layer.port = lua_tointeger(L, 7);
+            lua_pop(L, 1);
 
             layers.emplace_back(std::move(layer));
         }
 
-        lua_pop(L, 2); // layer table, layer type   
+        lua_pop(L, 2); // layer table, layer type
     }
 
     Settings settings{

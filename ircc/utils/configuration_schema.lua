@@ -88,6 +88,11 @@ return table {
                 password            = password_schema,
             },
             table {
+                type                = {type = 'string', pattern = '^http$' },
+                host                = {type = 'string'},
+                port                = {type = 'number'},
+            },
+            table {
                 type                = {type = 'string', pattern = '^tls$' },
                 client_cert         = password_schema,
                 client_key          = password_schema,

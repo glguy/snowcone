@@ -39,11 +39,18 @@ struct SocksLayer {
     socks5::Auth auth;
 };
 
+struct HttpLayer {
+    std::string host;
+    std::uint16_t port;
+};
+
+using AnyLayer = std::variant<TlsLayer, SocksLayer, HttpLayer>;
+
 struct Settings
 {
     std::string host;
     std::uint16_t port;
-    std::vector<std::variant<TlsLayer, SocksLayer>> layers;
+    std::vector<AnyLayer> layers;
 };
 
 class connection final : public std::enable_shared_from_this<connection>
