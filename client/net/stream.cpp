@@ -4,6 +4,26 @@
 
 namespace {
 
+/// @brief Tear down the network stream
+auto close_it(boost::asio::ip::tcp::socket::lowest_layer_type & socket) -> void
+{
+    boost::system::error_code err;
+    socket.shutdown(socket.shutdown_both, err);
+    socket.close(err);
+}
+
+auto close_it(boost::asio::local::stream_protocol::socket::lowest_layer_type & socket) -> void
+{
+    boost::system::error_code err;
+    socket.shutdown(socket.shutdown_both, err);
+    socket.close(err);
+}
+
+auto close_it(boost::asio::ssl::stream<Stream> & socket) -> void
+{
+    socket.next_layer().close();
+}
+
 template <typename T>
 struct StreamImpl final : public StreamBase
 {
@@ -15,21 +35,6 @@ struct StreamImpl final : public StreamBase
     }
 
     ~StreamImpl() = default;
-
-    auto lowest_layer() -> lowest_layer_type& override
-    {
-        return impl.lowest_layer();
-    }
-
-    auto lowest_layer() const -> lowest_layer_type const& override
-    {
-        return impl.lowest_layer();
-    }
-
-    auto get_executor() -> executor_type override
-    {
-        return impl.get_executor();
-    }
 
     auto async_read_some(
         std::vector<boost::asio::mutable_buffer> buffers,
@@ -46,13 +51,25 @@ struct StreamImpl final : public StreamBase
     {
         impl.async_write_some(buffers, std::move(handler));
     }
+
+    auto close() -> void override {
+        close_it(impl);
+    }
 };
 
 }
 
-auto Stream::reset(executor_type ex) -> boost::asio::ip::tcp::socket&
+auto Stream::reset_ip() -> boost::asio::ip::tcp::socket&
 {
-    auto impl = std::make_shared<StreamImpl<boost::asio::ip::tcp::socket>>(ex);
+    auto impl = std::make_shared<StreamImpl<boost::asio::ip::tcp::socket>>(*io_context);
+    auto& result = impl->impl;
+    self = std::move(impl);
+    return result;
+}
+
+auto Stream::reset_local() -> boost::asio::local::stream_protocol::socket&
+{
+    auto impl = std::make_shared<StreamImpl<boost::asio::local::stream_protocol::socket>>(*io_context);
     auto& result = impl->impl;
     self = std::move(impl);
     return result;
@@ -64,13 +81,4 @@ auto Stream::upgrade(boost::asio::ssl::context& ctx) -> boost::asio::ssl::stream
     auto& result = impl->impl;
     self = std::move(impl);
     return result;
-}
-
-/// @brief Tear down the network stream
-auto Stream::close() -> void
-{
-    boost::system::error_code err;
-    auto& socket = lowest_layer();
-    socket.shutdown(socket.shutdown_both, err);
-    socket.lowest_layer().close(err);
 }

@@ -10,7 +10,7 @@
 #include <vector>
 
 connection::connection(boost::asio::io_context& io_context)
-    : stream_{}
+    : stream_{io_context}
     , resolver_{io_context}
 {
 }
@@ -99,6 +99,12 @@ auto set_buffer_size(tcp_type& socket, std::size_t const n) -> void
     socket.set_option(tcp_type::receive_buffer_size{static_cast<int>(n)});
 }
 
+auto set_buffer_size(boost::asio::local::stream_protocol::socket& socket, std::size_t const n) -> void
+{
+    socket.set_option(tcp_type::send_buffer_size{static_cast<int>(n)});
+    socket.set_option(tcp_type::receive_buffer_size{static_cast<int>(n)});
+}
+
 /**
  * @brief Set the CLOEXEC flag on a file descriptor.
  *
@@ -175,23 +181,40 @@ auto constexpr alpn_encode(char const (&... protocols)[Ns]) -> std::array<unsign
 
 } // namespace
 
-auto connection::connect(Settings settings) -> boost::asio::awaitable<std::string>
+auto connection::connect(
+    Settings settings
+) -> boost::asio::awaitable<std::string>
 {
     // Fingerprint string builder
     std::ostringstream os;
 
     // replace previous socket and ensure it's a tcp socket
-    auto& socket = stream_.reset(resolver_.get_executor());
-
+    
     // Establish underlying TCP connection
+    switch (settings.base.index())
     {
-        auto const entries = co_await resolver_.async_resolve(settings.host, std::to_string(settings.port), boost::asio::use_awaitable);
-
-        os << "tcp=" << co_await boost::asio::async_connect(socket, entries, boost::asio::use_awaitable);
-
-        socket.set_option(boost::asio::ip::tcp::no_delay{true});
-        set_buffer_size(socket, irc_buffer_size);
-        set_cloexec(socket.native_handle());
+        case 0: {
+            auto& layer = std::get<0>(settings.base);
+            auto& socket = stream_.reset_ip();
+            auto const entries = co_await resolver_.async_resolve(layer.host, std::to_string(layer.port), boost::asio::use_awaitable);
+            os << "tcp=" << co_await boost::asio::async_connect(socket, entries, boost::asio::use_awaitable);
+            socket.set_option(boost::asio::ip::tcp::no_delay{true});
+            set_buffer_size(socket, irc_buffer_size);
+            set_cloexec(socket.native_handle());
+            break;
+        }
+        case 1: {
+            auto& layer = std::get<1>(settings.base);
+            auto& socket = stream_.reset_local();
+            boost::asio::local::stream_protocol::endpoint entry{layer.path};
+            co_await socket.async_connect(entry, boost::asio::use_awaitable);
+            os << "local";
+            set_buffer_size(socket, irc_buffer_size);
+            set_cloexec(socket.native_handle());
+            break;
+        }
+        default:
+            throw std::runtime_error{"Invalid base layer"};
     }
 
     for (auto&& layer : settings.layers)

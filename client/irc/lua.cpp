@@ -211,17 +211,34 @@ auto l_start_irc(lua_State* const L) -> int
     luaL_checkany(L, 3); // layers
     luaL_checkany(L, 4); // callback
     lua_settop(L, 4);
-    luaL_argcheck(L, 1 <= port && port <= 0xffff, 2, "port out of range");
+
+    std::variant<IpLayer, LocalLayer> base;
+
+    if (port == 0)
+    {
+        base = LocalLayer{
+            .path = host
+        };
+    }
+    else
+    {
+        base = IpLayer{
+            .host = host,
+            .port = static_cast<std::uint16_t>(port)
+        };
+    }
 
     auto const layers_n = luaL_len(L, 3);
     std::vector<AnyLayer> layers;
     layers.reserve(layers_n);
 
-    for (lua_Integer i{0}; i < layers_n; ++i) {
+    for (lua_Integer i{0}; i < layers_n; ++i)
+    {
         lua_geti(L, 3, i + 1); // 5 - layer table
         lua_getfield(L, 5, "type"); // 6 - layer type
-        char const * layer_type = lua_tostring(L, 6);
-        if (layer_type == "tls"sv) {
+        char const* layer_type = lua_tostring(L, 6);
+        if (layer_type == "tls"sv)
+        {
 
             TlsLayer layer;
 
@@ -242,7 +259,9 @@ auto l_start_irc(lua_State* const L) -> int
             lua_pop(L, 1);
 
             layers.emplace_back(std::move(layer));
-        } else if (layer_type == "socks"sv) {
+        }
+        else if (layer_type == "socks"sv)
+        {
             SocksLayer layer;
 
             lua_getfield(L, 5, "host"); // 7
@@ -255,22 +274,27 @@ auto l_start_irc(lua_State* const L) -> int
 
             lua_getfield(L, 5, "username"); // 7
             lua_getfield(L, 5, "password"); // 8
-            const char * username = lua_tostring(L, 7);
-            const char * password = lua_tostring(L, 8);
+            char const* username = lua_tostring(L, 7);
+            char const* password = lua_tostring(L, 8);
 
-            if (username && password) {
-                layer.auth = socks5::UsernamePasswordCredential {
+            if (username && password)
+            {
+                layer.auth = socks5::UsernamePasswordCredential{
                     .username = username,
                     .password = password,
                 };
-            } else {
+            }
+            else
+            {
                 layer.auth = socks5::NoCredential{};
             }
 
             lua_pop(L, 2);
 
             layers.emplace_back(std::move(layer));
-        } else if (layer_type == "http"sv) {
+        }
+        else if (layer_type == "http"sv)
+        {
             HttpLayer layer;
 
             lua_getfield(L, 5, "host"); // 7
@@ -288,8 +312,7 @@ auto l_start_irc(lua_State* const L) -> int
     }
 
     Settings settings{
-        .host = host,
-        .port = static_cast<std::uint16_t>(port),
+        .base = base,
         .layers = std::move(layers),
     };
 
@@ -302,24 +325,24 @@ auto l_start_irc(lua_State* const L) -> int
     boost::asio::co_spawn(
         io_context, session_thread(io_context, LMain, irc_cb, irc, std::move(settings)),
         [L = LMain, irc_cb](std::exception_ptr const e) {
-        lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
-        luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);
-        push_string(L, "END"sv);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
+            luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);
+            push_string(L, "END"sv);
 
-        try
-        {
-            std::rethrow_exception(e);
-        }
-        catch (std::exception const& ex)
-        {
-            push_string(L, ex.what());
-        }
-        catch (...)
-        {
-            lua_pushnil(L);
-        }
+            try
+            {
+                std::rethrow_exception(e);
+            }
+            catch (std::exception const& ex)
+            {
+                push_string(L, ex.what());
+            }
+            catch (...)
+            {
+                lua_pushnil(L);
+            }
 
-        safecall(L, "end of connection", 2);
+            safecall(L, "end of connection", 2);
         }
     );
 

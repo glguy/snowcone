@@ -44,12 +44,20 @@ struct HttpLayer {
     std::uint16_t port;
 };
 
+struct IpLayer {
+    std::string host;
+    std::uint16_t port;
+};
+
+struct LocalLayer {
+    std::string path;
+};
+
 using AnyLayer = std::variant<TlsLayer, SocksLayer, HttpLayer>;
 
 struct Settings
 {
-    std::string host;
-    std::uint16_t port;
+    std::variant<IpLayer, LocalLayer> base;
     std::vector<AnyLayer> layers;
 };
 

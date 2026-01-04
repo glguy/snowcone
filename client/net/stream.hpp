@@ -13,27 +13,33 @@ public:
     using lowest_layer_type = boost::asio::ip::tcp::socket::lowest_layer_type;
     using Sig = void(boost::system::error_code, std::size_t);
     virtual ~StreamBase() = default;
-    virtual auto lowest_layer() -> lowest_layer_type& = 0;
-    virtual auto lowest_layer() const -> lowest_layer_type const& = 0;
-    virtual auto get_executor() -> executor_type = 0;
     virtual auto async_read_some(std::vector<boost::asio::mutable_buffer> buffers, boost::asio::any_completion_handler<Sig> handler) -> void = 0;
     virtual auto async_write_some(std::vector<boost::asio::const_buffer> buffers, boost::asio::any_completion_handler<Sig> handler) -> void = 0;
+    virtual auto close() -> void = 0;
 };
 
 class Stream
 {
+private:
+    boost::asio::io_context * io_context;
     std::shared_ptr<StreamBase> self;
 
 public:
     /// @brief The type of the executor associated with the stream.
-    using executor_type = StreamBase::executor_type;
+    using executor_type = boost::asio::any_io_executor;
 
     /// @brief Type of the lowest layer of this stream
-    using lowest_layer_type = StreamBase::lowest_layer_type;
+    using lowest_layer_type = Stream;
+
+    Stream(boost::asio::io_context& io_context) : io_context{&io_context}, self{} {}
 
     /// @brief Reset stream to a plain TCP socket
     /// @return Reference to internal socket object
-    auto reset(executor_type) -> boost::asio::ip::tcp::socket&;
+    auto reset_ip() -> boost::asio::ip::tcp::socket&;
+
+    /// @brief Reset stream to a plain TCP socket
+    /// @return Reference to internal socket object
+    auto reset_local() -> boost::asio::local::stream_protocol::socket&;
 
     /// @brief Upgrade a plain TCP socket into a TLS stream.
     /// @param ctx TLS context used for handshake
@@ -44,21 +50,21 @@ public:
     /// @return Reference to underlying socket
     auto lowest_layer() -> lowest_layer_type&
     {
-        return self->lowest_layer();
+        return *this;
     }
 
     /// @brief Get underlying basic socket
     /// @return Reference to underlying socket
     auto lowest_layer() const -> lowest_layer_type const&
     {
-        return self->lowest_layer();
+        return *this;
     }
 
     /// @brief Get the executor associated with this stream.
     /// @return The executor associated with the stream.
     auto get_executor() -> executor_type
     {
-        return self->get_executor();
+        return io_context->get_executor();
     }
 
     /// @brief Initiates an asynchronous read operation.
@@ -118,5 +124,7 @@ public:
     }
 
     /// @brief Tear down the network stream
-    auto close() -> void;
+    auto close() -> void {
+        self->close();
+    }
 };
