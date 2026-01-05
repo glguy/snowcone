@@ -1011,12 +1011,21 @@ function connect()
                     username = layer.username,
                     password = socks_password
                 })
-            
+
             elseif layer.type == "http" then
+                http_password = layer.password
+                ok, http_password = pcall(configuration_tools.resolve_password, task, http_password)
+                if not ok then
+                    status('connect', 'HTTP password program error: %s', http_password)
+                    return
+                end
+
                 table.insert(layers, {
                     type = "http",
                     host = layer.host,
                     port = layer.port,
+                    username = layer.username,
+                    password = http_password
                 })
             else
                 status('connect', 'bad layer type: %s', layer.type)

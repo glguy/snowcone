@@ -10,6 +10,8 @@
 #include <string>
 #include <variant>
 
+#include "proxyauth.hpp"
+
 namespace socks5 {
 
 struct SocksErrCategory : boost::system::error_category
@@ -44,17 +46,6 @@ enum class SocksErrc
 
 /// Either a hostname or an address. Hostnames are resolved locally on the proxy server
 using Host = std::variant<std::string, boost::asio::ip::address>;
-
-struct NoCredential
-{
-};
-struct UsernamePasswordCredential
-{
-    std::string username;
-    std::string password;
-};
-
-using Auth = std::variant<NoCredential, UsernamePasswordCredential>;
 
 namespace detail {
 

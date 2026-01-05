@@ -305,6 +305,25 @@ auto l_start_irc(lua_State* const L) -> int
             layer.port = lua_tointeger(L, 7);
             lua_pop(L, 1);
 
+            lua_getfield(L, 5, "username"); // 7
+            lua_getfield(L, 5, "password"); // 8
+            char const* username = lua_tostring(L, 7);
+            char const* password = lua_tostring(L, 8);
+
+            if (username && password)
+            {
+                layer.auth = socks5::UsernamePasswordCredential{
+                    .username = username,
+                    .password = password,
+                };
+            }
+            else
+            {
+                layer.auth = socks5::NoCredential{};
+            }
+
+            lua_pop(L, 2);
+
             layers.emplace_back(std::move(layer));
         }
 

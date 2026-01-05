@@ -4,10 +4,17 @@
 
 #include <boost/asio.hpp>
 
+#include <base64.hpp>
+
 #include <string>
 
+#include "proxyauth.hpp"
+
 using namespace std::literals::string_view_literals;
+
 namespace httpconnect {
+
+auto encode_basic_auth(socks5::UsernamePasswordCredential const& auth) -> std::string;
 
 using Signature = void(boost::system::error_code);
 namespace http = boost::beast::http;
@@ -21,6 +28,7 @@ struct State
     std::string target;
     http::request<http::empty_body> req;
     std::string response_bytes;
+    socks5::Auth auth;
 };
 
 template <typename AsyncStream>
@@ -68,6 +76,10 @@ struct HttpConnectImpl
         state_->req.target(state_->target);
         state_->req.set(http::field::host, state_->target);
         state_->req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+
+        if (auto * basic = std::get_if<socks5::UsernamePasswordCredential>(&state_->auth)) {
+            state_->req.set(http::field::authorization, encode_basic_auth(*basic));
+        }
 
         auto& req = state_->req; // ensure we dereference this before moving it
         http::async_write(stream_, req, std::bind_front(std::move(self), ReqSent{}));
@@ -120,6 +132,7 @@ auto async_connect(
     AsyncStream& socket,
     std::string host,
     uint16_t const port,
+    socks5::Auth auth,
     CompletionToken&& token
 )
 {
@@ -127,6 +140,7 @@ auto async_connect(
     host += std::to_string(port);
     auto state = std::make_unique<State>();
     state->target = host;
+    state->auth = std::move(auth);
     return boost::asio::async_compose<CompletionToken, Signature>(HttpConnectImpl<AsyncStream>{socket, std::move(state)}, token, socket);
 }
 

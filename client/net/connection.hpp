@@ -42,6 +42,7 @@ struct SocksLayer {
 struct HttpLayer {
     std::string host;
     std::uint16_t port;
+    socks5::Auth auth;
 };
 
 struct IpLayer {

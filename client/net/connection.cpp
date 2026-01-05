@@ -289,7 +289,8 @@ auto connection::connect(
             os << " socks="
                << co_await socks5::async_connect(
                       stream_,
-                      socks_layer.host, socks_layer.port, std::move(socks_layer.auth),
+                      socks_layer.host, socks_layer.port,
+                      std::move(socks_layer.auth),
                       boost::asio::use_awaitable
                   );
             break;
@@ -299,6 +300,7 @@ auto connection::connect(
             co_await httpconnect::async_connect(
                       stream_,
                       http_layer.host, http_layer.port,
+                      std::move(http_layer.auth),
                       boost::asio::use_awaitable
                   );
             os << " http";

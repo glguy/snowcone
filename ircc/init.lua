@@ -341,7 +341,7 @@ function connect()
             if mode_target == 'connected' then mode_target = 'idle' end -- don't reconnect
         end
 
-        local ok, tls_client_password, socks_password, tls_client_cert, tls_client_key
+        local ok, tls_client_password, socks_password, http_password, tls_client_cert, tls_client_key
         local layers = {}
 
         for _, layer in ipairs(configuration.layers or {}) do
@@ -422,10 +422,19 @@ function connect()
                     password = socks_password
                 })
             elseif layer.type == "http" then
+                http_password = layer.password
+                ok, http_password = pcall(configuration_tools.resolve_password, task, http_password)
+                if not ok then
+                    failure('HTTP password program error: %s', http_password)
+                    return
+                end
+
                 table.insert(layers, {
                     type = "http",
                     host = layer.host,
                     port = layer.port,
+                    username = layer.username,
+                    password = http_password
                 })
             else
                 failure('bad layer type: %s', layer.type)
