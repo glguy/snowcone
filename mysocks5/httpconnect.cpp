@@ -14,7 +14,7 @@ auto encode_basic_auth(socks5::UsernamePasswordCredential const& auth) -> std::s
     std::string value;
     value.reserve(6 + n);
     value += "Basic ";
-    value.resize(n);
+    value.resize(6 + n);
     base64::encode(payload, &value[6]);
 
     return value;

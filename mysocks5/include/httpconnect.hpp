@@ -75,10 +75,10 @@ struct HttpConnectImpl
         state_->req.method(http::verb::connect);
         state_->req.target(state_->target);
         state_->req.set(http::field::host, state_->target);
-        state_->req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+        state_->req.set(http::field::user_agent, "snowcone");
 
         if (auto * basic = std::get_if<socks5::UsernamePasswordCredential>(&state_->auth)) {
-            state_->req.set(http::field::authorization, encode_basic_auth(*basic));
+            state_->req.set(http::field::proxy_authorization, encode_basic_auth(*basic));
         }
 
         auto& req = state_->req; // ensure we dereference this before moving it
@@ -116,12 +116,13 @@ struct HttpConnectImpl
             return self.complete(ec);
         }
 
-        if (parser.get().result() == http::status::ok)
-        {
-            return self.complete({});
+        switch (parser.get().result()) {
+            case http::status::ok:
+                return self.complete({});
+            default:
+                return self.complete(http::error::bad_status);
         }
 
-        return self.complete(http::error::bad_status);
     }
 };
 
