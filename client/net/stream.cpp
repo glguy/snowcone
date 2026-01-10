@@ -1,18 +1,10 @@
 #include "stream.hpp"
 
-#include <span>
-
 namespace {
 
-/// @brief Tear down the network stream
-auto close_it(boost::asio::ip::tcp::socket::lowest_layer_type & socket) -> void
-{
-    boost::system::error_code err;
-    socket.shutdown(socket.shutdown_both, err);
-    socket.close(err);
-}
-
-auto close_it(boost::asio::local::stream_protocol::socket::lowest_layer_type & socket) -> void
+/// @brief Tear down a socket
+template <typename Protocol, typename Executor>
+auto close_it(boost::asio::basic_socket<Protocol, Executor> & socket) -> void
 {
     boost::system::error_code err;
     socket.shutdown(socket.shutdown_both, err);
@@ -33,8 +25,6 @@ struct StreamImpl final : public StreamBase
     explicit StreamImpl(Args&&... args) : impl{std::forward<Args>(args)...}
     {
     }
-
-    ~StreamImpl() = default;
 
     auto async_read_some(
         std::vector<boost::asio::mutable_buffer> buffers,

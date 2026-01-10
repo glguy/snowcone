@@ -21,7 +21,7 @@ public:
 class Stream
 {
 private:
-    boost::asio::io_context * io_context;
+    boost::asio::io_context* io_context;
     std::shared_ptr<StreamBase> self;
 
 public:
@@ -31,7 +31,11 @@ public:
     /// @brief Type of the lowest layer of this stream
     using lowest_layer_type = Stream;
 
-    Stream(boost::asio::io_context& io_context) : io_context{&io_context}, self{} {}
+    Stream(boost::asio::io_context& io_context)
+        : io_context{&io_context}
+        , self{}
+    {
+    }
 
     /// @brief Reset stream to a plain TCP socket
     /// @return Reference to internal socket object
@@ -91,7 +95,10 @@ public:
             },
             token,
             this->self,
-            std::vector<boost::asio::mutable_buffer>{boost::asio::buffer_sequence_begin(buffers), boost::asio::buffer_sequence_end(buffers)}
+            std::vector<boost::asio::mutable_buffer>{
+                boost::asio::buffer_sequence_begin(buffers),
+                boost::asio::buffer_sequence_end(buffers)
+            }
         );
     }
 
@@ -119,12 +126,16 @@ public:
             },
             token,
             this->self,
-            std::vector<boost::asio::const_buffer>{boost::asio::buffer_sequence_begin(buffers), boost::asio::buffer_sequence_end(buffers)}
+            std::vector<boost::asio::const_buffer>{
+                boost::asio::buffer_sequence_begin(buffers),
+                boost::asio::buffer_sequence_end(buffers)
+            }
         );
     }
 
     /// @brief Tear down the network stream
-    auto close() -> void {
+    auto close() -> void
+    {
         self->close();
     }
 };

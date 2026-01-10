@@ -56,11 +56,15 @@ std::string SocksErrCategory::message(int ev) const
     }
 }
 
-namespace detail {
-    auto make_socks_error(SocksErrc const err) -> boost::system::error_code
-    {
-        return boost::system::error_code{int(err), theSocksErrCategory};
-    }
-} // namespace detail
+auto make_error_code(SocksErrc const err) -> boost::system::error_code
+{
+    return boost::system::error_code{int(err), theSocksErrCategory};
+}
 
 } // namespace socks5
+
+namespace std {
+template<>
+struct is_error_code_enum<socks5::SocksErrc> : true_type {};
+}
+

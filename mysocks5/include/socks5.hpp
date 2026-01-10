@@ -22,7 +22,7 @@ struct SocksErrCategory : boost::system::error_category
 
 extern SocksErrCategory const theSocksErrCategory;
 
-enum class SocksErrc
+enum class SocksErrc : int
 {
     // Errors from the server
     Succeeded = 0,
@@ -44,12 +44,12 @@ enum class SocksErrc
     PasswordTooLong,
 };
 
+auto make_error_code(SocksErrc) -> boost::system::error_code;
+
 /// Either a hostname or an address. Hostnames are resolved locally on the proxy server
 using Host = std::variant<std::string, boost::asio::ip::address>;
 
 namespace detail {
-
-
     template <typename T>
     concept RecvState = requires {
         {  T::READ } -> std::convertible_to<std::size_t>;
@@ -62,8 +62,6 @@ namespace detail {
     };
     template <class... Ts>
     overloaded(Ts...) -> overloaded<Ts...>;
-
-    auto make_socks_error(SocksErrc const err) -> boost::system::error_code;
 
     uint8_t const socks_version_tag = 5;
     uint8_t const auth_version_tag = 1;
@@ -186,7 +184,7 @@ namespace detail {
         /// @param err error code to return to the caller
         static auto failure(auto& self, SocksErrc const err) -> void
         {
-            self.complete(make_socks_error(err), {});
+            self.complete(make_error_code(err), {});
         }
 
         inline auto push_size_prefixed(std::ranges::sized_range auto const& thing) -> void

@@ -19,6 +19,18 @@ auto encode_basic_auth(socks5::UsernamePasswordCredential const& auth) -> std::s
 using Signature = void(boost::system::error_code);
 namespace http = boost::beast::http;
 
+struct HttpErrCategory : boost::system::error_category
+{
+    char const* name() const noexcept override;
+    std::string message(int) const override;
+};
+
+extern HttpErrCategory const theHttpErrCategory;
+
+namespace detail {
+    auto make_http_error(int status) -> boost::system::error_code;
+}
+
 // Storing this in a unique_ptr ensures that moving around the composite action
 // doesn't relocated the fields. This is important at a minimum because req
 // merely points to target
@@ -120,7 +132,7 @@ struct HttpConnectImpl
             case http::status::ok:
                 return self.complete({});
             default:
-                return self.complete(http::error::bad_status);
+                return self.complete(detail::make_http_error(static_cast<int>(parser.get().result())));
         }
 
     }

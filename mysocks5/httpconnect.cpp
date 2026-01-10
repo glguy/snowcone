@@ -21,3 +21,26 @@ auto encode_basic_auth(socks5::UsernamePasswordCredential const& auth) -> std::s
 }
 
 }
+
+namespace httpconnect {
+
+HttpErrCategory const theHttpErrCategory;
+
+char const* HttpErrCategory::name() const noexcept
+{
+    return "httpconnect";
+}
+
+std::string HttpErrCategory::message(int ev) const
+{
+    return std::string{"HTTP "} + std::to_string(ev);
+}
+
+namespace detail {
+    auto make_http_error(int status) -> boost::system::error_code
+    {
+        return boost::system::error_code{status, theHttpErrCategory};
+    }
+}
+
+}
