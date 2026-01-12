@@ -29,8 +29,8 @@ public:
 struct TlsLayer {
     Ref<X509, X509_up_ref, X509_free> client_cert;
     Ref<EVP_PKEY, EVP_PKEY_up_ref, EVP_PKEY_free> client_key;
-    std::string verify;
-    std::string sni;
+    std::optional<std::string> verify;
+    std::optional<std::string> sni;
 };
 
 struct SocksLayer {

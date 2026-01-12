@@ -251,11 +251,15 @@ auto l_start_irc(lua_State* const L) -> int
             lua_pop(L, 1);
 
             lua_getfield(L, 5, "verify"); // 7
-            layer.verify = luaL_opt(L, lua_tostring, 7, "");
+            if (auto * verify = luaL_opt(L, lua_tostring, 7, nullptr)) {
+                layer.verify = verify;
+            }
             lua_pop(L, 1);
 
             lua_getfield(L, 5, "sni"); // 7
-            layer.sni = luaL_opt(L, lua_tostring, 7, "");
+            if (auto * sni = luaL_opt(L, lua_tostring, 7, nullptr)) {
+                layer.sni = sni;
+            }
             lua_pop(L, 1);
 
             layers.emplace_back(std::move(layer));

@@ -188,13 +188,17 @@ auto connection::connect(
     // Fingerprint string builder
     std::ostringstream os;
 
-    // replace previous socket and ensure it's a tcp socket
-    
+    // Remember that hostname that the most recent layer connected to
+    // so that we look for the correct certificate by default. This
+    // can be overriden by the TLS layer configuration.
+    std::string last_hostname;
+
     // Establish underlying TCP connection
     switch (settings.base.index())
     {
         case 0: {
             auto& layer = std::get<0>(settings.base);
+            last_hostname = layer.host;
             auto& socket = stream_.reset_ip();
             auto const entries = co_await resolver_.async_resolve(layer.host, std::to_string(layer.port), boost::asio::use_awaitable);
             os << "tcp=" << co_await boost::asio::async_connect(socket, entries, boost::asio::use_awaitable);
@@ -205,6 +209,7 @@ auto connection::connect(
         }
         case 1: {
             auto& layer = std::get<1>(settings.base);
+            // last_hostname stays empty - verification against a socket path doesn't make sense
             auto& socket = stream_.reset_local();
             boost::asio::local::stream_protocol::endpoint entry{layer.path};
             co_await socket.async_connect(entry, boost::asio::use_awaitable);
@@ -262,16 +267,18 @@ auto connection::connect(
             }
 
             // Configure server certificate verification
-            if (not tls_layer.verify.empty())
+            std::string const& verify = tls_layer.verify.value_or(last_hostname);
+            if (not verify.empty())
             {
                 stream.set_verify_mode(boost::asio::ssl::verify_peer);
-                stream.set_verify_callback(boost::asio::ssl::host_name_verification(tls_layer.verify));
+                stream.set_verify_callback(boost::asio::ssl::host_name_verification(verify));
             }
 
             // Set the SNI hostname, if specified
-            if (not tls_layer.sni.empty())
+            std::string const& sni = tls_layer.sni.value_or(last_hostname);
+            if (not sni.empty())
             {
-                if (1 != SSL_set_tlsext_host_name(stream.native_handle(), tls_layer.sni.c_str()))
+                if (1 != SSL_set_tlsext_host_name(stream.native_handle(), sni.c_str()))
                 {
                     // not documented to set an error code
                     throw std::runtime_error{"SSL_set_tlsext_host_name"};
@@ -286,6 +293,7 @@ auto connection::connect(
         }
         case 1: {
             auto const& socks_layer = std::get<1>(layer);
+            last_hostname = socks_layer.host;
             os << " socks="
                << co_await socks5::async_connect(
                       stream_,
@@ -297,6 +305,7 @@ auto connection::connect(
         }
         case 2: {
             auto const& http_layer = std::get<2>(layer);
+            last_hostname = http_layer.host;
             co_await httpconnect::async_connect(
                       stream_,
                       http_layer.host, http_layer.port,

@@ -1036,7 +1036,7 @@ function connect()
         local conn_, errmsg =
             snowcone.connect(
             configuration.server.host,
-            configuration.server.port or use_tls and 6697 or 6667,
+            configuration.server.port,
             layers,
             on_irc)
 
