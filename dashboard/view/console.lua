@@ -157,8 +157,9 @@ local function draw_focus(irc, snotice)
         addstr('      tags:')
         for k, v in tablex.sort(irc.tags) do
             cyan()
-            if show_raw then k = rawstr(k) end
-            mvaddstr(ncurses.getyx(), 12, k)
+            local k_ = k
+            if show_raw then k_ = rawstr(k) end
+            mvaddstr(ncurses.getyx(), 12, k_)
             if v == '' then
                 addstr('\n')
             else
