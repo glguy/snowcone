@@ -163,6 +163,7 @@ local function draw_focus(win, irc, snotice)
         blue(win)
         win:waddstr '      tags:'
         for k, v in tablex.sort(irc.tags) do
+            local k = k
             cyan(win)
             if show_raw then k = rawstr(k) else k = scrub(k) end
             win:wmove(ncurses.getyx(win), 12)
