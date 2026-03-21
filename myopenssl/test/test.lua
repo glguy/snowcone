@@ -20,20 +20,37 @@ assert(
 
 assert(not pcall(myopenssl.read_raw, myopenssl.types.EVP_PKEY_X25519, true, ''))
 
-local priv_key_raw =
-    "\x40\x37\xf1\x1e\x67\xe1\x8d\x2a\x01\x31\x25\x7d\x7a\xc5\x43\xe3\z
-     \x17\xed\x6a\x92\xe7\x90\xe0\xc1\x55\x8d\xe8\xdc\x24\xfa\xbd\x5a"
-local pub_key_raw =
-    "\xc8\x5b\x24\x85\x07\x76\x25\x69\x36\x2f\x93\x2c\x2f\x29\xaf\x22\z
-     \xa5\x03\x4c\xc4\xcb\xb3\x90\x4e\x27\xd3\xe5\x5b\xbd\x05\x9a\x7c"
-local priv_key = myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, true, priv_key_raw)
-assert(priv_key:export().pub == pub_key_raw)
+do
+    local priv_key_raw =
+        "\x40\x37\xf1\x1e\x67\xe1\x8d\x2a\x01\x31\x25\x7d\x7a\xc5\x43\xe3\z
+        \x17\xed\x6a\x92\xe7\x90\xe0\xc1\x55\x8d\xe8\xdc\x24\xfa\xbd\x5a"
+    local pub_key_raw =
+        "\xc8\x5b\x24\x85\x07\x76\x25\x69\x36\x2f\x93\x2c\x2f\x29\xaf\x22\z
+        \xa5\x03\x4c\xc4\xcb\xb3\x90\x4e\x27\xd3\xe5\x5b\xbd\x05\x9a\x7c"
+    local priv_key = myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, true, priv_key_raw)
+    local pub_key = myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, false, pub_key_raw)
+    assert(priv_key:export().pub == pub_key_raw)
+end
 
-local pem = io.open('test/rsa.pem'):read('a')
+do
+    local priv_key_raw =
+        "\x40\x37\xf1\x1e\x67\xe1\x8d\x2a\x01\x31\x25\x7d\x7a\xc5\x43\xe3\z
+        \x17\xed\x6a\x92\xe7\x90\xe0\xc1\x55\x8d\xe8\xdc\x24\xfa\xbd\x5a"
+    local priv_key = myopenssl.read_raw(myopenssl.types.EVP_PKEY_ED25519, true, priv_key_raw)
+    local pub_key = myopenssl.read_raw(myopenssl.types.EVP_PKEY_ED25519, false, priv_key:export().pub)
+    local tbs = 'Hello world'
+    local sig = priv_key:digest_sign(nil, tbs)
+    print(sig)
+    assert(pub_key:digest_verify(nil, sig, tbs))
+end
+
+
+
+local pem = io.open('myopenssl/test/rsa.pem'):read('a')
 local priv = myopenssl.read_pem(pem, true)
 priv:sign('a message') -- just make sure it doesn't blow up
 
-pem = io.open('test/encrsa.pem'):read('a')
+pem = io.open('myopenssl/test/encrsa.pem'):read('a')
 myopenssl.read_pem(pem, true, 'password')
 
 print 'ok'

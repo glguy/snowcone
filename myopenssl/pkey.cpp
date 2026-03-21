@@ -6,6 +6,7 @@ public/private key object
 
 #include "pkey.hpp"
 #include "bignum.hpp"
+#include "digest.hpp"
 #include "errors.hpp"
 #include "invoke.hpp"
 
@@ -16,8 +17,8 @@ extern "C" {
 
 #include <openssl/evp.h>
 #include <openssl/pem.h>
-#include <openssl/store.h>
 #include <openssl/rsa.h>
+#include <openssl/store.h>
 #include <openssl/ui.h>
 
 #include <cstddef>
@@ -107,6 +108,141 @@ namespace {
          }},
 
         /***
+        Sign a message using a private key
+        @function pkey:digest_sign
+        @tparam digest[opt] digest to use
+        @tparam string data to sign
+        @treturn string signature bytes
+        @raise openssl error on failure
+        */
+        {"digest_sign", [](auto const L) {
+             auto const pkey = check_pkey(L, 1);
+             auto const md = luaL_opt(L, check_digest, 2, nullptr);
+             std::size_t data_len;
+             auto const data = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 3, &data_len));
+
+             auto const ctx = EVP_MD_CTX_new();
+             if (nullptr == ctx)
+             {
+                 openssl_failure(L, "EVP_MD_CTX_new");
+             }
+
+             auto success = EVP_DigestSignInit(ctx, nullptr, md, nullptr, pkey);
+             if (0 >= success)
+             {
+                 EVP_MD_CTX_free(ctx);
+                 openssl_failure(L, "EVP_DigestSignInit");
+             }
+
+             // Get the max output size
+             std::size_t sig_len;
+             success = EVP_DigestSign(ctx, nullptr, &sig_len, data, data_len);
+
+             if (0 >= success)
+             {
+                 EVP_MD_CTX_free(ctx);
+                 openssl_failure(L, "EVP_DigestSign");
+             }
+
+             luaL_Buffer B;
+             auto const sig = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, sig_len));
+
+             success = EVP_DigestSign(ctx, sig, &sig_len, data, data_len);
+             EVP_MD_CTX_free(ctx);
+
+             if (0 >= success)
+             {
+                 openssl_failure(L, "EVP_DigestSign");
+             }
+
+             luaL_pushresultsize(&B, sig_len);
+             return 1;
+         }},
+
+        /***
+        Verify a message signature using a public key
+        @function pkey:digest_verify
+        @tparam[opt] digest digest to use
+        @tparam string signature
+        @tparam string signed data
+        @treturn boolean success
+        @raise openssl error on failure
+        */
+        {"digest_verify", [](auto const L) {
+             auto const pkey = check_pkey(L, 1);
+             auto const md = luaL_opt(L, check_digest, 2, nullptr);
+             std::size_t sig_len;
+             auto const sig = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 3, &sig_len));
+             std::size_t data_len;
+             auto const data = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 4, &data_len));
+
+             auto const ctx = EVP_MD_CTX_new();
+             if (nullptr == ctx)
+             {
+                 openssl_failure(L, "EVP_MD_CTX_new");
+             }
+
+             auto success = EVP_DigestVerifyInit(ctx, nullptr, md, nullptr, pkey);
+             if (0 >= success)
+             {
+                 EVP_MD_CTX_free(ctx);
+                 openssl_failure(L, "EVP_DigestVerifyInit");
+             }
+
+             // Get the max output size
+             success = EVP_DigestVerify(ctx, sig, sig_len, data, data_len);
+             EVP_MD_CTX_free(ctx);
+
+             if (0 > success)
+             {
+                 openssl_failure(L, "EVP_DigestVerify");
+             }
+
+             lua_pushboolean(L, success);
+             return 1;
+         }},
+
+        /***
+        Verify a signature using a public key
+        @function pkey:verify
+        @tparam string signature
+        @tparam string signed data
+        @treturn string signature bytes
+        @raise openssl error on failure
+        */
+        {"verify", [](auto const L) {
+             auto const pkey = check_pkey(L, 1);
+             std::size_t sig_len;
+             auto const sig = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 2, &sig_len));
+             std::size_t data_len;
+             auto const data = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 3, &data_len));
+
+             auto const ctx = EVP_PKEY_CTX_new(pkey, nullptr);
+             if (nullptr == ctx)
+             {
+                 openssl_failure(L, "EVP_PKEY_CTX_new");
+             }
+
+             auto success = EVP_PKEY_verify_init(ctx);
+             if (0 >= success)
+             {
+                 EVP_PKEY_CTX_free(ctx);
+                 openssl_failure(L, "EVP_PKEY_verify_init");
+             }
+
+             // Get the max output size
+             success = EVP_PKEY_verify(ctx, sig, sig_len, data, data_len);
+             EVP_PKEY_CTX_free(ctx);
+
+             if (0 > success) {
+                 openssl_failure(L, "EVP_PKEY_verify");
+             }
+
+             lua_pushboolean(L, success);
+             return 1;
+         }},
+
+        /***
         Decrypt a message using a private key
         @function pkey:decrypt
         @tparam string ciphertext
@@ -160,6 +296,66 @@ namespace {
              if (0 >= success)
              {
                  openssl_failure(L, "EVP_PKEY_decrypt");
+             }
+
+             luaL_pushresultsize(&B, out_len);
+             return 1;
+         }},
+
+        /***
+        Encrypt a message using a public key
+        @function pkey:encrypt
+        @tparam string ciphertext
+        @tparam[opt] string format ("oaep" supported)
+        @treturn string signature bytes
+        @raise openssl error on failure
+        */
+        {"encrypt", [](auto const L) {
+             auto const pkey = check_pkey(L, 1);
+             std::size_t in_len;
+             auto const in = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 2, &in_len));
+             auto const format = luaL_optlstring(L, 3, "", nullptr);
+
+             auto const ctx = EVP_PKEY_CTX_new(pkey, nullptr);
+             if (nullptr == ctx)
+             {
+                 openssl_failure(L, "EVP_PKEY_CTX_new");
+             }
+
+             auto success = EVP_PKEY_encrypt_init(ctx);
+             if (0 >= success)
+             {
+                 EVP_PKEY_CTX_free(ctx);
+                 openssl_failure(L, "EVP_PKEY_encrypt_init");
+             }
+
+             if (0 == strcmp("oaep", format))
+             {
+                 success = EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING);
+                 if (0 >= success)
+                 {
+                     EVP_PKEY_CTX_free(ctx);
+                     openssl_failure(L, "EVP_PKEY_CTX_set_rsa_padding");
+                 }
+             }
+
+             std::size_t out_len;
+             success = EVP_PKEY_encrypt(ctx, nullptr, &out_len, in, in_len);
+             if (0 >= success)
+             {
+                 EVP_PKEY_CTX_free(ctx);
+                 openssl_failure(L, "EVP_PKEY_encrypt");
+             }
+
+             luaL_Buffer B;
+             auto const out = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, out_len));
+
+             success = EVP_PKEY_encrypt(ctx, out, &out_len, in, in_len);
+             EVP_PKEY_CTX_free(ctx);
+
+             if (0 >= success)
+             {
+                 openssl_failure(L, "EVP_PKEY_encrypt");
              }
 
              luaL_pushresultsize(&B, out_len);
@@ -478,15 +674,14 @@ auto l_gen_pkey(lua_State* const L) -> int
     return 1;
 }
 
-auto l_pkey_from_store(lua_State * const L) -> int
+auto l_pkey_from_store(lua_State* const L) -> int
 {
     auto const key_name = luaL_checkstring(L, 1);
     auto const priv = lua_toboolean(L, 2);
     std::size_t pass_len;
     auto const pass = luaL_optlstring(L, 3, "", &pass_len);
 
-    auto const cb = [pass, pass_len](char * const buf, int const size, int) -> int
-    {
+    auto const cb = [pass, pass_len](char* const buf, int const size, int) -> int {
         if (size < 0 || size_t(size) < pass_len)
         {
             return -1; // -1:error due to password not fitting
@@ -504,7 +699,8 @@ auto l_pkey_from_store(lua_State * const L) -> int
     }
 
     EVP_PKEY* pkey = nullptr;
-    while (auto const info = OSSL_STORE_load(store)) {
+    while (auto const info = OSSL_STORE_load(store))
+    {
         auto const ty = OSSL_STORE_INFO_get_type(info);
         if (priv && OSSL_STORE_INFO_PKEY == ty)
         {
@@ -515,7 +711,8 @@ auto l_pkey_from_store(lua_State * const L) -> int
             pkey = OSSL_STORE_INFO_get1_PUBKEY(info);
         }
         OSSL_STORE_INFO_free(info);
-        if (pkey) break;
+        if (pkey)
+            break;
     }
 
     OSSL_STORE_close(store);
