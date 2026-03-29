@@ -46,11 +46,11 @@ end
 
 
 
-local pem = io.open('myopenssl/test/rsa.pem'):read('a')
+local pem = io.open('test/rsa.pem'):read('a')
 local priv = myopenssl.read_pem(pem, true)
 priv:sign('a message') -- just make sure it doesn't blow up
 
-pem = io.open('myopenssl/test/encrsa.pem'):read('a')
+pem = io.open('test/encrsa.pem'):read('a')
 myopenssl.read_pem(pem, true, 'password')
 
 print 'ok'
