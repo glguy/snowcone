@@ -809,7 +809,7 @@ function irc_event.END(txt)
         reconnect_timer = snowcone.newtimer()
         reconnect_timer:start(1000, function()
             reconnect_timer = nil
-            -- connect()
+            connect()
         end)
     end
 end
