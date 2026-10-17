@@ -50,7 +50,7 @@ return function(cmd, ...)
     end
 
     local raw = table.concat(parts, ' ') .. '\r\n'
-    if #raw > 512 then
+    if #raw > irc_state.linelen then
         error('message too long: ' .. #raw, 2)
     end
 

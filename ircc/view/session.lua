@@ -45,6 +45,23 @@ function M:render(win)
         win:waddstr(scrub(irc_state.snomask), '\n')
     end
 
+    label 'Isupport'
+    bold(win)
+    for k, v in tablex.sort(irc_state.caps_available) do
+        local text = scrub(k)
+        if v ~= true then
+            text = text .. '=' .. scrub(v)
+        end
+        local _, x = ncurses.getyx(win)
+        if x + #text > tty_width then
+            win:waddstr('\n                ', text, ' ')
+        else
+            win:waddstr(text, ' ')
+        end
+    end
+    normal(win)
+    win:waddstr('\n')
+
     label 'Caps'
     bold(win)
     for k, v in tablex.sort(irc_state.caps_available) do

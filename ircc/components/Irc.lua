@@ -19,6 +19,7 @@ local User = require  'components.User'
 -- .isupport
 -- .sasl_mechs     - set of string   - SASL mechanisms supported
 -- .mode           - set of string   - user mode letters
+-- .linelen        - integer         - maximum line length
 
 local M = class()
 M._name = 'Irc'
@@ -67,11 +68,12 @@ function M:_init(conn)
     self.caps_requested = {}
 
     self.isupport = {}
-
+    
     self.batches = {}
     self.channels = {}
     self.mode = {}
-
+    
+    self.linelen = 512 -- updated by ISUPPORT
     self.chantypes = '&#' -- updated by ISUPPORT
     self.monitor = nil -- map irccased nickname mapped to {nick=str, online=bool}
     self.max_chat_history = nil
@@ -108,6 +110,10 @@ local isupport_logic = {}
 
 function isupport_logic.CHANTYPES(irc, arg)
     irc.chantypes = arg or '&#'
+end
+
+function isupport_logic.LINELEN(irc, arg)
+    irc.linelen = math.tointeger(arg) or 512
 end
 
 function isupport_logic.STATUSMSG(irc, arg)
