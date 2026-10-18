@@ -65,7 +65,7 @@ struct Settings
 class connection final : public std::enable_shared_from_this<connection>
 {
 public:
-    static std::size_t const irc_buffer_size = 131'072;
+    static std::size_t constexpr irc_buffer_size = 131'072;
 
 private:
     Stream stream_;

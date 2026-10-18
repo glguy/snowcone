@@ -62,7 +62,10 @@ auto peer_fingerprint(std::ostream& os, SSL const* const ssl) -> void
     unsigned char md[EVP_MAX_MD_SIZE];
     unsigned int md_len = 0; // if the digest somehow fails, use 0
     auto const cert = SSL_get0_peer_certificate(ssl);
-    X509_pubkey_digest(cert, EVP_sha256(), md, &md_len);
+    if (cert)
+    {
+        X509_pubkey_digest(cert, EVP_sha256(), md, &md_len);
+    }
 
     boost::io::ios_flags_saver const saver{os};
 
@@ -292,7 +295,8 @@ auto connection::connect(
             break;
         }
         case 1: {
-            auto const& socks_layer = std::get<1>(layer);
+            // nonconst: auth to be moved out
+            auto& socks_layer = std::get<1>(layer);
             last_hostname = socks_layer.host;
             os << " socks="
                << co_await socks5::async_connect(
@@ -304,7 +308,8 @@ auto connection::connect(
             break;
         }
         case 2: {
-            auto const& http_layer = std::get<2>(layer);
+            // nonconst: auth to be moved out
+            auto& http_layer = std::get<2>(layer);
             last_hostname = http_layer.host;
             co_await httpconnect::async_connect(
                       stream_,

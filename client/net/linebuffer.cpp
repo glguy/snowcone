@@ -15,7 +15,7 @@ auto LineBuffer::next_line() -> char*
     auto const result = start_;
     start_ = search_ = std::next(nl);
 
-    return &*result;
+    return std::to_address(result);
 }
 
 auto LineBuffer::shift() -> void

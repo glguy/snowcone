@@ -57,7 +57,7 @@ public:
      */
     auto prepare() -> boost::asio::mutable_buffer
     {
-        return boost::asio::buffer(&*end_, std::distance(end_, buffer_.end()));
+        return boost::asio::buffer(std::to_address(end_), std::distance(end_, buffer_.end()));
     }
 
     /**
