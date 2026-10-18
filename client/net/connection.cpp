@@ -1,7 +1,7 @@
 #include "connection.hpp"
 
-#include <socks5.hpp>
 #include <httpconnect.hpp>
+#include <socks5.hpp>
 
 #include <boost/io/ios_state.hpp>
 
@@ -182,6 +182,133 @@ auto constexpr alpn_encode(char const (&... protocols)[Ns]) -> std::array<unsign
     throw boost::system::system_error{ec, prefix};
 }
 
+auto connect_base_layer(
+    Stream& stream,
+    boost::asio::ip::tcp::resolver& resolver,
+    std::string& last_hostname,
+    std::ostream& os,
+    IpLayer& layer
+) -> boost::asio::awaitable<void>
+{
+    last_hostname = layer.host;
+    auto& socket = stream.reset_ip();
+    auto const entries = co_await resolver.async_resolve(layer.host, std::to_string(layer.port), boost::asio::use_awaitable);
+    os << "tcp=" << co_await boost::asio::async_connect(socket, entries, boost::asio::use_awaitable);
+    socket.set_option(boost::asio::ip::tcp::no_delay{true});
+    set_buffer_size(socket, connection::irc_buffer_size);
+    set_cloexec(socket.native_handle());
+}
+
+auto connect_base_layer(
+    Stream& stream,
+    boost::asio::ip::tcp::resolver&,
+    std::string& last_hostname,
+    std::ostream& os,
+    LocalLayer& layer
+) -> boost::asio::awaitable<void>
+{
+    // last_hostname stays empty - verification against a socket path doesn't make sense
+    auto& socket = stream.reset_local();
+    boost::asio::local::stream_protocol::endpoint entry{layer.path};
+    co_await socket.async_connect(entry, boost::asio::use_awaitable);
+    os << "local";
+    set_buffer_size(socket, connection::irc_buffer_size);
+    set_cloexec(socket.native_handle());
+}
+
+auto connect_layer(
+    Stream& stream,
+    std::string& last_hostname,
+    std::ostream& os,
+    TlsLayer& tls_layer) -> boost::asio::awaitable<void>
+{
+    boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
+    ssl_context.set_default_verify_paths();
+
+    // Upgrade stream_ to use TLS and invalidate socket
+    auto& tls = stream.upgrade(ssl_context);
+
+    // Set the client certificate, if specified
+    if (auto const client_cert = tls_layer.client_cert.get())
+    {
+        if (1 != SSL_use_certificate(tls.native_handle(), client_cert))
+        {
+            openssl_error("SSL_use_certificate");
+        }
+    }
+
+    // Set the client private key, if specified
+    if (auto const client_key = tls_layer.client_key.get())
+    {
+        if (1 != SSL_use_PrivateKey(tls.native_handle(), client_key))
+        {
+            openssl_error("SSL_use_PrivateKey");
+        }
+    }
+
+    // Update the BIO buffer sizes
+    set_buffer_size(tls, connection::irc_buffer_size);
+
+    // Configure ALPN
+    {
+        auto constexpr protos = alpn_encode("irc");
+        // non-standard return behavior
+        if (0 != SSL_set_alpn_protos(tls.native_handle(), protos.data(), protos.size()))
+        {
+            // not documented to set an error code
+            throw std::runtime_error{"SSL_set_alpn_protos"};
+        }
+    }
+
+    // Configure server certificate verification
+    std::string const& verify = tls_layer.verify.value_or(last_hostname);
+    if (not verify.empty())
+    {
+        tls.set_verify_mode(boost::asio::ssl::verify_peer);
+        tls.set_verify_callback(boost::asio::ssl::host_name_verification(verify));
+    }
+
+    // Set the SNI hostname, if specified
+    std::string const& sni = tls_layer.sni.value_or(last_hostname);
+    if (not sni.empty())
+    {
+        if (1 != SSL_set_tlsext_host_name(tls.native_handle(), sni.c_str()))
+        {
+            // not documented to set an error code
+            throw std::runtime_error{"SSL_set_tlsext_host_name"};
+        }
+    }
+
+    // Configuration complete, initiate the handshake
+    co_await tls.async_handshake(tls.client, boost::asio::use_awaitable);
+
+    peer_fingerprint(os << " tls=", tls.native_handle());
+}
+
+auto connect_layer(Stream& stream_, std::string& last_hostname, std::ostream& os, SocksLayer& socks_layer) -> boost::asio::awaitable<void>
+{
+    last_hostname = socks_layer.host;
+    os << " socks="
+       << co_await socks5::async_connect(
+              stream_,
+              socks_layer.host, socks_layer.port,
+              std::move(socks_layer.auth),
+              boost::asio::use_awaitable
+          );
+}
+
+auto connect_layer(Stream& stream_, std::string& last_hostname, std::ostream& os, HttpLayer& http_layer) -> boost::asio::awaitable<void>
+{
+    last_hostname = http_layer.host;
+    os << " http";
+    co_await httpconnect::async_connect(
+        stream_,
+        http_layer.host, http_layer.port,
+        std::move(http_layer.auth),
+        boost::asio::use_awaitable
+    );
+}
+
 } // namespace
 
 auto connection::connect(
@@ -196,133 +323,17 @@ auto connection::connect(
     // can be overriden by the TLS layer configuration.
     std::string last_hostname;
 
-    // Establish underlying TCP connection
-    switch (settings.base.index())
+    co_await std::visit(
+        [&](auto& l) { return connect_base_layer(stream_, resolver_, last_hostname, os, l); },
+        settings.base
+    );
+
+    for (auto& layer : settings.layers)
     {
-        case 0: {
-            auto& layer = std::get<0>(settings.base);
-            last_hostname = layer.host;
-            auto& socket = stream_.reset_ip();
-            auto const entries = co_await resolver_.async_resolve(layer.host, std::to_string(layer.port), boost::asio::use_awaitable);
-            os << "tcp=" << co_await boost::asio::async_connect(socket, entries, boost::asio::use_awaitable);
-            socket.set_option(boost::asio::ip::tcp::no_delay{true});
-            set_buffer_size(socket, irc_buffer_size);
-            set_cloexec(socket.native_handle());
-            break;
-        }
-        case 1: {
-            auto& layer = std::get<1>(settings.base);
-            // last_hostname stays empty - verification against a socket path doesn't make sense
-            auto& socket = stream_.reset_local();
-            boost::asio::local::stream_protocol::endpoint entry{layer.path};
-            co_await socket.async_connect(entry, boost::asio::use_awaitable);
-            os << "local";
-            set_buffer_size(socket, irc_buffer_size);
-            set_cloexec(socket.native_handle());
-            break;
-        }
-        default:
-            throw std::runtime_error{"Invalid base layer"};
-    }
-
-    for (auto&& layer : settings.layers)
-    {
-        switch (layer.index())
-        {
-        case 0: {
-            auto const& tls_layer = std::get<0>(layer);
-            boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
-            ssl_context.set_default_verify_paths();
-
-            // Upgrade stream_ to use TLS and invalidate socket
-            auto& stream = stream_.upgrade(ssl_context);
-
-            // Set the client certificate, if specified
-            if (auto const client_cert = tls_layer.client_cert.get())
-            {
-                if (1 != SSL_use_certificate(stream.native_handle(), client_cert))
-                {
-                    openssl_error("SSL_use_certificate");
-                }
-            }
-
-            // Set the client private key, if specified
-            if (auto const client_key = tls_layer.client_key.get())
-            {
-                if (1 != SSL_use_PrivateKey(stream.native_handle(), client_key))
-                {
-                    openssl_error("SSL_use_PrivateKey");
-                }
-            }
-
-            // Update the BIO buffer sizes
-            set_buffer_size(stream, irc_buffer_size);
-
-            // Configure ALPN
-            {
-                auto constexpr protos = alpn_encode("irc");
-                // non-standard return behavior
-                if (0 != SSL_set_alpn_protos(stream.native_handle(), protos.data(), protos.size()))
-                {
-                    // not documented to set an error code
-                    throw std::runtime_error{"SSL_set_alpn_protos"};
-                }
-            }
-
-            // Configure server certificate verification
-            std::string const& verify = tls_layer.verify.value_or(last_hostname);
-            if (not verify.empty())
-            {
-                stream.set_verify_mode(boost::asio::ssl::verify_peer);
-                stream.set_verify_callback(boost::asio::ssl::host_name_verification(verify));
-            }
-
-            // Set the SNI hostname, if specified
-            std::string const& sni = tls_layer.sni.value_or(last_hostname);
-            if (not sni.empty())
-            {
-                if (1 != SSL_set_tlsext_host_name(stream.native_handle(), sni.c_str()))
-                {
-                    // not documented to set an error code
-                    throw std::runtime_error{"SSL_set_tlsext_host_name"};
-                }
-            }
-
-            // Configuration complete, initiate the handshake
-            co_await stream.async_handshake(stream.client, boost::asio::use_awaitable);
-
-            peer_fingerprint(os << " tls=", stream.native_handle());
-            break;
-        }
-        case 1: {
-            // nonconst: auth to be moved out
-            auto& socks_layer = std::get<1>(layer);
-            last_hostname = socks_layer.host;
-            os << " socks="
-               << co_await socks5::async_connect(
-                      stream_,
-                      socks_layer.host, socks_layer.port,
-                      std::move(socks_layer.auth),
-                      boost::asio::use_awaitable
-                  );
-            break;
-        }
-        case 2: {
-            // nonconst: auth to be moved out
-            auto& http_layer = std::get<2>(layer);
-            last_hostname = http_layer.host;
-            co_await httpconnect::async_connect(
-                      stream_,
-                      http_layer.host, http_layer.port,
-                      std::move(http_layer.auth),
-                      boost::asio::use_awaitable
-                  );
-            os << " http";
-            break;
-        }
-        default:
-            throw std::runtime_error{"Bad layer?"};
-        }
+        co_await std::visit(
+            [&](auto& l) { return connect_layer(stream_, last_hostname, os, l); },
+            layer
+        );
     }
 
     co_return os.str();
