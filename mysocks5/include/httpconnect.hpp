@@ -119,22 +119,23 @@ struct HttpConnectImpl
     template <typename Self>
     auto step(Self& self, RspRecv) -> void
     {
-        http::response_parser<http::empty_body> parser;
         boost::system::error_code ec;
+        http::response_parser<http::empty_body> parser;
+
+        parser.skip(true);
         parser.put(boost::asio::buffer(state_->response_bytes), ec);
 
-        if (ec)
+        if (not ec)
         {
-            return self.complete(ec);
+            auto const status = parser.get().result();
+            auto const status_class = http::to_status_class(status);
+            if (status_class != http::status_class::successful)
+            {
+                ec = detail::make_http_error(static_cast<int>(status));
+            }
         }
 
-        switch (parser.get().result()) {
-            case http::status::ok:
-                return self.complete({});
-            default:
-                return self.complete(detail::make_http_error(static_cast<int>(parser.get().result())));
-        }
-
+        return self.complete(ec);
     }
 };
 

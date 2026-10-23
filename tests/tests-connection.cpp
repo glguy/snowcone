@@ -44,6 +44,30 @@ auto echo_server(
     co_return request;
 }
 
+auto http_proxy_server(
+    tcp::acceptor& acceptor,
+    std::string response
+) -> asio::awaitable<std::string>
+{
+    tcp::socket socket{co_await asio::this_coro::executor};
+    co_await acceptor.async_accept(socket, asio::use_awaitable);
+
+    std::string request;
+    co_await asio::async_read_until(
+        socket,
+        asio::dynamic_buffer(request),
+        "\r\n\r\n",
+        asio::use_awaitable
+    );
+    co_await asio::async_write(socket, asio::buffer(response), asio::use_awaitable);
+
+    std::array<char, 4> payload{};
+    co_await asio::async_read(socket, asio::buffer(payload), asio::use_awaitable);
+    std::string const reply = "PONG";
+    co_await asio::async_write(socket, asio::buffer(reply), asio::use_awaitable);
+    co_return request;
+}
+
 auto connect_and_read(
     std::shared_ptr<connection> const& conn,
     Settings settings,
@@ -55,6 +79,34 @@ auto connect_and_read(
     conn->write(post_connect_write);
 
     std::string response(response_size, '\0');
+    co_await asio::async_read(
+        conn->get_stream(),
+        asio::buffer(response),
+        asio::use_awaitable
+    );
+    co_return response;
+}
+
+auto connect_through_http_proxy(
+    std::shared_ptr<connection> const& conn,
+    tcp::acceptor const& acceptor
+) -> asio::awaitable<std::string>
+{
+    Settings settings{
+        .base = IpLayer{
+            .host = "127.0.0.1",
+            .port = acceptor.local_endpoint().port(),
+        },
+    };
+    settings.layers.emplace_back(HttpLayer{
+        .host = "irc.example",
+        .port = 6667,
+        .auth = socks5::NoCredential{},
+    });
+    co_await conn->connect(std::move(settings));
+    conn->write("PING");
+
+    std::string response(4, '\0');
     co_await asio::async_read(
         conn->get_stream(),
         asio::buffer(response),
@@ -109,6 +161,52 @@ TEST(Connection, QueuesEarlyAndConnectedWritesAndReceivesResponse)
 
     EXPECT_EQ(client_result.get(), response);
     EXPECT_EQ(server_result.get(), request);
+}
+
+TEST(Connection, HttpConnectAcceptsHeaderOnly200AndTransfersTunnelData)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    auto server_result = asio::co_spawn(
+        io,
+        http_proxy_server(acceptor, "HTTP/1.1 200 Connection Established\r\n\r\n"),
+        asio::use_future
+    );
+    auto client_result = asio::co_spawn(
+        io,
+        connect_through_http_proxy(conn, acceptor),
+        asio::use_future
+    );
+
+    io.run();
+
+    EXPECT_EQ(client_result.get(), "PONG");
+    EXPECT_TRUE(server_result.get().starts_with("CONNECT irc.example:6667 HTTP/1.1\r\n"));
+}
+
+TEST(Connection, HttpConnectAcceptsOther2xxStatus)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    auto server_result = asio::co_spawn(
+        io,
+        http_proxy_server(acceptor, "HTTP/1.1 201 Created\r\n\r\n"),
+        asio::use_future
+    );
+    auto client_result = asio::co_spawn(
+        io,
+        connect_through_http_proxy(conn, acceptor),
+        asio::use_future
+    );
+
+    io.run();
+
+    EXPECT_EQ(client_result.get(), "PONG");
+    EXPECT_TRUE(server_result.get().starts_with("CONNECT irc.example:6667 HTTP/1.1\r\n"));
 }
 
 TEST(Connection, ClosingBeforeConnectAbortsConnect)
