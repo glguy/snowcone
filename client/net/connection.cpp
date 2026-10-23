@@ -20,7 +20,7 @@ auto connection::write(std::string_view const cmd) -> void
     if (not closed_ && not cmd.empty())
     {
         send_.insert(end(send_), begin(cmd), end(cmd));
-        if (sending_.empty())
+        if (connected_ && sending_.empty())
         {
             write_actual();
         }
@@ -347,6 +347,12 @@ auto connection::connect(
             [&](auto& l) { return connect_layer(stream_, last_hostname, os, l); },
             layer
         );
+    }
+
+    connected_ = true;
+    if (not send_.empty())
+    {
+        write_actual();
     }
 
     co_return os.str();
