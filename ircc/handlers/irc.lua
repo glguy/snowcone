@@ -573,8 +573,8 @@ M[N.RPL_NAMREPLY] = function(irc)
     local channel = irc_state:get_channel(name)
 
     -- pattern handles and ignores userhost-in-names if enabled
-    for entry in nicks:gmatch '([^!@ ]+)[^ ]*' do
-        local entry = entry
+    for entry_ in nicks:gmatch '([^!@ ]+)[^ ]*' do
+        local entry = entry_
         local modes = {}
         while irc_state.prefix_to_mode[entry:sub(1,1)] do
             modes[irc_state.prefix_to_mode[entry:sub(1,1)]] = true

@@ -939,12 +939,12 @@ end
 -- declared above so that it's in scope in on_irc
 function connect()
     Task(client_tasks, function(task) -- passwords might need to suspend connecting
-        local ok, tls_client_password, socks_password, tls_client_cert, tls_client_key
+        local ok
         local layers = {}
 
         for _, layer in ipairs(configuration.layers or {}) do
             if layer.type == "tls" then
-                tls_client_password = layer.client_password
+                local tls_client_password = layer.client_password
                 ok, tls_client_password =
                     pcall(configuration_tools.resolve_password, task, tls_client_password)
                 if not ok then
@@ -952,7 +952,7 @@ function connect()
                     return
                 end
 
-                tls_client_cert = layer.client_cert
+                local tls_client_cert = layer.client_cert
                 ok, tls_client_cert =
                     pcall(configuration_tools.resolve_password, task, tls_client_cert)
                 if not ok then
@@ -960,7 +960,7 @@ function connect()
                     return
                 end
 
-                tls_client_key = layer.client_key
+                local tls_client_key = layer.client_key
                 ok, tls_client_key =
                     pcall(configuration_tools.resolve_password, task, tls_client_key)
                 if not ok then
@@ -997,7 +997,7 @@ function connect()
                 })
 
             elseif layer.type == "socks" then
-                socks_password = layer.password
+                local socks_password = layer.password
                 ok, socks_password = pcall(configuration_tools.resolve_password, task, socks_password)
                 if not ok then
                     status('connect', 'SOCKS5 password program error: %s', socks_password)
@@ -1013,7 +1013,7 @@ function connect()
                 })
 
             elseif layer.type == "http" then
-                http_password = layer.password
+                local http_password = layer.password
                 ok, http_password = pcall(configuration_tools.resolve_password, task, http_password)
                 if not ok then
                     status('connect', 'HTTP password program error: %s', http_password)

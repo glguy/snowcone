@@ -68,11 +68,11 @@ function M:_init(conn)
     self.caps_requested = {}
 
     self.isupport = {}
-    
+
     self.batches = {}
     self.channels = {}
     self.mode = {}
-    
+
     self.linelen = 512 -- updated by ISUPPORT
     self.chantypes = '&#' -- updated by ISUPPORT
     self.monitor = nil -- map irccased nickname mapped to {nick=str, online=bool}
