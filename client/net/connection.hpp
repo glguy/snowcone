@@ -70,6 +70,7 @@ public:
 private:
     Stream stream_;
     boost::asio::ip::tcp::resolver resolver_;
+    bool closed_ = false;
 
     /// @brief The bytes held for async_write
     std::vector<char> sending_;

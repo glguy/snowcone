@@ -66,7 +66,7 @@ public:
 
     /// @brief Get the executor associated with this stream.
     /// @return The executor associated with the stream.
-    auto get_executor() -> executor_type
+    auto get_executor() const noexcept -> executor_type
     {
         return io_context->get_executor();
     }
@@ -136,6 +136,9 @@ public:
     /// @brief Tear down the network stream
     auto close() -> void
     {
-        self->close();
+        if (self)
+        {
+            self->close();
+        }
     }
 };

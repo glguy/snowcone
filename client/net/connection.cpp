@@ -17,7 +17,7 @@ connection::connection(boost::asio::io_context& io_context)
 
 auto connection::write(std::string_view const cmd) -> void
 {
-    if (not cmd.empty())
+    if (not closed_ && not cmd.empty())
     {
         send_.insert(end(send_), begin(cmd), end(cmd));
         if (sending_.empty())
@@ -45,6 +45,7 @@ auto connection::write_actual() -> void
 
 auto connection::close() -> void
 {
+    closed_ = true;
     resolver_.cancel();
     stream_.close();
 }
@@ -52,6 +53,7 @@ auto connection::close() -> void
 namespace {
 
 using tcp_type = boost::asio::ip::tcp::socket;
+using local_type = boost::asio::local::stream_protocol::socket;
 using tls_type = boost::asio::ssl::stream<Stream>;
 
 /**
@@ -93,7 +95,7 @@ auto set_buffer_size(tls_type& stream, std::size_t const n) -> void
 /**
  * @brief Set size of the read and write buffers on a plain TCP stream.
  *
- * @param stream TCP stream
+ * @param stream TCP socket stream
  * @param n buffer size in bytes
  */
 auto set_buffer_size(tcp_type& socket, std::size_t const n) -> void
@@ -102,10 +104,16 @@ auto set_buffer_size(tcp_type& socket, std::size_t const n) -> void
     socket.set_option(tcp_type::receive_buffer_size{static_cast<int>(n)});
 }
 
-auto set_buffer_size(boost::asio::local::stream_protocol::socket& socket, std::size_t const n) -> void
+/**
+ * @brief Set size of the read and write buffers on a plain TCP stream.
+ *
+ * @param socket Local UNIX socket stream
+ * @param n buffer size in bytes
+ */
+auto set_buffer_size(local_type& socket, std::size_t const n) -> void
 {
-    socket.set_option(tcp_type::send_buffer_size{static_cast<int>(n)});
-    socket.set_option(tcp_type::receive_buffer_size{static_cast<int>(n)});
+    socket.set_option(local_type::send_buffer_size{static_cast<int>(n)});
+    socket.set_option(local_type::receive_buffer_size{static_cast<int>(n)});
 }
 
 /**
@@ -315,6 +323,11 @@ auto connection::connect(
     Settings settings
 ) -> boost::asio::awaitable<std::string>
 {
+    if (closed_)
+    {
+        throw boost::system::system_error{boost::asio::error::operation_aborted};
+    }
+
     // Fingerprint string builder
     std::ostringstream os;
 
