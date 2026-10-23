@@ -1,7 +1,8 @@
 #include "connection.hpp"
 
-#include <httpconnect.hpp>
-#include <socks5.hpp>
+#include "cloexec.hpp"
+#include "httpconnect.hpp"
+#include "socks5.hpp"
 
 #include <boost/io/ios_state.hpp>
 
@@ -11,7 +12,6 @@
 
 connection::connection(boost::asio::io_context& io_context)
     : stream_{io_context}
-    , resolver_{io_context}
 {
 }
 
@@ -46,15 +46,11 @@ auto connection::write_actual() -> void
 auto connection::close() -> void
 {
     closed_ = true;
-    resolver_.cancel();
+    connect_cancellation_.emit(boost::asio::cancellation_type::all);
     stream_.close();
 }
 
 namespace {
-
-using tcp_type = boost::asio::ip::tcp::socket;
-using local_type = boost::asio::local::stream_protocol::socket;
-using tls_type = boost::asio::ssl::stream<Stream>;
 
 /**
  * @brief Write SHA2-256 digest of the public-key to the output stream
@@ -80,62 +76,20 @@ auto peer_fingerprint(std::ostream& os, SSL const* const ssl) -> void
 }
 
 /**
- * @brief Set size of the read and write buffers on a TLS stream.
+ * @brief Request a size for the kernel send and receive buffers of a socket.
  *
- * @param stream TLS stream
+ * This is a tuning hint: if the OS rejects the value the defaults are kept
+ * and the connection proceeds.
+ *
+ * @param socket Connected socket
  * @param n buffer size in bytes
  */
-auto set_buffer_size(tls_type& stream, std::size_t const n) -> void
+template <typename Socket>
+auto set_buffer_size(Socket& socket, std::size_t const n) -> void
 {
-    auto const ssl = stream.native_handle();
-    BIO_set_buffer_size(SSL_get_rbio(ssl), n);
-    BIO_set_buffer_size(SSL_get_wbio(ssl), n);
-}
-
-/**
- * @brief Set size of the read and write buffers on a plain TCP stream.
- *
- * @param stream TCP socket stream
- * @param n buffer size in bytes
- */
-auto set_buffer_size(tcp_type& socket, std::size_t const n) -> void
-{
-    socket.set_option(tcp_type::send_buffer_size{static_cast<int>(n)});
-    socket.set_option(tcp_type::receive_buffer_size{static_cast<int>(n)});
-}
-
-/**
- * @brief Set size of the read and write buffers on a plain TCP stream.
- *
- * @param socket Local UNIX socket stream
- * @param n buffer size in bytes
- */
-auto set_buffer_size(local_type& socket, std::size_t const n) -> void
-{
-    socket.set_option(local_type::send_buffer_size{static_cast<int>(n)});
-    socket.set_option(local_type::receive_buffer_size{static_cast<int>(n)});
-}
-
-/**
- * @brief Set the CLOEXEC flag on a file descriptor.
- *
- * Sets the flag to close a file descriptor on exec. This ensures
- * the file descriptor isn't inherited into any spawn processes.
- * This throws a system_error exception on failure.
- *
- * @param fd Open file descriptor
- */
-auto set_cloexec(int const fd) -> void
-{
-    auto const flags = fcntl(fd, F_GETFD);
-    if (-1 == flags)
-    {
-        throw std::system_error{errno, std::generic_category(), "failed to get file descriptor flags"};
-    }
-    if (-1 == fcntl(fd, F_SETFD, flags | FD_CLOEXEC))
-    {
-        throw std::system_error{errno, std::generic_category(), "failed to set file descriptor flags"};
-    }
+    boost::system::error_code ignored;
+    socket.set_option(typename Socket::send_buffer_size{static_cast<int>(n)}, ignored);
+    socket.set_option(typename Socket::receive_buffer_size{static_cast<int>(n)}, ignored);
 }
 
 template <std::size_t... Ns>
@@ -190,48 +144,77 @@ auto constexpr alpn_encode(char const (&... protocols)[Ns]) -> std::array<unsign
     throw boost::system::system_error{ec, prefix};
 }
 
-auto connect_base_layer(
-    Stream& stream,
-    boost::asio::ip::tcp::resolver& resolver,
-    std::string& last_hostname,
-    std::ostream& os,
-    IpLayer& layer
-) -> boost::asio::awaitable<void>
+/**
+ * @brief State shared by every layer while a connection is being established.
+ */
+struct ConnectContext
 {
-    last_hostname = layer.host;
-    auto& socket = stream.reset_ip();
-    auto const entries = co_await resolver.async_resolve(layer.host, std::to_string(layer.port), boost::asio::use_awaitable);
-    os << "tcp=" << co_await boost::asio::async_connect(socket, entries, boost::asio::use_awaitable);
-    socket.set_option(boost::asio::ip::tcp::no_delay{true});
+    /// The stream that each layer replaces or wraps
+    Stream& stream;
+
+    /// Aborts the TCP connection attempts when the connection is closed
+    happy_eyeballs::CancellationSource& close_cancellation;
+
+    /// The hostname that the most recent layer connected to. This is the
+    /// default for TLS verification and SNI, and can be overridden by the
+    /// TLS layer configuration.
+    std::string& last_hostname;
+
+    /// Fingerprint string builder
+    std::ostream& os;
+};
+
+auto connect_layer(ConnectContext& ctx, IpLayer& layer) -> boost::asio::awaitable<void>
+{
+    ctx.last_hostname = layer.host;
+    auto& socket = ctx.stream.reset_ip();
+    auto const endpoint = co_await happy_eyeballs::async_connect(
+        socket,
+        layer.host,
+        std::to_string(layer.port),
+        ctx.close_cancellation
+    );
+    ctx.os << "tcp=" << endpoint;
+
+    // The socket was opened close-on-exec by happy_eyeballs.
+    boost::system::error_code ignored;
+    socket.set_option(boost::asio::ip::tcp::no_delay{true}, ignored);
     set_buffer_size(socket, connection::irc_buffer_size);
-    set_cloexec(socket.native_handle());
 }
 
-auto connect_base_layer(
-    Stream& stream,
-    boost::asio::ip::tcp::resolver&,
-    std::string& last_hostname,
-    std::ostream& os,
-    LocalLayer& layer
-) -> boost::asio::awaitable<void>
+auto connect_layer(ConnectContext& ctx, LocalLayer& layer) -> boost::asio::awaitable<void>
 {
     // last_hostname stays empty - verification against a socket path doesn't make sense
-    auto& socket = stream.reset_local();
+    auto& socket = ctx.stream.reset_local();
+
+    // Open close-on-exec so the descriptor can't leak into spawned processes
+    boost::system::error_code open_error;
+    open_cloexec(socket, boost::asio::local::stream_protocol{}, open_error);
+    if (open_error)
+    {
+        throw boost::system::system_error{open_error, "socket"};
+    }
+
     boost::asio::local::stream_protocol::endpoint entry{layer.path};
     co_await socket.async_connect(entry, boost::asio::use_awaitable);
-    os << "local";
+    ctx.os << "local";
     set_buffer_size(socket, connection::irc_buffer_size);
-    set_cloexec(socket.native_handle());
 }
 
-auto connect_layer(
-    Stream& stream,
-    std::string& last_hostname,
-    std::ostream& os,
-    TlsLayer& tls_layer) -> boost::asio::awaitable<void>
+auto connect_layer(ConnectContext& ctx, TlsLayer& tls_layer) -> boost::asio::awaitable<void>
 {
+    auto& stream = ctx.stream;
+    auto& last_hostname = ctx.last_hostname;
+    auto& os = ctx.os;
+
     boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
     ssl_context.set_default_verify_paths();
+
+    // Refuse anything older than TLS 1.2 regardless of the OpenSSL build's defaults
+    if (1 != SSL_CTX_set_min_proto_version(ssl_context.native_handle(), TLS1_2_VERSION))
+    {
+        openssl_error("SSL_CTX_set_min_proto_version");
+    }
 
     // Upgrade stream_ to use TLS and invalidate socket
     auto& tls = stream.upgrade(ssl_context);
@@ -254,9 +237,6 @@ auto connect_layer(
         }
     }
 
-    // Update the BIO buffer sizes
-    set_buffer_size(tls, connection::irc_buffer_size);
-
     // Configure ALPN
     {
         auto constexpr protos = alpn_encode("irc");
@@ -276,9 +256,13 @@ auto connect_layer(
         tls.set_verify_callback(boost::asio::ssl::host_name_verification(verify));
     }
 
-    // Set the SNI hostname, if specified
+    // Set the SNI hostname, if specified. RFC 6066 forbids literal IP
+    // addresses in server_name, so those are never sent.
     std::string const& sni = tls_layer.sni.value_or(last_hostname);
-    if (not sni.empty())
+    boost::system::error_code sni_ip_error;
+    static_cast<void>(boost::asio::ip::make_address(sni, sni_ip_error));
+    bool const sni_is_ip_literal = not sni_ip_error;
+    if (not sni.empty() && not sni_is_ip_literal)
     {
         if (1 != SSL_set_tlsext_host_name(tls.native_handle(), sni.c_str()))
         {
@@ -293,24 +277,24 @@ auto connect_layer(
     peer_fingerprint(os << " tls=", tls.native_handle());
 }
 
-auto connect_layer(Stream& stream_, std::string& last_hostname, std::ostream& os, SocksLayer& socks_layer) -> boost::asio::awaitable<void>
+auto connect_layer(ConnectContext& ctx, SocksLayer& socks_layer) -> boost::asio::awaitable<void>
 {
-    last_hostname = socks_layer.host;
-    os << " socks="
+    ctx.last_hostname = socks_layer.host;
+    ctx.os << " socks="
        << co_await socks5::async_connect(
-              stream_,
+              ctx.stream,
               socks_layer.host, socks_layer.port,
               std::move(socks_layer.auth),
               boost::asio::use_awaitable
           );
 }
 
-auto connect_layer(Stream& stream_, std::string& last_hostname, std::ostream& os, HttpLayer& http_layer) -> boost::asio::awaitable<void>
+auto connect_layer(ConnectContext& ctx, HttpLayer& http_layer) -> boost::asio::awaitable<void>
 {
-    last_hostname = http_layer.host;
-    os << " http";
+    ctx.last_hostname = http_layer.host;
+    ctx.os << " http";
     co_await httpconnect::async_connect(
-        stream_,
+        ctx.stream,
         http_layer.host, http_layer.port,
         std::move(http_layer.auth),
         boost::asio::use_awaitable
@@ -328,25 +312,30 @@ auto connection::connect(
         throw boost::system::system_error{boost::asio::error::operation_aborted};
     }
 
-    // Fingerprint string builder
+    // close() can arrive while the coroutine is suspended, including in the
+    // window after a layer's last operation completed but before this
+    // coroutine resumed (e.g. a winning TCP attempt that was already posted).
+    // Anything established after close() must be torn down, not returned.
+    auto const throw_if_closed = [this] {
+        if (closed_)
+        {
+            stream_.close();
+            throw boost::system::system_error{boost::asio::error::operation_aborted};
+        }
+    };
+
     std::ostringstream os;
-
-    // Remember that hostname that the most recent layer connected to
-    // so that we look for the correct certificate by default. This
-    // can be overriden by the TLS layer configuration.
     std::string last_hostname;
+    ConnectContext ctx{stream_, connect_cancellation_, last_hostname, os};
+    auto const connect_one = [&ctx](auto& layer) { return connect_layer(ctx, layer); };
 
-    co_await std::visit(
-        [&](auto& l) { return connect_base_layer(stream_, resolver_, last_hostname, os, l); },
-        settings.base
-    );
+    co_await std::visit(connect_one, settings.base);
+    throw_if_closed();
 
     for (auto& layer : settings.layers)
     {
-        co_await std::visit(
-            [&](auto& l) { return connect_layer(stream_, last_hostname, os, l); },
-            layer
-        );
+        co_await std::visit(connect_one, layer);
+        throw_if_closed();
     }
 
     connected_ = true;

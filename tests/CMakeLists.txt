@@ -12,9 +12,12 @@ gtest_discover_tests(tests-base64)
 add_executable(tests-connection
   tests-connection.cpp
   ../client/net/connection.cpp
+  ../client/net/happy_eyeballs.cpp
+  ../client/net/httpconnect.cpp
+  ../client/net/socks5.cpp
   ../client/net/stream.cpp)
 target_include_directories(tests-connection PRIVATE "${PROJECT_SOURCE_DIR}/client/net")
-target_link_libraries(tests-connection PRIVATE mysocks5 OpenSSL::SSL GTest::gtest_main)
+target_link_libraries(tests-connection PRIVATE ${BOOST_TARGETS} base64 OpenSSL::SSL GTest::gtest_main)
 gtest_discover_tests(tests-connection)
 
 endif()

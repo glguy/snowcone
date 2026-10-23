@@ -1,8 +1,9 @@
 #pragma once
 
+#include "happy_eyeballs.hpp"
 #include "stream.hpp"
 
-#include <socks5.hpp>
+#include "socks5.hpp"
 
 #include <boost/asio.hpp>
 
@@ -69,7 +70,7 @@ public:
 
 private:
     Stream stream_;
-    boost::asio::ip::tcp::resolver resolver_;
+    happy_eyeballs::CancellationSource connect_cancellation_;
     bool closed_ = false;
     bool connected_ = false;
 

@@ -1,11 +1,18 @@
 #include "connection.hpp"
 
+#include "cloexec.hpp"
+
 #include <gtest/gtest.h>
+
+#include <fcntl.h>
 
 #include <array>
 #include <future>
+#include <memory>
 #include <string>
+#include <thread>
 #include <utility>
+#include <vector>
 
 namespace {
 
@@ -23,6 +30,17 @@ auto settings_for(tcp::acceptor const& acceptor) -> Settings
     return Settings{
         .base = IpLayer{
             .host = "127.0.0.1",
+            .port = acceptor.local_endpoint().port(),
+        },
+        .layers = {},
+    };
+}
+
+auto settings_for_host(std::string host, tcp::acceptor const& acceptor) -> Settings
+{
+    return Settings{
+        .base = IpLayer{
+            .host = std::move(host),
             .port = acceptor.local_endpoint().port(),
         },
         .layers = {},
@@ -163,6 +181,31 @@ TEST(Connection, QueuesEarlyAndConnectedWritesAndReceivesResponse)
     EXPECT_EQ(server_result.get(), request);
 }
 
+TEST(Connection, ConnectsToIpv4ListenerUsingLocalhost)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+    std::string const request = "HELLO";
+    std::string const response = "WELCOME";
+
+    auto server_result = asio::co_spawn(
+        io,
+        echo_server(acceptor, request.size(), response),
+        asio::use_future
+    );
+    auto client_result = asio::co_spawn(
+        io,
+        connect_and_read(conn, settings_for_host("localhost", acceptor), request, response.size()),
+        asio::use_future
+    );
+
+    io.run();
+
+    EXPECT_EQ(client_result.get(), response);
+    EXPECT_EQ(server_result.get(), request);
+}
+
 TEST(Connection, HttpConnectAcceptsHeaderOnly200AndTransfersTunnelData)
 {
     asio::io_context io;
@@ -234,6 +277,32 @@ TEST(Connection, ClosingBeforeConnectAbortsConnect)
     }
 }
 
+TEST(Connection, CancellingConnectBeforeItStartsAbortsConnect)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+    asio::cancellation_signal cancellation;
+
+    auto result = asio::co_spawn(
+        io,
+        conn->connect(settings_for(acceptor)),
+        asio::bind_cancellation_slot(cancellation.slot(), asio::use_future)
+    );
+    cancellation.emit(asio::cancellation_type::all);
+    io.run();
+
+    try
+    {
+        static_cast<void>(result.get());
+        FAIL() << "connect should fail after cancellation";
+    }
+    catch (boost::system::system_error const& error)
+    {
+        EXPECT_EQ(error.code(), asio::error::operation_aborted);
+    }
+}
+
 TEST(Connection, RefusedConnectReportsError)
 {
     asio::io_context io;
@@ -278,6 +347,344 @@ TEST(Connection, ClosingCancelsPendingRead)
 
     ASSERT_FALSE(accept_error);
     EXPECT_EQ(result.get(), asio::error::operation_aborted);
+}
+
+auto happy_connect(
+    tcp::socket& socket,
+    std::string host,
+    unsigned short const port,
+    happy_eyeballs::CancellationSource& source
+) -> asio::awaitable<tcp::endpoint>
+{
+    co_return co_await happy_eyeballs::async_connect(
+        socket,
+        std::move(host),
+        std::to_string(port),
+        source
+    );
+}
+
+template <typename Future>
+auto result_code(Future& future) -> boost::system::error_code
+{
+    try
+    {
+        static_cast<void>(future.get());
+        return {};
+    }
+    catch (boost::system::system_error const& error)
+    {
+        return error.code();
+    }
+}
+
+auto is_cloexec(int const fd) -> bool
+{
+    auto const flags = ::fcntl(fd, F_GETFD);
+    return flags != -1 && (flags & FD_CLOEXEC) != 0;
+}
+
+auto connect_noting_close(
+    std::shared_ptr<connection> conn,
+    Settings settings,
+    bool const& closed,
+    bool& returned_after_close
+) -> asio::awaitable<void>
+{
+    try
+    {
+        co_await conn->connect(std::move(settings));
+        returned_after_close = closed;
+    }
+    catch (boost::system::system_error const&)
+    {
+        // aborted or failed: acceptable outcomes after close()
+    }
+}
+
+TEST(OpenCloexec, TcpAndLocalSocketsAreCloseOnExec)
+{
+    asio::io_context io;
+    boost::system::error_code error;
+
+    tcp::socket tcp_socket{io};
+    open_cloexec(tcp_socket, tcp::v4(), error);
+    ASSERT_FALSE(error);
+    ASSERT_TRUE(tcp_socket.is_open());
+    EXPECT_TRUE(is_cloexec(tcp_socket.native_handle()));
+
+    asio::local::stream_protocol::socket local_socket{io};
+    open_cloexec(local_socket, asio::local::stream_protocol{}, error);
+    ASSERT_FALSE(error);
+    ASSERT_TRUE(local_socket.is_open());
+    EXPECT_TRUE(is_cloexec(local_socket.native_handle()));
+}
+
+TEST(HappyEyeballs, ConnectedSocketIsCloseOnExec)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    tcp::socket socket{io};
+    happy_eyeballs::CancellationSource source;
+
+    auto result = asio::co_spawn(
+        io,
+        happy_connect(socket, "127.0.0.1", acceptor.local_endpoint().port(), source),
+        asio::use_future
+    );
+    io.run();
+    static_cast<void>(result.get());
+
+    ASSERT_TRUE(socket.is_open());
+    EXPECT_TRUE(is_cloexec(socket.native_handle()));
+}
+
+// close() may land at any point while connect() is suspended, including after
+// the winning TCP attempt has been chosen but before the coroutine resumes.
+// In every case connect() must not report success after close() was called.
+TEST(Connection, CloseAtAnyPointDuringConnectNeverYieldsLiveConnection)
+{
+    for (int steps = 0; steps < 40; ++steps)
+    {
+        asio::io_context io;
+        auto acceptor = loopback_acceptor(io);
+        auto conn = connection::create(io);
+        bool closed = false;
+        bool returned_after_close = false;
+
+        asio::co_spawn(
+            io,
+            connect_noting_close(conn, settings_for(acceptor), closed, returned_after_close),
+            asio::detached
+        );
+
+        // Let exactly `steps` handlers run, then close between two handlers.
+        for (int i = 0; i < steps && io.run_one() != 0; ++i)
+        {
+        }
+        closed = true;
+        conn->close();
+
+        io.restart();
+        io.run();
+
+        EXPECT_FALSE(returned_after_close) << "connect() succeeded after close() following " << steps << " handlers";
+    }
+}
+
+TEST(HappyEyeballs, MovesWinningSocketIntoCallersSocket)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    tcp::socket socket{io};
+    happy_eyeballs::CancellationSource source;
+
+    auto result = asio::co_spawn(
+        io,
+        happy_connect(socket, "127.0.0.1", acceptor.local_endpoint().port(), source),
+        asio::use_future
+    );
+    io.run();
+
+    auto const endpoint = result.get();
+    EXPECT_EQ(endpoint, acceptor.local_endpoint());
+    ASSERT_TRUE(socket.is_open());
+    EXPECT_EQ(socket.remote_endpoint(), endpoint);
+}
+
+TEST(HappyEyeballs, ConnectsToIpv6LiteralDespiteIpv4ResolveFailure)
+{
+    asio::io_context io;
+    boost::system::error_code listen_error;
+    tcp::acceptor acceptor{io};
+    acceptor.open(tcp::v6(), listen_error);
+    if (not listen_error)
+    {
+        acceptor.bind({asio::ip::address_v6::loopback(), 0}, listen_error);
+    }
+    if (not listen_error)
+    {
+        acceptor.listen(asio::socket_base::max_listen_connections, listen_error);
+    }
+    if (listen_error)
+    {
+        GTEST_SKIP() << "IPv6 loopback unavailable: " << listen_error.message();
+    }
+
+    tcp::socket socket{io};
+    happy_eyeballs::CancellationSource source;
+    auto result = asio::co_spawn(
+        io,
+        happy_connect(socket, "::1", acceptor.local_endpoint().port(), source),
+        asio::use_future
+    );
+    io.run();
+
+    auto const endpoint = result.get();
+    EXPECT_TRUE(endpoint.address().is_v6());
+    EXPECT_TRUE(socket.is_open());
+}
+
+TEST(HappyEyeballs, ReportsConnectionRefusedOverResolveErrors)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto const port = acceptor.local_endpoint().port();
+    acceptor.close();
+
+    tcp::socket socket{io};
+    happy_eyeballs::CancellationSource source;
+    auto result = asio::co_spawn(
+        io,
+        happy_connect(socket, "localhost", port, source),
+        asio::use_future
+    );
+    io.run();
+
+    EXPECT_EQ(result_code(result), asio::error::connection_refused);
+    EXPECT_FALSE(socket.is_open());
+}
+
+TEST(HappyEyeballs, ReportsHostNotFoundForUnresolvableName)
+{
+    asio::io_context io;
+    tcp::socket socket{io};
+    happy_eyeballs::CancellationSource source;
+    auto result = asio::co_spawn(
+        io,
+        happy_connect(socket, "no-such-host.invalid", 6667, source),
+        asio::use_future
+    );
+    io.run();
+
+    auto const code = result_code(result);
+    EXPECT_TRUE(code);
+    EXPECT_NE(code, asio::error::operation_aborted);
+}
+
+TEST(HappyEyeballs, RejectsAlreadyOpenSocket)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    tcp::socket socket{io, tcp::v4()};
+    happy_eyeballs::CancellationSource source;
+
+    auto result = asio::co_spawn(
+        io,
+        happy_connect(socket, "127.0.0.1", acceptor.local_endpoint().port(), source),
+        asio::use_future
+    );
+    io.run();
+
+    EXPECT_EQ(result_code(result), asio::error::already_open);
+}
+
+TEST(HappyEyeballs, CoroutineCancellationBeforeStartAborts)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    tcp::socket socket{io};
+    happy_eyeballs::CancellationSource source;
+    asio::cancellation_signal cancellation;
+
+    auto result = asio::co_spawn(
+        io,
+        happy_connect(socket, "127.0.0.1", acceptor.local_endpoint().port(), source),
+        asio::bind_cancellation_slot(cancellation.slot(), asio::use_future)
+    );
+    cancellation.emit(asio::cancellation_type::all);
+    io.run();
+
+    EXPECT_EQ(result_code(result), asio::error::operation_aborted);
+    EXPECT_FALSE(socket.is_open());
+}
+
+TEST(HappyEyeballs, CancelledSourceAbortsUntilReset)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto const port = acceptor.local_endpoint().port();
+    tcp::socket socket{io};
+    happy_eyeballs::CancellationSource source;
+    source.emit(asio::cancellation_type::terminal);
+
+    auto aborted = asio::co_spawn(io, happy_connect(socket, "127.0.0.1", port, source), asio::use_future);
+    io.run();
+    EXPECT_EQ(result_code(aborted), asio::error::operation_aborted);
+
+    // A later, weaker cancellation must not downgrade the sticky state.
+    source.emit(asio::cancellation_type::partial);
+    io.restart();
+    auto still_aborted = asio::co_spawn(io, happy_connect(socket, "127.0.0.1", port, source), asio::use_future);
+    io.run();
+    EXPECT_EQ(result_code(still_aborted), asio::error::operation_aborted);
+
+    source.reset();
+    io.restart();
+    auto connected = asio::co_spawn(io, happy_connect(socket, "127.0.0.1", port, source), asio::use_future);
+    io.run();
+    EXPECT_FALSE(result_code(connected));
+    EXPECT_TRUE(socket.is_open());
+}
+
+// Intended to be run under ThreadSanitizer: cancellations race with
+// resolution, connection attempts and completion across several threads.
+TEST(HappyEyeballs, ConcurrentConnectsAndCancellationsComplete)
+{
+    struct Case
+    {
+        tcp::socket socket;
+        happy_eyeballs::CancellationSource source;
+        std::future<tcp::endpoint> result;
+
+        explicit Case(asio::io_context& io)
+            : socket{io}
+        {
+        }
+    };
+
+    constexpr std::size_t count = 64;
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto const port = acceptor.local_endpoint().port();
+
+    std::vector<std::unique_ptr<Case>> cases;
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        auto& c = cases.emplace_back(std::make_unique<Case>(io));
+        c->result = asio::co_spawn(
+            io,
+            happy_connect(c->socket, i % 2 == 0 ? "127.0.0.1" : "localhost", port, c->source),
+            asio::use_future
+        );
+    }
+
+    {
+        std::vector<std::jthread> threads;
+        for (int i = 0; i < 4; ++i)
+        {
+            threads.emplace_back([&io] { io.run(); });
+        }
+
+        for (std::size_t i = 0; i < count; i += 2)
+        {
+            cases[i]->source.emit(asio::cancellation_type::all);
+        }
+    }
+
+    for (auto const& c : cases)
+    {
+        auto const code = result_code(c->result);
+        if (code)
+        {
+            EXPECT_EQ(code, asio::error::operation_aborted);
+            EXPECT_FALSE(c->socket.is_open());
+        }
+        else
+        {
+            EXPECT_TRUE(c->socket.is_open());
+        }
+    }
 }
 
 } // namespace
