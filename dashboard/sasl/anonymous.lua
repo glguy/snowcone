@@ -3,7 +3,7 @@
 
 return function(trace)
     if mystringprep then
-        trace = mystringprep.prep(trace, 'trace')
+        trace = mystringprep.stringprep(trace, 'trace')
     end
 
     return coroutine.create(function()

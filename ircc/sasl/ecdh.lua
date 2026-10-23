@@ -2,6 +2,11 @@ local sha256  = myopenssl.get_digest 'sha256'
 local xor = myopenssl.xor
 
 return function(authzid, authcid, client_seckey)
+    -- NUL separates authcid from authzid in the initial response.
+    -- Check before SASLprep, which takes C strings and would truncate at NUL.
+    assert(not authcid:find('\0', 1, true), 'authcid must not contain NUL')
+    assert(not (authzid and authzid:find('\0', 1, true)), 'authzid must not contain NUL')
+
     if mystringprep then
         authcid = mystringprep.stringprep(authcid, 'SASLprep')
         authzid = authzid and mystringprep.stringprep(authzid, 'SASLprep')

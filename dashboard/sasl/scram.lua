@@ -1,6 +1,10 @@
 -- Salted Challenge Response Authentication Mechanism (SCRAM) SASL and GSS-API Mechanisms
 -- https://datatracker.ietf.org/doc/html/rfc5802
 
+-- A server-reported failure (`e=`) is raised as {server_error = text}. The
+-- server follows it with its own failure numeric, so the driver records the
+-- failure without sending an abort of its own.
+
 -- minimum length nonce we should accept from the server
 local MIN_NONCE_LEN = 8
 
@@ -57,7 +61,7 @@ return function(digest_name, authzid, authcid, password, nonce)
         --------------------------------------------------
         local server_first = coroutine.yield(client_first)
         if server_first:startswith 'e=' then
-            return
+            error({server_error = server_first:sub(3)}, 0)
         end
 
         local server_nonce, salt, iterations = string.match(server_first, '^r=([!-+--~]*),s=([%w+/]*=?=?),i=(%d+)$')
@@ -65,7 +69,7 @@ return function(digest_name, authzid, authcid, password, nonce)
         salt = assert(from_base64(salt), 'bad salt encoding')
         assert(server_nonce:startswith(client_nonce), 'server nonce does not match client nonce')
         assert(#server_nonce - #client_nonce >= MIN_NONCE_LEN, 'server nonce too short')
-        iterations = assert(math.tointeger(iterations), 'server pbkdf2 iteration count invalid')
+        iterations = assert(math.tointeger(tonumber(iterations)), 'server pbkdf2 iteration count invalid')
         assert(iterations >= iteration_min, 'server pbdkf2 iteration count too low')
         assert(iterations <= iteration_max, 'server pbdkf2 iteration count too high')
 
@@ -86,7 +90,7 @@ return function(digest_name, authzid, authcid, password, nonce)
         --------------------------------------------------
         local server_final = coroutine.yield(client_final)
         if server_final:startswith 'e=' then
-            return
+            error({server_error = server_final:sub(3)}, 0)
         end
 
         local sig64 = assert(string.match(server_final, '^v=([%w+/]*=?=?)$'), 'bad server final')
