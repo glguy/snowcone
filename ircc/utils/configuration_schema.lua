@@ -20,6 +20,11 @@ local function array(elements)
     }
 end
 
+-- A TCP port number. 0 is excluded: it is not a usable port.
+local required_port_schema = {
+    type = 'number', integer = true, minimum = 1, maximum = 65535, required = true,
+}
+
 local command_schema = {
     type = 'table',
     fields = {
@@ -72,7 +77,8 @@ return table {
     },
     server = required_table {
         host                = {type = 'string'},
-        port                = {type = 'number'},
+        -- 0 selects a local (unix-domain) socket, with `host` as the path
+        port                = {type = 'number', integer = true, minimum = 0, maximum = 65535},
         fingerprint         = {type = 'string'},
         capabilities        = array {type = 'string', pattern = '^[^\n\r\x00 ]+$'},
         username             = {type = 'string', pattern = '^[^\n\r\x00:]*$'},
@@ -81,19 +87,21 @@ return table {
     layers = array {
         oneOf = {
             table {
-                type                = {type = 'string', pattern = '^socks$' },
-                host                = {type = 'string'},
-                port                = {type = 'number'},
+                type                = {type = 'string', pattern = '^socks$', required = true},
+                host                = {type = 'string', required = true},
+                port                = required_port_schema,
                 username            = {type = 'string'},
                 password            = password_schema,
             },
             table {
-                type                = {type = 'string', pattern = '^http$' },
-                host                = {type = 'string'},
-                port                = {type = 'number'},
+                type                = {type = 'string', pattern = '^http$', required = true},
+                host                = {type = 'string', required = true},
+                port                = required_port_schema,
+                username            = {type = 'string'},
+                password            = password_schema,
             },
             table {
-                type                = {type = 'string', pattern = '^tls$' },
+                type                = {type = 'string', pattern = '^tls$', required = true},
                 client_cert         = password_schema,
                 client_key          = password_schema,
                 client_password     = password_schema,

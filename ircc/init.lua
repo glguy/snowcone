@@ -442,14 +442,20 @@ function connect()
             end
         end
 
-        local conn, errmsg =
-            snowcone.connect(
+        -- bad arguments raise an error; treat that like any other failure to
+        -- connect so the mode isn't left stuck in 'connecting'
+        local called, conn, errmsg =
+            pcall(snowcone.connect,
             configuration.server.host,
             configuration.server.port,
             layers,
             function(event, ...)
                 conn_handlers[event](...)
             end)
+        if not called then
+            failure('failed to connect: %s', conn)
+            return
+        end
 
         if conn then
             status('irc', 'connecting')

@@ -76,6 +76,20 @@ function M.check(schema, value, path)
                 end
             end
 
+        elseif schema.type == 'number' then
+            local where = table.concat(path, '.')
+            if schema.integer and math.tointeger(value) == nil then
+                error(string.format('Expected an integer in %s got: %s', where, tostring(value)))
+            end
+            if schema.minimum and value < schema.minimum then
+                error(string.format('Value in %s is below the minimum %s: %s',
+                    where, tostring(schema.minimum), tostring(value)))
+            end
+            if schema.maximum and value > schema.maximum then
+                error(string.format('Value in %s is above the maximum %s: %s',
+                    where, tostring(schema.maximum), tostring(value)))
+            end
+
         elseif schema.type == 'string' then
             if schema.pattern and not value:find(schema.pattern) then
                 error(string.format('Pattern failure in %s',

@@ -225,23 +225,119 @@ auto session_thread(
     }
 }
 
+/// Raise a Lua error unless the value at the top of the stack is a string
+/// (or nil/absent when `required` is false). Pops the value.
+auto check_layer_string(lua_State* const L, lua_Integer const n, char const* const field, bool const required) -> void
+{
+    auto const t = lua_type(L, -1);
+    lua_pop(L, 1);
+    if (t == LUA_TSTRING || (not required && t <= LUA_TNIL))
+    {
+        return;
+    }
+    luaL_error(L, "layer %d: '%s' must be a string", static_cast<int>(n), field);
+}
+
+/// Raise a Lua error unless the value at the top of the stack is an integer
+/// in [1, 65535]. Pops the value.
+auto check_layer_port(lua_State* const L, lua_Integer const n) -> void
+{
+    int isinteger;
+    auto const port = lua_tointegerx(L, -1, &isinteger);
+    lua_pop(L, 1);
+    if (isinteger && port >= 1 && port <= 65535)
+    {
+        return;
+    }
+    luaL_error(L, "layer %d: 'port' must be an integer from 1 to 65535", static_cast<int>(n));
+}
+
+/// Validate the layers table at stack index `layers` before any C++ objects
+/// are built from it. Raising a Lua error longjmps past C++ destructors, so
+/// every check that can fail happens here, while only integers are live.
+/// Unknown or missing layer types are errors rather than being skipped, since
+/// skipping a layer (for example a misspelled "tls") would quietly give a
+/// connection without the protection the configuration asked for.
+auto validate_layers(lua_State* const L, int const layers, lua_Integer const layers_n) -> void
+{
+    luaL_checktype(L, layers, LUA_TTABLE);
+
+    for (lua_Integer i = 1; i <= layers_n; ++i)
+    {
+        auto const n = static_cast<int>(i);
+
+        if (lua_geti(L, layers, i) != LUA_TTABLE)
+        {
+            luaL_error(L, "layer %d: must be a table", n);
+        }
+        auto const layer = lua_gettop(L);
+
+        lua_getfield(L, layer, "type");
+        if (lua_type(L, -1) != LUA_TSTRING)
+        {
+            luaL_error(L, "layer %d: missing or non-string 'type'", n);
+        }
+        auto const type = std::string_view{lua_tostring(L, -1)};
+        lua_pop(L, 1);
+
+        if (type == "tls"sv)
+        {
+            lua_getfield(L, layer, "client_cert");
+            luaL_opt(L, myopenssl::check_x509, -1, nullptr);
+            lua_pop(L, 1);
+
+            lua_getfield(L, layer, "client_key");
+            luaL_opt(L, myopenssl::check_pkey, -1, nullptr);
+            lua_pop(L, 1);
+
+            lua_getfield(L, layer, "verify");
+            check_layer_string(L, i, "verify", false);
+
+            lua_getfield(L, layer, "sni");
+            check_layer_string(L, i, "sni", false);
+        }
+        else if (type == "socks"sv || type == "http"sv)
+        {
+            lua_getfield(L, layer, "host");
+            check_layer_string(L, i, "host", true);
+
+            lua_getfield(L, layer, "port");
+            check_layer_port(L, i);
+
+            lua_getfield(L, layer, "username");
+            check_layer_string(L, i, "username", false);
+
+            lua_getfield(L, layer, "password");
+            check_layer_string(L, i, "password", false);
+        }
+        else
+        {
+            luaL_error(L, "layer %d: unknown type '%s'", n, std::string{type}.c_str());
+        }
+
+        lua_pop(L, 1); // layer table
+    }
+}
+
 } // namespace
 
 /**
  * @brief Start a new IRC session
  *
- * param:       boolean     Use TLS when connecting
- * param:       string      IRC server hostname
- * param:       integer     IRC server port number
- * param:       X509?       TLS client certificate
- * param:       PKey?       TLS client private key
- * param:       string?     Optional hostname to verify on server certificate
- * param:       string?     Optional hostname to send for TLS SNI
- * param:       string?     Optional hostname of SOCKS5 proxy server
- * param:       integer?    Optional port number of SOCKS5 proxy server
- * param:       string?     Optional username for SOCKS5 proxy server
- * param:       string?     Optional password for SOCKS5 proxy server
+ * param:       string      IRC server hostname (socket path when port is 0)
+ * param:       integer     IRC server port number, 0..65535; 0 means a local socket
+ * param:       table       Array of layers; each has a `type` of "tls", "socks" or "http"
  * param:       function    Callback function for events on IRC session
+ *
+ * Layers are applied in order on top of the base connection:
+ * - { type = "tls", client_cert = X509?, client_key = PKey?,
+ *     verify = string?, sni = string? }
+ * - { type = "socks", host = string, port = integer, username = string?,
+ *     password = string? }
+ * - { type = "http", host = string, port = integer, username = string?,
+ *     password = string? }
+ * A missing or unknown `type`, or a bad field, raises a Lua error before any
+ * connection is started.
  *
  * Callback events:
  * - cb("CON", fingerprint)
@@ -261,9 +357,12 @@ auto l_start_irc(lua_State* const L) -> int
 {
     auto const host = luaL_checkstring(L, 1);
     auto const port = luaL_checkinteger(L, 2);
-    luaL_checkany(L, 3); // layers
+    luaL_argcheck(L, 0 <= port && port <= 65535, 2, "port out of range");
+    luaL_checktype(L, 3, LUA_TTABLE); // layers
     luaL_checkany(L, 4); // callback
     lua_settop(L, 4);
+
+    validate_layers(L, 3, luaL_len(L, 3));
 
     std::variant<IpLayer, LocalLayer> base;
 
@@ -382,6 +481,10 @@ auto l_start_irc(lua_State* const L) -> int
             lua_pop(L, 2);
 
             layers.emplace_back(std::move(layer));
+        }
+        else
+        {
+            luaL_error(L, "unknown layer type"); // unreachable: validated above
         }
 
         lua_pop(L, 2); // layer table, layer type

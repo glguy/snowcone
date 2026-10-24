@@ -188,6 +188,30 @@ auto run(Scenario const& s) -> bool
     return ok;
 }
 
+// Bad arguments must raise a Lua error before anything is started. A missing
+// layer `type` used to dereference a null pointer, and an unknown one was
+// silently skipped.
+auto check_arguments(char const* const args, char const* const expected_error) -> bool
+{
+    App app{"unused"};
+    auto const L = app.get_lua();
+    lua_pushcfunction(L, l_start_irc);
+    lua_setglobal(L, "connect");
+
+    auto const script = std::string{"local ok, err = pcall(connect, "} + args
+        + "); return ok, tostring(err)";
+    if (luaL_dostring(L, script.c_str()) != LUA_OK)
+    {
+        std::cout << "FAIL arguments " << args << ": script error: " << lua_tostring(L, -1) << "\n";
+        return false;
+    }
+    bool const raised = !lua_toboolean(L, -2);
+    std::string const message = lua_tostring(L, -1);
+    bool const ok = raised && message.find(expected_error) != std::string::npos;
+    std::cout << (ok ? "PASS " : "FAIL ") << "arguments " << args << "  -> " << message << "\n";
+    return ok;
+}
+
 } // namespace
 
 int main()
@@ -261,6 +285,36 @@ end)
             return o.server_saw_end && o.received.find("LATE") == std::string::npos;
         },
     });
+
+    ok &= run({
+        "valid layer table is accepted",
+        R"lua(
+conn = connect('127.0.0.1', port, {{type = 'socks', host = 'proxy.invalid', port = 1080}}, function(ev)
+  log(ev)
+end)
+)lua",
+        [](Sock sock, auto) { sock->close(); },
+        "END",
+        any,
+    });
+
+    auto const cb = "function() end";
+    auto const args = [&](std::string layers, std::string port = "6667") {
+        return "'host', " + port + ", " + layers + ", " + cb;
+    };
+    ok &= check_arguments(args("{ {} }").c_str(), "missing or non-string 'type'");
+    ok &= check_arguments(args("{ {type = 7} }").c_str(), "missing or non-string 'type'");
+    ok &= check_arguments(args("{ {type = 'tsl'} }").c_str(), "unknown type 'tsl'");
+    ok &= check_arguments(args("{ 'tls' }").c_str(), "must be a table");
+    ok &= check_arguments(args("nil").c_str(), "table expected");
+    ok &= check_arguments(args("{}", "70000").c_str(), "port out of range");
+    ok &= check_arguments(args("{}", "-1").c_str(), "port out of range");
+    ok &= check_arguments(args("{ {type = 'socks', host = 'h'} }").c_str(), "'port' must be an integer");
+    ok &= check_arguments(args("{ {type = 'socks', host = 'h', port = 0} }").c_str(), "'port' must be an integer");
+    ok &= check_arguments(args("{ {type = 'http', host = 'h', port = 65536} }").c_str(), "'port' must be an integer");
+    ok &= check_arguments(args("{ {type = 'socks', port = 1080} }").c_str(), "'host' must be a string");
+    ok &= check_arguments(args("{ {type = 'tls', sni = 5} }").c_str(), "'sni' must be a string");
+    ok &= check_arguments(args("{ {type = 'tls', verify = {}} }").c_str(), "'verify' must be a string");
 
     std::cout << (ok ? "all passed\n" : "FAILURES\n");
     return ok ? 0 : 1;
