@@ -8,7 +8,9 @@
 
 #include "app.hpp"
 #include "irc/lua.hpp"
+#include "process.hpp"
 #include "safecall.hpp"
+#include "timer.hpp"
 
 #include <pkey.hpp>
 #include <x509.hpp>
@@ -143,15 +145,22 @@ auto run(Scenario const& s) -> bool
     auto const seen = std::make_shared<Observed>();
 
     auto sock = std::make_shared<tcp::socket>(io);
-    acceptor.async_accept(*sock, [&](boost::system::error_code ec) {
-        if (!ec)
-        {
-            s.server(sock, seen);
-        }
-    });
+    if (s.server) // scenarios that don't connect have no server side
+    {
+        acceptor.async_accept(*sock, [&](boost::system::error_code ec) {
+            if (!ec)
+            {
+                s.server(sock, seen);
+            }
+        });
+    }
 
     lua_pushcfunction(L, l_start_irc);
     lua_setglobal(L, "connect");
+    lua_pushcfunction(L, l_execute);
+    lua_setglobal(L, "execute");
+    lua_pushcfunction(L, l_new_timer);
+    lua_setglobal(L, "newtimer");
     lua_pushinteger(L, port);
     lua_setglobal(L, "port");
 
@@ -191,14 +200,16 @@ auto run(Scenario const& s) -> bool
 // Bad arguments must raise a Lua error before anything is started. A missing
 // layer `type` used to dereference a null pointer, and an unknown one was
 // silently skipped.
-auto check_arguments(char const* const args, char const* const expected_error) -> bool
+auto check_arguments(char const* const args, char const* const expected_error, char const* const fn = "connect") -> bool
 {
     App app{"unused"};
     auto const L = app.get_lua();
     lua_pushcfunction(L, l_start_irc);
     lua_setglobal(L, "connect");
+    lua_pushcfunction(L, l_execute);
+    lua_setglobal(L, "execute");
 
-    auto const script = std::string{"local ok, err = pcall(connect, "} + args
+    auto const script = std::string{"local ok, err = pcall("} + fn + ", " + args
         + "); return ok, tostring(err)";
     if (luaL_dostring(L, script.c_str()) != LUA_OK)
     {
@@ -315,6 +326,45 @@ end)
     ok &= check_arguments(args("{ {type = 'socks', port = 1080} }").c_str(), "'host' must be a string");
     ok &= check_arguments(args("{ {type = 'tls', sni = 5} }").c_str(), "'sni' must be a string");
     ok &= check_arguments(args("{ {type = 'tls', verify = {}} }").c_str(), "'verify' must be a string");
+
+    // snowcone.execute
+    ok &= run({
+        "execute reports exit status and output",
+        R"lua(
+execute('/bin/sh', {'-c', 'echo out; echo err >&2; exit 3'}, function(code, out, err)
+  log(code .. ':' .. (out:gsub('\n', '')) .. ':' .. (err:gsub('\n', '')))
+end)
+)lua",
+        nullptr,
+        "3:out:err",
+        any,
+    });
+    ok &= check_arguments("'/bin/true', 5, function() end", "table expected", "execute");
+    ok &= check_arguments(
+        "'/bin/true', setmetatable({}, {__len = function() return -1 end}), function() end",
+        "bad argument count", "execute");
+    ok &= check_arguments(
+        "'/bin/true', setmetatable({}, {__len = function() return 1 << 40 end}), function() end",
+        "bad argument count", "execute");
+
+    // snowcone.newtimer: an enormous delay must not overflow the clock
+    // arithmetic, and a negative one fires immediately
+    ok &= run({
+        "timer delays are clamped",
+        R"lua(
+local never = newtimer()
+never:start(math.maxinteger, function() log('never') end)
+never:cancel()
+local huge = newtimer()
+huge:start(math.maxinteger, function() log('never') end)
+huge:cancel()
+local now = newtimer()
+now:start(-5, function() log('fired') end)
+)lua",
+        nullptr,
+        "fired",
+        any,
+    });
 
     std::cout << (ok ? "all passed\n" : "FAILURES\n");
     return ok ? 0 : 1;

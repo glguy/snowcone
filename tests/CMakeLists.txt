@@ -31,7 +31,9 @@ add_executable(tests-session
   ../client/net/httpconnect.cpp
   ../client/net/linebuffer.cpp
   ../client/net/socks5.cpp
-  ../client/net/stream.cpp)
+  ../client/net/stream.cpp
+  ../client/process.cpp
+  ../client/timer.cpp)
 target_include_directories(tests-session PRIVATE
   "${PROJECT_SOURCE_DIR}/client"
   "${PROJECT_SOURCE_DIR}/client/net"

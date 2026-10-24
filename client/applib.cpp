@@ -38,6 +38,7 @@ extern "C" {
 #include "process.hpp"
 
 #include <algorithm>
+#include <climits>
 #include <csignal>
 #include <cstring>
 #include <ctime>
@@ -121,7 +122,8 @@ auto l_pton(lua_State* const L) -> int
 auto l_raise(lua_State* const L) -> int
 {
     auto const s = luaL_checkinteger(L, 1);
-    if (0 != raise(s))
+    luaL_argcheck(L, 0 <= s && s < NSIG, 1, "invalid signal number");
+    if (0 != raise(static_cast<int>(s)))
     {
         auto const e = errno;
         return luaL_error(L, "raise: %s", strerror(e));
@@ -140,6 +142,8 @@ auto l_setmodule(lua_State* const L) -> int
  * @brief Lua binding for isalnum(3)
  *
  * Checks if the given integer value corresponds to an alphanumeric character (A-Z, a-z, 0-9).
+ * Values outside 0..255 (Unicode code points, for example) are never alphanumeric here;
+ * isalnum(3) is undefined for them.
  *
  * param: integer c integer value of the character
  * return: boolean true for alphanumeric input
@@ -150,7 +154,7 @@ auto l_setmodule(lua_State* const L) -> int
 auto l_isalnum(lua_State* const L) -> int
 {
     auto const i = luaL_checkinteger(L, 1);
-    lua_pushboolean(L, isalnum(i));
+    lua_pushboolean(L, 0 <= i && i <= UCHAR_MAX && isalnum(static_cast<int>(i)));
     return 1;
 }
 

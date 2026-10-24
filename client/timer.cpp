@@ -11,6 +11,7 @@ extern "C" {
 
 #include <boost/asio/steady_timer.hpp>
 
+#include <algorithm> // clamp
 #include <chrono> // durations
 #include <memory>
 
@@ -20,6 +21,10 @@ template <>
 char const* udata_name<Timer> = "steady_timer";
 
 namespace {
+
+/// About 31 years; far beyond any real delay, and small enough that
+/// converting it to nanoseconds can't overflow.
+constexpr lua_Integer max_delay_ms = 1'000'000'000'000;
 
 auto l_gc(lua_State* const L) -> int
 {
@@ -50,7 +55,9 @@ luaL_Reg const Methods[]{
 
          auto const app = App::from_lua(L);
 
-         timer->expires_after(std::chrono::milliseconds{start});
+         // Clamp so the conversion to the clock's resolution can't overflow
+         auto const delay = std::clamp<lua_Integer>(start, 0, max_delay_ms);
+         timer->expires_after(std::chrono::milliseconds{delay});
          timer->async_wait([L = app->get_lua(), timer](auto const error) {
             if (not error) {
                 // get the callback
