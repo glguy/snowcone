@@ -108,9 +108,22 @@ public:
 
     /**
      * @brief Abruptly close the connection.
-     * 
+     *
+     * Safe to call more than once. Never invokes callbacks into Lua; pending
+     * operations complete later via the io_context.
      */
     auto close() -> void;
+
+    /**
+     * @brief Has close() been called?
+     *
+     * Lets code that resumes after running a callback notice that the
+     * callback closed the connection.
+     */
+    auto closed() const noexcept -> bool
+    {
+        return closed_;
+    }
 
     /**
      * @brief Initiate a connection to the IRC server

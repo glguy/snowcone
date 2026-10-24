@@ -120,19 +120,18 @@ auto get_nonempty_line(LineBuffer& buff) -> char*
     return nullptr;
 }
 
-/// Coroutine that handles the IRC session.
-/// It connects to the IRC server, reads messages from the stream,
-/// and invokes the provided callback function
-/// with the appropriate events.
+/// Connect, then read messages from the stream and invoke the Lua callback.
 ///
-/// @param io_context The IO context to use for asynchronous operations.
+/// A callback may close the connection. That is checked after every callback
+/// so no further events are delivered and the closed stream is never read.
+/// In that case the coroutine simply returns.
+///
+/// @param L The main Lua state (callbacks never run on a coroutine's state).
 /// @param irc_cb The Lua callback function reference.
 /// @param irc The shared pointer to the IRC connection.
 /// @param settings The settings for the IRC connection.
-/// @return An awaitable that runs the session thread.
 /// @throws std::runtime_error if the line buffer is full.
-auto session_thread(
-    boost::asio::io_context& io_context,
+auto run_session(
     lua_State* const L,
     int const irc_cb,
     std::shared_ptr<connection> const irc,
@@ -148,6 +147,11 @@ auto session_thread(
         push_string(L, "CON"sv);
         push_string(L, fingerprint);
         safecall(L, "successful connect"sv, 2);
+
+        if (irc->closed())
+        {
+            co_return;
+        }
     }
 
     // Continuously process lines from the stream and invoke the callback
@@ -171,8 +175,53 @@ auto session_thread(
             pushircmsg(L, msg);
             lua_pushboolean(L, nullptr == line); // draw on last line
             safecall(L, "irc message"sv, 3);
+
+            if (irc->closed())
+            {
+                co_return;
+            }
         }
         buff.shift();
+    }
+}
+
+/// Coroutine that handles the IRC session.
+///
+/// Runs the session and then always closes the connection, whichever way the
+/// session ended. Otherwise a write still in flight would keep the socket
+/// open (and Lua able to send on it) until that write completed.
+///
+/// A failure that follows a local close() (the read on the closed stream, a
+/// cancelled connect) is just the consequence of that close, so it ends the
+/// session normally instead of being reported as an error.
+///
+/// @param L The main Lua state.
+/// @param irc_cb The Lua callback function reference.
+/// @param irc The shared pointer to the IRC connection.
+/// @param settings The settings for the IRC connection.
+auto session_thread(
+    lua_State* const L,
+    int const irc_cb,
+    std::shared_ptr<connection> const irc,
+    Settings settings
+) -> boost::asio::awaitable<void>
+{
+    std::exception_ptr failure;
+    try
+    {
+        co_await run_session(L, irc_cb, irc, std::move(settings));
+    }
+    catch (...)
+    {
+        failure = std::current_exception();
+    }
+
+    auto const closed_locally = irc->closed();
+    irc->close();
+
+    if (failure && not closed_locally)
+    {
+        std::rethrow_exception(failure);
     }
 }
 
@@ -199,7 +248,11 @@ auto session_thread(
  * - cb("MSG", ircmsg, redraw)
  * - cb("END", error_message)
  *
- * Callback sequence: (CON MSG*)? END
+ * error_message is nil when the session ended because the connection was
+ * closed locally.
+ *
+ * Callback sequence: (CON MSG*)? END. No CON or MSG is delivered after the
+ * callback that closed the connection returns.
  *
  * @param L Lua state
  * @return int 1
@@ -346,7 +399,7 @@ auto l_start_irc(lua_State* const L) -> int
     auto const irc = connection::create(io_context);
     auto const irc_cb = luaL_ref(L, LUA_REGISTRYINDEX);
     boost::asio::co_spawn(
-        io_context, session_thread(io_context, LMain, irc_cb, irc, std::move(settings)),
+        io_context, session_thread(LMain, irc_cb, irc, std::move(settings)),
         [L = LMain, irc_cb](std::exception_ptr const e) {
             lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
             luaL_unref(L, LUA_REGISTRYINDEX, irc_cb);
@@ -354,7 +407,11 @@ auto l_start_irc(lua_State* const L) -> int
 
             try
             {
-                std::rethrow_exception(e);
+                if (e)
+                {
+                    std::rethrow_exception(e);
+                }
+                lua_pushnil(L); // ended without error (closed locally)
             }
             catch (std::exception const& ex)
             {
