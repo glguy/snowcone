@@ -277,13 +277,32 @@ auto connect_layer(ConnectContext& ctx, TlsLayer& tls_layer) -> boost::asio::awa
     peer_fingerprint(os << " tls=", tls.native_handle());
 }
 
+/// IP literals are sent to the proxy as addresses rather than as domain names
+auto socks_host(std::string const& host) -> socks5::Host
+{
+    // A scope (fe80::1%eth0) names an interface on the proxy host. SOCKS5
+    // addresses can't carry one, so let the proxy resolve it as a name.
+    if (host.find('%') != std::string::npos)
+    {
+        return host;
+    }
+
+    boost::system::error_code ec;
+    auto const address = boost::asio::ip::make_address(host, ec);
+    if (ec)
+    {
+        return host;
+    }
+    return address;
+}
+
 auto connect_layer(ConnectContext& ctx, SocksLayer& socks_layer) -> boost::asio::awaitable<void>
 {
     ctx.last_hostname = socks_layer.host;
     ctx.os << " socks="
        << co_await socks5::async_connect(
               ctx.stream,
-              socks_layer.host, socks_layer.port,
+              socks_host(socks_layer.host), socks_layer.port,
               std::move(socks_layer.auth),
               boost::asio::use_awaitable
           );

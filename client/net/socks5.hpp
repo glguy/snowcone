@@ -212,16 +212,19 @@ namespace detail {
                     buffer_.push_back(static_cast<uint8_t>(AddressType::DomainName));
                     push_size_prefixed(hostname);
                 },
+                // Addresses are fixed-length, so they have no length prefix
                 [this](boost::asio::ip::address const& address) {
                     if (address.is_v4())
                     {
+                        auto const bytes = address.to_v4().to_bytes();
                         buffer_.push_back(static_cast<uint8_t>(AddressType::IPv4));
-                        push_size_prefixed(address.to_v4().to_bytes());
+                        buffer_.insert(buffer_.end(), bytes.begin(), bytes.end());
                     }
                     else if (address.is_v6())
                     {
+                        auto const bytes = address.to_v6().to_bytes();
                         buffer_.push_back(static_cast<uint8_t>(AddressType::IPv6));
-                        push_size_prefixed(address.to_v6().to_bytes());
+                        buffer_.insert(buffer_.end(), bytes.begin(), bytes.end());
                     }
                     else
                     {

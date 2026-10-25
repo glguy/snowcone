@@ -7,8 +7,10 @@
 #include <fcntl.h>
 
 #include <array>
+#include <cstdint>
 #include <future>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
@@ -103,6 +105,95 @@ auto connect_and_read(
         asio::use_awaitable
     );
     co_return response;
+}
+
+// A SOCKS5 proxy that accepts without authentication, records the CONNECT
+// request (from VER through DST.PORT), then tunnels one PING/PONG exchange.
+auto socks5_proxy_server(tcp::acceptor& acceptor) -> asio::awaitable<std::vector<std::uint8_t>>
+{
+    tcp::socket socket{co_await asio::this_coro::executor};
+    co_await acceptor.async_accept(socket, asio::use_awaitable);
+
+    std::array<std::uint8_t, 3> hello{};
+    co_await asio::async_read(socket, asio::buffer(hello), asio::use_awaitable);
+    std::array<std::uint8_t, 2> const method{5, 0};
+    co_await asio::async_write(socket, asio::buffer(method), asio::use_awaitable);
+
+    std::vector<std::uint8_t> request(4);
+    co_await asio::async_read(socket, asio::buffer(request), asio::use_awaitable);
+    std::size_t address_size = 0;
+    switch (request[3])
+    {
+    case 1: address_size = 4; break;
+    case 4: address_size = 16; break;
+    case 3: {
+        request.resize(5);
+        co_await asio::async_read(socket, asio::buffer(&request[4], 1), asio::use_awaitable);
+        address_size = request[4];
+        break;
+    }
+    default: throw std::runtime_error{"bad ATYP"};
+    }
+    auto const offset = request.size();
+    request.resize(offset + address_size + 2);
+    co_await asio::async_read(socket, asio::buffer(&request[offset], address_size + 2), asio::use_awaitable);
+
+    // Succeeded, bound to 192.0.2.1:4321
+    std::array<std::uint8_t, 10> const reply{5, 0, 0, 1, 192, 0, 2, 1, 0x10, 0xe1};
+    co_await asio::async_write(socket, asio::buffer(reply), asio::use_awaitable);
+
+    std::array<char, 4> payload{};
+    co_await asio::async_read(socket, asio::buffer(payload), asio::use_awaitable);
+    std::string const pong = "PONG";
+    co_await asio::async_write(socket, asio::buffer(pong), asio::use_awaitable);
+    co_return request;
+}
+
+auto connect_through_socks5_proxy(
+    std::shared_ptr<connection> const& conn,
+    tcp::acceptor const& acceptor,
+    std::string target
+) -> asio::awaitable<std::string>
+{
+    Settings settings{
+        .base = IpLayer{
+            .host = "127.0.0.1",
+            .port = acceptor.local_endpoint().port(),
+        },
+    };
+    settings.layers.emplace_back(SocksLayer{
+        .host = std::move(target),
+        .port = 6667,
+        .auth = socks5::NoCredential{},
+    });
+    co_await conn->connect(std::move(settings));
+    conn->write("PING");
+
+    std::string response(4, '\0');
+    co_await asio::async_read(
+        conn->get_stream(),
+        asio::buffer(response),
+        asio::use_awaitable
+    );
+    co_return response;
+}
+
+auto socks5_request_for(std::string target) -> std::vector<std::uint8_t>
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    auto server_result = asio::co_spawn(io, socks5_proxy_server(acceptor), asio::use_future);
+    auto client_result = asio::co_spawn(
+        io,
+        connect_through_socks5_proxy(conn, acceptor, std::move(target)),
+        asio::use_future
+    );
+    io.run();
+
+    EXPECT_EQ(client_result.get(), "PONG");
+    return server_result.get();
 }
 
 // A proxy that sends headers without ever ending them, then waits for the
@@ -309,6 +400,38 @@ TEST(Connection, HttpConnectAcceptsOther2xxStatus)
 
     EXPECT_EQ(client_result.get(), "PONG");
     EXPECT_TRUE(server_result.get().starts_with("CONNECT irc.example:6667 HTTP/1.1\r\n"));
+}
+
+TEST(Connection, Socks5SendsIpv4LiteralAsAddress)
+{
+    std::vector<std::uint8_t> const expected{5, 1, 0, 1, 192, 0, 2, 7, 0x1a, 0x0b};
+    EXPECT_EQ(socks5_request_for("192.0.2.7"), expected);
+}
+
+TEST(Connection, Socks5SendsIpv6LiteralAsAddress)
+{
+    std::vector<std::uint8_t> const expected{
+        5, 1, 0, 4,
+        0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        0x1a, 0x0b,
+    };
+    EXPECT_EQ(socks5_request_for("2001:db8::1"), expected);
+}
+
+TEST(Connection, Socks5SendsHostnameAsDomainName)
+{
+    std::vector<std::uint8_t> const expected{
+        5, 1, 0, 3, 11, 'i', 'r', 'c', '.', 'e', 'x', 'a', 'm', 'p', 'l', 'e', 0x1a, 0x0b,
+    };
+    EXPECT_EQ(socks5_request_for("irc.example"), expected);
+}
+
+TEST(Connection, Socks5SendsScopedIpv6LiteralAsDomainName)
+{
+    std::vector<std::uint8_t> const expected{
+        5, 1, 0, 3, 12, 'f', 'e', '8', '0', ':', ':', '1', '%', 'e', 't', 'h', '0', 0x1a, 0x0b,
+    };
+    EXPECT_EQ(socks5_request_for("fe80::1%eth0"), expected);
 }
 
 TEST(Connection, HttpConnectRejectsOversizedResponse)
