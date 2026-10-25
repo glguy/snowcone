@@ -13,10 +13,47 @@ extern "C" {
 
 #include <ncurses.h>
 
+#include <cstdio>
+#include <cstdlib>
+#include <exception>
 #include <iostream>
 #include <unistd.h>
 
 static char const app_key = '\0';
+
+namespace {
+
+/// Panic handler for errors raised outside any protected call. Recovery
+/// isn't attempted (out-of-memory is the usual cause); just leave the
+/// terminal usable.
+auto panic(lua_State* const L) -> int
+{
+    auto const msg = lua_tostring(L, -1);
+    endwin();
+    BracketedPaste::disable();
+    std::fprintf(stderr, "PANIC: unprotected error in call to Lua API (%s)\n",
+        msg ? msg : "error object is not a string");
+    std::abort();
+}
+
+/// Completion handler for top-level coroutines: an exception that escapes
+/// one is a bug, so let it propagate out of io_context.run().
+auto rethrow(std::exception_ptr const e) -> void
+{
+    if (e)
+    {
+        std::rethrow_exception(e);
+    }
+}
+
+/// Errors that just mean an I/O object was cancelled or closed on purpose.
+auto is_stop(boost::system::error_code const& ec) -> bool
+{
+    return ec == boost::asio::error::operation_aborted
+        || ec == boost::asio::error::bad_descriptor;
+}
+
+} // namespace
 
 App::App(char const* const filename)
     : io_context{}
@@ -25,6 +62,7 @@ App::App(char const* const filename)
     , main_source{filename}
 {
     L = luaL_newstate();
+    lua_atpanic(L, panic);
     lua_pushlightuserdata(L, this);
     lua_rawsetp(L, LUA_REGISTRYINDEX, &app_key);
 }
@@ -32,6 +70,16 @@ App::App(char const* const filename)
 App::~App()
 {
     lua_close(L);
+}
+
+auto App::fatal(std::string_view const message) -> void
+{
+    endwin();
+    BracketedPaste::disable();
+    std::fprintf(stderr, "snowcone: fatal error: %.*s\n",
+        static_cast<int>(message.size()), message.data());
+    std::fflush(stderr);
+    std::_Exit(EXIT_FAILURE);
 }
 
 auto App::from_lua(lua_State* const L) -> App*
@@ -75,7 +123,15 @@ auto App::signal_thread() -> boost::asio::awaitable<void>
 {
     for (;;)
     {
-        auto const sig = co_await signals.async_wait(boost::asio::use_awaitable);
+        auto const [ec, sig] = co_await signals.async_wait(boost::asio::as_tuple(boost::asio::use_awaitable));
+        if (is_stop(ec))
+        {
+            co_return;
+        }
+        if (ec)
+        {
+            throw boost::system::system_error{ec};
+        }
         switch (sig)
         {
         case SIGUSR1:
@@ -84,7 +140,12 @@ auto App::signal_thread() -> boost::asio::awaitable<void>
         case SIGWINCH:
             endwin();
             refresh();
-            l_ncurses_resize(L);
+            // Setting the size globals can run a __newindex metamethod
+            lua_pushcfunction(L, [](lua_State* const L) -> int {
+                l_ncurses_resize(L);
+                return 0;
+            });
+            safecall(L, "resize", 0);
             lua_callback(L, "on_resize", 0);
             break;
         }
@@ -99,7 +160,15 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
 
     for (;;)
     {
-        co_await stdin_poll.async_wait(stdin_poll.wait_read, boost::asio::use_awaitable);
+        auto const [ec] = co_await stdin_poll.async_wait(stdin_poll.wait_read, boost::asio::as_tuple(boost::asio::use_awaitable));
+        if (is_stop(ec))
+        {
+            co_return;
+        }
+        if (ec)
+        {
+            throw boost::system::system_error{ec};
+        }
         for (int key; key = getch(), ERR != key;)
         {
             if (in_paste)
@@ -165,7 +234,7 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
 
 auto App::start_input() -> void
 {
-    boost::asio::co_spawn(io_context, stdin_thread(), boost::asio::detached);
+    boost::asio::co_spawn(io_context, stdin_thread(), rethrow);
 }
 
 auto App::stop_input() -> void
@@ -177,7 +246,7 @@ auto App::stop_input() -> void
 auto App::startup() -> void
 {
     start_input();
-    boost::asio::co_spawn(io_context, signal_thread(), boost::asio::detached);
+    boost::asio::co_spawn(io_context, signal_thread(), rethrow);
     io_context.run();
 }
 

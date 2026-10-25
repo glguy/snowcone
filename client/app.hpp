@@ -42,6 +42,14 @@ public:
     auto start_input() -> void;
     auto stop_input() -> void;
 
+    /**
+     * @brief Restore the terminal, report a fatal error, and exit.
+     *
+     * Destructors are deliberately skipped: unwinding App with work still
+     * pending in the io_context is not safe.
+     */
+    [[noreturn]] static auto fatal(std::string_view message) -> void;
+
 private:
     auto signal_thread() -> boost::asio::awaitable<void>;
     auto stdin_thread() -> boost::asio::awaitable<void>;

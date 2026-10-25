@@ -83,9 +83,16 @@ auto main(int argc, char const* argv[]) -> int
     auto a = App{argv[1]};
     auto const L = a.get_lua();
 
-    prepare_globals(L, argc, argv);
-    if (a.reload())
+    try
     {
-        a.startup();
+        prepare_globals(L, argc, argv);
+        if (a.reload())
+        {
+            a.startup();
+        }
+    }
+    catch (std::exception const& e)
+    {
+        App::fatal(e.what());
     }
 }
