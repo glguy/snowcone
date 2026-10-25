@@ -1,6 +1,8 @@
 #include "parse_toml.hpp"
 #include "toml.hpp"
 
+#include <stdexcept>
+
 extern "C" {
 #include <lauxlib.h>
 #include <lua.h>
@@ -10,6 +12,12 @@ namespace {
 
 auto push_toml(lua_State* const L, toml::value const& value) -> void
 {
+    // Each level of nesting holds a table and a key on the stack
+    if (not lua_checkstack(L, 3))
+    {
+        throw std::runtime_error{"toml nesting too deep"};
+    }
+
     switch (value.type()) {
         case toml::value_t::array: {
             auto const & array = value.as_array();
@@ -75,7 +83,7 @@ auto mytoml::l_parse_toml(lua_State* const L) -> int
         push_toml(L, toml::parse_str(std::string {src, len}, toml::spec::v(1, 1, 0)));
         return 1;
     }
-    catch (std::runtime_error const& err)
+    catch (std::exception const& err)
     {
         luaL_pushfail(L);
         lua_pushstring(L, err.what());
