@@ -257,7 +257,8 @@ auto connect_through_http_proxy_expecting_error(
 
 auto connect_through_http_proxy(
     std::shared_ptr<connection> const& conn,
-    tcp::acceptor const& acceptor
+    tcp::acceptor const& acceptor,
+    std::string target = "irc.example"
 ) -> asio::awaitable<std::string>
 {
     Settings settings{
@@ -267,7 +268,7 @@ auto connect_through_http_proxy(
         },
     };
     settings.layers.emplace_back(HttpLayer{
-        .host = "irc.example",
+        .host = std::move(target),
         .port = 6667,
         .auth = socks5::NoCredential{},
     });
@@ -432,6 +433,47 @@ TEST(Connection, Socks5SendsScopedIpv6LiteralAsDomainName)
         5, 1, 0, 3, 12, 'f', 'e', '8', '0', ':', ':', '1', '%', 'e', 't', 'h', '0', 0x1a, 0x0b,
     };
     EXPECT_EQ(socks5_request_for("fe80::1%eth0"), expected);
+}
+
+auto http_connect_request_for(std::string target) -> std::string
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    auto server_result = asio::co_spawn(
+        io,
+        http_proxy_server(acceptor, "HTTP/1.1 200 Connection Established\r\n\r\n"),
+        asio::use_future
+    );
+    auto client_result = asio::co_spawn(
+        io,
+        connect_through_http_proxy(conn, acceptor, std::move(target)),
+        asio::use_future
+    );
+    io.run();
+
+    EXPECT_EQ(client_result.get(), "PONG");
+    return server_result.get();
+}
+
+TEST(Connection, HttpConnectBracketsIpv6Literal)
+{
+    auto const request = http_connect_request_for("2001:db8::1");
+    EXPECT_TRUE(request.starts_with("CONNECT [2001:db8::1]:6667 HTTP/1.1\r\n")) << request;
+    EXPECT_NE(request.find("\r\nHost: [2001:db8::1]:6667\r\n"), std::string::npos) << request;
+}
+
+TEST(Connection, HttpConnectEncodesIpv6Zone)
+{
+    auto const request = http_connect_request_for("fe80::1%eth0");
+    EXPECT_TRUE(request.starts_with("CONNECT [fe80::1%25eth0]:6667 HTTP/1.1\r\n")) << request;
+}
+
+TEST(Connection, HttpConnectLeavesIpv4LiteralBare)
+{
+    auto const request = http_connect_request_for("192.0.2.7");
+    EXPECT_TRUE(request.starts_with("CONNECT 192.0.2.7:6667 HTTP/1.1\r\n")) << request;
 }
 
 TEST(Connection, HttpConnectRejectsOversizedResponse)

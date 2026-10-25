@@ -7,6 +7,7 @@
 #include <base64.hpp>
 
 #include <string>
+#include <string_view>
 
 #include "proxyauth.hpp"
 
@@ -29,6 +30,10 @@ extern HttpErrCategory const theHttpErrCategory;
 
 namespace detail {
     auto make_http_error(int status) -> boost::system::error_code;
+
+    /// host:port in authority-form; IPv6 literals are bracketed, and a zone
+    /// separator is percent-encoded as RFC 6874 requires
+    auto authority(std::string_view host, uint16_t port) -> std::string;
 }
 
 /// Largest CONNECT response header block accepted (Beast's default header limit)
@@ -154,10 +159,8 @@ auto async_connect(
     CompletionToken&& token
 )
 {
-    host += ":";
-    host += std::to_string(port);
     auto state = std::make_unique<State>();
-    state->target = host;
+    state->target = detail::authority(host, port);
     state->auth = std::move(auth);
     return boost::asio::async_compose<CompletionToken, Signature>(HttpConnectImpl<AsyncStream>{socket, std::move(state)}, token, socket);
 }

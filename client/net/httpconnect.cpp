@@ -24,6 +24,34 @@ auto encode_basic_auth(socks5::UsernamePasswordCredential const& auth) -> std::s
 
 namespace httpconnect {
 
+auto detail::authority(std::string_view const host, uint16_t const port) -> std::string
+{
+    std::string result;
+
+    // Hostnames can't contain ':', so this is an IPv6 literal
+    if (host.find(':') != std::string_view::npos)
+    {
+        result += '[';
+        for (auto const c : host)
+        {
+            result += c;
+            if (c == '%')
+            {
+                result += "25";
+            }
+        }
+        result += ']';
+    }
+    else
+    {
+        result += host;
+    }
+
+    result += ':';
+    result += std::to_string(port);
+    return result;
+}
+
 HttpErrCategory const theHttpErrCategory;
 
 char const* HttpErrCategory::name() const noexcept
