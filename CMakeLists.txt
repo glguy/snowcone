@@ -24,16 +24,20 @@ pkg_check_modules(LIBARCHIVE        IMPORTED_TARGET libarchive)
 
 find_package(OpenSSL REQUIRED)
 
-find_package(Boost 1.83.0 CONFIG COMPONENTS filesystem process)
+find_package(Boost 1.83.0 CONFIG COMPONENTS process)
 if(Boost_FOUND)
-    set(BOOST_TARGETS Boost::headers Boost::filesystem)
+    set(BOOST_TARGETS Boost::headers)
 
-    # In boost-1.86 process became a compile library
+    # In boost-1.86 process became a compile library, and its filesystem
+    # choice is fixed by how it was built; before that, it is ours to make
     if(Boost_VERSION VERSION_GREATER_EQUAL 1.86)
         list(APPEND BOOST_TARGETS Boost::process)
+    else()
+        add_compile_definitions(BOOST_PROCESS_USE_STD_FS)
     endif()
 else()
-    set(BOOST_INCLUDE_LIBRARIES asio beast endian process system filesystem)
+    set(BOOST_INCLUDE_LIBRARIES asio beast endian process system)
+    set(BOOST_PROCESS_USE_STD_FS ON)
     set(BOOST_ENABLE_CMAKE ON)
     include(FetchContent)
     FetchContent_Declare(

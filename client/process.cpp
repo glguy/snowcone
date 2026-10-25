@@ -94,7 +94,7 @@ struct Exec
 constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Handler>(
                                 Handler&& handler,
                                 boost::asio::io_context& io_context,
-                                boost::filesystem::path file,
+                                process::filesystem::path file,
                                 std::vector<std::string> args,
                                 std::optional<std::string> input
                             ) -> void {
@@ -169,7 +169,7 @@ template <
     boost::asio::completion_token_for<ExecSig> CompletionToken>
 auto async_exec(
     boost::asio::io_context& io_context,
-    boost::filesystem::path file,
+    process::filesystem::path file,
     std::vector<std::string> args,
     std::optional<std::string> input,
     CompletionToken&& token
