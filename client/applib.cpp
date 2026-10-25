@@ -68,7 +68,7 @@ char logic_module;
  */
 auto l_pton(lua_State* const L) -> int
 {
-    auto const p = luaL_checkstring(L, 1);
+    auto const p = check_c_string(L, 1).data();
     bool const ipv6 = strchr(p, ':');
 
     size_t len;
@@ -267,13 +267,14 @@ auto l_time(lua_State* const L) -> int
  */
 auto l_parse_irc_tags(lua_State* const L) -> int
 {
-    auto const txt = check_string_view(L, 1);
+    // The parser works on a NUL-terminated copy, so a NUL would end the line
+    auto const txt = check_c_string(L, 1);
 
     try
     {
         luaL_Buffer B;
         auto const buf = luaL_buffinitsize(L, &B, txt.size() + 1);
-        strcpy(buf, txt.data());
+        std::memcpy(buf, txt.data(), txt.size() + 1);
         pushtags(L, parse_irc_tags(buf));
         return 1;
     }
@@ -304,12 +305,13 @@ auto l_parse_irc_tags(lua_State* const L) -> int
  */
 auto l_parse_irc(lua_State* const L) -> int
 {
-    auto const txt = check_string_view(L, 1);
+    // The parser works on a NUL-terminated copy, so a NUL would end the line
+    auto const txt = check_c_string(L, 1);
     try
     {
         luaL_Buffer B;
         auto const buf = luaL_buffinitsize(L, &B, txt.size() + 1);
-        strcpy(buf, txt.data());
+        std::memcpy(buf, txt.data(), txt.size() + 1);
         pushircmsg(L, parse_irc_message(buf));
         return 1;
     }

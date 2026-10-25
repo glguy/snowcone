@@ -358,6 +358,12 @@ end)
     ok &= check_arguments(args("{ {type = 'socks', host = 'h', port = 1080, username = 'u'} }").c_str(), "'username' and 'password' must be given together");
     ok &= check_arguments(args("{ {type = 'http', host = 'h', port = 8080, password = 'p'} }").c_str(), "'username' and 'password' must be given together");
     ok &= check_arguments(args("{ {type = 'socks', host = 'h', port = 1080, username = 'u', password = 7} }").c_str(), "'password' must be a string");
+    // Hosts and types reach C APIs, so a NUL is refused instead of truncating
+    ok &= check_arguments(args("{ {type = 'tls\\0junk'} }").c_str(), "missing or non-string 'type'");
+    ok &= check_arguments(args("{ {type = 'socks', host = 'h\\0x', port = 1080} }").c_str(), "'host' must be a string without NUL bytes");
+    ok &= check_arguments("'irc.example\\0x', 6667, {}, function() end", "contains a NUL byte");
+    // Credentials are sent with their lengths, so they may hold any bytes
+    ok &= check_accepted(args("{ {type = 'socks', host = 'h', port = 1, username = 'u\\0v', password = 'p\\0q'} }").c_str());
     ok &= check_arguments(args("{ {type = 'tls', sni = 5} }").c_str(), "'sni' must be a string");
     ok &= check_arguments(args("{ {type = 'tls', verify = {}} }").c_str(), "'verify' must be a string");
     // Client certificates: cert() is signed by key(), and other_key() isn't

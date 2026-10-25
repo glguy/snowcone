@@ -187,7 +187,7 @@ auto l_execute1(lua_State* L) -> int
     auto const args = reinterpret_cast<std::vector<std::string>*>(lua_touserdata(L, lua_upvalueindex(1)));
 
     // 1. Path to executable
-    auto const file = check_string_view(L, 1);
+    auto const file = check_c_string(L, 1);
 
     // 2. array of command arguments
     luaL_checktype(L, 2, LUA_TTABLE);
@@ -201,8 +201,7 @@ auto l_execute1(lua_State* L) -> int
     luaL_checkany(L, 3);
 
     // 4. optional stdin string
-    std::size_t input_len;
-    auto const input_ptr = luaL_optlstring(L, 4, nullptr, &input_len);
+    auto const input = opt_string_view(L, 4);
 
     args->clear();
     args->reserve(n);
@@ -211,6 +210,10 @@ auto l_execute1(lua_State* L) -> int
         lua_geti(L, 2, i);
         std::size_t len;
         auto const str = luaL_tolstring(L, -1, &len);
+        if (has_nul({str, len}))
+        {
+            return luaL_error(L, "execute: argument %d contains a NUL byte", static_cast<int>(i));
+        }
         args->emplace_back(str, len);
         lua_pop(L, 2); // pops array element and string representation
     }
@@ -224,7 +227,7 @@ auto l_execute1(lua_State* L) -> int
         app->get_context(),
         file,
         std::move(*args),
-        input_ptr ? std::optional<std::string>{{input_ptr, input_len}} : std::nullopt,
+        input ? std::optional<std::string>{*input} : std::nullopt,
         [L = app->get_lua(), cb](
             boost::system::error_code const err,
             int const exitcode,

@@ -44,7 +44,7 @@ endif()
 
 # Lua tests run inside the real client with `snowcone script`, which exits
 # nonzero after any Lua error and once the script has no work left.
-foreach(name test-sasl test-scram test-schema)
+foreach(name test-sasl test-scram test-schema test-strings)
   add_test(NAME ${name}
     COMMAND snowcone script "${CMAKE_CURRENT_SOURCE_DIR}/${name}.lua")
   set_tests_properties(${name} PROPERTIES TIMEOUT 30)

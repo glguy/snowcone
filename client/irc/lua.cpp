@@ -235,41 +235,29 @@ auto raw_field(lua_State* const L, int const t, char const* const k) -> int
     return lua_rawget(L, t);
 }
 
-/// Raise a Lua error unless the value at the top of the stack is a string
-/// (or nil/absent when `required` is false). Pops the value. Returns whether
-/// a string was given.
-auto check_layer_string(lua_State* const L, lua_Integer const n, char const* const field, bool const required) -> bool
-{
-    auto const t = lua_type(L, -1);
-    lua_pop(L, 1);
-    if (t == LUA_TSTRING || (not required && t <= LUA_TNIL))
-    {
-        return t == LUA_TSTRING;
-    }
-    luaL_error(L, "layer %d: '%s' must be a string", static_cast<int>(n), field);
-    return false;
-}
+/// Whether a layer string may hold any bytes, or is handed to a C API
+/// (resolver, OpenSSL) that would stop at a NUL
+enum class Bytes { Any, CString };
 
-/// Like check_layer_string for an optional name, which can't contain a NUL
-/// since OpenSSL takes names as C strings. Returns whether a name was given.
-auto check_layer_name(lua_State* const L, lua_Integer const n, char const* const field) -> bool
+/// Raise a Lua error unless the value at the top of the stack is a string
+/// (or nil/absent when `required` is false), without NUL bytes for
+/// Bytes::CString. Pops the value. Returns whether a string was given.
+auto check_layer_string(lua_State* const L, lua_Integer const n, char const* const field, bool const required, Bytes const bytes) -> bool
 {
-    if (lua_type(L, -1) <= LUA_TNIL)
+    auto const absent = lua_type(L, -1) <= LUA_TNIL;
+    auto const str = to_string_view(L, -1);
+    lua_pop(L, 1);
+    if (not required && absent)
     {
-        lua_pop(L, 1);
         return false;
     }
-    bool ok = lua_type(L, -1) == LUA_TSTRING;
-    if (ok)
-    {
-        std::size_t len;
-        auto const name = lua_tolstring(L, -1, &len);
-        ok = std::char_traits<char>::length(name) == len;
-    }
-    lua_pop(L, 1);
-    if (not ok)
+    if (bytes == Bytes::CString && not (str && not has_nul(*str)))
     {
         luaL_error(L, "layer %d: '%s' must be a string without NUL bytes", static_cast<int>(n), field);
+    }
+    if (not str)
+    {
+        luaL_error(L, "layer %d: '%s' must be a string", static_cast<int>(n), field);
     }
     return true;
 }
@@ -315,11 +303,12 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
         auto const layer = lua_gettop(L);
 
         // The type string stays on the stack so the view into it stays valid
-        if (raw_field(L, layer, "type") != LUA_TSTRING)
+        raw_field(L, layer, "type");
+        auto const type = to_string_view(L, -1).value_or(""sv);
+        if (type.empty() || has_nul(type))
         {
             luaL_error(L, "layer %d: missing or non-string 'type'", n);
         }
-        auto const type = std::string_view{lua_tostring(L, -1)};
 
         if (type == "tls"sv)
         {
@@ -350,10 +339,10 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
             }
 
             raw_field(L, layer, "verify");
-            auto const verify_given = check_layer_name(L, i, "verify");
+            auto const verify_given = check_layer_string(L, i, "verify", false, Bytes::CString);
 
             raw_field(L, layer, "sni");
-            check_layer_name(L, i, "sni");
+            check_layer_string(L, i, "sni", false, Bytes::CString);
 
             if (not have_host && not verify_given)
             {
@@ -364,16 +353,17 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
         else if (type == "socks"sv || type == "http"sv)
         {
             raw_field(L, layer, "host");
-            check_layer_string(L, i, "host", true);
+            check_layer_string(L, i, "host", true, Bytes::CString);
 
             raw_field(L, layer, "port");
             check_layer_port(L, i);
 
             raw_field(L, layer, "username");
-            auto const username_given = check_layer_string(L, i, "username", false);
+            // Credentials are sent with their lengths, so any bytes are fine
+            auto const username_given = check_layer_string(L, i, "username", false, Bytes::Any);
 
             raw_field(L, layer, "password");
-            auto const password_given = check_layer_string(L, i, "password", false);
+            auto const password_given = check_layer_string(L, i, "password", false, Bytes::Any);
 
             // Either one alone would quietly connect without authenticating
             if (username_given != password_given)
@@ -435,7 +425,7 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
  */
 auto l_start_irc(lua_State* const L) -> int
 {
-    auto const host = luaL_checkstring(L, 1);
+    auto const host = check_c_string(L, 1);
     auto const port = luaL_checkinteger(L, 2);
     luaL_argcheck(L, 0 <= port && port <= 65535, 2, "port out of range");
     luaL_checktype(L, 3, LUA_TTABLE); // layers
@@ -451,13 +441,13 @@ auto l_start_irc(lua_State* const L) -> int
     if (port == 0)
     {
         base = LocalLayer{
-            .path = host
+            .path = std::string{host}
         };
     }
     else
     {
         base = IpLayer{
-            .host = host,
+            .host = std::string{host},
             .port = static_cast<std::uint16_t>(port)
         };
     }
@@ -466,13 +456,14 @@ auto l_start_irc(lua_State* const L) -> int
     layers.reserve(layers_n);
 
     // The host the next layer runs over; empty over a local socket
-    std::string hop_host = port == 0 ? "" : host;
+    std::string hop_host = port == 0 ? "" : std::string{host};
 
     for (lua_Integer i{0}; i < layers_n; ++i)
     {
         lua_rawgeti(L, 3, i + 1); // 5 - layer table
         raw_field(L, 5, "type"); // 6 - layer type
-        char const* layer_type = lua_tostring(L, 6);
+        // Validated above, so these reads can't fail
+        auto const layer_type = *to_string_view(L, 6);
         if (layer_type == "tls"sv)
         {
 
@@ -488,11 +479,7 @@ auto l_start_irc(lua_State* const L) -> int
 
             raw_field(L, 5, "verify"); // 7
             raw_field(L, 5, "sni"); // 8
-            auto const opt_name = [L](int const i) -> std::optional<std::string_view> {
-                if (auto const name = lua_tostring(L, i)) return name;
-                return std::nullopt;
-            };
-            auto names = tls_names::resolve(opt_name(7), opt_name(8), hop_host);
+            auto names = tls_names::resolve(to_string_view(L, 7), to_string_view(L, 8), hop_host);
             layer.verify = std::move(names.verify);
             layer.sni = std::move(names.sni);
             lua_pop(L, 2);
@@ -504,7 +491,7 @@ auto l_start_irc(lua_State* const L) -> int
             SocksLayer layer;
 
             raw_field(L, 5, "host"); // 7
-            layer.host = luaL_opt(L, lua_tostring, 7, "");
+            layer.host = *to_string_view(L, 7);
             hop_host = layer.host;
             lua_pop(L, 1);
 
@@ -514,14 +501,14 @@ auto l_start_irc(lua_State* const L) -> int
 
             raw_field(L, 5, "username"); // 7
             raw_field(L, 5, "password"); // 8
-            char const* username = lua_tostring(L, 7);
-            char const* password = lua_tostring(L, 8);
+            auto const username = to_string_view(L, 7);
+            auto const password = to_string_view(L, 8);
 
             if (username && password)
             {
                 layer.auth = socks5::UsernamePasswordCredential{
-                    .username = username,
-                    .password = password,
+                    .username = std::string{*username},
+                    .password = std::string{*password},
                 };
             }
             else
@@ -538,7 +525,7 @@ auto l_start_irc(lua_State* const L) -> int
             HttpLayer layer;
 
             raw_field(L, 5, "host"); // 7
-            layer.host = luaL_opt(L, lua_tostring, 7, "");
+            layer.host = *to_string_view(L, 7);
             hop_host = layer.host;
             lua_pop(L, 1);
 
@@ -548,14 +535,14 @@ auto l_start_irc(lua_State* const L) -> int
 
             raw_field(L, 5, "username"); // 7
             raw_field(L, 5, "password"); // 8
-            char const* username = lua_tostring(L, 7);
-            char const* password = lua_tostring(L, 8);
+            auto const username = to_string_view(L, 7);
+            auto const password = to_string_view(L, 8);
 
             if (username && password)
             {
                 layer.auth = socks5::UsernamePasswordCredential{
-                    .username = username,
-                    .password = password,
+                    .username = std::string{*username},
+                    .password = std::string{*password},
                 };
             }
             else

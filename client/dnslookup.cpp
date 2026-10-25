@@ -16,7 +16,7 @@ auto l_dnslookup(lua_State* const L) -> int
 {
     using Resolver = boost::asio::ip::tcp::resolver;
 
-    auto const hostname = check_string_view(L, 1);
+    auto const hostname = check_c_string(L, 1);
     luaL_checkany(L, 2); // callback
     lua_settop(L, 2);
     auto const app = App::from_lua(L);

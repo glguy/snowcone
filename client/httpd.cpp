@@ -125,18 +125,19 @@ auto build_response(
     {
         lua_pushnil(L);
         while (0 != lua_next(L, -2)) {
-            // A string key is never converted in place, which would break lua_next
-            std::size_t key_len, val_len;
-            auto const key = lua_type(L, -2) == LUA_TSTRING ? lua_tolstring(L, -2, &key_len) : nullptr;
+            // Only a string key: converting a number key in place would break lua_next
+            auto const key = to_string_view(L, -2);
+            // A number value is converted in place, which is harmless for a value
+            std::size_t val_len;
             auto const val = lua_isstring(L, -1) ? lua_tolstring(L, -1, &val_len) : nullptr;
-            if (key == nullptr || val == nullptr
-                || not valid_header_text({key, key_len})
+            if (not key || val == nullptr
+                || not valid_header_text(*key)
                 || not valid_header_text({val, val_len}))
             {
                 lua_pop(L, 5); // value, key, and the 3 handler results
                 return server_error(req, "internal server error"sv);
             }
-            res.set(std::string_view{key, key_len}, std::string_view{val, val_len});
+            res.set(*key, std::string_view{val, val_len});
             lua_pop(L, 1); // remove value
         }
     }
@@ -551,8 +552,8 @@ char const* udata_name<std::shared_ptr<Listener>> = "listener";
 
 auto start_httpd(lua_State* const L) -> int
 {
-    auto const host = check_string_view(L, 1);
-    auto const service = check_string_view(L, 2);
+    auto const host = check_c_string(L, 1);
+    auto const service = check_c_string(L, 2);
     lua_settop(L, 3);
     auto cb = LuaRef::create(L);
 
