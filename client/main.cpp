@@ -15,6 +15,7 @@ extern "C" {
 #include <ncurses.h>
 
 #include <clocale>
+#include <csignal>
 #include <cstring>
 #include <sstream>
 #include <stdexcept>
@@ -69,6 +70,10 @@ auto main(int argc, char const* argv[]) -> int
                      "                         (default ~/.config/snowcone/settings.lua)\n";
         return EXIT_FAILURE;
     }
+
+    // A write to a pipe or socket whose reader is gone reports EPIPE instead
+    // of killing the client. Child processes get the default back (process.cpp).
+    std::signal(SIGPIPE, SIG_IGN);
 
     if (not strcmp("dashboard", argv[1]))
     {

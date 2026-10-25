@@ -15,6 +15,7 @@ extern "C" {
 #include <boost/process/v2/stdio.hpp>
 #include <boost/process/v2/environment.hpp>
 
+#include <csignal>
 #include <memory>
 #include <optional>
 #include <string>
@@ -35,6 +36,18 @@ constexpr lua_Integer max_arguments = 65'536;
 using ExecSig = void(boost::system::error_code error, int exit_code, std::string stdout_text, std::string stderr_text);
 
 namespace process = boost::process::v2;
+
+/// Process initializer that restores the default SIGPIPE action in the child.
+/// main ignores SIGPIPE, and an ignored signal stays ignored across exec.
+struct DefaultSigpipe
+{
+    template <typename Launcher, typename Path>
+    auto on_exec_setup(Launcher&, Path const&, char const* const*) -> boost::system::error_code
+    {
+        std::signal(SIGPIPE, SIG_DFL);
+        return {};
+    }
+};
 
 template <boost::asio::completion_handler_for<ExecSig> Handler>
 struct Exec
@@ -103,12 +116,14 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
                 .in = has_input ? in_t{self->stdin_} : in_t{},
                 .out = {self->stdout_},
                 .err = {self->stderr_},
-            }
+            },
+            DefaultSigpipe{}
         };
     } catch (boost::system::system_error const& e) {
         self->error_code_ = e.code();
         self->stage_ = 1;
-        self->complete();
+        // Not inline: the caller hasn't returned to Lua yet
+        boost::asio::post(io_context, [self] { self->complete(); });
         return;
     }
 
