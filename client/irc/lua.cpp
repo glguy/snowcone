@@ -20,7 +20,6 @@ extern "C" {
 }
 
 #include <charconv> // from_chars
-#include <fcntl.h>
 #include <memory>
 #include <optional>
 #include <string>
@@ -31,9 +30,6 @@ extern "C" {
 namespace {
 
 using namespace std::literals::string_view_literals;
-
-using tcp_type = boost::asio::ip::tcp::socket;
-using tls_type = boost::asio::ssl::stream<tcp_type>;
 
 auto l_close_irc(lua_State* const L) -> int
 {

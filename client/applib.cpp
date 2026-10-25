@@ -164,9 +164,9 @@ auto l_isalnum(lua_State* const L) -> int
  * @brief Lua binding for RFC 1459 case mapping.
  *
  * Converts the input string to its uppercase form according to RFC 1459 rules,
- * which are used for case-insensitive comparisons in IRC. This mapping treats
- * the characters '{', '}', '|', and '^' as equivalent to '[', ']', '\\', and '~'
- * respectively, in addition to standard ASCII uppercase conversion.
+ * which are used for case-insensitive comparisons in IRC. In addition to ASCII
+ * uppercase conversion, '{', '}', '|' and '~' map to '[', ']', '\\' and '^'
+ * respectively.
  *
  * param:   string input text to normalize
  * return:  string IRC case normalized text
@@ -291,20 +291,15 @@ auto l_parse_irc_tags(lua_State* const L) -> int
 }
 
 /**
- * @brief Parses a string using IRC tags format.
+ * @brief Parses one IRC message line, without its CR LF terminator.
  *
- * IRC tags are key-value pairs separated by ';'. Each key is optionally
- * followed by a value. The value is delimited with an '='. Escaped characters
- * in the value position are unescaped. Omitted values are treated as empty
- * string values.
- *
- * IRC messages have the following keys:
+ * The parsed message has the following keys:
  * - "tags": a required, potentially empty table of the key-value pairs of the tags of the message
  * - "source": an optional field containing the source of the message
  * - "command": a required field containing the string name or integer numeric of the command
  * - [1..]: arguments of the command are stored in integer fields starting a 1
  * 
- * param:       string input Tag input string
+ * param:       string input IRC message line
  * return[1]:   table IRC message
  * return[2]:   nil failure indicator
  * return[2]:   string failure reason
@@ -315,7 +310,6 @@ auto l_parse_irc_tags(lua_State* const L) -> int
 auto l_parse_irc(lua_State* const L) -> int
 {
     auto const txt = check_string_view(L, 1);
-    ircmsg result;
     try
     {
         luaL_Buffer B;

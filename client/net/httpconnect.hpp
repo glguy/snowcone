@@ -11,8 +11,6 @@
 
 #include "proxyauth.hpp"
 
-using namespace std::literals::string_view_literals;
-
 namespace httpconnect {
 
 auto encode_basic_auth(socks5::UsernamePasswordCredential const& auth) -> std::string;
