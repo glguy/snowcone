@@ -6,7 +6,6 @@
 
 #include <boost/io/ios_state.hpp>
 
-#include <array>
 #include <iomanip>
 #include <memory>
 #include <stdexcept>
@@ -140,34 +139,21 @@ auto set_buffer_size(Socket& socket, std::size_t const n) -> void
     socket.set_option(typename Socket::receive_buffer_size{static_cast<int>(n)}, ignored);
 }
 
-template <std::size_t... Ns>
-auto constexpr sum() -> std::size_t { return (0 + ... + Ns); }
-
 /**
- * @brief Builds the string format required for the ALPN extension
+ * @brief Builds the wire format of the ALPN extension: each name prefixed
+ * with its length byte
  *
- * @tparam Ns sizes of each protocol name
- * @param protocols array of the names of the supported protocols
+ * @param protocols names, each 1 to 255 bytes
  * @return encoded protocol names
  */
-template <std::size_t... Ns>
-auto constexpr alpn_encode(char const (&... protocols)[Ns]) -> std::array<unsigned char, sum<Ns...>()>
+auto alpn_encode(std::vector<std::string> const& protocols) -> std::vector<unsigned char>
 {
-    auto result = std::array<unsigned char, sum<Ns...>()>{};
-    auto cursor = std::begin(result);
-    auto const encode = [&cursor]<std::size_t N>(char const(&protocol)[N]) {
-        static_assert(N > 0, "Protocol name must be null-terminated");
-        static_assert(N < 256, "Protocol name too long");
-        if (protocol[N - 1] != '\0')
-            throw "Protocol name not null-terminated";
-
-        // Prefixed length byte
-        *cursor++ = N - 1;
-
-        // Add string skipping null terminator
-        cursor = std::copy(std::begin(protocol), std::end(protocol) - 1, cursor);
-    };
-    (encode(protocols), ...);
+    std::vector<unsigned char> result;
+    for (auto const& protocol : protocols)
+    {
+        result.push_back(static_cast<unsigned char>(protocol.size()));
+        result.insert(result.end(), protocol.begin(), protocol.end());
+    }
     return result;
 }
 
@@ -256,9 +242,11 @@ auto connect_layer(ConnectContext& ctx, TlsLayer& tls_layer) -> boost::asio::awa
         }
     }
 
-    // Configure ALPN
+    // Configure ALPN, only when asked: an unexpected protocol name can make a
+    // server or proxy refuse the handshake
+    if (not tls_layer.alpn.empty())
     {
-        auto constexpr protos = alpn_encode("irc");
+        auto const protos = alpn_encode(tls_layer.alpn);
         // non-standard return behavior
         if (0 != SSL_set_alpn_protos(tls.native_handle(), protos.data(), protos.size()))
         {

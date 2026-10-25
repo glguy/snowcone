@@ -366,6 +366,13 @@ end)
     ok &= check_accepted(args("{ {type = 'socks', host = 'h', port = 1, username = 'u\\0v', password = 'p\\0q'} }").c_str());
     ok &= check_arguments(args("{ {type = 'tls', sni = 5} }").c_str(), "'sni' must be a string");
     ok &= check_arguments(args("{ {type = 'tls', verify = {}} }").c_str(), "'verify' must be a string");
+    ok &= check_arguments(args("{ {type = 'tls', alpn = 'irc'} }").c_str(), "'alpn' must be a list of protocol names");
+    ok &= check_arguments(args("{ {type = 'tls', alpn = {''}} }").c_str(), "'alpn' must be a list of protocol names");
+    ok &= check_arguments(args("{ {type = 'tls', alpn = {string.rep('x', 256)}} }").c_str(), "'alpn' must be a list of protocol names");
+    ok &= check_arguments(args("{ {type = 'tls', alpn = {irc = true}} }").c_str(), "'alpn' must be a list of protocol names");
+    ok &= check_arguments(args("{ {type = 'tls', alpn = {'irc', 7}} }").c_str(), "'alpn' must be a list of protocol names");
+    ok &= check_accepted(args("{ {type = 'tls', alpn = {'irc', string.rep('x', 255)}} }").c_str());
+    ok &= check_accepted(args("{ {type = 'tls', alpn = {}} }").c_str());
     // Client certificates: cert() is signed by key(), and other_key() isn't
     auto const tls_with = [&](std::string fields) {
         return args("{ {type = 'tls', " + fields + "} }");

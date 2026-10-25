@@ -36,6 +36,9 @@ struct TlsLayer {
     std::string verify;
     /// Server name sent in the handshake; empty or an IP literal sends none
     std::string sni;
+    /// ALPN protocol names offered in order, each 1 to 255 bytes; empty sends
+    /// no ALPN extension
+    std::vector<std::string> alpn;
 };
 
 struct SocksLayer {

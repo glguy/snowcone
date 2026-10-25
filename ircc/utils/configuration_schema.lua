@@ -108,6 +108,7 @@ return table {
                 use_store           = {type = 'boolean'},
                 verify_host         = {type = 'string'},
                 sni_host            = {type = 'string'},
+                alpn                = {type = 'table', elements = {type = 'string'}},
             },
         },
     },

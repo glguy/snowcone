@@ -47,6 +47,9 @@ end
 -- valid layer configurations
 accepts('no layers', config())
 accepts('tls layer', config(nil, {{type = 'tls', verify_host = 'h', sni_host = 's'}}))
+accepts('tls alpn', config(nil, {{type = 'tls', alpn = {'irc', 'http/1.1'}}}))
+rejects('tls alpn string', config(nil, {{type = 'tls', alpn = 'irc'}}))
+rejects('tls alpn number', config(nil, {{type = 'tls', alpn = {7}}}))
 accepts('socks layer', config(nil, {{type = 'socks', host = 'localhost', port = 9050}}))
 accepts('socks with credentials',
     config(nil, {{type = 'socks', host = 'h', port = 1080, username = 'u', password = 'p'}}))

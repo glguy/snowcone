@@ -262,6 +262,47 @@ auto check_layer_string(lua_State* const L, lua_Integer const n, char const* con
     return true;
 }
 
+/// Raise a Lua error unless the value at the top of the stack is nil/absent
+/// or a list of ALPN protocol names, each a string of 1 to 255 bytes (the
+/// wire format's length byte). Pops the value. Raw access only.
+auto check_layer_alpn(lua_State* const L, lua_Integer const n) -> void
+{
+    if (lua_type(L, -1) <= LUA_TNIL)
+    {
+        lua_pop(L, 1);
+        return;
+    }
+
+    bool ok = lua_type(L, -1) == LUA_TTABLE;
+    if (ok)
+    {
+        auto const len = static_cast<lua_Integer>(lua_rawlen(L, -1));
+
+        // Every key must be part of the sequence
+        lua_Integer keys = 0;
+        lua_pushnil(L);
+        while (0 != lua_next(L, -2))
+        {
+            lua_pop(L, 1);
+            keys++;
+        }
+        ok = keys == len;
+
+        for (lua_Integer i = 1; ok && i <= len; i++)
+        {
+            lua_rawgeti(L, -1, i);
+            auto const name = to_string_view(L, -1);
+            ok = name && not name->empty() && name->size() <= 255;
+            lua_pop(L, 1);
+        }
+    }
+    lua_pop(L, 1);
+    if (not ok)
+    {
+        luaL_error(L, "layer %d: 'alpn' must be a list of protocol names of 1 to 255 bytes", static_cast<int>(n));
+    }
+}
+
 /// Raise a Lua error unless the value at the top of the stack is an integer
 /// in [1, 65535]. Pops the value.
 auto check_layer_port(lua_State* const L, lua_Integer const n) -> void
@@ -344,6 +385,9 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
             raw_field(L, layer, "sni");
             check_layer_string(L, i, "sni", false, Bytes::CString);
 
+            raw_field(L, layer, "alpn");
+            check_layer_alpn(L, i);
+
             if (not have_host && not verify_given)
             {
                 luaL_error(L, "layer %d: tls over a local socket requires 'verify' "
@@ -394,7 +438,7 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
  *
  * Layers are applied in order on top of the base connection:
  * - { type = "tls", client_cert = X509?, client_key = PKey?,
- *     verify = string?, sni = string? }
+ *     verify = string?, sni = string?, alpn = {string}? }
  * - { type = "socks", host = string, port = integer, username = string?,
  *     password = string? }
  * - { type = "http", host = string, port = integer, username = string?,
@@ -483,6 +527,18 @@ auto l_start_irc(lua_State* const L) -> int
             layer.verify = std::move(names.verify);
             layer.sni = std::move(names.sni);
             lua_pop(L, 2);
+
+            if (raw_field(L, 5, "alpn") == LUA_TTABLE) // 7
+            {
+                auto const len = static_cast<lua_Integer>(lua_rawlen(L, 7));
+                for (lua_Integer j = 1; j <= len; j++)
+                {
+                    lua_rawgeti(L, 7, j);
+                    layer.alpn.emplace_back(*to_string_view(L, -1));
+                    lua_pop(L, 1);
+                }
+            }
+            lua_pop(L, 1);
 
             layers.emplace_back(std::move(layer));
         }

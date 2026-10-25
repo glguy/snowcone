@@ -993,7 +993,8 @@ function connect()
                     client_key = tls_client_key,
                     client_cert = tls_client_cert,
                     verify = layer.verify_host,
-                    sni = layer.sni_host
+                    sni = layer.sni_host,
+                    alpn = layer.alpn,
                 })
 
             elseif layer.type == "socks" then

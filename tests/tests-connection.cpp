@@ -840,6 +840,7 @@ struct TlsOutcome
 {
     std::string client; // the connect result, or "error: " and the message
     std::optional<std::string> server_sni;
+    std::optional<std::string> server_alpn; // the encoded list the client offered
 };
 
 /// Serve one TLS handshake with cert and key, then connect to it with tls
@@ -854,6 +855,15 @@ auto tls_connect(X509* const cert, EVP_PKEY* const key, TlsLayer tls) -> TlsOutc
     SSL_CTX_use_PrivateKey(server_ctx.native_handle(), key);
 
     TlsOutcome outcome;
+
+    // Only called when the client sends ALPN; selects nothing
+    SSL_CTX_set_alpn_select_cb(
+        server_ctx.native_handle(),
+        [](SSL*, unsigned char const**, unsigned char*, unsigned char const* const in, unsigned int const inlen, void* const arg) -> int {
+            static_cast<TlsOutcome*>(arg)->server_alpn.emplace(reinterpret_cast<char const*>(in), inlen);
+            return SSL_TLSEXT_ERR_NOACK;
+        },
+        &outcome);
 
     asio::co_spawn(io, [&]() -> asio::awaitable<void> {
         asio::ssl::stream<tcp::socket> stream{co_await asio::this_coro::executor, server_ctx};
@@ -941,6 +951,20 @@ TEST(Tls, SendsNoServerNameForIpLiteralOrEmpty)
 {
     EXPECT_EQ(tls_connect({.verify = "irc.example", .sni = "127.0.0.1"}).server_sni, std::nullopt);
     EXPECT_EQ(tls_connect({.verify = "irc.example", .sni = ""}).server_sni, std::nullopt);
+}
+
+TEST(Tls, SendsNoAlpnByDefault)
+{
+    auto const outcome = tls_connect({.verify = "irc.example", .sni = ""});
+    EXPECT_FALSE(outcome.client.starts_with("error")) << outcome.client;
+    EXPECT_EQ(outcome.server_alpn, std::nullopt);
+}
+
+TEST(Tls, SendsConfiguredAlpnInOrder)
+{
+    auto const outcome = tls_connect({.verify = "irc.example", .sni = "", .alpn = {"irc", "http/1.1"}});
+    EXPECT_FALSE(outcome.client.starts_with("error")) << outcome.client;
+    EXPECT_EQ(outcome.server_alpn, std::string{"\x03irc\x08http/1.1"});
 }
 
 TEST(OpenCloexec, TcpAndLocalSocketsAreCloseOnExec)
