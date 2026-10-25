@@ -13,6 +13,12 @@ extern "C" {
 
 #include <ncurses.h>
 
+// Boost versions with this header let the resolver use more than one thread.
+#if __has_include(<boost/asio/config.hpp>)
+#include <boost/asio/config.hpp>
+#define SNOWCONE_RESOLVER_CONFIG 1
+#endif
+
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -56,7 +62,15 @@ auto is_stop(boost::system::error_code const& ec) -> bool
 } // namespace
 
 App::App(char const* const filename)
+#ifdef SNOWCONE_RESOLVER_CONFIG
+    // getaddrinfo blocks, so with the default single resolver thread every
+    // lookup in the process queues behind the slowest one. In particular the
+    // A and AAAA queries for happy eyeballs would never run in parallel.
+    // Older Boost has one resolver thread that can't be configured.
+    : io_context{boost::asio::config_from_string{"resolver.threads=4"}}
+#else
     : io_context{}
+#endif
     , stdin_poll{io_context, STDIN_FILENO}
     , signals{io_context, SIGWINCH, SIGUSR1}
     , main_source{filename}
