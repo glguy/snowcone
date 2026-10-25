@@ -329,6 +329,43 @@ end)
     });
 
     ok &= run({
+        "handle methods report a locally closed connection",
+        R"lua(
+local function try(name, ...)
+  local ok, err = ...
+  log(name .. ':' .. tostring(ok) .. (err and (':' .. err) or ''))
+end
+conn = connect('127.0.0.1', port, {}, function(ev, a)
+  if ev == 'CON' then
+    try('send', conn:send('x\r\n'))
+    try('close', conn:close())
+    try('send', conn:send('y\r\n'))
+    try('close', conn:close())
+  elseif ev == 'END' then log('END:' .. tostring(a))
+  else log(ev) end
+end)
+)lua",
+        [](Sock sock, auto seen) { read_until_end(sock, seen); },
+        "send:true,close:true,send:nil:connection closed,close:nil:connection closed,END:nil",
+        [](Observed const& o) { return o.received.find('y') == std::string::npos; },
+    });
+
+    ok &= run({
+        "send after the server ends the session reports it closed",
+        R"lua(
+conn = connect('127.0.0.1', port, {}, function(ev, a)
+  if ev == 'END' then
+    local ok, err = conn:send('LATE\r\n')
+    log('END,send:' .. tostring(ok) .. ':' .. tostring(err))
+  else log(ev) end
+end)
+)lua",
+        [](Sock sock, auto) { sock->close(); },
+        "CON,END,send:nil:connection closed",
+        any,
+    });
+
+    ok &= run({
         "valid layer table is accepted",
         R"lua(
 conn = connect('127.0.0.1', port, {{type = 'socks', host = 'proxy.invalid', port = 1080}}, function(ev)
@@ -408,12 +445,26 @@ end)
         any,
     });
     ok &= check_arguments("'/bin/true', 5, function() end", "table expected", "execute");
+    ok &= check_arguments("'/bin/true', {'a', {}}, function() end", "argument 2 is a table, not a string", "execute");
+    ok &= check_arguments("'/bin/true', {'a', true}, function() end", "argument 2 is a boolean, not a string", "execute");
     ok &= check_arguments(
-        "'/bin/true', setmetatable({}, {__len = function() return -1 end}), function() end",
-        "bad argument count", "execute");
+        "'/bin/true', {setmetatable({}, {__tostring = function() return 'x' end})}, function() end",
+        "argument 1 is a table, not a string", "execute");
     ok &= check_arguments(
-        "'/bin/true', setmetatable({}, {__len = function() return 1 << 40 end}), function() end",
-        "bad argument count", "execute");
+        "'/bin/true', (function() local t = {} for i = 1, 65537 do t[i] = 'x' end return t end)(), function() end",
+        "too many arguments", "execute");
+    ok &= run({
+        "execute returns true and converts numbers, ignoring __len",
+        R"lua(
+local args = setmetatable({1, 'x'}, {__len = function() return 0 end})
+log(tostring(execute('/bin/echo', args, function(code, out)
+  log(code .. ':' .. (out:gsub('\n', '')))
+end)))
+)lua",
+        nullptr,
+        "true,0:1 x",
+        any,
+    });
 
     // snowcone.newtimer: an enormous delay must not overflow the clock
     // arithmetic, and a negative one fires immediately

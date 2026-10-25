@@ -13,7 +13,10 @@
 #include <boost/asio/buffer.hpp>
 
 #include <algorithm>
-#include <concepts>
+#include <cassert>
+#include <cstddef>
+#include <iterator>
+#include <memory>
 #include <vector>
 
 /**
@@ -24,7 +27,9 @@ class LineBuffer
 {
     std::vector<char> buffer_;
 
-    // [std::begin(buffer), end_) contains buffered data
+    // [std::begin(buffer), start_) holds lines already returned by next_line
+    // [start_, end_) is buffered data not yet returned as a line
+    // [search_, end_) is the part of that not yet searched for a newline
     // [end_, std::end(buffer)) is available buffer space
     decltype(buffer_)::iterator start_;
     decltype(buffer_)::iterator search_;
@@ -61,37 +66,37 @@ public:
     }
 
     /**
-     * @brief Commit new buffer bytes and dispatch line callback
+     * @brief Commit bytes written into the space returned by prepare
      *
-     * The first n bytes of the buffer will be considered to be
-     * populated. The line callback function will be called once
-     * per completed line. Those lines are removed from the buffer
-     * and the is ready for additional calls to prepare and
-     * commit.
+     * The first n bytes of that space become buffered data, available
+     * to next_line.
      *
-     * @param n Bytes written to the last call of prepare
-     * @param line_cb Callback function to run on each completed line
+     * @param n Bytes written; at most the size returned by the last prepare
      */
     auto commit(std::size_t const n) -> void
     {
+        assert(n <= static_cast<std::size_t>(std::distance(end_, buffer_.end())));
         std::advance(end_, n);
     }
 
     /**
      * @brief Return the next null-terminated line in the buffer
      *
-     * This function should be repeatedly called until it returns
-     * nullptr. After that shift can be used to reclaim the
-     * previously used buffer.
+     * The line ending, "\n" or "\r\n", is replaced by the terminator.
+     * Call this repeatedly until it returns nullptr, then call shift
+     * before the next prepare.
      *
      * @return null-terminated line or nullptr if no line is ready
      */
     auto next_line() -> char*;
 
     /**
-     * @brief Reclaim used buffer space invalidating all previous
-     * next_line() results;
-     * 
+     * @brief Reclaim the space of lines already returned
+     *
+     * Moves any incomplete line to the front of the buffer. This
+     * invalidates every pointer returned by next_line. Call it once
+     * next_line has returned nullptr: shifting earlier is safe but
+     * moves complete lines that could have been returned first.
      */
     auto shift() -> void;
 };

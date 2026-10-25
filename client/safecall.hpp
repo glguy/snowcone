@@ -13,8 +13,15 @@ struct lua_State;
 /**
  * @brief Call a Lua function catching and reporting all errors
  *
+ * Stack: expects the function and then its args arguments on top of the
+ * stack. They are all consumed and any results are discarded, so the stack
+ * drops by args + 1 whether or not the call succeeds.
+ *
+ * On error, the message and a traceback are written to stderr after
+ * endwin(), and safecall_failures() counts it.
+ *
  * @param L Lua interpreter handle
- * @param location Location to using in error reporting
+ * @param location Description of the call site, used in error reports
  * @param args Number of function arguments on Lua stack
  * @return Result of lua_pcall
  */

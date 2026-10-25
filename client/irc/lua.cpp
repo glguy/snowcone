@@ -45,7 +45,7 @@ auto l_close_irc(lua_State* const L) -> int
     else
     {
         luaL_pushfail(L);
-        push_string(L, "irc handle destructed"sv);
+        push_string(L, "connection closed"sv);
         return 2;
     }
 }
@@ -55,7 +55,9 @@ auto l_send_irc(lua_State* const L) -> int
     auto const w = check_udata<std::weak_ptr<connection>>(L, 1);
     auto const cmd = check_string_view(L, 2);
 
-    if (auto const irc = w->lock())
+    // A connection that ended is closed, even when Lua didn't close it
+    auto const irc = w->lock();
+    if (irc && not irc->closed())
     {
         irc->write(cmd);
         lua_pushboolean(L, 1);
@@ -64,7 +66,7 @@ auto l_send_irc(lua_State* const L) -> int
     else
     {
         luaL_pushfail(L);
-        push_string(L, "irc handle destructed"sv);
+        push_string(L, "connection closed"sv);
         return 2;
     }
 }
@@ -464,8 +466,12 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
  * Callback sequence: (CON MSG*)? END. No CON or MSG is delivered after the
  * callback that closed the connection returns.
  *
+ * The returned handle has methods send(line) and close(). Each returns true,
+ * or nil and "connection closed" once the connection has been closed, by
+ * Lua or because the session ended.
+ *
  * @param L Lua state
- * @return int 1
+ * @return int 1: the connection handle
  */
 auto l_start_irc(lua_State* const L) -> int
 {
@@ -650,7 +656,7 @@ auto l_start_irc(lua_State* const L) -> int
             }
             catch (...)
             {
-                lua_pushnil(L);
+                push_string(L, "unknown error"sv);
             }
 
             safecall(L, "end of connection", 2);

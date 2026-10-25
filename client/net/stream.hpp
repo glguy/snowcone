@@ -4,13 +4,12 @@
 #include <boost/asio/ssl.hpp>
 
 #include <cstddef>
-#include <variant>
+#include <memory>
+#include <vector>
 
 class StreamBase
 {
 public:
-    using executor_type = boost::asio::any_io_executor;
-    using lowest_layer_type = boost::asio::ip::tcp::socket::lowest_layer_type;
     using Sig = void(boost::system::error_code, std::size_t);
     virtual ~StreamBase() = default;
     virtual auto async_read_some(std::vector<boost::asio::mutable_buffer> buffers, boost::asio::any_completion_handler<Sig> handler) -> void = 0;
@@ -41,7 +40,7 @@ public:
     /// @return Reference to internal socket object
     auto reset_ip() -> boost::asio::ip::tcp::socket&;
 
-    /// @brief Reset stream to a plain TCP socket
+    /// @brief Reset stream to a plain local (Unix domain) socket
     /// @return Reference to internal socket object
     auto reset_local() -> boost::asio::local::stream_protocol::socket&;
 

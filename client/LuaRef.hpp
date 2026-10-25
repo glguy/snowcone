@@ -10,6 +10,7 @@ extern "C" {
 #include <lua.h>
 }
 
+#include <cassert>
 #include <utility>
 
 /**
@@ -18,6 +19,7 @@ extern "C" {
  *
  * This class encapsulates a reference to a Lua object, ensuring proper
  * reference counting and cleanup. It supports move and copy semantics.
+ * A moved-from LuaRef holds nothing: it may only be destroyed or assigned to.
  */
 class LuaRef
 {
@@ -101,7 +103,8 @@ public:
     /**
      * @brief Creates a LuaRef from the value on top of the Lua stack.
      * 
-     * The top value of the stack is consumed by this operation.
+     * The top value of the stack is consumed by this operation. A nil
+     * value gives LUA_REFNIL, which push() turns back into nil.
      * 
      * @param L Pointer to the Lua state.
      * @return A new LuaRef referencing the value.
@@ -116,6 +119,7 @@ public:
      */
     auto push() const noexcept -> void
     {
+        assert(L_ && "push on a moved-from LuaRef");
         lua_rawgeti(L_, LUA_REGISTRYINDEX, ref_);
     }
 

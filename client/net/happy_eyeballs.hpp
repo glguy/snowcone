@@ -15,8 +15,7 @@ namespace happy_eyeballs {
  * - Supports a single registered handler, so at most one operation may use a
  *   source at a time.
  * - Cancellation is sticky: once emitted, later operations that use the same
- *   source complete immediately with operation_aborted until reset() is called.
- *   Call reset() only while no operation is using the source.
+ *   source complete immediately with operation_aborted.
  * - Emitted types accumulate (bitwise OR), so a later partial cancellation
  *   never downgrades an earlier terminal one.
  * - The handler is invoked while an internal mutex is held. It must not call
@@ -42,6 +41,7 @@ public:
         return cancelled_;
     }
 
+    /// Remove the registered handler, whichever operation registered it.
     auto clear() -> void
     {
         std::lock_guard lock{mutex_};
@@ -56,13 +56,6 @@ public:
             cancelled_ = cancelled_ | type;
         }
         signal_.emit(type);
-    }
-
-    /// Forget any previously emitted cancellation so the source can be reused.
-    auto reset() -> void
-    {
-        std::lock_guard lock{mutex_};
-        cancelled_ = boost::asio::cancellation_type::none;
     }
 };
 
@@ -79,6 +72,9 @@ public:
  * Errors are delivered through the awaitable and are thrown by co_await as
  * boost::system::system_error. Cancellation (through the coroutine's
  * cancellation state or close_cancellation) completes with operation_aborted.
+ * Every cancellation type other than none (terminal, partial or total) is
+ * treated as terminal: the whole operation is abandoned. That is safe because
+ * abandoning it has no side effects beyond closing the attempt sockets.
  *
  * Threading: as with any Asio operation, cancellation delivered through the
  * coroutine's own cancellation slot (co_spawn / cancel_after / awaitable

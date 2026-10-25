@@ -40,6 +40,20 @@ auto is_local_unreachable(boost::system::error_code const& error) -> bool
            error == asio::error::address_family_not_supported;
 }
 
+// Cancel op on its strand. A cancellation handler may run on any thread, so
+// it must not hold a strong reference itself: if that were the last one, the
+// operation would be destroyed there, under the source's mutex.
+template <typename Op>
+auto post_cancel(asio::strand<asio::any_io_executor> const& strand, std::weak_ptr<Op> weak) -> void
+{
+    asio::post(strand, [weak = std::move(weak)] {
+        if (auto const self = weak.lock())
+        {
+            self->cancel();
+        }
+    });
+}
+
 template <typename Handler>
 struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>>
 {
@@ -104,13 +118,10 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
         // The handler only posts to the strand.
         if (associated_cancellation_.is_connected())
         {
-            associated_cancellation_.assign([weak](asio::cancellation_type const type) {
+            associated_cancellation_.assign([weak, strand = strand_](asio::cancellation_type const type) {
                 if (type != asio::cancellation_type::none)
                 {
-                    if (auto self = weak.lock())
-                    {
-                        asio::post(self->strand_, [self] { self->cancel(); });
-                    }
+                    post_cancel(strand, weak);
                 }
             });
         }
@@ -124,13 +135,10 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
     auto start_on_strand() -> void
     {
         std::weak_ptr<ConnectOperation> weak = this->shared_from_this();
-        auto const close_cancelled = close_cancellation_.assign([weak](asio::cancellation_type const type) {
+        auto const close_cancelled = close_cancellation_.assign([weak, strand = strand_](asio::cancellation_type const type) {
             if (type != asio::cancellation_type::none)
             {
-                if (auto self = weak.lock())
-                {
-                    asio::post(self->strand_, [self] { self->cancel(); });
-                }
+                post_cancel(strand, weak);
             }
         });
 

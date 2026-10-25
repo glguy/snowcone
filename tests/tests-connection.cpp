@@ -1164,7 +1164,7 @@ TEST(HappyEyeballs, CoroutineCancellationBeforeStartAborts)
     EXPECT_FALSE(socket.is_open());
 }
 
-TEST(HappyEyeballs, CancelledSourceAbortsUntilReset)
+TEST(HappyEyeballs, CancelledSourceStaysCancelled)
 {
     asio::io_context io;
     auto acceptor = loopback_acceptor(io);
@@ -1183,13 +1183,6 @@ TEST(HappyEyeballs, CancelledSourceAbortsUntilReset)
     auto still_aborted = asio::co_spawn(io, happy_connect(socket, "127.0.0.1", port, source), asio::use_future);
     io.run();
     EXPECT_EQ(result_code(still_aborted), asio::error::operation_aborted);
-
-    source.reset();
-    io.restart();
-    auto connected = asio::co_spawn(io, happy_connect(socket, "127.0.0.1", port, source), asio::use_future);
-    io.run();
-    EXPECT_FALSE(result_code(connected));
-    EXPECT_TRUE(socket.is_open());
 }
 
 // Intended to be run under ThreadSanitizer: cancellations race with

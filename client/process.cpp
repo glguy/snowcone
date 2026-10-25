@@ -24,8 +24,7 @@ extern "C" {
 namespace {
 
 /// More than any operating system will accept as an argument list; this only
-/// keeps a bogus length (for example from a __len metamethod) from turning
-/// into an enormous allocation or loop.
+/// keeps an enormous table from turning into an enormous allocation.
 constexpr lua_Integer max_arguments = 65'536;
 
 /// @brief Signature for the process execution completion handler.
@@ -180,42 +179,52 @@ auto async_exec(
     );
 }
 
-auto l_execute1(lua_State* L) -> int
+} // namespace
+
+auto l_execute(lua_State* const L) -> int
 {
-    // avoids putting objects with destructors
-    // onto the stack in case the lua functions below fail.
-    auto const args = reinterpret_cast<std::vector<std::string>*>(lua_touserdata(L, lua_upvalueindex(1)));
+    // Validate everything with raw access before any C++ object exists, so
+    // nothing below can raise while the argument vector is live.
 
     // 1. Path to executable
     auto const file = check_c_string(L, 1);
 
-    // 2. array of command arguments
+    // 2. array of command arguments: strings, or numbers, as luaL_checkstring
+    // accepts. Callers convert anything else with tostring themselves.
     luaL_checktype(L, 2, LUA_TTABLE);
-    auto const n = luaL_len(L, 2); // might call a __len metamethod
-    if (n < 0 || n > max_arguments)
+    auto const n = static_cast<lua_Integer>(lua_rawlen(L, 2));
+    luaL_argcheck(L, n <= max_arguments, 2, "too many arguments");
+    for (lua_Integer i = 1; i <= n; i++)
     {
-        return luaL_error(L, "execute: bad argument count");
+        auto const type = lua_rawgeti(L, 2, i);
+        if (type != LUA_TSTRING && type != LUA_TNUMBER)
+        {
+            return luaL_error(L, "execute: argument %d is a %s, not a string", static_cast<int>(i), luaL_typename(L, -1));
+        }
+        std::size_t len;
+        auto const str = lua_tolstring(L, -1, &len); // converts only this copy
+        if (has_nul({str, len}))
+        {
+            return luaL_error(L, "execute: argument %d contains a NUL byte", static_cast<int>(i));
+        }
+        lua_pop(L, 1);
     }
-    
+
     // 3. completion handler
     luaL_checkany(L, 3);
 
     // 4. optional stdin string
     auto const input = opt_string_view(L, 4);
 
-    args->clear();
-    args->reserve(n);
+    std::vector<std::string> args;
+    args.reserve(n);
     for (lua_Integer i = 1; i <= n; i++)
     {
-        lua_geti(L, 2, i);
+        lua_rawgeti(L, 2, i);
         std::size_t len;
-        auto const str = luaL_tolstring(L, -1, &len);
-        if (has_nul({str, len}))
-        {
-            return luaL_error(L, "execute: argument %d contains a NUL byte", static_cast<int>(i));
-        }
-        args->emplace_back(str, len);
-        lua_pop(L, 2); // pops array element and string representation
+        auto const str = lua_tolstring(L, -1, &len);
+        args.emplace_back(str, len);
+        lua_pop(L, 1);
     }
 
     lua_pushvalue(L, 3);
@@ -226,13 +235,13 @@ auto l_execute1(lua_State* L) -> int
     async_exec(
         app->get_context(),
         file,
-        std::move(*args),
+        std::move(args),
         input ? std::optional<std::string>{*input} : std::nullopt,
         [L = app->get_lua(), cb](
             boost::system::error_code const err,
             int const exitcode,
-            std::string const stdout,
-            std::string const stderr
+            std::string const stdout_text,
+            std::string const stderr_text
         ) {
             // get callback
             lua_rawgeti(L, LUA_REGISTRYINDEX, cb);
@@ -247,33 +256,13 @@ auto l_execute1(lua_State* L) -> int
             else
             {
                 lua_pushinteger(L, exitcode);
-                push_string(L, stdout);
-                push_string(L, stderr);
+                push_string(L, stdout_text);
+                push_string(L, stderr_text);
                 safecall(L, "process complete callback", 3);
             }
         }
     );
-    return 0;
-}
 
-} // namespace
-
-auto l_execute(lua_State* L) -> int
-{
-    lua_settop(L, 4);
-
-    { // ensure args goes out of scope before lua_error
-        std::vector<std::string> args;
-        lua_pushlightuserdata(L, &args);
-        lua_pushcclosure(L, boundary<l_execute1>, 1);
-        lua_rotate(L, 1, 1);
-        
-        if (LUA_OK == lua_pcall(L, 4, 0, 0)) 
-        {
-            lua_pushboolean(L, true);
-            return 1;
-        }
-    }
-
-    return lua_error(L);
+    lua_pushboolean(L, true);
+    return 1;
 }
