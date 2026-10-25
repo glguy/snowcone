@@ -22,8 +22,6 @@ extern "C" {
 #include <lualib.h>
 }
 
-#include <ncurses.h>
-
 #ifdef LIBHS_FOUND
 #include "hsfilter.hpp"
 #endif
@@ -44,10 +42,7 @@ extern "C" {
 #include <csignal>
 #include <cstring>
 #include <ctime>
-#include <functional>
-#include <iostream>
 #include <iterator>
-#include <locale>
 
 namespace { // lua support for app
 

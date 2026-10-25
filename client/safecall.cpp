@@ -7,7 +7,6 @@ extern "C" {
 
 #include <ncurses.h>
 
-#include <cstdio>
 #include <iostream>
 
 namespace {

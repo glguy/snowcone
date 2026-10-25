@@ -2,26 +2,15 @@
 #include "applib.hpp"
 #include "bracketed_paste.hpp"
 #include "config.hpp"
-#include "ircmsg.hpp"
 #include "safecall.hpp"
-
-#include <myncurses.h>
-
-extern "C" {
-#include <lauxlib.h>
-#include <lua.h>
-}
 
 #include <ncurses.h>
 
 #include <clocale>
 #include <csignal>
 #include <cstring>
+#include <iostream>
 #include <optional>
-#include <sstream>
-#include <stdexcept>
-#include <string>
-#include <unistd.h>
 
 class NC final
 {

@@ -1,11 +1,5 @@
 #include "socks5.hpp"
 
-#include <boost/asio.hpp>
-
-#include <iterator>
-#include <stdexcept>
-#include <vector>
-
 namespace socks5 {
 
 SocksErrCategory const theSocksErrCategory;
