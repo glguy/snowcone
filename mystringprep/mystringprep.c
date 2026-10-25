@@ -11,8 +11,12 @@
 
 static int l_stringprep(lua_State* const L)
 {
-    char const* const str = luaL_checkstring(L, 1);
+    size_t len;
+    char const* const str = luaL_checklstring(L, 1, &len);
     char const* const profile = luaL_checkstring(L, 2);
+
+    // libidn takes a C string, so an embedded NUL would truncate the input
+    luaL_argcheck(L, strlen(str) == len, 1, "contains a NUL byte");
 
     char* output;
 

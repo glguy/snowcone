@@ -222,6 +222,15 @@ local function suite(tree)
         expect(msg == 'trace' and seen == 'trace', 'anonymous uses stringprep(trace)')
     end
 
+    -- SASLprep takes C strings; a NUL must fail rather than truncate.
+    -- SCRAM has no NUL check of its own, so this is its only guard.
+    if real_mystringprep then
+        expect(not pcall(real_mystringprep.stringprep, 'p\0q', 'SASLprep'), 'stringprep rejects NUL')
+        local ok = run({mechanism = 'SCRAM-SHA-256', username = 'u', password = 'p\0q'}, {})
+        expect(ok == false, 'SCRAM password with NUL rejected')
+        expect(#sent == 0, 'nothing sent when SCRAM startup fails')
+    end
+
     ------------------------------------------------------------------------
     -- ECDH key loading: PEM (decrypted with the password), store, raw base64
 
