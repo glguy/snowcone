@@ -125,9 +125,12 @@ auto get_nonempty_line(LineBuffer& buff) -> char*
 
 /// Connect, then read messages from the stream and invoke the Lua callback.
 ///
-/// A callback may close the connection. That is checked after every callback
-/// so no further events are delivered and the closed stream is never read.
-/// In that case the coroutine simply returns.
+/// Lua may close the connection at any time: from a callback, or from outside
+/// one (a timer, a key press, another connection's callback). A completion
+/// that was already queued when that happened still resumes this coroutine,
+/// so closed() is checked after every resumption as well as after every
+/// callback. No event is delivered after the close, and the closed stream is
+/// never read. In that case the coroutine simply returns.
 ///
 /// @param L The main Lua state (callbacks never run on a coroutine's state).
 /// @param irc_cb The Lua callback function reference.
@@ -145,6 +148,10 @@ auto run_session(
     // cb("CON", fingerprint)
     {
         auto const fingerprint = co_await irc->connect(std::move(settings));
+        if (irc->closed())
+        {
+            co_return;
+        }
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
         push_string(L, "CON"sv);
@@ -168,6 +175,10 @@ auto run_session(
         }
 
         buff.commit(co_await irc->get_stream().async_read_some(target, boost::asio::use_awaitable));
+        if (irc->closed())
+        {
+            co_return;
+        }
         for (auto line = get_nonempty_line(buff); nullptr != line; /* empty */)
         {
             auto const msg = parse_irc_message(line); // might throw
@@ -468,7 +479,9 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
  *
  * The returned handle has methods send(line) and close(). Each returns true,
  * or nil and "connection closed" once the connection has been closed, by
- * Lua or because the session ended.
+ * Lua or because the session ended. Dropping the handle doesn't end the
+ * session: it runs, delivering events, until the server closes it. A client
+ * may rely on this to send QUIT and let the server hang up.
  *
  * @param L Lua state
  * @return int 1: the connection handle

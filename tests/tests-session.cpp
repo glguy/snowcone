@@ -26,6 +26,8 @@ extern "C" {
 #include <iostream>
 #include <memory>
 #include <string>
+#include <thread>
+#include <vector>
 
 // ---- stand-ins for pieces that need ncurses / the real OpenSSL bindings
 
@@ -190,6 +192,98 @@ auto run(Scenario const& s) -> bool
     if (!ok && events != s.expected_events)
     {
         std::cout << "     expected [" << s.expected_events << "]\n";
+    }
+    return ok;
+}
+
+// F-001: a connection closed from outside its own callback, here from another
+// connection's MSG callback, must get no further events, even when its read
+// completion is already queued. The server writes to both connections in one
+// handler, so both reads complete in the same poll; whichever MSG callback
+// runs first closes both.
+auto close_with_completion_queued() -> bool
+{
+    App app{"unused", true};
+    auto& io = app.get_context();
+    auto const L = app.get_lua();
+
+    tcp::acceptor acceptor{io, {asio::ip::make_address("127.0.0.1"), 0}};
+    std::vector<Sock> socks;
+    asio::steady_timer delay{io};
+    std::function<void()> accept_next = [&] {
+        auto sock = std::make_shared<tcp::socket>(io);
+        acceptor.async_accept(*sock, [&, sock](boost::system::error_code ec) {
+            if (ec)
+            {
+                return;
+            }
+            socks.push_back(sock);
+            if (socks.size() < 2)
+            {
+                accept_next();
+                return;
+            }
+            // let both clients get CON and start reading first
+            delay.expires_after(std::chrono::milliseconds(200));
+            delay.async_wait([&](boost::system::error_code) {
+                for (auto const& s : socks)
+                {
+                    boost::system::error_code ignored;
+                    asio::write(*s, asio::buffer(std::string_view{"PING :x\r\n"}), ignored);
+                }
+                // loopback delivery isn't instant: give the kernel time to make
+                // both client sockets readable before the next poll, so both
+                // reads complete together
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            });
+        });
+    };
+    accept_next();
+
+    lua_pushcfunction(L, l_start_irc);
+    lua_setglobal(L, "connect");
+    lua_pushinteger(L, acceptor.local_endpoint().port());
+    lua_setglobal(L, "port");
+
+    auto const script = std::string{prelude} + R"lua(
+local conns = {}
+local function handler(ev, a)
+  if ev == 'MSG' then
+    log('MSG')
+    for _, c in ipairs(conns) do c:close() end
+  elseif ev == 'END' then log('END:' .. tostring(a))
+  end
+end
+conns[1] = connect('127.0.0.1', port, {}, handler)
+conns[2] = connect('127.0.0.1', port, {}, handler)
+)lua";
+    if (luaL_dostring(L, script.c_str()) != LUA_OK)
+    {
+        std::cerr << "close with completion queued: script error: " << lua_tostring(L, -1) << "\n";
+        return false;
+    }
+
+    io.run_for(std::chrono::seconds(15));
+    bool const timed_out = !io.stopped();
+
+    lua_getglobal(L, "events");
+    std::string events;
+    for (lua_Integer i = 1; lua_geti(L, -1, i) != LUA_TNIL; ++i)
+    {
+        if (i > 1)
+            events += ',';
+        events += lua_tostring(L, -1);
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 2);
+
+    auto const expected = "MSG,END:nil,END:nil";
+    bool const ok = !timed_out && events == expected;
+    std::cout << (ok ? "PASS " : "FAIL ") << "close with a read completion queued  events=[" << events << "]"
+              << (timed_out ? " (timed out)" : "") << "\n";
+    if (!ok)
+    {
+        std::cout << "     expected [" << expected << "]\n";
     }
     return ok;
 }
@@ -364,6 +458,8 @@ end)
         "CON,END,send:nil:connection closed",
         any,
     });
+
+    ok &= close_with_completion_queued();
 
     ok &= run({
         "valid layer table is accepted",
