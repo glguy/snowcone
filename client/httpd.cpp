@@ -12,6 +12,7 @@ extern "C" {
 }
 
 #include <boost/asio/dispatch.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
@@ -185,6 +186,7 @@ class Session : public std::enable_shared_from_this<Session>
     beast::flat_buffer buffer_;
     LuaRef cb_;
     std::optional<http::request_parser<http::string_body>> parser_;
+    bool closed_ = false; // set by close(); later completions return quietly
 
 public:
     Session(tcp::socket&& socket, LuaRef&& cb)
@@ -202,8 +204,24 @@ public:
         net::dispatch(stream_.get_executor(), beast::bind_front_handler(&Session::do_read, shared_from_this()));
     }
 
+    /// Abandon the connection, including any request or response in flight.
+    /// This never calls into Lua.
+    auto close() -> void
+    {
+        if (not closed_)
+        {
+            closed_ = true;
+            stream_.close();
+        }
+    }
+
     auto do_read() -> void
     {
+        if (closed_)
+        {
+            return;
+        }
+
         // A fresh parser for each request; limits are per parser
         parser_.emplace();
         parser_->body_limit(max_body_size);
@@ -216,10 +234,22 @@ public:
         std::size_t
     ) -> void
     {
+        if (closed_)
+        {
+            return;
+        }
+
         // This means they closed the connection
         if (ec == http::error::end_of_stream)
         {
             return do_close();
+        }
+
+        // An idle keep-alive connection timing out between requests is normal
+        // (proxies hold upstream connections open longer than 30 s)
+        if (ec == beast::error::timeout and not parser_->got_some() and buffer_.size() == 0)
+        {
+            return;
         }
 
         if (ec)
@@ -239,7 +269,13 @@ public:
             return;
         }
 
-        send_response(handle_request(cb_, parser_->get()));
+        auto msg = handle_request(cb_, parser_->get());
+
+        // The handler may have closed the listener, and with it this session
+        if (not closed_)
+        {
+            send_response(std::move(msg));
+        }
     }
 
     auto limit_response(http::status const status) const -> http::response<http::string_body>
@@ -257,7 +293,8 @@ public:
     {
         auto const keep_alive = msg.keep_alive();
 
-        // Write the response
+        // Write the response; a slow upload doesn't eat into the write's time
+        stream_.expires_after(30s);
         beast::async_write(
             stream_,
             std::move(msg),
@@ -273,6 +310,11 @@ public:
         std::size_t
     ) -> void
     {
+        if (closed_)
+        {
+            return;
+        }
+
         if (ec)
         {
             return fail(cb_, ec, "write");
@@ -297,13 +339,30 @@ public:
 
 //------------------------------------------------------------------------------
 
+/// How long to wait before accepting again after an accept error
+constexpr auto accept_retry_delay = 1s;
+
 // Accepts incoming connections and launches the sessions
 class Listener : public std::enable_shared_from_this<Listener>
 {
+    struct Acceptor
+    {
+        tcp::acceptor acceptor;
+        net::steady_timer retry; // backoff after an accept error
+
+        explicit Acceptor(net::strand<net::io_context::executor_type> const& executor)
+            : acceptor{executor}
+            , retry{executor}
+        {
+        }
+    };
+
     net::io_context& ioc_;
-    std::vector<tcp::acceptor> acceptors_;
+    std::vector<Acceptor> acceptors_;
+    std::vector<std::weak_ptr<Session>> sessions_; // closed along with the listener
     tcp::resolver resolver_;
     LuaRef const cb_;
+    bool closed_ = false; // set by close(); later completions return quietly
 
 public:
     Listener(
@@ -319,6 +378,12 @@ public:
 
     auto on_resolve(beast::error_code ec, tcp::resolver::results_type const results) -> void
     {
+        // A close() during the resolve must not bind
+        if (closed_)
+        {
+            return;
+        }
+
         if (ec)
         {
             fail(cb_, ec, "resolve");
@@ -331,7 +396,8 @@ public:
         for (auto&& result : results)
         {
             auto const endpoint = result.endpoint();
-            auto& acceptor = acceptors_.emplace_back(net::make_strand(ioc_));
+            auto& entry = acceptors_.emplace_back(net::make_strand(ioc_));
+            auto& acceptor = entry.acceptor;
             acceptor.open(endpoint.protocol(), ec);
             if (ec)
             {
@@ -360,7 +426,7 @@ public:
                 return;
             }
 
-            do_accept(acceptor);
+            do_accept(entry);
         }
     }
 
@@ -372,35 +438,84 @@ public:
         );
     }
 
+    /// Stop listening and drop every open connection. Idempotent, and never
+    /// calls into Lua, so it is safe from a handler and from __gc.
     auto close() -> void
     {
-        for (auto& acceptor : acceptors_)
+        if (closed_)
+        {
+            return;
+        }
+        closed_ = true;
+
+        resolver_.cancel();
+
+        for (auto& entry : acceptors_)
         {
             beast::error_code ec;
-            acceptor.close(ec);
+            entry.acceptor.close(ec);
+            entry.retry.cancel();
         }
+
+        for (auto const& weak : sessions_)
+        {
+            if (auto const session = weak.lock())
+            {
+                session->close();
+            }
+        }
+        sessions_.clear();
     }
 
 private:
-    auto do_accept(tcp::acceptor& acceptor) -> void
+    auto do_accept(Acceptor& entry) -> void
     {
         // The new connection gets its own strand
-        acceptor.async_accept(
+        entry.acceptor.async_accept(
             net::make_strand(ioc_),
-            beast::bind_front_handler(&Listener::on_accept, shared_from_this(), std::ref(acceptor))
+            beast::bind_front_handler(&Listener::on_accept, shared_from_this(), std::ref(entry))
         );
     }
 
-    auto on_accept(tcp::acceptor& acceptor, beast::error_code const ec, tcp::socket socket) -> void
+    auto on_accept(Acceptor& entry, beast::error_code const ec, tcp::socket socket) -> void
     {
-        if (ec)
+        if (closed_)
         {
-            fail(cb_, ec, "accept");
             return;
         }
 
-        std::make_shared<Session>(std::move(socket), LuaRef{cb_})->run();
-        do_accept(acceptor);
+        if (ec)
+        {
+            fail(cb_, ec, "accept");
+
+            // The peer gave up before the accept finished: nothing is wrong here
+            if (ec == net::error::connection_aborted)
+            {
+                return do_accept(entry);
+            }
+
+            // Anything else (typically running out of descriptors) is retried
+            // after a pause so a persistent error can't spin
+            entry.retry.expires_after(accept_retry_delay);
+            entry.retry.async_wait(
+                beast::bind_front_handler(&Listener::on_retry, shared_from_this(), std::ref(entry))
+            );
+            return;
+        }
+
+        std::erase_if(sessions_, [](auto const& weak) { return weak.expired(); });
+        auto const session = std::make_shared<Session>(std::move(socket), LuaRef{cb_});
+        sessions_.push_back(session);
+        session->run();
+        do_accept(entry);
+    }
+
+    auto on_retry(Acceptor& entry, beast::error_code const ec) -> void
+    {
+        if (not closed_ and not ec)
+        {
+            do_accept(entry);
+        }
     }
 };
 
@@ -413,7 +528,10 @@ auto l_listener_close(lua_State* const L) -> int
 
 auto l_listener_gc(lua_State* const L) -> int
 {
-    std::destroy_at(check_udata<std::shared_ptr<Listener>>(L, 1));
+    // Unreachable from Lua means nothing could close it later
+    auto const l = check_udata<std::shared_ptr<Listener>>(L, 1);
+    (*l)->close();
+    std::destroy_at(l);
     return 0;
 }
 
