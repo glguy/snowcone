@@ -16,232 +16,22 @@ extern "C" {
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/version.hpp>
-#include <boost/beast/websocket.hpp>
 #include <boost/config.hpp>
 
-#include <algorithm>
-#include <cstdlib>
-#include <functional>
-#include <iostream>
-#include <queue>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
-#include <thread>
 #include <vector>
 
 
 namespace beast = boost::beast; // from <boost/beast.hpp>
 namespace http = beast::http; // from <boost/beast/http.hpp>
 namespace net = boost::asio; // from <boost/asio.hpp>
-namespace websocket = beast::websocket;
 using tcp = net::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 using namespace std::literals;
 
 namespace {
-
-class Websocket : public std::enable_shared_from_this<Websocket>
-{
-    // Note that this class uses a shared_ptr because the stream
-    // destructor for stream specifically must not run while
-    // asynchronous operations are in flight.
-
-    websocket::stream<beast::tcp_stream> ws_;
-    std::queue<std::string> messages_; // outgoing messages
-    beast::flat_buffer buffer_; // incoming message
-    std::optional<LuaRef> cb_; // on_recv callback
-    bool closed;
-
-public:
-    Websocket(beast::tcp_stream&& stream)
-        : ws_{std::move(stream)}
-        , cb_{}
-        , closed{false}
-    {
-        ws_.set_option(websocket::stream_base::timeout::suggested(beast::role_type::server));
-    }
-
-    auto set_callback(LuaRef&& ref) -> void
-    {
-        cb_.emplace(std::move(ref));
-    }
-
-    auto close() -> void
-    {
-        if (not closed)
-        {
-            closed = true;
-            if (messages_.empty())
-            {
-                start_close();
-            }
-        }
-    }
-
-    auto send(std::string str) -> void
-    {
-        if (not closed)
-        {
-            messages_.push(std::move(str));
-            if (1 == messages_.size())
-            {
-                start_write();
-            }
-        }
-    }
-
-    template <typename Body, typename Allocator>
-    auto run(http::request<Body, http::basic_fields<Allocator>> const& req) -> void
-    {
-        ws_.async_accept(req, beast::bind_front_handler(&Websocket::on_accept, shared_from_this()));
-    }
-
-private:
-    auto on_accept(beast::error_code const ec) -> void
-    {
-        if (!ec) {
-            start_read();
-            if (not messages_.empty())
-            {
-                start_write();
-            }
-        }
-    }
-
-    auto start_write() -> void
-    {
-        ws_.async_write(
-            net::buffer(messages_.front()),
-            beast::bind_front_handler(&Websocket::on_write, shared_from_this())
-        );
-    }
-
-    auto on_write(beast::error_code const ec, std::size_t) -> void
-    {
-        if (ec)
-        {
-            closed = true;
-            messages_ = {};
-        }
-        else
-        {
-            messages_.pop();
-            if (not messages_.empty())
-            {
-                start_write();
-            }
-            else if (closed)
-            {
-                start_close();
-            }
-        }
-    }
-
-    auto start_read() -> void
-    {
-        buffer_.clear();
-        ws_.async_read(
-            buffer_,
-            beast::bind_front_handler(&Websocket::on_read, shared_from_this())
-        );
-    }
-
-    auto on_read(beast::error_code const ec, std::size_t const) -> void
-    {
-        if (ec)
-        {
-            if (cb_)
-            {
-                auto const L = cb_->get_lua();
-                cb_->push();
-                luaL_pushfail(L);
-                push_string(L, ec.what());
-                safecall(L, "wsreaderr", 2);
-            }
-        }
-        else
-        {
-            if (cb_)
-            {
-                auto const L = cb_->get_lua();
-                cb_->push();
-                auto const buf = buffer_.data();
-                lua_pushlstring(L, static_cast<char*>(buf.data()), buf.size());
-                safecall(L, "wsread", 1);
-            }
-            start_read();
-        }
-    }
-
-    auto start_close() -> void
-    {
-        ws_.async_close(
-            websocket::close_code::normal,
-            beast::bind_front_handler(&Websocket::on_close, shared_from_this())
-        );
-    }
-
-    auto on_close(beast::error_code) -> void
-    {
-    }
-};
-
-luaL_Reg const WsMT[]{
-    {"__gc", [](auto const L) {
-         std::destroy_at(check_udata<std::shared_ptr<Websocket>>(L, 1));
-         return 0;
-     }},
-    {}
-};
-
-luaL_Reg const WsM[]{
-    {"send", [](auto const L) {
-         auto& w = *check_udata<std::shared_ptr<Websocket>>(L, 1);
-         auto const s = check_string_view(L, 2);
-         w->send(std::string{s});
-         return 0;
-     }},
-    {"close", [](auto const L) {
-         auto& w = *check_udata<std::shared_ptr<Websocket>>(L, 1);
-         w->close();
-         return 0;
-     }},
-    {"on_recv", [](auto const L) {
-         auto& w = *check_udata<std::shared_ptr<Websocket>>(L, 1);
-         lua_settop(L, 2);
-         w->set_callback(LuaRef::create(L));
-         return 0;
-     }},
-    {}
-};
-
-template <class Body, class Allocator>
-auto handle_websocket(
-    LuaRef const& cb,
-    beast::tcp_stream&& stream,
-    http::request<Body, http::basic_fields<Allocator>> const& req
-) -> void
-{
-    stream.expires_never();
-
-    auto const L = cb.get_lua();
-    cb.push();
-    lua_pushstring(L, "WS");
-    push_string(L, req.target());
-    auto& obj = *new_udata<std::shared_ptr<Websocket>>(L, 0, [L] {
-        luaL_setfuncs(L, WsMT, 0);
-        luaL_newlibtable(L, WsM);
-        luaL_setfuncs(L, WsM, 0);
-        lua_setfield(L, -2, "__index");
-    });
-    std::construct_at(
-        &obj,
-        std::make_shared<Websocket>(std::move(stream))
-    );
-    obj->run(req);
-
-    safecall(L, "ws", 3);
-}
 
 // Report an error to the Lua callback as: cb(nil, what, message)
 auto report(LuaRef const& cb, char const* const what, std::string_view const message) -> void
@@ -386,12 +176,15 @@ void fail(LuaRef const& cb, beast::error_code const ec, char const* const what)
     report(cb, what, ec.message());
 }
 
+/// GitHub caps webhook payloads at 25 MB; Beast's default limit is 1 MiB.
+constexpr std::uint64_t max_body_size = 25 * 1024 * 1024;
+
 class Session : public std::enable_shared_from_this<Session>
 {
     beast::tcp_stream stream_;
     beast::flat_buffer buffer_;
     LuaRef cb_;
-    http::request<http::string_body> req_;
+    std::optional<http::request_parser<http::string_body>> parser_;
 
 public:
     Session(tcp::socket&& socket, LuaRef&& cb)
@@ -411,9 +204,11 @@ public:
 
     auto do_read() -> void
     {
-        req_.clear();
+        // A fresh parser for each request; limits are per parser
+        parser_.emplace();
+        parser_->body_limit(max_body_size);
         stream_.expires_after(30s);
-        http::async_read(stream_, buffer_, req_, beast::bind_front_handler(&Session::on_read, shared_from_this()));
+        http::async_read(stream_, buffer_, *parser_, beast::bind_front_handler(&Session::on_read, shared_from_this()));
     }
 
     auto on_read(
@@ -429,17 +224,33 @@ public:
 
         if (ec)
         {
-            return fail(cb_, ec, "read");
+            fail(cb_, ec, "read");
+
+            // Tell the client why. The rest of the request is unread, so the
+            // connection can't be reused.
+            if (ec == http::error::body_limit)
+            {
+                send_response(limit_response(http::status::payload_too_large));
+            }
+            else if (ec == http::error::header_limit)
+            {
+                send_response(limit_response(http::status::request_header_fields_too_large));
+            }
+            return;
         }
 
-        if (websocket::is_upgrade(req_))
-        {
-            handle_websocket(std::move(cb_), std::move(stream_), std::move(req_));
-        }
-        else
-        {
-            send_response(handle_request(cb_, req_));
-        }
+        send_response(handle_request(cb_, parser_->get()));
+    }
+
+    auto limit_response(http::status const status) const -> http::response<http::string_body>
+    {
+        http::response<http::string_body> res{status, parser_->get().version()};
+        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+        res.set(http::field::content_type, "text/plain");
+        res.keep_alive(false);
+        res.body() = http::obsolete_reason(status);
+        res.prepare_payload();
+        return res;
     }
 
     auto send_response(http::message_generator&& msg) -> void
@@ -616,9 +427,6 @@ luaL_Reg const MT[]{
 };
 
 } // namespace
-
-template <>
-char const* udata_name<std::shared_ptr<Websocket>> = "websocket";
 
 template <>
 char const* udata_name<std::shared_ptr<Listener>> = "listener";
