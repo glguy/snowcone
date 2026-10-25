@@ -17,9 +17,15 @@ extern "C" {
 
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace {
+
+/// More than any operating system will accept as an argument list; this only
+/// keeps a bogus length (for example from a __len metamethod) from turning
+/// into an enormous allocation or loop.
+constexpr lua_Integer max_arguments = 65'536;
 
 /// @brief Signature for the process execution completion handler.
 /// @param error Error code indicating process or I/O failure (if any).
@@ -42,7 +48,7 @@ struct Exec
     /// Count number of outstanding async operations.
     int stage_;
 
-    int exit_code_;
+    int exit_code_ = -1;
     std::string stdin_text_;
     std::string stdout_text_;
     std::string stderr_text_;
@@ -169,7 +175,12 @@ auto l_execute1(lua_State* L) -> int
     auto const file = check_string_view(L, 1);
 
     // 2. array of command arguments
-    auto const n = luaL_len(L, 2);
+    luaL_checktype(L, 2, LUA_TTABLE);
+    auto const n = luaL_len(L, 2); // might call a __len metamethod
+    if (n < 0 || n > max_arguments)
+    {
+        return luaL_error(L, "execute: bad argument count");
+    }
     
     // 3. completion handler
     luaL_checkany(L, 3);
