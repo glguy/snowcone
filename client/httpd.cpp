@@ -1,6 +1,7 @@
 #include "httpd.hpp"
 #include "LuaRef.hpp"
 #include "app.hpp"
+#include "boundary.hpp"
 #include "safecall.hpp"
 #include "strings.hpp"
 #include "userdata.hpp"
@@ -242,28 +243,47 @@ auto handle_websocket(
     safecall(L, "ws", 3);
 }
 
-// Return a response for the given request.
-//
-// The concrete type of the response message (which depends on the
-// request), is type-erased in message_generator.
+// Report an error to the Lua callback as: cb(nil, what, message)
+auto report(LuaRef const& cb, char const* const what, std::string_view const message) -> void
+{
+    auto const L = cb.get_lua();
+    cb.push();
+    luaL_pushfail(L);
+    lua_pushstring(L, what);
+    push_string(L, message);
+    safecall(L, "httpd error", 3);
+}
+
+// Header text from Lua can't contain characters that would split the response
+auto valid_header_text(std::string_view const text) -> bool
+{
+    return text.find_first_of("\r\n\0"sv) == std::string_view::npos;
+}
+
+// Returns a server error response
 template <class Body, class Allocator>
-auto handle_request(
+auto server_error(
+    http::request<Body, http::basic_fields<Allocator>> const& req,
+    std::string_view const what
+) -> http::response<http::string_body>
+{
+    http::response<http::string_body> res{http::status::internal_server_error, req.version()};
+    res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+    res.set(http::field::content_type, "text/plain");
+    res.keep_alive(req.keep_alive());
+    res.body() = what;
+    res.prepare_payload();
+    return res;
+}
+
+// Call the Lua handler and build a response from its results. This can throw
+// while building the response, leaving values on the Lua stack.
+template <class Body, class Allocator>
+auto build_response(
     LuaRef const& cb,
-    http::request<Body, http::basic_fields<Allocator>>&& req
+    http::request<Body, http::basic_fields<Allocator>> const& req
 ) -> http::message_generator
 {
-    // Returns a server error response
-    auto const server_error =
-        [&req](std::string_view what) {
-            http::response<http::string_body> res{http::status::internal_server_error, req.version()};
-            res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-            res.set(http::field::content_type, "text/plain");
-            res.keep_alive(req.keep_alive());
-            res.body() = what;
-            res.prepare_payload();
-            return res;
-        };
-
     auto const L = cb.get_lua();
     cb.push();
     push_string(L, req.method_string());
@@ -279,16 +299,19 @@ auto handle_request(
 
     if (LUA_OK != lua_pcall(L, 4, 3, 0))
     {
-        std::string const err = lua_tostring(L, -1);
+        // Report the error locally; don't send internals to the client
+        auto const err = lua_tostring(L, -1);
+        std::string const message = err ? err : "error object is not a string";
         lua_pop(L, 1);
-        return server_error(err);
+        report(cb, "handler", message);
+        return server_error(req, "internal server error"sv);
     }
 
     auto const code = lua_tointeger(L, -3);
     if (code == 0)
     {
         lua_pop(L, 3);
-        return server_error("internal server error"sv);
+        return server_error(req, "internal server error"sv);
     }
 
     http::response<http::string_body> res{http::int_to_status(code), req.version()};
@@ -311,15 +334,19 @@ auto handle_request(
     {
         lua_pushnil(L);
         while (0 != lua_next(L, -2)) {
-            auto const key = luaL_tolstring(L, -2, nullptr);
-            auto const val = lua_tostring(L, -2);
-            if (key == nullptr || val == nullptr)
+            // A string key is never converted in place, which would break lua_next
+            std::size_t key_len, val_len;
+            auto const key = lua_type(L, -2) == LUA_TSTRING ? lua_tolstring(L, -2, &key_len) : nullptr;
+            auto const val = lua_isstring(L, -1) ? lua_tolstring(L, -1, &val_len) : nullptr;
+            if (key == nullptr || val == nullptr
+                || not valid_header_text({key, key_len})
+                || not valid_header_text({val, val_len}))
             {
-                lua_pop(L, 6);
-                return server_error("internal server error");
+                lua_pop(L, 5); // value, key, and the 3 handler results
+                return server_error(req, "internal server error"sv);
             }
-            res.set(key, val);
-            lua_pop(L, 2); // remove value and key-copy
+            res.set(std::string_view{key, key_len}, std::string_view{val, val_len});
+            lua_pop(L, 1); // remove value
         }
     }
 
@@ -328,16 +355,35 @@ auto handle_request(
     return res;
 }
 
+// Return a response for the given request.
+//
+// The concrete type of the response message (which depends on the
+// request), is type-erased in message_generator.
+template <class Body, class Allocator>
+auto handle_request(
+    LuaRef const& cb,
+    http::request<Body, http::basic_fields<Allocator>> const& req
+) -> http::message_generator
+{
+    auto const L = cb.get_lua();
+    auto const top = lua_gettop(L);
+    try
+    {
+        return build_response(cb, req);
+    }
+    catch (std::exception const& e)
+    {
+        lua_settop(L, top);
+        report(cb, "response", e.what());
+        return server_error(req, "internal server error"sv);
+    }
+}
+
 //------------------------------------------------------------------------------
 
 void fail(LuaRef const& cb, beast::error_code const ec, char const* const what)
 {
-    auto const L = cb.get_lua();
-    cb.push();
-    luaL_pushfail(L);
-    lua_pushstring(L, what);
-    push_string(L, ec.message());
-    safecall(L, "httpd error", 3);
+    report(cb, what, ec.message());
 }
 
 class Session : public std::enable_shared_from_this<Session>
@@ -392,7 +438,7 @@ public:
         }
         else
         {
-            send_response(handle_request(cb_, std::move(req_)));
+            send_response(handle_request(cb_, req_));
         }
     }
 
@@ -547,19 +593,25 @@ private:
     }
 };
 
+auto l_listener_close(lua_State* const L) -> int
+{
+    auto& l = *check_udata<std::shared_ptr<Listener>>(L, 1);
+    l->close();
+    return 0;
+}
+
+auto l_listener_gc(lua_State* const L) -> int
+{
+    std::destroy_at(check_udata<std::shared_ptr<Listener>>(L, 1));
+    return 0;
+}
+
 luaL_Reg const M[]{
-    {"close", [](auto const L) {
-         auto& l = *check_udata<std::shared_ptr<Listener>>(L, 1);
-         l->close();
-         return 0;
-     }},
+    {"close", boundary<l_listener_close>},
     {}
 };
 luaL_Reg const MT[]{
-    {"__gc", [](auto const L) {
-         std::destroy_at(check_udata<std::shared_ptr<Listener>>(L, 1));
-         return 0;
-     }},
+    {"__gc", boundary<l_listener_gc>},
     {}
 };
 

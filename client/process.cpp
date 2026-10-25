@@ -1,6 +1,7 @@
 #include "process.hpp"
 
 #include "app.hpp"
+#include "boundary.hpp"
 #include "safecall.hpp"
 #include "strings.hpp"
 
@@ -235,7 +236,7 @@ auto l_execute(lua_State* L) -> int
     { // ensure args goes out of scope before lua_error
         std::vector<std::string> args;
         lua_pushlightuserdata(L, &args);
-        lua_pushcclosure(L, l_execute1, 1);
+        lua_pushcclosure(L, boundary<l_execute1>, 1);
         lua_rotate(L, 1, 1);
         
         if (LUA_OK == lua_pcall(L, 4, 0, 0)) 

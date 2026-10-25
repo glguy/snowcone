@@ -1,5 +1,6 @@
 #include "lua.hpp"
 #include "../app.hpp"
+#include "../boundary.hpp"
 #include "../net/connection.hpp"
 #include "../net/linebuffer.hpp"
 #include "../safecall.hpp"
@@ -78,15 +79,15 @@ auto pushirc(lua_State* const L, std::weak_ptr<connection> const irc) -> void
         };
 
         luaL_Reg const MT[]{
-            {"__gc", l_gc},
+            {"__gc", boundary<l_gc>},
             {},
         };
         luaL_setfuncs(L, MT, 0);
 
         // Setup class methods for IRC objects
         luaL_Reg const Methods[]{
-            {"send", l_send_irc},
-            {"close", l_close_irc},
+            {"send", boundary<l_send_irc>},
+            {"close", boundary<l_close_irc>},
             {}
         };
         luaL_newlibtable(L, Methods);
@@ -225,6 +226,15 @@ auto session_thread(
     }
 }
 
+/// Push t[k] without invoking metamethods (no Lua code can run, so nothing
+/// can raise or change the table between validation and use). `t` must be an
+/// absolute stack index.
+auto raw_field(lua_State* const L, int const t, char const* const k) -> int
+{
+    lua_pushstring(L, k);
+    return lua_rawget(L, t);
+}
+
 /// Raise a Lua error unless the value at the top of the stack is a string
 /// (or nil/absent when `required` is false). Pops the value.
 auto check_layer_string(lua_State* const L, lua_Integer const n, char const* const field, bool const required) -> void
@@ -266,56 +276,55 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
     {
         auto const n = static_cast<int>(i);
 
-        if (lua_geti(L, layers, i) != LUA_TTABLE)
+        if (lua_rawgeti(L, layers, i) != LUA_TTABLE)
         {
             luaL_error(L, "layer %d: must be a table", n);
         }
         auto const layer = lua_gettop(L);
 
-        lua_getfield(L, layer, "type");
-        if (lua_type(L, -1) != LUA_TSTRING)
+        // The type string stays on the stack so the view into it stays valid
+        if (raw_field(L, layer, "type") != LUA_TSTRING)
         {
             luaL_error(L, "layer %d: missing or non-string 'type'", n);
         }
         auto const type = std::string_view{lua_tostring(L, -1)};
-        lua_pop(L, 1);
 
         if (type == "tls"sv)
         {
-            lua_getfield(L, layer, "client_cert");
+            raw_field(L, layer, "client_cert");
             luaL_opt(L, myopenssl::check_x509, -1, nullptr);
             lua_pop(L, 1);
 
-            lua_getfield(L, layer, "client_key");
+            raw_field(L, layer, "client_key");
             luaL_opt(L, myopenssl::check_pkey, -1, nullptr);
             lua_pop(L, 1);
 
-            lua_getfield(L, layer, "verify");
+            raw_field(L, layer, "verify");
             check_layer_string(L, i, "verify", false);
 
-            lua_getfield(L, layer, "sni");
+            raw_field(L, layer, "sni");
             check_layer_string(L, i, "sni", false);
         }
         else if (type == "socks"sv || type == "http"sv)
         {
-            lua_getfield(L, layer, "host");
+            raw_field(L, layer, "host");
             check_layer_string(L, i, "host", true);
 
-            lua_getfield(L, layer, "port");
+            raw_field(L, layer, "port");
             check_layer_port(L, i);
 
-            lua_getfield(L, layer, "username");
+            raw_field(L, layer, "username");
             check_layer_string(L, i, "username", false);
 
-            lua_getfield(L, layer, "password");
+            raw_field(L, layer, "password");
             check_layer_string(L, i, "password", false);
         }
         else
         {
-            luaL_error(L, "layer %d: unknown type '%s'", n, std::string{type}.c_str());
+            luaL_error(L, "layer %d: unknown type '%s'", n, lua_tostring(L, layer + 1));
         }
 
-        lua_pop(L, 1); // layer table
+        lua_pop(L, 2); // layer type, layer table
     }
 }
 
@@ -362,7 +371,9 @@ auto l_start_irc(lua_State* const L) -> int
     luaL_checkany(L, 4); // callback
     lua_settop(L, 4);
 
-    validate_layers(L, 3, luaL_len(L, 3));
+    // Raw length: a __len metamethod could change its answer between passes
+    auto const layers_n = static_cast<lua_Integer>(lua_rawlen(L, 3));
+    validate_layers(L, 3, layers_n);
 
     std::variant<IpLayer, LocalLayer> base;
 
@@ -380,35 +391,34 @@ auto l_start_irc(lua_State* const L) -> int
         };
     }
 
-    auto const layers_n = luaL_len(L, 3);
     std::vector<AnyLayer> layers;
     layers.reserve(layers_n);
 
     for (lua_Integer i{0}; i < layers_n; ++i)
     {
-        lua_geti(L, 3, i + 1); // 5 - layer table
-        lua_getfield(L, 5, "type"); // 6 - layer type
+        lua_rawgeti(L, 3, i + 1); // 5 - layer table
+        raw_field(L, 5, "type"); // 6 - layer type
         char const* layer_type = lua_tostring(L, 6);
         if (layer_type == "tls"sv)
         {
 
             TlsLayer layer;
 
-            lua_getfield(L, 5, "client_cert"); // 7
+            raw_field(L, 5, "client_cert"); // 7
             layer.client_cert = luaL_opt(L, myopenssl::check_x509, 7, nullptr);
             lua_pop(L, 1);
 
-            lua_getfield(L, 5, "client_key"); // 7
+            raw_field(L, 5, "client_key"); // 7
             layer.client_key = luaL_opt(L, myopenssl::check_pkey, 7, nullptr);
             lua_pop(L, 1);
 
-            lua_getfield(L, 5, "verify"); // 7
+            raw_field(L, 5, "verify"); // 7
             if (auto * verify = luaL_opt(L, lua_tostring, 7, nullptr)) {
                 layer.verify = verify;
             }
             lua_pop(L, 1);
 
-            lua_getfield(L, 5, "sni"); // 7
+            raw_field(L, 5, "sni"); // 7
             if (auto * sni = luaL_opt(L, lua_tostring, 7, nullptr)) {
                 layer.sni = sni;
             }
@@ -420,16 +430,16 @@ auto l_start_irc(lua_State* const L) -> int
         {
             SocksLayer layer;
 
-            lua_getfield(L, 5, "host"); // 7
+            raw_field(L, 5, "host"); // 7
             layer.host = luaL_opt(L, lua_tostring, 7, "");
             lua_pop(L, 1);
 
-            lua_getfield(L, 5, "port"); // 7
+            raw_field(L, 5, "port"); // 7
             layer.port = lua_tointeger(L, 7);
             lua_pop(L, 1);
 
-            lua_getfield(L, 5, "username"); // 7
-            lua_getfield(L, 5, "password"); // 8
+            raw_field(L, 5, "username"); // 7
+            raw_field(L, 5, "password"); // 8
             char const* username = lua_tostring(L, 7);
             char const* password = lua_tostring(L, 8);
 
@@ -453,16 +463,16 @@ auto l_start_irc(lua_State* const L) -> int
         {
             HttpLayer layer;
 
-            lua_getfield(L, 5, "host"); // 7
+            raw_field(L, 5, "host"); // 7
             layer.host = luaL_opt(L, lua_tostring, 7, "");
             lua_pop(L, 1);
 
-            lua_getfield(L, 5, "port"); // 7
+            raw_field(L, 5, "port"); // 7
             layer.port = lua_tointeger(L, 7);
             lua_pop(L, 1);
 
-            lua_getfield(L, 5, "username"); // 7
-            lua_getfield(L, 5, "password"); // 8
+            raw_field(L, 5, "username"); // 7
+            raw_field(L, 5, "password"); // 8
             char const* username = lua_tostring(L, 7);
             char const* password = lua_tostring(L, 8);
 

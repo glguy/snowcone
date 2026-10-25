@@ -1,6 +1,7 @@
 #include "applib.hpp"
 
 #include "app.hpp"
+#include "boundary.hpp"
 #include "config.hpp"
 #include "dnslookup.hpp"
 #include "httpd.hpp"
@@ -343,22 +344,22 @@ auto l_stop_input(lua_State* const L) -> int
 }
 
 luaL_Reg const applib_module[] = {
-    {"connect", l_start_irc},
-    {"dnslookup", l_dnslookup},
-    {"irccase", l_irccase},
-    {"isalnum", l_isalnum},
-    {"newtimer", l_new_timer},
-    {"parse_irc_tags", l_parse_irc_tags},
-    {"parse_irc", l_parse_irc},
-    {"pton", l_pton},
-    {"raise", l_raise},
-    {"setmodule", l_setmodule},
-    {"shutdown", l_shutdown},
-    {"time", l_time},
-    {"execute", l_execute},
-    {"stop_input", l_stop_input},
-    {"start_input", l_start_input},
-    {"start_httpd", start_httpd},
+    {"connect", boundary<l_start_irc>},
+    {"dnslookup", boundary<l_dnslookup>},
+    {"irccase", boundary<l_irccase>},
+    {"isalnum", boundary<l_isalnum>},
+    {"newtimer", boundary<l_new_timer>},
+    {"parse_irc_tags", boundary<l_parse_irc_tags>},
+    {"parse_irc", boundary<l_parse_irc>},
+    {"pton", boundary<l_pton>},
+    {"raise", boundary<l_raise>},
+    {"setmodule", boundary<l_setmodule>},
+    {"shutdown", boundary<l_shutdown>},
+    {"time", boundary<l_time>},
+    {"execute", boundary<l_execute>},
+    {"stop_input", boundary<l_stop_input>},
+    {"start_input", boundary<l_start_input>},
+    {"start_httpd", boundary<start_httpd>},
     {}
 };
 
@@ -452,7 +453,7 @@ auto prepare_globals(lua_State* const L, int const argc, char const* const* cons
     lua_setglobal(L, "snowcone");
 
     /* Overwrite the lualib print with the custom one */
-    lua_pushcfunction(L, l_print);
+    lua_pushcfunction(L, boundary<l_print>);
     lua_setglobal(L, "print");
 
     /* populate arg */

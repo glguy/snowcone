@@ -1,6 +1,7 @@
 #include "timer.hpp"
 
 #include "app.hpp"
+#include "boundary.hpp"
 #include "safecall.hpp"
 #include "userdata.hpp"
 
@@ -35,54 +36,58 @@ auto l_gc(lua_State* const L) -> int
     return 0;
 }
 
+/// @param self
+/// @param delay milliseconds
+/// @param callback
+auto l_start(lua_State* const L) -> int
+{
+    auto const timer = check_udata<Timer>(L, 1);
+    auto const start = luaL_checkinteger(L, 2);
+    luaL_checkany(L, 3);
+    lua_settop(L, 3);
+
+    // store the callback function
+    lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
+
+    auto const app = App::from_lua(L);
+
+    // Clamp so the conversion to the clock's resolution can't overflow
+    auto const delay = std::clamp<lua_Integer>(start, 0, max_delay_ms);
+    timer->expires_after(std::chrono::milliseconds{delay});
+    timer->async_wait([L = app->get_lua(), timer](auto const error) {
+        if (not error) {
+            // get the callback
+            lua_rawgetp(L, LUA_REGISTRYINDEX, timer);
+            // forget the callback
+            lua_pushnil(L);
+            lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
+            // invoke the callback
+            safecall(L, "timer", 0);
+        } });
+
+    return 0;
+}
+
+auto l_cancel(lua_State* const L) -> int
+{
+    auto const timer = check_udata<Timer>(L, 1);
+    timer->cancel();
+
+    // forget the current callback.
+    lua_pushnil(L);
+    lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
+
+    return 0;
+}
+
 luaL_Reg const MT[]{
-    {"__gc", l_gc},
+    {"__gc", boundary<l_gc>},
     {}
 };
 
 luaL_Reg const Methods[]{
-    /// @param self
-    /// @param delay milliseconds
-    /// @param callback
-    {"start", [](auto const L) {
-         auto const timer = check_udata<Timer>(L, 1);
-         auto const start = luaL_checkinteger(L, 2);
-         luaL_checkany(L, 3);
-         lua_settop(L, 3);
-
-         // store the callback function
-         lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
-
-         auto const app = App::from_lua(L);
-
-         // Clamp so the conversion to the clock's resolution can't overflow
-         auto const delay = std::clamp<lua_Integer>(start, 0, max_delay_ms);
-         timer->expires_after(std::chrono::milliseconds{delay});
-         timer->async_wait([L = app->get_lua(), timer](auto const error) {
-            if (not error) {
-                // get the callback
-                lua_rawgetp(L, LUA_REGISTRYINDEX, timer);
-                // forget the callback
-                lua_pushnil(L);
-                lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
-                // invoke the callback
-                safecall(L, "timer", 0);
-            } });
-
-         return 0;
-     }},
-
-    {"cancel", [](auto const L) {
-         auto const timer = check_udata<Timer>(L, 1);
-         timer->cancel();
-
-         // forget the current callback.
-         lua_pushnil(L);
-         lua_rawsetp(L, LUA_REGISTRYINDEX, timer);
-
-         return 0;
-     }},
-
+    {"start", boundary<l_start>},
+    {"cancel", boundary<l_cancel>},
     {}
 };
 
