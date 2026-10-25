@@ -155,18 +155,12 @@ struct ConnectContext
     /// Aborts the TCP connection attempts when the connection is closed
     happy_eyeballs::CancellationSource& close_cancellation;
 
-    /// The hostname that the most recent layer connected to. This is the
-    /// default for TLS verification and SNI, and can be overridden by the
-    /// TLS layer configuration.
-    std::string& last_hostname;
-
     /// Fingerprint string builder
     std::ostream& os;
 };
 
 auto connect_layer(ConnectContext& ctx, IpLayer& layer) -> boost::asio::awaitable<void>
 {
-    ctx.last_hostname = layer.host;
     auto& socket = ctx.stream.reset_ip();
     auto const endpoint = co_await happy_eyeballs::async_connect(
         socket,
@@ -184,7 +178,6 @@ auto connect_layer(ConnectContext& ctx, IpLayer& layer) -> boost::asio::awaitabl
 
 auto connect_layer(ConnectContext& ctx, LocalLayer& layer) -> boost::asio::awaitable<void>
 {
-    // last_hostname stays empty - verification against a socket path doesn't make sense
     auto& socket = ctx.stream.reset_local();
 
     // Open close-on-exec so the descriptor can't leak into spawned processes
@@ -204,7 +197,6 @@ auto connect_layer(ConnectContext& ctx, LocalLayer& layer) -> boost::asio::await
 auto connect_layer(ConnectContext& ctx, TlsLayer& tls_layer) -> boost::asio::awaitable<void>
 {
     auto& stream = ctx.stream;
-    auto& last_hostname = ctx.last_hostname;
     auto& os = ctx.os;
 
     boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
@@ -249,15 +241,14 @@ auto connect_layer(ConnectContext& ctx, TlsLayer& tls_layer) -> boost::asio::awa
     }
 
     // Configure server certificate verification
-    std::string const& verify = tls_layer.verify.value_or(last_hostname);
-    if (not verify.empty())
+    if (not tls_layer.verify.empty())
     {
         tls.set_verify_mode(boost::asio::ssl::verify_peer);
-        tls.set_verify_callback(boost::asio::ssl::host_name_verification(tls_names::verification(verify)));
+        tls.set_verify_callback(boost::asio::ssl::host_name_verification(tls_names::verification(tls_layer.verify)));
     }
 
     // Set the SNI hostname, if specified
-    if (auto const sni = tls_names::server_name(tls_layer.sni.value_or(last_hostname)))
+    if (auto const sni = tls_names::server_name(tls_layer.sni))
     {
         if (1 != SSL_set_tlsext_host_name(tls.native_handle(), sni->c_str()))
         {
@@ -293,7 +284,6 @@ auto socks_host(std::string const& host) -> socks5::Host
 
 auto connect_layer(ConnectContext& ctx, SocksLayer& socks_layer) -> boost::asio::awaitable<void>
 {
-    ctx.last_hostname = socks_layer.host;
     ctx.os << " socks="
        << co_await socks5::async_connect(
               ctx.stream,
@@ -305,7 +295,6 @@ auto connect_layer(ConnectContext& ctx, SocksLayer& socks_layer) -> boost::asio:
 
 auto connect_layer(ConnectContext& ctx, HttpLayer& http_layer) -> boost::asio::awaitable<void>
 {
-    ctx.last_hostname = http_layer.host;
     ctx.os << " http";
     co_await httpconnect::async_connect(
         ctx.stream,
@@ -339,6 +328,21 @@ auto tls_names::server_name(std::string const& host) -> std::optional<std::strin
     return host;
 }
 
+auto tls_names::resolve(
+    std::optional<std::string_view> const verify,
+    std::optional<std::string_view> const sni,
+    std::string_view const host
+) -> Names
+{
+    auto const named = [](std::optional<std::string_view> const name) {
+        return name && not name->empty();
+    };
+    return Names{
+        .verify = std::string{verify ? *verify : named(sni) ? *sni : host},
+        .sni = std::string{sni ? *sni : named(verify) ? *verify : host},
+    };
+}
+
 auto connection::connect(
     Settings settings
 ) -> boost::asio::awaitable<std::string>
@@ -361,8 +365,7 @@ auto connection::connect(
     };
 
     std::ostringstream os;
-    std::string last_hostname;
-    ConnectContext ctx{stream_, connect_cancellation_, last_hostname, os};
+    ConnectContext ctx{stream_, connect_cancellation_, os};
     auto const connect_one = [&ctx](auto& layer) { return connect_layer(ctx, layer); };
 
     co_await std::visit(connect_one, settings.base);

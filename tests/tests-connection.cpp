@@ -13,6 +13,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -501,6 +502,52 @@ TEST(TlsNames, SendsNoServerNameForIpLiteralsOrEmpty)
     EXPECT_EQ(tls_names::server_name("2001:db8::1"), std::nullopt);
     EXPECT_EQ(tls_names::server_name("fe80::1%eth0"), std::nullopt);
     EXPECT_EQ(tls_names::server_name(""), std::nullopt);
+}
+
+auto resolved(
+    std::optional<std::string_view> const verify,
+    std::optional<std::string_view> const sni,
+    std::string_view const host
+) -> std::pair<std::string, std::string>
+{
+    auto names = tls_names::resolve(verify, sni, host);
+    return {std::move(names.verify), std::move(names.sni)};
+}
+
+using Names = std::pair<std::string, std::string>;
+
+TEST(TlsNames, BothDefaultToHost)
+{
+    EXPECT_EQ(resolved({}, {}, "irc.example"), (Names{"irc.example", "irc.example"}));
+}
+
+TEST(TlsNames, VerifyIsTheDefaultServerName)
+{
+    // Connecting by address while checking the certificate's name
+    EXPECT_EQ(resolved("irc.example", {}, "192.0.2.7"), (Names{"irc.example", "irc.example"}));
+}
+
+TEST(TlsNames, ServerNameIsTheDefaultVerify)
+{
+    EXPECT_EQ(resolved({}, "irc.example", "localhost"), (Names{"irc.example", "irc.example"}));
+}
+
+TEST(TlsNames, BothGivenAreKept)
+{
+    EXPECT_EQ(resolved("cert.example", "front.example", "host"), (Names{"cert.example", "front.example"}));
+}
+
+TEST(TlsNames, EmptyNameTurnsOffOnlyItsOwnUse)
+{
+    EXPECT_EQ(resolved("", {}, "irc.example"), (Names{"", "irc.example"}));
+    EXPECT_EQ(resolved({}, "", "irc.example"), (Names{"irc.example", ""}));
+    EXPECT_EQ(resolved("", "", "irc.example"), (Names{"", ""}));
+}
+
+TEST(TlsNames, LocalSocketHasNoHostDefault)
+{
+    EXPECT_EQ(resolved("", {}, ""), (Names{"", ""}));
+    EXPECT_EQ(resolved("irc.example", {}, ""), (Names{"irc.example", "irc.example"}));
 }
 
 TEST(Connection, HttpConnectRejectsOversizedResponse)

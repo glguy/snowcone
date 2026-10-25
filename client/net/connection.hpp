@@ -14,6 +14,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 struct lua_State;
@@ -31,8 +32,10 @@ public:
 struct TlsLayer {
     Ref<X509, X509_up_ref, X509_free> client_cert;
     Ref<EVP_PKEY, EVP_PKEY_up_ref, EVP_PKEY_free> client_key;
-    std::optional<std::string> verify;
-    std::optional<std::string> sni;
+    /// Name the server certificate must match; empty disables verification
+    std::string verify;
+    /// Server name sent in the handshake; empty or an IP literal sends none
+    std::string sni;
 };
 
 struct SocksLayer {
@@ -74,6 +77,21 @@ namespace tls_names {
     /// The server_name to send, if any. RFC 6066 forbids IP literals there,
     /// so those, and an empty name, send none.
     auto server_name(std::string const& host) -> std::optional<std::string>;
+
+    struct Names
+    {
+        std::string verify;
+        std::string sni;
+    };
+
+    /// Fill in the names a TLS layer leaves unset. A name given for either
+    /// is the default for the other, then the host the layer runs over. An
+    /// empty name turns off only its own use and is never a default.
+    auto resolve(
+        std::optional<std::string_view> verify,
+        std::optional<std::string_view> sni,
+        std::string_view host
+    ) -> Names;
 }
 
 class connection final : public std::enable_shared_from_this<connection>

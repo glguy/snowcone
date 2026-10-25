@@ -20,7 +20,9 @@ extern "C" {
 #include <charconv> // from_chars
 #include <fcntl.h>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <variant>
 
@@ -248,6 +250,30 @@ auto check_layer_string(lua_State* const L, lua_Integer const n, char const* con
     luaL_error(L, "layer %d: '%s' must be a string", static_cast<int>(n), field);
 }
 
+/// Like check_layer_string for an optional name, which can't contain a NUL
+/// since OpenSSL takes names as C strings. Returns whether a name was given.
+auto check_layer_name(lua_State* const L, lua_Integer const n, char const* const field) -> bool
+{
+    if (lua_type(L, -1) <= LUA_TNIL)
+    {
+        lua_pop(L, 1);
+        return false;
+    }
+    bool ok = lua_type(L, -1) == LUA_TSTRING;
+    if (ok)
+    {
+        std::size_t len;
+        auto const name = lua_tolstring(L, -1, &len);
+        ok = std::char_traits<char>::length(name) == len;
+    }
+    lua_pop(L, 1);
+    if (not ok)
+    {
+        luaL_error(L, "layer %d: '%s' must be a string without NUL bytes", static_cast<int>(n), field);
+    }
+    return true;
+}
+
 /// Raise a Lua error unless the value at the top of the stack is an integer
 /// in [1, 65535]. Pops the value.
 auto check_layer_port(lua_State* const L, lua_Integer const n) -> void
@@ -268,9 +294,15 @@ auto check_layer_port(lua_State* const L, lua_Integer const n) -> void
 /// Unknown or missing layer types are errors rather than being skipped, since
 /// skipping a layer (for example a misspelled "tls") would quietly give a
 /// connection without the protection the configuration asked for.
-auto validate_layers(lua_State* const L, int const layers, lua_Integer const layers_n) -> void
+///
+/// A TLS layer verifies against the host it runs over unless told otherwise.
+/// Over a local socket, with no proxy in between, there is no such host, so
+/// `verify` must be given: a hostname, or "" to disable verification.
+auto validate_layers(lua_State* const L, int const layers, lua_Integer const layers_n, bool const local_base) -> void
 {
     luaL_checktype(L, layers, LUA_TTABLE);
+
+    bool have_host = not local_base;
 
     for (lua_Integer i = 1; i <= layers_n; ++i)
     {
@@ -300,10 +332,16 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
             lua_pop(L, 1);
 
             raw_field(L, layer, "verify");
-            check_layer_string(L, i, "verify", false);
+            auto const verify_given = check_layer_name(L, i, "verify");
 
             raw_field(L, layer, "sni");
-            check_layer_string(L, i, "sni", false);
+            check_layer_name(L, i, "sni");
+
+            if (not have_host && not verify_given)
+            {
+                luaL_error(L, "layer %d: tls over a local socket requires 'verify' "
+                              "(a hostname, or \"\" to disable verification)", n);
+            }
         }
         else if (type == "socks"sv || type == "http"sv)
         {
@@ -318,6 +356,8 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
 
             raw_field(L, layer, "password");
             check_layer_string(L, i, "password", false);
+
+            have_host = true;
         }
         else
         {
@@ -345,6 +385,13 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
  *     password = string? }
  * - { type = "http", host = string, port = integer, username = string?,
  *     password = string? }
+ * A tls layer's `verify` is the name the certificate must match ("" disables
+ * verification) and `sni` the server name sent. Either one, when given and
+ * non-empty, is the default for the other; otherwise both default to the
+ * host the layer runs over (the base host, or the host of the nearest socks
+ * or http layer before it). Over a local socket with no proxy in between,
+ * `verify` is required.
+ *
  * A missing or unknown `type`, or a bad field, raises a Lua error before any
  * connection is started.
  *
@@ -373,7 +420,7 @@ auto l_start_irc(lua_State* const L) -> int
 
     // Raw length: a __len metamethod could change its answer between passes
     auto const layers_n = static_cast<lua_Integer>(lua_rawlen(L, 3));
-    validate_layers(L, 3, layers_n);
+    validate_layers(L, 3, layers_n, port == 0);
 
     std::variant<IpLayer, LocalLayer> base;
 
@@ -394,6 +441,9 @@ auto l_start_irc(lua_State* const L) -> int
     std::vector<AnyLayer> layers;
     layers.reserve(layers_n);
 
+    // The host the next layer runs over; empty over a local socket
+    std::string hop_host = port == 0 ? "" : host;
+
     for (lua_Integer i{0}; i < layers_n; ++i)
     {
         lua_rawgeti(L, 3, i + 1); // 5 - layer table
@@ -413,16 +463,15 @@ auto l_start_irc(lua_State* const L) -> int
             lua_pop(L, 1);
 
             raw_field(L, 5, "verify"); // 7
-            if (auto * verify = luaL_opt(L, lua_tostring, 7, nullptr)) {
-                layer.verify = verify;
-            }
-            lua_pop(L, 1);
-
-            raw_field(L, 5, "sni"); // 7
-            if (auto * sni = luaL_opt(L, lua_tostring, 7, nullptr)) {
-                layer.sni = sni;
-            }
-            lua_pop(L, 1);
+            raw_field(L, 5, "sni"); // 8
+            auto const opt_name = [L](int const i) -> std::optional<std::string_view> {
+                if (auto const name = lua_tostring(L, i)) return name;
+                return std::nullopt;
+            };
+            auto names = tls_names::resolve(opt_name(7), opt_name(8), hop_host);
+            layer.verify = std::move(names.verify);
+            layer.sni = std::move(names.sni);
+            lua_pop(L, 2);
 
             layers.emplace_back(std::move(layer));
         }
@@ -432,6 +481,7 @@ auto l_start_irc(lua_State* const L) -> int
 
             raw_field(L, 5, "host"); // 7
             layer.host = luaL_opt(L, lua_tostring, 7, "");
+            hop_host = layer.host;
             lua_pop(L, 1);
 
             raw_field(L, 5, "port"); // 7
@@ -465,6 +515,7 @@ auto l_start_irc(lua_State* const L) -> int
 
             raw_field(L, 5, "host"); // 7
             layer.host = luaL_opt(L, lua_tostring, 7, "");
+            hop_host = layer.host;
             lua_pop(L, 1);
 
             raw_field(L, 5, "port"); // 7

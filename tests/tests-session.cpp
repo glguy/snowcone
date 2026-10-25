@@ -224,6 +224,26 @@ auto check_arguments(char const* const args, char const* const expected_error, c
     return ok;
 }
 
+// Arguments that must not raise. The connection is never run.
+auto check_accepted(char const* const args) -> bool
+{
+    App app{"unused", true};
+    auto const L = app.get_lua();
+    lua_pushcfunction(L, l_start_irc);
+    lua_setglobal(L, "connect");
+
+    auto const script = std::string{"local ok, err = pcall(connect, "} + args
+        + "); if ok then err:close() end; return ok, tostring(err)";
+    if (luaL_dostring(L, script.c_str()) != LUA_OK)
+    {
+        std::cout << "FAIL accepted " << args << ": script error: " << lua_tostring(L, -1) << "\n";
+        return false;
+    }
+    bool const ok = lua_toboolean(L, -2);
+    std::cout << (ok ? "PASS " : "FAIL ") << "accepted " << args << "  -> " << lua_tostring(L, -1) << "\n";
+    return ok;
+}
+
 } // namespace
 
 int main()
@@ -327,6 +347,13 @@ end)
     ok &= check_arguments(args("{ {type = 'socks', port = 1080} }").c_str(), "'host' must be a string");
     ok &= check_arguments(args("{ {type = 'tls', sni = 5} }").c_str(), "'sni' must be a string");
     ok &= check_arguments(args("{ {type = 'tls', verify = {}} }").c_str(), "'verify' must be a string");
+    ok &= check_arguments(args("{ {type = 'tls', verify = 'a\\0b'} }").c_str(), "without NUL bytes");
+    ok &= check_arguments(args("{ {type = 'tls', sni = 'a\\0b'} }").c_str(), "without NUL bytes");
+    ok &= check_arguments(args("{ {type = 'tls'} }", "0").c_str(), "requires 'verify'");
+    ok &= check_arguments(args("{ {type = 'tls', sni = 'irc.example'} }", "0").c_str(), "requires 'verify'");
+    ok &= check_accepted(args("{ {type = 'tls', verify = ''} }", "0").c_str());
+    ok &= check_accepted(args("{ {type = 'tls', verify = 'irc.example'} }", "0").c_str());
+    ok &= check_accepted(args("{ {type = 'socks', host = 'h', port = 1}, {type = 'tls'} }", "0").c_str());
 
     // snowcone.execute
     ok &= run({
