@@ -219,8 +219,7 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
             else if (KEY_MOUSE == key)
             {
                 MEVENT ev;
-                getmouse(&ev);
-                if (ev.bstate & BUTTON1_CLICKED)
+                if (OK == getmouse(&ev) && ev.bstate & BUTTON1_CLICKED)
                 {
                     do_mouse(L, ev.y, ev.x, ev.bstate & BUTTON_SHIFT);
                 }
@@ -250,11 +249,20 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
                 char const c = key;
                 wchar_t code;
                 size_t const r = mbrtowc(&code, &c, 1, &mbstate);
-                if (r < (size_t)-2)
+                if (r == (size_t)-1)
+                {
+                    // After EILSEQ the state is unspecified
+                    mbstate = {};
+                }
+                else if (r < (size_t)-2)
                 {
                     do_keyboard(L, code);
                 }
+                continue;
             }
+
+            // Any other key interrupts a partial multibyte sequence
+            mbstate = {};
         }
     }
 }
