@@ -16,6 +16,11 @@ include(CTest)
 find_package(PkgConfig REQUIRED)
 
 pkg_search_module(LUA      REQUIRED IMPORTED_TARGET lua>=5.4 lua5.4 lua-5.4 lua54)
+string(REGEX MATCH "^[0-9]+\\.[0-9]+" SNOWCONE_LUA_ABI "${LUA_VERSION}")
+# An interpreter for the same Lua version, for tests that load our modules
+# into it; a plain `lua` on PATH may be a different version
+find_program(LUA_INTERPRETER NAMES lua${SNOWCONE_LUA_ABI} lua-${SNOWCONE_LUA_ABI}
+    HINTS "${LUA_PREFIX}/bin")
 pkg_check_modules(NCURSESW REQUIRED IMPORTED_TARGET ncursesw>=6)
 pkg_check_modules(GEOIP             IMPORTED_TARGET geoip)
 pkg_check_modules(LIBHS             IMPORTED_TARGET libhs)
@@ -91,5 +96,8 @@ install(FILES "snowcone.1" DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
 
 set(CPACK_GENERATOR "DEB")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Eric Mertens <emertens@gmail.com>")
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "liblua5.4-0, lua-penlight, libssl3, libncursesw6, libidn12")
+# Depend on the Lua and OpenSSL versions this build found: liblua5.4-0 and
+# libssl3 on Debian stable
+string(REGEX MATCH "^[0-9]+" SNOWCONE_OPENSSL_ABI "${OPENSSL_VERSION}")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "liblua${SNOWCONE_LUA_ABI}-0, lua-penlight, libssl${SNOWCONE_OPENSSL_ABI}, libncursesw6, libidn12")
 include(CPack)

@@ -7,10 +7,14 @@ set_target_properties(myopenssl_shared PROPERTIES OUTPUT_NAME "myopenssl" PREFIX
 target_include_directories(myopenssl_shared PUBLIC include)
 target_link_libraries(myopenssl_shared PUBLIC OpenSSL::Crypto PkgConfig::LUA)
 
-add_test(
-    NAME TestMyopenssl
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMAND lua test/test.lua)
-set_property(
-    TEST TestMyopenssl
-    PROPERTY ENVIRONMENT LUA_CPATH=${CMAKE_CURRENT_BINARY_DIR}/?.so)
+if(LUA_INTERPRETER)
+    add_test(
+        NAME TestMyopenssl
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMAND ${LUA_INTERPRETER} test/test.lua)
+    set_property(
+        TEST TestMyopenssl
+        PROPERTY ENVIRONMENT LUA_CPATH=${CMAKE_CURRENT_BINARY_DIR}/?.so)
+else()
+    message(STATUS "No lua${SNOWCONE_LUA_ABI} interpreter found; skipping TestMyopenssl")
+endif()

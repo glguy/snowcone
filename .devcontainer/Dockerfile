@@ -16,7 +16,7 @@ RUN if [ "${REINSTALL_CMAKE_VERSION_FROM_SOURCE}" != "none" ]; then \
 
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     && apt-get -y install --no-install-recommends \
-    libboost-dev libboost-filesystem-dev \
+    libboost-dev \
     libidn-dev libarchive-dev libgmock-dev libgtest-dev \
     liblua5.4-dev libhyperscan-dev libgeoip-dev lua-check lua5.4 \
     doxygen graphviz
