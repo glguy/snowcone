@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <future>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -474,6 +475,32 @@ TEST(Connection, HttpConnectLeavesIpv4LiteralBare)
 {
     auto const request = http_connect_request_for("192.0.2.7");
     EXPECT_TRUE(request.starts_with("CONNECT 192.0.2.7:6667 HTTP/1.1\r\n")) << request;
+}
+
+TEST(TlsNames, VerifiesHostnamesAndAddressesAsGiven)
+{
+    EXPECT_EQ(tls_names::verification("irc.example"), "irc.example");
+    EXPECT_EQ(tls_names::verification("192.0.2.7"), "192.0.2.7");
+    EXPECT_EQ(tls_names::verification("2001:db8::1"), "2001:db8::1");
+}
+
+TEST(TlsNames, VerifiesScopedIpv6LiteralWithoutZone)
+{
+    EXPECT_EQ(tls_names::verification("fe80::1%eth0"), "fe80::1");
+    EXPECT_EQ(tls_names::verification("fe80::1%7"), "fe80::1");
+}
+
+TEST(TlsNames, SendsHostnameAsServerName)
+{
+    EXPECT_EQ(tls_names::server_name("irc.example"), "irc.example");
+}
+
+TEST(TlsNames, SendsNoServerNameForIpLiteralsOrEmpty)
+{
+    EXPECT_EQ(tls_names::server_name("192.0.2.7"), std::nullopt);
+    EXPECT_EQ(tls_names::server_name("2001:db8::1"), std::nullopt);
+    EXPECT_EQ(tls_names::server_name("fe80::1%eth0"), std::nullopt);
+    EXPECT_EQ(tls_names::server_name(""), std::nullopt);
 }
 
 TEST(Connection, HttpConnectRejectsOversizedResponse)

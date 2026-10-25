@@ -253,18 +253,13 @@ auto connect_layer(ConnectContext& ctx, TlsLayer& tls_layer) -> boost::asio::awa
     if (not verify.empty())
     {
         tls.set_verify_mode(boost::asio::ssl::verify_peer);
-        tls.set_verify_callback(boost::asio::ssl::host_name_verification(verify));
+        tls.set_verify_callback(boost::asio::ssl::host_name_verification(tls_names::verification(verify)));
     }
 
-    // Set the SNI hostname, if specified. RFC 6066 forbids literal IP
-    // addresses in server_name, so those are never sent.
-    std::string const& sni = tls_layer.sni.value_or(last_hostname);
-    boost::system::error_code sni_ip_error;
-    static_cast<void>(boost::asio::ip::make_address(sni, sni_ip_error));
-    bool const sni_is_ip_literal = not sni_ip_error;
-    if (not sni.empty() && not sni_is_ip_literal)
+    // Set the SNI hostname, if specified
+    if (auto const sni = tls_names::server_name(tls_layer.sni.value_or(last_hostname)))
     {
-        if (1 != SSL_set_tlsext_host_name(tls.native_handle(), sni.c_str()))
+        if (1 != SSL_set_tlsext_host_name(tls.native_handle(), sni->c_str()))
         {
             // not documented to set an error code
             throw std::runtime_error{"SSL_set_tlsext_host_name"};
@@ -321,6 +316,28 @@ auto connect_layer(ConnectContext& ctx, HttpLayer& http_layer) -> boost::asio::a
 }
 
 } // namespace
+
+auto tls_names::verification(std::string const& host) -> std::string
+{
+    boost::system::error_code ec;
+    auto const address = boost::asio::ip::make_address(host, ec);
+    if (ec or not address.is_v6())
+    {
+        return host;
+    }
+    return boost::asio::ip::address_v6{address.to_v6().to_bytes()}.to_string();
+}
+
+auto tls_names::server_name(std::string const& host) -> std::optional<std::string>
+{
+    boost::system::error_code ec;
+    static_cast<void>(boost::asio::ip::make_address(host, ec));
+    if (host.empty() or not ec)
+    {
+        return std::nullopt;
+    }
+    return host;
+}
 
 auto connection::connect(
     Settings settings

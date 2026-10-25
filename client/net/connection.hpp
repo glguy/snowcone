@@ -13,6 +13,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 struct lua_State;
@@ -62,6 +63,18 @@ struct Settings
     std::variant<IpLayer, LocalLayer> base;
     std::vector<AnyLayer> layers;
 };
+
+/// How a TLS layer's hostname is presented in the handshake
+namespace tls_names {
+    /// The name the server certificate is checked against. An IPv6 zone
+    /// (fe80::1%en0) is dropped: certificates hold only the address, and
+    /// OpenSSL rejects a literal that includes one.
+    auto verification(std::string const& host) -> std::string;
+
+    /// The server_name to send, if any. RFC 6066 forbids IP literals there,
+    /// so those, and an empty name, send none.
+    auto server_name(std::string const& host) -> std::optional<std::string>;
+}
 
 class connection final : public std::enable_shared_from_this<connection>
 {
