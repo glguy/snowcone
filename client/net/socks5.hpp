@@ -172,9 +172,12 @@ namespace detail {
         template <RecvState Next, typename Self>
         auto transact(Self& self) -> void
         {
+            // buffer_ lives in self: take the view before self is moved, since
+            // the order arguments are evaluated in is unspecified
+            auto const buffer = boost::asio::buffer(buffer_);
             boost::asio::async_write(
                 socket_,
-                boost::asio::buffer(buffer_),
+                buffer,
                 std::bind_front(std::move(self), Sent<Next>{})
             );
         }
@@ -243,9 +246,10 @@ namespace detail {
         auto step(Self& self, Sent<Next>) -> void
         {
             buffer_.resize(Next::READ);
+            auto const buffer = boost::asio::buffer(buffer_); // before self is moved
             boost::asio::async_read(
                 socket_,
-                boost::asio::buffer(buffer_),
+                buffer,
                 std::bind_front(std::move(self), Next{})
             );
         }
