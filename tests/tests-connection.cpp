@@ -105,6 +105,65 @@ auto connect_and_read(
     co_return response;
 }
 
+// A proxy that sends headers without ever ending them, then waits for the
+// client to hang up. Returns how many header bytes it sent.
+auto endless_http_proxy_server(tcp::acceptor& acceptor) -> asio::awaitable<std::size_t>
+{
+    tcp::socket socket{co_await asio::this_coro::executor};
+    co_await acceptor.async_accept(socket, asio::use_awaitable);
+
+    std::string request;
+    co_await asio::async_read_until(
+        socket,
+        asio::dynamic_buffer(request),
+        "\r\n\r\n",
+        asio::use_awaitable
+    );
+
+    std::string response = "HTTP/1.1 200 Connection Established\r\n";
+    while (response.size() < 64 * 1024)
+    {
+        response += "X-Filler: 0123456789abcdef0123456789abcdef\r\n";
+    }
+    co_await asio::async_write(socket, asio::buffer(response), asio::use_awaitable);
+
+    std::array<char, 1> byte{};
+    auto const [ec, n] = co_await asio::async_read(socket, asio::buffer(byte), asio::as_tuple(asio::use_awaitable));
+    static_cast<void>(ec);
+    static_cast<void>(n);
+    co_return response.size();
+}
+
+auto connect_through_http_proxy_expecting_error(
+    std::shared_ptr<connection> const& conn,
+    tcp::acceptor const& acceptor
+) -> asio::awaitable<boost::system::error_code>
+{
+    Settings settings{
+        .base = IpLayer{
+            .host = "127.0.0.1",
+            .port = acceptor.local_endpoint().port(),
+        },
+    };
+    settings.layers.emplace_back(HttpLayer{
+        .host = "irc.example",
+        .port = 6667,
+        .auth = socks5::NoCredential{},
+    });
+
+    boost::system::error_code result;
+    try
+    {
+        co_await conn->connect(std::move(settings));
+    }
+    catch (boost::system::system_error const& error)
+    {
+        result = error.code();
+    }
+    conn->close();
+    co_return result;
+}
+
 auto connect_through_http_proxy(
     std::shared_ptr<connection> const& conn,
     tcp::acceptor const& acceptor
@@ -250,6 +309,29 @@ TEST(Connection, HttpConnectAcceptsOther2xxStatus)
 
     EXPECT_EQ(client_result.get(), "PONG");
     EXPECT_TRUE(server_result.get().starts_with("CONNECT irc.example:6667 HTTP/1.1\r\n"));
+}
+
+TEST(Connection, HttpConnectRejectsOversizedResponse)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    auto server_result = asio::co_spawn(
+        io,
+        endless_http_proxy_server(acceptor),
+        asio::use_future
+    );
+    auto client_result = asio::co_spawn(
+        io,
+        connect_through_http_proxy_expecting_error(conn, acceptor),
+        asio::use_future
+    );
+
+    io.run();
+
+    EXPECT_TRUE(client_result.get().failed());
+    EXPECT_GT(server_result.get(), 8u * 1024u);
 }
 
 TEST(Connection, ClosingBeforeConnectAbortsConnect)

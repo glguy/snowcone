@@ -31,6 +31,9 @@ namespace detail {
     auto make_http_error(int status) -> boost::system::error_code;
 }
 
+/// Largest CONNECT response header block accepted (Beast's default header limit)
+constexpr std::size_t max_response_size = 8 * 1024;
+
 // Storing this in a unique_ptr ensures that moving around the composite action
 // doesn't relocated the fields. This is important at a minimum because req
 // merely points to target
@@ -102,10 +105,11 @@ struct HttpConnectImpl
     {
         auto& bytes = state_->response_bytes; // dereference before std::move
 
-        // read a byte at a time until \r\n\r\n is found
+        // read a byte at a time until \r\n\r\n is found; the cap stops a
+        // proxy that never ends its headers from exhausting memory
         boost::asio::async_read(
             stream_,
-            boost::asio::dynamic_buffer(bytes),
+            boost::asio::dynamic_buffer(bytes, max_response_size),
             [&bytes](
                 boost::system::error_code const& ec,
                 std::size_t bytes_transfered
