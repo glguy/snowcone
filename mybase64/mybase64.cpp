@@ -15,12 +15,12 @@ namespace {
  * @brief Lua binding for Base64 decoding.
  *
  * Decodes the given Base64 string into its original binary form.
+ * Characters outside the Base64 alphabet, including '=', are skipped.
  * On success, it pushes the decoded string onto the Lua stack.
- * On failure (invalid Base64 input), returns 0 values.
+ * On failure (a dangling final character), it pushes fail (nil).
  *
  * param:     string input   Base64-encoded string to decode
- * return[1]: string decoded string
- * return[2]: nil    failure indicator
+ * return:    string|nil     decoded string, or fail on invalid input
  *
  * @param L Lua state
  * @return int 1

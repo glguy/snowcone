@@ -1,5 +1,5 @@
 /**
- * @file mybase64.hpp
+ * @file base64.hpp
  * @author Eric Mertens (emertens@gmail.com)
  * @brief Base64 encoding and decoding
  *
@@ -44,9 +44,14 @@ auto encode(std::string_view input, char* output) -> void;
 /**
  * @brief Decode a base64 encoded string
  *
+ * Characters outside the Base64 alphabet, including '=' padding, are
+ * skipped. Decoding fails only when a single character is left over after
+ * the last complete byte.
+ *
  * @param input Base64 input text
- * @param output Target buffer for decoded value
- * @return pointer to end of output on success
+ * @param output Target buffer for decoded value, at least
+ *               decoded_size(input.size()) bytes
+ * @return pointer to end of output on success, nullptr on failure
  */
 auto decode(std::string_view input, char* output) -> char*;
 
