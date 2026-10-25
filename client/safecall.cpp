@@ -10,6 +10,15 @@ extern "C" {
 #include <cstdio>
 #include <iostream>
 
+namespace {
+int failures = 0;
+}
+
+auto safecall_failures() -> int
+{
+    return failures;
+}
+
 int safecall(lua_State* const L, std::string_view const location, int const args)
 {
     lua_pushcfunction(L, [](auto const L) {
@@ -29,6 +38,7 @@ int safecall(lua_State* const L, std::string_view const location, int const args
     }
     else
     {
+        ++failures;
         auto const err = lua_tolstring(L, -1, nullptr);
         endwin();
         std::cerr << "error in " << location << ": " << err << std::endl;

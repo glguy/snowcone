@@ -32,11 +32,12 @@ extern "C" {
 
 static char const app_key = '\0';
 
-App::App(char const* const filename)
+App::App(char const* const filename, bool const headless)
     : io_context{}
     , stdin_poll{io_context}
     , signals{io_context}
     , main_source{filename}
+    , headless{headless}
 {
     L = luaL_newstate();
     luaL_openlibs(L);
@@ -136,7 +137,7 @@ local function log(s) events[#events + 1] = s end
 
 auto run(Scenario const& s) -> bool
 {
-    App app{"unused"};
+    App app{"unused", true};
     auto& io = app.get_context();
     auto const L = app.get_lua();
 
@@ -202,7 +203,7 @@ auto run(Scenario const& s) -> bool
 // silently skipped.
 auto check_arguments(char const* const args, char const* const expected_error, char const* const fn = "connect") -> bool
 {
-    App app{"unused"};
+    App app{"unused", true};
     auto const L = app.get_lua();
     lua_pushcfunction(L, l_start_irc);
     lua_setglobal(L, "connect");

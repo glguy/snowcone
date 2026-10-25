@@ -19,3 +19,6 @@ struct lua_State;
  * @return Result of lua_pcall
  */
 int safecall(lua_State* L, std::string_view location, int args);
+
+/// @brief Number of safecall invocations that ended in a Lua error
+auto safecall_failures() -> int;

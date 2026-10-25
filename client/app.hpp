@@ -19,9 +19,10 @@ class App
     boost::asio::signal_set signals;
     lua_State* L;
     char const* main_source;
+    bool headless; // script mode: no terminal, no keyboard input, no signals
 
 public:
-    App(char const*);
+    App(char const* filename, bool headless);
     ~App();
 
     static auto from_lua(lua_State*) -> App*;
@@ -37,6 +38,11 @@ public:
     auto get_lua() const -> lua_State*
     {
         return L;
+    }
+
+    auto is_headless() const -> bool
+    {
+        return headless;
     }
 
     auto start_input() -> void;

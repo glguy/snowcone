@@ -17,6 +17,7 @@ extern "C" {
 #include <clocale>
 #include <csignal>
 #include <cstring>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -58,13 +59,23 @@ public:
 
 auto main(int argc, char const* argv[]) -> int
 {
-    if (argc < 2)
+    // script FILE runs FILE as the main module, so drop the mode word
+    auto const script = argc >= 3 and not strcmp("script", argv[1]);
+    if (script)
+    {
+        argc--;
+        argv++;
+    }
+
+    if (argc < 2 or not strcmp("script", argv[1]))
     {
         std::cerr << "Usage: snowcone MODE [--config=PATH]\n"
                      "  Modes:\n"
                      "    ircc               - chat client\n"
                      "    dashboard          - server notice dashboard\n"
                      "    path/to/init.lua   - arbitrary Lua script\n"
+                     "    script FILE [ARGS] - run FILE without a terminal; exits when\n"
+                     "                         idle, nonzero after any Lua error\n"
                      " \n"
                      "  --config=PATH        - override configuration file\n"
                      "                         (default ~/.config/snowcone/settings.lua)\n";
@@ -84,14 +95,20 @@ auto main(int argc, char const* argv[]) -> int
         argv[1] = CMAKE_INSTALL_FULL_DATAROOTDIR "/snowcone/ircc/init.lua";
     }
 
-    auto nc = NC{};
-    auto a = App{argv[1]};
+    std::optional<NC> nc;
+    if (not script)
+    {
+        nc.emplace();
+    }
+    auto a = App{argv[1], script};
     auto const L = a.get_lua();
 
+    auto loaded = false;
     try
     {
         prepare_globals(L, argc, argv);
-        if (a.reload())
+        loaded = a.reload();
+        if (loaded)
         {
             a.startup();
         }
@@ -100,4 +117,11 @@ auto main(int argc, char const* argv[]) -> int
     {
         App::fatal(e.what());
     }
+
+    // A script fails if it couldn't load or any Lua error was reported
+    if (script and (not loaded or safecall_failures() > 0))
+    {
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 }

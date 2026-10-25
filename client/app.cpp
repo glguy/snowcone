@@ -29,14 +29,26 @@ static char const app_key = '\0';
 
 namespace {
 
+/// False in script mode, where there is no terminal state to restore and
+/// escape sequences would only pollute stdout.
+bool uses_terminal = true;
+
+auto restore_terminal() -> void
+{
+    if (uses_terminal)
+    {
+        endwin();
+        BracketedPaste::disable();
+    }
+}
+
 /// Panic handler for errors raised outside any protected call. Recovery
 /// isn't attempted (out-of-memory is the usual cause); just leave the
 /// terminal usable.
 auto panic(lua_State* const L) -> int
 {
     auto const msg = lua_tostring(L, -1);
-    endwin();
-    BracketedPaste::disable();
+    restore_terminal();
     std::fprintf(stderr, "PANIC: unprotected error in call to Lua API (%s)\n",
         msg ? msg : "error object is not a string");
     std::abort();
@@ -61,7 +73,7 @@ auto is_stop(boost::system::error_code const& ec) -> bool
 
 } // namespace
 
-App::App(char const* const filename)
+App::App(char const* const filename, bool const headless)
 #ifdef SNOWCONE_RESOLVER_CONFIG
     // getaddrinfo blocks, so with the default single resolver thread every
     // lookup in the process queues behind the slowest one. In particular the
@@ -74,7 +86,9 @@ App::App(char const* const filename)
     , stdin_poll{io_context, STDIN_FILENO}
     , signals{io_context, SIGWINCH, SIGUSR1}
     , main_source{filename}
+    , headless{headless}
 {
+    uses_terminal = not headless;
     L = luaL_newstate();
     lua_atpanic(L, panic);
     lua_pushlightuserdata(L, this);
@@ -88,8 +102,7 @@ App::~App()
 
 auto App::fatal(std::string_view const message) -> void
 {
-    endwin();
-    BracketedPaste::disable();
+    restore_terminal();
     std::fprintf(stderr, "snowcone: fatal error: %.*s\n",
         static_cast<int>(message.size()), message.data());
     std::fflush(stderr);
@@ -248,19 +261,30 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
 
 auto App::start_input() -> void
 {
-    boost::asio::co_spawn(io_context, stdin_thread(), rethrow);
+    if (not headless)
+    {
+        boost::asio::co_spawn(io_context, stdin_thread(), rethrow);
+    }
 }
 
 auto App::stop_input() -> void
 {
-    stdin_poll.cancel();
-    endwin();
+    if (not headless)
+    {
+        stdin_poll.cancel();
+        endwin();
+    }
 }
 
+/// Runs until the event loop has no work left. Interactive mode always has
+/// work until shutdown(); a script ends once its last resource finishes.
 auto App::startup() -> void
 {
-    start_input();
-    boost::asio::co_spawn(io_context, signal_thread(), rethrow);
+    if (not headless)
+    {
+        start_input();
+        boost::asio::co_spawn(io_context, signal_thread(), rethrow);
+    }
     io_context.run();
 }
 

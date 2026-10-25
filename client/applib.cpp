@@ -40,6 +40,7 @@ extern "C" {
 
 #include <algorithm>
 #include <climits>
+#include <cstdio>
 #include <csignal>
 #include <cstring>
 #include <ctime>
@@ -382,6 +383,16 @@ auto l_print(lua_State* const L) -> int
     lua_replace(L, 1);
     lua_settop(L, 1);
 
+    if (App::from_lua(L)->is_headless())
+    {
+        std::size_t len;
+        auto const str = lua_tolstring(L, 1, &len);
+        std::fwrite(str, 1, len, stdout);
+        std::fputc('\n', stdout);
+        std::fflush(stdout);
+        return 0;
+    }
+
     lua_callback(L, "print", 1);
     return 0;
 }
@@ -418,8 +429,14 @@ auto prepare_globals(lua_State* const L, int const argc, char const* const* cons
     /* setup libraries */
     luaL_openlibs(L);
 
-    luaL_requiref(L, "ncurses", luaopen_myncurses, 1);
-    lua_pop(L, 1);
+    auto const headless = App::from_lua(L)->is_headless();
+
+    // There is no screen to draw on in script mode
+    if (not headless)
+    {
+        luaL_requiref(L, "ncurses", luaopen_myncurses, 1);
+        lua_pop(L, 1);
+    }
 
     luaL_requiref(L, "myopenssl", luaopen_myopenssl, 1);
     lua_pop(L, 1);
@@ -465,5 +482,8 @@ auto prepare_globals(lua_State* const L, int const argc, char const* const* cons
     }
     lua_setglobal(L, "arg");
 
-    l_ncurses_resize(L);
+    if (not headless)
+    {
+        l_ncurses_resize(L);
+    }
 }

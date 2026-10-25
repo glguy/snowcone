@@ -43,6 +43,23 @@ add_test(NAME tests-session COMMAND tests-session)
 
 endif()
 
+# Lua tests run inside the real client with `snowcone script`, which exits
+# nonzero after any Lua error and once the script has no work left.
+foreach(name test-sasl test-scram test-schema)
+  add_test(NAME ${name}
+    COMMAND snowcone script "${CMAKE_CURRENT_SOURCE_DIR}/${name}.lua")
+  set_tests_properties(${name} PROPERTIES TIMEOUT 30)
+endforeach()
+
+# Drives start_httpd with curl through snowcone.execute
+find_program(CURL curl)
+if(CURL)
+  add_test(NAME script-httpd
+    COMMAND snowcone script "${CMAKE_CURRENT_SOURCE_DIR}/script-httpd.lua")
+  # A failed check can leave a listener open, so the timeout ends the run
+  set_tests_properties(script-httpd PROPERTIES TIMEOUT 60)
+endif()
+
 find_program(LUACHECK luacheck)
 if(NOT ${LUACHECK} STREQUAL "LUACHECK-NOTFOUND")
 message("luacheck was " ${LUACHECK})
