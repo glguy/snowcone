@@ -6,6 +6,9 @@ extern "C" {
 #include <lua.h>
 }
 
+#include <cstdio>
+#include <cstdlib>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -14,6 +17,23 @@ namespace {
 
 /// Deeper nesting is rejected; this also stops self-referencing tables.
 constexpr int max_depth = 100;
+
+/// The fewest significant digits that read back as the same double, so 0.1
+/// stays "0.1". toml11's default is the stream's 6, which loses precision.
+auto float_format(double const x) -> toml::floating_format_info
+{
+    auto prec = std::numeric_limits<double>::digits10;
+    for (; prec < std::numeric_limits<double>::max_digits10; ++prec)
+    {
+        char buf[32];
+        std::snprintf(buf, sizeof buf, "%.*g", prec, x);
+        if (std::strtod(buf, nullptr) == x)
+        {
+            break;
+        }
+    }
+    return {toml::floating_format::defaultfloat, static_cast<std::size_t>(prec)};
+}
 
 auto export_value(lua_State* const L, int depth) -> toml::value;
 
@@ -89,7 +109,8 @@ auto export_value(lua_State* const L, int const depth) -> toml::value
     switch (lua_type(L, -1))
     {
     case LUA_TBOOLEAN: {
-        result = toml::value{lua_toboolean(L, -1)};
+        // lua_toboolean returns int, which would make a TOML integer
+        result = toml::value{lua_toboolean(L, -1) != 0};
         break;
     }
 
@@ -100,7 +121,8 @@ auto export_value(lua_State* const L, int const depth) -> toml::value
         }
         else
         {
-            result = toml::value{lua_tonumber(L, -1)};
+            auto const x = lua_tonumber(L, -1);
+            result = toml::value{x, float_format(x)};
         }
         break;
 
