@@ -78,6 +78,13 @@ int safecall(lua_State* const L, std::string_view const location, int const args
     {
         std::cerr << "error in " << location << ": " << lua_tostring(L, -1) << std::endl;
         lua_pop(L, 2);
+        // Scenarios see failed callbacks as an "error" event
+        if (lua_getglobal(L, "events") == LUA_TTABLE)
+        {
+            lua_pushliteral(L, "error");
+            lua_rawseti(L, -2, luaL_len(L, -2) + 1);
+        }
+        lua_pop(L, 1);
     }
     return status;
 }
@@ -578,6 +585,103 @@ now:start(-5, function() log('fired') end)
 )lua",
         nullptr,
         "fired",
+        any,
+    });
+
+    // F-063: a wait whose success completion is already queued, when a
+    // callback that runs first cancels or restarts that timer. Timers that
+    // expire together complete in the same poll.
+    ok &= run({
+        "cancel after the completion is queued",
+        R"lua(
+local a, b = newtimer(), newtimer()
+a:start(0, function() log('a') b:cancel() end)
+b:start(0, function() log('b') end)
+)lua",
+        nullptr,
+        "a",
+        any,
+    });
+    ok &= run({
+        "restart after the completion is queued",
+        R"lua(
+local a, b = newtimer(), newtimer()
+a:start(0, function()
+  log('a')
+  b:start(100, function() log('b2') end)
+  a:start(20, function() log('a2') end)
+end)
+b:start(0, function() log('b1') end)
+)lua",
+        nullptr,
+        "a,a2,b2",
+        any,
+    });
+    // A collected timer's queued completion must not run anything, even if
+    // a new timer reuses its memory
+    ok &= run({
+        "collect after the completion is queued",
+        R"lua(
+local a = newtimer()
+b, cs = newtimer(), {}
+a:start(0, function()
+  log('a')
+  b = nil
+  collectgarbage()
+  collectgarbage()
+  local fired = 0
+  for i = 1, 100 do
+    cs[i] = newtimer()
+    cs[i]:start(100, function()
+      fired = fired + 1
+      if fired == 100 then log('c') end
+    end)
+  end
+end)
+b:start(0, function() log('b') end)
+)lua",
+        nullptr,
+        "a,c",
+        any,
+    });
+
+    // F-013: a wait started from a coroutine fires on the main thread after
+    // that coroutine is gone
+    ok &= run({
+        "timer started from a collected coroutine",
+        R"lua(
+local t = newtimer()
+coroutine.wrap(function()
+  t:start(20, function() log(tostring(select(2, coroutine.running()))) end)
+end)()
+collectgarbage()
+collectgarbage()
+)lua",
+        nullptr,
+        "true",
+        any,
+    });
+
+    // F-064: the metatable is hidden, and a timer reached after its
+    // finalizer ran (here resurrected by another finalizer) is inert
+    ok &= run({
+        "finalized timer",
+        R"lua(
+log(tostring(getmetatable(newtimer())))
+do
+  local t = newtimer()
+  t:start(0, function() log('fired') end)
+  setmetatable({}, {__gc = function() kept = t end})
+end
+collectgarbage()
+collectgarbage()
+kept:cancel()
+kept:cancel()
+local ok, err = pcall(kept.start, kept, 0, function() log('restarted') end)
+log(tostring(ok) .. ':' .. err)
+)lua",
+        nullptr,
+        "false,false:start: timer is finalized",
         any,
     });
 

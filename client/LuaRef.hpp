@@ -105,13 +105,20 @@ public:
      * 
      * The top value of the stack is consumed by this operation. A nil
      * value gives LUA_REFNIL, which push() turns back into nil.
-     * 
+     *
+     * The LuaRef keeps the main thread, not L: L may be a coroutine, which
+     * can be suspended or collected by the time the reference is used.
+     *
      * @param L Pointer to the Lua state.
      * @return A new LuaRef referencing the value.
      */
     static auto create(lua_State* const L) -> LuaRef
     {
-        return LuaRef{L, luaL_ref(L, LUA_REGISTRYINDEX)};
+        auto const ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, LUA_RIDX_MAINTHREAD);
+        auto const main = lua_tothread(L, -1);
+        lua_pop(L, 1);
+        return LuaRef{main, ref};
     }
 
     /**
@@ -125,7 +132,7 @@ public:
 
     /**
      * @brief Returns the associated Lua state.
-     * @return Pointer to the Lua state.
+     * @return Pointer to the main thread of the Lua state.
      */
     auto get_lua() const noexcept -> lua_State*
     {
