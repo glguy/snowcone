@@ -9,6 +9,7 @@ extern "C" {
 #include <lua.h>
 }
 
+#include <climits>
 #include <memory>
 
 auto l_dnslookup(lua_State* const L) -> int
@@ -38,6 +39,12 @@ auto l_dnslookup(lua_State* const L) -> int
         if (error)
         {
             push_string(L, error.message());
+            safecall(L, "dnslookup failure", 1);
+        }
+        // One stack slot per address; a large answer must not overflow
+        else if (results.size() >= INT_MAX or not lua_checkstack(L, static_cast<int>(results.size()) + 1))
+        {
+            lua_pushliteral(L, "dnslookup: too many results");
             safecall(L, "dnslookup failure", 1);
         }
         else
