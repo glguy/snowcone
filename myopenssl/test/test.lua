@@ -53,4 +53,49 @@ priv:sign('a message') -- just make sure it doesn't blow up
 pem = io.open('test/encrsa.pem'):read('a')
 myopenssl.read_pem(pem, true, 'password')
 
+-- Regressions from the S3 review (F-101 to F-109)
+local function fails(pattern, f, ...)
+    local ok, err = pcall(f, ...)
+    assert(not ok, 'expected failure: ' .. pattern)
+    assert(string.find(err, pattern, 1, true), err)
+end
+
+local closed = myopenssl.bignum(5)
+getmetatable(closed).__close(closed)
+assert(pcall(getmetatable(closed).__gc, closed))
+
+local seven = myopenssl.bignum(7)
+assert(rawequal(seven, myopenssl.bignum(seven)))
+fails('bad bignum string', myopenssl.bignum, '')
+fails('out of range', function() return seven << ((1 << 32) + 1) end)
+assert(tostring(seven << 1) == '14')
+
+local sha256 = myopenssl.get_digest 'sha256'
+fails("unknown digest 'nope'", myopenssl.get_digest, 'nope')
+fails('out of range', sha256.pbkdf2, sha256, 'p', 's', (1 << 32) + 1, 32)
+fails('out of range', myopenssl.rand, -1)
+
+local ed = myopenssl.gen_pkey 'ED25519'
+assert(not ed:digest_verify(nil, string.rep('\0', 64), 'msg'))
+-- the failed verification must not leak into the next error
+local ok, err = pcall(myopenssl.get_digest, 'nope')
+assert(not ok and not err:find('\n'), err)
+
+local x509 = myopenssl.new_x509()
+fails('invalid field name', x509.set_subjectName, x509, {{'CNN', 'typo'}})
+fails('list of {field, value} pairs', x509.set_subjectName, x509, {CN = 'a'})
+fails('name entry 2', x509.set_subjectName, x509, {{'CN', 'a'}, {'O'}})
+assert(next(x509:get_subjectName()) == nil)
+-- order and repeats are kept; fields round-trip by short name or OID
+x509:set_subjectName{{'O', 'b'}, {'OU', 'x'}, {'OU', 'y'}, {'commonName', 'a'}, {'1.2.3.4', 'z'}}
+local got = {}
+for i, entry in ipairs(x509:get_subjectName()) do got[i] = entry[1] .. '=' .. entry[2] end
+assert(table.concat(got, ',') == 'O=b,OU=x,OU=y,CN=a,1.2.3.4=z', table.concat(got, ','))
+
+fails('unknown padding', priv.decrypt, priv, 'x', 'OAEP')
+assert(priv:decrypt(priv:encrypt('hi', 'oaep'), 'oaep') == 'hi')
+
+fails("no private key found in 'test/encrsa.pem'", myopenssl.pkey_from_store, 'test/encrsa.pem', true, 'wrong')
+assert(myopenssl.pkey_from_store('test/encrsa.pem', true, 'password'))
+
 print 'ok'

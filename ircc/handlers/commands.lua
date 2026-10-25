@@ -398,7 +398,7 @@ add_command('cert_new', '$g', function(filename)
         local pkey <close> = myopenssl.gen_pkey 'ED25519'
         local key_id <const> = mk_key_id(pkey)
 
-        local name <const> = {CN = 'snowcone'}
+        local name <const> = {{'CN', 'snowcone'}}
 
         -- Build certificate
         local x509 <close> = myopenssl.new_x509()

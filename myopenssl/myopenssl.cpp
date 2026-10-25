@@ -23,6 +23,7 @@ extern "C" {
 }
 
 #include <algorithm>
+#include <climits>
 #include <cstddef>
 #include <functional>
 
@@ -79,12 +80,13 @@ Generate random bytes
 auto l_rand(lua_State* const L) -> int
 {
     auto const num = luaL_checkinteger(L, 1);
+    luaL_argcheck(L, 0 <= num && num <= INT_MAX, 1, "out of range");
     auto const priv = lua_toboolean(L, 2);
 
     luaL_Buffer B;
     auto const buf = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, num));
 
-    auto const result = (priv ? RAND_priv_bytes : RAND_bytes)(buf, num);
+    auto const result = (priv ? RAND_priv_bytes : RAND_bytes)(buf, static_cast<int>(num));
     if (1 != result)
     {
         myopenssl::openssl_failure(L, priv ? "RAND_priv_bytes" : "RAND_bytes");
@@ -96,10 +98,10 @@ auto l_rand(lua_State* const L) -> int
 
 
 /**
- * @brief XORs two Lua strings of equal length and returns the result as a new string.
+ * @brief XORs two Lua strings and returns the result as a new string.
  *
  * Expects two string arguments on the Lua stack. The function performs a byte-wise XOR
- * of the two input strings. Short strings are padded out with zero bytes.
+ * of the two input strings. The shorter string is padded out with zero bytes.
  *
  * param:   string input1
  * param:   string input2
@@ -150,7 +152,8 @@ extern "C" auto luaopen_myopenssl(lua_State* const L) -> int
         {}
     };
 
-    luaL_newlib(L, LIB);
+    luaL_newlibtable(L, LIB);
+    myopenssl::setfuncs(L, LIB);
 
     lua_createtable(L, 0, 4);
     lua_pushinteger(L, EVP_PKEY_X25519);

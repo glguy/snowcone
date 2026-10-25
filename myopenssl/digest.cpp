@@ -15,6 +15,7 @@ extern "C" {
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 
+#include <climits>
 #include <cstddef>
 
 namespace myopenssl {
@@ -77,6 +78,7 @@ namespace {
              auto const data = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 2, &data_len));
              std::size_t key_len;
              auto const key = luaL_checklstring(L, 3, &key_len);
+             luaL_argcheck(L, key_len <= INT_MAX, 3, "too long");
 
              luaL_Buffer B;
              auto const md = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, EVP_MAX_MD_SIZE));
@@ -91,12 +93,27 @@ namespace {
              return 1;
          }},
 
+        /***
+        Size of this digest's output
+        @function digest:size
+        @treturn integer size in bytes
+        */
         {"size", [](auto const L) {
              auto const digest = check_digest(L, 1);
              lua_pushinteger(L, EVP_MD_get_size(digest));
              return 1;
          }},
 
+        /***
+        Derive a key from a password with PBKDF2-HMAC
+        @function digest:pbkdf2
+        @tparam string password
+        @tparam string salt
+        @tparam integer iterations at least 1
+        @tparam integer keylen output length in bytes
+        @treturn string derived key
+        @raise openssl error on failure
+        */
         {"pbkdf2", [](auto const L) {
              auto const digest = check_digest(L, 1);
              std::size_t passlen;
@@ -105,6 +122,10 @@ namespace {
              auto const salt = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 3, &saltlen));
              auto const iter = luaL_checkinteger(L, 4);
              auto const keylen = luaL_checkinteger(L, 5);
+             luaL_argcheck(L, passlen <= INT_MAX, 2, "too long");
+             luaL_argcheck(L, saltlen <= INT_MAX, 3, "too long");
+             luaL_argcheck(L, 1 <= iter && iter <= INT_MAX, 4, "out of range");
+             luaL_argcheck(L, 0 <= keylen && keylen <= INT_MAX, 5, "out of range");
 
              luaL_Buffer B;
              auto const out = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, keylen));
@@ -132,7 +153,7 @@ namespace {
         if (luaL_newmetatable(L, digest_name))
         {
             luaL_newlibtable(L, DigestMethods);
-            luaL_setfuncs(L, DigestMethods, 0);
+            setfuncs(L, DigestMethods);
             lua_setfield(L, -2, "__index");
         }
         lua_setmetatable(L, -2);
@@ -149,7 +170,7 @@ auto l_get_digest(lua_State* const L) -> int
     auto const digest = EVP_get_digestbyname(name);
     if (digest == nullptr)
     {
-        openssl_failure(L, "EVP_get_digestbyname");
+        return luaL_error(L, "unknown digest '%s'", name);
     }
 
     push_digest(L, digest);

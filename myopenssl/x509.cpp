@@ -15,10 +15,12 @@ extern "C" {
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
+#include <climits>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
+#include <utility>
 
 namespace myopenssl {
 
@@ -65,28 +67,98 @@ namespace {
         return asnTime;
     }
 
+    /// Field and value of name entry i (1-based) in the list at arg, or
+    /// nulls if the entry isn't a pair of strings. Uses raw access only, so
+    /// it never raises; pushes nothing.
+    auto name_entry(lua_State* const L, int const arg, lua_Integer const i, std::size_t& value_len)
+        -> std::pair<char const*, char const*>
+    {
+        auto const fail = std::pair<char const*, char const*>{};
+        if (LUA_TTABLE != lua_rawgeti(L, arg, i))
+        {
+            lua_pop(L, 1);
+            return fail;
+        }
+        std::size_t field_len;
+        auto const field = LUA_TSTRING == lua_rawgeti(L, -1, 1) ? lua_tolstring(L, -1, &field_len) : nullptr;
+        auto const value = LUA_TSTRING == lua_rawgeti(L, -2, 2) ? lua_tolstring(L, -1, &value_len) : nullptr;
+        lua_pop(L, 3); // the strings stay alive in the list
+        if (nullptr == field || nullptr == value || std::strlen(field) != field_len || value_len > INT_MAX)
+        {
+            return fail;
+        }
+        return {field, value};
+    }
+
+    /// Builds a name from a list of {field, value} pairs, in list order.
+    /// The field is a short name (CN), long name (commonName) or dotted OID.
     auto to_X509_NAME(lua_State* const L, int const arg) -> X509_NAME*
     {
-        auto const name = X509_NAME_new();
-        lua_pushnil(L); // first key
+        luaL_checktype(L, arg, LUA_TTABLE);
+        auto const n = static_cast<lua_Integer>(lua_rawlen(L, arg));
+
+        // Validate everything before allocating, so a Lua error leaks nothing
+        lua_Integer keys = 0;
+        lua_pushnil(L);
         while (0 != lua_next(L, arg))
         {
-            auto const field = luaL_tolstring(L, -2, nullptr);
+            lua_pop(L, 1);
+            keys++;
+        }
+        if (keys != n)
+        {
+            luaL_argerror(L, arg, "name must be a list of {field, value} pairs");
+        }
+        for (lua_Integer i = 1; i <= n; i++)
+        {
             std::size_t len;
-            auto const value = lua_tolstring(L, -2, &len);
+            if (nullptr == name_entry(L, arg, i, len).first)
+            {
+                luaL_error(L, "bad argument #%d (name entry %d must be {field, value} strings)", arg, static_cast<int>(i));
+            }
+        }
 
-            if (nullptr == field || nullptr == value)
+        auto const name = X509_NAME_new();
+        if (nullptr == name)
+        {
+            openssl_failure(L, "X509_NAME_new");
+        }
+        for (lua_Integer i = 1; i <= n; i++)
+        {
+            std::size_t len;
+            auto const [field, value] = name_entry(L, arg, i, len);
+            if (0 == X509_NAME_add_entry_by_txt(name, field, MBSTRING_UTF8, reinterpret_cast<unsigned char const*>(value), static_cast<int>(len), -1, 0))
             {
                 X509_NAME_free(name);
-                luaL_error(L, "bad name");
+                openssl_failure(L, "X509_NAME_add_entry_by_txt");
             }
-
-            X509_NAME_add_entry_by_txt(name, field, MBSTRING_UTF8, reinterpret_cast<unsigned char const*>(value), len, -1, 0);
-            lua_pop(L, 2); // remove value and key-string but leave key on stack
         }
-        lua_pop(L, 1); // pop last key
-
         return name;
+    }
+
+    /// Pushes the field of a name entry: its short name, or the dotted OID
+    /// when OpenSSL has no name for it
+    auto push_field(lua_State* const L, ASN1_OBJECT const* const object) -> void
+    {
+        auto const nid = OBJ_obj2nid(object);
+        if (NID_undef != nid)
+        {
+            if (auto const sn = OBJ_nid2sn(nid))
+            {
+                lua_pushstring(L, sn);
+                return;
+            }
+        }
+
+        auto const len = OBJ_obj2txt(nullptr, 0, object, 1);
+        if (len <= 0)
+        {
+            openssl_failure(L, "OBJ_obj2txt");
+        }
+        luaL_Buffer B;
+        auto const buf = luaL_buffinitsize(L, &B, len + 1);
+        OBJ_obj2txt(buf, len + 1, object, 1);
+        luaL_pushresultsize(&B, len);
     }
 
     enum class KeyUsage
@@ -207,9 +279,9 @@ namespace {
              auto const x509 = check_x509(L, 1);
              auto const md = check_digest(L, 2);
 
-             unsigned int len = EVP_MD_get_size(md);
+             unsigned int len;
              luaL_Buffer B;
-             unsigned char* bytes = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, len));
+             unsigned char* bytes = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, EVP_MAX_MD_SIZE));
 
              if (0 == X509_digest(x509, md, bytes, &len))
              {
@@ -279,9 +351,15 @@ namespace {
              }
              return 0;
          }},
+        /***
+        Set the issuer name
+        @function x509:set_issuerName
+        @tparam {{string,string},...} name list of {field, value} pairs in
+        order; a field is a short name (CN), long name (commonName) or dotted OID
+        @raise on a malformed list or an unknown field
+        */
         {"set_issuerName", [](auto const L) {
              auto const x509 = check_x509(L, 1);
-             luaL_checktype(L, 2, LUA_TTABLE);
 
              auto const name = to_X509_NAME(L, 2);
              auto const result = X509_set_issuer_name(x509, name);
@@ -293,9 +371,15 @@ namespace {
              }
              return 0;
          }},
+        /***
+        Set the subject name
+        @function x509:set_subjectName
+        @tparam {{string,string},...} name list of {field, value} pairs in
+        order; a field is a short name (CN), long name (commonName) or dotted OID
+        @raise on a malformed list or an unknown field
+        */
         {"set_subjectName", [](auto const L) {
              auto const x509 = check_x509(L, 1);
-             luaL_checktype(L, 2, LUA_TTABLE);
 
              auto const name = to_X509_NAME(L, 2);
              auto const result = X509_set_subject_name(x509, name);
@@ -307,6 +391,13 @@ namespace {
              }
              return 0;
          }},
+        /***
+        Get the subject name
+        @function x509:get_subjectName
+        @treturn {{string,string},...} list of {field, value} pairs in
+        certificate order; a field is its short name, or a dotted OID when
+        OpenSSL has no name for it
+        */
         {"get_subjectName", [](auto const L) {
              auto const x509 = check_x509(L, 1);
 
@@ -318,12 +409,7 @@ namespace {
              }
 
              auto const entryCount = X509_NAME_entry_count(name);
-             if (0 == entryCount)
-             {
-                 openssl_failure(L, "X509_NAME_entry_count");
-             }
-
-             lua_createtable(L, 0, entryCount);
+             lua_createtable(L, entryCount, 0);
              for (int i = 0; i < entryCount; ++i)
              {
                  auto const entry = X509_NAME_get_entry(name, i);
@@ -332,12 +418,19 @@ namespace {
 
                  unsigned char* utf8;
                  auto const length = ASN1_STRING_to_UTF8(&utf8, data);
+                 if (length < 0)
+                 {
+                     openssl_failure(L, "ASN1_STRING_to_UTF8");
+                 }
 
+                 // {field, value}, in certificate order
+                 lua_createtable(L, 2, 0);
                  lua_pushlstring(L, reinterpret_cast<char const*>(utf8), length);
-                 lua_setfield(L, -2, OBJ_nid2sn(OBJ_obj2nid(object)));
-
-                 // Free the converted UTF-8 string
                  OPENSSL_free(utf8);
+                 lua_rawseti(L, -2, 2);
+                 push_field(L, object);
+                 lua_rawseti(L, -2, 1);
+                 lua_rawseti(L, -2, i + 1);
              }
 
              return 1;
@@ -427,10 +520,10 @@ namespace {
         *static_cast<X509**>(lua_newuserdatauv(L, sizeof x509, 0)) = x509;
         if (luaL_newmetatable(L, x509_name))
         {
-            luaL_setfuncs(L, X509MT, 0);
+            setfuncs(L, X509MT);
 
             luaL_newlibtable(L, X509Methods);
-            luaL_setfuncs(L, X509Methods, 0);
+            setfuncs(L, X509Methods);
             lua_setfield(L, -2, "__index");
         }
         lua_setmetatable(L, -2);

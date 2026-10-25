@@ -12,7 +12,7 @@ extern "C" {
 #include <lua.h>
 }
 
-#include <cstring>
+#include <climits>
 #include <functional>
 #include <memory>
 #include <tuple>
@@ -36,7 +36,7 @@ namespace {
     auto checkbignum(lua_State* const L, int idx) -> BIGNUM*&
     {
         auto& bn = *reinterpret_cast<BIGNUM**>(luaL_checkudata(L, idx, bignum_name));
-        luaL_argcheck(L, nullptr != bn, 1, "panic: bignum not allocated");
+        luaL_argcheck(L, nullptr != bn, idx, "bignum already closed");
         return bn;
     }
 
@@ -71,7 +71,9 @@ namespace {
     {
         static auto arg(lua_State* const L, int& a, int&) -> int
         {
-            return luaL_checkinteger(L, ++a);
+            auto const n = luaL_checkinteger(L, ++a);
+            luaL_argcheck(L, 0 <= n && n <= INT_MAX, a, "out of range");
+            return static_cast<int>(n);
         }
     };
 
@@ -101,7 +103,7 @@ namespace {
             }
             else
             {
-                openssl_failure(L, "bignum failure");
+                openssl_failure(L, "bignum operation");
             }
         }
     };
@@ -118,7 +120,8 @@ namespace {
 
     auto l_gc(lua_State* const L) -> int
     {
-        auto& bn = checkbignum(L, 1);
+        // don't use checkbignum to allow for nullptr case
+        auto& bn = *static_cast<BIGNUM**>(luaL_checkudata(L, 1, bignum_name));
         BN_free(bn);
         bn = nullptr;
         return 0;
@@ -145,7 +148,7 @@ namespace {
              }
              else
              {
-                 return luaL_error(L, "bignum failure");
+                 openssl_failure(L, "BN_div");
              }
          }},
         {"__mod", [](auto const L) {
@@ -159,7 +162,7 @@ namespace {
              }
              else
              {
-                 return luaL_error(L, "bignum failure");
+                 openssl_failure(L, "BN_mod");
              }
          }},
         {"__unm", [](auto const L) {
@@ -178,14 +181,13 @@ namespace {
         {"__shr", Wrap<BN_rshift>::wrap},
         {"__eq", compare_bignum<0, true>},
         {"__lt", compare_bignum<-1, true>},
-        {"__gt", compare_bignum<1, true>},
         {"__le", compare_bignum<1, false>},
         {}
     };
 
     luaL_Reg const Methods[] = {
         /***
-        Compute the divisor and modulus at the same time.
+        Compute the quotient and modulus at the same time.
         @function bignum:div_mod
         @tparam bignum dividend
         @tparam bignum divisor
@@ -197,7 +199,7 @@ namespace {
 
         /***
         Compute the exponent with a modulus
-        @function pkey:mod_exp
+        @function bignum:mod_exp
         @tparam bignum a
         @tparam bignum p
         @tparam bignum m
@@ -217,9 +219,9 @@ auto push_bignum(lua_State* const L, BIGNUM* bn) -> BIGNUM*
     // Configure userdata's metatable
     if (luaL_newmetatable(L, bignum_name))
     {
-        luaL_setfuncs(L, MT, 0);
+        setfuncs(L, MT);
         luaL_newlibtable(L, Methods);
-        luaL_setfuncs(L, Methods, 0);
+        setfuncs(L, Methods);
         lua_setfield(L, -2, "__index");
     }
     lua_setmetatable(L, -2);
@@ -229,8 +231,7 @@ auto push_bignum(lua_State* const L, BIGNUM* bn) -> BIGNUM*
 auto l_bignum(lua_State* const L) -> int
 {
     // pass existing bignums through
-    auto const type_name = luaL_typename(L, 1);
-    if (nullptr != type_name && 0 == strcmp(bignum_name, type_name))
+    if (nullptr != luaL_testudata(L, 1, bignum_name))
     {
         lua_settop(L, 1);
         return 1;
@@ -240,7 +241,7 @@ auto l_bignum(lua_State* const L) -> int
     auto const str = luaL_tolstring(L, 1, &len);
     auto r = push_bignum(L);
     // ensure that the whole string was actually used
-    if (len == static_cast<std::size_t>(BN_dec2bn(&r, str)))
+    if (0 < len && len == static_cast<std::size_t>(BN_dec2bn(&r, str)))
     {
         return 1;
     }

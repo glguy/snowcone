@@ -15,12 +15,14 @@ extern "C" {
 #include <lua.h>
 }
 
+#include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
 #include <openssl/store.h>
 #include <openssl/ui.h>
 
+#include <climits>
 #include <cstddef>
 #include <cstring>
 #include <string_view>
@@ -52,7 +54,7 @@ namespace {
         return 0;
     }
 
-    luaL_Reg const X509MT[]{
+    luaL_Reg const PkeyMT[]{
         {"__gc", l_gc},
         {"__close", l_gc},
         {}
@@ -62,7 +64,7 @@ namespace {
     @type pkey
     */
 
-    luaL_Reg const X509Methods[]{
+    luaL_Reg const PkeyMethods[]{
         /***
         Sign a message using a private key
         @function pkey:sign
@@ -116,7 +118,7 @@ namespace {
         /***
         Sign a message using a private key
         @function pkey:digest_sign
-        @tparam digest[opt] digest to use
+        @tparam[opt] digest digest to use
         @tparam string data to sign
         @treturn string signature bytes
         @raise openssl error on failure
@@ -195,7 +197,6 @@ namespace {
                  openssl_failure(L, "EVP_DigestVerifyInit");
              }
 
-             // Get the max output size
              success = EVP_DigestVerify(ctx, sig, sig_len, data, data_len);
              EVP_MD_CTX_free(ctx);
 
@@ -203,6 +204,9 @@ namespace {
              {
                  openssl_failure(L, "EVP_DigestVerify");
              }
+
+             // A signature that doesn't verify queues errors too
+             ERR_clear_error();
 
              lua_pushboolean(L, success);
              return 1;
@@ -213,7 +217,7 @@ namespace {
         @function pkey:verify
         @tparam string signature
         @tparam string signed data
-        @treturn string signature bytes
+        @treturn boolean success
         @raise openssl error on failure
         */
         {"verify", [](auto const L) {
@@ -236,13 +240,15 @@ namespace {
                  openssl_failure(L, "EVP_PKEY_verify_init");
              }
 
-             // Get the max output size
              success = EVP_PKEY_verify(ctx, sig, sig_len, data, data_len);
              EVP_PKEY_CTX_free(ctx);
 
              if (0 > success) {
                  openssl_failure(L, "EVP_PKEY_verify");
              }
+
+             // A signature that doesn't verify queues errors too
+             ERR_clear_error();
 
              lua_pushboolean(L, success);
              return 1;
@@ -253,7 +259,7 @@ namespace {
         @function pkey:decrypt
         @tparam string ciphertext
         @tparam[opt] string format ("oaep" supported)
-        @treturn string signature bytes
+        @treturn string plaintext
         @raise openssl error on failure
         */
         {"decrypt", [](auto const L) {
@@ -261,6 +267,7 @@ namespace {
              std::size_t in_len;
              auto const in = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 2, &in_len));
              auto const format = luaL_optlstring(L, 3, "", nullptr);
+             luaL_argcheck(L, 0 == strcmp("", format) || 0 == strcmp("oaep", format), 3, "unknown padding (only \"oaep\" is supported)");
 
              auto const ctx = EVP_PKEY_CTX_new(pkey, nullptr);
              if (nullptr == ctx)
@@ -311,9 +318,9 @@ namespace {
         /***
         Encrypt a message using a public key
         @function pkey:encrypt
-        @tparam string ciphertext
+        @tparam string plaintext
         @tparam[opt] string format ("oaep" supported)
-        @treturn string signature bytes
+        @treturn string ciphertext
         @raise openssl error on failure
         */
         {"encrypt", [](auto const L) {
@@ -321,6 +328,7 @@ namespace {
              std::size_t in_len;
              auto const in = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 2, &in_len));
              auto const format = luaL_optlstring(L, 3, "", nullptr);
+             luaL_argcheck(L, 0 == strcmp("", format) || 0 == strcmp("oaep", format), 3, "unknown padding (only \"oaep\" is supported)");
 
              auto const ctx = EVP_PKEY_CTX_new(pkey, nullptr);
              if (nullptr == ctx)
@@ -540,7 +548,7 @@ namespace {
              switch (param->data_type)
              {
              default:
-                 luaL_error(L, "type not supported %d", param->data_type);
+                 return luaL_error(L, "type not supported %d", param->data_type);
              case OSSL_PARAM_UTF8_STRING: {
                  auto const str = luaL_checkstring(L, 3);
                  auto const success = EVP_PKEY_set_utf8_string_param(pkey, name, str);
@@ -563,10 +571,11 @@ namespace {
              case OSSL_PARAM_UNSIGNED_INTEGER:
              case OSSL_PARAM_INTEGER: {
                  auto const n = luaL_checkinteger(L, 3);
-                 auto const success = EVP_PKEY_set_int_param(pkey, name, n);
+                 luaL_argcheck(L, INT_MIN <= n && n <= INT_MAX, 3, "out of range");
+                 auto const success = EVP_PKEY_set_int_param(pkey, name, static_cast<int>(n));
                  if (not success)
                  {
-                     openssl_failure(L, "EVP_PKEY_set_octet_string_param");
+                     openssl_failure(L, "EVP_PKEY_set_int_param");
                  }
                  return 0;
              }
@@ -583,10 +592,10 @@ auto push_evp_pkey(lua_State* const L, EVP_PKEY* pkey) -> void
     *static_cast<EVP_PKEY**>(lua_newuserdatauv(L, sizeof pkey, 0)) = pkey;
     if (luaL_newmetatable(L, pkey_name))
     {
-        luaL_setfuncs(L, X509MT, 0);
+        setfuncs(L, PkeyMT);
 
-        luaL_newlibtable(L, X509Methods);
-        luaL_setfuncs(L, X509Methods, 0);
+        luaL_newlibtable(L, PkeyMethods);
+        setfuncs(L, PkeyMethods);
         lua_setfield(L, -2, "__index");
     }
     lua_setmetatable(L, -2);
@@ -654,8 +663,9 @@ auto l_gen_pkey(lua_State* const L) -> int
 
     if (0 == strcmp("RSA", type))
     {
-        std::size_t const size = luaL_checkinteger(L, 2);
-        pkey = EVP_PKEY_Q_keygen(nullptr, nullptr, type, size);
+        auto const bits = luaL_checkinteger(L, 2);
+        luaL_argcheck(L, 0 < bits && bits <= INT_MAX, 2, "out of range");
+        pkey = EVP_PKEY_Q_keygen(nullptr, nullptr, type, static_cast<std::size_t>(bits));
     }
     else if (0 == strcmp("EC", type))
     {
@@ -668,7 +678,7 @@ auto l_gen_pkey(lua_State* const L) -> int
     }
     else
     {
-        return luaL_error(L, "Unknown key type");
+        return luaL_error(L, "unknown key type '%s'", type);
     }
 
     if (nullptr == pkey)
@@ -704,9 +714,16 @@ auto l_pkey_from_store(lua_State* const L) -> int
         openssl_failure(L, "OSSL_STORE_open");
     }
 
+    // A null from OSSL_STORE_load can be an item that didn't decode, with
+    // more to follow, so the loop runs until end of file
     EVP_PKEY* pkey = nullptr;
-    while (auto const info = OSSL_STORE_load(store))
+    while (nullptr == pkey && not OSSL_STORE_eof(store))
     {
+        auto const info = OSSL_STORE_load(store);
+        if (nullptr == info)
+        {
+            continue;
+        }
         auto const ty = OSSL_STORE_INFO_get_type(info);
         if (priv && OSSL_STORE_INFO_PKEY == ty)
         {
@@ -717,8 +734,6 @@ auto l_pkey_from_store(lua_State* const L) -> int
             pkey = OSSL_STORE_INFO_get1_PUBKEY(info);
         }
         OSSL_STORE_INFO_free(info);
-        if (pkey)
-            break;
     }
 
     OSSL_STORE_close(store);
@@ -726,9 +741,13 @@ auto l_pkey_from_store(lua_State* const L) -> int
 
     if (nullptr == pkey)
     {
-        luaL_error(L, "key not found");
+        // A wrong password or an undecodable file leaves its reason queued
+        lua_pushfstring(L, "no %s key found in '%s'", priv ? "private" : "public", key_name);
+        openssl_failure_message(L, lua_tostring(L, -1));
     }
 
+    // Items skipped on the way to the key leave their errors queued
+    ERR_clear_error();
     push_evp_pkey(L, pkey);
     return 1;
 }

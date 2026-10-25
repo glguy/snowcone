@@ -5,7 +5,7 @@
 ---@class pkey
 ---@field export fun(self: pkey): table
 ---@field sign fun(self: pkey, msg: string): string
----@field decrypt fun(self: pkey, msg: string, format: "oeap" | nil): string
+---@field decrypt fun(self: pkey, msg: string, format: "oaep" | nil): string
 ---@field derive fun(self: pkey, public: pkey): string
 ---@field to_private_pem fun(self: pkey, cipher: string | nil, password: string | nil): string
 ---@field to_public_pem fun(self: pkey): string
@@ -23,9 +23,9 @@
 ---@field set_serialNumber fun(self: x509, serial: integer)
 ---@field set_notBefore fun(self: x509, notBefore: string)
 ---@field set_notAfter fun(self: x509, notAfter: string)
----@field set_issuerName fun(self: x509, issuerName: table)
----@field set_subjectName fun(self: x509, subjectName: table)
----@field get_subjectName fun(self: x509): table
+---@field set_issuerName fun(self: x509, issuerName: [string, string][])
+---@field set_subjectName fun(self: x509, subjectName: [string, string][])
+---@field get_subjectName fun(self: x509): [string, string][]
 ---@field add_caConstraint fun(self: x509)
 ---@field add_clientUsageConstraint fun(self: x509)
 ---@field add_serverUsageConstraint fun(self: x509)
