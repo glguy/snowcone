@@ -236,16 +236,18 @@ auto raw_field(lua_State* const L, int const t, char const* const k) -> int
 }
 
 /// Raise a Lua error unless the value at the top of the stack is a string
-/// (or nil/absent when `required` is false). Pops the value.
-auto check_layer_string(lua_State* const L, lua_Integer const n, char const* const field, bool const required) -> void
+/// (or nil/absent when `required` is false). Pops the value. Returns whether
+/// a string was given.
+auto check_layer_string(lua_State* const L, lua_Integer const n, char const* const field, bool const required) -> bool
 {
     auto const t = lua_type(L, -1);
     lua_pop(L, 1);
     if (t == LUA_TSTRING || (not required && t <= LUA_TNIL))
     {
-        return;
+        return t == LUA_TSTRING;
     }
     luaL_error(L, "layer %d: '%s' must be a string", static_cast<int>(n), field);
+    return false;
 }
 
 /// Like check_layer_string for an optional name, which can't contain a NUL
@@ -368,10 +370,16 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
             check_layer_port(L, i);
 
             raw_field(L, layer, "username");
-            check_layer_string(L, i, "username", false);
+            auto const username_given = check_layer_string(L, i, "username", false);
 
             raw_field(L, layer, "password");
-            check_layer_string(L, i, "password", false);
+            auto const password_given = check_layer_string(L, i, "password", false);
+
+            // Either one alone would quietly connect without authenticating
+            if (username_given != password_given)
+            {
+                luaL_error(L, "layer %d: 'username' and 'password' must be given together", n);
+            }
 
             have_host = true;
         }

@@ -355,6 +355,9 @@ end)
     ok &= check_arguments(args("{ {type = 'socks', host = 'h', port = 0} }").c_str(), "'port' must be an integer");
     ok &= check_arguments(args("{ {type = 'http', host = 'h', port = 65536} }").c_str(), "'port' must be an integer");
     ok &= check_arguments(args("{ {type = 'socks', port = 1080} }").c_str(), "'host' must be a string");
+    ok &= check_arguments(args("{ {type = 'socks', host = 'h', port = 1080, username = 'u'} }").c_str(), "'username' and 'password' must be given together");
+    ok &= check_arguments(args("{ {type = 'http', host = 'h', port = 8080, password = 'p'} }").c_str(), "'username' and 'password' must be given together");
+    ok &= check_arguments(args("{ {type = 'socks', host = 'h', port = 1080, username = 'u', password = 7} }").c_str(), "'password' must be a string");
     ok &= check_arguments(args("{ {type = 'tls', sni = 5} }").c_str(), "'sni' must be a string");
     ok &= check_arguments(args("{ {type = 'tls', verify = {}} }").c_str(), "'verify' must be a string");
     // Client certificates: cert() is signed by key(), and other_key() isn't
@@ -377,6 +380,7 @@ end)
     ok &= check_accepted(args("{ {type = 'tls', verify = ''} }", "0").c_str());
     ok &= check_accepted(args("{ {type = 'tls', verify = 'irc.example'} }", "0").c_str());
     ok &= check_accepted(args("{ {type = 'socks', host = 'h', port = 1}, {type = 'tls'} }", "0").c_str());
+    ok &= check_accepted(args("{ {type = 'socks', host = 'h', port = 1, username = 'u', password = 'p'} }").c_str());
 
     // snowcone.execute
     ok &= run({
