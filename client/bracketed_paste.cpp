@@ -17,9 +17,13 @@ auto BracketedPaste::install() -> void
     define_key("\x1b[I", focus_gained);
     define_key("\x1b[O", focus_lost);
 }
+auto BracketedPaste::disable() -> void
+{
+    fputs("\x1b[?1004l", stdout); // disable focus reporting
+    fputs("\x1b[?2004l", stdout); // disable bracketed paste
+    fflush(stdout);
+}
 BracketedPaste::~BracketedPaste()
 {
-    puts("\x1b[?1004l"); // disable focus reporting
-    puts("\x1b[?2004l"); // disable bracketed paste
-    fflush(stdout);
+    disable();
 }

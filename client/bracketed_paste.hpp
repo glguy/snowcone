@@ -11,8 +11,10 @@ struct BracketedPaste
     BracketedPaste();
     ~BracketedPaste();
     static auto install() -> void;
-    static int const start_paste = 01000;
-    static int const end_paste = 01001;
-    static int const focus_gained = 01002;
-    static int const focus_lost = 01003;
+    /// Turn off bracketed paste and focus reporting; safe to call more than once
+    static auto disable() -> void;
+    static constexpr int start_paste = 01000;
+    static constexpr int end_paste = 01001;
+    static constexpr int focus_gained = 01002;
+    static constexpr int focus_lost = 01003;
 };
