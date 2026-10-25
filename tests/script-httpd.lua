@@ -58,6 +58,12 @@ local function server(tag)
             return
         elseif target == '/raise' then
             error('handler failure', 0)
+        elseif target == '/raise-table' then
+            error({})
+        elseif target:match '^/status/' then
+            return tonumber(target:match '^/status/(.*)'), 'status'
+        elseif target == '/bad-header' then
+            return 200, 'x', {['X-Bad'] = 'a\r\nInjected: 1'}
         elseif target == '/reload-soon' then
             -- Reload after this response is sent, while the client still
             -- holds the keep-alive connection
@@ -110,7 +116,26 @@ sequence(function(step)
     expect('handler returning nothing', responses(out):match('^%d+'), '500')
     _, out = curl {url '/raise'}
     expect('handler raising an error', responses(out):match('^%d+'), '500')
-    expect('handler error reported', take_errors(), 'gen1 handler: handler failure')
+    local reported = take_errors()
+    expect('handler error reported', reported:match '^[^\n]*', 'gen1 handler: handler failure')
+    expect('handler error has a traceback', reported:find('stack traceback:', 1, true) ~= nil, true)
+    _, out = curl {url '/raise-table'}
+    expect('handler raising a table', responses(out):match('^%d+'), '500')
+    expect('table error reported', take_errors():match '^gen1 handler: table: ' ~= nil, true)
+
+    -- Status codes: any integer from 100 to 999, reported otherwise
+    _, out = curl {url '/status/299'}
+    expect('unregistered status passes through', responses(out), '299 status')
+    for _, bad in ipairs {'99', '1000', '-1', '200.5', '4294967496'} do
+        out = select(2, curl {url('/status/' .. bad)})
+        expect('status ' .. bad .. ' refused', responses(out):match('^%d+'), '500')
+        expect('status ' .. bad .. ' reported', take_errors(),
+            'gen1 handler: status must be an integer from 100 to 999')
+    end
+    _, out = curl {url '/bad-header'}
+    expect('header with CR LF refused', responses(out):match('^%d+'), '500')
+    expect('bad header reported', take_errors(),
+        'gen1 handler: header names and values must be strings without CR, LF or NUL')
 
     -- Request limits
     _, out = curl({'--data-binary', '@-', url '/length'}, string.rep('x', 25 * 1024 * 1024))

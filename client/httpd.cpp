@@ -45,6 +45,15 @@ auto report(LuaRef const& cb, char const* const what, std::string_view const mes
     safecall(L, "httpd error", 3);
 }
 
+// Message handler for the request handler's pcall: the error as text, with a
+// traceback. luaL_tolstring makes any error object safe to report.
+auto traceback(lua_State* const L) -> int
+{
+    auto const msg = luaL_tolstring(L, 1, nullptr);
+    luaL_traceback(L, L, msg, 1);
+    return 1;
+}
+
 // Header text from Lua can't contain characters that would split the response
 auto valid_header_text(std::string_view const text) -> bool
 {
@@ -68,7 +77,8 @@ auto server_error(
 }
 
 // Call the Lua handler and build a response from its results. This can throw
-// while building the response, leaving values on the Lua stack.
+// while building the response, leaving values on the Lua stack. An error or
+// an invalid result is reported locally; the client only sees a generic 500.
 template <class Body, class Allocator>
 auto build_response(
     LuaRef const& cb,
@@ -76,6 +86,8 @@ auto build_response(
 ) -> http::message_generator
 {
     auto const L = cb.get_lua();
+    auto const base = lua_gettop(L);
+    lua_pushcfunction(L, traceback);
     cb.push();
     push_string(L, req.method_string());
     push_string(L, req.target());
@@ -88,24 +100,36 @@ auto build_response(
         lua_settable(L, -3);
     }
 
-    if (LUA_OK != lua_pcall(L, 4, 3, 0))
+    if (LUA_OK != lua_pcall(L, 4, 3, base + 1))
     {
-        // Report the error locally; don't send internals to the client
+        // Report the error locally; don't send internals to the client.
+        // The message handler made it a string, unless it failed itself.
         auto const err = lua_tostring(L, -1);
         std::string const message = err ? err : "error object is not a string";
-        lua_pop(L, 1);
+        lua_settop(L, base);
         report(cb, "handler", message);
         return server_error(req, "internal server error"sv);
     }
 
-    auto const code = lua_tointeger(L, -3);
-    if (code == 0)
+    // No status at all is the handler's way to give a 500
+    if (lua_isnil(L, -3))
     {
-        lua_pop(L, 3);
+        lua_settop(L, base);
         return server_error(req, "internal server error"sv);
     }
 
-    http::response<http::string_body> res{http::int_to_status(code), req.version()};
+    int is_integer;
+    auto const code = lua_tointegerx(L, -3, &is_integer);
+    if (not is_integer || code < 100 || code > 999)
+    {
+        lua_settop(L, base);
+        report(cb, "handler", "status must be an integer from 100 to 999");
+        return server_error(req, "internal server error"sv);
+    }
+
+    http::response<http::string_body> res;
+    res.version(req.version());
+    res.result(static_cast<unsigned>(code));
     res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
     res.keep_alive(req.keep_alive());
 
@@ -134,7 +158,8 @@ auto build_response(
                 || not valid_header_text(*key)
                 || not valid_header_text({val, val_len}))
             {
-                lua_pop(L, 5); // value, key, and the 3 handler results
+                lua_settop(L, base);
+                report(cb, "handler", "header names and values must be strings without CR, LF or NUL");
                 return server_error(req, "internal server error"sv);
             }
             res.set(*key, std::string_view{val, val_len});
@@ -142,7 +167,7 @@ auto build_response(
         }
     }
 
-    lua_pop(L, 3);
+    lua_settop(L, base);
 
     return res;
 }
