@@ -8,6 +8,9 @@
 
 #include <array>
 #include <iomanip>
+#include <memory>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 connection::connection(boost::asio::io_context& io_context)
@@ -53,16 +56,61 @@ auto connection::close() -> void
 namespace {
 
 /**
- * @brief Write SHA2-256 digest of the public-key to the output stream
+ * @brief Throws a boost::system::system_error for the failed OpenSSL call.
+ *
+ * Reports the most recently queued OpenSSL error, the one the failed call
+ * added, then clears the queue so nothing stale is reported later. A call
+ * that failed without queueing anything is reported as a generic failure
+ * rather than as error 0.
+ *
+ * @param prefix Name of the failed call
+ * @throws boost::system::system_error Always
+ */
+[[noreturn]] auto openssl_error(char const* const prefix) -> void
+{
+    auto const code = ::ERR_peek_last_error();
+    ::ERR_clear_error();
+
+    if (code == 0)
+    {
+        throw std::runtime_error{std::string{prefix} + ": failed"};
+    }
+
+    boost::system::error_code const ec{
+        static_cast<int>(code),
+        boost::asio::error::get_ssl_category()
+    };
+    throw boost::system::system_error{ec, prefix};
+}
+
+/**
+ * @brief Write the SHA-256 digest of the peer's DER SubjectPublicKeyInfo
+ *
+ * This matches common pinning tools, for example
+ * `openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | sha256sum`.
  */
 auto peer_fingerprint(std::ostream& os, SSL const* const ssl) -> void
 {
-    unsigned char md[EVP_MAX_MD_SIZE];
-    unsigned int md_len = 0; // if the digest somehow fails, use 0
     auto const cert = SSL_get0_peer_certificate(ssl);
-    if (cert)
+    if (not cert)
     {
-        X509_pubkey_digest(cert, EVP_sha256(), md, &md_len);
+        // Only possible for anonymous ciphers, which aren't enabled
+        throw std::runtime_error{"TLS peer sent no certificate"};
+    }
+
+    unsigned char* der = nullptr;
+    auto const der_len = i2d_PUBKEY(X509_get0_pubkey(cert), &der);
+    if (der_len <= 0)
+    {
+        openssl_error("i2d_PUBKEY");
+    }
+    std::unique_ptr<unsigned char, decltype([](unsigned char* p) { OPENSSL_free(p); })> const der_owner{der};
+
+    unsigned char md[EVP_MAX_MD_SIZE];
+    unsigned int md_len = 0;
+    if (1 != EVP_Digest(der, der_len, md, &md_len, EVP_sha256(), nullptr))
+    {
+        openssl_error("EVP_Digest");
     }
 
     boost::io::ios_flags_saver const saver{os};
@@ -121,27 +169,6 @@ auto constexpr alpn_encode(char const (&... protocols)[Ns]) -> std::array<unsign
     };
     (encode(protocols), ...);
     return result;
-}
-
-/**
- * @brief Throws a boost::system::system_error with the latest OpenSSL error.
- *
- * Retrieves the most recent OpenSSL error code, clears the OpenSSL error queue,
- * and throws a boost::system::system_error with the provided prefix and the error code.
- *
- * @param prefix A string to prefix the error message.
- * @throws boost::system::system_error Always throws with the OpenSSL error code and prefix.
- */
-[[noreturn]] auto openssl_error(char const* const prefix) -> void
-{
-    boost::system::error_code ec{
-        static_cast<int>(::ERR_get_error()),
-        boost::asio::error::get_ssl_category()
-    };
-
-    ::ERR_clear_error();
-
-    throw boost::system::system_error{ec, prefix};
 }
 
 /**
@@ -241,10 +268,26 @@ auto connect_layer(ConnectContext& ctx, TlsLayer& tls_layer) -> boost::asio::awa
     }
 
     // Configure server certificate verification
+    // OpenSSL checks the name itself, so a mismatch is recorded as the
+    // verify result and can be reported
     if (not tls_layer.verify.empty())
     {
         tls.set_verify_mode(boost::asio::ssl::verify_peer);
-        tls.set_verify_callback(boost::asio::ssl::host_name_verification(tls_names::verification(tls_layer.verify)));
+        auto const name = tls_names::verification(tls_layer.verify);
+        auto const param = SSL_get0_param(tls.native_handle());
+        boost::system::error_code not_ip;
+        static_cast<void>(boost::asio::ip::make_address(name, not_ip));
+        if (not_ip)
+        {
+            if (1 != X509_VERIFY_PARAM_set1_host(param, name.data(), name.size()))
+            {
+                openssl_error("X509_VERIFY_PARAM_set1_host");
+            }
+        }
+        else if (1 != X509_VERIFY_PARAM_set1_ip_asc(param, name.c_str()))
+        {
+            openssl_error("X509_VERIFY_PARAM_set1_ip_asc");
+        }
     }
 
     // Set the SNI hostname, if specified
@@ -258,7 +301,19 @@ auto connect_layer(ConnectContext& ctx, TlsLayer& tls_layer) -> boost::asio::awa
     }
 
     // Configuration complete, initiate the handshake
-    co_await tls.async_handshake(tls.client, boost::asio::use_awaitable);
+    boost::system::error_code handshake_error;
+    co_await tls.async_handshake(tls.client, boost::asio::redirect_error(boost::asio::use_awaitable, handshake_error));
+    if (handshake_error)
+    {
+        // OpenSSL computes a verify result even with verification off, so
+        // it explains the failure only when verification was on
+        auto const result = SSL_get_verify_result(tls.native_handle());
+        if (not tls_layer.verify.empty() && result != X509_V_OK)
+        {
+            throw boost::system::system_error{handshake_error, X509_verify_cert_error_string(result)};
+        }
+        throw boost::system::system_error{handshake_error};
+    }
 
     peer_fingerprint(os << " tls=", tls.native_handle());
 }

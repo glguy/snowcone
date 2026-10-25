@@ -10,6 +10,8 @@
 #include <pkey.hpp>
 #include <x509.hpp>
 
+#include <openssl/err.h>
+
 #include <ircmsg.hpp>
 
 extern "C" {
@@ -324,12 +326,30 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
         if (type == "tls"sv)
         {
             raw_field(L, layer, "client_cert");
-            luaL_opt(L, myopenssl::check_x509, -1, nullptr);
+            auto const cert = myopenssl::test_x509(L, -1);
+            if (not cert && not lua_isnil(L, -1))
+            {
+                luaL_error(L, "layer %d: 'client_cert' must be an open x509", n);
+            }
             lua_pop(L, 1);
 
             raw_field(L, layer, "client_key");
-            luaL_opt(L, myopenssl::check_pkey, -1, nullptr);
+            auto const key = myopenssl::test_pkey(L, -1);
+            if (not key && not lua_isnil(L, -1))
+            {
+                luaL_error(L, "layer %d: 'client_key' must be an open pkey", n);
+            }
             lua_pop(L, 1);
+
+            if ((cert == nullptr) != (key == nullptr))
+            {
+                luaL_error(L, "layer %d: 'client_cert' and 'client_key' must be given together", n);
+            }
+            if (cert && key && 1 != X509_check_private_key(cert, key))
+            {
+                ERR_clear_error();
+                luaL_error(L, "layer %d: 'client_key' does not match 'client_cert'", n);
+            }
 
             raw_field(L, layer, "verify");
             auto const verify_given = check_layer_name(L, i, "verify");

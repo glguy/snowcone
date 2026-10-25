@@ -31,6 +31,12 @@ auto check_x509(lua_State* const L, int const arg) -> X509*
     return x509;
 }
 
+auto test_x509(lua_State* const L, int const arg) -> X509*
+{
+    auto const x509 = static_cast<X509**>(luaL_testudata(L, arg, x509_name));
+    return x509 ? *x509 : nullptr;
+}
+
 namespace {
 
     auto l_gc(lua_State* const L) -> int

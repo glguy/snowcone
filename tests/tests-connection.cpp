@@ -4,9 +4,18 @@
 
 #include <gtest/gtest.h>
 
+#include <boost/asio/ssl.hpp>
+
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/x509v3.h>
+
 #include <fcntl.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #include <array>
+#include <cstdio>
 #include <cstdint>
 #include <future>
 #include <memory>
@@ -721,6 +730,217 @@ auto connect_noting_close(
     {
         // aborted or failed: acceptable outcomes after close()
     }
+}
+
+// TLS: a test CA is made trusted through SSL_CERT_FILE, which the client's
+// set_default_verify_paths honours
+
+using PkeyPtr = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
+using X509Ptr = std::unique_ptr<X509, decltype(&X509_free)>;
+
+auto make_key() -> PkeyPtr
+{
+    return PkeyPtr{EVP_EC_gen("P-256"), EVP_PKEY_free};
+}
+
+auto add_extension(X509* const cert, X509* const issuer, int const nid, char const* const value) -> void
+{
+    X509V3_CTX ctx;
+    X509V3_set_ctx_nodb(&ctx);
+    X509V3_set_ctx(&ctx, issuer, cert, nullptr, nullptr, 0);
+    auto const ext = X509V3_EXT_conf_nid(nullptr, &ctx, nid, value);
+    ASSERT_NE(ext, nullptr);
+    X509_add_ext(cert, ext, -1);
+    X509_EXTENSION_free(ext);
+}
+
+/// A certificate for `key`, signed by issuer (self-signed when null)
+auto make_cert(EVP_PKEY* const key, char const* const cn, char const* const san, X509* issuer, EVP_PKEY* issuer_key) -> X509Ptr
+{
+    X509Ptr cert{X509_new(), X509_free};
+    X509_set_version(cert.get(), X509_VERSION_3);
+    ASN1_INTEGER_set(X509_get_serialNumber(cert.get()), 1);
+    X509_gmtime_adj(X509_getm_notBefore(cert.get()), -60);
+    X509_gmtime_adj(X509_getm_notAfter(cert.get()), 3600);
+    X509_set_pubkey(cert.get(), key);
+    auto const name = X509_NAME_new();
+    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, reinterpret_cast<unsigned char const*>(cn), -1, -1, 0);
+    X509_set_subject_name(cert.get(), name);
+    X509_NAME_free(name);
+    if (not issuer)
+    {
+        issuer = cert.get();
+        issuer_key = key;
+    }
+    X509_set_issuer_name(cert.get(), X509_get_subject_name(issuer));
+    add_extension(cert.get(), issuer, NID_basic_constraints, san ? "critical,CA:FALSE" : "critical,CA:TRUE");
+    if (san)
+    {
+        add_extension(cert.get(), issuer, NID_subject_alt_name, san);
+    }
+    X509_sign(cert.get(), issuer_key, EVP_sha256());
+    return cert;
+}
+
+struct TlsFixture
+{
+    PkeyPtr ca_key = make_key();
+    X509Ptr ca = make_cert(ca_key.get(), "snowcone test CA", nullptr, nullptr, nullptr);
+    PkeyPtr server_key = make_key();
+    X509Ptr server = make_cert(server_key.get(), "irc.example",
+        "DNS:irc.example,IP:127.0.0.1,IP:::1", ca.get(), ca_key.get());
+    PkeyPtr rogue_key = make_key();
+    X509Ptr rogue = make_cert(rogue_key.get(), "irc.example", "DNS:irc.example", nullptr, nullptr);
+
+    TlsFixture()
+    {
+        char path[] = "/tmp/snowcone-test-ca-XXXXXX";
+        auto const fd = mkstemp(path);
+        auto const file = fdopen(fd, "w");
+        PEM_write_X509(file, ca.get());
+        std::fclose(file);
+        ca_path = path;
+        setenv("SSL_CERT_FILE", path, 1);
+    }
+
+    ~TlsFixture()
+    {
+        unlink(ca_path.c_str());
+    }
+
+    std::string ca_path;
+};
+
+auto tls_fixture() -> TlsFixture&
+{
+    static TlsFixture fixture;
+    return fixture;
+}
+
+/// Hex SHA-256 of the DER SubjectPublicKeyInfo of key
+auto spki_sha256(EVP_PKEY* const key) -> std::string
+{
+    unsigned char* der = nullptr;
+    auto const len = i2d_PUBKEY(key, &der);
+    unsigned char md[EVP_MAX_MD_SIZE];
+    unsigned int md_len = 0;
+    EVP_Digest(der, len, md, &md_len, EVP_sha256(), nullptr);
+    OPENSSL_free(der);
+    std::string hex;
+    for (unsigned i = 0; i < md_len; ++i)
+    {
+        char buf[3];
+        std::snprintf(buf, sizeof buf, "%02x", md[i]);
+        hex += buf;
+    }
+    return hex;
+}
+
+struct TlsOutcome
+{
+    std::string client; // the connect result, or "error: " and the message
+    std::optional<std::string> server_sni;
+};
+
+/// Serve one TLS handshake with cert and key, then connect to it with tls
+auto tls_connect(X509* const cert, EVP_PKEY* const key, TlsLayer tls) -> TlsOutcome
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    asio::ssl::context server_ctx{asio::ssl::context::tls_server};
+    SSL_CTX_use_certificate(server_ctx.native_handle(), cert);
+    SSL_CTX_use_PrivateKey(server_ctx.native_handle(), key);
+
+    TlsOutcome outcome;
+
+    asio::co_spawn(io, [&]() -> asio::awaitable<void> {
+        asio::ssl::stream<tcp::socket> stream{co_await asio::this_coro::executor, server_ctx};
+        co_await acceptor.async_accept(stream.next_layer(), asio::use_awaitable);
+        boost::system::error_code ignored;
+        co_await stream.async_handshake(stream.server, asio::redirect_error(asio::use_awaitable, ignored));
+        if (auto const sni = SSL_get_servername(stream.native_handle(), TLSEXT_NAMETYPE_host_name))
+        {
+            outcome.server_sni = sni;
+        }
+    }, asio::detached);
+
+    auto settings = settings_for(acceptor);
+    settings.layers.push_back(std::move(tls));
+    asio::co_spawn(io, [&]() -> asio::awaitable<void> {
+        try
+        {
+            outcome.client = co_await conn->connect(std::move(settings));
+        }
+        catch (std::exception const& e)
+        {
+            outcome.client = std::string{"error: "} + e.what();
+        }
+        conn->close();
+    }, asio::detached);
+
+    io.run();
+    return outcome;
+}
+
+auto tls_connect(TlsLayer tls) -> TlsOutcome
+{
+    auto& f = tls_fixture();
+    return tls_connect(f.server.get(), f.server_key.get(), std::move(tls));
+}
+
+TEST(Tls, VerifiesHostname)
+{
+    auto const outcome = tls_connect({.verify = "irc.example", .sni = "irc.example"});
+    EXPECT_FALSE(outcome.client.starts_with("error")) << outcome.client;
+    EXPECT_EQ(outcome.server_sni, "irc.example");
+}
+
+TEST(Tls, FingerprintIsSha256OfSubjectPublicKeyInfo)
+{
+    auto const outcome = tls_connect({.verify = "irc.example", .sni = ""});
+    auto const want = " tls=" + spki_sha256(tls_fixture().server_key.get());
+    EXPECT_TRUE(outcome.client.ends_with(want)) << outcome.client;
+}
+
+TEST(Tls, ReportsHostnameMismatch)
+{
+    auto const outcome = tls_connect({.verify = "other.example", .sni = ""});
+    EXPECT_NE(outcome.client.find("hostname mismatch"), std::string::npos) << outcome.client;
+}
+
+TEST(Tls, VerifiesIpAddresses)
+{
+    EXPECT_FALSE(tls_connect({.verify = "127.0.0.1", .sni = ""}).client.starts_with("error"));
+    auto const outcome = tls_connect({.verify = "192.0.2.1", .sni = ""});
+    EXPECT_NE(outcome.client.find("IP address mismatch"), std::string::npos) << outcome.client;
+}
+
+TEST(Tls, VerifiesScopedIpv6LiteralByAddress)
+{
+    auto const outcome = tls_connect({.verify = "::1%1", .sni = ""});
+    EXPECT_FALSE(outcome.client.starts_with("error")) << outcome.client;
+}
+
+TEST(Tls, ReportsUntrustedCertificate)
+{
+    auto& f = tls_fixture();
+    auto const outcome = tls_connect(f.rogue.get(), f.rogue_key.get(), {.verify = "irc.example", .sni = ""});
+    EXPECT_NE(outcome.client.find("self-signed"), std::string::npos) << outcome.client;
+}
+
+TEST(Tls, EmptyVerifyAcceptsAnyCertificate)
+{
+    auto& f = tls_fixture();
+    auto const outcome = tls_connect(f.rogue.get(), f.rogue_key.get(), {.verify = "", .sni = ""});
+    EXPECT_FALSE(outcome.client.starts_with("error")) << outcome.client;
+}
+
+TEST(Tls, SendsNoServerNameForIpLiteralOrEmpty)
+{
+    EXPECT_EQ(tls_connect({.verify = "irc.example", .sni = "127.0.0.1"}).server_sni, std::nullopt);
+    EXPECT_EQ(tls_connect({.verify = "irc.example", .sni = ""}).server_sni, std::nullopt);
 }
 
 TEST(OpenCloexec, TcpAndLocalSocketsAreCloseOnExec)

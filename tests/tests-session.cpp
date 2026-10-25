@@ -12,8 +12,7 @@
 #include "safecall.hpp"
 #include "timer.hpp"
 
-#include <pkey.hpp>
-#include <x509.hpp>
+#include <myopenssl.hpp>
 
 extern "C" {
 #include <lauxlib.h>
@@ -41,6 +40,8 @@ App::App(char const* const filename, bool const headless)
 {
     L = luaL_newstate();
     luaL_openlibs(L);
+    luaL_requiref(L, "myopenssl", luaopen_myopenssl, 1);
+    lua_pop(L, 1);
     lua_pushlightuserdata(L, this);
     lua_rawsetp(L, LUA_REGISTRYINDEX, &app_key);
 }
@@ -57,11 +58,6 @@ auto App::from_lua(lua_State* const L) -> App*
     lua_pop(L, 1);
     return a;
 }
-
-namespace myopenssl {
-auto check_x509(lua_State*, int) -> X509* { return nullptr; }
-auto check_pkey(lua_State*, int) -> EVP_PKEY* { return nullptr; }
-} // namespace myopenssl
 
 int safecall(lua_State* const L, std::string_view const location, int const args)
 {
@@ -198,6 +194,20 @@ auto run(Scenario const& s) -> bool
     return ok;
 }
 
+// Helpers for argument scripts: cert() is a certificate for key(), and
+// other_key() is any other key
+char const* const tls_prelude = R"lua(
+local k = myopenssl.gen_pkey('EC', 'P-256')
+function key() return k end
+function other_key() return myopenssl.gen_pkey('EC', 'P-256') end
+function cert()
+  local x = myopenssl.new_x509()
+  x:set_pubkey(k)
+  x:sign(k)
+  return x
+end
+)lua";
+
 // Bad arguments must raise a Lua error before anything is started. A missing
 // layer `type` used to dereference a null pointer, and an unknown one was
 // silently skipped.
@@ -210,7 +220,7 @@ auto check_arguments(char const* const args, char const* const expected_error, c
     lua_pushcfunction(L, l_execute);
     lua_setglobal(L, "execute");
 
-    auto const script = std::string{"local ok, err = pcall("} + fn + ", " + args
+    auto const script = std::string{tls_prelude} + "local ok, err = pcall(" + fn + ", " + args
         + "); return ok, tostring(err)";
     if (luaL_dostring(L, script.c_str()) != LUA_OK)
     {
@@ -232,7 +242,7 @@ auto check_accepted(char const* const args) -> bool
     lua_pushcfunction(L, l_start_irc);
     lua_setglobal(L, "connect");
 
-    auto const script = std::string{"local ok, err = pcall(connect, "} + args
+    auto const script = std::string{tls_prelude} + "local ok, err = pcall(connect, " + args
         + "); if ok then err:close() end; return ok, tostring(err)";
     if (luaL_dostring(L, script.c_str()) != LUA_OK)
     {
@@ -347,6 +357,19 @@ end)
     ok &= check_arguments(args("{ {type = 'socks', port = 1080} }").c_str(), "'host' must be a string");
     ok &= check_arguments(args("{ {type = 'tls', sni = 5} }").c_str(), "'sni' must be a string");
     ok &= check_arguments(args("{ {type = 'tls', verify = {}} }").c_str(), "'verify' must be a string");
+    // Client certificates: cert() is signed by key(), and other_key() isn't
+    auto const tls_with = [&](std::string fields) {
+        return args("{ {type = 'tls', " + fields + "} }");
+    };
+    ok &= check_arguments(tls_with("client_cert = cert()").c_str(), "must be given together");
+    ok &= check_arguments(tls_with("client_key = key()").c_str(), "must be given together");
+    ok &= check_arguments(tls_with("client_cert = cert(), client_key = other_key()").c_str(), "does not match");
+    ok &= check_arguments(tls_with("client_cert = {}, client_key = key()").c_str(), "'client_cert' must be an open x509");
+    ok &= check_arguments(tls_with("client_cert = cert(), client_key = 'pem'").c_str(), "'client_key' must be an open pkey");
+    ok &= check_arguments(
+        "'host', 6667, (function() local c = cert(); getmetatable(c).__close(c); return { {type = 'tls', client_cert = c, client_key = key()} } end)(), function() end",
+        "'client_cert' must be an open x509");
+    ok &= check_accepted(tls_with("client_cert = cert(), client_key = key()").c_str());
     ok &= check_arguments(args("{ {type = 'tls', verify = 'a\\0b'} }").c_str(), "without NUL bytes");
     ok &= check_arguments(args("{ {type = 'tls', sni = 'a\\0b'} }").c_str(), "without NUL bytes");
     ok &= check_arguments(args("{ {type = 'tls'} }", "0").c_str(), "requires 'verify'");

@@ -36,6 +36,12 @@ auto check_pkey(lua_State* const L, int const arg) -> EVP_PKEY*
     return pkey;
 }
 
+auto test_pkey(lua_State* const L, int const arg) -> EVP_PKEY*
+{
+    auto const pkey = static_cast<EVP_PKEY**>(luaL_testudata(L, arg, pkey_name));
+    return pkey ? *pkey : nullptr;
+}
+
 namespace {
 
     auto l_gc(lua_State* const L) -> int

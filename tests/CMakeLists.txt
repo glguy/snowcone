@@ -21,8 +21,8 @@ target_link_libraries(tests-connection PRIVATE ${BOOST_TARGETS} base64 OpenSSL::
 gtest_discover_tests(tests-connection)
 
 # Drives client/irc/lua.cpp with real Lua against a local TCP server.
-# The OpenSSL Lua bindings and ncurses-dependent pieces are replaced by stubs
-# in the test itself, so only their headers are needed.
+# The real OpenSSL Lua bindings are linked; the ncurses-dependent pieces are
+# replaced by stubs in the test itself.
 add_executable(tests-session
   tests-session.cpp
   ../client/irc/lua.cpp
@@ -36,9 +36,8 @@ add_executable(tests-session
   ../client/timer.cpp)
 target_include_directories(tests-session PRIVATE
   "${PROJECT_SOURCE_DIR}/client"
-  "${PROJECT_SOURCE_DIR}/client/net"
-  "${PROJECT_SOURCE_DIR}/myopenssl/include")
-target_link_libraries(tests-session PRIVATE PkgConfig::LUA ircmsg ${BOOST_TARGETS} base64 OpenSSL::SSL)
+  "${PROJECT_SOURCE_DIR}/client/net")
+target_link_libraries(tests-session PRIVATE PkgConfig::LUA ircmsg myopenssl ${BOOST_TARGETS} base64 OpenSSL::SSL)
 add_test(NAME tests-session COMMAND tests-session)
 
 endif()
