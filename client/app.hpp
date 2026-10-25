@@ -21,6 +21,16 @@ class App
     char const* main_source;
     bool headless; // script mode: no terminal, no keyboard input, no signals
 
+    // Lifecycle state. Lua may change it from inside a callback, while the
+    // coroutine that called it is still running, so the coroutines check it
+    // after every wake-up and every callback rather than relying on cancel().
+    bool shutting_down = false; // set by shutdown(); never cleared
+    bool started = false; // startup() has spawned the coroutines
+    bool input_running = false; // input enabled: from construction (unless
+                                // headless), or since start_input()
+    unsigned input_generation = 0; // a stdin_thread exits once it changes
+    bool resize_pending = false; // SIGWINCH arrived while input was stopped
+
 public:
     App(char const* filename, bool headless);
     ~App();
@@ -45,7 +55,15 @@ public:
         return headless;
     }
 
+    /// Start reading the terminal. Does nothing if input is already running,
+    /// or after shutdown(). A resize that arrived while input was stopped is
+    /// handled once the caller returns to the event loop.
     auto start_input() -> void;
+
+    /// Stop reading the terminal and leave curses mode, for example to hand
+    /// the tty to a child process. Takes effect at once, even from inside an
+    /// input callback: no further key is read or delivered. Does nothing
+    /// after shutdown().
     auto stop_input() -> void;
 
     /**
@@ -58,5 +76,7 @@ public:
 
 private:
     auto signal_thread() -> boost::asio::awaitable<void>;
-    auto stdin_thread() -> boost::asio::awaitable<void>;
+    auto stdin_thread(unsigned generation) -> boost::asio::awaitable<void>;
+    auto resize() -> void;
+    auto spawn_reader() -> void;
 };

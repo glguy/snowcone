@@ -87,6 +87,7 @@ App::App(char const* const filename, bool const headless)
     , signals{io_context, SIGWINCH, SIGUSR1}
     , main_source{filename}
     , headless{headless}
+    , input_running{not headless}
 {
     uses_terminal = not headless;
     L = luaL_newstate();
@@ -98,6 +99,9 @@ App::App(char const* const filename, bool const headless)
 App::~App()
 {
     lua_close(L);
+    // stdin is never closed: a closed fd 0 would be reused by the next socket
+    // or pipe while ncurses still reads it
+    stdin_poll.release();
 }
 
 auto App::fatal(std::string_view const message) -> void
@@ -146,12 +150,31 @@ auto do_paste(lua_State* const L, std::string_view const paste) -> void
 
 } // namespace
 
+auto App::resize() -> void
+{
+    endwin();
+    refresh();
+    // Setting the size globals can run a __newindex metamethod
+    lua_pushcfunction(L, [](lua_State* const L) -> int {
+        l_ncurses_resize(L);
+        return 0;
+    });
+    safecall(L, "resize", 0);
+    lua_callback(L, "on_resize", 0);
+}
+
+/// Signals stay registered after shutdown() so SIGUSR1 can't kill the
+/// process, but this loop exits and nothing handles them. A signal_set with
+/// no pending wait doesn't keep run() alive.
 auto App::signal_thread() -> boost::asio::awaitable<void>
 {
-    for (;;)
+    // shutdown() may come from inside reload() or on_resize, when no wait is
+    // pending for its cancel() to abort
+    while (not shutting_down)
     {
         auto const [ec, sig] = co_await signals.async_wait(boost::asio::as_tuple(boost::asio::use_awaitable));
-        if (is_stop(ec))
+        // A signal queued before shutdown() still completes successfully
+        if (shutting_down || is_stop(ec))
         {
             co_return;
         }
@@ -165,30 +188,37 @@ auto App::signal_thread() -> boost::asio::awaitable<void>
             reload();
             break;
         case SIGWINCH:
-            endwin();
-            refresh();
-            // Setting the size globals can run a __newindex metamethod
-            lua_pushcfunction(L, [](lua_State* const L) -> int {
-                l_ncurses_resize(L);
-                return 0;
-            });
-            safecall(L, "resize", 0);
-            lua_callback(L, "on_resize", 0);
+            // While input is stopped a child process may own the tty, so
+            // curses must not touch it; start_input() catches up
+            if (input_running)
+            {
+                resize();
+            }
+            else
+            {
+                resize_pending = true;
+            }
             break;
         }
     }
 }
 
-auto App::stdin_thread() -> boost::asio::awaitable<void>
+auto App::stdin_thread(unsigned const generation) -> boost::asio::awaitable<void>
 {
     std::string paste;
     bool in_paste = false;
     mbstate_t mbstate{};
 
+    // Any callback may stop input or shut down, and a later start_input()
+    // makes a new generation; this reader must then not read another key
+    auto const live = [this, generation] {
+        return not shutting_down && generation == input_generation;
+    };
+
     for (;;)
     {
         auto const [ec] = co_await stdin_poll.async_wait(stdin_poll.wait_read, boost::asio::as_tuple(boost::asio::use_awaitable));
-        if (is_stop(ec))
+        if (not live() || is_stop(ec))
         {
             co_return;
         }
@@ -196,7 +226,7 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
         {
             throw boost::system::system_error{ec};
         }
-        for (int key; key = getch(), ERR != key;)
+        for (int key; live() && (key = getch(), ERR != key);)
         {
             if (in_paste)
             {
@@ -264,42 +294,88 @@ auto App::stdin_thread() -> boost::asio::awaitable<void>
             // Any other key interrupts a partial multibyte sequence
             mbstate = {};
         }
+        if (not live())
+        {
+            co_return;
+        }
     }
+}
+
+auto App::spawn_reader() -> void
+{
+    boost::asio::co_spawn(io_context, stdin_thread(++input_generation), rethrow);
 }
 
 auto App::start_input() -> void
 {
-    if (not headless)
+    if (headless || shutting_down || input_running)
     {
-        boost::asio::co_spawn(io_context, stdin_thread(), rethrow);
+        return;
+    }
+    input_running = true;
+    if (started) // otherwise startup() spawns it
+    {
+        spawn_reader();
+    }
+
+    if (resize_pending)
+    {
+        resize_pending = false;
+        // Not inline: the caller is in the middle of a Lua call
+        boost::asio::post(io_context, [this] {
+            if (input_running && not shutting_down)
+            {
+                resize();
+            }
+            else
+            {
+                resize_pending = true;
+            }
+        });
     }
 }
 
 auto App::stop_input() -> void
 {
-    if (not headless)
+    if (headless || shutting_down || not input_running)
     {
-        stdin_poll.cancel();
-        endwin();
+        return;
     }
+    input_running = false;
+    ++input_generation;
+    boost::system::error_code ignored;
+    stdin_poll.cancel(ignored);
+    endwin();
 }
 
 /// Runs until the event loop has no work left. Interactive mode always has
 /// work until shutdown(); a script ends once its last resource finishes.
 auto App::startup() -> void
 {
-    if (not headless)
+    // Input stays off if the script stopped it while loading, for example to
+    // run a command on the tty
+    if (not headless && not shutting_down)
     {
-        start_input();
+        started = true;
+        if (input_running)
+        {
+            spawn_reader();
+        }
         boost::asio::co_spawn(io_context, signal_thread(), rethrow);
     }
     io_context.run();
 }
 
+/// Stop input and signal handling for good. Pending waits are cancelled,
+/// and each coroutine also checks the flag, which covers a coroutine that
+/// isn't waiting right now (the caller may be one of its callbacks).
 auto App::shutdown() -> void
 {
-    stdin_poll.close();
-    signals.cancel();
+    shutting_down = true;
+    input_running = false;
+    boost::system::error_code ignored;
+    stdin_poll.cancel(ignored);
+    signals.cancel(ignored);
 }
 
 auto App::reload() -> bool
