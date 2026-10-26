@@ -16,10 +16,7 @@ function M.init_state(S)
     if S.log_last == nil then S.log_last = false end
 end
 
---- Add a line to the log.
----@param category string
----@param fmt string format string, or the text when no arguments follow
-function M.add(category, fmt, ...)
+local function add(net, category, fmt, ...)
     local text = select('#', ...) == 0 and fmt or string.format(fmt, ...)
     local S = HUB.state
 
@@ -33,16 +30,34 @@ function M.add(category, fmt, ...)
         timestamp = clock.now(),
         category = category,
         text = text,
+        net = net,
     }
     OrderedMap.insert(S.log, nil, entry)
-    S.log_last = text
+    S.log_last = net and (net .. ': ' .. text) or text
 
     if HUB.boot and HUB.boot.echo then
-        print(string.format('[%s] %s', category, text))
+        if net then
+            print(string.format('[%s] %s: %s', category, net, text))
+        else
+            print(string.format('[%s] %s', category, text))
+        end
     end
 
     bus.emit('log', entry)
     dispatch.dirty()
+end
+
+--- Add a line to the log.
+---@param category string
+---@param fmt string format string, or the text when no arguments follow
+function M.add(category, fmt, ...)
+    add(nil, category, fmt, ...)
+end
+
+--- Add a line about a network to the log.
+---@param net string|nil network id
+function M.add_net(net, category, fmt, ...)
+    add(net, category, fmt, ...)
 end
 
 --- Clear the status bar's copy of the last line.

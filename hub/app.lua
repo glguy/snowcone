@@ -12,17 +12,20 @@
 
 local bus        <const> = require 'hub.runtime.bus'
 local clock      <const> = require 'hub.runtime.clock'
+local config     <const> = require 'hub.runtime.config'
 local dispatch   <const> = require 'hub.runtime.dispatch'
 local log        <const> = require 'hub.runtime.log'
 local resources  <const> = require 'hub.runtime.resources'
 local state      <const> = require 'hub.runtime.state'
 local timer      <const> = require 'hub.runtime.timer'
+local task       <const> = require 'hub.runtime.task'
 local mkcommand  <const> = require 'hub.lib.mkcommand'
+local manager    <const> = require 'hub.net.manager'
 
 local M = {}
 
 -- Bumped by hand to see at a glance which code is running after a reload
-M.version = 'phase0'
+M.version = 'phase1'
 
 local function module_names(opts)
     local names = {
@@ -30,6 +33,10 @@ local function module_names(opts)
         'hub.runtime.clock',
         'hub.runtime.log',
         'hub.runtime.timer',
+        'hub.runtime.task',
+        'hub.net.send',
+        'hub.net.handlers',
+        'hub.net.manager',
     }
     if HUB.boot.ui then
         table.insert(names, 'hub.ui')
@@ -74,6 +81,9 @@ end
 ---@param opts table reload options (runtime/loader.lua)
 ---@return table the generation, ready for HUB.current
 function M.build(gen, opts)
+    -- read and validate first: a bad file leaves everything as it was
+    local cfg = config.load(HUB.boot.args, opts.config or HUB.boot.config)
+
     local modules = {}
     for _, name in ipairs(module_names(opts)) do
         table.insert(modules, {name = name, module = gen.require(name)})
@@ -91,6 +101,8 @@ function M.build(gen, opts)
         commands = {},
         views = {},
         version = M.version,
+        config = cfg,
+        task_methods = task.methods,
     }
 
     for _, entry in ipairs(modules) do
@@ -121,6 +133,13 @@ function M.build(gen, opts)
     return current
 end
 
+local function shutdown()
+    if HUB.shut_down then return end
+    HUB.shut_down = true
+    resources.close_all()
+    snowcone.shutdown()
+end
+
 local function tick()
     timer.start('app', 1000, 'app.tick')
     bus.emit('clock.tick', {now = clock.now()})
@@ -131,6 +150,11 @@ end
 local function activate(first)
     state.commit()
     local current = HUB.current
+    HUB.state.config = current.config
+    for _, warning in ipairs(current.config.warnings) do
+        log.add('config', '%s', warning)
+    end
+
     for _, entry in ipairs(current.modules) do
         local m = entry.module
         if type(m) == 'table' and m.activate and m ~= M then
@@ -152,6 +176,9 @@ local function activate(first)
     end
 
     bus.emit('app.reloaded', {generation = current.id, first = first})
+    if not HUB.quitting then
+        manager.apply_config(HUB.state.config)
+    end
     dispatch.dirty()
 end
 
@@ -167,10 +194,28 @@ local function reload_failed(err)
     if show then show 'status' end
 end
 
+-- Quitting sends QUIT on every network and exits once the servers close
+-- the connections, or after a grace period. A second quit exits now.
 local function quit()
+    if HUB.quitting then
+        return shutdown()
+    end
+    HUB.quitting = true
     bus.emit('app.quit', {})
-    resources.close_all()
-    snowcone.shutdown()
+    manager.quit_all()
+    if manager.live_count() == 0 then
+        shutdown()
+    else
+        timer.start('app', manager.quit_grace_ms + 1000, 'app.shutdown')
+    end
+end
+
+function M.subscribe(sub)
+    sub.on('net.closed', function()
+        if HUB.quitting and manager.live_count() == 0 then
+            shutdown()
+        end
+    end)
 end
 
 M.routes = {
@@ -179,6 +224,7 @@ M.routes = {
     ['app.reload_failed'] = reload_failed,
     ['app.tick'] = tick,
     ['app.quit'] = quit,
+    ['app.shutdown'] = shutdown,
 }
 
 return M

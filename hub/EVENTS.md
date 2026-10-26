@@ -7,23 +7,24 @@ carry `net`, the network id.
 | Topic | Payload | Emitted by |
 | --- | --- | --- |
 | `app.reloaded` | `{generation, first}` after a generation becomes current | app |
-| `app.quit` | `{}` before resources close and the client shuts down | app |
+| `app.quit` | `{}` when quitting starts, before networks disconnect | app |
 | `clock.tick` | `{now}` once a second, when the tick runs | app |
-| `log` | `{category, text, time, timestamp}` for each log line | runtime/log |
+| `log` | `{category, text, time, timestamp, net?}` for each log line | runtime/log |
+| `task.prompt` | `{task, label, net?}` a task waits for a secret; answer with `task.answer(task, text)` | runtime/task |
+| `net.state` | `{net, phase, prev, reason?}` on every phase change | net/manager |
+| `net.connected` | `{net, fingerprint}` transport is up, registration starts | net/manager |
+| `net.registered` | `{net, nick}` end of MOTD after welcome | net/registration |
+| `net.closed` | `{net, reason}` an attempt ended | net/manager |
+| `irc.message` | `{net, msg}` every inbound message outside a batch, after the model update | net/manager |
+| `irc.sent` | `{net, msg}` outbound, secrets masked | net/send |
+| `irc.batch` | `{net, type, params, messages}` when a batch closes | net/batch |
+| `irc.nick` | `{net, old, new, self}` | net/handlers |
+| `irc.isupport` | `{net, key, value}` value nil when removed, true without a value | net/irc |
 
 Planned by the design (section 4.3), not emitted yet:
 
 | Topic | Payload | Emitted by |
 | --- | --- | --- |
-| `net.state` | `{net, phase, prev, reason?}` | net/manager |
-| `net.connected` | `{net, fingerprint}` | net/manager |
-| `net.registered` | `{net, nick}` | net/registration |
-| `net.closed` | `{net, reason}` | net/manager |
-| `irc.message` | `{net, msg}` every inbound message, after the model update | net/handlers |
-| `irc.sent` | `{net, msg}` outbound, secrets masked | net/send |
-| `irc.batch` | `{net, type, params, messages}` | net/batch |
-| `irc.nick` | `{net, old, new, self}` | net/handlers |
-| `irc.isupport` | `{net, key, value}` | net/irc |
 | `snote` | `{net, name, server, time, ...fields}` | features/snotice |
 | `snote.<name>` | same payload, per notice name | features/snotice |
 | `chat.message` | `{net, target, msg, mention, activity}` | features/chat |

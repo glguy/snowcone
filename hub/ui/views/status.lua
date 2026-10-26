@@ -29,7 +29,13 @@ local function draw_entry(win, entry)
     draw.blue(win)
     win:waddstr(string.format(' %-10.10s ', entry.category or '-'))
     draw.normal(win)
-    addircstr(win, entry.text)
+    if entry.net then
+        draw.cyan(win)
+        win:waddstr(entry.net, ' ')
+        draw.normal(win)
+    end
+    -- a line longer than the pad wraps onto the rows below
+    addircstr(win, entry.text:sub(1, 400))
 end
 
 return {

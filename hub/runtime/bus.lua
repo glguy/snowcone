@@ -79,14 +79,18 @@ function M.emit_on(b, topic, ev)
     b.depth = b.depth - 1
 end
 
---- Deliver an event on the current generation's bus. Before the first
---- generation is active there is no bus and the event is dropped.
+--- Deliver an event on the current generation's bus, then to tasks
+--- waiting for it. Before the first generation is active there is no bus
+--- and the event is dropped.
 ---@param topic string
 ---@param ev table
 function M.emit(topic, ev)
     local current = HUB.current
     if current then
         M.emit_on(current.bus, topic, ev)
+        -- a route, since runtime/task requires this module
+        local deliver = current.routes['task.event']
+        if deliver then deliver(topic, ev) end
     end
 end
 

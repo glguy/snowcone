@@ -75,6 +75,8 @@ function T.boot(opts)
     opts.init = T.init
     if opts.ui == nil then opts.ui = false end
     if opts.strict == nil then opts.strict = true end
+    -- never the user's own configuration files
+    if opts.config == nil then opts.config = {} end
     return assert(loadfile(T.init))(opts)
 end
 

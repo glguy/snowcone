@@ -112,3 +112,102 @@ tick). Tested in `test-reload.lua`.
   generations.
 - Plugin callbacks: a per-generation registry keyed by id. Plugin timers
   that are still pending at a reload are dropped; reloads are infrequent.
+
+## Phase 1: one network, headless
+
+### Configuration
+
+- `runtime/config.lua` loads `--config`, else `hub.toml`, `hub.lua`,
+  `settings.toml`, `settings.lua` from the config directory, applies
+  `KEY.PATH=value` overrides, and validates against
+  `runtime/config_schema.lua`. A `.lua` config runs in its own environment,
+  so its assignments don't become globals.
+- Configuration is loaded inside the guarded build, so a bad file on
+  reload leaves the old code and configuration active. It is committed to
+  `state.config` in `activate`. Schema warnings (unexpected fields) are
+  logged then.
+- Legacy shape: without `networks`, the top-level `server`, `layers`,
+  `identity`, `sasl`, `oper` and `challenge` become network `default` with
+  every feature. Mixing the two shapes is an error. **Question:** should
+  top-level `identity`/`sasl` instead act as defaults for every network?
+- `features` is normalized to a set, `{snotice = true, ...}`, and unknown
+  names are errors. Defaults: `autoconnect = true`, `reclaim_nick = true`,
+  `reconnect = {min_delay = 1, max_delay = 300}`.
+- New per-network keys: `reclaim_nick`, `snomask` (used in phase 4),
+  `quit_message`.
+- The dashboard's checks became schema patterns. Passwords sent on an IRC
+  line (`server.password`, `oper.password`) reject CR, LF and NUL. Other
+  secrets may be PEM text, so they don't.
+- `lib/schema.lua` collects unexpected-field warnings instead of logging,
+  and keeps only the warnings of the oneOf alternative that matched. It
+  raises errors without a source position.
+- Tests pass `config` as a table; `tests/hub/lib.lua` passes `{}` by
+  default so tests never read the user's files.
+
+### Tasks (`runtime/task.lua`)
+
+- The handshake across reloads is the short list at the top of task.lua:
+  record fields `id, name, owner, net, co, seq, wait, commands, timer` and
+  the values each kind of wait resumes with. `seq` changes with every
+  wait, so stale wakeups are ignored.
+- Task methods are looked up through `HUB.current.task_methods` from a
+  metatable that captures nothing. Bodies use `t:send`, `t:log`, `t:emit`
+  and `t:api(name)` instead of module upvalues.
+- `t:wait_irc(commands, timeout)` waits on the task's own network. The
+  design's signature had a `net` argument, but every network task already
+  has one.
+- `t:prompt(label)` emits `task.prompt`; `task.answer(id, text)` replies.
+  The UI side is phase 2.
+- **DNS can't be cancelled.** `snowcone.dnslookup` returns its callback,
+  not a handle (REVIEW.md F-070), and neither DNS nor `execute` can be
+  cancelled natively (F-071). A cancelled task's late result finds no
+  task, or a different `seq`, and is dropped. The design's native API
+  table is wrong about `dnslookup` returning a handle with `cancel()`.
+  ircc's committed fix in `Task:cancel_dnslookup` calls `h:cancel()` on a
+  function, so it would raise.
+
+### Network layer
+
+- `state.nets[id]` follows design 6.1. Additions: `cfg` (the network's
+  configuration table), `console` (OrderedMap of raw messages, both
+  directions), `reconnect_timer`, `close_timer`, `registered_at`,
+  `pinged`.
+- The stale-event guard drops events unless `attempt` matches *and* the
+  record still has a connection. Otherwise an END from an attempt that
+  was already closed locally would be handled twice.
+- Registration sends `CAP LS 302`, `PASS`, `NICK` and `USER` together and
+  then reads LS replies. In ircc, a server without CAP support sent 001
+  during LS and registration then waited for a second 001. ERR_UNKNOWNCOMMAND
+  for CAP also ends LS.
+- Nick reclaim uses MONITOR (ircc) and also fires on a QUIT of the wanted
+  nick. The `net.reclaim_nick` route is there for the snotice feature to
+  call on connect/nick notices (the dashboard's `target_nick`).
+- `sasl` without a value in CAP LS now means "mechanisms unknown", so all
+  are tried; ircc built a set from the empty string.
+- **Ported bug fixed:** NAMES parsing matched `[^!@ ]+` before stripping
+  prefixes, so `@` (op) was lost from every NAMES entry. Prefixes now come
+  off first.
+- Handlers live in `handlers.commands`, separate from module exports, so a
+  server command can't name a non-handler.
+- Liveness runs on `clock.tick`: PING after 30 s of silence when
+  registered, close after 60 s; `connecting` times out after 60 s without
+  CON. All compare `clock.now()` differences.
+- Backoff: delay = backoff × (1 + 0–25 % jitter), then backoff doubles up
+  to `max_delay`. A session registered for 60 s or more resets it first.
+  Configuration errors (bad layer secrets, no host, bad connect arguments)
+  set the target to idle instead of retrying; a refused or failed
+  connection retries.
+- Quit: QUIT on registered networks, immediate close for the rest, exit
+  when every network is idle or after a grace period. A second `/quit`
+  exits immediately. HUB gains `quitting`, `shut_down` and
+  `task_next_id`.
+- Removing a network from configuration disconnects it and drops the
+  record after close. Feature state cleanup and the full diff table of
+  design 4.8 are phase 3.
+
+### UI
+
+- The status view shows a log line's network id.
+- It also cuts lines at 400 bytes. A line longer than the 550-column pad
+  wrapped onto the rows below and left its tail there; ircc's renderer has
+  the same problem.

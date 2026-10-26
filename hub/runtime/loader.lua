@@ -87,9 +87,12 @@ end
 ---           just returns false)
 ---   echo    true prints log lines to stdout
 ---   args    command line arguments for configuration (default: arg)
+---   config  raw configuration table to use instead of reading a file
+---   transport  {connect = f} replacing snowcone.connect
 --- opts on any load (this generation only):
 ---   overrides  [module name] = source or chunk, replacing files on disk
 ---   modules    extra module names loaded after the standard ones
+---   config     raw configuration for this load only
 ---@param app string name of the module that builds a generation
 ---@return boolean ok
 ---@return string|nil error message
@@ -115,6 +118,9 @@ function M.reload(root, init, app, opts)
             strict = opts.strict or false,
             echo = opts.echo or false,
             args = opts.args or arg or {},
+            -- raw configuration instead of a file, and a fake transport (tests)
+            config = opts.config,
+            transport = opts.transport,
         }
     end
 
