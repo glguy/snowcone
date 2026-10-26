@@ -460,6 +460,27 @@ T.case('task timeouts, cancellation and DNS', function()
     T.eq(next(HUB.tasks), nil, 'no tasks left')
 end)
 
+T.case('cancelling a task kills its child and returns the terminal', function()
+    boot {}
+    local task = T.require 'hub.runtime.task'
+    local tty = T.require 'hub.runtime.tty'
+    local piped = task.spawn('piped', {}, function(t)
+        t:execute('sleep', {'60'}, '')
+        error 'cancelled execute resumed'
+    end)
+    local terminal = task.spawn('terminal', {}, function(t)
+        t:execute('sleep', {'60'})
+        error 'cancelled execute resumed'
+    end)
+    T.eq(type(piped.process), 'userdata', 'process handle kept')
+    T.eq(tty.suspended(), true, 'terminal lent to the child')
+    task.cancel(piped.id)
+    task.cancel(terminal.id)
+    T.eq(piped.process, nil, 'process cancelled')
+    T.eq(tty.suspended(), false, 'terminal returned')
+    -- a child left running would keep the script past ctest's timeout
+end)
+
 T.case('a closing network cancels its tasks', function()
     local fake = boot {network('test')}
     local c = fake.last()

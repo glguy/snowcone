@@ -4,6 +4,7 @@
 #include "boundary.hpp"
 #include "safecall.hpp"
 #include "strings.hpp"
+#include "userdata.hpp"
 
 extern "C" {
 #include <lauxlib.h>
@@ -15,10 +16,15 @@ extern "C" {
 #include <boost/process/v2/stdio.hpp>
 #include <boost/process/v2/environment.hpp>
 
+#include <signal.h>
+#include <unistd.h>
+
+#include <cerrno>
 #include <csignal>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -27,35 +33,49 @@ namespace {
 /// keeps an enormous table from turning into an enormous allocation.
 constexpr lua_Integer max_arguments = 65'536;
 
-/// @brief Signature for the process execution completion handler.
-/// @param error Error code indicating process or I/O failure (if any).
-/// @param exit_code Exit code returned by the process.
-/// @param stdout_text Captured standard output from the process.
-/// @param stderr_text Captured standard error from the process.
-using ExecSig = void(boost::system::error_code error, int exit_code, std::string stdout_text, std::string stderr_text);
+/// The default limit on each of stdout and stderr
+constexpr lua_Integer default_max_output = 16 * 1024 * 1024;
+
+/// Far beyond any real limit; keeps the buffer limit plus one from overflowing
+constexpr lua_Integer max_max_output = lua_Integer{1} << 40;
 
 namespace process = boost::process::v2;
 
-/// Process initializer that restores the default SIGPIPE action in the child.
-/// main ignores SIGPIPE, and an ignored signal stays ignored across exec.
-struct DefaultSigpipe
+/// Process initializer run in the child before exec. It restores the default
+/// SIGPIPE action, since main ignores SIGPIPE and an ignored signal stays
+/// ignored across exec, and optionally starts a new process group.
+struct ChildSetup
 {
+    bool group;
+
     template <typename Launcher, typename Path>
     auto on_exec_setup(Launcher&, Path const&, char const* const*) -> boost::system::error_code
     {
         std::signal(SIGPIPE, SIG_DFL);
+        if (group && ::setpgid(0, 0) == -1)
+        {
+            return {errno, boost::system::system_category()};
+        }
         return {};
     }
 };
 
-template <boost::asio::completion_handler_for<ExecSig> Handler>
+/// One child process, owned by its pending operations. While armed, the
+/// callback is kept in the registry under this object's address. It is not
+/// a LuaRef: the io_context destroys handlers still queued only after
+/// lua_close, and that destruction must not touch the state.
 struct Exec
 {
-    Handler handler_;
+    lua_State* L; // main thread
+    bool armed = true;
+
     boost::asio::writable_pipe stdin_;
     boost::asio::readable_pipe stdout_;
     boost::asio::readable_pipe stderr_;
     process::process proc_;
+
+    bool group_;
+    std::size_t max_output_;
 
     /// Count number of outstanding async operations.
     int stage_;
@@ -66,45 +86,119 @@ struct Exec
     std::string stderr_text_;
 
     boost::system::error_code error_code_;
+    std::string failure_; // why stop() was called, when not cancelled
 
-    Exec(Handler&& handler, boost::asio::io_context& io_context, std::optional<std::string> input)
-        : handler_{std::move(handler)}
+    Exec(lua_State* const L, boost::asio::io_context& io_context, std::optional<std::string> input, bool const group, std::size_t const max_output)
+        : L{L}
         , stdin_{io_context}
         , stdout_{io_context}
         , stderr_{io_context}
         , proc_{io_context}
+        , group_{group}
+        , max_output_{max_output}
         , stage_{input ? 4 : 3}
         , stdin_text_{std::move(input).value_or(std::string{})}
     {
     }
 
+    /// Forget the callback, leaving it on the stack when push is set
+    auto disarm(lua_State* const L, bool const push) -> void
+    {
+        if (push)
+        {
+            lua_rawgetp(L, LUA_REGISTRYINDEX, this);
+        }
+        lua_pushnil(L);
+        lua_rawsetp(L, LUA_REGISTRYINDEX, this);
+        armed = false;
+    }
+
+    /// Kill the child, or its group, and close our ends of the pipes, so
+    /// every pending operation finishes soon. The child is signalled only
+    /// while it is unreaped (the exit status is stored as it is reaped), so
+    /// its pid can't have been reused. A descendant that left the group
+    /// keeps running, but we no longer wait on its output.
+    auto stop() -> void
+    {
+        if (proc_.is_open() && process::process_is_running(proc_.native_exit_code()))
+        {
+            ::kill(group_ ? -proc_.id() : proc_.id(), SIGKILL);
+        }
+        boost::system::error_code ignored;
+        stdin_.close(ignored);
+        stdout_.close(ignored);
+        stderr_.close(ignored);
+    }
+
+    auto fail(std::string message) -> void
+    {
+        if (failure_.empty())
+        {
+            failure_ = std::move(message);
+        }
+        stop();
+    }
+
     auto complete() -> void
     {
-        if (--stage_ == 0)
+        if (--stage_ == 0 && armed)
         {
-            handler_(error_code_, exit_code_, std::move(stdout_text_), std::move(stderr_text_));
+            disarm(L, true);
+            if (not failure_.empty())
+            {
+                luaL_pushfail(L);
+                push_string(L, failure_);
+                safecall(L, "process failure callback", 2);
+            }
+            else if (error_code_)
+            {
+                luaL_pushfail(L);
+                push_string(L, error_code_.what());
+                safecall(L, "process failure callback", 2);
+            }
+            else
+            {
+                lua_pushinteger(L, exit_code_);
+                push_string(L, stdout_text_);
+                push_string(L, stderr_text_);
+                safecall(L, "process complete callback", 3);
+            }
         }
+    }
+
+    /// Read one output stream to EOF. The buffer holds one byte more than
+    /// the limit: a read that fills it ends without error (EOF would be
+    /// one), and means the limit was passed.
+    auto read(boost::asio::readable_pipe& pipe, std::string& text, std::shared_ptr<Exec> const& self) -> void
+    {
+        boost::asio::async_read(
+            pipe,
+            boost::asio::dynamic_buffer(text, max_output_ + 1),
+            [self](boost::system::error_code const ec, std::size_t) {
+                if (not ec)
+                {
+                    self->fail("execute: output exceeded " + std::to_string(self->max_output_) + " bytes");
+                }
+                self->complete();
+            }
+        );
     }
 };
 
-// N.B. This is a lambda so that template argument inference
-// is delayed until function application and not when passed
-// to async_initiate.
-constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Handler>(
-                                Handler&& handler,
-                                boost::asio::io_context& io_context,
-                                process::filesystem::path file,
-                                std::vector<std::string> args,
-                                std::optional<std::string> input
-                            ) -> void {
-    auto const has_input = input.has_value();
-    auto const self = std::make_shared<Exec<Handler>>(std::forward<Handler>(handler), io_context, std::move(input));
+/// The Lua handle. It doesn't keep the process going: a process runs to the
+/// end, or until cancelled, whether or not its handle is collected.
+struct Handle
+{
+    std::weak_ptr<Exec> exec;
+};
 
+auto start(std::shared_ptr<Exec> const& self, boost::asio::io_context& io_context, process::filesystem::path file, std::vector<std::string> const& args, bool const has_input) -> void
+{
     if (not file.has_parent_path())
     {
         file = process::environment::find_executable(file);
     }
- 
+
     try {
         using in_t = decltype(process::process_stdio::in);
         self->proc_ = process::process{
@@ -116,7 +210,7 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
                 .out = {self->stdout_},
                 .err = {self->stderr_},
             },
-            DefaultSigpipe{}
+            ChildSetup{self->group_}
         };
     } catch (boost::system::system_error const& e) {
         self->error_code_ = e.code();
@@ -139,21 +233,8 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
         );
     }
 
-    boost::asio::async_read(
-        self->stdout_,
-        boost::asio::dynamic_buffer(self->stdout_text_),
-        [self](boost::system::error_code, std::size_t) {
-            self->complete();
-        }
-    );
-
-    boost::asio::async_read(
-        self->stderr_,
-        boost::asio::dynamic_buffer(self->stderr_text_),
-        [self](boost::system::error_code, std::size_t) {
-            self->complete();
-        }
-    );
+    self->read(self->stdout_, self->stdout_text_, self);
+    self->read(self->stderr_, self->stderr_text_, self);
 
     self->proc_.async_wait(
         [self](boost::system::error_code const err, int const exit_code) {
@@ -162,22 +243,49 @@ constexpr auto initiation = []<boost::asio::completion_handler_for<ExecSig> Hand
             self->complete();
         }
     );
+}
+
+} // namespace
+
+template <>
+char const* udata_name<Handle> = "process";
+
+namespace {
+
+/// The userdata stays reachable after finalization (resurrection, weak-keyed
+/// tables), so the payload is emptied rather than destroyed. Collecting the
+/// handle doesn't stop the process.
+auto l_gc(lua_State* const L) -> int
+{
+    check_udata<Handle>(L, 1)->exec.reset();
+    return 0;
+}
+
+/// Drop the callback so it never runs, kill the child (its group when
+/// started with group), and stop reading its output. Does nothing once the
+/// process has finished or been cancelled.
+auto l_cancel(lua_State* const L) -> int
+{
+    if (auto const exec = check_udata<Handle>(L, 1)->exec.lock())
+    {
+        if (exec->armed)
+        {
+            exec->disarm(L, false);
+            exec->stop();
+        }
+    }
+    return 0;
+}
+
+luaL_Reg const MT[]{
+    {"__gc", boundary<l_gc>},
+    {}
 };
 
-template <
-    boost::asio::completion_token_for<ExecSig> CompletionToken>
-auto async_exec(
-    boost::asio::io_context& io_context,
-    process::filesystem::path file,
-    std::vector<std::string> args,
-    std::optional<std::string> input,
-    CompletionToken&& token
-)
-{
-    return boost::asio::async_initiate<CompletionToken, ExecSig>(
-        initiation, token, io_context, std::move(file), std::move(args), std::move(input)
-    );
-}
+luaL_Reg const Methods[]{
+    {"cancel", boundary<l_cancel>},
+    {}
+};
 
 } // namespace
 
@@ -213,8 +321,45 @@ auto l_execute(lua_State* const L) -> int
     // 3. completion handler
     luaL_checkany(L, 3);
 
-    // 4. optional stdin string
-    auto const input = opt_string_view(L, 4);
+    // 4. options: input, group, max_output
+    std::optional<std::string_view> input;
+    bool group = false;
+    lua_Integer max_output = default_max_output;
+    if (not lua_isnoneornil(L, 4))
+    {
+        luaL_checktype(L, 4, LUA_TTABLE);
+        lua_pushnil(L);
+        while (lua_next(L, 4))
+        {
+            auto const key = lua_type(L, -2) == LUA_TSTRING ? std::string_view{lua_tostring(L, -2)} : std::string_view{};
+            if (key == "input")
+            {
+                luaL_argcheck(L, lua_type(L, -1) == LUA_TSTRING, 4, "input must be a string");
+                // The table keeps the string alive until it is copied below
+                std::size_t len;
+                auto const str = lua_tolstring(L, -1, &len);
+                input.emplace(str, len);
+            }
+            else if (key == "group")
+            {
+                luaL_argcheck(L, lua_type(L, -1) == LUA_TBOOLEAN, 4, "group must be a boolean");
+                group = lua_toboolean(L, -1);
+            }
+            else if (key == "max_output")
+            {
+                luaL_argcheck(L, lua_isinteger(L, -1), 4, "max_output must be an integer");
+                max_output = lua_tointeger(L, -1);
+                luaL_argcheck(L, 0 <= max_output && max_output <= max_max_output, 4, "max_output out of range");
+            }
+            else
+            {
+                return luaL_argerror(L, 4, "unknown option");
+            }
+            lua_pop(L, 1);
+        }
+        // A child in its own group is stopped if it reads the terminal
+        luaL_argcheck(L, not group || input, 4, "group needs input");
+    }
 
     std::vector<std::string> args;
     args.reserve(n);
@@ -227,42 +372,32 @@ auto l_execute(lua_State* const L) -> int
         lua_pop(L, 1);
     }
 
-    lua_pushvalue(L, 3);
-    auto const cb = luaL_ref(L, LUA_REGISTRYINDEX);
+    auto const handle = new_udata<Handle>(L, 0, [L] {
+        // Build metatable the first time
+        luaL_setfuncs(L, MT, 0);
+        luaL_newlibtable(L, Methods);
+        luaL_setfuncs(L, Methods, 0);
+        lua_setfield(L, -2, "__index");
+        // Keep __gc out of reach of Lua code
+        lua_pushboolean(L, false);
+        lua_setfield(L, -2, "__metatable");
+    });
+    std::construct_at(handle);
 
     auto const app = App::from_lua(L);
-
-    async_exec(
+    auto const exec = std::make_shared<Exec>(
+        app->get_lua(),
         app->get_context(),
-        file,
-        std::move(args),
         input ? std::optional<std::string>{*input} : std::nullopt,
-        [L = app->get_lua(), cb](
-            boost::system::error_code const err,
-            int const exitcode,
-            std::string const stdout_text,
-            std::string const stderr_text
-        ) {
-            // get callback
-            lua_rawgeti(L, LUA_REGISTRYINDEX, cb);
-            luaL_unref(L, LUA_REGISTRYINDEX, cb);
-
-            if (err)
-            {
-                luaL_pushfail(L);
-                push_string(L, err.what());
-                safecall(L, "process failure callback", 2);
-            }
-            else
-            {
-                lua_pushinteger(L, exitcode);
-                push_string(L, stdout_text);
-                push_string(L, stderr_text);
-                safecall(L, "process complete callback", 3);
-            }
-        }
+        group,
+        static_cast<std::size_t>(max_output)
     );
+    handle->exec = exec;
 
-    lua_pushboolean(L, true);
+    // Store the callback
+    lua_pushvalue(L, 3);
+    lua_rawsetp(L, LUA_REGISTRYINDEX, exec.get());
+
+    start(exec, app->get_context(), file, args, input.has_value());
     return 1;
 }

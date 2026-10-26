@@ -29,4 +29,4 @@ snowcone.execute('cat', {}, function(code, out)
     assert(code == 0, 'cat failed')
     assert(out == 'a\0b', 'stdin lost bytes: ' .. ('%q'):format(out))
     print 'ok'
-end, 'a\0b')
+end, {input = 'a\0b'})

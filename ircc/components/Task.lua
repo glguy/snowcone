@@ -117,7 +117,7 @@ function M:execute(command, args, input)
             resume_tty()
         end
         self:resume(...)
-    end, input)
+    end, {input = input})
     return coroutine.yield()
 end
 

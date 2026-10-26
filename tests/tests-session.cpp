@@ -557,15 +557,15 @@ end)
         "'/bin/true', (function() local t = {} for i = 1, 65537 do t[i] = 'x' end return t end)(), function() end",
         "too many arguments", "execute");
     ok &= run({
-        "execute returns true and converts numbers, ignoring __len",
+        "execute returns a handle and converts numbers, ignoring __len",
         R"lua(
 local args = setmetatable({1, 'x'}, {__len = function() return 0 end})
-log(tostring(execute('/bin/echo', args, function(code, out)
+log(type(execute('/bin/echo', args, function(code, out)
   log(code .. ':' .. (out:gsub('\n', '')))
 end)))
 )lua",
         nullptr,
-        "true,0:1 x",
+        "userdata,0:1 x",
         any,
     });
 

@@ -7,8 +7,9 @@
 -- task module of whichever generation is current. The two meet only here:
 --
 --   record fields  id, name, owner, net, co, seq, wait, commands, timer,
---                  lookup (a dnslookup handle), wait_since (optional, for
---                  /stats)
+--                  lookup (a dnslookup handle), process (an execute
+--                  handle), tty (true while the child has the terminal),
+--                  wait_since (optional, for /stats)
 --   resume values  wait_irc    the message, or nil on timeout
 --                  wait_event  the event, or nil on timeout
 --                  sleep       nothing
@@ -56,9 +57,8 @@ local function sorted_tasks()
     return list
 end
 
--- Clear what the current wait set up. Child processes can't be cancelled
--- natively (REVIEW.md F-071); their late result finds a different seq, or
--- no task, and is ignored.
+-- Clear what the current wait set up. Cancelling a lookup or a child that
+-- has finished does nothing; one still running never calls back.
 local function end_wait(t)
     if t.timer then
         timer.cancel(t.timer)
@@ -67,6 +67,14 @@ local function end_wait(t)
     if t.lookup then
         t.lookup:cancel()
         t.lookup = nil
+    end
+    if t.process then
+        t.process:cancel()
+        t.process = nil
+    end
+    if t.tty then
+        t.tty = nil
+        tty.resume()
     end
     t.wait = nil
     t.commands = nil
@@ -221,22 +229,26 @@ function methods.dnslookup(t, name)
 end
 
 --- Run a program. Without input the child gets the terminal, and the UI
---- is suspended until it exits.
+--- is suspended until it exits. Cancelling the task kills the child.
+---@param opts table|nil {group = true} kills the child's descendants too
+---  on cancel (needs input), {max_output = bytes} limits stdout and stderr
 ---@return integer|nil exit code, string stdout or error, string stderr
-function methods.execute(t, command, args, input)
+function methods.execute(t, command, args, input, opts)
     begin_wait(t, 'execute')
-    local use_tty = input == nil
-    if use_tty then
+    if input == nil then
         tty.suspend()
+        t.tty = true
     end
-    local ok, err = pcall(snowcone.execute, command, args or {},
-        dispatch.trampoline('task.executed', t.id, t.seq, use_tty), input)
+    local options = {input = input}
+    for k, v in pairs(opts or {}) do options[k] = v end
+    local ok, result = pcall(snowcone.execute, command, args or {},
+        dispatch.trampoline('task.wake', t.id, t.seq), options)
     if not ok then
-        if use_tty then tty.resume() end
         t.seq = t.seq + 1
-        t.wait = nil
-        error(err, 2)
+        end_wait(t)
+        error(result, 2)
     end
+    t.process = result
     return coroutine.yield()
 end
 
@@ -273,6 +285,7 @@ end
 
 M.routes = {
     ['task.wake'] = M.resume,
+    -- from an execute started before execute returned a handle
     ['task.executed'] = function(id, seq, use_tty, ...)
         if use_tty then tty.resume() end
         M.resume(id, seq, ...)

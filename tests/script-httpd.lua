@@ -22,7 +22,7 @@ local resume
 local function curl(args, input)
     local argv = {'-s', '-o', '-', '-w', '\n%{http_code}', '--max-time', '10'}
     table.move(args, 1, #args, #argv + 1, argv)
-    snowcone.execute('curl', argv, function(...) resume(...) end, input)
+    snowcone.execute('curl', argv, function(...) resume(...) end, {input = input})
     local code, out, err = coroutine.yield()
     assert(code, 'curl did not start: ' .. tostring(out))
     return code, out, err

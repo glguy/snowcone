@@ -175,11 +175,15 @@ tick). Tested in `test-reload.lua`.
   has one.
 - `t:prompt(label)` emits `task.prompt`; `task.answer(id, text)` replies.
   The UI side is phase 2.
-- **DNS can be cancelled; processes can't.** `snowcone.dnslookup` now
-  returns a handle (REVIEW.md F-070, fixed), which the task keeps as
-  `t.lookup` and cancels when its wait ends. `execute` still can't be
-  cancelled natively (F-071): a cancelled task's late result finds no
-  task, or a different `seq`, and is dropped.
+- **DNS lookups and processes are cancelled with their task.**
+  `snowcone.dnslookup` and `snowcone.execute` return handles (REVIEW.md
+  F-070, F-071), which the task keeps as `t.lookup` and `t.process` and
+  cancels when its wait ends. Cancelling an execute kills the child. A
+  task whose child has the terminal sets `t.tty`, and `end_wait` gives the
+  terminal back, so completion and cancellation share one path.
+  `t:execute(command, args, input, opts)` passes `opts` (`group`,
+  `max_output`) through. The `task.executed` route stays only for an
+  execute started before a reload into this code.
 
 ### Network layer
 
