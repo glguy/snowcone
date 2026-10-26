@@ -25,45 +25,96 @@ local function activity(net)
     return seen
 end
 
--- Every network, coloured by phase (yellow while on the way), the current
--- one in reverse video; click one to make it current
-local function draw_nets(win, ctx)
+local M = {}
+
+-- The separator between fragments of the bar (a Powerline triangle), and
+-- its line version for fragments that share a background
+M.separator = utf8.char(0xE0B0)
+M.thin_separator = utf8.char(0xE0B1)
+
+-- Background colour of the fragment being drawn (nil for the terminal's)
+local background
+
+--- Draw the separator from a region on background `from` into one on `to`
+--- (nil for the terminal's): a triangle in the old background on the new
+--- one, so the colours stay connected, or the line when they are the same.
+local function transition(win, from, to)
+    draw.normal(win)
+    if from == to then
+        ncurses.colorset(ncurses.COLOR_WHITE, to, win)
+        win:waddstr(M.thin_separator)
+    elseif from then
+        ncurses.colorset(from, to, win)
+        win:waddstr(M.separator)
+    else
+        -- the terminal's background has no colour number to draw in, but
+        -- reverse video paints the triangle with it
+        ncurses.colorset(to, nil, win)
+        draw.reversevideo(win)
+        win:waddstr(M.separator)
+    end
+    draw.normal(win)
+    background = to
+end
+
+--- Start a new fragment of the status bar on background `bg` (nil for the
+--- terminal's), padded on either side of the separator by a space in the
+--- background of the fragment it belongs to.
+function M.fragment(win, bg)
+    draw.normal(win)
+    ncurses.colorset(nil, background, win)
+    win:waddstr ' '
+    transition(win, background, bg)
+    ncurses.colorset(nil, bg, win)
+    win:waddstr ' '
+end
+
+-- Every network as a region of its own, coloured by phase (yellow while on
+-- the way): the current one on a background of that colour, so the bar's
+-- colours run through it. The first follows straight on from the title.
+-- Click one to make it current.
+local function draw_nets(win, ctx, titlecolor)
     local current = ctx.net
+    local first = true
     for _, id in ipairs(control.net_ids()) do
         local rec = HUB.state.nets[id]
-        win:waddstr ' '
-        ncurses.colorset(phase_palette[rec.phase] or ncurses.COLOR_YELLOW, nil, win)
-        if id == current then draw.reversevideo(win) end
+        local colour = phase_palette[rec.phase] or ncurses.COLOR_YELLOW
+        local bg = id == current and colour or nil
+        if first then
+            transition(win, titlecolor, bg)
+            ncurses.colorset(nil, bg, win)
+            win:waddstr ' '
+            first = false
+        else
+            M.fragment(win, bg)
+        end
+
+        if bg then
+            ncurses.colorset(ncurses.COLOR_BLACK, bg, win)
+        else
+            ncurses.colorset(colour, nil, win)
+        end
         local _, x1 = ncurses.getyx(win)
         win:waddstr(scrub(id))
         local _, x2 = ncurses.getyx(win)
-        if id == current then draw.reversevideo_(win) end
         ctx.add_click(tty_height - 1, x1, x2, function() control.set_current_net(id) end)
 
-        -- unseen chat: ! for a mention, + otherwise
+        -- unseen chat: ! for a mention, + otherwise (in black on the
+        -- current network, where the colours would vanish)
         local marker = activity(id)
-        if marker == 'mention' then
-            draw.magenta(win)
-            win:waddstr '!'
-        elseif marker then
-            draw.yellow(win)
-            win:waddstr '+'
+        if marker then
+            if bg then
+                ncurses.colorset(ncurses.COLOR_BLACK, bg, win)
+                draw.bold(win)
+            else
+                ncurses.colorset(marker == 'mention' and ncurses.COLOR_MAGENTA or ncurses.COLOR_YELLOW, nil, win)
+            end
+            win:waddstr(marker == 'mention' and '!' or '+')
         end
     end
-    draw.normal(win)
-end
-
-local M = {}
-
--- The separator between every fragment of the bar (a Powerline triangle)
-M.separator = utf8.char(0xE0B0)
-
---- Start a new fragment of the status bar with the separator that follows
---- the view title, so fragments are divided the same way everywhere.
-function M.fragment(win)
-    draw.normal(win)
-    draw.white(win)
-    win:waddstr(' ', M.separator, ' ')
+    if first then
+        transition(win, titlecolor, nil)
+    end
     draw.normal(win)
 end
 
@@ -104,12 +155,10 @@ function M.draw(win, textbox, layout, view, ctx)
     if mode then
         local ed = control.editor()
         local input_mode_color = input_mode_palette[mode]
-        ncurses.colorset(titlecolor, input_mode_color, win)
-        win:waddstr(M.separator)
+        transition(win, titlecolor, input_mode_color)
         ncurses.colorset(ncurses.COLOR_WHITE, input_mode_color, win)
         win:waddstr(mode)
-        ncurses.colorset(input_mode_color, nil, win)
-        win:waddstr(M.separator)
+        transition(win, input_mode_color, nil)
 
         if mode == 'password' then
             local n <const> = editor.size(ed)
@@ -160,11 +209,7 @@ function M.draw(win, textbox, layout, view, ctx)
             win:waddstr(' ')
         end
     else
-        ncurses.colorset(titlecolor, nil, win)
-        win:waddstr(M.separator)
-        draw.normal(win)
-
-        draw_nets(win, ctx)
+        draw_nets(win, ctx, titlecolor)
 
         -- views start each fragment of their own with ctx.fragment
         ctx.fragment = M.fragment
@@ -189,6 +234,11 @@ function M.draw(win, textbox, layout, view, ctx)
         if last then
             M.fragment(win)
             addircstr(win, last)
+        end
+
+        -- close a coloured last fragment onto the terminal's background
+        if background then
+            M.fragment(win, nil)
         end
 
         ctx.add_click(tty_height - 1, 0, 9, control.next_view)
