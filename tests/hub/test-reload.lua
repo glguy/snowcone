@@ -170,6 +170,37 @@ T.case('route errors are logged, and raised only in strict mode', function()
     T.ok(#T.log_lines 'trace' > 0, 'traceback logged')
 end)
 
+T.case('messages draw only at the end of a read', function()
+    -- A stand-in for the UI and for the connection callback's MSG handling
+    T.boot {
+        modules = {'hub.test.screen'},
+        overrides = {['hub.test.screen'] = [[
+local dispatch = require 'hub.runtime.dispatch'
+return {routes = {
+    ['ui.draw'] = function() HUB.test_draws = HUB.test_draws + 1 end,
+    ['test.msg'] = function(flush)
+        dispatch.dirty()
+        if not flush then dispatch.defer_draw() end
+    end,
+}}]]},
+    }
+    HUB.test_draws = 0
+    local dispatch = T.require 'hub.runtime.dispatch'
+    local cb = dispatch.trampoline 'test.msg'
+
+    for _ = 1, 50 do cb(false) end
+    T.eq(HUB.test_draws, 0, 'no draws mid-read')
+    cb(true)
+    T.eq(HUB.test_draws, 1, 'one draw at the end of the read')
+    cb(true)
+    T.eq(HUB.test_draws, 2, 'each read draws')
+
+    -- a deferred change is drawn by the next callback that doesn't defer
+    cb(false)
+    dispatch.trampoline 'log.add' ('test', 'key pressed')
+    T.eq(HUB.test_draws, 3, 'later callback draws the deferred change')
+end)
+
 T.case('the tick runs only when asked for', function()
     T.boot()
     local resources = T.require 'hub.runtime.resources'

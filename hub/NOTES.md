@@ -88,24 +88,27 @@ from the route (the 1 Hz tick does this).
   loader checks `ncurses ~= nil` to choose the headless default. lib
   modules may require other lib modules.
 
-### Deviations to confirm
+### Drawing (replaces `ui.invalidate`, agreed with the user)
 
-- `ui.invalidate` is not emitted. Marking dirty sets `HUB.dirty` and the
-  draw happens at the end of the native callback. An event on every change
-  seemed costly for no subscriber.
+The requirement is that the screen is not redrawn for every inbound message.
+There is no `ui.invalidate` event. Code that changes what is shown calls
+`dispatch.dirty()`, which sets `HUB.dirty`. At the end of each native
+callback, `dispatch.enter` draws once if the screen is dirty, unless the
+callback called `dispatch.defer_draw()`. The connection callback defers for
+every `MSG` whose `flush` flag is false, so a burst of lines from one read
+draws once, at the last line. A deferred change stays dirty and is drawn by
+the next callback that doesn't defer (the flushing `MSG`, a key, or the
+tick). Tested in `test-reload.lua`.
+
+### Settled with the user
+
 - `subscribe` receives `sub` with `sub.on(topic, fn, opts)`. The owner is
-  filled in with the module name, rather than passed as in
-  `bus.on(topic, owner, fn, opts)`.
+  filled in with the module name; plugins get `plugin:<name>`.
 - With no configuration yet, the profile defaults to `all`.
-
-### Open questions for later phases
-
-- Tasks across reload (5.6): a coroutine suspended in old code is resumed
-  by whichever generation's task module handles its timer or message. The
-  task record and the yield/resume protocol therefore need to stay
-  compatible across generations; the plan is to keep that protocol tiny
-  and versioned.
-- Plugin closures (`api.timer(ms, fn)`) can't be bound as plain data. Plan:
-  a per-generation registry of plugin callbacks keyed by id. Timers
-  outliving a reload find no entry and are dropped, which matches plugins
-  being reloaded with the generation.
+- Tasks across reload (5.6): keep the handshake between a task record and
+  the task module minimal. A coroutine suspended under old code is resumed
+  by whichever generation's task module receives its timer or message, so
+  the record fields and the yield/resume values must stay compatible across
+  generations.
+- Plugin callbacks: a per-generation registry keyed by id. Plugin timers
+  that are still pending at a reload are dropped; reloads are infrequent.

@@ -37,6 +37,10 @@ end
 
 --- Draw when something changed and nothing holds drawing back.
 function M.flush()
+    if HUB.defer_draw then
+        HUB.defer_draw = false
+        return
+    end
     local current = HUB.current
     if HUB.dirty and current then
         local draw = current.routes['ui.draw']
@@ -53,6 +57,14 @@ end
 --- Mark the screen as needing a redraw at the end of this native callback.
 function M.dirty()
     HUB.dirty = true
+end
+
+--- Skip the draw at the end of the current native callback. The screen
+--- stays dirty, so the next callback that doesn't defer draws it. The
+--- connection callback defers for every MSG whose flush flag is false, so a
+--- burst of lines from one read draws once (design section 8.1).
+function M.defer_draw()
+    HUB.defer_draw = true
 end
 
 --- Call a route as an entry point from native code.
