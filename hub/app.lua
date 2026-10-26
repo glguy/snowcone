@@ -135,24 +135,6 @@ function M.build(gen, opts)
         end
     end
 
-    -- Plugins load into this generation; their failures are only logged
-    HUB.plugin_builds = (HUB.plugin_builds or 0) + 1
-    plugins.load_all({
-        subscribe = function(owner, topic, fn)
-            bus.on(current.bus, topic, owner, fn)
-        end,
-        add_command = function(owner, cmd)
-            add_command(current, owner, cmd)
-        end,
-        add_view = function(owner, view)
-            if current.views[view.id] then
-                error('view ' .. view.id .. ' is already defined', 0)
-            end
-            view.owner = owner
-            current.views[view.id] = view
-        end,
-    }, tostring(HUB.plugin_builds), cfg)
-
     return current
 end
 
@@ -186,6 +168,24 @@ local function activate(first)
     if not HUB.quitting then
         manager.apply_config(HUB.state.config)
     end
+
+    -- plugins before modules activate, so every command and view is in
+    -- place; their failures are only logged
+    plugins.start {
+        subscribe = function(owner, topic, fn)
+            bus.on(current.bus, topic, owner, fn)
+        end,
+        add_command = function(owner, cmd)
+            add_command(current, owner, cmd)
+        end,
+        add_view = function(owner, view)
+            if current.views[view.id] then
+                error('view ' .. view.id .. ' is already defined', 0)
+            end
+            view.owner = owner
+            current.views[view.id] = view
+        end,
+    }
 
     for _, entry in ipairs(current.modules) do
         local m = entry.module

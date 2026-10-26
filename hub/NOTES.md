@@ -120,7 +120,7 @@ tick). Tested in `test-reload.lua`.
 ### Settled with the user
 
 - `subscribe` receives `sub` with `sub.on(topic, fn)`. The owner is
-  filled in with the module name; plugins get `plugin:<name>@<build>`.
+  filled in with the module name; plugins get `plugin:<name>`.
   Subscribers run in subscription order; nothing needed priorities.
 - With no configuration yet, the profile defaults to `all`.
 - Tasks across reload (5.6): keep the handshake between a task record and
@@ -445,15 +445,17 @@ samples (the difference is sampling time).
 ## Phase 6: plugins and polish
 
 - `features/plugins`: one loader, one api (README "Hub" and the header of
-  the module). Plugins load while a generation is built, with that
-  generation's configuration, and register subscriptions, commands and
-  views into it, so they reload with it. Registration errors (a command
+  the module). Plugins start when their generation activates, after the
+  previous generation's plugins are stopped, and register subscriptions,
+  commands and views into it, so they reload with it. Starting them during
+  the build ran their tasks before `HUB.current` existed on first boot. Registration errors (a command
   name a built-in already has) are the plugin's, logged, and the rest of
   the client loads. Handlers run under `xpcall`; errors are logged with the
   plugin's name and never stop other subscribers.
-- Plugin resources and tasks are owned by `plugin:<name>@<build>`; once a
-  generation is current, those of other builds are closed, so timers and
-  listeners don't outlive the code that set them. Timer and httpd callbacks
+- Plugin resources and tasks are owned by `plugin:<name>`. The names
+  started are kept in `HUB.plugins_started`, so the next generation closes
+  them before starting its own, and timers, tasks and listeners don't
+  outlive the code that set them. Timer and httpd callbacks
   go through a per-generation registry (`plugins.callback`); one that
   fires after a reload finds nothing and does nothing.
 - `api.state` is `state.features.plugins[name]`, so it survives reloads

@@ -25,9 +25,7 @@ return function(api)
     end, 'say hello')
     api.view('goodview', {render = function() end})
     HUB.test_timer = api.timer(60000, function() end)
-    api.on('app.reloaded', function()
-        HUB.test_task = api.task('waiter', function(t) t:sleep(60000) end).id
-    end)
+    HUB.test_task = api.task('waiter', function(t) t:sleep(60000) end).id
     api.timer(10, function() HUB.test_fired = true end)
 end
 ]],

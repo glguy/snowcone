@@ -221,9 +221,10 @@ A plugin is a Lua file in the plugins directory, listed in
 `[plugins] modules`, that returns `function(api)`. The api is documented in
 the README and at the top of `features/plugins/init.lua`: events, commands,
 views, persistent `api.state`, sending, logging, tasks, timers and HTTP
-listeners. Plugins load with each generation, into that generation, so they
-reload with the client; their resources are closed once a newer generation
-is current, and their callbacks fire only into their own generation. A
+listeners. Plugins start once their generation is current, into that generation, so
+they reload with the client; a newer generation closes their resources and
+tasks before starting its own plugins, and their callbacks fire only into
+their own generation. A
 plugin's errors are logged under its name. Files written for ircc or the
 dashboard are refused with a message to port them.
 
