@@ -25,7 +25,7 @@ local manager    <const> = require 'hub.net.manager'
 local M = {}
 
 -- Bumped by hand to see at a glance which code is running after a reload
-M.version = 'phase4'
+M.version = 'phase5'
 
 local function module_names(opts)
     local names = {
@@ -41,11 +41,14 @@ local function module_names(opts)
         'hub.features.snotice',
         'hub.features.topology',
         'hub.features.oper',
+        'hub.features.chat',
+        'hub.features.notify',
     }
     if HUB.boot.ui then
         table.insert(names, 'hub.ui')
     end
     table.insert(names, 'hub.commands.core')
+    table.insert(names, 'hub.commands.crypto')
     for _, name in ipairs(opts.modules or {}) do
         table.insert(names, name)
     end

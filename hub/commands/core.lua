@@ -4,10 +4,15 @@
 -- Bodies call runtime, net and feature APIs only, so they also work
 -- without a terminal.
 
+local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local dispatch <const> = require 'hub.runtime.dispatch'
 local log      <const> = require 'hub.runtime.log'
 local manager  <const> = require 'hub.net.manager'
+local irc_model <const> = require 'hub.net.irc'
+local sasl     <const> = require 'hub.net.sasl'
+local secrets  <const> = require 'hub.runtime.secrets'
 local send     <const> = require 'hub.net.send'
+local task     <const> = require 'hub.runtime.task'
 local timer    <const> = require 'hub.runtime.timer'
 
 local M = {}
@@ -104,6 +109,63 @@ M.commands = {
         help = 'Change nickname',
         fn = function(ctx, nick)
             send.send(ctx.net, 'NICK', nick)
+        end,
+    },
+    {
+        name = 'sasl',
+        spec = '$g',
+        scope = 'net',
+        help = 'Authenticate now with a configured SASL credential',
+        fn = function(ctx, name)
+            local rec = HUB.state.nets[ctx.net]
+            local credential = secrets.get_credential(rec.cfg.sasl and rec.cfg.sasl.credentials, name)
+            if not credential then
+                error('unknown credential: ' .. name, 0)
+            end
+            if not (rec.irc and irc_model.has_sasl(rec.irc)) then
+                error('SASL is not available', 0)
+            end
+            task.spawn('sasl', {net = ctx.net, owner = 'commands'}, sasl.authenticate, credential)
+        end,
+    },
+    {
+        name = 'dump',
+        spec = '$r',
+        scope = 'net',
+        help = "Write the network's console to a file, as client and server lines",
+        fn = function(ctx, filename)
+            local out = assert(io.open(filename, 'w'))
+            for msg in OrderedMap.reveach(HUB.state.nets[ctx.net].console) do
+                out:write(msg.source == '>>>' and 'C: ' or 'S: ')
+                if next(msg.tags) then
+                    local sep = '@'
+                    for k, v in pairs(msg.tags) do
+                        out:write(sep, k)
+                        if v ~= '' and v ~= true then
+                            out:write('=', (v:gsub('[;\n\r\\ ]', {
+                                ['\\'] = '\\\\', [' '] = '\\s', [';'] = '\\:',
+                                ['\n'] = '\\n', ['\r'] = '\\r',
+                            })))
+                        end
+                        sep = ';'
+                    end
+                    out:write ' '
+                end
+                if msg.source and msg.source ~= '>>>' then
+                    out:write(':', msg.source, ' ')
+                end
+                if type(msg.command) == 'number' then
+                    out:write(string.format('%03d', msg.command))
+                else
+                    out:write(msg.command)
+                end
+                local n = #msg
+                for i, p in ipairs(msg) do
+                    out:write(i == n and ' :' or ' ', p)
+                end
+                out:write '\n'
+            end
+            out:close()
         end,
     },
     {

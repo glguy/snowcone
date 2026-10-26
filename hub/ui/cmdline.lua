@@ -53,7 +53,7 @@ function M.execute(text)
     end
 
     log.dismiss()
-    local ctx = {net = net}
+    local ctx = {net = net, target = net and control.talk_target(net)}
     local ok, err = xpcall(cmd.fn, M.traceback, ctx, table.unpack(params))
     if not ok then
         log.error(name, err)

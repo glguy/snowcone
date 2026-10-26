@@ -166,6 +166,9 @@ M.init_state = control.init_state
 
 M.views = {
     require 'hub.ui.views.bans',
+    require 'hub.ui.views.bouncer',
+    require 'hub.ui.views.buffer',
+    require 'hub.ui.views.list',
     require 'hub.ui.views.channels',
     require 'hub.ui.views.netcount',
     require 'hub.ui.views.repeats',
@@ -236,16 +239,33 @@ table.insert(M.commands, {
 })
 
 for _, view in ipairs(M.views) do
+    if view.command == false then goto continue end
     table.insert(M.commands, {
         name = view.id,
         spec = '',
         help = 'Show the ' .. view.title .. ' view',
         fn = function() control.set_view(view.id) end,
     })
+    ::continue::
 end
 
 function M.subscribe(sub)
     sub.on('task.prompt', control.add_prompt)
+    sub.on('chat.focus', function(ev)
+        control.set_current_net(ev.net)
+        control.set_talk_target(ev.net, ev.target)
+        control.set_view 'buffer'
+    end)
+    sub.on('chat.show_list', function(ev)
+        control.set_current_net(ev.net)
+        control.set_view 'list'
+    end)
+    -- the UI decides how to get attention
+    sub.on('notify.alert', function(ev)
+        if ev.beep then ncurses.beep() end
+        if ev.flash then ncurses.flash() end
+    end)
+    sub.on('chat.message', function() dispatch.dirty() end)
 end
 
 M.routes = {

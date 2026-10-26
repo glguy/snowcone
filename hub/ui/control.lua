@@ -64,6 +64,29 @@ function M.set_current_net(id)
     dispatch.dirty()
 end
 
+-- Talk targets =======================================================
+
+--- The buffer shown for a network, by name.
+function M.talk_target(net)
+    local vs = M.view_state 'buffer'
+    return vs.targets and vs.targets[net]
+end
+
+--- Show a buffer of a network, remembering the one shown before.
+function M.set_talk_target(net, target)
+    local vs = M.view_state 'buffer'
+    vs.targets = vs.targets or {}
+    vs.previous = vs.previous or {}
+    local current = vs.targets[net]
+    if current ~= target then
+        vs.previous[net] = current
+        vs.targets[net] = target
+        vs.scroll = 0
+        vs.pin = nil
+    end
+    dispatch.dirty()
+end
+
 -- Configuration ======================================================
 
 --- Follow ui.profile from configuration when it changes; /profile can

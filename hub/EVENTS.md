@@ -24,10 +24,8 @@ carry `net`, the network id.
 | `irc.isupport` | `{net, key, value}` value nil when removed, true without a value | net/irc |
 | `snote` | `{net, name, server, time, timestamp, ...fields}` a parsed server notice | features/snotice |
 | `snote.<name>` | the same event, by notice name | features/snotice |
+| `chat.message` | `{net, target, msg, mention, activity}` a message added to a buffer | features/chat |
+| `chat.buffer` | `{net, target, opened}` a buffer opened or closed | features/chat |
+| `chat.focus` | `{net, target}` /talk asks the UI to show a buffer | features/chat |
+| `chat.show_list` | `{net}` /list asks the UI to show the list | features/chat |
 | `notify.alert` | `{net, kind, text, beep?, flash?, colour?}` something wants attention; the UI and notify decide how | features (snotice watches) |
-
-Planned by the design (section 4.3), not emitted yet:
-
-| Topic | Payload | Emitted by |
-| --- | --- | --- |
-| `chat.message` | `{net, target, msg, mention, activity}` | features/chat |

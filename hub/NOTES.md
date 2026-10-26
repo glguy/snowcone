@@ -366,3 +366,45 @@ Live against the soju bouncer: cliconn, connload with MAP populations, the
 status-bar load graph. Side by side with `snowcone dashboard` on the same
 network, the total population agreed to within 1-2 users over three
 samples (the difference is sampling time).
+
+## Phase 5: chat
+
+- chat: buffers per network in `state.features.chat[net].buffers`, keyed by
+  folded target, each `{name, messages = OrderedMap(1000), activity,
+  mention}`, drawn as rolling buffers. A new buffer asks for its history
+  (CHATHISTORY BEFORE the opening message, or LATEST); after registration
+  every buffer asks again and private buffers are monitored. Membership
+  events go to the channels they concern: QUIT and NICK carry
+  `msg.channels`, which net/handlers fills before the model forgets.
+  WALLOPS/OPERWALL go to `*wallops`. Our own PRIVMSG/NOTICE come back from
+  `irc.sent` (no echo-message). Mention patterns: the network's `mention`,
+  else the global one. CTCP replies only to requests from staff; VERSION
+  is a fixed string (ircc ran `git rev-parse` through io.popen).
+- `/talk`, `/list` emit `chat.focus` and `chat.show_list` for the UI. The
+  `list` view has no `/list` command of its own (`command = false`), since
+  the chat command already shows it.
+- notify: backends bell, mac (terminal-notifier through a task) and iterm2,
+  chosen by `[notifications] module` (ircc's `notification.mac` works).
+  Muted entries and dismissal both use the folded target; ircc's dismiss
+  looked up one key and cleared another. `register_backend` adds more.
+  `notify.alert` beeps or flashes in the UI.
+- UI: buffer view with a talk target per network (`vs.targets`), talk
+  mode (`t`), Ctrl-N/P through buffers, Meta-A to the next buffer with
+  activity (mentions first), Meta-S back to the previous one, completion
+  of channels and of nicks in the talk channel. The status bar marks
+  networks with unseen chat: `+`, or `!` for a mention.
+- Crypto commands (`ecdsa_new`, `ecdsa_fp`, `x25519_new`, `cert_new`,
+  `cert_fp`) print to the status log. **Fixed ircc bugs:** `x25519_new`
+  called a missing `get_raw_private` (the raw key is `export().priv`), and
+  an empty PEM password passed '' without a cipher, which myopenssl
+  rejects, so unencrypted keys couldn't be made.
+- `/dump` escapes `\` in tags (ircc mapped it to itself); `/sasl` retries
+  authentication with a named credential.
+- **Tests now draw the UI**: `tests/hub/fake_ncurses.lua` stands in for
+  ncurses, and `test-views.lua` loads the whole UI generation, replays the
+  notice fixtures and chat, draws every view (also scrolled back) and drives
+  keys through the native entry point. It caught a `/list` command clash
+  that the headless tests couldn't see.
+- Checked by hand against the bouncer: four channel buffers from the
+  bouncer's JOINs, `/talk` to a joined channel (history only, no JOIN),
+  buffer view and status bar.

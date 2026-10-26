@@ -2,6 +2,7 @@
 -- utils/drawing.lua draw_status_bar).
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
+local common    <const> = require 'hub.features.common'
 local control   <const> = require 'hub.ui.control'
 local draw      <const> = require 'hub.ui.draw'
 local editor    <const> = require 'hub.ui.editor'
@@ -12,6 +13,16 @@ local phase_palette <const> = {
     connected = ncurses.COLOR_GREEN,
     idle = ncurses.COLOR_RED,
 }
+
+local function activity(net)
+    local C = common.get_state('chat', net)
+    local seen
+    for _, buffer in pairs(C and C.buffers or {}) do
+        if buffer.mention and buffer.activity > 0 then return 'mention' end
+        if buffer.activity > 0 then seen = 'activity' end
+    end
+    return seen
+end
 
 -- Every network, coloured by phase (yellow while on the way), the current
 -- one in reverse video; click one to make it current
@@ -27,6 +38,16 @@ local function draw_nets(win, ctx)
         local _, x2 = ncurses.getyx(win)
         if id == current then draw.reversevideo_(win) end
         ctx.add_click(tty_height - 1, x1, x2, function() control.set_current_net(id) end)
+
+        -- unseen chat: ! for a mention, + otherwise
+        local marker = activity(id)
+        if marker == 'mention' then
+            draw.magenta(win)
+            win:waddstr '!'
+        elseif marker then
+            draw.yellow(win)
+            win:waddstr '+'
+        end
     end
     draw.normal(win)
 end

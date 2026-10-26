@@ -170,6 +170,19 @@ H[N.ERR_UNAVAILRESOURCE] = new_nickname
 -----------------------------------------------------------------------
 -- Users and channels
 
+-- Names of the channels a user is in, sorted. QUIT and NICK messages carry
+-- them as msg.channels, since the model forgets before features see them.
+local function channels_of(irc, key)
+    local names = {}
+    for _, channel in pairs(irc.channels) do
+        if channel.members[key] then
+            table.insert(names, channel.name)
+        end
+    end
+    table.sort(names)
+    return names
+end
+
 function H.NICK(rec, irc, msg)
     local oldnick = msg.nick
     local newnick = msg[1]
@@ -190,6 +203,8 @@ function H.NICK(rec, irc, msg)
             end
         end
     end
+
+    msg.channels = channels_of(irc, oldkey)
 
     local user = irc_model.get_user(irc, oldnick)
     user.nick = newnick
@@ -272,6 +287,7 @@ function H.QUIT(rec, irc, msg)
     local nick = msg.nick
     if not nick then return end
     local key = irc_model.fold(irc, nick)
+    msg.channels = channels_of(irc, key)
 
     for _, channel in pairs(irc.channels) do
         channel.members[key] = nil

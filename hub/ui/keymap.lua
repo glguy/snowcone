@@ -4,7 +4,10 @@
 -- Keys arrive as integers: a code point, or a negated ncurses KEY_ value
 -- for special keys, or a negated character for Meta combinations.
 
+local chat      <const> = require 'hub.features.chat'
 local cmdline <const> = require 'hub.ui.cmdline'
+local common    <const> = require 'hub.features.common'
+local irc_model <const> = require 'hub.net.irc'
 local control <const> = require 'hub.ui.control'
 local editor  <const> = require 'hub.ui.editor'
 local log     <const> = require 'hub.runtime.log'
@@ -47,18 +50,61 @@ function execute.filter()
     control.set_input_mode()
 end
 
+function execute.talk()
+    local ed = control.editor()
+    local text = editor.content(ed)
+    local net = control.current_net()
+    local target = net and control.talk_target(net)
+    editor.reset(ed)
+    control.set_input_mode()
+    if text == '' then return end
+    if not target then
+        log.add('error', 'no buffer to talk in')
+        return
+    end
+    local ok, err = pcall(chat.say, net, target, text)
+    if not ok then
+        log.add('error', '%s', err)
+    end
+end
+
 function execute.password()
     control.answer_prompt(editor.content(control.editor()))
+end
+
+-- Channel names, and nicks in the talk target when it is a channel
+local function names_like(seed)
+    local net = control.current_net()
+    local rec = net and HUB.state.nets[net]
+    local irc = rec and rec.irc
+    local t = {}
+    if not irc then return t end
+    local function starts(s) return s:sub(1, #seed) == seed end
+    for _, channel in pairs(irc.channels) do
+        if starts(channel.name) then table.insert(t, channel.name) end
+    end
+    local target = control.talk_target(net)
+    local channel = target and irc_model.is_channel_name(irc, target) and irc_model.get_channel(irc, target)
+    if channel then
+        for _, member in pairs(channel.members) do
+            if starts(member.user.nick) then table.insert(t, member.user.nick) end
+        end
+    end
+    return t
 end
 
 local function do_tab(dir)
     local ed = control.editor()
     editor.tab(ed, dir, function(prefix, seed)
+        local t
         if HUB.state.ui.input.mode == 'command' and prefix == '' then
-            local t = cmdline.complete(seed)
-            if next(t) then
-                return 1, t
-            end
+            t = cmdline.complete(seed)
+        else
+            t = names_like(seed)
+        end
+        if next(t) then
+            table.sort(t)
+            return 1, t
         end
     end)
 end
@@ -138,6 +184,45 @@ M.global = {
     [ctrl 'S'] = function()
         editor.reset(control.editor())
         control.set_input_mode 'filter'
+    end,
+
+    -- the next buffer of the current network with unseen messages,
+    -- mentions first (from ircc)
+    [meta 'a'] = function()
+        local net = control.current_net()
+        if not (net and common.enabled(net, 'chat')) then return end
+        local current = control.talk_target(net)
+        current = current and chat.fold(net, current) or ''
+        local best, best_mention, best_name
+        for key, buffer in pairs(chat.get(net).buffers) do
+            if buffer.activity > 0 then
+                if not best
+                or buffer.mention and not best_mention
+                or buffer.mention == best_mention
+                   and (best < current and current < key
+                        or (current < best) == (current < key) and key < best)
+                then
+                    best, best_mention, best_name = key, buffer.mention, buffer.name
+                end
+            end
+        end
+        if best then
+            control.set_talk_target(net, best_name)
+            control.set_view 'buffer'
+        end
+    end,
+
+    -- back to the previous buffer, or to the buffer view
+    [meta 's'] = function()
+        local net = control.current_net()
+        if not net then return end
+        local vs = control.view_state 'buffer'
+        local previous = vs.previous and vs.previous[net]
+        if HUB.state.ui.view == 'buffer' and previous then
+            control.set_talk_target(net, previous)
+        elseif control.talk_target(net) then
+            control.set_view 'buffer'
+        end
     end,
 
     [-ncurses.KEY_RIGHT] = function()
