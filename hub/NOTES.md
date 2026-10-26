@@ -384,7 +384,8 @@ tick). Tested in `test-reload.lua`.
   repeats and channels (the dashboard's new-channel list; ircc's /list view
   will need another id). Dashboard globals became view state: filter,
   prefilter, server_filter, conn_filter, mark_filter, highlight,
-  show_reasons, ordering, descending, expanded. Esc clears the filters.
+  show_reasons, ordering, descending, expanded. Esc clears the filters
+  (each view's `reset`).
 - The dashboard's `/filter` query language is `/prefilter` in hub, because
   `/filter` is the per-view pattern filter of every view (decided with the
   user: keep both names).

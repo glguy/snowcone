@@ -13,7 +13,6 @@ local control    <const> = require 'hub.ui.control'
 local draw       <const> = require 'hub.ui.draw'
 local matching   <const> = require 'hub.lib.matching'
 local numerics   <const> = require 'hub.lib.numerics'
-local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local parse_snote <const> = require 'hub.features.snotice.parse'
 local scrub      <const> = require 'hub.lib.scrub'
 local tablex     <const> = require 'pl.tablex'
@@ -235,25 +234,12 @@ local function console_of(ctx)
     return rec and rec.console
 end
 
-local function scroll_by(ctx, delta)
-    local data = console_of(ctx)
-    local elts = data and OrderedMap.size(data) or 0
-    local scroll = ctx.vs.scroll + delta
-    scroll = math.min(scroll, elts - ctx.rows + 1)
-    ctx.vs.scroll = math.max(scroll, 0)
-end
-
 local keys = {
-    [-ncurses.KEY_PPAGE] = function(ctx) scroll_by(ctx, math.max(1, ctx.rows - 1)) end,
-    [-ncurses.KEY_NPAGE] = function(ctx) scroll_by(ctx, -math.max(1, ctx.rows - 1)) end,
-    [-ncurses.KEY_UP] = function(ctx) scroll_by(ctx, 1) end,
-    [-ncurses.KEY_DOWN] = function(ctx) scroll_by(ctx, -1) end,
     [meta 'h'] = function(ctx) ctx.vs.hide_snow = not ctx.vs.hide_snow end,
     [meta 'r'] = function(ctx) ctx.vs.show_raw = not ctx.vs.show_raw end,
     [meta 'g'] = function(ctx)
         ctx.vs.all = not ctx.vs.all
         ctx.vs.scroll = 0
-        ctx.vs.pin = nil
     end,
 }
 

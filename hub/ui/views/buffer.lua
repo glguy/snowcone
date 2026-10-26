@@ -14,7 +14,6 @@ local draw       <const> = require 'hub.ui.draw'
 local editor     <const> = require 'hub.ui.editor'
 local irc_model  <const> = require 'hub.net.irc'
 local matching   <const> = require 'hub.lib.matching'
-local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local scrub      <const> = require 'hub.lib.scrub'
 
 local function chat_renderer(win, msg)
@@ -186,12 +185,6 @@ local keys = {
     end,
 }
 
-local function scroll_by(ctx, buffer, delta)
-    local elts = OrderedMap.size(buffer.messages)
-    local scroll = math.min(ctx.vs.scroll + delta, elts - ctx.rows + 1)
-    ctx.vs.scroll = math.max(scroll, 0)
-end
-
 local function current_buffer(ctx)
     if not (ctx.net and common.enabled(ctx.net, 'chat')) then return nil end
     local target = control.talk_target(ctx.net)
@@ -234,18 +227,6 @@ return {
     end,
 
     keypress = function(ctx, key)
-        if key == -ncurses.KEY_PPAGE or key == -ncurses.KEY_NPAGE
-        or key == -ncurses.KEY_UP or key == -ncurses.KEY_DOWN then
-            local buffer = current_buffer(ctx)
-            if not buffer then return end
-            local page = math.max(1, ctx.rows - 1)
-            local delta = ({
-                [-ncurses.KEY_PPAGE] = page, [-ncurses.KEY_NPAGE] = -page,
-                [-ncurses.KEY_UP] = 1, [-ncurses.KEY_DOWN] = -1,
-            })[key]
-            scroll_by(ctx, buffer, delta)
-            return true
-        end
         local h = keys[key]
         if h and ctx.net then
             h(ctx)

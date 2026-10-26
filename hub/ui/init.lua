@@ -5,7 +5,6 @@
 -- becomes current and on every resize.
 
 local control   <const> = require 'hub.ui.control'
-local matchdsl  <const> = require 'hub.lib.matchdsl'
 local draw      <const> = require 'hub.ui.draw'
 local editor    <const> = require 'hub.ui.editor'
 local keymap    <const> = require 'hub.ui.keymap'
@@ -177,7 +176,10 @@ end
 
 M.init_state = control.init_state
 
-M.views = {
+-- A view module returns a view or a list of views, and may bring commands
+-- of its own in `commands`. Each view also gets a command that shows it,
+-- unless it sets command = false.
+local view_modules <const> = {
     require 'hub.ui.views.bans',
     require 'hub.ui.views.bouncer',
     require 'hub.ui.views.buffer',
@@ -192,8 +194,12 @@ M.views = {
     require 'hub.ui.views.session',
     require 'hub.ui.views.stats',
     require 'hub.ui.views.status',
+    require 'hub.ui.views.recent_conn',
+    require 'hub.ui.views.server_load',
+    require 'hub.ui.views.simple_load',
 }
 
+M.views = {}
 M.commands = {
     {
         name = 'filter',
@@ -224,43 +230,22 @@ M.commands = {
         end,
     },
 }
-for _, list in ipairs {
-    require 'hub.ui.views.recent_conn',
-    require 'hub.ui.views.server_load',
-    require 'hub.ui.views.simple_load',
-} do
-    for _, view in ipairs(list) do
+
+for _, m in ipairs(view_modules) do
+    for _, view in ipairs(m.id and {m} or m) do
         table.insert(M.views, view)
+        if view.command ~= false then
+            table.insert(M.commands, {
+                name = view.id,
+                spec = '',
+                help = 'Show the ' .. view.title .. ' view',
+                fn = function() control.set_view(view.id) end,
+            })
+        end
     end
-end
-
-table.insert(M.commands, {
-    name = 'prefilter',
-    spec = '$R',
-    help = "Query for cliconn/cliexit: nick |re| and not (account '*' or server 'x'); empty clears",
-    fn = function(_, query)
-        local view = HUB.state.ui.view
-        if view ~= 'cliconn' and view ~= 'cliexit' then
-            view = 'cliconn'
-        end
-        if query == '' then
-            control.view_state(view).prefilter = nil
-            return
-        end
-        matchdsl(query) -- raises on a bad query
-        control.view_state(view).prefilter = query
-    end,
-})
-
-for _, view in ipairs(M.views) do
-    if view.command == false then goto continue end
-    table.insert(M.commands, {
-        name = view.id,
-        spec = '',
-        help = 'Show the ' .. view.title .. ' view',
-        fn = function() control.set_view(view.id) end,
-    })
-    ::continue::
+    for _, cmd in ipairs(m.commands or {}) do
+        table.insert(M.commands, cmd)
+    end
 end
 
 function M.subscribe(sub)

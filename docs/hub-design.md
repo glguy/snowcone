@@ -236,12 +236,17 @@ dashboard are refused with a message to port them.
 ## 7. User interface
 
 - **Views** are records `{id, title, scope, render(ctx, win),
-  keypress(ctx, key), status(ctx, win)}`. `ctx` gives the view's persistent
+  keypress(ctx, key), status(ctx, win), reset(vs)}`; Esc clears the
+  scroll and `/filter` and calls `reset` for anything else the view keeps.
+  A view module returns a view or a list of views, and may bring
+  `commands` of its own; `ui/init.lua` lists the modules once. `ctx` gives the view's persistent
   state (`ctx.vs`), the current network (`ctx.net`), the size, and
   `add_button`/`add_click` for mouse regions rebuilt each frame. Views read
   feature state and call feature functions; they don't send IRC or change
   stores themselves.
-- **Streams** draw with `draw.draw_rotation` (principle 6).
+- **Streams** draw with `draw.draw_rotation` (principle 6), which also
+  records the page size, so Page Up/Down and the arrows scroll every
+  stream the same way.
 - **Networks:** one is current (`/net`, Meta-1..9, clicking the status bar);
   net-scoped views and commands use it, and commands take `@network` first
   to use another. The status bar lists every network by state, with `+` or

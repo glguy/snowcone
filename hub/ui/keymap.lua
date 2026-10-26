@@ -146,6 +146,18 @@ M.input = {
     [-ncurses.KEY_BTAB     ] = function() do_tab(-1) end,
 }
 
+-- Scroll a rolling log by pages and lines; draw.draw_rotation records
+-- the page size and limit of the views that have one
+local function scroll(pages, lines)
+    return function()
+        local vs = control.view_state(HUB.state.ui.view)
+        if vs.page then
+            local target = vs.scroll + pages * vs.page + lines
+            vs.scroll = math.max(0, math.min(target, vs.max_scroll))
+        end
+    end
+end
+
 -- Keys when neither an input mode nor the view handled them
 M.global = {
     [0x1b] = function() -- Esc
@@ -156,16 +168,18 @@ M.global = {
         end
         editor.reset(control.editor())
         control.set_input_mode()
-        local vs = control.view_state(HUB.state.ui.view)
+        local view = control.current_view()
+        local vs = control.view_state(view.id)
         vs.scroll = 0
         vs.hscroll = 0
         vs.filter = nil
-        -- the dashboard views' filters too
-        vs.server_filter = nil
-        vs.conn_filter = nil
-        vs.mark_filter = nil
-        vs.highlight = nil
+        if view.reset then view.reset(vs) end
     end,
+
+    [-ncurses.KEY_PPAGE] = scroll(1, 0),
+    [-ncurses.KEY_NPAGE] = scroll(-1, 0),
+    [-ncurses.KEY_UP] = scroll(0, 1),
+    [-ncurses.KEY_DOWN] = scroll(0, -1),
 
     [-ncurses.KEY_RESUME] = function() HUB.state.ui.focus = true end,
     [-ncurses.KEY_EXIT] = function() HUB.state.ui.focus = false end,

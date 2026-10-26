@@ -114,12 +114,16 @@ local function rotating_window(vs, source, rows, predicate)
     return window
 end
 
---- Draw entries of an OrderedMap as a rotating log.
+--- Draw entries of an OrderedMap as a rotating log. It records the page
+--- size and the scroll limit in vs for the paging keys (ui/keymap.lua).
 ---@param vs table view state with scroll (and pin, maintained here)
 ---@param data table OrderedMap of entries with time and timestamp
 ---@param show_entry function|nil predicate selecting entries
 ---@param draw_entry function draw_entry(win, entry) draws after the time
 function M.draw_rotation(win, vs, start, rows, data, show_entry, draw_entry)
+    -- one row is the divider; a page keeps one entry in view
+    vs.page = math.max(1, rows - 2)
+    vs.max_scroll = math.max(0, OrderedMap.size(data) - (rows - 1))
     local window = rotating_window(vs, data, rows, show_entry)
     local last_time
     for i = 1, rows do

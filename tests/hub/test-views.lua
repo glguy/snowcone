@@ -125,6 +125,37 @@ T.case('keys reach input modes, views and commands', function()
     T.eq(T.log_lines 'error', {}, 'no errors')
 end)
 
+T.case('the paging keys scroll any rolling view within its log', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    local log = T.require 'hub.runtime.log'
+    for i = 1, 100 do log.add('test', 'line %d', i) end
+    control.set_view 'status'
+    HUB.current.routes['ui.draw']()
+    local vs = control.view_state 'status'
+    local size = T.require 'hub.lib.OrderedMap'.size(HUB.state.log)
+    -- 40 rows: the title, 38 rows of log (one the divider), the input line
+    key(-ncurses.KEY_PPAGE)
+    T.eq(vs.scroll, 36, 'a page keeps one entry in view')
+    for _ = 1, 5 do key(-ncurses.KEY_PPAGE) end
+    T.eq(vs.scroll, size - 37, 'stops with the oldest entry in view')
+    key(-ncurses.KEY_DOWN)
+    T.eq(vs.scroll, size - 38, 'a line')
+    for _ = 1, 5 do key(-ncurses.KEY_NPAGE) end
+    T.eq(vs.scroll, 0, 'back to the newest')
+end)
+
+T.case("Esc resets the view's own filters too", function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    control.set_view 'cliconn'
+    local vs = control.view_state 'cliconn'
+    vs.scroll, vs.filter, vs.server_filter, vs.conn_filter = 2, 'x', 'srv', true
+    key(0x1b)
+    T.eq({vs.scroll, vs.filter, vs.server_filter, vs.conn_filter}, {0}, 'cleared')
+    T.ok(HUB.current.commands.prefilter, 'the connection views bring /prefilter')
+end)
+
 T.case('pastes go to the editor up to a newline; an oversized one is reported', function()
     boot()
     local control = T.require 'hub.ui.control'

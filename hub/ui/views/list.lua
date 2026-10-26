@@ -48,18 +48,4 @@ return {
         end
         draw.draw_rotation(win, ctx.vs, 1, math.max(0, ctx.rows - 1), C.list, show, draw_entry)
     end,
-
-    keypress = function(ctx, key)
-        if not (ctx.net and common.enabled(ctx.net, 'chat')) then return end
-        local elts = OrderedMap.size(chat.get(ctx.net).list)
-        local page = math.max(1, ctx.rows - 2)
-        local delta = ({
-            [-ncurses.KEY_PPAGE] = page, [-ncurses.KEY_NPAGE] = -page,
-            [-ncurses.KEY_UP] = 1, [-ncurses.KEY_DOWN] = -1,
-        })[key]
-        if delta then
-            ctx.vs.scroll = math.max(0, math.min(ctx.vs.scroll + delta, elts - ctx.rows + 2))
-            return true
-        end
-    end,
 }

@@ -13,8 +13,6 @@ local draw      <const> = require 'hub.ui.draw'
 local matching  <const> = require 'hub.lib.matching'
 local matchdsl  <const> = require 'hub.lib.matchdsl'
 local oper      <const> = require 'hub.features.oper'
-local OrderedMap <const> = require 'hub.lib.OrderedMap'
-local stores     <const> = require 'hub.features.snotice.stores'
 local scrub     <const> = require 'hub.lib.scrub'
 
 -- Compiled /prefilter queries, by source; rebuilt after a reload
@@ -53,15 +51,7 @@ local function make_view(id, title, store, tracker)
         end
     end
 
-    local function scroll_by(ctx, data, delta)
-        local elts = OrderedMap.size(data)
-        local scroll = math.min(ctx.vs.scroll + delta, elts - ctx.rows + 2)
-        ctx.vs.scroll = math.max(scroll, 0)
-    end
-
     local keys = {
-        [-ncurses.KEY_PPAGE] = function(ctx, data) scroll_by(ctx, data, math.max(1, ctx.rows - 2)) end,
-        [-ncurses.KEY_NPAGE] = function(ctx, data) scroll_by(ctx, data, -math.max(1, ctx.rows - 2)) end,
         [string.byte 'q'] = function(ctx) ctx.vs.conn_filter = true end,
         [string.byte 'w'] = function(ctx) ctx.vs.conn_filter = false end,
         [string.byte 'e'] = function(ctx) ctx.vs.conn_filter = nil end,
@@ -190,10 +180,16 @@ local function make_view(id, title, store, tracker)
         keypress = function(ctx, key)
             local h = keys[key]
             if h and ctx.net then
-                local S = stores.get(ctx.net)
-                h(ctx, S[store])
+                h(ctx)
                 return true
             end
+        end,
+
+        reset = function(vs)
+            vs.server_filter = nil
+            vs.conn_filter = nil
+            vs.mark_filter = nil
+            vs.highlight = nil
         end,
 
         status = function(ctx, win)
@@ -222,4 +218,24 @@ end
 return {
     make_view('cliconn', 'cliconn', 'users', 'conn'),
     make_view('cliexit', 'cliexit', 'exits', 'exit'),
+
+    commands = {
+        {
+            name = 'prefilter',
+            spec = '$R',
+            help = "Query for cliconn/cliexit: nick |re| and not (account '*' or server 'x'); empty clears",
+            fn = function(_, query)
+                local view = HUB.state.ui.view
+                if view ~= 'cliconn' and view ~= 'cliexit' then
+                    view = 'cliconn'
+                end
+                if query == '' then
+                    control.view_state(view).prefilter = nil
+                    return
+                end
+                matchdsl(query) -- raises on a bad query
+                control.view_state(view).prefilter = query
+            end,
+        },
+    },
 }

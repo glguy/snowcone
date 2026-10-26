@@ -82,7 +82,6 @@ function M.set_talk_target(net, target)
         vs.previous[net] = current
         vs.targets[net] = target
         vs.scroll = 0
-        vs.pin = nil
     end
     dispatch.dirty()
 end

@@ -8,8 +8,6 @@ local dashboard  <const> = require 'hub.ui.dashboard'
 local draw       <const> = require 'hub.ui.draw'
 local matching   <const> = require 'hub.lib.matching'
 local oper       <const> = require 'hub.features.oper'
-local OrderedMap <const> = require 'hub.lib.OrderedMap'
-local stores     <const> = require 'hub.features.snotice.stores'
 local scrub      <const> = require 'hub.lib.scrub'
 
 local palette <const> = {
@@ -112,18 +110,7 @@ return {
         dashboard.action_bar(ctx, win, ctx.rows - 1)
     end,
 
-    keypress = function(ctx, key)
-        if not ctx.net then return end
-        local S = stores.get(ctx.net)
-        local elts = OrderedMap.size(S.klines)
-        if key == -ncurses.KEY_PPAGE then
-            ctx.vs.scroll = math.max(0, math.min(ctx.vs.scroll + math.max(1, ctx.rows - 3), elts - ctx.rows + 3))
-            return true
-        elseif key == -ncurses.KEY_NPAGE then
-            ctx.vs.scroll = math.max(0, ctx.vs.scroll - math.max(1, ctx.rows - 3))
-            return true
-        end
-    end,
+    reset = function(vs) vs.highlight = nil end,
 
     status = function(ctx, win)
         dashboard.load_status(ctx, win, 'cliconn', 'conn')
