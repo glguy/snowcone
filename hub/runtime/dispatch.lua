@@ -6,6 +6,8 @@
 -- client reports an uncaught error by leaving curses mode, so they are
 -- logged here instead.
 
+local scrub <const> = require 'hub.lib.scrub'
+
 local M = {}
 
 --- Report an error raised by a route.
@@ -17,7 +19,8 @@ function M.report(where, err)
     if report then
         report(where, err)
     else
-        io.stderr:write(where, ': ', err, '\n')
+        -- line by line, so the traceback keeps its shape
+        io.stderr:write(scrub(where), ': ', (string.gsub(tostring(err), '[^\n]+', scrub)), '\n')
     end
     if HUB.boot and HUB.boot.strict then
         error(err, 0)

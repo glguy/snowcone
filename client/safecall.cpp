@@ -5,9 +5,11 @@ extern "C" {
 #include <lua.h>
 }
 
+#include "strings.hpp"
+
 #include <ncurses.h>
 
-#include <iostream>
+#include <cstdio>
 
 namespace {
 int failures = 0;
@@ -38,9 +40,13 @@ int safecall(lua_State* const L, std::string_view const location, int const args
     else
     {
         ++failures;
-        auto const err = lua_tolstring(L, -1, nullptr);
+        std::size_t len;
+        auto const err = lua_tolstring(L, -1, &len);
         endwin();
-        std::cerr << "error in " << location << ": " << err << std::endl;
+        // The message may quote data from a server or an HTTP client
+        std::fprintf(stderr, "error in %.*s: ", static_cast<int>(location.size()), location.data());
+        write_escaped(stderr, {err, len});
+        std::fputc('\n', stderr);
         lua_pop(L, 2); /* error string, handler */
     }
     return status;

@@ -11,6 +11,11 @@ local repls = {
 }
 
 return function(str)
-    -- extra parens to drop gsub's second argument
-    return (string.gsub(str, '[\x00-\x1f\x7f]', repls))
+    str = string.gsub(str, '[\x00-\x1f\x7f]', repls)
+    -- C1 controls (U+0080 to U+009F), which some terminals obey: U+009C
+    -- ends an OSC sequence, for one. Rare, so checked for first.
+    if string.find(str, '\xc2', 1, true) then
+        str = string.gsub(str, '\xc2[\x80-\x9f]', '\u{fffd}')
+    end
+    return str
 end

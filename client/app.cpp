@@ -23,7 +23,6 @@ extern "C" {
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
-#include <iostream>
 #include <signal.h>
 #include <unistd.h>
 
@@ -61,10 +60,12 @@ auto restore_terminal() -> void
 /// terminal usable.
 auto panic(lua_State* const L) -> int
 {
-    auto const msg = lua_tostring(L, -1);
+    std::size_t len;
+    auto const msg = lua_tolstring(L, -1, &len);
     restore_terminal();
-    std::fprintf(stderr, "PANIC: unprotected error in call to Lua API (%s)\n",
-        msg ? msg : "error object is not a string");
+    std::fputs("PANIC: unprotected error in call to Lua API (", stderr);
+    write_escaped(stderr, msg ? std::string_view{msg, len} : "error object is not a string");
+    std::fputs(")\n", stderr);
     std::abort();
 }
 
@@ -128,8 +129,9 @@ App::~App()
 auto App::fatal(std::string_view const message) -> void
 {
     restore_terminal();
-    std::fprintf(stderr, "snowcone: fatal error: %.*s\n",
-        static_cast<int>(message.size()), message.data());
+    std::fputs("snowcone: fatal error: ", stderr);
+    write_escaped(stderr, message);
+    std::fputc('\n', stderr);
     std::fflush(stderr);
     std::_Exit(EXIT_FAILURE);
 }
@@ -563,9 +565,12 @@ auto App::reload() -> bool
     }
     else
     {
-        auto const err = lua_tolstring(L, -1, nullptr);
+        std::size_t len;
+        auto const err = lua_tolstring(L, -1, &len);
         endwin();
-        std::cerr << "error in reload:load: " << err << std::endl;
+        std::fputs("error in reload:load: ", stderr);
+        write_escaped(stderr, {err, len});
+        std::fputc('\n', stderr);
         lua_pop(L, 1);
         return false;
     }

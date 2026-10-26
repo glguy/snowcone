@@ -37,6 +37,14 @@ local function last_error()
     return errors[#errors]
 end
 
+T.case('scrub makes C0 and C1 controls visible', function()
+    boot {}
+    local scrub = T.require 'hub.lib.scrub'
+    -- an OSC 9 notification a crafted message tries to end early with ST
+    T.eq(scrub 'a\27]9;x\u{9c}b\7', 'a␛]9;x\u{fffd}b␇', 'controls replaced')
+    T.eq(scrub 'café\u{a0}ok', 'café\u{a0}ok', 'other text kept')
+end)
+
 T.case('net commands use the current network or @network', function()
     local fake, control, cmdline = boot {network('a'), network('b')}
     local ca, cb = fake.conns[1], fake.conns[2]

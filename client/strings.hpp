@@ -19,6 +19,7 @@ extern "C" {
 }
 
 #include <cstddef>
+#include <cstdio>
 #include <optional>
 #include <string_view>
 
@@ -90,4 +91,54 @@ inline auto to_string_view(lua_State* L, int const idx) -> std::optional<std::st
     std::size_t len;
     auto const str = lua_tolstring(L, idx, &len);
     return std::string_view{str, len};
+}
+
+/**
+ * @brief Write text that may hold untrusted data (an error message quoting
+ * a server's line, say) to a terminal, so it can't send control sequences.
+ * Newlines and tabs pass, as do printable ASCII and valid UTF-8 other than
+ * the C1 controls (U+0080 to U+009F, which some terminals obey). Any other
+ * byte is written as \xNN. Nothing is allocated, so the panic handler can
+ * use it.
+ */
+inline auto write_escaped(std::FILE* const out, std::string_view const str) -> void
+{
+    auto const is_cont = [&](std::size_t const i) {
+        return i < str.size() && (static_cast<unsigned char>(str[i]) & 0xc0) == 0x80;
+    };
+
+    for (std::size_t i = 0; i < str.size();)
+    {
+        auto const c = static_cast<unsigned char>(str[i]);
+        std::size_t len = 0; // of a sequence to copy, or 0 to escape c
+        if (c == '\n' || c == '\t' || (0x20 <= c && c < 0x7f))
+        {
+            len = 1;
+        }
+        else if (0xc2 <= c && c <= 0xf4)
+        {
+            auto const n = c < 0xe0 ? 2u : c < 0xf0 ? 3u : 4u;
+            auto valid = true;
+            for (std::size_t k = 1; k < n; ++k)
+            {
+                valid = valid && is_cont(i + k);
+            }
+            auto const c1 = c == 0xc2 && valid && static_cast<unsigned char>(str[i + 1]) < 0xa0;
+            if (valid && not c1)
+            {
+                len = n;
+            }
+        }
+
+        if (len > 0)
+        {
+            std::fwrite(str.data() + i, 1, len, out);
+            i += len;
+        }
+        else
+        {
+            std::fprintf(out, "\\x%02x", c);
+            ++i;
+        }
+    }
 }

@@ -200,6 +200,10 @@ tick). Tested in `test-reload.lua`.
 - **Pastes.** A paste goes into the editor up to its first newline. One over
   the native 64 KiB limit arrives as `on_paste(nil, size)` and is reported
   as an error; it was most likely pasted by mistake (REVIEW.md F-050).
+- **`scrub` covers C1 controls too** (U+0080 to U+009F, replaced by
+  U+FFFD), since some terminals obey them. It matters wherever text leaves
+  curses, which draws controls visibly on its own: the iTerm2 notifier's OSC
+  9 sequence, and `dispatch.report`'s stderr fallback (REVIEW.md F-019).
 
 ### Network layer
 
