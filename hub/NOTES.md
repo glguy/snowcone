@@ -365,9 +365,13 @@ tick). Tested in `test-reload.lua`.
   MAP and LINKS, snotice a TESTMASK per tracked range; RPL_YOUREOPER also
   sets `MODE <nick> +s <snomask>` (per network `snomask`, default
   `BFZbcklnsx`). Netsplits and netjoins resync the same way.
-- topology: servers file per network (`servers_file`; the dashboard read
-  `servers.lua` from the config directory by default, hub only when
-  configured), populations, links/upstream, versions, uptimes, drains,
+- The servers file (`servers_file`; the dashboard read `servers.lua` from
+  the config directory by default, hub only when configured) is network
+  configuration: `config.load` reads it into `cfg.servers`, a file that
+  can't be read fails the load, and features read it with
+  `common.servers(net)`. Topology used to own it, so oper's reasons and
+  snotice's ranges needed the topology feature.
+- topology: populations, links/upstream, versions, uptimes, drains,
   sheds, DNS rotations every 30 s (timer id kept in state so reloads don't
   add timers). **Fixed:** LINKS replies merge both directions; the
   dashboard replaced a server's set, so reply order could drop links.

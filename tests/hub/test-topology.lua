@@ -38,12 +38,27 @@ end
 
 T.case('the servers file is loaded and seeds the notice stores', function()
     boot()
-    local servers = topo().servers
+    local servers = T.require 'hub.features.common'.servers 'test'
     T.eq(servers.primary_hub, 'hub.example', 'loaded')
     T.eq(servers.kline_reasons[2][1], 'abuse', 'kline reasons')
     local S = snotice()
     T.eq(S.trackers.conn.events['alpha.example'], 0, 'known servers tracked from the start')
     T.ok(S.net_trackers.docs['192.0.2.0/24'], 'address ranges from the file')
+end)
+
+T.case('a servers file that cannot be read fails the reload', function()
+    boot()
+    local before = HUB.current
+    local file = require 'pl.path'.abspath(here .. '/fixtures/servers.lua')
+    for _, bad in ipairs {file .. '.missing', here .. '/test-topology.lua'} do
+        local ok, err = T.reload {config = {networks = {{
+            id = 'test', server = {host = 'test.example', port = 6667},
+            identity = {nick = 'me'}, servers_file = bad,
+        }}}}
+        T.ok(not ok and tostring(err):find('networks.test.servers_file', 1, true), tostring(err))
+        T.ok(HUB.current == before, 'the old generation stays')
+    end
+    T.eq(T.require 'hub.features.common'.servers('test').primary_hub, 'hub.example', 'and its servers')
 end)
 
 T.case('registration asks for the map and links', function()
@@ -86,14 +101,16 @@ T.case('MAP, LINKS, VERSION and STATS u', function()
     local c = boot()
     c:recv ':srv 015 me :alpha.example[01A] ---- | Users:   100 (10%)'
     c:recv ':srv 015 me :beta.example[01B] ----- | Users:  2000 (90%)'
+    c:recv ':srv 015 me :gamma.example[01C] ---- | Users:     5 (0%)'
     c:recv ':srv 017 me :End of /MAP'
-    T.eq(topo().population, {['alpha.example'] = 100, ['beta.example'] = 2000}, 'population')
-    T.eq(snotice().trackers.exit.events['beta.example'], 0, 'every mapped server gets a load row')
+    T.eq(topo().population, {['alpha.example'] = 100, ['beta.example'] = 2000, ['gamma.example'] = 5}, 'population')
+    T.eq(snotice().trackers.exit.events['gamma.example'], 0, 'every mapped server gets a load row')
 
     -- notices move the population
     c:recv ':alpha.example NOTICE * :*** Notice -- Client connecting: n (u@h) [192.0.2.1] {users} <*> [g]'
     c:recv ':beta.example NOTICE * :*** Notice -- Client exiting: n (u@h) [Client Quit] [192.0.2.1]'
-    T.eq(topo().population, {['alpha.example'] = 101, ['beta.example'] = 1999}, 'moved by notices')
+    T.eq(topo().population, {['alpha.example'] = 101, ['beta.example'] = 1999, ['gamma.example'] = 5},
+        'moved by notices')
     T.eq(snotice().net_trackers.docs['192.0.2.0/24'].count, 0, 'in and out of the range')
 
     c:recv ':srv 364 me alpha.example hub.example :1 Alpha'

@@ -4,12 +4,15 @@
 --   {file, dir, warnings, ui, plugins, notifications, mention,
 --    networks = {{id, features = {[name] = true}, ...}, ...}}
 -- Secrets stay as configured (strings, {command=}, {file=}, {prompt=});
--- they are resolved at connect time by runtime/secrets.lua.
+-- they are resolved at connect time by runtime/secrets.lua. A network's
+-- servers file is read here into `servers`; one that can't be read fails
+-- the load like the configuration file itself.
 
 local app     <const> = require 'pl.app'
 local file    <const> = require 'pl.file'
 local lexer   <const> = require 'pl.lexer'
 local path    <const> = require 'pl.path'
+local pretty  <const> = require 'pl.pretty'
 local tablex  <const> = require 'pl.tablex'
 local schema  <const> = require 'hub.lib.schema'
 local cschema <const> = require 'hub.runtime.config_schema'
@@ -136,7 +139,29 @@ local function normalize_network(net, warnings)
         error(string.format('networks.%s.reconnect: max_delay is below min_delay', net.id), 0)
     end
     net.layers = net.layers or {}
+    -- the servers file's contents, or these defaults without one
+    net.servers = {servers = {}, regions = {}, kline_reasons = {}, kline_tags = {}}
     return net
+end
+
+-- The servers file (from the dashboard): {servers = {[name] = {alias,
+-- region, ipv4, ipv6, expect}}, regions = {[label] = {hostname, color}},
+-- kline_reasons, kline_tags, net_tracks, flags, primary_hub}
+local function read_servers(net, dir)
+    local name = net.servers_file
+    if not name then return end
+    local filename = path.isabs(name) and name or path.join(dir, name)
+    local text, err = file.read(filename)
+    if not text then
+        error(string.format('networks.%s.servers_file: %s', net.id, err or filename), 0)
+    end
+    local value, perr = pretty.read(text)
+    if type(value) ~= 'table' then
+        error(string.format('networks.%s.servers_file %s: %s', net.id, filename, perr or 'not a table'), 0)
+    end
+    for k, v in pairs(value) do
+        net.servers[k] = v
+    end
 end
 
 --- Validate and normalize a raw configuration table. The table is copied
@@ -198,6 +223,9 @@ function M.load(args, override)
     local cfg = M.normalize(raw)
     cfg.file = filename
     cfg.dir = dir
+    for _, net in ipairs(cfg.networks) do
+        read_servers(net, dir)
+    end
     return cfg
 end
 

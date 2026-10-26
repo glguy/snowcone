@@ -7,6 +7,7 @@
 -- conn_filter, mark_filter, highlight, show_reasons.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
+local common    <const> = require 'hub.features.common'
 local control   <const> = require 'hub.ui.control'
 local dashboard <const> = require 'hub.ui.dashboard'
 local draw      <const> = require 'hub.ui.draw'
@@ -129,7 +130,7 @@ local function make_view(id, title, store, tracker)
         -- server
         draw.blue(win)
         win:wmove(y, 120)
-        local info = dashboard.topology(ctx).servers.servers[entry.server] or {}
+        local info = common.servers(net).servers[entry.server] or {}
         if info.alias then
             win:waddstr(string.format('%-2.2s ', info.alias))
         else

@@ -5,6 +5,7 @@
 -- marks an address in a DNS rotation; S user shedding.
 -- View state: ordering, descending.
 
+local common    <const> = require 'hub.features.common'
 local dashboard <const> = require 'hub.ui.dashboard'
 local draw      <const> = require 'hub.ui.draw'
 local scrub     <const> = require 'hub.lib.scrub'
@@ -44,14 +45,13 @@ local function render_rotation(win, topo, region, addr, str)
     end
 end
 
-local function orderings(topo)
+local function orderings(topo, info)
     local function by(key)
         return function(x, y)
             local a, b = key(x), key(y)
             return a < b or a == b and x.name < y.name
         end
     end
-    local info = topo.servers.servers
     return {
         name = function(x, y) return x.name < y.name end,
         load1 = by(function(r) return r.load[1] end),
@@ -90,7 +90,7 @@ local function make_view(id, title, tracker_name, header_colour)
             local S = dashboard.stores(ctx, win)
             if not S then return end
             local topo = dashboard.topology(ctx)
-            local servers = topo.servers
+            local servers = common.servers(ctx.net)
             local tracker = S.trackers[tracker_name]
             local vs = ctx.vs
 
@@ -103,7 +103,8 @@ local function make_view(id, title, tracker_name, header_colour)
             for server, avg in pairs(tracker.detail) do
                 table.insert(rows, {name = server, load = avg})
             end
-            local order = orderings(topo)[vs.ordering or 'name'] or orderings(topo).name
+            local by = orderings(topo, servers.servers)
+            local order = by[vs.ordering or 'name'] or by.name
             if vs.descending then
                 local forward = order
                 order = function(x, y) return forward(y, x) end

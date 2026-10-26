@@ -18,6 +18,14 @@ function M.enabled(net, feature)
     return rec ~= nil and rec.cfg.features[feature] == true
 end
 
+--- The network's servers file (runtime/config.lua), or its defaults.
+---@param net string network id
+---@return table|nil nil for an unknown network
+function M.servers(net)
+    local rec = HUB.state.nets[net]
+    return rec and rec.cfg.servers
+end
+
 --- The feature's state for a network, made by init(rec) on first use.
 ---@param feature string
 ---@param net string

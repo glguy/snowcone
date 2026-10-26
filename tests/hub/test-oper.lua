@@ -7,13 +7,14 @@ local T = dofile(here .. '/lib.lua')
 local FakeTransport = dofile(here .. '/fake_transport.lua')
 local path = require 'pl.path'
 
-local function boot()
+local function boot(features)
     local fake = FakeTransport.new()
     T.boot {transport = fake, config = {networks = {{
         id = 'test',
         server = {host = 'test.example', port = 6667},
         identity = {nick = 'me'},
         servers_file = path.abspath(here .. '/fixtures/servers.lua'),
+        features = features,
     }}}}
     local c = fake.last()
     c:con()
@@ -116,9 +117,14 @@ T.case('kline_nick looks up unknown users with WHO', function()
     T.eq(c:take(), {'TESTMASK *@192.0.2.10'}, 'staged from WHO')
 end)
 
+T.case('the servers file reaches oper without the topology feature', function()
+    local _, oper = boot {'oper', 'snotice'}
+    T.eq(oper.reasons('test')[2][1], 'abuse', 'reasons from the file')
+end)
+
 T.case('an empty reason list falls back to a default', function()
     local _, oper = boot()
-    T.require 'hub.features.topology'.get('test').servers.kline_reasons = {}
+    T.require 'hub.features.common'.servers('test').kline_reasons = {}
     oper.cycle_reason 'test'
     T.eq(oper.reason_text 'test', 'You are banned.', 'default reason')
 end)

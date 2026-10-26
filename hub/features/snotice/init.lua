@@ -6,6 +6,7 @@ local bus      <const> = require 'hub.runtime.bus'
 local clock    <const> = require 'hub.runtime.clock'
 local common   <const> = require 'hub.features.common'
 local lexer    <const> = require 'pl.lexer'
+local loadavg  <const> = require 'hub.lib.loadavg'
 local log      <const> = require 'hub.runtime.log'
 local manager  <const> = require 'hub.net.manager'
 local matching <const> = require 'hub.lib.matching'
@@ -101,8 +102,37 @@ local function on_message(ev)
     if h then h(ev.net, ev.msg) end
 end
 
+-- Every known server gets a row in the load views, traffic or not
+local function track_servers(net, names)
+    local S = stores.get(net)
+    for name in pairs(names) do
+        loadavg.track(S.trackers.conn, name, 0)
+        loadavg.track(S.trackers.exit, name, 0)
+    end
+end
+
+-- The servers file's servers, and its address ranges to count
+local function apply_servers(net)
+    local servers = common.servers(net)
+    track_servers(net, servers.servers)
+    local S = stores.get(net)
+    for name, ranges in pairs(servers.net_tracks or {}) do
+        if not S.net_trackers[name] then
+            for _, range in ipairs(ranges) do
+                local ok, err = pcall(nettrack.add, S.net_trackers, name, range)
+                if not ok then
+                    log.add_net(net, 'snotice', 'net_tracks %s: %s', name, err)
+                end
+            end
+        end
+    end
+end
+
 function M.subscribe(sub)
     sub.on('irc.message', on_message)
+    sub.on('topology.map', function(ev)
+        if common.enabled(ev.net, M.name) then track_servers(ev.net, ev.population) end
+    end)
     sub.on('irc.oper', function(ev)
         if common.enabled(ev.net, M.name) then M.sync(ev.net) end
     end)
@@ -149,7 +179,12 @@ function M.apply_watches()
     end
 end
 
-M.activate = M.apply_watches
+function M.activate()
+    for _, id in ipairs(manager.ids()) do
+        if common.enabled(id, M.name) then apply_servers(id) end
+    end
+    M.apply_watches()
+end
 
 -- Commands ============================================================
 

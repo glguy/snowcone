@@ -24,6 +24,7 @@ carry `net`, the network id.
 | `irc.isupport` | `{net, key, value}` value nil when removed, true without a value | net/irc |
 | `snote` | `{net, name, server, time, timestamp, ...fields}` a parsed server notice | features/snotice |
 | `snote.<name>` | the same event, by notice name | features/snotice |
+| `topology.map` | `{net, population}` a MAP reply ended; population is `[server] = users` | features/topology |
 | `chat.message` | `{net, target, msg, mention, activity}` a message added to a buffer | features/chat |
 | `chat.buffer` | `{net, target, opened}` a buffer opened or closed | features/chat |
 | `chat.focus` | `{net, target}` /talk asks the UI to show a buffer | features/chat |

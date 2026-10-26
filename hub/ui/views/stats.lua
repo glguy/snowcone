@@ -103,7 +103,7 @@ local function store_rows()
         local topo = common.get_state('topology', id)
         if topo then
             row(id, 'topology', string.format('servers %d  mapped %d  links %d  versions %d',
-                count(topo.servers.servers), count(topo.population), count(topo.links), count(topo.versions)))
+                count(common.servers(id).servers), count(topo.population), count(topo.links), count(topo.versions)))
         end
 
         local chat = common.get_state('chat', id)

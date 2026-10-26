@@ -11,7 +11,7 @@
 -- }
 --
 -- K-Line reasons and tags come from the network's servers file
--- (features/topology). Staging sends only queries (TESTMASK, TESTKLINE,
+-- (runtime/config.lua). Staging sends only queries (TESTMASK, TESTKLINE,
 -- WHO, WHOWAS); KLINE, UNKLINE, UNDLINE and NickServ FREEZE go out only
 -- from commit, which the UI calls when the operator confirms.
 
@@ -26,7 +26,6 @@ local secrets    <const> = require 'hub.runtime.secrets'
 local send       <const> = require 'hub.net.send'
 local stores     <const> = require 'hub.features.snotice.stores'
 local task       <const> = require 'hub.runtime.task'
-local topology   <const> = require 'hub.features.topology'
 
 local M = {}
 
@@ -88,7 +87,7 @@ local default_reasons <const> = {{'banned', 'You are banned.'}}
 --- The reasons offered: {label, text} pairs from the servers file, or a
 --- default when it gives none (an empty list would leave nothing to send).
 function M.reasons(net)
-    local reasons = topology.get(net).servers.kline_reasons
+    local reasons = common.servers(net).kline_reasons
     if type(reasons) ~= 'table' or #reasons == 0 then
         return default_reasons
     end
@@ -98,7 +97,7 @@ end
 --- The tags offered: the servers file's, then those added with /tag.
 function M.tags(net)
     local list = {}
-    for _, t in ipairs(topology.get(net).servers.kline_tags or {}) do
+    for _, t in ipairs(common.servers(net).kline_tags or {}) do
         table.insert(list, t)
     end
     for _, t in ipairs(M.get(net).settings.tags) do

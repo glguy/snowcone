@@ -209,7 +209,7 @@ and only run, and only show, for networks that have it.
 | Feature | What it does |
 | --- | --- |
 | snotice | Parses server notices (the dashboard's parser), keeps recent connections, exits, bans, new channels, per-second load trackers, address-range counts and watches; emits `snote` and `snote.<name>`. |
-| topology | The network's servers file (regions, aliases, kline reasons and tags, address ranges), populations from MAP, links and upstream from LINKS, versions, uptimes, user shedding, DNS rotations. Asks for MAP and LINKS at registration, on becoming an operator and on netsplits and netjoins. |
+| topology | Populations from MAP, links and upstream from LINKS, versions, uptimes, user shedding, DNS rotations. Asks for MAP and LINKS at registration, on becoming an operator and on netsplits and netjoins. |
 | oper | Libera ban masks; staging a K-Line, unkline or undline with a TESTMASK count; sending it only on confirmation; operator commands. |
 | chat | Buffers per network and target, routing, mentions, chat history, MONITOR, WALLOPS, CTCP replies to staff, `/list`. |
 | bouncer | soju's bouncer-networks, shown in the bouncer view. |
@@ -290,7 +290,7 @@ autoconnect = true
 reconnect = { min_delay = 1, max_delay = 300 }
 reclaim_nick = true
 snomask = '+BFZbcklnsx'
-servers_file = 'servers.lua'
+servers_file = 'servers.lua'   # read with the configuration; a bad one fails the load
 quit_message = 'bye'
 [networks.server]              # host, port, fingerprint, capabilities, username, password
 [[networks.layers]]            # tls, socks or http

@@ -1,13 +1,8 @@
 -- Network topology (from the dashboard's init.lua,
--- handlers/irc.lua and handlers/snotice.lua): the network's servers file,
--- server populations from MAP, links from LINKS, versions, startup times,
+-- handlers/irc.lua and handlers/snotice.lua): server populations from MAP, links from LINKS, versions, startup times,
 -- user shedding, and the addresses in each DNS rotation.
 --
 -- state.features.topology[net] = {
---   servers     the servers file: {servers = {[name] = {alias, region,
---               ipv4, ipv6, expect}}, regions = {[label] = {hostname,
---               color}}, kline_reasons, kline_tags, net_tracks, flags,
---               primary_hub}
 --   population  [server] = users, from MAP and moved by connect/exit notices
 --   links       [server] = {[server] = true}, from LINKS
 --   upstream    [server] = its link towards primary_hub
@@ -23,16 +18,10 @@
 -- Drains (the drain module) are not tracked for now; they and user
 -- shedding are to be revisited together.
 
-local file      <const> = require 'pl.file'
-local pretty    <const> = require 'pl.pretty'
+local bus       <const> = require 'hub.runtime.bus'
 local clock     <const> = require 'hub.runtime.clock'
 local common    <const> = require 'hub.features.common'
-local config    <const> = require 'hub.runtime.config'
-local loadavg   <const> = require 'hub.lib.loadavg'
 local log       <const> = require 'hub.runtime.log'
-local nettrack  <const> = require 'hub.features.snotice.nettrack'
-local stores    <const> = require 'hub.features.snotice.stores'
-local manager   <const> = require 'hub.net.manager'
 local N         <const> = require 'hub.lib.numerics'
 local resources <const> = require 'hub.runtime.resources'
 local send      <const> = require 'hub.net.send'
@@ -41,26 +30,14 @@ local timer     <const> = require 'hub.runtime.timer'
 
 local M = {}
 
-local seed_snotice
-
 M.name = 'topology'
 M.refresh_ms = 30000
 
 -- STATS E line of a server that sheds users
 local shed_pattern <const> = 'user shedding event +[0-9]+ +seconds %(frequency=([0-9]+)%)'
 
-local function empty_servers()
-    return {
-        servers = {},
-        regions = {},
-        kline_reasons = {{'banned', 'You are banned.'}},
-        kline_tags = {},
-    }
-end
-
 local function new_state()
     return {
-        servers = empty_servers(),
         population = {},
         links = {},
         upstream = {},
@@ -97,64 +74,12 @@ end
 -- A sync this recent makes another one pointless
 M.resync_after = 10
 
--- Servers file ========================================================
-
--- Known servers show in the load views before their first notice, and the
--- file's address ranges are tracked (as the dashboard did at startup)
-function seed_snotice(net, servers)
-    if not common.enabled(net, 'snotice') then return end
-    local S = stores.get(net)
-    for server in pairs(servers.servers or {}) do
-        loadavg.track(S.trackers.conn, server, 0)
-        loadavg.track(S.trackers.exit, server, 0)
-    end
-    for name, ranges in pairs(servers.net_tracks or {}) do
-        if not S.net_trackers[name] then
-            for _, range in ipairs(ranges) do
-                local ok, err = pcall(nettrack.add, S.net_trackers, name, range)
-                if not ok then
-                    log.add_net(net, 'topology', 'net_tracks %s: %s', name, err)
-                end
-            end
-        end
-    end
-end
-
---- Read a network's servers file into its state. Errors are logged and
---- the previous contents stay.
-function M.load_servers(net)
-    local rec = HUB.state.nets[net]
-    local name = rec and rec.cfg.servers_file
-    local T = M.get(net)
-    if not name then
-        T.servers = empty_servers()
-        return
-    end
-    local filename = config.resolve_path(name)
-    local text, err = file.read(filename)
-    if not text then
-        log.add_net(net, 'topology', 'servers file: %s', err or filename)
-        return
-    end
-    local value, perr = pretty.read(text)
-    if not value then
-        log.add_net(net, 'topology', 'servers file %s: %s', filename, perr)
-        return
-    end
-    local servers = empty_servers()
-    for k, v in pairs(value) do
-        servers[k] = v
-    end
-    T.servers = servers
-    seed_snotice(net, servers)
-end
-
 -- IRC replies =========================================================
 
 local H = {}
 
 -- "<client> :<map line>" ... until RPL_MAPEND
-H[N.RPL_MAP] = function(T, msg, net)
+H[N.RPL_MAP] = function(T, msg)
     if not T.in_map then
         T.population = {}
         T.in_map = true
@@ -162,17 +87,12 @@ H[N.RPL_MAP] = function(T, msg, net)
     local server, count = (msg[2] or ''):match '(%g*)%[...%] %-* | Users: +(%d+)'
     if server then
         T.population[server] = math.tointeger(count)
-        -- every server gets a row in the load views, traffic or not
-        if common.enabled(net, 'snotice') then
-            local S = stores.get(net)
-            loadavg.track(S.trackers.conn, server, 0)
-            loadavg.track(S.trackers.exit, server, 0)
-        end
     end
 end
 
-H[N.RPL_MAPEND] = function(T)
+H[N.RPL_MAPEND] = function(T, _, net)
     T.in_map = nil
+    bus.emit('topology.map', {net = net, population = T.population})
 end
 
 -- "<client> <version> <server> :<comments>"
@@ -195,12 +115,12 @@ H[N.RPL_LINKS] = function(T, msg)
     end
 end
 
-H[N.RPL_ENDOFLINKS] = function(T)
+H[N.RPL_ENDOFLINKS] = function(T, _, net)
     T.links = T.partial_links or {}
     T.partial_links = nil
 
     -- each server's next hop towards the primary hub
-    local primary_hub = T.servers.primary_hub
+    local primary_hub = common.servers(net).primary_hub
     T.upstream = {}
     if primary_hub then
         T.upstream[primary_hub] = primary_hub
@@ -308,9 +228,9 @@ local function lookup_region(t, label, hostname)
     T.rotations[label] = set
 end
 local function refresh_rotations()
-    for net, T in pairs(HUB.state.features.topology or {}) do
+    for net in pairs(HUB.state.features.topology or {}) do
         if HUB.state.nets[net] and enabled(net) then
-            for label, region in pairs(T.servers.regions or {}) do
+            for label, region in pairs(common.servers(net).regions) do
                 if region.hostname then
                     task.spawn('rotation ' .. label, {owner = M.name, net = net},
                         lookup_region, label, region.hostname)
@@ -349,15 +269,9 @@ function M.subscribe(sub)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
 end
 
--- Load servers files and keep the rotation refresh running. The refresh
--- timer's id lives in state so a reload doesn't start a second one.
+-- Keep the rotation refresh running. The timer's id lives in state so a
+-- reload doesn't start a second one.
 function M.activate()
-    for _, net in ipairs(manager.ids()) do
-        if enabled(net) then
-            M.load_servers(net)
-        end
-    end
-
     local meta = HUB.state.features.topology_meta or {}
     HUB.state.features.topology_meta = meta
     if not (meta.timer and resources.get(meta.timer)) and HUB.boot.tick then
@@ -379,7 +293,7 @@ local function servers_known(net)
     local T = M.get(net)
     local list = {}
     for server in pairs(T.population) do
-        if T.servers.servers[server] then
+        if common.servers(net).servers[server] then
             table.insert(list, server)
         end
     end
