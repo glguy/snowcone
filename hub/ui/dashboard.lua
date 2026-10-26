@@ -73,8 +73,9 @@ end
 function M.load_status(ctx, win, label, which)
     if not (ctx.net and common.enabled(ctx.net, 'snotice')) then return end
     local tracker = stores.get(ctx.net).trackers[which]
+    ctx.fragment(win)
     draw.magenta(win)
-    win:waddstr(' ' .. label .. ' ')
+    win:waddstr(label .. ' ')
     M.draw_load(win, tracker.global)
     draw.normal(win)
 end

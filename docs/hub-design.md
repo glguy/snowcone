@@ -237,6 +237,9 @@ dashboard are refused with a message to port them.
   net-scoped views and commands use it, and commands take `@network` first
   to use another. The status bar lists every network by state, with `+` or
   `!` for unseen chat.
+- **Status bar fragments** are divided by one separator, the Powerline
+  right-pointing triangle (U+E0B0, `statusbar.separator`). A view's
+  `status` function starts each fragment it adds with `ctx.fragment(win)`.
 - **Input modes:** command, filter (live, per view), talk, and password —
   prompts from tasks, with their own editor so a half-typed command
   survives and secrets stay out of history.

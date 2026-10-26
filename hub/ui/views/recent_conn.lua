@@ -198,21 +198,23 @@ local function make_view(id, title, store, tracker)
 
         status = function(ctx, win)
             dashboard.load_status(ctx, win, id, tracker)
+            -- the active filters, as one fragment
             local vs = ctx.vs
+            local words = {}
             if vs.conn_filter ~= nil then
-                if vs.conn_filter then
-                    draw.green(win)
-                    win:waddstr ' LIVE'
-                else
-                    draw.red(win)
-                    win:waddstr ' DEAD'
-                end
+                table.insert(words, {vs.conn_filter and draw.green or draw.red, vs.conn_filter and 'LIVE' or 'DEAD'})
             end
-            draw.yellow(win)
-            if vs.server_filter then win:waddstr ' SERVER' end
-            if vs.mark_filter then win:waddstr ' MARKED' end
-            if vs.prefilter then win:waddstr ' PF' end
-            draw.normal(win)
+            if vs.server_filter then table.insert(words, {draw.yellow, 'SERVER'}) end
+            if vs.mark_filter then table.insert(words, {draw.yellow, 'MARKED'}) end
+            if vs.prefilter then table.insert(words, {draw.yellow, 'PF'}) end
+            if #words > 0 then
+                ctx.fragment(win)
+                for i, w in ipairs(words) do
+                    w[1](win)
+                    win:waddstr((i > 1 and ' ' or '') .. w[2])
+                end
+                draw.normal(win)
+            end
         end,
     }
 end

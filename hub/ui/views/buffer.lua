@@ -262,8 +262,8 @@ return {
         local irc = rec.irc
         local target = control.talk_target(net)
 
-        win:waddstr ' '
         if target then
+            ctx.fragment(win)
             if not irc or rec.phase ~= 'connected' then
                 draw.yellow(win)
             elseif irc_model.is_channel_name(irc, target) then
@@ -280,17 +280,18 @@ return {
             end
             local buffer = chat.buffer(net, target)
             draw.bold(win)
-            win:waddstr(scrub(buffer and buffer.name or target), '')
+            win:waddstr(scrub(buffer and buffer.name or target))
             draw.normal(win)
         end
 
         for _, entry in ipairs(sorted_names(net)) do
             local buffer = chat.get(net).buffers[entry[1]]
             if buffer.activity > 0 then
+                ctx.fragment(win)
                 if buffer.mention then draw.magenta(win) else draw.yellow(win) end
                 local name = buffer.name
                 local _, x1 = ncurses.getyx(win)
-                win:waddstr(scrub(name), '')
+                win:waddstr(scrub(name))
                 local _, x2 = ncurses.getyx(win)
                 ctx.add_click(tty_height - 1, x1, x2, function()
                     control.set_talk_target(net, name)

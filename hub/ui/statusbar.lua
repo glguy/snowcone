@@ -54,6 +54,18 @@ end
 
 local M = {}
 
+-- The separator between every fragment of the bar (a Powerline triangle)
+M.separator = utf8.char(0xE0B0)
+
+--- Start a new fragment of the status bar with the separator that follows
+--- the view title, so fragments are divided the same way everywhere.
+function M.fragment(win)
+    draw.normal(win)
+    draw.white(win)
+    win:waddstr(' ', M.separator, ' ')
+    draw.normal(win)
+end
+
 local input_mode_palette <const> = {
     command = ncurses.COLOR_BLUE,
     talk = ncurses.COLOR_GREEN,
@@ -79,11 +91,11 @@ function M.draw(win, textbox, layout, view, ctx)
         local ed = control.editor()
         local input_mode_color = input_mode_palette[mode]
         ncurses.colorset(titlecolor, input_mode_color, win)
-        win:waddstr('')
+        win:waddstr(M.separator)
         ncurses.colorset(ncurses.COLOR_WHITE, input_mode_color, win)
         win:waddstr(mode)
         ncurses.colorset(input_mode_color, nil, win)
-        win:waddstr('')
+        win:waddstr(M.separator)
 
         if mode == 'password' then
             local n <const> = editor.size(ed)
@@ -135,29 +147,34 @@ function M.draw(win, textbox, layout, view, ctx)
         end
     else
         ncurses.colorset(titlecolor, nil, win)
-        win:waddstr('')
+        win:waddstr(M.separator)
         draw.normal(win)
 
         draw_nets(win, ctx)
 
+        -- views start each fragment of their own with ctx.fragment
+        ctx.fragment = M.fragment
         if view.status then
             view.status(ctx, win)
         end
 
-        local last = HUB.state.log_last
-        if last then
-            addircstr(win, ' ' .. last)
-        end
-
         if ctx.vs.scroll ~= 0 then
-            win:waddstr(string.format(' SCROLL %d', ctx.vs.scroll))
+            M.fragment(win)
+            win:waddstr(string.format('SCROLL %d', ctx.vs.scroll))
         end
 
         if ctx.vs.filter then
+            M.fragment(win)
             draw.yellow(win)
-            win:waddstr ' FILTER '
+            win:waddstr 'FILTER '
             draw.normal(win)
             win:waddstr(scrub(string.format('%q', ctx.vs.filter)))
+        end
+
+        local last = HUB.state.log_last
+        if last then
+            M.fragment(win)
+            addircstr(win, last)
         end
 
         ctx.add_click(tty_height - 1, 0, 9, control.next_view)

@@ -216,7 +216,7 @@ local function make_view(id, title, tracker_name, header_colour)
             dashboard.load_status(ctx, win, id == 'connload' and 'cliconn' or 'cliexit', tracker_name)
             local n = 0
             for _, v in pairs(dashboard.topology(ctx).population) do n = n + v end
-            win:waddstr ' '
+            ctx.fragment(win)
             draw.magenta(win)
             dashboard.add_population(win, n)
             draw.normal(win)

@@ -237,8 +237,9 @@ return {
 
     status = function(ctx, win)
         if ctx.vs.all then
+            ctx.fragment(win)
             draw.yellow(win)
-            win:waddstr ' ALL'
+            win:waddstr 'ALL'
             draw.normal(win)
         end
     end,
