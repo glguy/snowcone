@@ -152,6 +152,7 @@ end
 -- Closing ============================================================
 
 local function schedule_reconnect(rec)
+    if HUB.quitting or HUB.shut_down then return end
     local r = rec.cfg.reconnect
     local delay = rec.backoff * (1 + 0.25 * math.random())
     rec.reconnect_timer = timer.start('net', math.floor(delay * 1000), 'net.reconnect', rec.id, rec.attempt)
@@ -285,6 +286,19 @@ function M.reconnect(id)
     M.connect(id)
 end
 
+--- End every network now, without QUIT and without reconnecting, for
+--- shutdown. Afterwards no network holds a connection or a timer.
+function M.abandon_all()
+    for _, id in ipairs(M.ids()) do
+        local rec = nets()[id]
+        if rec.target ~= 'removed' then
+            rec.target = 'idle'
+        end
+        cancel_timer(rec, 'reconnect_timer')
+        M.finish(id, 'shutdown', false)
+    end
+end
+
 --- Number of networks with a connection or a connection attempt.
 function M.live_count()
     local n = 0
@@ -378,6 +392,7 @@ function events.END(rec, err)
 end
 
 local function on_event(id, attempt, ev, ...)
+    if HUB.shut_down then return end
     local rec = nets()[id]
     if rec == nil or rec.attempt ~= attempt or rec.conn == nil then
         return -- stale: from an attempt that already ended

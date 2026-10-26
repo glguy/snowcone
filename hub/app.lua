@@ -136,6 +136,8 @@ end
 local function shutdown()
     if HUB.shut_down then return end
     HUB.shut_down = true
+    -- networks first, so a closing connection can't schedule a reconnect
+    manager.abandon_all()
     resources.close_all()
     snowcone.shutdown()
 end

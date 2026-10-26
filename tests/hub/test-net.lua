@@ -362,6 +362,20 @@ T.case('quit sends QUIT and exits when the server closes', function()
     T.eq(rec('a').reconnect_timer, nil, 'no reconnect')
 end)
 
+T.case('shutdown with a live connection does not reconnect', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    HUB.current.routes['app.shutdown']()
+    T.ok(c.closed, 'connection closed')
+    T.eq(rec().phase, 'idle', 'idle')
+    T.eq(rec().target, 'idle', 'target idle')
+    c:finish 'end of stream' -- the close arrives afterwards
+    T.eq(#fake.conns, 1, 'no new attempt')
+    T.eq(rec().reconnect_timer, nil, 'no reconnect scheduled')
+    T.eq(next(HUB.resources.items), nil, 'no resources left')
+end)
+
 T.case('task timeouts, cancellation and DNS', function()
     local fake = boot {network('test')}
     register(fake.last())
