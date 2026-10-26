@@ -37,6 +37,8 @@ local function module_names(opts)
         'hub.net.send',
         'hub.net.handlers',
         'hub.net.manager',
+        'hub.features.common',
+        'hub.features.snotice',
     }
     if HUB.boot.ui then
         table.insert(names, 'hub.ui')

@@ -21,12 +21,12 @@ carry `net`, the network id.
 | `irc.batch` | `{net, type, params, messages}` when a batch closes | net/batch |
 | `irc.nick` | `{net, old, new, self}` | net/handlers |
 | `irc.isupport` | `{net, key, value}` value nil when removed, true without a value | net/irc |
+| `snote` | `{net, name, server, time, timestamp, ...fields}` a parsed server notice | features/snotice |
+| `snote.<name>` | the same event, by notice name | features/snotice |
+| `notify.alert` | `{net, kind, text, beep?, flash?, colour?}` something wants attention; the UI and notify decide how | features (snotice watches) |
 
 Planned by the design (section 4.3), not emitted yet:
 
 | Topic | Payload | Emitted by |
 | --- | --- | --- |
-| `snote` | `{net, name, server, time, ...fields}` | features/snotice |
-| `snote.<name>` | same payload, per notice name | features/snotice |
 | `chat.message` | `{net, target, msg, mention, activity}` | features/chat |
-| `notify.alert` | `{net, kind, text, beep?, flash?, colour?}` | any feature |
