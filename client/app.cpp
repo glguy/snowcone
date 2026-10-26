@@ -169,6 +169,79 @@ auto do_paste(lua_State* const L, std::string_view const paste) -> void
     lua_callback(L, "on_paste", 1);
 }
 
+/// A paste over the limit is dropped whole: on_paste(nil, size)
+auto do_paste_discarded(lua_State* const L, std::size_t const size) -> void
+{
+    lua_pushnil(L);
+    lua_pushinteger(L, static_cast<lua_Integer>(size));
+    lua_callback(L, "on_paste", 2);
+}
+
+/// The most pasted text delivered; a larger paste is most likely a mistake
+constexpr std::size_t max_paste = 64 * 1024;
+
+/// Ends a bracketed paste. Pastes are read with keypad mode off, so the
+/// marker is found in the raw bytes however it was split in transit, and
+/// pasted escape sequences arrive intact. Terminals keep it out of pasted
+/// text.
+constexpr std::string_view end_paste_marker = "\x1b[201~";
+
+/// Keypad mode is off while a paste is read; this turns it back on however
+/// the reader ends, so the next reader decodes keys again.
+struct PasteMode
+{
+    bool on = false;
+    std::string text; // the paste so far, then only a tail once discarding
+    std::size_t size = 0; // bytes received, the end marker included
+    bool discarding = false;
+
+    auto start() -> void
+    {
+        on = true;
+        keypad(stdscr, FALSE);
+    }
+
+    auto stop() -> void
+    {
+        on = false;
+        text.clear();
+        size = 0;
+        discarding = false;
+        keypad(stdscr, TRUE);
+    }
+
+    ~PasteMode()
+    {
+        if (on)
+        {
+            keypad(stdscr, TRUE);
+        }
+    }
+
+    /// Add one byte; true once the end marker has arrived
+    auto add(char const c) -> bool
+    {
+        text.push_back(c);
+        ++size;
+        if (text.ends_with(end_paste_marker))
+        {
+            text.resize(text.size() - end_paste_marker.size());
+            return true;
+        }
+        // Past the limit only a tail that may hold the start of the marker
+        // is kept
+        if (text.size() > max_paste + end_paste_marker.size())
+        {
+            discarding = true;
+        }
+        if (discarding && text.size() >= end_paste_marker.size())
+        {
+            text.erase(0, text.size() - (end_paste_marker.size() - 1));
+        }
+        return false;
+    }
+};
+
 } // namespace
 
 auto App::resize() -> void
@@ -243,8 +316,7 @@ auto App::signal_thread() -> boost::asio::awaitable<void>
 
 auto App::stdin_thread(unsigned const generation) -> boost::asio::awaitable<void>
 {
-    std::string paste;
-    bool in_paste = false;
+    PasteMode paste;
     mbstate_t mbstate{};
 
     // Any callback may stop input or shut down, and a later start_input()
@@ -266,23 +338,40 @@ auto App::stdin_thread(unsigned const generation) -> boost::asio::awaitable<void
         }
         for (int key; live() && (key = getch(), ERR != key);)
         {
-            if (in_paste)
+            if (paste.on)
             {
-                if (BracketedPaste::end_paste == key)
+                // Keypad mode is off, so anything above a byte (KEY_RESIZE)
+                // didn't come from the terminal
+                if (key <= 0xff && paste.add(static_cast<char>(key)))
                 {
-                    do_paste(L, paste);
-                    paste.clear();
-                    in_paste = false;
-                }
-                else
-                {
-                    paste.push_back(key);
+                    if (paste.discarding)
+                    {
+                        auto const size = paste.size - end_paste_marker.size();
+                        paste.stop();
+                        do_paste_discarded(L, size);
+                    }
+                    else
+                    {
+                        auto const text = std::move(paste.text);
+                        paste.stop();
+                        do_paste(L, text);
+                    }
                 }
             }
             else if (key == '\x1b')
             {
                 key = getch();
-                do_keyboard(L, ERR == key ? '\x1b' : -key);
+                if (BracketedPaste::start_paste == key || BracketedPaste::focus_gained == key ||
+                    BracketedPaste::focus_lost == key || KEY_MOUSE == key)
+                {
+                    // Not Alt-modified: a plain Esc, then the event as usual
+                    ungetch(key);
+                    do_keyboard(L, '\x1b');
+                }
+                else
+                {
+                    do_keyboard(L, ERR == key ? '\x1b' : -key);
+                }
             }
             else if (KEY_MOUSE == key)
             {
@@ -294,7 +383,7 @@ auto App::stdin_thread(unsigned const generation) -> boost::asio::awaitable<void
             }
             else if (BracketedPaste::start_paste == key)
             {
-                in_paste = true;
+                paste.start();
             }
             else if (BracketedPaste::focus_gained == key)
             {

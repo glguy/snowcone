@@ -125,6 +125,18 @@ T.case('keys reach input modes, views and commands', function()
     T.eq(T.log_lines 'error', {}, 'no errors')
 end)
 
+T.case('pastes go to the editor up to a newline; an oversized one is reported', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    local editor = T.require 'hub.ui.editor'
+    key(string.byte '/')
+    HUB.current.routes['ui.entry']('on_paste', 'say hi\nsecond line')
+    T.eq(editor.content(control.editor()), 'say hi', 'pasted up to the newline')
+    HUB.current.routes['ui.entry']('on_paste', nil, 70000)
+    T.eq(T.log_lines 'error', {'paste: a paste of 70000 bytes was discarded (limit 64 KiB)'}, 'reported')
+    T.eq(editor.content(control.editor()), 'say hi', 'editor unchanged')
+end)
+
 T.case('^C and signals quit, then shut down; nothing draws after', function()
     local c = boot()
     c:take()

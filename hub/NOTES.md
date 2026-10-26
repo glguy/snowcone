@@ -197,6 +197,9 @@ tick). Tested in `test-reload.lua`.
   that fails to exit. Nothing draws after shutdown (`dispatch.flush`), which
   would put the terminal back into curses mode. A ^C while a child has the
   terminal is left to the child (REVIEW.md F-060).
+- **Pastes.** A paste goes into the editor up to its first newline. One over
+  the native 64 KiB limit arrives as `on_paste(nil, size)` and is reported
+  as an error; it was most likely pasted by mistake (REVIEW.md F-050).
 
 ### Network layer
 

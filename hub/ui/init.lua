@@ -128,7 +128,13 @@ function entry.on_keyboard(key)
     if f then f() end
 end
 
-function entry.on_paste(paste)
+-- A paste over the native limit arrives as nil and its size
+function entry.on_paste(paste, size)
+    if paste == nil then
+        log.error('paste', string.format('a paste of %s bytes was discarded (limit 64 KiB)', size))
+        dispatch.dirty()
+        return
+    end
     if HUB.state.ui.input.mode then
         local ed = control.editor()
         for _, c in utf8.codes(paste) do

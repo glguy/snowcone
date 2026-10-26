@@ -893,7 +893,7 @@ function M.on_keyboard(key)
 end
 
 function M.on_paste(paste)
-    if input_mode then
+    if paste and input_mode then
         for _, c in utf8.codes(paste) do
             -- paste up to the first newline or nul
             if c == 0 or c == 10 or c == 13 then
