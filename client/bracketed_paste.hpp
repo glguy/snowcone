@@ -11,6 +11,8 @@ struct BracketedPaste
     BracketedPaste();
     ~BracketedPaste();
     static auto install() -> void;
+    /// Turn on bracketed paste and focus reporting
+    static auto enable() -> void;
     /// Turn off bracketed paste and focus reporting; safe to call more than once
     static auto disable() -> void;
     static constexpr int start_paste = 01000;

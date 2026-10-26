@@ -19,10 +19,12 @@ extern "C" {
 #define SNOWCONE_RESOLVER_CONFIG 1
 #endif
 
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
+#include <signal.h>
 #include <unistd.h>
 
 static char const app_key = '\0';
@@ -32,6 +34,18 @@ namespace {
 /// False in script mode, where there is no terminal state to restore and
 /// escape sequences would only pollute stdout.
 bool uses_terminal = true;
+
+/// The names on_signal receives
+auto sigabbrev(int const sig) -> char const*
+{
+    switch (sig)
+    {
+    case SIGINT: return "SIGINT";
+    case SIGTERM: return "SIGTERM";
+    case SIGHUP: return "SIGHUP";
+    default: return "?";
+    }
+}
 
 auto restore_terminal() -> void
 {
@@ -175,6 +189,14 @@ auto App::resize() -> void
 /// no pending wait doesn't keep run() alive.
 auto App::signal_thread() -> boost::asio::awaitable<void>
 {
+    // Caught here rather than by ncurses' handlers, which exit or stop
+    // without turning off bracketed paste and focus reporting. Not in
+    // script mode, where the defaults are right.
+    for (auto const sig : {SIGINT, SIGTERM, SIGHUP, SIGTSTP, SIGCONT})
+    {
+        signals.add(sig);
+    }
+
     // shutdown() may come from inside reload() or on_resize, when no wait is
     // pending for its cancel() to abort
     while (not shutting_down)
@@ -194,6 +216,15 @@ auto App::signal_thread() -> boost::asio::awaitable<void>
         case SIGUSR1:
             reload();
             break;
+        case SIGINT:
+        case SIGTERM:
+        case SIGHUP:
+            terminate_signal(sig);
+            break;
+        case SIGTSTP:
+            suspend();
+            break;
+        case SIGCONT: // after suspend(), or a SIGSTOP from outside
         case SIGWINCH:
             // While input is stopped a child process may own the tty, so
             // curses must not touch it; start_input() catches up
@@ -357,6 +388,47 @@ auto App::stop_input() -> void
 
 /// Runs until the event loop has no work left. Interactive mode always has
 /// work until shutdown(); a script ends once its last resource finishes.
+/// SIGINT, SIGTERM or SIGHUP: Lua's, if it asked for them. Otherwise, as
+/// ncurses' handler did, restore the terminal and take the default action.
+/// While a child has the terminal, a ^C there was meant for the child.
+auto App::terminate_signal(int const sig) -> void
+{
+    if (sig == SIGINT && not input_running)
+    {
+        return;
+    }
+    if (catch_signals)
+    {
+        lua_pushstring(L, sigabbrev(sig));
+        lua_callback(L, "on_signal", 1);
+        return;
+    }
+    restore_terminal();
+    boost::system::error_code ignored;
+    signals.remove(sig, ignored);
+    ::raise(sig);
+}
+
+/// Stop as a shell's ^Z would: the whole process group stops. The terminal
+/// is put back first, and on resume SIGCONT redraws. Without curses (a
+/// child has the terminal) this only stops.
+auto App::suspend() -> void
+{
+    if (input_running)
+    {
+        endwin();
+        BracketedPaste::disable();
+    }
+    boost::system::error_code ignored;
+    signals.remove(SIGTSTP, ignored);
+    ::kill(0, SIGTSTP); // returns once continued
+    signals.add(SIGTSTP, ignored);
+    if (input_running)
+    {
+        BracketedPaste::enable();
+    }
+}
+
 auto App::startup() -> void
 {
     // Input stays off if the script stopped it while loading, for example to
@@ -373,9 +445,10 @@ auto App::startup() -> void
     io_context.run();
 }
 
-/// Stop input and signal handling for good. Pending waits are cancelled,
-/// and each coroutine also checks the flag, which covers a coroutine that
-/// isn't waiting right now (the caller may be one of its callbacks).
+/// Stop input and signal handling for good, and restore the terminal.
+/// Pending waits are cancelled, and each coroutine also checks the flag,
+/// which covers a coroutine that isn't waiting right now (the caller may be
+/// one of its callbacks).
 auto App::shutdown() -> void
 {
     shutting_down = true;
@@ -383,6 +456,12 @@ auto App::shutdown() -> void
     boost::system::error_code ignored;
     stdin_poll.cancel(ignored);
     signals.cancel(ignored);
+    // Whatever still runs, ^C at the restored terminal now ends the process
+    for (auto const sig : {SIGINT, SIGTERM, SIGHUP, SIGTSTP, SIGCONT})
+    {
+        signals.remove(sig, ignored);
+    }
+    restore_terminal();
 }
 
 auto App::reload() -> bool

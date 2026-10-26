@@ -42,6 +42,7 @@ class App
                                 // headless), or since start_input()
     unsigned input_generation = 0; // a stdin_thread exits once it changes
     bool resize_pending = false; // SIGWINCH arrived while input was stopped
+    bool catch_signals = false; // SIGINT, SIGTERM and SIGHUP go to on_signal
 
 public:
     App(char const* filename, bool headless);
@@ -78,6 +79,15 @@ public:
     /// after shutdown().
     auto stop_input() -> void;
 
+    /// Deliver SIGINT, SIGTERM and SIGHUP to Lua's on_signal rather than
+    /// restoring the terminal and taking the default action. Until
+    /// shutdown(), which hands every signal but SIGUSR1 and SIGWINCH back
+    /// to its default action.
+    auto set_catch_signals(bool const on) -> void
+    {
+        catch_signals = on;
+    }
+
     /**
      * @brief Restore the terminal, report a fatal error, and exit.
      *
@@ -90,5 +100,7 @@ private:
     auto signal_thread() -> boost::asio::awaitable<void>;
     auto stdin_thread(unsigned generation) -> boost::asio::awaitable<void>;
     auto resize() -> void;
+    auto suspend() -> void;
+    auto terminate_signal(int sig) -> void;
     auto spawn_reader() -> void;
 };

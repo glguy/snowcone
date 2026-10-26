@@ -65,7 +65,7 @@ These hold everywhere. A change that breaks one needs a decision recorded in
 - `lib` requires nothing else from hub.
 - Only `ui` touches `ncurses`. Only `net` calls `snowcone.connect`. Only
   `runtime` calls `newtimer`, `dnslookup`, `execute`, `setmodule`,
-  `stop_input` and `start_input`; other layers use its wrappers, so every
+  `catch_signals`, `stop_input` and `start_input`; other layers use its wrappers, so every
   handle is tracked.
 - A lower layer reaches upward only through a route name
   (`dispatch.route 'app.quit'`) or an event.
@@ -311,7 +311,8 @@ hub relies on these parts of the `snowcone` table (see `client/`):
 | `dnslookup(name, fn)` | `fn(err)` or `fn(nil, addr...)`. Returns a handle whose `cancel()` keeps `fn` from running; dropping the handle doesn't cancel. |
 | `execute(cmd, args, fn, opts?)` | `fn(code, stdout, stderr)` or `fn(nil, err)`. Options: `input` (without it the child has the terminal), `group` (own process group, needs `input`), `max_output` (per stream, 16 MiB default; past it the child is killed). Returns a handle whose `cancel()` kills the child (or its group) and keeps `fn` from running; dropping the handle doesn't cancel. |
 | `time()`, `monotime()` | Wall clock (seconds, nanoseconds); monotonic seconds. |
-| `setmodule(fn)` | The single entry for keyboard, paste, mouse, resize and print. |
+| `setmodule(fn)` | The single entry for keyboard, paste, mouse, resize, signals and print. |
+| `catch_signals(on)` | SIGINT, SIGTERM and SIGHUP arrive as `on_signal(name)`; otherwise the terminal is restored and the default action taken. `shutdown()` restores the terminal and the defaults for good, so a ^C then ends a process that fails to exit. ^Z (SIGTSTP) is handled natively: the terminal is restored, the process group stops, and SIGCONT redraws through `on_resize`. |
 | `start_httpd`, `parse_irc`, `parse_irc_tags`, `irccase`, `pton`, `shutdown`, `raise`, `isalnum`, `stop_input`, `start_input` | As documented in `client/`. |
 
 Optional libraries (`mystringprep`, `hsfilter`, `myarchive`, `mygeoip`,

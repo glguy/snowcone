@@ -210,7 +210,9 @@ auto l_irccase(lua_State* const L) -> int
 /**
  * @brief Initiate the shutdown process for the client.
  *
- * This will tear down the signal and stdin handlers for the process.
+ * This will tear down the signal and stdin handlers for the process and
+ * restore the terminal. Afterwards SIGINT, SIGTERM, SIGHUP and SIGTSTP take
+ * their default actions, so a ^C ends a process that fails to exit.
  *
  * @param L Lua state
  * @return int 0
@@ -356,6 +358,16 @@ auto l_stop_input(lua_State* const L) -> int
     return 0;
 }
 
+/// catch_signals(on): with on, SIGINT, SIGTERM and SIGHUP are delivered as
+/// on_signal(name) instead of restoring the terminal and taking the default
+/// action. Until shutdown(), which restores the defaults for good.
+auto l_catch_signals(lua_State* const L) -> int
+{
+    luaL_checktype(L, 1, LUA_TBOOLEAN);
+    App::from_lua(L)->set_catch_signals(lua_toboolean(L, 1));
+    return 0;
+}
+
 luaL_Reg const applib_module[] = {
     {"connect", boundary<l_start_irc>},
     {"dnslookup", boundary<l_dnslookup>},
@@ -373,6 +385,7 @@ luaL_Reg const applib_module[] = {
     {"execute", boundary<l_execute>},
     {"stop_input", boundary<l_stop_input>},
     {"start_input", boundary<l_start_input>},
+    {"catch_signals", boundary<l_catch_signals>},
     {"start_httpd", boundary<start_httpd>},
     {}
 };

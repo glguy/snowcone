@@ -6,8 +6,12 @@
 
 BracketedPaste::BracketedPaste()
 {
-    puts("\x1b[?2004h"); // enable bracketed paste
-    puts("\x1b[?1004h"); // enable focus reporting
+    enable();
+}
+auto BracketedPaste::enable() -> void
+{
+    fputs("\x1b[?2004h", stdout); // enable bracketed paste
+    fputs("\x1b[?1004h", stdout); // enable focus reporting
     fflush(stdout);
 }
 auto BracketedPaste::install() -> void

@@ -10,6 +10,7 @@ local common    <const> = require 'hub.features.common'
 local irc_model <const> = require 'hub.net.irc'
 local control <const> = require 'hub.ui.control'
 local editor  <const> = require 'hub.ui.editor'
+local dispatch <const> = require 'hub.runtime.dispatch'
 local log     <const> = require 'hub.runtime.log'
 
 local M = {}
@@ -173,7 +174,7 @@ M.global = {
     [ctrl 'N'] = control.next_view,
     [ctrl 'P'] = control.prev_view,
 
-    [ctrl 'C'] = function() snowcone.raise(snowcone.SIGINT) end,
+    [ctrl 'C'] = function() dispatch.route 'app.quit' () end,
     [ctrl 'Z'] = function() snowcone.raise(snowcone.SIGTSTP) end,
 
     [string.byte '/'] = function()

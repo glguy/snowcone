@@ -189,6 +189,14 @@ tick). Tested in `test-reload.lua`.
   keep the event loop running. Exiting cleanly is Lua's job: the C++ side
   has no fallback, and a client that is simply broken gets killed from
   outside (REVIEW.md F-052).
+- **Signals quit.** The entry installs `snowcone.catch_signals(true)`, and
+  `on_signal` (SIGINT, SIGTERM, SIGHUP) and the ^C key both run `app.quit`:
+  the first starts quitting, with the UI still drawing so a slow network
+  shows why, and the next shuts down at once. `shutdown()` restores the
+  terminal and the default signal actions, so a further ^C ends a process
+  that fails to exit. Nothing draws after shutdown (`dispatch.flush`), which
+  would put the terminal back into curses mode. A ^C while a child has the
+  terminal is left to the child (REVIEW.md F-060).
 
 ### Network layer
 

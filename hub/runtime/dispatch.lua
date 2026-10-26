@@ -42,6 +42,8 @@ function M.flush()
         return
     end
     local current = HUB.current
+    -- shutdown restored the terminal; drawing would take it back
+    if HUB.shut_down then return end
     if HUB.dirty and current then
         local draw = current.routes['ui.draw']
         if draw then
@@ -109,6 +111,8 @@ function M.install_entry()
     if not HUB.entry_installed then
         HUB.entry_installed = true
         snowcone.setmodule(M.trampoline 'ui.entry')
+        -- SIGINT, SIGTERM and SIGHUP arrive as on_signal until shutdown
+        snowcone.catch_signals(true)
     end
 end
 

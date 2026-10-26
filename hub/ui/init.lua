@@ -156,6 +156,13 @@ function entry.on_resize()
     dispatch.dirty()
 end
 
+-- ^C, kill or a closed terminal: the first starts quitting, the next
+-- shuts down at once, and after shutdown the signal ends the process
+function entry.on_signal(name)
+    log.add('app', 'received %s', name)
+    dispatch.route 'app.quit' ()
+end
+
 function entry.print(str)
     log.add('print', '%s', str)
 end

@@ -125,6 +125,24 @@ T.case('keys reach input modes, views and commands', function()
     T.eq(T.log_lines 'error', {}, 'no errors')
 end)
 
+T.case('^C and signals quit, then shut down; nothing draws after', function()
+    local c = boot()
+    c:take()
+    key(0x1f & string.byte 'C')
+    T.eq(HUB.quitting, true, '^C starts quitting')
+    T.ok(c:take()[1]:find('^QUIT'), 'QUIT sent')
+    T.eq(HUB.shut_down, nil, 'still waiting for the server')
+    HUB.current.routes['ui.entry']('on_signal', 'SIGTERM')
+    T.eq(HUB.shut_down, true, 'a second signal shuts down')
+    T.eq(T.log_lines 'app'[#T.log_lines 'app'], 'received SIGTERM', 'logged')
+
+    local drew = false
+    HUB.current.routes['ui.draw'] = function() drew = true end
+    T.require 'hub.runtime.dispatch'.dirty()
+    T.require 'hub.runtime.dispatch'.flush()
+    T.eq(drew, false, 'no drawing after shutdown')
+end)
+
 T.case('a staged K-Line turns the title red', function()
     boot()
     local statusbar = T.require 'hub.ui.statusbar'
