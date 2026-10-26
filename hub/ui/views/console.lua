@@ -1,6 +1,7 @@
 -- Raw IRC traffic of the current network (from ircc/view/console.lua).
 --
--- Click a command to inspect the message above the log. Meta-H hides
+-- Click a command to inspect the message above the log (a server notice
+-- also shows its parsed fields). Meta-H hides
 -- server notices and PING/PONG/AWAY; Meta-R shows inspected values raw;
 -- Meta-G switches between the current network and all networks
 -- interleaved, with a network column.
@@ -13,6 +14,7 @@ local draw       <const> = require 'hub.ui.draw'
 local matching   <const> = require 'hub.lib.matching'
 local numerics   <const> = require 'hub.lib.numerics'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
+local parse_snote <const> = require 'hub.features.snotice.parse'
 local scrub      <const> = require 'hub.lib.scrub'
 local tablex     <const> = require 'pl.tablex'
 
@@ -123,6 +125,13 @@ local function rawstr(str)
     return '"' .. str .. '"'
 end
 
+--- The parsed form of a server notice (without the time, which the
+--- message shows), or nil for any other message.
+local function decode(msg)
+    local text = match_snotice(msg)
+    return text and parse_snote(nil, msg.source, text)
+end
+
 local function draw_focus(ctx, win, msg)
     local show_raw = ctx.vs.show_raw
 
@@ -175,6 +184,24 @@ local function draw_focus(ctx, win, msg)
             addircstr(win, v)
         end
         win:waddstr '\n'
+    end
+
+    -- a server notice also shows what the parser made of it
+    local note = decode(msg)
+    if note then
+        win:waddstr '\n'
+        draw.blue(win)
+        win:waddstr(string.format('%10s: ', 'name'))
+        draw.magenta(win)
+        win:waddstr(note.name, '\n')
+        for k, v in tablex.sort(note) do
+            if k ~= 'name' then
+                draw.blue(win)
+                win:waddstr(string.format('%10s: ', k))
+                draw.normal(win)
+                win:waddstr(show_raw and rawstr(tostring(v)) or scrub(tostring(v)), '\n')
+            end
+        end
     end
 
     win:waddstr '─'
@@ -232,6 +259,7 @@ local keys = {
 
 return {
     id = 'console',
+    decode = decode,
     title = 'console',
     scope = 'net',
 

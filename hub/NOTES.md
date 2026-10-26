@@ -448,3 +448,18 @@ samples (the difference is sampling time).
 - README has a Hub section (config example and plugin example, both
   checked by loading them); the man page has a HUB section and the new
   files.
+
+## Dashboard parity
+
+Compared with the dashboard's code (commands, views, IRC handlers, keys):
+
+- Done: the title turns red while a K-Line is staged on the current
+  network (`statusbar.title_colour`); the console inspector shows a server
+  notice's parsed fields, as the dashboard's did.
+- Not ported, by decision: `/shed_eta` (user shedding may get a better
+  design); Esc cancelling a staged ban (the CANCEL button does it).
+- Open: what `/stats` should show; the dashboard's listed its stores
+  (users, exits, klines, new channels) with CLEAR buttons and the idle time.
+- Different by decision: `servers_file` must be configured, `/prefilter`,
+  hub's own configuration and plugins. CTCP replies to staff belong to the
+  chat feature, so a network without `chat` doesn't answer them.

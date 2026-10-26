@@ -125,4 +125,36 @@ T.case('keys reach input modes, views and commands', function()
     T.eq(T.log_lines 'error', {}, 'no errors')
 end)
 
+T.case('a staged K-Line turns the title red', function()
+    boot()
+    local statusbar = T.require 'hub.ui.statusbar'
+    local oper = T.require 'hub.features.oper'
+    T.eq(statusbar.title_colour(), ncurses.COLOR_WHITE, 'white normally')
+    oper.prepare_kline('test', 'n', '~u', 'h.example', '192.0.2.9')
+    T.eq(statusbar.title_colour(), ncurses.COLOR_RED, 'red with a K-Line staged')
+    oper.cancel 'test'
+    T.eq(statusbar.title_colour(), ncurses.COLOR_WHITE, 'white once cancelled')
+    oper.stage_undline('test', '198.51.100.0/24')
+    T.eq(statusbar.title_colour(), ncurses.COLOR_WHITE, 'only K-Lines')
+end)
+
+T.case('the console inspector decodes server notices', function()
+    local c = boot()
+    local line = ':gold.example NOTICE * :*** Notice -- Client connecting: n (u@h.example) [192.0.2.1] {users} <*> [Real]'
+    c:recv(line)
+    local msg = T.require 'hub.lib.OrderedMap'.lookup(HUB.state.nets.test.console, true)
+    local console = HUB.current.views.console
+    local note = console.decode(msg)
+    T.eq({note.name, note.nick, note.ip, note.server}, {'connect', 'n', '192.0.2.1', 'gold.example'}, 'decoded')
+    T.eq(console.decode(snowcone.parse_irc ':srv 001 me :Welcome'), nil, 'not a notice')
+
+    local control = T.require 'hub.ui.control'
+    control.set_view 'console'
+    control.view_state('console').focus = msg
+    HUB.current.routes['ui.draw']()
+    control.view_state('console').show_raw = true
+    HUB.current.routes['ui.draw']()
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.run()

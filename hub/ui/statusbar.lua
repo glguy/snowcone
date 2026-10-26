@@ -7,6 +7,7 @@ local control   <const> = require 'hub.ui.control'
 local draw      <const> = require 'hub.ui.draw'
 local editor    <const> = require 'hub.ui.editor'
 local matching  <const> = require 'hub.lib.matching'
+local oper      <const> = require 'hub.features.oper'
 local scrub     <const> = require 'hub.lib.scrub'
 
 local phase_palette <const> = {
@@ -73,13 +74,26 @@ local input_mode_palette <const> = {
     password = ncurses.COLOR_RED,
 }
 
+--- Colour behind the view title: red while a K-Line is staged on the
+--- current network (as the dashboard did), so it is hard to miss.
+function M.title_colour()
+    local net = control.current_net()
+    if net and common.enabled(net, 'oper') then
+        local staged = oper.get(net).staged
+        if staged and staged.action == 'kline' then
+            return ncurses.COLOR_RED
+        end
+    end
+    return ncurses.COLOR_WHITE
+end
+
 --- Draw the status bar.
 ---@param win any window for the bar
 ---@param textbox any pad for the input text
 ---@param layout table shared with the renderer: textbox_offset is kept here
 ---@param ctx table view context of the current view
 function M.draw(win, textbox, layout, view, ctx)
-    local titlecolor = ncurses.COLOR_WHITE
+    local titlecolor = M.title_colour()
     local input = HUB.state.ui.input
     local mode = input.mode
 
