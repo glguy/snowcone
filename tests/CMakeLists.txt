@@ -50,6 +50,13 @@ foreach(name test-sasl test-scram test-schema test-strings test-toml)
   set_tests_properties(${name} PROPERTIES TIMEOUT 30)
 endforeach()
 
+# hub's tests share tests/hub/lib.lua and load hub from the source tree
+foreach(name test-reload test-structure)
+  add_test(NAME hub-${name}
+    COMMAND snowcone script "${CMAKE_CURRENT_SOURCE_DIR}/hub/${name}.lua")
+  set_tests_properties(hub-${name} PROPERTIES TIMEOUT 30)
+endforeach()
+
 # Drives start_httpd with curl through snowcone.execute
 find_program(CURL curl)
 if(CURL)
@@ -67,5 +74,8 @@ add_test(NAME luacheck-ircc
   COMMAND ${LUACHECK} ".")
 add_test(NAME luacheck-dashboard
   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/dashboard"
+  COMMAND ${LUACHECK} ".")
+add_test(NAME luacheck-hub
+  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/hub"
   COMMAND ${LUACHECK} ".")
 endif()

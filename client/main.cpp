@@ -62,6 +62,7 @@ auto main(int argc, char const* argv[]) -> int
                      "  Modes:\n"
                      "    ircc               - chat client\n"
                      "    dashboard          - server notice dashboard\n"
+                     "    hub                - multi-network client (in development)\n"
                      "    path/to/init.lua   - arbitrary Lua script\n"
                      "    script FILE [ARGS] - run FILE without a terminal; exits when\n"
                      "                         idle, nonzero after any Lua error\n"
@@ -82,6 +83,10 @@ auto main(int argc, char const* argv[]) -> int
     else if (not strcmp("ircc", argv[1]))
     {
         argv[1] = CMAKE_INSTALL_FULL_DATAROOTDIR "/snowcone/ircc/init.lua";
+    }
+    else if (not strcmp("hub", argv[1]))
+    {
+        argv[1] = CMAKE_INSTALL_FULL_DATAROOTDIR "/snowcone/hub/init.lua";
     }
 
     std::optional<NC> nc;
