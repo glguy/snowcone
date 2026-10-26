@@ -402,19 +402,19 @@ T.case('a closing network cancels its tasks', function()
     T.eq(HUB.tasks[t.id], nil, 'cancelled')
 end)
 
-T.case('legacy configuration maps to network default', function()
+T.case('network defaults', function()
     local fake = FakeTransport.new()
-    T.boot {transport = fake, config = {
-        server = {host = 'legacy.test', port = 6697},
-        identity = {nick = 'old'},
+    T.boot {transport = fake, config = {networks = {{
+        server = {host = 'irc.example.test', port = 6697},
+        identity = {nick = 'n'},
         layers = {{type = 'tls'}},
-    }}
-    local cfg = HUB.state.config
-    T.eq(#cfg.networks, 1, 'one network')
-    local net = cfg.networks[1]
-    T.eq(net.id, 'default', 'id')
+    }}}}
+    local net = HUB.state.config.networks[1]
+    T.eq(net.id, 'irc.example.test', 'id defaults to the host')
     T.eq(net.features.snotice and net.features.chat, true, 'all features')
-    T.eq(fake.last().host, 'legacy.test', 'connects')
+    T.eq({net.autoconnect, net.reclaim_nick}, {true, true}, 'flags')
+    T.eq(net.reconnect, {min_delay = 1, max_delay = 300}, 'reconnect')
+    T.eq(fake.last().host, 'irc.example.test', 'connects')
     T.eq(fake.last().layers[1].type, 'tls', 'layers')
 end)
 
@@ -429,17 +429,13 @@ T.case('an invalid configuration on reload leaves the old one active', function(
     ok, err = T.reload {config = {networks = {network('x', {features = {'nope'}})}}}
     T.eq(ok, false, 'unknown feature')
     T.ok(err:find('unknown feature nope', 1, true), err)
-
-    ok, err = T.reload {config = {
-        server = {host = 'h'}, identity = {nick = 'n'}, networks = {network('y')},
-    }}
-    T.eq(ok, false, 'mixed shapes')
-    T.ok(err:find('must move into [[networks]]', 1, true), err)
 end)
 
 T.case('configuration constraints from the dashboard', function()
     T.boot()
     local config = T.require 'hub.runtime.config'
+    T.ok(pcall(config.normalize, {networks = {{id = 'x', server = {host = 'h', port = 1}, identity = {nick = 'n'}}}}),
+        'baseline accepted')
     for _, bad in ipairs {
         {identity = {nick = 'has space'}},
         {identity = {nick = 'n', user = 'a\nb'}},
@@ -448,9 +444,9 @@ T.case('configuration constraints from the dashboard', function()
         {oper = {username = 'o p', password = 'x'}},
         {challenge = {username = 'o\r', key = 'k'}},
     } do
-        local raw = {server = {host = 'h', port = 1}, identity = {nick = 'n'}}
-        for k, v in pairs(bad) do raw[k] = v end
-        T.ok(not pcall(config.normalize, raw), 'rejected: ' .. require 'pl.pretty'.write(bad, ''))
+        local net = {id = 'x', server = {host = 'h', port = 1}, identity = {nick = 'n'}}
+        for k, v in pairs(bad) do net[k] = v end
+        T.ok(not pcall(config.normalize, {networks = {net}}), 'rejected: ' .. require 'pl.pretty'.write(bad, ''))
     end
 end)
 

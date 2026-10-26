@@ -1,6 +1,7 @@
--- Configuration schema: a superset of ircc/utils/configuration_schema.lua
--- with per-network sections (design section 4.8). The dashboard's checks
--- for spaces and line breaks are constraints here.
+-- Configuration schema, built from ircc/utils/configuration_schema.lua
+-- with every connection setting moved under [[networks]] (design section
+-- 4.8). The dashboard's checks for spaces and line breaks are constraints
+-- here. There is no compatibility with the ircc and dashboard files.
 
 local M = {}
 
@@ -55,13 +56,13 @@ local required_password_schema <const> = password({type = 'string'}, true)
 local line_password_schema <const> = password {type = 'string', pattern = line}
 local required_line_password_schema <const> = password({type = 'string', pattern = line}, true)
 
-local identity_schema <const> = table_ {
+local identity_fields <const> = {
     nick  = {type = 'string', pattern = word, required = true},
     user  = {type = 'string', pattern = word},
     gecos = {type = 'string', pattern = '^[^\n\r\x00]+$'},
 }
 
-local server_schema <const> = table_ {
+local server_fields <const> = {
     host         = {type = 'string'},
     -- 0 selects a local (unix-domain) socket, with `host` as the path
     port         = {type = 'number', integer = true, minimum = 0, maximum = 65535},
@@ -134,7 +135,7 @@ local delay_schema <const> = {type = 'number', minimum = 0}
 --- The features a network may enable; config.lua checks names against it.
 M.features = {'snotice', 'oper', 'topology', 'chat', 'bouncer', 'filterdb'}
 
---- One entry of [[networks]], after legacy mapping.
+--- One entry of [[networks]].
 M.network = table_ {
     id           = {type = 'string', required = true, pattern = '^[%w_.%-]+$'},
     features     = array {type = 'string'},
@@ -144,16 +145,16 @@ M.network = table_ {
     snomask      = {type = 'string', pattern = word},
     quit_message = {type = 'string', pattern = line},
     servers_file = {type = 'string'},
-    server       = required_table(server_schema.fields),
+    server       = required_table(server_fields),
     layers       = layers_schema,
-    identity     = required_table(identity_schema.fields),
+    identity     = required_table(identity_fields),
     sasl         = sasl_schema,
     oper         = oper_schema,
     challenge    = challenge_schema,
     mention      = mention_schema,
 }
 
---- The whole file. The single-network keys are the legacy shape.
+--- The whole file.
 M.file = table_ {
     ui = table_ {
         profile = {type = 'string', pattern = '^%l+$'},
@@ -168,14 +169,6 @@ M.file = table_ {
         module = {type = 'string', required = true},
     },
     mention = mention_schema,
-
-    -- legacy single-network shape
-    identity  = identity_schema,
-    server    = server_schema,
-    layers    = layers_schema,
-    sasl      = sasl_schema,
-    oper      = oper_schema,
-    challenge = challenge_schema,
 }
 
 return M

@@ -117,19 +117,18 @@ tick). Tested in `test-reload.lua`.
 
 ### Configuration
 
-- `runtime/config.lua` loads `--config`, else `hub.toml`, `hub.lua`,
-  `settings.toml`, `settings.lua` from the config directory, applies
-  `KEY.PATH=value` overrides, and validates against
-  `runtime/config_schema.lua`. A `.lua` config runs in its own environment,
-  so its assignments don't become globals.
+- **Clean break from ircc and dashboard configuration** (decided with the
+  user): no legacy single-server shape and no `settings.toml` fallback.
+  `runtime/config.lua` loads `--config`, else `hub.toml` or `hub.lua` from
+  the config directory, applies `KEY.PATH=value` overrides, and validates
+  against `runtime/config_schema.lua`. Connection settings exist only under
+  `[[networks]]`; old top-level keys are reported as unexpected fields. A
+  `.lua` config runs in its own environment, so its assignments don't
+  become globals.
 - Configuration is loaded inside the guarded build, so a bad file on
   reload leaves the old code and configuration active. It is committed to
   `state.config` in `activate`. Schema warnings (unexpected fields) are
   logged then.
-- Legacy shape: without `networks`, the top-level `server`, `layers`,
-  `identity`, `sasl`, `oper` and `challenge` become network `default` with
-  every feature. Mixing the two shapes is an error. **Question:** should
-  top-level `identity`/`sasl` instead act as defaults for every network?
 - `features` is normalized to a set, `{snotice = true, ...}`, and unknown
   names are errors. Defaults: `autoconnect = true`, `reclaim_nick = true`,
   `reconnect = {min_delay = 1, max_delay = 300}`.

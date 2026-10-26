@@ -83,7 +83,7 @@ local function read_file(dir, flags)
     if flags.config then
         local text = file.read(flags.config)
         if not text then
-            error('Failed to read settings file: ' .. flags.config, 0)
+            error('Failed to read configuration file: ' .. flags.config, 0)
         end
         return parse(flags.config, text), flags.config
     end
@@ -91,8 +91,6 @@ local function read_file(dir, flags)
     local candidates = {
         path.join(dir, 'hub.toml'),
         path.join(dir, 'hub.lua'),
-        path.join(dir, 'settings.toml'),
-        path.join(dir, 'settings.lua'),
     }
     for _, filename in ipairs(candidates) do
         local text = file.read(filename)
@@ -100,36 +98,12 @@ local function read_file(dir, flags)
             return parse(filename, text), filename
         end
     end
-    error('Failed to read settings file, tried: ' .. table.concat(candidates, ', '), 0)
+    error('Failed to read configuration file, tried: ' .. table.concat(candidates, ', '), 0)
 end
-
-local legacy_keys <const> = {'server', 'layers', 'identity', 'sasl', 'oper', 'challenge'}
 
 local all_features <const> = {}
 for _, name in ipairs(cschema.features) do
     all_features[name] = true
-end
-
--- Map the single-network shape onto [[networks]]
-local function network_list(raw)
-    if raw.networks then
-        for _, key in ipairs(legacy_keys) do
-            if raw[key] ~= nil then
-                error('Top-level `' .. key .. '` must move into [[networks]] when networks are configured', 0)
-            end
-        end
-        return raw.networks
-    end
-
-    if raw.server == nil then
-        return {}
-    end
-
-    local net = {id = 'default'}
-    for _, key in ipairs(legacy_keys) do
-        net[key] = raw[key]
-    end
-    return {net}
 end
 
 local function normalize_network(net, warnings)
@@ -176,7 +150,7 @@ function M.normalize(raw)
 
     local networks = {}
     local seen = {}
-    for i, net in ipairs(network_list(raw)) do
+    for i, net in ipairs(raw.networks or {}) do
         if type(net) ~= 'table' then
             error('networks.' .. i .. ' is not a table', 0)
         end
