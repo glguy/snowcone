@@ -1,0 +1,73 @@
+-- Status log (design section 4.9). Replaces ircc's status() and
+-- status_message, and receives the client's print().
+
+local bus        <const> = require 'hub.runtime.bus'
+local clock      <const> = require 'hub.runtime.clock'
+local dispatch   <const> = require 'hub.runtime.dispatch'
+local OrderedMap <const> = require 'hub.lib.OrderedMap'
+
+local M = {}
+
+M.capacity = 1000
+
+function M.init_state(S)
+    S.log = S.log or OrderedMap.new(M.capacity)
+    -- last line, shown in the status bar until dismissed
+    if S.log_last == nil then S.log_last = false end
+end
+
+--- Add a line to the log.
+---@param category string
+---@param fmt string format string, or the text when no arguments follow
+function M.add(category, fmt, ...)
+    local text = select('#', ...) == 0 and fmt or string.format(fmt, ...)
+    local S = HUB.state
+
+    if S == nil or S.log == nil then
+        io.stderr:write(category, ': ', text, '\n')
+        return
+    end
+
+    local entry = {
+        time = os.date '!%H:%M:%S',
+        timestamp = clock.now(),
+        category = category,
+        text = text,
+    }
+    OrderedMap.insert(S.log, nil, entry)
+    S.log_last = text
+
+    if HUB.boot and HUB.boot.echo then
+        print(string.format('[%s] %s', category, text))
+    end
+
+    bus.emit('log', entry)
+    dispatch.dirty()
+end
+
+--- Clear the status bar's copy of the last line.
+function M.dismiss()
+    HUB.state.log_last = false
+end
+
+--- Log an error, keeping the traceback lines out of the status bar.
+function M.error(where, err)
+    err = tostring(err)
+    local first = err:match '^[^\n]*'
+    M.add('error', '%s: %s', where, first)
+    for line in err:gmatch '\n([^\n]*)' do
+        M.add('trace', '%s', (line:gsub('^\t', '  ')))
+    end
+    local S = HUB.state
+    if S and S.log then
+        S.log_last = string.format('%s: %s', where, first)
+    end
+end
+
+M.routes = {
+    ['log.add'] = M.add,
+    ['log.error'] = M.error,
+    ['log.print'] = function(text) M.add('print', '%s', text) end,
+}
+
+return M
