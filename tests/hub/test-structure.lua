@@ -112,7 +112,8 @@ T.case('every emitted topic is listed in EVENTS.md', function()
 
     local missing = {}
     for _, f in ipairs(sources()) do
-        for _, pattern in ipairs {'bus%.emit%(%s*[\'"]([^\'"]+)[\'"]', ':emit%(%s*[\'"]([^\'"]+)[\'"]'} do
+        -- whole literals only: 'snote.' .. name is a family of topics
+        for _, pattern in ipairs {'bus%.emit%(%s*[\'"]([^\'"]+)[\'"]%s*,', ':emit%(%s*[\'"]([^\'"]+)[\'"]%s*,'} do
             for topic in f.src:gmatch(pattern) do
                 if not listed[topic] then
                     table.insert(missing, f.rel .. ': ' .. topic)
