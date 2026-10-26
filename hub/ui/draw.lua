@@ -54,6 +54,15 @@ local scrolled_divider_string <const> =
     5·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·\z
     6·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·"
 
+--- A length of time in a few characters: 45s, 12m, 3h 20m, 2d 4h.
+function M.duration(seconds)
+    seconds = math.floor(seconds)
+    if seconds < 120 then return seconds .. 's' end
+    if seconds < 7200 then return seconds // 60 .. 'm' end
+    if seconds < 172800 then return string.format('%dh %dm', seconds // 3600, seconds % 3600 // 60) end
+    return string.format('%dd %dh', seconds // 86400, seconds % 86400 // 3600)
+end
+
 --- Draw an HH:MM:SS time whose digits brighten for the first seconds.
 ---@param timestamp number clock.now() when the entry arrived
 function M.fade_time(win, timestamp, time)

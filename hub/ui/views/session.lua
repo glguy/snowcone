@@ -1,10 +1,19 @@
--- The current network's connection and protocol state (from
--- ircc/view/session.lua).
+-- The current network: what lasts across connections (configuration in
+-- effect, state, attempts and backoff, features), then the connection, if
+-- any (link, transport, nick, modes, capabilities, channels, tasks). The
+-- connection part comes from ircc/view/session.lua.
 
 local clock  <const> = require 'hub.runtime.clock'
 local draw   <const> = require 'hub.ui.draw'
 local scrub  <const> = require 'hub.lib.scrub'
 local tablex <const> = require 'pl.tablex'
+
+local function section(win, text)
+    draw.green(win)
+    draw.bold(win)
+    win:waddstr(text, '\n')
+    draw.normal(win)
+end
 
 local function label(win, txt)
     win:waddstr(string.format('%14s: ', txt))
@@ -42,22 +51,62 @@ return {
     scope = 'net',
 
     render = function(ctx, win)
-        draw.green(win)
-        win:waddstr '          -= IRC session =-\n\n'
-        draw.normal(win)
-
         local rec = ctx.net and HUB.state.nets[ctx.net]
         if not rec then
             win:waddstr 'No network selected\n'
             return
         end
+        local cfg = rec.cfg
+        local now = clock.now()
+
+        -- what lasts across connections
+        section(win, 'Network')
 
         label(win, 'Network')
         draw.bold(win)
         win:waddstr(rec.id)
         draw.normal(win)
-        win:waddstr(string.format('  %s (target %s), attempt %d, %d s\n',
-            rec.phase, rec.target, rec.attempt, math.floor(clock.now() - rec.since)))
+        win:waddstr(string.format('  %s:%s', scrub(cfg.server.host or '?'), tostring(cfg.server.port or '?')))
+        if cfg.identity then
+            win:waddstr('  as ', scrub(cfg.identity.nick))
+        end
+        win:waddstr '\n'
+
+        label(win, 'State')
+        win:waddstr(string.format('%s for %s, target %s, attempt %d',
+            rec.phase, draw.duration(now - rec.since), rec.target, rec.attempt))
+        if rec.reconnect_timer and rec.reconnect_at then
+            win:waddstr(string.format(', retry in %s', draw.duration(math.max(0, rec.reconnect_at - now))))
+        end
+        win:waddstr(string.format(', backoff %gs', rec.backoff))
+        if rec.restart_pending then
+            draw.yellow(win)
+            win:waddstr '  restart pending: /reconnect'
+            draw.normal(win)
+        end
+        win:waddstr '\n'
+
+        local features = {}
+        for name in pairs(cfg.features) do table.insert(features, name) end
+        table.sort(features)
+        label(win, 'Features')
+        win:waddstr(table.concat(features, ' '), '\n')
+
+        -- this connection
+        section(win, 'Connection')
+        if not rec.conn then
+            win:waddstr 'not connected\n'
+            return
+        end
+
+        label(win, 'Link')
+        win:waddstr(string.format('lag %s, idle %s',
+            rec.lag and string.format('%.3fs', rec.lag) or '?',
+            rec.liveness and draw.duration(now - rec.liveness) or '?'))
+        if rec.registered_at then
+            win:waddstr(', registered ', draw.duration(now - rec.registered_at), ' ago')
+        end
+        win:waddstr '\n'
 
         if rec.fingerprint then
             label(win, 'Transport')

@@ -237,6 +237,10 @@ dashboard are refused with a message to port them.
   net-scoped views and commands use it, and commands take `@network` first
   to use another. The status bar lists every network by state, with `+` or
   `!` for unseen chat.
+- **Three scopes of state, three pages:** `/stats` is the client (memory,
+  tasks, resources, errors, and entry counts of every store: summary
+  counts, never byte estimates); `/session` is a network, what lasts across
+  connections above the current connection; `/networks` is the overview.
 - **Status bar fragments** are divided by one separator, the Powerline
   right-pointing triangle (U+E0B0, `statusbar.separator`). A view's
   `status` function starts each fragment it adds with `ctx.fragment(win)`.

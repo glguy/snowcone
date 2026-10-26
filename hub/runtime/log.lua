@@ -65,8 +65,18 @@ function M.dismiss()
     HUB.state.log_last = false
 end
 
+--- Count an error by where it came from (a route, a subscriber, a
+--- command, a plugin), for /stats. The counts live in HUB, outside state.
+function M.count_error(where)
+    local errors = HUB.errors or {total = 0, by_origin = {}}
+    HUB.errors = errors
+    errors.total = errors.total + 1
+    errors.by_origin[where] = (errors.by_origin[where] or 0) + 1
+end
+
 --- Log an error, keeping the traceback lines out of the status bar.
 function M.error(where, err)
+    M.count_error(where)
     err = tostring(err)
     local first = err:match '^[^\n]*'
     M.add('error', '%s: %s', where, first)

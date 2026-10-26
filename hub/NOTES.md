@@ -458,8 +458,18 @@ Compared with the dashboard's code (commands, views, IRC handlers, keys):
   notice's parsed fields, as the dashboard's did.
 - Not ported, by decision: `/shed_eta` (user shedding may get a better
   design); Esc cancelling a staged ban (the CANCEL button does it).
-- Open: what `/stats` should show; the dashboard's listed its stores
-  (users, exits, klines, new channels) with CLEAR buttons and the idle time.
+- `/stats` (decided with the user) is for a developer working out what the
+  client is doing and holding: memory with GC, uptime, generation and the
+  last load's result, resources by kind and owner, error counts by origin,
+  tasks with what each waits on and for how long, and entry counts of every
+  store per network (used/capacity for rings). Counts only: Lua can't size
+  a value, and shared messages would be counted twice. No CLEAR buttons.
+- Three kinds of state, three places: the client (`/stats`), a network
+  identity across connections, and one connection. `/session` is the
+  network page, a Network section (configuration in effect, state,
+  attempts, backoff, retry, features) above a Connection section (lag,
+  idle, transport, nick, modes, caps, channels, tasks). Clicking a network
+  in `/networks` opens it.
 - Different by decision: `servers_file` must be configured, `/prefilter`,
   hub's own configuration and plugins. CTCP replies to staff belong to the
   chat feature, so a network without `chat` doesn't answer them.

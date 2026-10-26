@@ -6,7 +6,8 @@
 -- it started with across a reload, but it is woken by the
 -- task module of whichever generation is current. The two meet only here:
 --
---   record fields  id, name, owner, net, co, seq, wait, commands, timer
+--   record fields  id, name, owner, net, co, seq, wait, commands, timer,
+--                  wait_since (optional, for /stats)
 --   resume values  wait_irc    the message, or nil on timeout
 --                  wait_event  the event, or nil on timeout
 --                  sleep       nothing
@@ -23,6 +24,7 @@
 -- methods rather than module tables held in upvalues.
 
 local bus       <const> = require 'hub.runtime.bus'
+local clock     <const> = require 'hub.runtime.clock'
 local dispatch  <const> = require 'hub.runtime.dispatch'
 local log       <const> = require 'hub.runtime.log'
 local timer     <const> = require 'hub.runtime.timer'
@@ -172,6 +174,7 @@ local function begin_wait(t, kind, timeout_ms)
     end
     t.seq = t.seq + 1
     t.wait = kind
+    t.wait_since = clock.now()
     if timeout_ms then
         t.timer = timer.start('task', timeout_ms, 'task.wake', t.id, t.seq)
     end

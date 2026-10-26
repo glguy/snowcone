@@ -179,6 +179,7 @@ end
 local function activate(first)
     state.commit()
     local current = HUB.current
+    HUB.last_reload = {at = os.time(), ok = true}
     HUB.state.config = current.config
     for _, warning in ipairs(current.config.warnings) do
         log.add('config', '%s', warning)
@@ -220,6 +221,7 @@ local function reload()
 end
 
 local function reload_failed(err)
+    HUB.last_reload = {at = os.time(), ok = false, error = tostring(err):match '^[^\n]*'}
     log.error('reload', err)
     local show = HUB.current.routes['ui.show_view']
     if show then show 'status' end

@@ -199,6 +199,30 @@ return {routes = {
     T.eq(HUB.test_draws, 3, 'later callback draws the deferred change')
 end)
 
+T.case('reloads, errors and waits are tracked for /stats', function()
+    T.boot {
+        modules = {'hub.test.bad'},
+        overrides = {['hub.test.bad'] = "return {routes = {['test.bad'] = function() error 'kaboom' end}}"},
+    }
+    T.eq(HUB.last_reload.ok, true, 'first load ok')
+
+    T.reload {overrides = {['hub.app'] = 'error "broken app"'}}
+    T.eq(HUB.last_reload.ok, false, 'failed load recorded')
+    T.ok(HUB.last_reload.error:find('broken app', 1, true), HUB.last_reload.error)
+
+    HUB.boot.strict = false
+    local cb = T.require 'hub.runtime.dispatch'.trampoline 'test.bad'
+    cb()
+    cb()
+    T.eq(HUB.errors.by_origin['test.bad'], 2, 'errors by origin')
+    T.eq(HUB.errors.total >= 3, true, 'the failed reload counts too')
+
+    local task = T.require 'hub.runtime.task'
+    local t = task.spawn('waiter', {}, function(t) t:sleep(60000) end)
+    T.ok(t.wait_since, 'wait start recorded')
+    task.cancel(t.id)
+end)
+
 T.case('the tick runs only when asked for', function()
     T.boot()
     local resources = T.require 'hub.runtime.resources'

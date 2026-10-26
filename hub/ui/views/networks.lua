@@ -1,5 +1,5 @@
 -- Every network at a glance, in configuration order.
--- Click a name to make it the current network. "retry" counts down to a
+-- Click a name to open that network's page (/session). "retry" counts down to a
 -- scheduled reconnect.
 
 local clock   <const> = require 'hub.runtime.clock'
@@ -11,14 +11,6 @@ local phase_colour <const> = {
     connected = draw.green,
     idle = draw.red,
 }
-
-local function duration(seconds)
-    seconds = math.floor(seconds)
-    if seconds < 120 then return seconds .. 's' end
-    if seconds < 7200 then return math.floor(seconds / 60) .. 'm' end
-    if seconds < 172800 then return math.floor(seconds / 3600) .. 'h' end
-    return math.floor(seconds / 86400) .. 'd'
-end
 
 return {
     id = 'networks',
@@ -41,6 +33,7 @@ return {
             draw.bold(win)
             ctx.add_button(win, string.format('%-16.16s', id), function()
                 control.set_current_net(id)
+                control.set_view 'session'
             end, true)
             draw.normal(win)
             win:waddstr ' '
@@ -60,7 +53,7 @@ return {
             end
             local irc = rec.irc
             win:waddstr(string.format(' %6s %7d %5s %7s %-16.16s %s',
-                duration(now - rec.since),
+                draw.duration(now - rec.since),
                 rec.attempt,
                 retry,
                 rec.lag and string.format('%.3f', rec.lag) or '-',
