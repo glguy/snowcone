@@ -15,8 +15,7 @@ local tty       <const> = require 'hub.runtime.tty'
 
 local M = {}
 
--- Width of the main pad; views scroll horizontally across it
-local pad_width <const> = 550
+local pad_width <const> = keymap.pad_width
 
 local layout = {textbox_offset = 0}
 
@@ -58,7 +57,7 @@ local function view_context(view)
     return {
         id = view.id,
         vs = control.view_state(view.id),
-        net = HUB.state.ui.current_net,
+        net = control.current_net(),
         rows = tty_height - 1,
         cols = tty_width,
         add_click = add_click,
@@ -165,8 +164,55 @@ end
 M.init_state = control.init_state
 
 M.views = {
+    require 'hub.ui.views.console',
+    require 'hub.ui.views.help',
+    require 'hub.ui.views.session',
+    require 'hub.ui.views.stats',
     require 'hub.ui.views.status',
 }
+
+M.commands = {
+    {
+        name = 'filter',
+        spec = '$R',
+        help = 'Show only lines of this view that match; no pattern clears it',
+        fn = function(_, pattern)
+            control.set_filter(HUB.state.ui.view, pattern)
+        end,
+    },
+    {
+        name = 'profile',
+        spec = '$g',
+        help = 'Switch the view rotation: dashboard, chat or all',
+        fn = function(_, name)
+            if not control.profiles[name] then
+                error('unknown profile: ' .. name, 0)
+            end
+            HUB.state.ui.profile = name
+            dispatch.dirty()
+        end,
+    },
+    {
+        name = 'net',
+        spec = '$g',
+        help = 'Choose the network that views and commands act on',
+        fn = function(_, id)
+            control.set_current_net(id)
+        end,
+    },
+}
+for _, view in ipairs(M.views) do
+    table.insert(M.commands, {
+        name = view.id,
+        spec = '',
+        help = 'Show the ' .. view.title .. ' view',
+        fn = function() control.set_view(view.id) end,
+    })
+end
+
+function M.subscribe(sub)
+    sub.on('task.prompt', control.add_prompt)
+end
 
 M.routes = {
     ['ui.entry'] = function(ev, ...)
@@ -183,7 +229,13 @@ for k, v in pairs(control.routes) do
     M.routes[k] = v
 end
 
-function M.activate()
+function M.activate(first)
+    control.apply_config(HUB.state.config)
+    if first then
+        local rotation = control.rotation()
+        control.set_view(rotation[1] or 'status')
+    end
+    control.check_prompts()
     make_layout()
     ncurses.clear()
     dispatch.dirty()

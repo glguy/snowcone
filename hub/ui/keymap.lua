@@ -11,6 +11,9 @@ local log     <const> = require 'hub.runtime.log'
 
 local M = {}
 
+-- Width of the main pad; views scroll horizontally across it
+M.pad_width = 550
+
 function M.ctrl(x)
     return 0x1f & string.byte(x)
 end
@@ -35,6 +38,17 @@ function execute.command()
     end
     editor.confirm(ed)
     cmdline.execute(text)
+end
+
+function execute.filter()
+    local ed = control.editor()
+    control.set_filter(HUB.state.ui.view, editor.content(ed))
+    editor.reset(ed)
+    control.set_input_mode()
+end
+
+function execute.password()
+    control.answer_prompt(editor.content(control.editor()))
 end
 
 local function do_tab(dir)
@@ -89,11 +103,16 @@ M.input = {
 M.global = {
     [0x1b] = function() -- Esc
         log.dismiss()
+        if control.current_prompt() then
+            control.answer_prompt(nil) -- aborts the task's prompt
+            return
+        end
         editor.reset(control.editor())
         control.set_input_mode()
         local vs = control.view_state(HUB.state.ui.view)
         vs.scroll = 0
         vs.hscroll = 0
+        vs.filter = nil
     end,
 
     [-ncurses.KEY_RESUME] = function() HUB.state.ui.focus = true end,
@@ -110,6 +129,30 @@ M.global = {
         editor.reset(control.editor())
         control.set_input_mode 'command'
     end,
+
+    [ctrl 'S'] = function()
+        editor.reset(control.editor())
+        control.set_input_mode 'filter'
+    end,
+
+    [-ncurses.KEY_RIGHT] = function()
+        local vs = control.view_state(HUB.state.ui.view)
+        local unit = math.max(1, tty_width - 26)
+        vs.hscroll = math.max(0, math.min(M.pad_width - tty_width, vs.hscroll + unit))
+    end,
+    [-ncurses.KEY_LEFT] = function()
+        local vs = control.view_state(HUB.state.ui.view)
+        local unit = math.max(1, tty_width - 26)
+        vs.hscroll = math.max(0, vs.hscroll - unit)
+    end,
 }
+
+-- F1.. select the views of the current rotation
+for i = 1, 12 do
+    M.global[-(ncurses.KEY_F1 - 1 + i)] = function()
+        local id = control.rotation()[i]
+        if id then control.set_view(id) end
+    end
+end
 
 return M

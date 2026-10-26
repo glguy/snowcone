@@ -1,7 +1,9 @@
 -- The status log (from ircc/view/status.lua).
 
-local addircstr <const> = require 'hub.ui.irc_formatting'
-local draw      <const> = require 'hub.ui.draw'
+local addircstr  <const> = require 'hub.ui.irc_formatting'
+local control    <const> = require 'hub.ui.control'
+local draw       <const> = require 'hub.ui.draw'
+local matching   <const> = require 'hub.lib.matching'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 
 local function clamp_scroll(ctx, scroll)
@@ -48,7 +50,14 @@ return {
         draw.bold(win)
         win:waddstr('time     category   message')
         draw.bold_(win)
-        draw.draw_rotation(win, ctx.vs, 1, ctx.rows - 1, HUB.state.log, nil, draw_entry)
+        local pattern = control.filter(ctx.id)
+        local show
+        if pattern then
+            show = function(entry)
+                return matching.safematch((entry.net or '') .. ' ' .. entry.category .. ' ' .. entry.text, pattern)
+            end
+        end
+        draw.draw_rotation(win, ctx.vs, 1, ctx.rows - 1, HUB.state.log, show, draw_entry)
     end,
 
     keypress = function(ctx, key)

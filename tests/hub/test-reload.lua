@@ -35,7 +35,7 @@ T.case('boot makes generation 1 with state', function()
     T.eq(HUB.generation, 1, 'generation')
     T.eq(HUB.current.id, 1, 'current id')
     T.ok(HUB.state.log, 'log in state')
-    T.eq(T.log_lines 'app', {'started (phase1)'}, 'app log')
+    T.eq(T.log_lines 'app', {'started (phase2)'}, 'app log')
 end)
 
 T.case('reload keeps state and swaps code', function()

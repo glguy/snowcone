@@ -1,0 +1,262 @@
+-- Raw IRC traffic of the current network (from ircc/view/console.lua).
+--
+-- Click a command to inspect the message above the log. Meta-H hides
+-- server notices and PING/PONG/AWAY; Meta-R shows inspected values raw.
+-- View state: scroll, hscroll, filter, focus (the inspected message),
+-- hide_snow, show_raw.
+
+local addircstr  <const> = require 'hub.ui.irc_formatting'
+local control    <const> = require 'hub.ui.control'
+local draw       <const> = require 'hub.ui.draw'
+local matching   <const> = require 'hub.lib.matching'
+local numerics   <const> = require 'hub.lib.numerics'
+local OrderedMap <const> = require 'hub.lib.OrderedMap'
+local scrub      <const> = require 'hub.lib.scrub'
+local tablex     <const> = require 'pl.tablex'
+
+local meta <const> = function(x) return -string.byte(x) end
+
+local palette = {
+    PRIVMSG = draw.blue,
+    NOTICE = draw.cyan,
+    JOIN = draw.green,
+    PART = draw.yellow,
+    QUIT = draw.magenta,
+}
+
+-- Names of numerics for the inspector; errors are red in the log
+local numeric_names = {}
+for name, numeric in pairs(numerics) do
+    numeric_names[numeric] = name
+    if name:sub(1, 4) == 'ERR_' then
+        palette[numeric] = draw.red
+    end
+end
+
+local function pretty_source(win, source)
+    if source == '>>>' then
+        draw.red(win)
+    else
+        local head, kind = string.match(source, '^(.-)([.!])')
+        source = head or source
+        if kind == '!' then
+            draw.cyan(win)
+        else
+            draw.yellow(win)
+        end
+    end
+    win:waddstr(string.format(' %16.16s ', scrub(source)))
+    draw.normal(win)
+end
+
+-- The body of a server notice, without its header
+local function match_snotice(msg)
+    if msg.source and msg.command == 'NOTICE'
+    and msg[1] == '*' and #msg == 2
+    and msg[2]:sub(1, 14) == '*** Notice -- ' then
+        return msg[2]:sub(15)
+    end
+end
+
+local function render_msg(ctx, win, msg)
+    local function inspect()
+        ctx.vs.focus = msg
+    end
+
+    local snote_text = match_snotice(msg)
+    if snote_text ~= nil then
+        pretty_source(win, msg.source)
+        draw.magenta(win)
+        draw.bold(win)
+        ctx.add_button(win, 'SNOW ', inspect, true)
+        draw.bold_(win)
+        draw.cyan(win)
+        win:waddstr ':'
+        draw.normal(win)
+        addircstr(win, snote_text:sub(1, 400))
+        return
+    end
+
+    if msg.source then
+        pretty_source(win, msg.source)
+    else
+        win:waddstr(string.rep(' ', 18))
+    end
+
+    local color = palette[msg.command]
+    if color then color(win) end
+    draw.bold(win)
+    ctx.add_button(win, string.format('%4.4s', msg.command), inspect, true)
+    draw.normal(win)
+
+    local n = #msg
+    for i, arg in ipairs(msg) do
+        if i == n and (arg == '' or arg:sub(1, 1) == ':' or arg:find ' ') then
+            draw.cyan(win)
+            win:waddstr ' :'
+            draw.normal(win)
+            addircstr(win, arg:sub(1, 400))
+        else
+            addircstr(win, ' ' .. arg)
+        end
+    end
+end
+
+local escapes <const> = {
+    ['"'] = '\\"',
+    ['\\'] = '\\\\',
+    ['\a'] = '\\a',
+    ['\b'] = '\\b',
+    ['\f'] = '\\f',
+    ['\n'] = '\\n',
+    ['\r'] = '\\r',
+    ['\t'] = '\\t',
+    ['\v'] = '\\v',
+}
+
+local function rawstr(str)
+    str = string.gsub(str, '[\x00-\x1f"\\\x7f-\xff]', function(c)
+        return escapes[c] or string.format('\\x%02x', string.byte(c))
+    end)
+    return '"' .. str .. '"'
+end
+
+local function draw_focus(ctx, win, msg)
+    local show_raw = ctx.vs.show_raw
+
+    if next(msg.tags) then
+        draw.blue(win)
+        win:waddstr '      tags:'
+        for k, v in tablex.sort(msg.tags) do
+            draw.cyan(win)
+            win:wmove(ncurses.getyx(win), 12)
+            win:waddstr(show_raw and rawstr(k) or scrub(k))
+            if v == '' or v == true then
+                win:waddstr '\n'
+            else
+                draw.normal(win)
+                win:waddstr ': '
+                win:waddstr(show_raw and rawstr(v) or scrub(v), '\n')
+            end
+        end
+    end
+
+    if msg.source then
+        draw.blue(win)
+        win:waddstr '    source: '
+        draw.normal(win)
+        win:waddstr(scrub(msg.source), '\n')
+    end
+
+    draw.blue(win)
+    win:waddstr '   command: '
+    local cmd_color = palette[msg.command]
+    if cmd_color then cmd_color(win) end
+    draw.bold(win)
+    win:waddstr(scrub(tostring(msg.command)))
+    draw.bold_(win)
+    if not show_raw then
+        local name = numeric_names[msg.command]
+        if name then
+            win:waddstr(' - ', name)
+        end
+    end
+    win:waddstr '\n'
+
+    for i, v in ipairs(msg) do
+        draw.blue(win)
+        win:waddstr(string.format('%10d: ', i))
+        draw.normal(win)
+        if show_raw then
+            win:waddstr(rawstr(v))
+        else
+            addircstr(win, v)
+        end
+        win:waddstr '\n'
+    end
+
+    win:waddstr '─'
+    ctx.add_button(win, '[CLOSE]', function() ctx.vs.focus = nil end)
+    local _, x = ncurses.getyx(win)
+    win:waddstr(string.rep('─', math.max(0, ctx.cols - x)))
+    win:waddstr '\n'
+end
+
+local squelch_commands <const> = {
+    PONG = true,
+    PING = true,
+    AWAY = true,
+}
+
+local function haystack(msg)
+    local parts = {tostring(msg.command), table.concat(msg, ' ')}
+    if msg.source then
+        table.insert(parts, 1, msg.source)
+    end
+    return table.concat(parts, ' ')
+end
+
+local function console_of(ctx)
+    local rec = ctx.net and HUB.state.nets[ctx.net]
+    return rec and rec.console
+end
+
+local function scroll_by(ctx, delta)
+    local data = console_of(ctx)
+    local elts = data and OrderedMap.size(data) or 0
+    local scroll = ctx.vs.scroll + delta
+    scroll = math.min(scroll, elts - ctx.rows + 1)
+    ctx.vs.scroll = math.max(scroll, 0)
+end
+
+local keys = {
+    [-ncurses.KEY_PPAGE] = function(ctx) scroll_by(ctx, math.max(1, ctx.rows - 1)) end,
+    [-ncurses.KEY_NPAGE] = function(ctx) scroll_by(ctx, -math.max(1, ctx.rows - 1)) end,
+    [-ncurses.KEY_UP] = function(ctx) scroll_by(ctx, 1) end,
+    [-ncurses.KEY_DOWN] = function(ctx) scroll_by(ctx, -1) end,
+    [meta 'h'] = function(ctx) ctx.vs.hide_snow = not ctx.vs.hide_snow end,
+    [meta 'r'] = function(ctx) ctx.vs.show_raw = not ctx.vs.show_raw end,
+}
+
+return {
+    id = 'console',
+    title = 'console',
+    scope = 'net',
+
+    render = function(ctx, win)
+        local data = console_of(ctx)
+        if not data then
+            win:waddstr 'No network selected\n'
+            return
+        end
+
+        if ctx.vs.focus then
+            draw_focus(ctx, win, ctx.vs.focus)
+        end
+
+        local pattern = control.filter(ctx.id)
+        local show
+        if pattern then
+            show = function(msg) return matching.safematch(haystack(msg), pattern) end
+        elseif ctx.vs.hide_snow then
+            show = function(msg)
+                return (msg.command ~= 'NOTICE' or msg[1] ~= '*')
+                   and not squelch_commands[msg.command]
+            end
+        end
+
+        local start = ncurses.getyx(win)
+        local rows = math.max(0, ctx.rows - start)
+        draw.draw_rotation(win, ctx.vs, start, rows, data, show, function(w, msg)
+            render_msg(ctx, w, msg)
+        end)
+    end,
+
+    keypress = function(ctx, key)
+        local h = keys[key]
+        if h then
+            h(ctx)
+            return true
+        end
+    end,
+}

@@ -44,7 +44,7 @@ function M.build(cmd, ...)
 
         -- Only the last argument can be empty, start with : or hold a space
         if string.find(part, '[\x00\r\n]') then
-            error('prohibited character in command argument', 3)
+            error('prohibited character in command argument', 0)
         elseif not string.find(part, '^[^ :][^ ]*$') then
             if i ~= n then
                 error('malformed internal command argument', 3)
@@ -65,18 +65,42 @@ function M.send(net, cmd, ...)
     local rec = HUB.state.nets[net]
     local conn = rec and rec.conn and resources.get(rec.conn)
     if not conn then
-        error('network not connected: ' .. tostring(net), 2)
+        error('network not connected: ' .. tostring(net), 0)
     end
 
     local raw, msg = M.build(cmd, ...)
     local linelen = rec.irc and rec.irc.linelen or 512
     if #raw > linelen then
-        error('message too long: ' .. #raw, 2)
+        error('message too long: ' .. #raw, 0)
     end
 
     conn:send(raw)
     OrderedMap.insert(rec.console, true, msg)
     bus.emit('irc.sent', {net = net, msg = msg})
+    dispatch.dirty()
+end
+
+--- Send text as a line exactly as given, without checking it as a
+--- command. It still may not contain CR, LF or NUL.
+function M.raw(net, text)
+    local rec = HUB.state.nets[net]
+    local conn = rec and rec.conn and resources.get(rec.conn)
+    if not conn then
+        error('network not connected: ' .. tostring(net), 0)
+    end
+    if text:find '[\x00\r\n]' then
+        error('prohibited character in raw line', 0)
+    end
+    conn:send(text .. '\r\n')
+    local msg = {
+        tags = {},
+        command = 'RAW',
+        source = '>>>',
+        timestamp = clock.now(),
+        time = os.date '!%H:%M:%S',
+        text,
+    }
+    OrderedMap.insert(rec.console, true, msg)
     dispatch.dirty()
 end
 

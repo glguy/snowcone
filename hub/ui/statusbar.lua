@@ -5,7 +5,34 @@ local addircstr <const> = require 'hub.ui.irc_formatting'
 local control   <const> = require 'hub.ui.control'
 local draw      <const> = require 'hub.ui.draw'
 local editor    <const> = require 'hub.ui.editor'
+local matching  <const> = require 'hub.lib.matching'
 local scrub     <const> = require 'hub.lib.scrub'
+
+local phase_palette <const> = {
+    connected = draw.green,
+    registering = draw.yellow,
+    connecting = draw.yellow,
+    resolving_secrets = draw.yellow,
+    closing = draw.yellow,
+    idle = draw.red,
+}
+
+-- The current network and its phase, unless it is simply connected
+local function draw_net(win, ctx)
+    local rec = ctx.net and HUB.state.nets[ctx.net]
+    if not rec then return end
+    win:waddstr ' '
+    draw.bold(win)
+    win:waddstr(rec.id)
+    draw.bold_(win)
+    if rec.phase ~= 'connected' then
+        win:waddstr ' '
+        local colour = phase_palette[rec.phase]
+        if colour then colour(win) end
+        win:waddstr(rec.phase)
+        draw.normal(win)
+    end
+end
 
 local M = {}
 
@@ -31,7 +58,7 @@ function M.draw(win, textbox, layout, view, ctx)
     win:waddstr(string.format('%-8.8s', view.title or view.id))
 
     if mode then
-        local ed = input.editor
+        local ed = control.editor()
         local input_mode_color = input_mode_palette[mode]
         ncurses.colorset(titlecolor, input_mode_color, win)
         win:waddstr('')
@@ -44,12 +71,21 @@ function M.draw(win, textbox, layout, view, ctx)
             local n <const> = editor.size(ed)
             local spinner <const> = {'◇◇◇', '◆◇◇', '◆◆◇', '◆◆◆', '◇◆◆', '◇◇◆'}
             draw.bold(win)
-            win:waddstr(' ', input.password_label or '', ' ', spinner[n % #spinner + 1])
+            local prompt = control.current_prompt() or {}
+            local label = (prompt.net and prompt.net .. ': ' or '') .. (prompt.label or '')
+            win:waddstr(' ', scrub(label), ' ', spinner[n % #spinner + 1])
             ncurses.cursset(0)
             return
         end
 
         ncurses.colorset(input_mode_color, nil, textbox)
+        if mode == 'filter' then
+            if matching.compile(editor.content(ed)) then
+                draw.green(textbox)
+            else
+                draw.red(textbox)
+            end
+        end
 
         local _, x0 = ncurses.getyx(win)
         textbox:wmove(0, 0)
@@ -84,6 +120,10 @@ function M.draw(win, textbox, layout, view, ctx)
         win:waddstr('')
         draw.normal(win)
 
+        if view.scope == 'net' then
+            draw_net(win, ctx)
+        end
+
         if view.status then
             view.status(ctx, win)
         end
@@ -95,6 +135,13 @@ function M.draw(win, textbox, layout, view, ctx)
 
         if ctx.vs.scroll ~= 0 then
             win:waddstr(string.format(' SCROLL %d', ctx.vs.scroll))
+        end
+
+        if ctx.vs.filter then
+            draw.yellow(win)
+            win:waddstr ' FILTER '
+            draw.normal(win)
+            win:waddstr(scrub(string.format('%q', ctx.vs.filter)))
         end
 
         ctx.add_click(tty_height - 1, 0, 9, control.next_view)

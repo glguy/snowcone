@@ -6,6 +6,8 @@
 
 local dispatch <const> = require 'hub.runtime.dispatch'
 local log      <const> = require 'hub.runtime.log'
+local manager  <const> = require 'hub.net.manager'
+local send     <const> = require 'hub.net.send'
 local timer    <const> = require 'hub.runtime.timer'
 
 local M = {}
@@ -39,6 +41,69 @@ M.commands = {
                 end
                 log.add('eval', '%s', table.concat(parts, '\t'))
             end
+        end,
+    },
+    {
+        name = 'connect',
+        spec = '',
+        scope = 'net',
+        help = 'Connect the network, and keep it connected',
+        fn = function(ctx)
+            local rec = HUB.state.nets[ctx.net]
+            if rec.phase == 'idle' then
+                manager.connect(ctx.net)
+            else
+                rec.target = 'connected'
+            end
+        end,
+    },
+    {
+        name = 'disconnect',
+        spec = '$R',
+        scope = 'net',
+        help = 'Disconnect the network and stay disconnected; optional QUIT message',
+        fn = function(ctx, message)
+            manager.disconnect(ctx.net, message ~= '' and message or nil)
+        end,
+    },
+    {
+        name = 'reconnect',
+        spec = '',
+        scope = 'net',
+        help = 'Drop the connection and connect again now, with current configuration',
+        fn = function(ctx)
+            manager.reconnect(ctx.net)
+        end,
+    },
+    {
+        name = 'quote',
+        spec = '$r',
+        scope = 'net',
+        help = 'Send an IRC command, checked and shown in the console',
+        fn = function(ctx, text)
+            local msg = snowcone.parse_irc(text)
+            if not msg then error('failed to parse IRC command', 0) end
+            if msg.source then error('source not supported', 0) end
+            if next(msg.tags) then error('tags not supported', 0) end
+            send.send(ctx.net, msg.command, table.unpack(msg))
+        end,
+    },
+    {
+        name = 'raw',
+        spec = '$r',
+        scope = 'net',
+        help = 'Send a line exactly as typed',
+        fn = function(ctx, text)
+            send.raw(ctx.net, text)
+        end,
+    },
+    {
+        name = 'nick',
+        spec = '$g',
+        scope = 'net',
+        help = 'Change nickname',
+        fn = function(ctx, nick)
+            send.send(ctx.net, 'NICK', nick)
         end,
     },
     {

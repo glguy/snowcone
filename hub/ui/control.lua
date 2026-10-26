@@ -3,6 +3,7 @@
 
 local dispatch <const> = require 'hub.runtime.dispatch'
 local editor   <const> = require 'hub.ui.editor'
+local task     <const> = require 'hub.runtime.task'
 
 local M = {}
 
@@ -22,8 +23,51 @@ function M.init_state(S)
     ui.views = ui.views or {}
     ui.input = ui.input or {}
     ui.input.editor = ui.input.editor or editor.new()
+    -- Secrets get their own editor: a half-typed command survives a prompt,
+    -- and nothing typed here reaches the history
+    ui.input.secret = ui.input.secret or editor.new()
+    -- Prompts from tasks, oldest first: {task = id, label = string, net = id}
+    ui.input.prompts = ui.input.prompts or {}
     -- input.mode: nil, 'command', 'filter', 'talk' or 'password'
     if ui.focus == nil then ui.focus = true end
+end
+
+-- Networks ===========================================================
+
+--- The network that net-scoped views and commands act on: the chosen one
+--- if it still exists, else the first by id.
+---@return string|nil
+function M.current_net()
+    local nets = HUB.state.nets or {}
+    local id = HUB.state.ui.current_net
+    if id and nets[id] then return id end
+    local first
+    for k in pairs(nets) do
+        if first == nil or k < first then first = k end
+    end
+    HUB.state.ui.current_net = first
+    return first
+end
+
+function M.set_current_net(id)
+    if not HUB.state.nets[id] then
+        error('no such network: ' .. tostring(id), 0)
+    end
+    HUB.state.ui.current_net = id
+    dispatch.dirty()
+end
+
+-- Configuration ======================================================
+
+--- Follow ui.profile from configuration when it changes; /profile can
+--- override it until the configured value changes again.
+function M.apply_config(cfg)
+    local ui = HUB.state.ui
+    local profile = cfg.ui and cfg.ui.profile or 'all'
+    if ui.profile_configured ~= profile then
+        ui.profile_configured = profile
+        ui.profile = profile
+    end
 end
 
 --- The views in the current profile's rotation that exist.
@@ -87,9 +131,13 @@ end
 function M.next_view() step_view(1) end
 function M.prev_view() step_view(-1) end
 
----@return table the editor record
+---@return table the editor record for the current input mode
 function M.editor()
-    return HUB.state.ui.input.editor
+    local input = HUB.state.ui.input
+    if input.mode == 'password' then
+        return input.secret
+    end
+    return input.editor
 end
 
 ---@param mode string|nil
@@ -98,8 +146,81 @@ function M.set_input_mode(mode)
     dispatch.dirty()
 end
 
+-- Filters ============================================================
+
+--- The filter for a view: what is being typed in filter mode, else the
+--- view's saved filter.
+---@return string|nil
+function M.filter(id)
+    local input = HUB.state.ui.input
+    if input.mode == 'filter' and HUB.state.ui.view == id then
+        local text = editor.content(input.editor)
+        if text ~= '' then return text end
+        return nil
+    end
+    return M.view_state(id).filter
+end
+
+function M.set_filter(id, pattern)
+    if pattern == '' then pattern = nil end
+    M.view_state(id).filter = pattern
+    dispatch.dirty()
+end
+
+-- Prompts ============================================================
+
+-- Drop prompts whose task is gone, then show the oldest
+local function next_prompt()
+    local input = HUB.state.ui.input
+    local prompts = input.prompts
+    while prompts[1] and not HUB.tasks[prompts[1].task] do
+        table.remove(prompts, 1)
+    end
+    local prompt = prompts[1]
+    if prompt and input.mode ~= 'password' then
+        input.mode_before_prompt = input.mode or false
+        input.mode = 'password'
+        editor.reset(input.secret)
+    elseif not prompt and input.mode == 'password' then
+        input.mode = input.mode_before_prompt or nil
+        input.mode_before_prompt = nil
+    end
+    dispatch.dirty()
+end
+
+---@return table|nil the prompt being answered
+function M.current_prompt()
+    local input = HUB.state.ui.input
+    if input.mode == 'password' then
+        return input.prompts[1]
+    end
+end
+
+--- Queue a prompt from the task.prompt event.
+function M.add_prompt(ev)
+    table.insert(HUB.state.ui.input.prompts, {task = ev.task, label = ev.label, net = ev.net})
+    next_prompt()
+end
+
+--- Answer the current prompt; nil aborts it.
+function M.answer_prompt(text)
+    local input = HUB.state.ui.input
+    local prompt = table.remove(input.prompts, 1)
+    editor.reset(input.secret)
+    input.mode = input.mode_before_prompt or nil
+    input.mode_before_prompt = nil
+    if prompt then
+        task.answer(prompt.task, text)
+    end
+    next_prompt()
+end
+
+--- Show the next prompt if one is waiting.
+M.check_prompts = next_prompt
+
 M.routes = {
     ['ui.show_view'] = M.set_view,
+    ['ui.set_current_net'] = M.set_current_net,
 }
 
 return M

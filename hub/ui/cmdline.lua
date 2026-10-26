@@ -1,17 +1,44 @@
 -- Running a command typed on the command line.
 
-local log <const> = require 'hub.runtime.log'
+local control <const> = require 'hub.ui.control'
+local log     <const> = require 'hub.runtime.log'
 
 local M = {}
+
+--- Error handler: a traceback for errors from code (those with a source
+--- position), just the message for errors raised for the user with level 0.
+function M.traceback(err)
+    if type(err) == 'string' and not err:match '^[^:\n]+:%d+:' then
+        return err
+    end
+    return debug.traceback(err, 2)
+end
 
 --- Parse and run one command line (without the leading slash).
 ---@param text string
 function M.execute(text)
-    local name, args = text:match '^ *(%g*) *(.-) *$'
+    local name, args = text:match '^ *(%g*) *(.*)$'
     local cmd = HUB.current.commands[name]
     if cmd == nil then
         log.add('error', 'unknown command: %s', name)
         return
+    end
+
+    -- a net command may name its network first: /quote @libera ...
+    local net = control.current_net()
+    if cmd.scope == 'net' then
+        local at, rest = args:match '^@(%S+)%s*(.*)$'
+        if at then
+            if not HUB.state.nets[at] then
+                log.add('error', 'no such network: %s', at)
+                return
+            end
+            net, args = at, rest
+        end
+        if net == nil then
+            log.add('error', '%s needs a network', name)
+            return
+        end
     end
 
     local params = {}
@@ -21,8 +48,8 @@ function M.execute(text)
     end
 
     log.dismiss()
-    local ctx = {net = HUB.state.ui.current_net}
-    local ok, err = xpcall(cmd.fn, debug.traceback, ctx, table.unpack(params))
+    local ctx = {net = net}
+    local ok, err = xpcall(cmd.fn, M.traceback, ctx, table.unpack(params))
     if not ok then
         log.error(name, err)
     end

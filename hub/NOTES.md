@@ -210,3 +210,45 @@ tick). Tested in `test-reload.lua`.
 - It also cuts lines at 400 bytes. A line longer than the 550-column pad
   wrapped onto the rows below and left its tail there; ircc's renderer has
   the same problem.
+
+## Phase 2: terminal UI for one network
+
+- Views: `console` (raw traffic of the current network, from ircc),
+  `status`, `stats`, `help` and `session`. Each view also gets a command
+  of the same name. The first load opens the first view of the profile's
+  rotation, which is `console` until the dashboard views exist.
+- Console: clicking a command or `SNOW` inspects that message above the
+  log, kept in the view's state as `focus`. Meta-H hides server notices
+  and PING/PONG/AWAY; Meta-R shows inspected values raw. Server-notice
+  decoding in the inspector waits for the phase 4 parser.
+- Filters are per view (`vs.filter`). Ctrl-S edits one live, `/filter`
+  sets one, Esc clears it. `lib/matching.lua` uses PCRE2 when `rex_pcre2`
+  is installed and Lua patterns otherwise, for every view. (ircc's console
+  used Lua patterns and its status view PCRE.)
+- Password prompts: `task.prompt` events queue in `state.ui.input.prompts`.
+  A prompt has its own editor (`input.secret`), so a half-typed command
+  survives it and secrets never reach history. Enter answers, Esc aborts
+  (the task's secret fails, as with a failing command). Prompts whose task
+  ended are skipped.
+- Commands: `connect`, `disconnect [message]`, `reconnect`, `quote`, `raw`
+  and `nick` act on the current network, or on `@network` given first. The
+  UI adds `filter`, `profile`, `net`, and the view commands. `ui.profile`
+  from configuration applies when it changes; `/profile` overrides it until
+  then.
+- Command errors raised for the user (level 0, no source position) are
+  logged as one line; errors with a position get a traceback. send's
+  "not connected", "too long" and "prohibited character" are such user
+  errors now.
+- The status bar of a network view shows the network, and its phase when
+  not connected.
+- F1-F12 select the views of the rotation, as ircc's main views.
+
+### Open
+
+- CAP NEW during registration is ignored, as in ircc: soju announces
+  `draft/event-playback` that way and it is never requested. Requesting
+  after registration would fix it.
+- Checked by hand against a soju bouncer: registration, live server
+  notices in the console, /quote PING, filters, session/stats/help views,
+  and a SIGUSR1 reload mid-session keeping the console, its filter and a
+  half-typed command line.
