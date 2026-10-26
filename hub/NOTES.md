@@ -511,10 +511,11 @@ A review of hub/ found ten issues; decisions with the user:
   (`chathistory`, `draft/chathistory-targets`, and anything nested in one)
   never touches the connection's state: its lines reach only `irc.batch`,
   for chat buffers. ircc and the first port set every batched line aside.
-- Every message has `msg.at`, its server time or the client's, and chat
-  history is merged into a buffer in that order, skipping lines it already
-  has (by msgid, else time, source and text). History used to land after
-  the newer message that opened the buffer.
+- Chat history goes into a buffer before the messages received on the
+  current connection, in the server's order, skipping lines it already has
+  (by msgid, else time tag, source and text). Server times are never
+  ordered: an earlier version sorted by them, mixed with our own clock.
+  History used to land after the newer message that opened the buffer.
 - "Is this our nick" uses the network's casemapping (`irc.is_me`).
 - The editor accepts line breaks (^J, ^M, x0a): it also takes Lua for
   /eval. Hex input checks its digits; history compares lines in order (an

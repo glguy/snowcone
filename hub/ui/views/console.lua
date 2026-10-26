@@ -129,7 +129,7 @@ end
 --- message shows), or nil for any other message.
 local function decode(msg)
     local text = match_snotice(msg)
-    return text and parse_snote(nil, msg.source, text)
+    return text and parse_snote(msg.source, text)
 end
 
 local function draw_focus(ctx, win, msg)

@@ -150,6 +150,11 @@ every topic, and a test checks that every literal topic emitted is listed.
 
 - `clock.now()` is for durations (monotonic through `snowcone.monotime`).
   Compare by difference with `>=`. Times of day come from `os.date`.
+- A message has two times: `timestamp`, our `clock.now()` at receipt, for
+  everything we compute (fading, liveness, which connection it came on),
+  and `time`, the `HH:MM:SS` it shows: the server's time tag when there is
+  one, otherwise ours. The server's time is only displayed and sent back
+  to it; it is never ordered or compared.
 - Configuration: `--config=PATH`, else `hub.toml` or `hub.lua` in the
   snowcone config directory, with `KEY.PATH=value` overrides; validated
   against `runtime/config_schema.lua`.
@@ -184,8 +189,8 @@ connected at once.
   CASEMAPPING, and so does "is this our nick".
 - **Batches** are handled line by line as they arrive and emitted whole
   when they close. Replays (chat history) are the exception: they never
-  change the connection's state and reach only the chat buffers, merged in
-  time order. Handlers update only the model and emit events; everything
+  change the connection's state and reach only the chat buffers, placed
+  before what arrived on the current connection, in the server's order. Handlers update only the model and emit events; everything
   user-facing is a feature.
 - **Operator status** fires `irc.oper` once per connection, from
   RPL_YOUREOPER or a user mode `o` (a bouncer session that is already

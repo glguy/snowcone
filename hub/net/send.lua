@@ -41,7 +41,6 @@ function M.build(cmd, ...)
         source = '>>>',
         timestamp = clock.now(),
         time = os.date '!%H:%M:%S',
-        at = clock.iso_now(),
     }
 
     local parts = {cmd}

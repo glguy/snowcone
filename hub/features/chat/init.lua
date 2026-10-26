@@ -348,44 +348,46 @@ local function on_batch(ev)
             msg.statusmsg = irc_model.split_statusmsg(irc, msg[1])
         end
     end
-    M.merge(buffer, ev.messages)
+    local rec = HUB.state.nets[ev.net]
+    M.merge(buffer, ev.messages, rec and rec.registered_at)
 end
 
--- Identity of a message, to spot one that history repeats
+-- Identity of a message, to spot one that history repeats. The server's
+-- time is compared only as text.
 local function message_key(msg)
-    local msgid = msg.tags and msg.tags.msgid
-    if msgid then return 'id ' .. msgid end
-    return table.concat({msg.at or '', tostring(msg.source), tostring(msg.command), table.concat(msg, ' ')}, '\0')
+    local tags = msg.tags or {}
+    if tags.msgid then return 'id ' .. tags.msgid end
+    return table.concat({tags.time or '', tostring(msg.source), tostring(msg.command), table.concat(msg, ' ')}, '\0')
 end
 
---- Merge history into a buffer in time order. History may be older than
---- what the buffer holds (it was asked for when the buffer opened) or
---- overlap it (after a reconnect); messages already there are skipped.
-function M.merge(buffer, messages)
-    local entries, seen = {}, {}
+--- Merge history into a buffer. Server times are never compared: the
+--- history goes, in the server's order, before the messages that arrived
+--- on the current connection (those received since `since`, its
+--- registration), which puts it before everything when a buffer opens and
+--- between the old and new messages after a reconnect. Messages already
+--- there are skipped.
+---@param since number|nil clock.now() at registration
+function M.merge(buffer, messages, since)
+    local older, newer, seen = {}, {}, {}
     for msg in OrderedMap.reveach(buffer.messages) do
-        table.insert(entries, msg)
+        local ts = msg.timestamp
+        table.insert(since and ts and ts >= since and newer or older, msg)
         seen[message_key(msg)] = true
     end
     for _, msg in ipairs(messages) do
-        msg.at = msg.at or (msg.tags and msg.tags.time) or ''
         local key = message_key(msg)
         if not seen[key] then
             seen[key] = true
-            table.insert(entries, msg)
+            -- drawn as old, not as just received
+            msg.timestamp = nil
+            table.insert(older, msg)
         end
     end
-    -- stable: messages with equal times keep their order
-    for i, msg in ipairs(entries) do msg.order_ = i end
-    table.sort(entries, function(a, b)
-        local ta, tb = a.at or '', b.at or ''
-        if ta ~= tb then return ta < tb end
-        return a.order_ < b.order_
-    end)
     OrderedMap.reset(buffer.messages)
-    for _, msg in ipairs(entries) do
-        msg.order_ = nil
-        OrderedMap.insert(buffer.messages, true, msg)
+    for _, list in ipairs {older, newer} do
+        for _, msg in ipairs(list) do
+            OrderedMap.insert(buffer.messages, true, msg)
+        end
     end
 end
 

@@ -1,6 +1,7 @@
--- Server notice parser (from dashboard/utils/parse_snote.lua, unchanged).
+-- Server notice parser (from dashboard/utils/parse_snote.lua, without
+-- the time argument: the caller stamps the time).
 --
--- parse(time, server, text) returns a flat record with `name` and the
+-- parse(server, text) returns a flat record with `name` and the
 -- notice's fields, or nil. tests/hub/test-snotice.lua replays fixtures
 -- against the dashboard parser's results.
 
@@ -13,7 +14,7 @@ local simple = {
 }
 
 -- luacheck: ignore 631
-return function(time, server, str)
+return function(server, str)
     do
         local nick, user, host, ip, class, account, gecos =
             string.match(str, '^Client connecting: (%S+) %(([^@ ]+)@([^) ]+)%) %[(.*)%] {(%S*)} <(%S*)> %[(.*)%]$')
@@ -22,7 +23,6 @@ return function(time, server, str)
             return {
                 name = 'connect',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -42,7 +42,6 @@ return function(time, server, str)
             return {
                 name = 'disconnect',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -66,7 +65,6 @@ return function(time, server, str)
             return {
                 name = assert(names[kind]),
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -85,7 +83,6 @@ return function(time, server, str)
             return {
                 name = 'nick',
                 server = server,
-                time = time,
                 old = old,
                 new = new,
                 user = user,
@@ -102,7 +99,6 @@ return function(time, server, str)
             return {
                 name = 'filter',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -118,7 +114,6 @@ return function(time, server, str)
                 return {
                     name = 'kline_active',
                     server = server,
-                    time = time,
                     nick = nick,
                     user = user,
                     host = host,
@@ -134,7 +129,6 @@ return function(time, server, str)
             return {
                 name = 'kline_active',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -150,7 +144,6 @@ return function(time, server, str)
             return {
                 name = 'dline_active',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -166,7 +159,6 @@ return function(time, server, str)
             return {
                 name = 'expired',
                 server = server,
-                time = time,
                 kind = string.lower(kind), -- resv, k-line, x-line
                 mask = mask,
             }
@@ -180,7 +172,6 @@ return function(time, server, str)
             return {
                 name = 'expired',
                 server = server,
-                time = time,
                 kind = 'k-line',
                 mask = mask,
             }
@@ -194,7 +185,6 @@ return function(time, server, str)
             return {
                 name = 'removed',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -212,7 +202,6 @@ return function(time, server, str)
             return {
                 name = 'rejected',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -230,7 +219,6 @@ return function(time, server, str)
             return {
                 name = 'rejected',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -248,7 +236,6 @@ return function(time, server, str)
             return {
                 name = 'netsplit',
                 server = server,
-                time = time,
                 server1 = server1,
                 server2 = server2,
                 sid1 = sid1,
@@ -265,7 +252,6 @@ return function(time, server, str)
             return {
                 name = 'netjoin',
                 server = server,
-                time = time,
                 server1 = server1,
                 server2 = server2,
                 sid1 = sid1,
@@ -281,7 +267,6 @@ return function(time, server, str)
             return {
                 name = 'kill',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -298,7 +283,6 @@ return function(time, server, str)
             return {
                 name = 'kill',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -314,7 +298,6 @@ return function(time, server, str)
             return {
                 name = 'newmaxlocal',
                 server = server,
-                time = time,
                 clients = math.tointeger(clients),
             }
         end
@@ -327,7 +310,6 @@ return function(time, server, str)
             return {
                 name = 'flooder',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -343,7 +325,6 @@ return function(time, server, str)
             return {
                 name = 'spambot',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -359,7 +340,6 @@ return function(time, server, str)
             return {
                 name = 'targetchange',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -374,7 +354,6 @@ return function(time, server, str)
             return {
                 name = 'create_channel',
                 server = server,
-                time = time,
                 nick = nick,
                 channel = channel,
             }
@@ -388,7 +367,6 @@ return function(time, server, str)
             return {
                 name = 'operspy',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -406,7 +384,6 @@ return function(time, server, str)
             return {
                 name = 'override',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -424,7 +401,6 @@ return function(time, server, str)
             return {
                 name = 'toomany',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -441,7 +417,6 @@ return function(time, server, str)
             return {
                 name = 'toomany',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -458,7 +433,6 @@ return function(time, server, str)
             return {
                 name = 'badlogin',
                 server = server,
-                time = time,
                 count = tonumber(count),
                 account = account,
                 host = host,
@@ -473,7 +447,6 @@ return function(time, server, str)
             return {
                 name = 'badlogin',
                 server = server,
-                time = time,
                 count = tonumber(count),
                 account = account,
                 host = host,
@@ -490,7 +463,6 @@ return function(time, server, str)
             return {
                 name = 'oper',
                 server = server,
-                time = time,
                 host = host,
                 nick = nick,
                 user = user,
@@ -505,7 +477,6 @@ return function(time, server, str)
             return {
                 name = 'grant',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -523,7 +494,6 @@ return function(time, server, str)
             return {
                 name = 'grant',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -541,7 +511,6 @@ return function(time, server, str)
             return {
                 name = 'ungrant',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -560,7 +529,6 @@ return function(time, server, str)
             return {
                 name = 'connect',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -578,7 +546,6 @@ return function(time, server, str)
             return {
                 name = 'modload',
                 server = server,
-                time = time,
                 module = module,
             }
         end
@@ -591,7 +558,6 @@ return function(time, server, str)
             return {
                 name = 'modunload',
                 server = server,
-                time = time,
                 module = module,
             }
         end
@@ -604,7 +570,6 @@ return function(time, server, str)
             return {
                 name = 'shedding_on',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -622,7 +587,6 @@ return function(time, server, str)
             return {
                 name = 'shedding_off',
                 server = server,
-                time = time,
                 nick = nick,
                 user = user,
                 host = host,
@@ -637,7 +601,6 @@ return function(time, server, str)
             return {
                 name = name,
                 server = server,
-                time = time,
             }
         end
     end

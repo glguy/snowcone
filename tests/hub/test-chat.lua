@@ -130,6 +130,25 @@ T.case('chat history fills its buffer', function()
     T.eq(chat.buffer('test', '#c').activity, 0, 'history is not activity')
 end)
 
+T.case('history after a reconnect goes between old and new messages', function()
+    local c, chat = boot()
+    c:recv ':me!u@h JOIN #c'
+    c:recv '@time=2026-01-01T00:00:09.000Z :alice!a@h PRIVMSG #c :before'
+    -- as if registered again: what arrives from now on is the new connection
+    HUB.state.nets.test.registered_at = T.require 'hub.runtime.clock'.now()
+    c:recv ':alice!a@h PRIVMSG #c :after'
+    -- server times that would sort first are not compared
+    c:recv ':srv BATCH +h1 chathistory #c'
+    c:recv '@batch=h1;time=2000-01-01T00:00:00.000Z :alice!a@h PRIVMSG #c :missed'
+    c:recv '@batch=h1;time=2026-01-01T00:00:09.000Z :alice!a@h PRIVMSG #c :before'
+    c:recv ':srv BATCH -h1'
+    T.eq(texts(chat.buffer('test', '#c')),
+        {'JOIN #c', 'PRIVMSG #c before', 'PRIVMSG #c missed', 'PRIVMSG #c after'}, 'in place')
+    for msg in T.require 'hub.lib.OrderedMap'.reveach(chat.buffer('test', '#c').messages) do
+        T.eq(msg.timestamp == nil, msg[2] == 'missed', 'only history is drawn as old: ' .. tostring(msg[2]))
+    end
+end)
+
 T.case('history and MONITOR after registration', function()
     local fake = FakeTransport.new()
     T.boot {transport = fake, config = {networks = {

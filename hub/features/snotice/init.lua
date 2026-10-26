@@ -42,9 +42,10 @@ end
 function M.parse(net, msg)
     local text = M.notice_text(msg)
     if not text then return nil end
-    local ev = parse(msg.time, msg.source, text)
+    local ev = parse(msg.source, text)
     if ev then
         ev.net = net
+        ev.time = msg.time
         ev.timestamp = msg.timestamp
     end
     return ev
@@ -243,11 +244,12 @@ M.commands = {
         name = 'inject', spec = '$r', scope = 'net', feature = 'snotice',
         help = 'Handle a server notice as if a server sent it (for testing)',
         fn = function(ctx, text)
-            local note = parse(os.date '!%H:%M:%S', 'INJECT.', text)
+            local note = parse('INJECT.', text)
             if not note then
                 error('no notice format matches', 0)
             end
             note.net = ctx.net
+            note.time = os.date '!%H:%M:%S'
             note.timestamp = clock.now()
             stores.apply(note)
             bus.emit('snote', note)

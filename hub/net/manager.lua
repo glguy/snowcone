@@ -372,8 +372,6 @@ function events.MSG(rec, msg, flush)
                 or os.date '!%H:%M:%S'
     end
     msg.timestamp = clock.now()
-    -- server time, or ours: orders messages in chat buffers
-    msg.at = msg.tags.time or clock.iso_now()
 
     local source = msg.source
     if source then
