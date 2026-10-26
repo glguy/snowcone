@@ -5,6 +5,10 @@ ported bugs, and open questions. Newest phase last.
 
 ## Requirements from the user
 
+- **No plugin compatibility** (decided with the user): ircc and dashboard
+  plugins are ported to the hub api rather than shimmed. A plugin that
+  returns a table, or fails on a `utils.*`/`components.*` module, is
+  refused with a message saying to port it.
 - **No filterdb for now** (ircc's `/upload_filterdb` with hsfilter). It is
   not a feature name in configuration and phase 5 doesn't port it.
 
@@ -408,3 +412,30 @@ samples (the difference is sampling time).
 - Checked by hand against the bouncer: four channel buffers from the
   bouncer's JOINs, `/talk` to a joined channel (history only, no JOIN),
   buffer view and status bar.
+
+## Phase 6: plugins and polish
+
+- `features/plugins`: one loader, one api (README "Hub" and the header of
+  the module). Plugins load while a generation is built, with that
+  generation's configuration, and register subscriptions, commands and
+  views into it, so they reload with it. Registration errors (a command
+  name a built-in already has) are the plugin's, logged, and the rest of
+  the client loads. Handlers run under `xpcall`; errors are logged with the
+  plugin's name and never stop other subscribers.
+- Plugin resources are owned by `plugin:<name>@<build>`; once a generation
+  is current, resources of earlier builds are closed, so timers and
+  listeners don't outlive the code that set them. Timer and httpd callbacks
+  go through a per-generation registry (`plugins.callback`); one that
+  fires after a reload finds nothing and does nothing.
+- `api.state` is `state.features.plugins[name]`, so it survives reloads
+  (not restarts; there is no file like the old `.dat`).
+- `/plugins` lists plugins with their error or the views they added.
+- Watches in configuration: `[[networks.watches]]` with pattern, colour,
+  beep, flash, active. Applied on every load: configured watches are
+  replaced (hit counts kept by pattern), /addwatch ones stay.
+- `snowcone.monotime()` (client/applib.cpp): steady_clock seconds.
+  `clock.now()` uses it when present, so system clock changes don't
+  disturb timeouts and backoff; it is only for differences.
+- README has a Hub section (config example and plugin example, both
+  checked by loading them); the man page has a HUB section and the new
+  files.

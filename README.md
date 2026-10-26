@@ -107,6 +107,105 @@ out/install/arm-mac/bin/snowcone dashboard
 * `/stats` - internal information
 * `/eval` - run some Lua code
 
+## Hub - dashboard and chat on many networks
+
+`snowcone hub` (in development) combines the dashboard and ircc, and
+connects to any number of networks at once. It reads
+`~/.config/snowcone/hub.toml` (or `hub.lua`, or `--config=PATH`). It does
+not read the ircc and dashboard `settings` files: every connection setting
+lives in a `[[networks]]` table.
+
+```toml
+[ui]
+profile = 'all'            # view rotation: 'dashboard', 'chat' or 'all'
+
+[mention]
+patterns = ['%f[%w]mynick%f[^%w]']
+
+[[networks]]
+id = 'libera'
+features = ['snotice', 'oper', 'topology', 'chat', 'bouncer']  # default: all
+servers_file = 'servers.lua'          # regions, aliases, kline reasons
+reconnect = { min_delay = 1, max_delay = 300 }
+snomask = '+BFZbcklnsx'               # set after opering
+[networks.server]
+host = 'irc.libera.chat'
+port = 6697
+[[networks.layers]]
+type = 'tls'
+[networks.identity]
+nick = 'mynick'
+[networks.sasl]
+automatic = ['PLAIN']
+[[networks.sasl.credentials]]
+mechanism = 'PLAIN'
+username = 'mynick'
+password = { command = 'pass', arguments = ['show', 'libera'] }
+[[networks.watches]]
+pattern = 'badbot'
+colour = 'red'
+beep = true
+
+[[networks]]
+id = 'oftc'
+features = ['chat']
+[networks.server]
+host = 'irc.oftc.net'
+port = 6697
+[[networks.layers]]
+type = 'tls'
+[networks.identity]
+nick = 'mynick'
+```
+
+Secrets (passwords, keys) can be a string, `{ file = 'path' }`,
+`{ command = 'program', arguments = [...] }` or `{ prompt = 'label' }`.
+
+Differences from the two older modes:
+
+- The status bar lists every network, coloured by state, with `+` or `!`
+  for unseen chat; click one, use Meta-1..9, or `/net <id>` to choose the
+  current network. `/networks` shows them all.
+- Commands that act on a network take an optional `@network` first:
+  `/quote @oftc WHOIS someone`.
+- Every scrolling list is a rolling buffer: new lines replace the oldest
+  above the divider, so nothing moves under the mouse.
+- The console's Meta-G shows all networks interleaved.
+- `/filter` filters the current view by pattern; the dashboard's query
+  language is `/prefilter`.
+- `/reload` and SIGUSR1 load new code and configuration and keep
+  connections, scrollback and the line being typed; changed connection
+  settings wait for `/reconnect`.
+
+Plugins are Lua files in `~/.config/snowcone/plugins/`, listed in
+`[plugins] modules`. A plugin returns a function that receives an api;
+ircc and dashboard plugins need porting.
+
+```lua
+-- ~/.config/snowcone/plugins/hello.lua
+return function(api)
+    api.state.count = api.state.count or 0     -- kept across reloads
+
+    api.on('snote.connect', function(ev)        -- any event; see hub/EVENTS.md
+        api.state.count = api.state.count + 1
+    end)
+
+    api.command('hello', '$g', function(ctx, who)
+        api.send(ctx.net, 'PRIVMSG', who, 'hello!')
+    end, 'Say hello')
+
+    api.view('hello', {
+        render = function(ctx, win)
+            win:waddstr(api.state.count .. ' connections seen\n')
+        end,
+    })
+end
+```
+
+The api also has `api.log`, `api.task`, `api.timer`, `api.httpd`,
+`api.networks()` and `api.config` (the `[plugins.custom.<name>]` table).
+`/plugins` lists loaded plugins and their errors.
+
 ## Configuration
 
 Default configuration path in order of preference

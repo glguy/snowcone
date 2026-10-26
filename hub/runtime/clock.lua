@@ -1,12 +1,20 @@
--- Wall clock and uptime (design section 4.7).
+-- Time for durations and uptime (design section 4.7).
 --
--- Compare times by difference with >=, never by equality with a counter.
+-- now() is monotonic when the client provides snowcone.monotime, so
+-- setting the system clock doesn't disturb timeouts; its zero is then
+-- arbitrary, so use it for differences only (and os.time/os.date for
+-- the time of day). Compare by difference with >=, never by equality.
 
 local M = {}
 
---- Seconds since the epoch, with fractions.
+local monotime = snowcone.monotime
+
+--- Seconds, with fractions, for measuring durations.
 ---@return number
 function M.now()
+    if monotime then
+        return monotime()
+    end
     local s, ns = snowcone.time()
     return s + ns * 1e-9
 end

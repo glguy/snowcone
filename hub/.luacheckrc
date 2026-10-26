@@ -10,7 +10,7 @@ stds = {
             snowcone = {
                 fields = {"to_base64", "from_base64", "dnslookup", "pton", "shutdown", "newtimer",
                     "setmodule", "raise", "isalnum", "irccase", "parse_irc", "parse_irc_tags",
-                    "SIGINT", "SIGTSTP", "connect", "execute", "time", "parse_toml",
+                    "SIGINT", "SIGTSTP", "connect", "execute", "time", "monotime", "parse_toml",
                     "start_input", "stop_input", "start_httpd"},
             },
             "tty_height", "tty_width", "ncurses",

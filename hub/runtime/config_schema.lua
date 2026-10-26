@@ -152,6 +152,13 @@ M.network = table_ {
     oper         = oper_schema,
     challenge    = challenge_schema,
     mention      = mention_schema,
+    watches      = array (table_ {
+        pattern = {type = 'string', required = true},
+        colour  = {type = 'string', pattern = '^%l+$'},
+        beep    = {type = 'boolean'},
+        flash   = {type = 'boolean'},
+        active  = {type = 'boolean'},
+    }),
 }
 
 --- The whole file.

@@ -7,6 +7,7 @@ local clock    <const> = require 'hub.runtime.clock'
 local common   <const> = require 'hub.features.common'
 local lexer    <const> = require 'pl.lexer'
 local log      <const> = require 'hub.runtime.log'
+local manager  <const> = require 'hub.net.manager'
 local matching <const> = require 'hub.lib.matching'
 local N        <const> = require 'hub.lib.numerics'
 local nettrack <const> = require 'hub.features.snotice.nettrack'
@@ -107,6 +108,47 @@ function M.subscribe(sub)
     sub.on('clock.tick', stores.tick)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
 end
+
+-- Watches from configuration ========================================
+
+--- Make each network's configured watches current: configured ones are
+--- replaced (keeping hit counts by pattern), /addwatch ones stay.
+function M.apply_watches()
+    for _, id in ipairs(manager.ids()) do
+        if common.enabled(id, M.name) then
+            local S = stores.get(id)
+            local hits = {}
+            local kept = {}
+            for _, watch in ipairs(S.watches) do
+                if watch.from_config then
+                    hits[watch.pattern] = watch.hits
+                else
+                    table.insert(kept, watch)
+                end
+            end
+            local configured = {}
+            for _, w in ipairs(HUB.state.nets[id].cfg.watches or {}) do
+                if matching.compile(w.pattern) then
+                    table.insert(configured, {
+                        pattern = w.pattern,
+                        colour = w.colour,
+                        beep = w.beep,
+                        flash = w.flash,
+                        active = w.active ~= false,
+                        hits = hits[w.pattern] or 0,
+                        from_config = true,
+                    })
+                else
+                    log.add_net(id, 'config', 'bad watch pattern: %s', w.pattern)
+                end
+            end
+            table.move(kept, 1, #kept, #configured + 1, configured)
+            S.watches = configured
+        end
+    end
+end
+
+M.activate = M.apply_watches
 
 -- Commands ============================================================
 

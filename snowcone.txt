@@ -3,6 +3,8 @@ NAME
 SYNOPSIS
   snowcone MODE [--config PATH]
 
+  MODE is dashboard, ircc or hub, or the path of an init.lua.
+
 DESCRIPTION
   snowcone provides a live view of server notices focused on awareness
   of recent connections and disconnections to the network. It can show
@@ -175,9 +177,23 @@ SASL SUPPORT
   SCRAM-SHA-256
   SCRAM-SHA-512
 
+HUB
+  hub mode does what dashboard and ircc do, on any number of networks at
+  once. It reads ~/.config/snowcone/hub.toml (or hub.lua), where each
+  network is a [[networks]] table with its own server, identity, sasl and
+  features (snotice, oper, topology, chat, bouncer). /help lists the
+  commands; /reload and SIGUSR1 load new code and configuration without
+  dropping connections. Plugins are Lua files returning function(api).
+
 FILES
   ~/.config/snowcone/settings.lua
     Connection configuration file using lua syntax
+
+  ~/.config/snowcone/hub.toml
+    Configuration for hub mode (or hub.lua)
+
+  ~/.config/snowcone/plugins/
+    Plugins named in the [plugins] modules setting
 
   ~/.config/snowcone/servers.lua
     Lua syntax table specifying server addresses and regions.
@@ -187,6 +203,9 @@ FILES
 
   /usr/share/snowcone/ircc
     Lua run-time source files for ircc mode
+
+  /usr/share/snowcone/hub
+    Lua run-time source files for hub mode
 
   ~/.config/snowcone/GeoLite2-ASN.mmdb
     If the mmdb Lua library is installed, and the GeoLite2-ASN.mmdb

@@ -237,6 +237,39 @@ T.case('watches mark entries and alert', function()
     T.eq({alerts[1].net, alerts[1].kind, alerts[1].beep}, {'test', 'watch', true}, 'alert')
 end)
 
+T.case('watches from configuration', function()
+    local function config(watches)
+        return {networks = {{
+            id = 'test', server = {host = 'test.example', port = 6667},
+            identity = {nick = 'me'}, features = {'snotice'}, watches = watches,
+        }}}
+    end
+    local fake = FakeTransport.new()
+    T.boot {transport = fake, config = config {{pattern = 'evil', colour = 'magenta', beep = true}}}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 376 me :End of MOTD'
+
+    -- one added by hand stays across reloads
+    table.insert(stores().watches, {pattern = 'manual', active = true, hits = 0})
+    notice(c, 'a.example', 'Client connecting: EvilBot (u@h) [192.0.2.1] {users} <*> [g]')
+    local w = stores().watches[1]
+    T.eq({w.pattern, w.colour, w.beep, w.hits, w.from_config}, {'evil', 'magenta', true, 1, true}, 'configured watch hit')
+
+    T.ok(T.reload {config = config {{pattern = 'evil', colour = 'red'}, {pattern = 'other'}}}, 'reload')
+    local patterns = {}
+    for _, watch in ipairs(stores().watches) do
+        table.insert(patterns, watch.pattern .. ':' .. watch.hits)
+    end
+    T.eq(patterns, {'evil:1', 'other:0', 'manual:0'}, 'configured first, hits kept, manual kept')
+    T.eq(stores().watches[1].colour, 'red', 'updated')
+
+    T.ok(T.reload {config = config {}}, 'reload')
+    T.eq(#stores().watches, 1, 'only the manual one is left')
+end)
+
 T.case('network trackers count connections by range', function()
     local c = boot {'snotice'}
     local nettrack = T.require 'hub.features.snotice.nettrack'

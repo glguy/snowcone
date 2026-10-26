@@ -21,11 +21,12 @@ local timer      <const> = require 'hub.runtime.timer'
 local task       <const> = require 'hub.runtime.task'
 local mkcommand  <const> = require 'hub.lib.mkcommand'
 local manager    <const> = require 'hub.net.manager'
+local plugins    <const> = require 'hub.features.plugins'
 
 local M = {}
 
 -- Bumped by hand to see at a glance which code is running after a reload
-M.version = 'phase5'
+M.version = 'phase6'
 
 local function module_names(opts)
     local names = {
@@ -43,6 +44,7 @@ local function module_names(opts)
         'hub.features.oper',
         'hub.features.chat',
         'hub.features.notify',
+        'hub.features.plugins',
     }
     if HUB.boot.ui then
         table.insert(names, 'hub.ui')
@@ -137,6 +139,24 @@ function M.build(gen, opts)
             end
         end
     end
+
+    -- Plugins load into this generation; their failures are only logged
+    HUB.plugin_builds = (HUB.plugin_builds or 0) + 1
+    plugins.load_all({
+        subscribe = function(owner, topic, fn, o)
+            bus.on(current.bus, topic, owner, fn, o)
+        end,
+        add_command = function(owner, cmd)
+            add_command(current, owner, cmd)
+        end,
+        add_view = function(owner, view)
+            if current.views[view.id] then
+                error('view ' .. view.id .. ' is already defined', 0)
+            end
+            view.owner = owner
+            current.views[view.id] = view
+        end,
+    }, tostring(HUB.plugin_builds), cfg)
 
     return current
 end

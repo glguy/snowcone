@@ -7,6 +7,7 @@
 .fam C
 \fBsnowcone\fP \fIMODE\fP [\fB--config\fP \fIPATH\fP]
 
+\fIMODE\fP is dashboard, ircc or hub, or the path of an init.lua.
 .fam T
 .fi
 .fam T
@@ -332,9 +333,24 @@ ECDSA-NIST256P-CHALLENGE
 SCRAM-SHA-1
 SCRAM-SHA-256
 SCRAM-SHA-512
+.SH HUB
+hub mode does what dashboard and ircc do, on any number of networks at
+once. It reads ~/.config/\fBsnowcone\fP/hub.toml (or hub.lua), where each
+network is a [[networks]] table with its own server, identity, sasl and
+features (snotice, oper, topology, chat, bouncer). /help lists the
+commands; /reload and SIGUSR1 load new code and configuration without
+dropping connections. Plugins are Lua files returning function(api).
 .SH FILES
 ~/.config/\fBsnowcone\fP/settings.lua
 Connection configuration file using lua syntax
+.TP
+.B
+~/.config/\fBsnowcone\fP/hub.toml
+Configuration for hub mode (or hub.lua)
+.TP
+.B
+~/.config/\fBsnowcone\fP/plugins/
+Plugins named in the [plugins] modules setting
 .TP
 .B
 ~/.config/\fBsnowcone\fP/servers.lua
@@ -345,6 +361,9 @@ Lua run-time source files for dashboard mode
 .PP
 /usr/share/\fBsnowcone\fP/ircc
 Lua run-time source files for ircc mode
+.PP
+/usr/share/\fBsnowcone\fP/hub
+Lua run-time source files for hub mode
 .TP
 .B
 ~/.config/\fBsnowcone\fP/GeoLite2-ASN.mmdb

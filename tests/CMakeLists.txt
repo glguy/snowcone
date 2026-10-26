@@ -51,7 +51,7 @@ foreach(name test-sasl test-scram test-schema test-strings test-toml)
 endforeach()
 
 # hub's tests share tests/hub/lib.lua and load hub from the source tree
-foreach(name test-reload test-structure test-net test-ui test-snotice test-topology test-oper test-chat test-views)
+foreach(name test-reload test-structure test-net test-ui test-snotice test-topology test-oper test-chat test-views test-plugins)
   add_test(NAME hub-${name}
     COMMAND snowcone script "${CMAKE_CURRENT_SOURCE_DIR}/hub/${name}.lua")
   set_tests_properties(hub-${name} PROPERTIES TIMEOUT 30)
