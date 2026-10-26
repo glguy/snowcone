@@ -359,8 +359,9 @@ tick). Tested in `test-reload.lua`.
   will need another id). Dashboard globals became view state: filter,
   prefilter, server_filter, conn_filter, mark_filter, highlight,
   show_reasons, ordering, descending, expanded. Esc clears the filters.
-- **To confirm:** the dashboard's `/filter` query language is `/prefilter`
-  in hub, because `/filter` is the per-view pattern filter of every view.
+- The dashboard's `/filter` query language is `/prefilter` in hub, because
+  `/filter` is the per-view pattern filter of every view (decided with the
+  user: keep both names).
   `lib/matchdsl.lua` no longer needs rex_pcre2 to load; regex terms do.
 - The action bar (reason/org/asn/ip, duration, trust, freeze, reason, tag,
   staged KLINE/UNKLINE/UNDLINE with TRACE) is `ui/dashboard.lua`, shared by
