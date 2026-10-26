@@ -4,10 +4,6 @@
 
 #include <cstdio>
 
-BracketedPaste::BracketedPaste()
-{
-    enable();
-}
 auto BracketedPaste::enable() -> void
 {
     fputs("\x1b[?2004h", stdout); // enable bracketed paste
@@ -26,8 +22,4 @@ auto BracketedPaste::disable() -> void
     fputs("\x1b[?1004l", stdout); // disable focus reporting
     fputs("\x1b[?2004l", stdout); // disable bracketed paste
     fflush(stdout);
-}
-BracketedPaste::~BracketedPaste()
-{
-    disable();
 }

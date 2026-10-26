@@ -1,6 +1,6 @@
 -- Ban staging and the Libera K-Line mask rules.
 --
--- Run with:  snowcone script tests/hub/test-oper.lua
+-- Run with:  snowcone tests/hub/test-oper.lua
 
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')

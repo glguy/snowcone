@@ -1,6 +1,6 @@
 -- Reload behaviour of hub's runtime.
 --
--- Run with:  snowcone script tests/hub/test-reload.lua
+-- Run with:  snowcone tests/hub/test-reload.lua
 
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')

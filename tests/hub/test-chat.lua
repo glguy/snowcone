@@ -1,7 +1,7 @@
 -- Chat buffers, routing, history, CTCP, notifications and the crypto
 -- commands.
 --
--- Run with:  snowcone script tests/hub/test-chat.lua
+-- Run with:  snowcone tests/hub/test-chat.lua
 
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')

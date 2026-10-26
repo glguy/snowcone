@@ -1,6 +1,6 @@
 -- Topology, operator sync and the servers file.
 --
--- Run with:  snowcone script tests/hub/test-topology.lua
+-- Run with:  snowcone tests/hub/test-topology.lua
 
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')

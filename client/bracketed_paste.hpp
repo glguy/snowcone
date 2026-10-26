@@ -8,8 +8,7 @@
 
 struct BracketedPaste
 {
-    BracketedPaste();
-    ~BracketedPaste();
+    /// Define the key codes below for the paste and focus sequences
     static auto install() -> void;
     /// Turn on bracketed paste and focus reporting
     static auto enable() -> void;

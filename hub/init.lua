@@ -6,7 +6,14 @@
 --
 -- Tests call this chunk with an options table (see runtime/loader.lua).
 
-local opts <const> = ... or {}
+local given <const> = ...
+local opts <const> = given or {}
+
+-- Run as the program (not loaded by a test): take over the terminal. Does
+-- nothing on a reload.
+if given == nil then
+    snowcone.start_ui()
+end
 local init <const> = opts.init or arg[0]
 local root <const> = opts.root or init:match '^(.*)/[^/]*$' or '.'
 

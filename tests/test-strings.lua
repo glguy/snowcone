@@ -1,6 +1,6 @@
 -- Strings handed to C APIs reject embedded NULs instead of being truncated
 -- at them, and binary-safe arguments keep every byte.
--- Run with:  snowcone script tests/test-strings.lua
+-- Run with:  snowcone tests/test-strings.lua
 
 local function rejects(what, f, ...)
     local ok, err = pcall(f, ...)

@@ -33,12 +33,11 @@ extern "C" {
 
 static char const app_key = '\0';
 
-App::App(char const* const filename, bool const headless)
+App::App(char const* const filename)
     : io_context{}
     , stdin_poll{io_context}
     , signals{io_context}
     , main_source{filename}
-    , headless{headless}
 {
     L = luaL_newstate();
     luaL_openlibs(L);
@@ -142,7 +141,7 @@ local function log(s) events[#events + 1] = s end
 
 auto run(Scenario const& s) -> bool
 {
-    App app{"unused", true};
+    App app{"unused"};
     auto& io = app.get_context();
     auto const L = app.get_lua();
 
@@ -210,7 +209,7 @@ auto run(Scenario const& s) -> bool
 // runs first closes both.
 auto close_with_completion_queued() -> bool
 {
-    App app{"unused", true};
+    App app{"unused"};
     auto& io = app.get_context();
     auto const L = app.get_lua();
 
@@ -314,7 +313,7 @@ end
 // silently skipped.
 auto check_arguments(char const* const args, char const* const expected_error, char const* const fn = "connect") -> bool
 {
-    App app{"unused", true};
+    App app{"unused"};
     auto const L = app.get_lua();
     lua_pushcfunction(L, l_start_irc);
     lua_setglobal(L, "connect");
@@ -338,7 +337,7 @@ auto check_arguments(char const* const args, char const* const expected_error, c
 // Arguments that must not raise. The connection is never run.
 auto check_accepted(char const* const args) -> bool
 {
-    App app{"unused", true};
+    App app{"unused"};
     auto const L = app.get_lua();
     lua_pushcfunction(L, l_start_irc);
     lua_setglobal(L, "connect");

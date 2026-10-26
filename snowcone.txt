@@ -3,7 +3,10 @@ NAME
 SYNOPSIS
   snowcone MODE [--config PATH]
 
-  MODE is dashboard, ircc or hub, or the path of an init.lua.
+  MODE is dashboard, ircc or hub, or the path of a Lua program. A
+  program has no terminal until it calls snowcone.start_ui(); snowcone
+  exits once the program has no work left, with a failure status after
+  any uncaught Lua error.
 
 DESCRIPTION
   snowcone provides a live view of server notices focused on awareness

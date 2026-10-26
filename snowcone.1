@@ -7,7 +7,10 @@
 .fam C
 \fBsnowcone\fP \fIMODE\fP [\fB--config\fP \fIPATH\fP]
 
-\fIMODE\fP is dashboard, ircc or hub, or the path of an init.lua.
+\fIMODE\fP is dashboard, ircc or hub, or the path of a Lua program. A
+program has no terminal until it calls snowcone.start_ui(); snowcone exits
+once the program has no work left, with a failure status after any
+uncaught Lua error.
 .fam T
 .fi
 .fam T

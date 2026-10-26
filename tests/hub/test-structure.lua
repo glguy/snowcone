@@ -1,7 +1,7 @@
 -- Structural rules of hub's source: layering,
 -- which layer may use which native API, and the event catalogue.
 --
--- Run with:  snowcone script tests/hub/test-structure.lua
+-- Run with:  snowcone tests/hub/test-structure.lua
 
 local dir  = require 'pl.dir'
 local file = require 'pl.file'

@@ -58,7 +58,7 @@ bugs, and open questions, in the order they were made. Section numbers here
 - Lower layers reach upward through route names: `/quit` calls the
   `app.quit` route and `/reload` starts a 0 ms timer to `app.reload`.
 - **Strict mode** (`strict = true`, used by tests) re-raises route and
-  subscriber errors after logging them, so `snowcone script` exits nonzero.
+  subscriber errors after logging them, so the test exits nonzero.
   A failed *reload* still just returns `false, err`, so tests can check it.
 - The `snowcone.setmodule` entry is installed once (`HUB.entry_installed`)
   and routes to `ui.entry`.
@@ -99,7 +99,7 @@ from the route (the 1 Hz tick does this).
 
 - `tests/hub/lib.lua`: assertions, `T.boot`/`T.reload`, and async cases
   with `T.sleep`. A watchdog fails the run if a case never finishes,
-  because `snowcone script` otherwise exits 0 when nothing is pending.
+  because snowcone otherwise exits 0 when nothing is pending.
 - Reload tests 2 and 3 from design 5.7 are in `test-reload.lua`.
 - `test-structure.lua` checks layering, native API ownership and
   EVENTS.md. For ncurses it flags field access (`ncurses.`), because the
@@ -204,6 +204,10 @@ tick). Tested in `test-reload.lua`.
   U+FFFD), since some terminals obey them. It matters wherever text leaves
   curses, which draws controls visibly on its own: the iTerm2 notifier's OSC
   9 sequence, and `dispatch.report`'s stderr fallback (REVIEW.md F-019).
+- **The UI is hub's to start.** snowcone has no script mode: a program has
+  no terminal until it calls `snowcone.start_ui()`. hub's `init.lua` calls
+  it only when run as the program, so tests (which pass options) stay
+  headless, and the loader's `ncurses ~= nil` default still decides `ui`.
 
 ### Network layer
 

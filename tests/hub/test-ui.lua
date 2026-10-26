@@ -1,7 +1,7 @@
 -- Command line and prompts, without a terminal. The renderer and views
 -- need ncurses and are checked by hand.
 --
--- Run with:  snowcone script tests/hub/test-ui.lua
+-- Run with:  snowcone tests/hub/test-ui.lua
 
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')

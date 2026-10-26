@@ -31,21 +31,21 @@ class App
     boost::asio::signal_set signals;
     lua_State* L;
     char const* main_source;
-    bool headless; // script mode: no terminal, no keyboard input, no signals
 
     // Lifecycle state. Lua may change it from inside a callback, while the
     // coroutine that called it is still running, so the coroutines check it
     // after every wake-up and every callback rather than relying on cancel().
     bool shutting_down = false; // set by shutdown(); never cleared
-    bool started = false; // startup() has spawned the coroutines
-    bool input_running = false; // input enabled: from construction (unless
-                                // headless), or since start_input()
+    bool ui = false; // start_ui() has set up the terminal; never cleared
+    bool started = false; // startup() is running the event loop
+    bool input_running = false; // input enabled: from start_ui(), or since
+                                // start_input()
     unsigned input_generation = 0; // a stdin_thread exits once it changes
     bool resize_pending = false; // SIGWINCH arrived while input was stopped
     bool catch_signals = false; // SIGINT, SIGTERM and SIGHUP go to on_signal
 
 public:
-    App(char const* filename, bool headless);
+    App(char const* filename);
     ~App();
 
     static auto from_lua(lua_State*) -> App*;
@@ -63,10 +63,16 @@ public:
         return L;
     }
 
-    auto is_headless() const -> bool
+    auto has_ui() const -> bool
     {
-        return headless;
+        return ui;
     }
+
+    /// Set up the terminal for a full-screen UI and start reading keys and
+    /// handling signals. Until then a program has no terminal state, reads
+    /// no input, and leaves every signal its default action. One-way: does
+    /// nothing if the UI is already up, or after shutdown().
+    auto start_ui() -> void;
 
     /// Start reading the terminal. Does nothing if input is already running,
     /// or after shutdown(). A resize that arrived while input was stopped is
@@ -103,4 +109,5 @@ private:
     auto suspend() -> void;
     auto terminate_signal(int sig) -> void;
     auto spawn_reader() -> void;
+    auto spawn_ui() -> void;
 };

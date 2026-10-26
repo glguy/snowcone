@@ -2,12 +2,12 @@
 -- The real mybase64, myopenssl and (when built) mystringprep come from
 -- snowcone; only I/O and Penlight are replaced by small fakes.
 --
--- Run with:  snowcone script tests/test-sasl.lua
+-- Run with:  snowcone tests/test-sasl.lua
 
 local here = (arg and arg[0] or ''):match('^(.*)/[^/]*$') or '.'
 local original_path = package.path
 
-assert(mybase64 and myopenssl, 'run this under `snowcone script`')
+assert(mybase64 and myopenssl, 'run this with snowcone')
 local real_myopenssl <const> = myopenssl
 local real_mystringprep <const> = mystringprep
 

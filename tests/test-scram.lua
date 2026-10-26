@@ -1,7 +1,7 @@
 -- RFC 5802 SCRAM-SHA-1 example exchange against ircc/sasl/scram.lua, using
 -- snowcone's real crypto.
 --
--- Run with:  snowcone script tests/test-scram.lua
+-- Run with:  snowcone tests/test-scram.lua
 
 local here = (arg and arg[0] or ''):match('^(.*)/[^/]*$') or '.'
 package.path = here .. '/../ircc/?.lua;' .. here .. '/../ircc/?/init.lua;' .. package.path

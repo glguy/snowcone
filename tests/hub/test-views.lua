@@ -1,7 +1,7 @@
 -- Every view draws, with a fake ncurses, after real traffic: the notice
 -- fixtures and some chat. Also drives keys through the native entry point.
 --
--- Run with:  snowcone script tests/hub/test-views.lua
+-- Run with:  snowcone tests/hub/test-views.lua
 
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')

@@ -1,3 +1,6 @@
+-- The terminal UI; does nothing on a reload
+snowcone.start_ui()
+
 -- Library imports
 local Set    = require 'pl.Set'
 local tablex = require 'pl.tablex'

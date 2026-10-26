@@ -1,6 +1,6 @@
 -- Plugins: the api, failures that stay contained, and reloads.
 --
--- Run with:  snowcone script tests/hub/test-plugins.lua
+-- Run with:  snowcone tests/hub/test-plugins.lua
 
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')

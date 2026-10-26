@@ -1,6 +1,6 @@
 -- Turn captured server notices into an anonymised fixture.
 --
---   snowcone script tests/hub/tools/anonymize-snotes.lua CAPTURE OUT.log
+--   snowcone tests/hub/tools/anonymize-snotes.lua CAPTURE OUT.log
 --
 -- CAPTURE has one notice per line: <server> TAB <notice text>. It holds
 -- personal data and must stay out of the repository. OUT.log gets IRC lines

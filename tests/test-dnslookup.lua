@@ -1,6 +1,6 @@
 -- dnslookup returns a handle whose cancel() keeps the callback from ever
 -- running; dropping the handle doesn't cancel the lookup.
--- Run with:  snowcone script tests/test-dnslookup.lua
+-- Run with:  snowcone tests/test-dnslookup.lua
 
 local results = {}
 

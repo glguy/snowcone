@@ -1,6 +1,6 @@
 -- An error message reaches the terminal escaped: it may quote a server's
 -- line, and control sequences in it must not reach the terminal.
--- Run with:  snowcone script tests/test-escape.lua path/to/snowcone
+-- Run with:  snowcone tests/test-escape.lua
 
 local child = os.tmpname()
 local f = assert(io.open(child, 'w'))
@@ -9,8 +9,8 @@ local f = assert(io.open(child, 'w'))
 f:write [[error('A\27]0;x\7B\xc2\x9bC\xffD é\tE\nF', 0)]]
 f:close()
 
-local snowcone_path = assert(arg[1], 'usage: test-escape.lua path/to/snowcone')
-snowcone.execute(snowcone_path, {'script', child}, function(code, _, err)
+-- arg[-1] is the snowcone binary running this test
+snowcone.execute(arg[-1], {child}, function(code, _, err)
     os.remove(child)
     assert(code ~= 0, 'child script succeeded')
     local expected = 'error in reload: A\\x1b]0;x\\x07B\\xc2\\x9bC\\xffD é\tE\nF'

@@ -42,23 +42,18 @@ add_test(NAME tests-session COMMAND tests-session)
 
 endif()
 
-# Lua tests run inside the real client with `snowcone script`, which exits
-# nonzero after any Lua error and once the script has no work left.
-foreach(name test-dnslookup test-execute test-sasl test-scram test-schema test-strings)
+# Lua tests run inside the real client, without a UI: snowcone exits once
+# the test has no work left, and nonzero after any uncaught Lua error.
+foreach(name test-dnslookup test-escape test-execute test-sasl test-scram test-schema test-strings)
   add_test(NAME ${name}
-    COMMAND snowcone script "${CMAKE_CURRENT_SOURCE_DIR}/${name}.lua")
+    COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/${name}.lua")
   set_tests_properties(${name} PROPERTIES TIMEOUT 30)
 endforeach()
-
-# Runs the client on a failing script, so it needs the binary's path
-add_test(NAME test-escape
-  COMMAND snowcone script "${CMAKE_CURRENT_SOURCE_DIR}/test-escape.lua" $<TARGET_FILE:snowcone>)
-set_tests_properties(test-escape PROPERTIES TIMEOUT 30)
 
 # hub's tests share tests/hub/lib.lua and load hub from the source tree
 foreach(name test-reload test-structure test-net test-ui test-snotice test-topology test-oper test-chat test-views test-plugins)
   add_test(NAME hub-${name}
-    COMMAND snowcone script "${CMAKE_CURRENT_SOURCE_DIR}/hub/${name}.lua")
+    COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/hub/${name}.lua")
   set_tests_properties(hub-${name} PROPERTIES TIMEOUT 30)
 endforeach()
 
@@ -66,7 +61,7 @@ endforeach()
 find_program(CURL curl)
 if(CURL)
   add_test(NAME script-httpd
-    COMMAND snowcone script "${CMAKE_CURRENT_SOURCE_DIR}/script-httpd.lua")
+    COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/script-httpd.lua")
   # A failed check can leave a listener open, so the timeout ends the run
   set_tests_properties(script-httpd PROPERTIES TIMEOUT 60)
 endif()

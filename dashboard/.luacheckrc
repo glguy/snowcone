@@ -8,7 +8,7 @@ stds = {
                 fields = {"dnslookup", "pton", "shutdown", "newtimer",
                 "setmodule", "raise", "isalnum", "irccase", "parse_irc_tags",
                 "SIGINT", "SIGTSTP", "connect", "execute", "parse_toml",
-                "start_input", "stop_input" },
+                "start_input", "stop_input", "start_ui" },
             },
         },
     },

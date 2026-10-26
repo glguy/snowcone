@@ -19,6 +19,7 @@ extern "C" {
 #define SNOWCONE_RESOLVER_CONFIG 1
 #endif
 
+#include <clocale>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
@@ -30,9 +31,9 @@ static char const app_key = '\0';
 
 namespace {
 
-/// False in script mode, where there is no terminal state to restore and
+/// Set by start_ui(). Until then there is no terminal state to restore, and
 /// escape sequences would only pollute stdout.
-bool uses_terminal = true;
+bool uses_terminal = false;
 
 /// The names on_signal receives
 auto sigabbrev(int const sig) -> char const*
@@ -88,7 +89,7 @@ auto is_stop(boost::system::error_code const& ec) -> bool
 
 } // namespace
 
-App::App(char const* const filename, bool const headless)
+App::App(char const* const filename)
 #ifdef SNOWCONE_RESOLVER_CONFIG
     // getaddrinfo blocks, so with the default single resolver thread every
     // lookup in the process queues behind the slowest one. In particular the
@@ -99,12 +100,9 @@ App::App(char const* const filename, bool const headless)
     : io_context{}
 #endif
     , stdin_poll{io_context, STDIN_FILENO}
-    , signals{io_context, SIGWINCH, SIGUSR1}
+    , signals{io_context}
     , main_source{filename}
-    , headless{headless}
-    , input_running{not headless}
 {
-    uses_terminal = not headless;
     L = luaL_newstate();
     lua_atpanic(L, panic);
     lua_pushlightuserdata(L, this);
@@ -121,6 +119,7 @@ App::~App()
 {
     io_context.shutdown();
     lua_close(L);
+    restore_terminal();
     // stdin is never closed: a closed fd 0 would be reused by the next socket
     // or pipe while ncurses still reads it
     stdin_poll.release();
@@ -265,9 +264,9 @@ auto App::resize() -> void
 auto App::signal_thread() -> boost::asio::awaitable<void>
 {
     // Caught here rather than by ncurses' handlers, which exit or stop
-    // without turning off bracketed paste and focus reporting. Not in
-    // script mode, where the defaults are right.
-    for (auto const sig : {SIGINT, SIGTERM, SIGHUP, SIGTSTP, SIGCONT})
+    // without turning off bracketed paste and focus reporting. Without a UI
+    // the defaults are right, so this starts with it.
+    for (auto const sig : {SIGWINCH, SIGUSR1, SIGINT, SIGTERM, SIGHUP, SIGTSTP, SIGCONT})
     {
         signals.add(sig);
     }
@@ -437,7 +436,7 @@ auto App::spawn_reader() -> void
 
 auto App::start_input() -> void
 {
-    if (headless || shutting_down || input_running)
+    if (not ui || shutting_down || input_running)
     {
         return;
     }
@@ -466,7 +465,7 @@ auto App::start_input() -> void
 
 auto App::stop_input() -> void
 {
-    if (headless || shutting_down || not input_running)
+    if (not ui || shutting_down || not input_running)
     {
         return;
     }
@@ -522,18 +521,55 @@ auto App::suspend() -> void
 
 auto App::startup() -> void
 {
-    // Input stays off if the script stopped it while loading, for example to
-    // run a command on the tty
-    if (not headless && not shutting_down)
+    started = true;
+    if (ui && not shutting_down)
     {
-        started = true;
-        if (input_running)
-        {
-            spawn_reader();
-        }
-        boost::asio::co_spawn(io_context, signal_thread(), rethrow);
+        spawn_ui();
     }
     io_context.run();
+}
+
+/// The UI's coroutines. Input stays off if the program stopped it while
+/// loading, for example to run a command on the tty.
+auto App::spawn_ui() -> void
+{
+    if (input_running)
+    {
+        spawn_reader();
+    }
+    boost::asio::co_spawn(io_context, signal_thread(), rethrow);
+}
+
+auto App::start_ui() -> void
+{
+    if (ui || shutting_down)
+    {
+        return;
+    }
+    ui = true;
+    uses_terminal = true;
+    input_running = true;
+
+    setlocale(LC_ALL, "");
+    initscr();
+    start_color();
+    use_default_colors();
+    raw(); // pass through all the keys
+    noecho(); // no echo input to screen
+    nonl(); // no newline on pressing return
+    curs_set(0); // no cursor
+    mousemask(BUTTON1_CLICKED | BUTTON_SHIFT, nullptr);
+    set_escdelay(25);
+    nodelay(stdscr, TRUE); // nonblocking input reads
+    intrflush(stdscr, FALSE);
+    keypad(stdscr, TRUE); // process keyboard input escape sequences
+    BracketedPaste::install();
+    BracketedPaste::enable();
+
+    if (started) // otherwise startup() spawns them
+    {
+        spawn_ui();
+    }
 }
 
 /// Stop input and signal handling for good, and restore the terminal.

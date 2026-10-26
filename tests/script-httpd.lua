@@ -1,4 +1,4 @@
--- End-to-end checks for snowcone.start_httpd, run as: snowcone script FILE
+-- End-to-end checks for snowcone.start_httpd, run as: snowcone FILE
 -- Requests are made with curl through snowcone.execute. Any error fails the
 -- run; the script ends when the last listener is closed.
 

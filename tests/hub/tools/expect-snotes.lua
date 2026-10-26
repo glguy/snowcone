@@ -1,7 +1,7 @@
 -- Write the expected parse of a server-notice fixture, using the
 -- dashboard's parser as the reference.
 --
---   snowcone script tests/hub/tools/expect-snotes.lua FIXTURE.log FIXTURE.expected.lua
+--   snowcone tests/hub/tools/expect-snotes.lua FIXTURE.log FIXTURE.expected.lua
 --
 -- The result is a list with one entry per line: the parsed notice, or
 -- false for a line the parser doesn't recognise.

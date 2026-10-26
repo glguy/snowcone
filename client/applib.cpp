@@ -358,6 +358,28 @@ auto l_stop_input(lua_State* const L) -> int
     return 0;
 }
 
+/// start_ui(): take over the terminal for a full-screen UI, and define the
+/// ncurses global and the tty_width and tty_height globals. Until then a
+/// program has no terminal, reads no input and leaves signals their default
+/// actions, and print writes to stdout. Does nothing the second time, so a
+/// program can call it whenever it loads.
+auto l_start_ui(lua_State* const L) -> int
+{
+    auto const app = App::from_lua(L);
+    if (app->has_ui())
+    {
+        return 0;
+    }
+    app->start_ui();
+    if (app->has_ui()) // not after shutdown()
+    {
+        luaL_requiref(L, "ncurses", luaopen_myncurses, 1);
+        lua_pop(L, 1);
+        l_ncurses_resize(L);
+    }
+    return 0;
+}
+
 /// catch_signals(on): with on, SIGINT, SIGTERM and SIGHUP are delivered as
 /// on_signal(name) instead of restoring the terminal and taking the default
 /// action. Until shutdown(), which restores the defaults for good.
@@ -386,6 +408,7 @@ luaL_Reg const applib_module[] = {
     {"stop_input", boundary<l_stop_input>},
     {"start_input", boundary<l_start_input>},
     {"catch_signals", boundary<l_catch_signals>},
+    {"start_ui", boundary<l_start_ui>},
     {"start_httpd", boundary<start_httpd>},
     {}
 };
@@ -409,7 +432,8 @@ auto l_print(lua_State* const L) -> int
     lua_replace(L, 1);
     lua_settop(L, 1);
 
-    if (App::from_lua(L)->is_headless())
+    // Without a UI, print is plain output
+    if (not App::from_lua(L)->has_ui())
     {
         std::size_t len;
         auto const str = lua_tolstring(L, 1, &len);
@@ -455,15 +479,6 @@ auto prepare_globals(lua_State* const L, int const argc, char const* const* cons
     /* setup libraries */
     luaL_openlibs(L);
 
-    auto const headless = App::from_lua(L)->is_headless();
-
-    // There is no screen to draw on in script mode
-    if (not headless)
-    {
-        luaL_requiref(L, "ncurses", luaopen_myncurses, 1);
-        lua_pop(L, 1);
-    }
-
     luaL_requiref(L, "myopenssl", luaopen_myopenssl, 1);
     lua_pop(L, 1);
 
@@ -507,9 +522,4 @@ auto prepare_globals(lua_State* const L, int const argc, char const* const* cons
         lua_rawseti(L, -2, i - 1);
     }
     lua_setglobal(L, "arg");
-
-    if (not headless)
-    {
-        l_ncurses_resize(L);
-    }
 }

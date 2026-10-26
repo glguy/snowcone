@@ -1,7 +1,7 @@
 -- execute returns a handle whose cancel() kills the child (its whole group
 -- with group = true) and keeps the callback from running; output past
 -- max_output kills the child and reports an error.
--- Run with:  snowcone script tests/test-execute.lua
+-- Run with:  snowcone tests/test-execute.lua
 
 local noop = function() end
 

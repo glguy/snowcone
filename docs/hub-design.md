@@ -40,7 +40,7 @@ These hold everywhere. A change that breaks one needs a decision recorded in
    handler, plugin or command is logged with its origin and the rest of the
    client carries on.
 9. **Everything below the UI runs headless.** The protocol and features run
-   under `snowcone script` with a fake transport, so they are tested without
+   in snowcone without a UI, with a fake transport, so they are tested without
    a terminal or a network.
 10. **Clean breaks over compatibility.** hub reads its own configuration
     format and its own plugin API. ircc and dashboard files are not read and
@@ -312,6 +312,7 @@ hub relies on these parts of the `snowcone` table (see `client/`):
 | `execute(cmd, args, fn, opts?)` | `fn(code, stdout, stderr)` or `fn(nil, err)`. Options: `input` (without it the child has the terminal), `group` (own process group, needs `input`), `max_output` (per stream, 16 MiB default; past it the child is killed). Returns a handle whose `cancel()` kills the child (or its group) and keeps `fn` from running; dropping the handle doesn't cancel. |
 | `time()`, `monotime()` | Wall clock (seconds, nanoseconds); monotonic seconds. |
 | `setmodule(fn)` | The single entry for keyboard, paste, mouse, resize, signals and print. A bracketed paste arrives whole as `on_paste(text)`, raw (escape sequences intact); one over 64 KiB is discarded and arrives as `on_paste(nil, size)`. |
+| `start_ui()` | Takes over the terminal (ncurses, bracketed paste, keyboard input, signal handling) and defines `ncurses`, `tty_width` and `tty_height`. Without it a program has no terminal and `print` writes to stdout; tests never call it. One-way; does nothing on a reload. hub's `init.lua` calls it when run as the program. |
 | `catch_signals(on)` | SIGINT, SIGTERM and SIGHUP arrive as `on_signal(name)`; otherwise the terminal is restored and the default action taken. `shutdown()` restores the terminal and the defaults for good, so a ^C then ends a process that fails to exit. ^Z (SIGTSTP) is handled natively: the terminal is restored, the process group stops, and SIGCONT redraws through `on_resize`. |
 | `start_httpd`, `parse_irc`, `parse_irc_tags`, `irccase`, `pton`, `shutdown`, `raise`, `isalnum`, `stop_input`, `start_input` | As documented in `client/`. |
 
@@ -320,7 +321,7 @@ Optional libraries (`mystringprep`, `hsfilter`, `myarchive`, `mygeoip`,
 
 ## 10. Testing
 
-All tests run under `snowcone script` from CTest, with `luacheck` over
+All tests run in snowcone without a UI, from CTest, with `luacheck` over
 `hub/`.
 
 - `tests/hub/lib.lua`: assertions, `T.boot`/`T.reload` (headless, strict,

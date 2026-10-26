@@ -1,4 +1,4 @@
--- Test helpers for hub, run under `snowcone script`.
+-- Test helpers for hub, run by snowcone without a UI.
 --
 --   local T = dofile(here .. '/lib.lua')
 --   T.case('name', function() ... T.sleep(10) ... end)

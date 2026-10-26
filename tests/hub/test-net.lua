@@ -1,6 +1,6 @@
 -- Network layer behaviour with a fake transport.
 --
--- Run with:  snowcone script tests/hub/test-net.lua
+-- Run with:  snowcone tests/hub/test-net.lua
 
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')

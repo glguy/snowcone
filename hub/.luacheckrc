@@ -11,7 +11,7 @@ stds = {
                 fields = {"to_base64", "from_base64", "dnslookup", "pton", "shutdown", "newtimer",
                     "setmodule", "raise", "isalnum", "irccase", "parse_irc", "parse_irc_tags",
                     "SIGINT", "SIGTSTP", "connect", "execute", "time", "monotime", "parse_toml",
-                    "start_input", "stop_input", "catch_signals", "start_httpd"},
+                    "start_input", "stop_input", "start_ui", "catch_signals", "start_httpd"},
             },
             "tty_height", "tty_width", "ncurses",
             "myopenssl", "mybase64", "mytoml",
