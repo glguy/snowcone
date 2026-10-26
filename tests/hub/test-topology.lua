@@ -58,7 +58,10 @@ T.case('operator status syncs ranges, and topology unless it just did', function
     c:recv ':srv 221 me +io'
     local sent = c:take()
     table.sort(sent)
-    T.eq(sent, {'TESTMASK *@192.0.2.0/24', 'TESTMASK *@2001:db8::/32'}, 'ranges only')
+    T.eq(sent, {
+        'TESTMASK *@192.0.2.0/24', 'TESTMASK *@198.51.100.56/29', 'TESTMASK *@2001:db8::/32',
+        'TESTMASK *@2001:db8:f::/62', 'TESTMASK *@203.0.113.7',
+    }, 'ranges only')
     c:recv ':srv 221 me +io'
     T.eq(c:take(), {}, 'once per connection')
 end)
@@ -117,7 +120,10 @@ T.case('netsplit and netjoin resync', function()
     T.eq(topo().uptimes['beta.example'], nil, 'uptime forgotten')
     local sent = c:take()
     table.sort(sent)
-    T.eq(sent, {'LINKS', 'MAP', 'TESTMASK *@192.0.2.0/24', 'TESTMASK *@2001:db8::/32'}, 'resync')
+    T.eq(sent, {
+        'LINKS', 'MAP', 'TESTMASK *@192.0.2.0/24', 'TESTMASK *@198.51.100.56/29',
+        'TESTMASK *@2001:db8::/32', 'TESTMASK *@2001:db8:f::/62', 'TESTMASK *@203.0.113.7',
+    }, 'resync')
 
     c:recv ':alpha.example NOTICE * :*** Notice -- Netjoin hub.example <-> beta.example (00H 01B)'
     sent = c:take()
