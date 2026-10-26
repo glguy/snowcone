@@ -6,12 +6,14 @@ local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')
 local FakeTransport = dofile(here .. '/fake_transport.lua')
 
+-- No features: these tests are about the network layer alone
 local function network(id, extra)
     local net = {
         id = id,
         server = {host = id .. '.test', port = 6667},
         identity = {nick = 'me'},
         reconnect = {min_delay = 1, max_delay = 8},
+        features = {},
     }
     for k, v in pairs(extra or {}) do
         net[k] = v

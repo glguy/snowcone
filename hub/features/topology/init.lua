@@ -18,11 +18,13 @@
 --   rotations   [region] = {[address] = true}, refreshed every 30 s
 -- }
 --
--- Sending: MAP and LINKS when we become an operator and on netsplits and
--- netjoins; VERSION, STATS and MODLIST on request. All are queries.
+-- Sending: MAP and LINKS at registration, on becoming an operator, and on
+-- netsplits and netjoins; VERSION, STATS and MODLIST on request. All are
+-- queries.
 
 local file      <const> = require 'pl.file'
 local pretty    <const> = require 'pl.pretty'
+local clock     <const> = require 'hub.runtime.clock'
 local common    <const> = require 'hub.features.common'
 local config    <const> = require 'hub.runtime.config'
 local loadavg   <const> = require 'hub.lib.loadavg'
@@ -87,9 +89,13 @@ end
 
 --- Ask for the server map and links again.
 function M.sync(net)
+    M.get(net).synced_at = clock.now()
     query(net, 'MAP')
     query(net, 'LINKS')
 end
+
+-- A sync this recent makes another one pointless
+M.resync_after = 10
 
 -- Servers file ========================================================
 
@@ -148,7 +154,7 @@ end
 local H = {}
 
 -- "<client> :<map line>" ... until RPL_MAPEND
-H[N.RPL_MAP] = function(T, msg)
+H[N.RPL_MAP] = function(T, msg, net)
     if not T.in_map then
         T.population = {}
         T.in_map = true
@@ -156,6 +162,12 @@ H[N.RPL_MAP] = function(T, msg)
     local server, count = (msg[2] or ''):match '(%g*)%[...%] %-* | Users: +(%d+)'
     if server then
         T.population[server] = math.tointeger(count)
+        -- every server gets a row in the load views, traffic or not
+        if common.enabled(net, 'snotice') then
+            local S = stores.get(net)
+            loadavg.track(S.trackers.conn, server, 0)
+            loadavg.track(S.trackers.exit, server, 0)
+        end
     end
 end
 
@@ -342,15 +354,25 @@ function M.subscribe(sub)
     sub.on('irc.message', function(ev)
         if not enabled(ev.net) then return end
         local h = H[ev.msg.command]
-        if h then h(M.get(ev.net), ev.msg) end
+        if h then h(M.get(ev.net), ev.msg, ev.net) end
+    end)
+    -- the dashboard filled its server list this way at registration
+    sub.on('net.registered', function(ev)
+        if enabled(ev.net) then M.sync(ev.net) end
     end)
     sub.on('snote', function(ev)
         if not enabled(ev.net) then return end
         local h = notices[ev.name]
         if h then h(ev) end
     end)
+    -- opers may see more, unless we just asked (a bouncer reports oper
+    -- status right after registration)
     sub.on('irc.oper', function(ev)
-        if enabled(ev.net) then M.sync(ev.net) end
+        if not enabled(ev.net) then return end
+        local last = M.get(ev.net).synced_at
+        if not last or clock.now() - last >= M.resync_after then
+            M.sync(ev.net)
+        end
     end)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
 end

@@ -6,6 +6,9 @@ local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')
 local FakeTransport = dofile(here .. '/fake_transport.lua')
 
+-- What the client sent from CON to the end of registration
+local registration_sent
+
 local function boot(extra)
     local fake = FakeTransport.new()
     local net = {
@@ -21,7 +24,7 @@ local function boot(extra)
     c:recv ':srv CAP * LS :'
     c:recv ':srv 001 me :Welcome'
     c:recv ':srv 376 me :End of MOTD'
-    c:take()
+    registration_sent = c:take()
     return c
 end
 
@@ -43,15 +46,30 @@ T.case('the servers file is loaded and seeds the notice stores', function()
     T.ok(S.net_trackers.docs['192.0.2.0/24'], 'address ranges from the file')
 end)
 
-T.case('operator status syncs topology and ranges', function()
+T.case('registration asks for the map and links', function()
+    boot()
+    local tablex = T.require 'pl.tablex'
+    T.ok(tablex.find(registration_sent, 'MAP') and tablex.find(registration_sent, 'LINKS'), 'MAP and LINKS')
+end)
+
+T.case('operator status syncs ranges, and topology unless it just did', function()
     local c = boot()
-    -- already opered through a bouncer: user modes include o
+    -- already opered through a bouncer: user modes include o, right away
     c:recv ':srv 221 me +io'
     local sent = c:take()
     table.sort(sent)
-    T.eq(sent, {'LINKS', 'MAP', 'TESTMASK *@192.0.2.0/24', 'TESTMASK *@2001:db8::/32'}, 'sync')
+    T.eq(sent, {'TESTMASK *@192.0.2.0/24', 'TESTMASK *@2001:db8::/32'}, 'ranges only')
     c:recv ':srv 221 me +io'
     T.eq(c:take(), {}, 'once per connection')
+end)
+
+T.case('opering up later syncs topology again', function()
+    local c = boot()
+    T.require 'hub.features.topology'.get('test').synced_at = -1e9
+    c:recv ":srv 381 me :You're now an IRC operator"
+    local sent = c:take()
+    local tablex = T.require 'pl.tablex'
+    T.ok(tablex.find(sent, 'MAP') and tablex.find(sent, 'LINKS'), 'resynced')
 end)
 
 T.case('opering sets the snomask', function()
@@ -59,7 +77,6 @@ T.case('opering sets the snomask', function()
     c:recv ":srv 381 me :You're now an IRC operator"
     local sent = c:take()
     T.ok(T.require 'pl.tablex'.find(sent, 'MODE me +s +cF'), 'configured snomask')
-    T.ok(T.require 'pl.tablex'.find(sent, 'MAP'), 'and the sync')
 end)
 
 T.case('MAP, LINKS, VERSION and STATS u', function()
@@ -68,6 +85,7 @@ T.case('MAP, LINKS, VERSION and STATS u', function()
     c:recv ':srv 015 me :beta.example[01B] ----- | Users:  2000 (90%)'
     c:recv ':srv 017 me :End of /MAP'
     T.eq(topo().population, {['alpha.example'] = 100, ['beta.example'] = 2000}, 'population')
+    T.eq(snotice().trackers.exit.events['beta.example'], 0, 'every mapped server gets a load row')
 
     -- notices move the population
     c:recv ':alpha.example NOTICE * :*** Notice -- Client connecting: n (u@h) [192.0.2.1] {users} <*> [g]'

@@ -79,11 +79,11 @@ function M.draw(win, textbox, layout, view, ctx)
         local ed = control.editor()
         local input_mode_color = input_mode_palette[mode]
         ncurses.colorset(titlecolor, input_mode_color, win)
-        win:waddstr('')
+        win:waddstr('')
         ncurses.colorset(ncurses.COLOR_WHITE, input_mode_color, win)
         win:waddstr(mode)
         ncurses.colorset(input_mode_color, nil, win)
-        win:waddstr('')
+        win:waddstr('')
 
         if mode == 'password' then
             local n <const> = editor.size(ed)

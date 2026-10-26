@@ -433,6 +433,12 @@ samples (the difference is sampling time).
 - Watches in configuration: `[[networks.watches]]` with pattern, colour,
   beep, flash, active. Applied on every load: configured watches are
   replaced (hit counts kept by pattern), /addwatch ones stay.
+- Topology sends MAP and LINKS when registration ends, as the dashboard
+  did, so the server list doesn't wait for operator status; becoming an
+  operator syncs again unless a sync happened in the last 10 s (a bouncer
+  reports oper status right after registering). Every server in a MAP reply
+  gets a row in connload/exitload, so all servers show without a servers
+  file (the dashboard only listed servers from servers.lua or with traffic).
 - `snowcone.monotime()` (client/applib.cpp): steady_clock seconds.
   `clock.now()` uses it when present, so system clock changes don't
   disturb timeouts and backoff; it is only for differences.
