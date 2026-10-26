@@ -245,9 +245,11 @@ tick). Tested in `test-reload.lua`.
 
 ### Open
 
-- CAP NEW during registration is ignored, as in ircc: soju announces
-  `draft/event-playback` that way and it is never requested. Requesting
-  after registration would fix it.
+- `draft/event-playback` is no longer requested by default (decided with
+  the user): playback should bring chat, not join/part noise. ircc listed
+  it and only skipped it because soju announces it with CAP NEW during
+  registration, which is ignored. Add it per network with
+  `server.capabilities = ['draft/event-playback']`.
 - Checked by hand against a soju bouncer: registration, live server
   notices in the console, /quote PING, filters, session/stats/help views,
   and a SIGUSR1 reload mid-session keeping the console, its filter and a

@@ -14,8 +14,9 @@ local casemap <const> = require 'hub.lib.casemap'
 
 local M = {}
 
--- Capabilities hub understands; a network's `server.capabilities` adds
--- names, or removes them with a leading -
+-- Capabilities requested by default; a network's `server.capabilities`
+-- adds names, or removes them with a leading -. draft/event-playback is
+-- left out on purpose: it replays joins and parts along with chat.
 M.caps_supported = {
     'account-notify',
     'account-tag',
@@ -24,7 +25,6 @@ M.caps_supported = {
     'cap-notify',
     'chghost',
     'draft/chathistory',
-    'draft/event-playback',
     'extended-join',
     'extended-monitor',
     'invite-notify',
