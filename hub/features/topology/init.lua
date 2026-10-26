@@ -1,4 +1,4 @@
--- Network topology (design section 7.2, from the dashboard's init.lua,
+-- Network topology (from the dashboard's init.lua,
 -- handlers/irc.lua and handlers/snotice.lua): the network's servers file,
 -- server populations from MAP, links from LINKS, versions, startup times,
 -- drains, user shedding, and the addresses in each DNS rotation.

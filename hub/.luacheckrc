@@ -1,4 +1,4 @@
--- HUB is the only global hub creates (design section 3)
+-- HUB is the only global hub creates
 return {
 std = "lua54+snowcone",
 allow_defined = false,

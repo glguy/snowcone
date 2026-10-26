@@ -1,4 +1,4 @@
--- Network layer behaviour with a fake transport (design sections 6 and 9.4).
+-- Network layer behaviour with a fake transport.
 --
 -- Run with:  snowcone script tests/hub/test-net.lua
 
@@ -570,7 +570,6 @@ T.case('the all-networks console interleaves traffic', function()
     T.eq(seen, {'a x!u@h one', 'b >>> two', 'b y!u@h three'}, 'both networks, both directions')
 end)
 
--- Design 5.7, reload test 1
 T.case('reload keeps connections and console, and new code handles messages', function()
     local marker = function(version)
         return {
@@ -603,7 +602,6 @@ end}]], version)},
     T.eq(texts, {'before', 'after'}, 'console has both')
 end)
 
--- Design 5.7, reload test 4
 T.case('a task waiting on wait_irc resumes after a reload', function()
     local fake = boot {network('test')}
     local c = fake.last()

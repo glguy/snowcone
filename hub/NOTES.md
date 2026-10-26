@@ -1,7 +1,9 @@
 # hub implementation notes
 
-Running record of decisions, deviations from `docs/hub-design.md`, fixes to
-ported bugs, and open questions. Newest phase last.
+Running record of decisions, deviations from the design, fixes to ported
+bugs, and open questions, in the order they were made. Section numbers here
+("design 4.8") refer to the original phase-by-phase design, which
+`docs/hub-design.md` has since replaced with a description of the result.
 
 ## Requirements from the user
 

@@ -1,5 +1,5 @@
--- Terminal UI: layout, the draw function and the native entry points
--- (design section 8). Only this layer touches ncurses.
+-- Terminal UI: layout, the draw function and the native entry points.
+-- Only this layer touches ncurses.
 --
 -- Windows are handles, not data, so each generation makes its own when it
 -- becomes current and on every resize.

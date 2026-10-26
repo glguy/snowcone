@@ -1,4 +1,4 @@
--- The persistent state root, HUB.state (design section 4.2).
+-- The persistent state root, HUB.state.
 --
 -- State is plain data that every generation shares. Modules that own a
 -- part of it export:

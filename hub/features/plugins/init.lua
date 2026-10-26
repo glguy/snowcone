@@ -1,4 +1,4 @@
--- Plugins (design section 7.5).
+-- Plugins.
 --
 -- `[plugins] modules` names files in `[plugins] directory` (default:
 -- plugins/ in the configuration directory). A plugin file returns a

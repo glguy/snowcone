@@ -8,7 +8,7 @@ local manager  <const> = require 'hub.net.manager'
 
 local M = {}
 
--- Main view rotation for Ctrl-N/Ctrl-P per profile (design section 8.3).
+-- Main view rotation for Ctrl-N/Ctrl-P per profile.
 -- Views that aren't loaded are skipped.
 M.profiles = {
     dashboard = {

@@ -1,6 +1,5 @@
 -- Application layer: which modules make up a generation, how they are
--- wired together, and what happens when one becomes current (design
--- sections 5.5 and 7).
+-- wired together, and what happens when one becomes current.
 --
 -- A module may export any of:
 --   init_state(S), migrate(S, from)   see runtime/state.lua

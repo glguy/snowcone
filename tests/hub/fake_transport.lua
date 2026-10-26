@@ -1,4 +1,4 @@
--- A stand-in for snowcone.connect (design section 9.1).
+-- A stand-in for snowcone.connect.
 --
 --   local fake = FakeTransport.new()
 --   T.boot {transport = fake, config = ...}

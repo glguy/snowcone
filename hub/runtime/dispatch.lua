@@ -1,4 +1,4 @@
--- Routes and trampolines (design section 4.5).
+-- Routes and trampolines.
 --
 -- Native code keeps every callback it is given, across reloads. Each one is
 -- a trampoline that looks up its route in HUB.current when it runs, so it
@@ -62,7 +62,7 @@ end
 --- Skip the draw at the end of the current native callback. The screen
 --- stays dirty, so the next callback that doesn't defer draws it. The
 --- connection callback defers for every MSG whose flush flag is false, so a
---- burst of lines from one read draws once (design section 8.1).
+--- burst of lines from one read draws once.
 function M.defer_draw()
     HUB.defer_draw = true
 end

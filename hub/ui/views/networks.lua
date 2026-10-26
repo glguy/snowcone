@@ -1,4 +1,4 @@
--- Every network at a glance (design section 8.3), in configuration order.
+-- Every network at a glance, in configuration order.
 -- Click a name to make it the current network. "retry" counts down to a
 -- scheduled reconnect.
 

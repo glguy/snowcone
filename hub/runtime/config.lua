@@ -1,4 +1,4 @@
--- Reading and validating configuration (design section 4.8).
+-- Reading and validating configuration.
 --
 -- The result is plain data:
 --   {file, dir, warnings, ui, plugins, notifications, mention,

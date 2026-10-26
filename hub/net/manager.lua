@@ -1,5 +1,5 @@
 -- Connection manager: one record per network, any number connected at
--- once (design section 6.2).
+-- once.
 --
 -- state.nets[id] = {
 --   id, cfg            network configuration (from state.config)
@@ -482,7 +482,7 @@ local function new_record(net)
     }
 end
 
--- Settings that only take effect on a new connection (design 4.8)
+-- Settings that only take effect on a new connection
 local restart_keys <const> = {'server', 'layers', 'identity', 'sasl'}
 
 -- Apply a network's new configuration. Everything is read from rec.cfg

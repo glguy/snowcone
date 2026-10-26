@@ -1,4 +1,4 @@
--- Golden replay of server notices (design section 9.2).
+-- Golden replay of server notices.
 --
 -- Each fixtures/*.log is replayed through a fake network with the snotice
 -- feature; the snote events must equal fixtures/*.expected.lua, which

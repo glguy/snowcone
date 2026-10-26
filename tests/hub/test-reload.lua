@@ -1,4 +1,4 @@
--- Reload behaviour of hub's runtime (design section 5).
+-- Reload behaviour of hub's runtime.
 --
 -- Run with:  snowcone script tests/hub/test-reload.lua
 
@@ -54,7 +54,6 @@ T.case('reload keeps state and swaps code', function()
     T.eq(HUB.test_fired, {{'v2'}}, 'new route runs')
 end)
 
--- Design 5.7, reload test 2
 T.case('a reload that fails to load keeps the old generation', function()
     T.boot(with_marker 'v1')
     HUB.test_fired = {}
@@ -110,7 +109,6 @@ T.case('conflicting routes fail the load', function()
     T.ok(err:find('route app.tick is already defined', 1, true), err)
 end)
 
--- Design 5.7, reload test 3
 T.case('a timer started before reload fires into new code', function()
     T.boot(with_marker 'v1')
     HUB.test_fired = {}

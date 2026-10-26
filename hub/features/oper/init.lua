@@ -1,4 +1,4 @@
--- Ban workflow (design section 7.2, from the dashboard's init.lua and
+-- Ban workflow (from the dashboard's init.lua and
 -- handlers/commands.lua): stage a K-Line, unkline or undline, see how many
 -- users it matches, then send it.
 --

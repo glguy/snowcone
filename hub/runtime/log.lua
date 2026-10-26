@@ -1,4 +1,4 @@
--- Status log (design section 4.9). Replaces ircc's status() and
+-- Status log. Replaces ircc's status() and
 -- status_message, and receives the client's print().
 
 local bus        <const> = require 'hub.runtime.bus'

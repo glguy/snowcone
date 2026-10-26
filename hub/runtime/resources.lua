@@ -1,4 +1,4 @@
--- Native handles (design section 4.4).
+-- Native handles.
 --
 -- Every handle is held here so it stays reachable, since a collected timer
 -- never fires, and so shutdown can close everything. The table lives in

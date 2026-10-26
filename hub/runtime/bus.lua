@@ -1,4 +1,4 @@
--- Synchronous publish and subscribe (design section 4.3).
+-- Synchronous publish and subscribe.
 --
 -- Each generation builds its own bus; subscriptions are never persisted.
 -- Every topic emitted with a literal name MUST be listed in hub/EVENTS.md.

@@ -1,4 +1,4 @@
--- Module loader and the reload procedure (design section 4.1 and 5.5).
+-- Module loader and the reload procedure.
 --
 -- Every reload makes a new generation with its own module cache, so the new
 -- code loads beside the old code and replaces it only once all of it has

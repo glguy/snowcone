@@ -1,4 +1,4 @@
--- Server notices (design section 7.1): recognise them on networks with the
+-- Server notices: recognise them on networks with the
 -- snotice feature, parse them, update the stores and emit `snote` and
 -- `snote.<name>` with the network id.
 

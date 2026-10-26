@@ -1,4 +1,4 @@
--- Shared helpers for features (design section 7).
+-- Shared helpers for features.
 --
 -- A feature keeps per-network state in HUB.state.features[name][net],
 -- created on first use and dropped when the network is removed.

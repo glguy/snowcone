@@ -1,7 +1,7 @@
 -- Configuration schema, built from ircc/utils/configuration_schema.lua
--- with every connection setting moved under [[networks]] (design section
--- 4.8). The dashboard's checks for spaces and line breaks are constraints
--- here. There is no compatibility with the ircc and dashboard files.
+-- with every connection setting moved under [[networks]]. The dashboard's
+-- checks for spaces and line breaks are constraints here. There is no
+-- compatibility with the ircc and dashboard files.
 
 local M = {}
 

@@ -1,7 +1,7 @@
 -- IRC case mappings, by the names ISUPPORT CASEMAPPING uses.
 --
 -- State refers to a mapping by name, never by function, so it survives a
--- reload (design section 5.3).
+-- reload.
 
 local M = {}
 

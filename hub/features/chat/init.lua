@@ -1,4 +1,4 @@
--- Chat (design section 7.3, from ircc's handlers/irc.lua, handlers/batch.lua,
+-- Chat (from ircc's handlers/irc.lua, handlers/batch.lua,
 -- handlers/commands.lua and utils/irc_registration.lua): buffers of
 -- messages per network and target, mentions, history and the chat
 -- commands.

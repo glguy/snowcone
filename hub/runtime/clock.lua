@@ -1,4 +1,4 @@
--- Time for durations and uptime (design section 4.7).
+-- Time for durations and uptime.
 --
 -- now() is monotonic when the client provides snowcone.monotime, so
 -- setting the system clock doesn't disturb timeouts; its zero is then
