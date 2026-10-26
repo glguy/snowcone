@@ -40,6 +40,7 @@ local function module_names(opts)
         'hub.features.common',
         'hub.features.snotice',
         'hub.features.topology',
+        'hub.features.oper',
     }
     if HUB.boot.ui then
         table.insert(names, 'hub.ui')
