@@ -480,6 +480,94 @@ T.case('lines from one read draw once', function()
     T.eq(HUB.test_draws, 1, 'one draw at the end of the read')
 end)
 
+T.case('reload applies configuration changes per network', function()
+    local fake = boot {network('a'), network('b')}
+    local ca, cb = fake.conns[1], fake.conns[2]
+    register(ca)
+    register(cb)
+    cb:take()
+    local before = #fake.conns
+
+    local changed = network('a', {
+        server = {host = 'a.test', port = 7000},
+        reconnect = {min_delay = 2, max_delay = 3},
+        features = {'chat'},
+    })
+    T.ok(T.reload {config = {networks = {changed, network('c')}}}, 'reload')
+    -- subscriptions belong to a generation, so after the reload
+    local removed = record 'net.removed'
+
+    -- a: connection settings wait, the rest applies now
+    T.eq(rec('a').phase, 'connected', 'a stays connected')
+    T.ok(not ca.closed, 'a connection kept')
+    T.eq(rec('a').restart_pending, true, 'restart pending')
+    T.eq(rec('a').cfg.features, {chat = true}, 'features applied')
+    T.eq(rec('a').backoff, 2, 'backoff clamped to the new range')
+
+    -- b: removed, with QUIT, and dropped once closed
+    T.eq(cb:take(), {'QUIT snowcone'}, 'b sent QUIT')
+    T.eq(rec('b').phase, 'closing', 'b quitting')
+    cb:finish()
+    T.eq(rec('b'), nil, 'b record dropped')
+    T.eq(removed, {{net = 'b'}}, 'net.removed')
+
+    -- c: new and autoconnected
+    T.eq(#fake.conns, before + 1, 'one new connection')
+    T.eq(fake.last().host, 'c.test', 'c connecting')
+
+    -- /reconnect applies the new server settings
+    manager().reconnect 'a'
+    T.eq(fake.last().port, 7000, 'new port used')
+    T.eq(rec('a').restart_pending, false, 'nothing pending')
+end)
+
+T.case('an idle network is removed at once', function()
+    local fake = boot {network('a'), network('b', {autoconnect = false})}
+    T.eq(#fake.conns, 1, 'b not autoconnected')
+    T.eq(rec('b').target, 'idle', 'b idle')
+    T.ok(T.reload {config = {networks = {network('a')}}}, 'reload')
+    T.eq(rec('b'), nil, 'gone')
+    T.eq(rec('a').phase, 'connecting', 'a untouched')
+end)
+
+T.case('lag is measured with a PING of our own', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    c:take()
+    local now = T.require 'hub.runtime.clock'.now()
+    HUB.current.routes['net.check_liveness'](now)
+    local token = T.ok(c:take()[1]:match '^PING (%d+)$', 'lag ping')
+    HUB.current.routes['net.check_liveness'](now + 1)
+    T.eq(c:take(), {}, 'one at a time')
+    c:recv(':srv PONG srv ' .. token)
+    T.ok(rec().lag and rec().lag >= 0, 'lag recorded')
+    T.eq(rec().lag_token, nil, 'answered')
+    HUB.current.routes['net.check_liveness'](now + 30)
+    T.eq(c:take(), {}, 'not again until lag_every')
+    rec().liveness = now + 60 -- traffic kept flowing
+    HUB.current.routes['net.check_liveness'](now + 61)
+    T.ok(c:take()[1]:match '^PING %d+$', 'measured again')
+end)
+
+T.case('the all-networks console interleaves traffic', function()
+    local fake = boot {network('a'), network('b')}
+    register(fake.conns[1])
+    register(fake.conns[2])
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    OrderedMap.reset(HUB.state.console_all)
+
+    fake.conns[1]:recv ':x!u@h PRIVMSG me :one'
+    T.require 'hub.net.send'.send('b', 'PRIVMSG', 'y', 'two')
+    fake.conns[2]:recv ':y!u@h PRIVMSG me :three'
+
+    local seen = {}
+    for entry in OrderedMap.reveach(HUB.state.console_all) do
+        table.insert(seen, entry.net .. ' ' .. entry.msg.source .. ' ' .. entry.msg[2])
+    end
+    T.eq(seen, {'a x!u@h one', 'b >>> two', 'b y!u@h three'}, 'both networks, both directions')
+end)
+
 -- Design 5.7, reload test 1
 T.case('reload keeps connections and console, and new code handles messages', function()
     local marker = function(version)

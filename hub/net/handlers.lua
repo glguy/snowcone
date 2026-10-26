@@ -10,6 +10,7 @@
 
 local bus       <const> = require 'hub.runtime.bus'
 local cap       <const> = require 'hub.net.cap'
+local clock     <const> = require 'hub.runtime.clock'
 local irc_model <const> = require 'hub.net.irc'
 local log       <const> = require 'hub.runtime.log'
 local N         <const> = require 'hub.lib.numerics'
@@ -30,6 +31,14 @@ end
 
 function H.PING(rec, _, msg)
     send.send(rec.id, 'PONG', msg[1])
+end
+
+-- The answer to the lag PING (net/manager.lua)
+function H.PONG(rec, _, msg)
+    if rec.lag_token and msg[#msg] == rec.lag_token then
+        rec.lag = clock.now() - rec.lag_sent
+        rec.lag_token = nil
+    end
 end
 
 function H.CAP(rec, irc, msg)

@@ -166,6 +166,7 @@ M.init_state = control.init_state
 M.views = {
     require 'hub.ui.views.console',
     require 'hub.ui.views.help',
+    require 'hub.ui.views.networks',
     require 'hub.ui.views.session',
     require 'hub.ui.views.stats',
     require 'hub.ui.views.status',

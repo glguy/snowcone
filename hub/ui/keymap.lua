@@ -147,6 +147,14 @@ M.global = {
     end,
 }
 
+-- Meta-1..9 select networks in configuration order
+for i = 1, 9 do
+    M.global[meta(tostring(i))] = function()
+        local id = control.net_ids()[i]
+        if id then control.set_current_net(id) end
+    end
+end
+
 -- F1.. select the views of the current rotation
 for i = 1, 12 do
     M.global[-(ncurses.KEY_F1 - 1 + i)] = function()

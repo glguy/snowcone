@@ -15,6 +15,7 @@ carry `net`, the network id.
 | `net.connected` | `{net, fingerprint}` transport is up, registration starts | net/manager |
 | `net.registered` | `{net, nick}` end of MOTD after welcome | net/registration |
 | `net.closed` | `{net, reason}` an attempt ended | net/manager |
+| `net.removed` | `{net}` a network left the configuration and its record is gone; drop its feature state | net/manager |
 | `irc.message` | `{net, msg}` every inbound message outside a batch, after the model update | net/manager |
 | `irc.sent` | `{net, msg}` outbound, secrets masked | net/send |
 | `irc.batch` | `{net, type, params, messages}` when a batch closes | net/batch |

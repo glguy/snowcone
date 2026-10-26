@@ -254,3 +254,33 @@ tick). Tested in `test-reload.lua`.
   notices in the console, /quote PING, filters, session/stats/help views,
   and a SIGUSR1 reload mid-session keeping the console, its filter and a
   half-typed command line.
+
+## Phase 3: multiple networks
+
+- Networks are ordered as in the configuration everywhere: the networks
+  view, the status bar, Meta-1..9 and the default current network
+  (`manager.ids()`). Records still closing after removal come last.
+- Configuration reload follows design 4.8. A live network whose
+  `server`, `layers`, `identity` or `sasl` changed keeps its connection
+  and gets `restart_pending`; `/reconnect` (or any reconnect) uses the new
+  settings. Everything else is read from `rec.cfg` when used, so it applies
+  at once; the backoff is clamped to a new `reconnect` range. A removed
+  network gets QUIT if registered and is dropped once closed, emitting
+  `net.removed` for features to drop their state.
+- Lag: the liveness check sends `PING <ms>` once a minute while connected
+  (and after 30 s of silence, as before), one at a time; the matching PONG
+  sets `rec.lag`. An unanswered PING stops counting after a minute.
+- The all-networks console is its own ring, `state.console_all`, of
+  `{net, msg, time, timestamp}` entries filled by `send.record` for both
+  directions. Meta-G toggles it in the console view, with a network
+  column; filters match the network id too.
+- Status bar: every network, green when connected, red when idle, yellow
+  in between, the current one in reverse video; click to switch.
+- The networks view shows phase (with the target when it differs), time
+  in phase, attempt, a countdown to a scheduled reconnect, lag, nick,
+  transport and a restart-pending hint. It joined every profile's
+  rotation.
+- Checked by hand: two connections to the same soju bouncer plus an
+  unreachable network; SIGUSR1 reload with all three; Meta-2 and the
+  all-networks console; a configuration reload that removed a network and
+  marked a gecos change pending, applied by `/reconnect @gl2`.

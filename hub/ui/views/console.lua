@@ -1,9 +1,11 @@
 -- Raw IRC traffic of the current network (from ircc/view/console.lua).
 --
 -- Click a command to inspect the message above the log. Meta-H hides
--- server notices and PING/PONG/AWAY; Meta-R shows inspected values raw.
+-- server notices and PING/PONG/AWAY; Meta-R shows inspected values raw;
+-- Meta-G switches between the current network and all networks
+-- interleaved, with a network column.
 -- View state: scroll, hscroll, filter, focus (the inspected message),
--- hide_snow, show_raw.
+-- hide_snow, show_raw, all.
 
 local addircstr  <const> = require 'hub.ui.irc_formatting'
 local control    <const> = require 'hub.ui.control'
@@ -196,7 +198,12 @@ local function haystack(msg)
     return table.concat(parts, ' ')
 end
 
+-- The ring to show. In all-networks mode entries are {net, msg}; the
+-- per-network rings hold messages directly.
 local function console_of(ctx)
+    if ctx.vs.all then
+        return HUB.state.console_all
+    end
     local rec = ctx.net and HUB.state.nets[ctx.net]
     return rec and rec.console
 end
@@ -216,12 +223,25 @@ local keys = {
     [-ncurses.KEY_DOWN] = function(ctx) scroll_by(ctx, -1) end,
     [meta 'h'] = function(ctx) ctx.vs.hide_snow = not ctx.vs.hide_snow end,
     [meta 'r'] = function(ctx) ctx.vs.show_raw = not ctx.vs.show_raw end,
+    [meta 'g'] = function(ctx)
+        ctx.vs.all = not ctx.vs.all
+        ctx.vs.scroll = 0
+        ctx.vs.pin = nil
+    end,
 }
 
 return {
     id = 'console',
     title = 'console',
     scope = 'net',
+
+    status = function(ctx, win)
+        if ctx.vs.all then
+            draw.yellow(win)
+            win:waddstr ' ALL'
+            draw.normal(win)
+        end
+    end,
 
     render = function(ctx, win)
         local data = console_of(ctx)
@@ -234,12 +254,18 @@ return {
             draw_focus(ctx, win, ctx.vs.focus)
         end
 
+        local all = ctx.vs.all
         local pattern = control.filter(ctx.id)
         local show
         if pattern then
-            show = function(msg) return matching.safematch(haystack(msg), pattern) end
+            show = function(msg)
+                local text = haystack(msg)
+                if all then text = msg.net .. ' ' .. haystack(msg.msg) end
+                return matching.safematch(text, pattern)
+            end
         elseif ctx.vs.hide_snow then
             show = function(msg)
+                if all then msg = msg.msg end
                 return (msg.command ~= 'NOTICE' or msg[1] ~= '*')
                    and not squelch_commands[msg.command]
             end
@@ -247,8 +273,14 @@ return {
 
         local start = ncurses.getyx(win)
         local rows = math.max(0, ctx.rows - start)
-        draw.draw_rotation(win, ctx.vs, start, rows, data, show, function(w, msg)
-            render_msg(ctx, w, msg)
+        draw.draw_rotation(win, ctx.vs, start, rows, data, show, function(w, entry)
+            if all then
+                draw.bold(w)
+                w:waddstr(string.format(' %-8.8s', entry.net))
+                draw.normal(w)
+                entry = entry.msg
+            end
+            render_msg(ctx, w, entry)
         end)
     end,
 

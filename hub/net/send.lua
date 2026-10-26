@@ -12,6 +12,25 @@ local OrderedMap <const> = require 'hub.lib.OrderedMap'
 
 local M = {}
 
+M.console_all_size = 2000
+
+function M.init_state(S)
+    -- every network's traffic, interleaved: {net = id, msg = msg, time, timestamp}
+    S.console_all = S.console_all or OrderedMap.new(M.console_all_size)
+end
+
+--- Record a message, sent or received, in its network's console and in the
+--- all-networks console.
+function M.record(rec, msg)
+    OrderedMap.insert(rec.console, true, msg)
+    OrderedMap.insert(HUB.state.console_all, nil, {
+        net = rec.id,
+        msg = msg,
+        time = msg.time,
+        timestamp = msg.timestamp,
+    })
+end
+
 --- Build the wire form of a command and its masked message record.
 ---@return string raw line with CRLF
 ---@return table message as recorded
@@ -75,7 +94,7 @@ function M.send(net, cmd, ...)
     end
 
     conn:send(raw)
-    OrderedMap.insert(rec.console, true, msg)
+    M.record(rec, msg)
     bus.emit('irc.sent', {net = net, msg = msg})
     dispatch.dirty()
 end
@@ -100,7 +119,7 @@ function M.raw(net, text)
         time = os.date '!%H:%M:%S',
         text,
     }
-    OrderedMap.insert(rec.console, true, msg)
+    M.record(rec, msg)
     dispatch.dirty()
 end
 

@@ -4,15 +4,22 @@
 local dispatch <const> = require 'hub.runtime.dispatch'
 local editor   <const> = require 'hub.ui.editor'
 local task     <const> = require 'hub.runtime.task'
+local manager  <const> = require 'hub.net.manager'
 
 local M = {}
 
 -- Main view rotation for Ctrl-N/Ctrl-P per profile (design section 8.3).
 -- Views that aren't loaded are skipped.
 M.profiles = {
-    dashboard = {'cliconn', 'connload', 'cliexit', 'exitload', 'bans', 'channels', 'netcount', 'console', 'status'},
-    chat = {'buffer', 'console', 'status'},
-    all = {'cliconn', 'connload', 'cliexit', 'exitload', 'bans', 'channels', 'netcount', 'console', 'buffer', 'status'},
+    dashboard = {
+        'cliconn', 'connload', 'cliexit', 'exitload', 'bans', 'channels', 'netcount',
+        'console', 'networks', 'status',
+    },
+    chat = {'buffer', 'console', 'networks', 'status'},
+    all = {
+        'cliconn', 'connload', 'cliexit', 'exitload', 'bans', 'channels', 'netcount',
+        'console', 'buffer', 'networks', 'status',
+    },
 }
 
 function M.init_state(S)
@@ -34,17 +41,17 @@ end
 
 -- Networks ===========================================================
 
+--- Network ids in configuration order.
+M.net_ids = manager.ids
+
 --- The network that net-scoped views and commands act on: the chosen one
---- if it still exists, else the first by id.
+--- if it still exists, else the first configured.
 ---@return string|nil
 function M.current_net()
     local nets = HUB.state.nets or {}
     local id = HUB.state.ui.current_net
     if id and nets[id] then return id end
-    local first
-    for k in pairs(nets) do
-        if first == nil or k < first then first = k end
-    end
+    local first = manager.ids()[1]
     HUB.state.ui.current_net = first
     return first
 end

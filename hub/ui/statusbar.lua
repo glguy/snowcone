@@ -9,29 +9,26 @@ local matching  <const> = require 'hub.lib.matching'
 local scrub     <const> = require 'hub.lib.scrub'
 
 local phase_palette <const> = {
-    connected = draw.green,
-    registering = draw.yellow,
-    connecting = draw.yellow,
-    resolving_secrets = draw.yellow,
-    closing = draw.yellow,
-    idle = draw.red,
+    connected = ncurses.COLOR_GREEN,
+    idle = ncurses.COLOR_RED,
 }
 
--- The current network and its phase, unless it is simply connected
-local function draw_net(win, ctx)
-    local rec = ctx.net and HUB.state.nets[ctx.net]
-    if not rec then return end
-    win:waddstr ' '
-    draw.bold(win)
-    win:waddstr(rec.id)
-    draw.bold_(win)
-    if rec.phase ~= 'connected' then
+-- Every network, coloured by phase (yellow while on the way), the current
+-- one in reverse video; click one to make it current
+local function draw_nets(win, ctx)
+    local current = ctx.net
+    for _, id in ipairs(control.net_ids()) do
+        local rec = HUB.state.nets[id]
         win:waddstr ' '
-        local colour = phase_palette[rec.phase]
-        if colour then colour(win) end
-        win:waddstr(rec.phase)
-        draw.normal(win)
+        ncurses.colorset(phase_palette[rec.phase] or ncurses.COLOR_YELLOW, nil, win)
+        if id == current then draw.reversevideo(win) end
+        local _, x1 = ncurses.getyx(win)
+        win:waddstr(scrub(id))
+        local _, x2 = ncurses.getyx(win)
+        if id == current then draw.reversevideo_(win) end
+        ctx.add_click(tty_height - 1, x1, x2, function() control.set_current_net(id) end)
     end
+    draw.normal(win)
 end
 
 local M = {}
@@ -120,9 +117,7 @@ function M.draw(win, textbox, layout, view, ctx)
         win:waddstr('')
         draw.normal(win)
 
-        if view.scope == 'net' then
-            draw_net(win, ctx)
-        end
+        draw_nets(win, ctx)
 
         if view.status then
             view.status(ctx, win)

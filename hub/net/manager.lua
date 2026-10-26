@@ -11,8 +11,12 @@
 --   since              clock when phase last changed
 --   liveness           clock of the last inbound message
 --   backoff            seconds, next reconnect delay before jitter
---   reconnect_timer    resource id while a reconnect is scheduled
---   restart_pending    configuration changed under a live connection
+--   reconnect_timer    resource id while a reconnect is scheduled, due at
+--                      reconnect_at
+--   restart_pending    connection settings changed under a live connection;
+--                      /reconnect applies them
+--   lag                seconds, from the last PING we sent and its PONG
+--   lag_token          the PING argument awaiting its PONG, lag_sent its time
 --   irc                protocol model (net/irc.lua), nil when idle
 --   fingerprint        of the current connection
 --   console            OrderedMap of recent raw messages, both directions
@@ -36,6 +40,7 @@ local secrets      <const> = require 'hub.runtime.secrets'
 local send         <const> = require 'hub.net.send'
 local task         <const> = require 'hub.runtime.task'
 local timer        <const> = require 'hub.runtime.timer'
+local tablex       <const> = require 'pl.tablex'
 
 local M = {}
 
@@ -44,14 +49,22 @@ M.ping_after = 30          -- seconds of silence before PING
 M.timeout_after = 60       -- seconds of silence before closing
 M.connect_timeout = 60     -- seconds to wait for CON
 M.stable_after = 60        -- registered this long resets the backoff
+M.lag_every = 60           -- seconds between lag measurements
 M.quit_grace_ms = 5000     -- wait for the server to close after QUIT
 
 function M.init_state(S)
     S.nets = S.nets or {}
 end
 
+
 local function nets()
     return HUB.state.nets
+end
+
+-- Drop a network's record once it is removed and idle
+local function remove_record(id)
+    nets()[id] = nil
+    bus.emit('net.removed', {net = id})
 end
 
 local function get(id)
@@ -62,13 +75,23 @@ local function get(id)
     return rec
 end
 
---- Ids of all networks, sorted.
+--- Ids of all networks: in configuration order, then any records the
+--- configuration no longer lists (still closing), by id.
 function M.ids()
-    local ids = {}
-    for id in pairs(nets()) do
-        table.insert(ids, id)
+    local ids, seen = {}, {}
+    local cfg = HUB.state.config
+    for _, net in ipairs(cfg and cfg.networks or {}) do
+        if nets()[net.id] then
+            table.insert(ids, net.id)
+            seen[net.id] = true
+        end
     end
-    table.sort(ids)
+    local rest = {}
+    for id in pairs(nets()) do
+        if not seen[id] then table.insert(rest, id) end
+    end
+    table.sort(rest)
+    table.move(rest, 1, #rest, #ids + 1, ids)
     return ids
 end
 
@@ -156,6 +179,7 @@ local function schedule_reconnect(rec)
     local r = rec.cfg.reconnect
     local delay = rec.backoff * (1 + 0.25 * math.random())
     rec.reconnect_timer = timer.start('net', math.floor(delay * 1000), 'net.reconnect', rec.id, rec.attempt)
+    rec.reconnect_at = clock.now() + delay
     rec.backoff = math.min(rec.backoff * 2, r.max_delay)
     log.add_net(rec.id, 'irc', 'reconnecting in %.1f s', delay)
 end
@@ -177,7 +201,7 @@ function M.finish(id, reason, retry)
     local registered_for = rec.registered_at and clock.now() - rec.registered_at
     rec.irc = nil
     rec.registered_at = nil
-    rec.pinged = nil
+    rec.lag_token = nil
 
     M.set_phase(id, 'idle', reason)
     log.add_net(id, 'irc', 'disconnected: %s', reason)
@@ -188,7 +212,7 @@ function M.finish(id, reason, retry)
     end
 
     if rec.target == 'removed' then
-        nets()[id] = nil
+        remove_record(id)
     elseif rec.target == 'connected' and retry ~= false then
         schedule_reconnect(rec)
     end
@@ -272,7 +296,7 @@ function M.disconnect(id, quit_msg)
     if rec.phase ~= 'idle' and rec.phase ~= 'closing' then
         M.finish(id, 'disconnected')
     elseif rec.phase == 'idle' and rec.target == 'removed' then
-        nets()[id] = nil
+        remove_record(id)
     end
 end
 
@@ -356,7 +380,7 @@ function events.MSG(rec, msg, flush)
 
     local id = rec.id
     local irc = rec.irc
-    OrderedMap.insert(rec.console, true, msg)
+    send.record(rec, msg)
     rec.liveness = msg.timestamp
     dispatch.dirty()
 
@@ -402,8 +426,18 @@ end
 
 -- Liveness ===========================================================
 
---- Check every connection for silence: PING a quiet registered
---- connection, close one that stays silent, and time out connecting.
+-- Send a PING whose PONG measures lag; one at a time
+local function lag_ping(id, rec, now)
+    local token = string.format('%d', math.floor(now * 1000))
+    if pcall(send.send, id, 'PING', token) then
+        rec.lag_token = token
+        rec.lag_sent = now
+    end
+end
+
+--- Check every connection: PING a registered connection that has been
+--- quiet for a while or not measured lately, close one that stays silent,
+--- and time out connecting.
 function M.check_liveness(now)
     for _, id in ipairs(M.ids()) do
         local rec = nets()[id]
@@ -417,10 +451,15 @@ function M.check_liveness(now)
                 local silent = now - rec.liveness
                 if silent >= M.timeout_after then
                     M.finish(id, 'ping timeout')
-                elseif silent >= M.ping_after and phase == 'connected'
-                and rec.pinged ~= rec.liveness then
-                    rec.pinged = rec.liveness
-                    pcall(send.send, id, 'PING', string.format('%d', math.floor(now)))
+                elseif phase == 'connected' then
+                    -- a PING that got no answer stops counting after a while
+                    if rec.lag_token and now - rec.lag_sent >= M.lag_every then
+                        rec.lag_token = nil
+                    end
+                    if not rec.lag_token
+                    and (silent >= M.ping_after or now - (rec.lag_sent or 0) >= M.lag_every) then
+                        lag_ping(id, rec, now)
+                    end
                 end
             end
         end
@@ -443,6 +482,28 @@ local function new_record(net)
     }
 end
 
+-- Settings that only take effect on a new connection (design 4.8)
+local restart_keys <const> = {'server', 'layers', 'identity', 'sasl'}
+
+-- Apply a network's new configuration. Everything is read from rec.cfg
+-- when used, so features, mention, reconnect and oper settings apply at
+-- once; connection settings wait for the next connection.
+local function update_record(rec, net)
+    local old = rec.cfg
+    if rec.phase ~= 'idle' then
+        for _, key in ipairs(restart_keys) do
+            if not tablex.deepcompare(old[key], net[key]) then
+                rec.restart_pending = true
+            end
+        end
+    end
+    rec.cfg = net
+    rec.backoff = math.max(net.reconnect.min_delay, math.min(rec.backoff, net.reconnect.max_delay))
+    if rec.target == 'removed' then
+        rec.target = net.autoconnect and 'connected' or 'idle'
+    end
+end
+
 --- Bring network records in line with the active configuration, and
 --- connect networks that should be and aren't.
 function M.apply_config(cfg)
@@ -453,10 +514,7 @@ function M.apply_config(cfg)
         if rec == nil then
             nets()[net.id] = new_record(net)
         else
-            rec.cfg = net
-            if rec.target == 'removed' then
-                rec.target = net.autoconnect and 'connected' or 'idle'
-            end
+            update_record(rec, net)
         end
     end
 
