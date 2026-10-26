@@ -37,6 +37,7 @@ extern "C" {
 #include "process.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <climits>
 #include <cstdio>
 #include <csignal>
@@ -221,6 +222,26 @@ auto l_shutdown(lua_State* const L) -> int
 }
 
 /**
+ * @brief Seconds on a monotonic clock
+ *
+ * The clock only moves forward and isn't changed by setting the system
+ * time, so differences between readings are durations. Its zero is
+ * arbitrary.
+ *
+ * return: number seconds, with fractions
+ *
+ * @param L Lua state
+ * @return int 1
+ */
+auto l_monotime(lua_State* const L) -> int
+{
+    using namespace std::chrono;
+    auto const now = duration<lua_Number>{steady_clock::now().time_since_epoch()};
+    lua_pushnumber(L, now.count());
+    return 1;
+}
+
+/**
  * @brief Lua binding for timespec_get(3)
  *
  * Gets the seconds and nanoseconds since the 1970 epoch.
@@ -348,6 +369,7 @@ luaL_Reg const applib_module[] = {
     {"setmodule", boundary<l_setmodule>},
     {"shutdown", boundary<l_shutdown>},
     {"time", boundary<l_time>},
+    {"monotime", boundary<l_monotime>},
     {"execute", boundary<l_execute>},
     {"stop_input", boundary<l_stop_input>},
     {"start_input", boundary<l_start_input>},
