@@ -5,6 +5,9 @@ ported bugs, and open questions. Newest phase last.
 
 ## Requirements from the user
 
+- **No filterdb for now** (ircc's `/upload_filterdb` with hsfilter). It is
+  not a feature name in configuration and phase 5 doesn't port it.
+
 - **Rolling buffers, not scrolling.** Every log-style view (status,
   console, cliconn, cliexit, bans, channels, and chat buffers to come)
   draws with `draw.draw_rotation`: new lines replace the oldest row above

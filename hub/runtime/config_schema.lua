@@ -133,7 +133,7 @@ local mention_schema <const> = table_ {
 local delay_schema <const> = {type = 'number', minimum = 0}
 
 --- The features a network may enable; config.lua checks names against it.
-M.features = {'snotice', 'oper', 'topology', 'chat', 'bouncer', 'filterdb'}
+M.features = {'snotice', 'oper', 'topology', 'chat', 'bouncer'}
 
 --- One entry of [[networks]].
 M.network = table_ {
