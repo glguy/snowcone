@@ -116,6 +116,13 @@ T.case('kline_nick looks up unknown users with WHO', function()
     T.eq(c:take(), {'TESTMASK *@192.0.2.10'}, 'staged from WHO')
 end)
 
+T.case('an empty reason list falls back to a default', function()
+    local _, oper = boot()
+    T.require 'hub.features.topology'.get('test').servers.kline_reasons = {}
+    oper.cycle_reason 'test'
+    T.eq(oper.reason_text 'test', 'You are banned.', 'default reason')
+end)
+
 T.case('durations', function()
     local _, oper = boot()
     T.eq(oper.parse_duration '1d', 1440, '1d')

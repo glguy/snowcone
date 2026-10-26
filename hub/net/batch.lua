@@ -1,12 +1,22 @@
 -- IRCv3 batches (from ircc's BATCH handler and handlers/batch.lua).
 --
--- Messages tagged with an open batch are collected instead of handled one
--- by one. When the batch closes, protocol-level types update the model and
--- every batch is emitted as `irc.batch`.
+-- Messages tagged with an open batch are collected, and when the batch
+-- closes it is emitted whole as `irc.batch`. Most batches (a netsplit's
+-- QUITs, say) are also handled message by message as they arrive, so the
+-- protocol model stays current. A replay batch (chat history) is not: it
+-- tells of the past and must not change the connection's state, so its
+-- messages reach only `irc.batch`, for the chat buffers. A batch nested in
+-- a replay is a replay too.
 
 local bus <const> = require 'hub.runtime.bus'
 
 local M = {}
+
+--- Batch types that replay the past
+M.replay_types = {
+    ['chathistory'] = true,
+    ['draft/chathistory-targets'] = true,
+}
 
 -- Batch types the protocol model consumes
 local consumers = {}
@@ -23,16 +33,15 @@ consumers['soju.im/bouncer-networks'] = function(irc, _, messages)
 end
 
 --- Collect a message into its open batch.
----@return boolean true if the message belonged to a batch
+---@return table|nil the batch the message belongs to
 function M.collect(irc, msg)
     local batch = irc.batches[msg.tags.batch]
     if batch then
         local n = batch.n + 1
         batch.n = n
         batch.messages[n] = msg
-        return true
     end
-    return false
+    return batch
 end
 
 --- Handle a BATCH command.
@@ -41,11 +50,13 @@ function M.BATCH(net, irc, msg)
     local name = msg[1]:sub(2)
 
     if '+' == polarity then
+        local parent = irc.batches[msg.tags.batch]
         irc.batches[name] = {
             type = msg[2],
             params = table.move(msg, 3, #msg, 1, {}),
             messages = {},
             n = 0,
+            replay = M.replay_types[msg[2]] or (parent ~= nil and parent.replay),
         }
     elseif '-' == polarity then
         local batch = irc.batches[name]

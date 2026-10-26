@@ -182,7 +182,11 @@ connected at once.
   one, and the wanted nick is reclaimed through MONITOR or server notices.
 - **Protocol model** (`rec.irc`): nick, modes, capabilities, ISUPPORT,
   channels and members, monitor list, batches. Keys fold with the network's
-  CASEMAPPING. Handlers update only the model and emit events; everything
+  CASEMAPPING, and so does "is this our nick".
+- **Batches** are handled line by line as they arrive and emitted whole
+  when they close. Replays (chat history) are the exception: they never
+  change the connection's state and reach only the chat buffers, merged in
+  time order. Handlers update only the model and emit events; everything
   user-facing is a feature.
 - **Operator status** fires `irc.oper` once per connection, from
   RPL_YOUREOPER or a user mode `o` (a bouncer session that is already
@@ -201,7 +205,7 @@ and only run, and only show, for networks that have it.
 | Feature | What it does |
 | --- | --- |
 | snotice | Parses server notices (the dashboard's parser), keeps recent connections, exits, bans, new channels, per-second load trackers, address-range counts and watches; emits `snote` and `snote.<name>`. |
-| topology | The network's servers file (regions, aliases, kline reasons and tags, address ranges), populations from MAP, links and upstream from LINKS, versions, uptimes, drains, sheds, DNS rotations. Asks for MAP and LINKS at registration, on becoming an operator and on netsplits and netjoins. |
+| topology | The network's servers file (regions, aliases, kline reasons and tags, address ranges), populations from MAP, links and upstream from LINKS, versions, uptimes, user shedding, DNS rotations. Asks for MAP and LINKS at registration, on becoming an operator and on netsplits and netjoins. |
 | oper | Libera ban masks; staging a K-Line, unkline or undline with a TESTMASK count; sending it only on confirmation; operator commands. |
 | chat | Buffers per network and target, routing, mentions, chat history, MONITOR, WALLOPS, CTCP replies to staff, `/list`. |
 | bouncer | soju's bouncer-networks, shown in the bouncer view. |
@@ -344,6 +348,8 @@ Work that the design leaves room for:
 
 - **Bouncer networks as hub networks:** soju BOUNCER BIND, with a network
   record pointing at its parent connection.
+- **Drains and user shedding,** designed together (drains aren't tracked
+  for now).
 - **Cancellable DNS and processes** once the native side offers handles
   (F-070, F-071); tasks already ignore late results.
 - **A table-driven notice parser,** checked against the golden fixtures.

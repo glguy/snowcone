@@ -16,9 +16,9 @@ carry `net`, the network id.
 | `net.registered` | `{net, nick}` end of MOTD after welcome | net/registration |
 | `net.closed` | `{net, reason}` an attempt ended | net/manager |
 | `net.removed` | `{net}` a network left the configuration and its record is gone; drop its feature state | net/manager |
-| `irc.message` | `{net, msg}` every inbound message outside a batch, after the model update | net/manager |
+| `irc.message` | `{net, msg}` every inbound message after the model update, except replayed history (chathistory batches) | net/manager |
 | `irc.sent` | `{net, msg}` outbound, secrets masked | net/send |
-| `irc.batch` | `{net, type, params, messages}` when a batch closes | net/batch |
+| `irc.batch` | `{net, type, params, messages}` when a batch closes, with every message in it | net/batch |
 | `irc.nick` | `{net, old, new, self}` | net/handlers |
 | `irc.oper` | `{net}` once per connection, when we are an operator (RPL_YOUREOPER, or user mode o) | net/handlers |
 | `irc.isupport` | `{net, key, value}` value nil when removed, true without a value | net/irc |

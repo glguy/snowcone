@@ -175,6 +175,12 @@ function M.get_user(irc, nick)
     return user
 end
 
+--- A nick is ours, compared with the network's casemapping (a server may
+--- echo our nick in another case than we sent it).
+function M.is_me(irc, nick)
+    return nick ~= nil and irc.nick ~= nil and M.fold(irc, nick) == M.fold(irc, irc.nick)
+end
+
 function M.get_channel(irc, name)
     return irc.channels[M.fold(irc, name)]
 end

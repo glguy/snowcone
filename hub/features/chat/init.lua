@@ -166,10 +166,10 @@ local function route_chat(net, irc, target, text, msg)
                 break
             end
         end
-    elseif nick and nick == irc.nick then
+    elseif irc_model.is_me(irc, nick) then
         -- something I sent, relayed by a bouncer or to myself
         buffer_target = target
-    elseif target == irc.nick then
+    elseif irc_model.is_me(irc, target) then
         buffer_target = nick
         mention = true
     end
@@ -215,7 +215,7 @@ function H.PRIVMSG(net, irc, msg)
 
     -- answer only targeted CTCP requests from staff
     local name, args = text:match '^\x01([^\x01 ]+) ?([^\x01]*)\x01?$'
-    if name and target == irc.nick and msg.tags['solanum.chat/oper'] and msg.nick then
+    if name and irc_model.is_me(irc, target) and msg.tags['solanum.chat/oper'] and msg.nick then
         name = name:upper()
         local h = ctcp[name]
         if h then
@@ -266,6 +266,11 @@ function H.NICK(net, _, msg)
     local buffer = old and C.buffers[old]
     if buffer then
         local new = M.fold(net, msg[1])
+        if new ~= old and C.buffers[new] then
+            -- a buffer for the new nick exists: keep both, unrenamed
+            OrderedMap.insert(buffer.messages, true, msg)
+            return
+        end
         buffer.name = msg[1]
         if new ~= old then
             C.buffers[old] = nil
@@ -342,6 +347,44 @@ local function on_batch(ev)
         if msg.command == 'PRIVMSG' or msg.command == 'NOTICE' then
             msg.statusmsg = irc_model.split_statusmsg(irc, msg[1])
         end
+    end
+    M.merge(buffer, ev.messages)
+end
+
+-- Identity of a message, to spot one that history repeats
+local function message_key(msg)
+    local msgid = msg.tags and msg.tags.msgid
+    if msgid then return 'id ' .. msgid end
+    return table.concat({msg.at or '', tostring(msg.source), tostring(msg.command), table.concat(msg, ' ')}, '\0')
+end
+
+--- Merge history into a buffer in time order. History may be older than
+--- what the buffer holds (it was asked for when the buffer opened) or
+--- overlap it (after a reconnect); messages already there are skipped.
+function M.merge(buffer, messages)
+    local entries, seen = {}, {}
+    for msg in OrderedMap.reveach(buffer.messages) do
+        table.insert(entries, msg)
+        seen[message_key(msg)] = true
+    end
+    for _, msg in ipairs(messages) do
+        msg.at = msg.at or (msg.tags and msg.tags.time) or ''
+        local key = message_key(msg)
+        if not seen[key] then
+            seen[key] = true
+            table.insert(entries, msg)
+        end
+    end
+    -- stable: messages with equal times keep their order
+    for i, msg in ipairs(entries) do msg.order_ = i end
+    table.sort(entries, function(a, b)
+        local ta, tb = a.at or '', b.at or ''
+        if ta ~= tb then return ta < tb end
+        return a.order_ < b.order_
+    end)
+    OrderedMap.reset(buffer.messages)
+    for _, msg in ipairs(entries) do
+        msg.order_ = nil
         OrderedMap.insert(buffer.messages, true, msg)
     end
 end

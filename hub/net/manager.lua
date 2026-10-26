@@ -372,6 +372,8 @@ function events.MSG(rec, msg, flush)
                 or os.date '!%H:%M:%S'
     end
     msg.timestamp = clock.now()
+    -- server time, or ours: orders messages in chat buffers
+    msg.at = msg.tags.time or clock.iso_now()
 
     local source = msg.source
     if source then
@@ -384,12 +386,13 @@ function events.MSG(rec, msg, flush)
     rec.liveness = msg.timestamp
     dispatch.dirty()
 
-    if batch.collect(irc, msg) then
-        return
-    end
-
+    -- BATCH lines are always handled, so nested batches open and close;
+    -- replayed messages stop here and reach only irc.batch (net/batch.lua)
+    local open = batch.collect(irc, msg)
     if msg.command == 'BATCH' then
         batch.BATCH(id, irc, msg)
+    elseif open and open.replay then
+        return
     else
         local h = handlers.commands[msg.command]
         if h then
@@ -402,6 +405,7 @@ function events.MSG(rec, msg, flush)
 
     -- the handler may have ended the connection
     if nets()[id] ~= rec or rec.irc ~= irc then return end
+    if open and open.replay then return end
 
     task.deliver_irc(id, msg)
     bus.emit('irc.message', {net = id, msg = msg})

@@ -82,9 +82,17 @@ end
 
 -- Reasons and tags ====================================================
 
---- The reasons offered: {label, text} pairs from the servers file.
+-- Offered when the servers file gives no reasons
+local default_reasons <const> = {{'banned', 'You are banned.'}}
+
+--- The reasons offered: {label, text} pairs from the servers file, or a
+--- default when it gives none (an empty list would leave nothing to send).
 function M.reasons(net)
-    return topology.get(net).servers.kline_reasons
+    local reasons = topology.get(net).servers.kline_reasons
+    if type(reasons) ~= 'table' or #reasons == 0 then
+        return default_reasons
+    end
+    return reasons
 end
 
 --- The tags offered: the servers file's, then those added with /tag.

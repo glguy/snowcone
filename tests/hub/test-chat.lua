@@ -84,6 +84,32 @@ T.case('statusmsg, echo and membership changes', function()
     T.eq(texts(renamed)[3], 'QUIT bye', 'and in the private buffer')
 end)
 
+T.case('history goes before the message that opened the buffer', function()
+    local c, chat = boot()
+    c:recv '@time=2026-01-01T00:00:10.000Z :bob!b@h PRIVMSG me :newest'
+    c:recv ':srv BATCH +h1 chathistory bob'
+    c:recv '@batch=h1;time=2026-01-01T00:00:01.000Z :bob!b@h PRIVMSG me :older'
+    c:recv '@batch=h1;time=2026-01-01T00:00:05.000Z :me!u@h PRIVMSG bob :reply'
+    c:recv ':srv BATCH -h1'
+    T.eq(texts(chat.buffer('test', 'bob')), {'PRIVMSG me older', 'PRIVMSG bob reply', 'PRIVMSG me newest'}, 'in order')
+
+    -- overlapping history (after a reconnect) adds nothing twice
+    c:recv ':srv BATCH +h2 chathistory bob'
+    c:recv '@batch=h2;time=2026-01-01T00:00:05.000Z :me!u@h PRIVMSG bob :reply'
+    c:recv '@batch=h2;time=2026-01-01T00:00:10.000Z :bob!b@h PRIVMSG me :newest'
+    c:recv ':srv BATCH -h2'
+    T.eq(#texts(chat.buffer('test', 'bob')), 3, 'no duplicates')
+end)
+
+T.case('a nick change onto an existing buffer renames nothing', function()
+    local c, chat = boot()
+    c:recv ':alice!a@h PRIVMSG me :from alice'
+    c:recv ':alice_!a@h PRIVMSG me :from alice_'
+    c:recv ':alice_!a@h NICK alice'
+    T.eq(texts(chat.buffer('test', 'alice')), {'PRIVMSG me from alice'}, 'alice kept')
+    T.eq(texts(chat.buffer('test', 'alice_')), {'PRIVMSG me from alice_', 'NICK alice'}, 'alice_ kept, with the change')
+end)
+
 T.case('wallops collect in one buffer', function()
     local c, chat = boot()
     c:recv ':oper!o@h WALLOPS :maintenance soon'
@@ -100,7 +126,7 @@ T.case('chat history fills its buffer', function()
     c:recv '@batch=h1;time=2026-01-01T00:00:01.000Z :alice!a@h PRIVMSG +#c :old two'
     c:recv ':srv BATCH -h1'
     local list = texts(chat.buffer('test', '#c'))
-    T.eq(list[2], 'PRIVMSG #c old one', 'history')
+    T.eq({list[1], list[3]}, {'PRIVMSG #c old one', 'JOIN #c'}, 'history before the newer JOIN')
     T.eq(chat.buffer('test', '#c').activity, 0, 'history is not activity')
 end)
 

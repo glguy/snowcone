@@ -473,3 +473,28 @@ Compared with the dashboard's code (commands, views, IRC handlers, keys):
 - Different by decision: `servers_file` must be configured, `/prefilter`,
   hub's own configuration and plugins. CTCP replies to staff belong to the
   chat feature, so a network without `chat` doesn't answer them.
+
+## Review pass
+
+A review of hub/ found ten issues; decisions with the user:
+
+- Batches are handled as they arrive (a netsplit's QUITs update the model
+  at once) and still emitted whole as `irc.batch`. A replay batch
+  (`chathistory`, `draft/chathistory-targets`, and anything nested in one)
+  never touches the connection's state: its lines reach only `irc.batch`,
+  for chat buffers. ircc and the first port set every batched line aside.
+- Every message has `msg.at`, its server time or the client's, and chat
+  history is merged into a buffer in that order, skipping lines it already
+  has (by msgid, else time, source and text). History used to land after
+  the newer message that opened the buffer.
+- "Is this our nick" uses the network's casemapping (`irc.is_me`).
+- The editor accepts line breaks (^J, ^M, x0a): it also takes Lua for
+  /eval. Hex input checks its digits; history compares lines in order (an
+  anagram of the last line was being dropped). From ircc.
+- A nick change onto a nick that already has a buffer renames nothing; the
+  change is noted in the old buffer.
+- An empty `kline_reasons` falls back to the default reason.
+- Drains are no longer tracked (`/drains`, the drain marker, the netjoin
+  check); to be revisited with user shedding.
+- Not changed: interleaved ban-list replies share one collector; servers
+  don't interleave them.

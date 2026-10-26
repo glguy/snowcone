@@ -51,9 +51,19 @@ function M.reset(self)
     M.move(self, 1)
 end
 
+-- Two lines hold the same characters in the same order. (ircc compared
+-- without regard to order, so an anagram of the last line was dropped.)
+local function same_line(a, b)
+    if #a ~= #b then return false end
+    for i = 1, #a do
+        if a[i] ~= b[i] then return false end
+    end
+    return true
+end
+
 function M.confirm(self)
     local n = #self.history
-    if n == 0 or not tablex.compare_no_order(self.history[n], self.buffer) then
+    if n == 0 or not same_line(self.history[n], self.buffer) then
         self.history[n+1] = self.buffer
     end
     M.reset(self)
@@ -223,7 +233,9 @@ local hexdigits = {
     [70] = 15, [102] = 15,
 }
 
--- Look for sequences of 'x' and then hex digits just before the cursor
+-- Look for sequences of 'x' and then hex digits just before the cursor.
+-- Line breaks are allowed: the editor also takes Lua code (/eval). NUL is
+-- not, since text goes through C strings.
 function M.hexinput(self)
     local b = self.buffer
     local last = self.cursor - 1
@@ -233,7 +245,7 @@ function M.hexinput(self)
     and b[last - 1] == 0x5e -- '^'
     then
         local c = b[last]
-        if 0x41 <= c and c <= 0x5f and c ~= 10 and c ~= 13 -- A-M O-Q S-Z [ \ ] ^ _
+        if 0x41 <= c and c <= 0x5f -- ^A-^Z ^[ ^\ ^] ^^ ^_
         then
             b[last - 1] = c - 0x40 -- replaces the '^' with control character
             table.remove(b, last)
@@ -244,6 +256,7 @@ function M.hexinput(self)
 
     -- Support x0123 style unicode values
     -- Find the value of i such than i points at: x[0-9a-fA-F]+
+    if not hexdigits[b[last]] then return end -- no digits before the cursor
     local first = last
     while 1 < first do
         if b[first - 1] == 120 then -- check for 'x'
@@ -255,7 +268,7 @@ function M.hexinput(self)
             end
 
             -- ensure value is valid for the input buffer
-            if acc == 0 or acc == 10 or acc == 13 or acc > 0x10ffff then return end
+            if acc == 0 or acc > 0x10ffff then return end
 
             -- replace escape sequence with value
             tablex.removevalues(b, first, last)

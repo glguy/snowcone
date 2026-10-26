@@ -2,7 +2,7 @@
 -- network's topology, from the dashboard's view/server_load.lua.
 --
 -- Click a column title to sort by it, again to reverse. A yellow 4 or 6
--- marks an address in a DNS rotation; D a drain; S user shedding.
+-- marks an address in a DNS rotation; S user shedding.
 -- View state: ordering, descending.
 
 local dashboard <const> = require 'hub.ui.dashboard'
@@ -197,12 +197,6 @@ local function make_view(id, title, tracker_name, header_colour)
                 end
 
                 win:waddstr ' '
-                if topo.drains[name] then
-                    draw.yellow(win)
-                    draw.reversevideo(win)
-                    win:waddstr 'D'
-                    draw.normal(win)
-                end
                 if topo.sheds[name] then
                     draw.red(win)
                     draw.reversevideo(win)

@@ -19,6 +19,14 @@ function M.now()
     return s + ns * 1e-9
 end
 
+--- The current UTC time in IRCv3 server-time form, for ordering messages
+--- that came without one beside those that did.
+---@return string like 2026-01-01T12:00:00.000Z
+function M.iso_now()
+    local s, ns = snowcone.time()
+    return os.date('!%Y-%m-%dT%H:%M:%S', s) .. string.format('.%03dZ', ns // 1000000)
+end
+
 --- Seconds since the client started.
 ---@return number
 function M.uptime()

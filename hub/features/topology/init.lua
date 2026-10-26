@@ -1,7 +1,7 @@
 -- Network topology (from the dashboard's init.lua,
 -- handlers/irc.lua and handlers/snotice.lua): the network's servers file,
 -- server populations from MAP, links from LINKS, versions, startup times,
--- drains, user shedding, and the addresses in each DNS rotation.
+-- user shedding, and the addresses in each DNS rotation.
 --
 -- state.features.topology[net] = {
 --   servers     the servers file: {servers = {[name] = {alias, region,
@@ -13,14 +13,15 @@
 --   upstream    [server] = its link towards primary_hub
 --   versions    [server] = version text
 --   uptimes     [server] = startup time text
---   drains      [server] = true while the drain module is loaded
 --   sheds       [server] = shedding interval in seconds
 --   rotations   [region] = {[address] = true}, refreshed every 30 s
 -- }
 --
 -- Sending: MAP and LINKS at registration, on becoming an operator, and on
--- netsplits and netjoins; VERSION, STATS and MODLIST on request. All are
--- queries.
+-- netsplits and netjoins; VERSION and STATS on request. All are queries.
+--
+-- Drains (the drain module) are not tracked for now; they and user
+-- shedding are to be revisited together.
 
 local file      <const> = require 'pl.file'
 local pretty    <const> = require 'pl.pretty'
@@ -65,7 +66,6 @@ local function new_state()
         upstream = {},
         versions = {},
         uptimes = {},
-        drains = {},
         sheds = {},
         rotations = {},
     }
@@ -257,23 +257,6 @@ local function check_shed(t, server)
     end
 end
 
--- Check that a joining server still has the drain module
-local function check_drain(t, server)
-    t:send('MODLIST', 'drain', server)
-    while true do
-        local msg = t:wait_irc({N.RPL_MODLIST, N.RPL_ENDOFMODLIST}, 30000)
-        if not msg then return end
-        if msg.source == server then
-            if msg.command == N.RPL_MODLIST and msg[2] == 'drain' then
-                return
-            elseif msg.command == N.RPL_ENDOFMODLIST then
-                M.get(t.net).drains[server] = nil
-                return
-            end
-        end
-    end
-end
-
 local notices = {}
 
 function notices.connect(ev) adjust_population(ev, 1) end
@@ -291,23 +274,12 @@ function notices.netjoin(ev)
     if T.sheds[server] ~= nil then
         task.spawn('shed check', {net = net, owner = M.name}, check_shed, server)
     end
-    if T.drains[server] ~= nil then
-        task.spawn('drain check', {net = net, owner = M.name}, check_drain, server)
-    end
 end
 
 function notices.netsplit(ev)
     M.sync(ev.net)
     log.add_net(ev.net, 'snote', 'netsplit %s', ev.server2)
     M.get(ev.net).uptimes[ev.server2] = nil
-end
-
-function notices.modload(ev)
-    if ev.module == 'drain' then M.get(ev.net).drains[ev.server] = true end
-end
-
-function notices.modunload(ev)
-    if ev.module == 'drain' then M.get(ev.net).drains[ev.server] = nil end
 end
 
 function notices.shedding_on(ev)
@@ -441,35 +413,6 @@ M.commands = {
             for server in pairs(T.links) do
                 query(ctx.net, 'STATS', 'u', server)
             end
-        end,
-    },
-    {
-        name = 'drains', spec = '', scope = 'net', feature = 'topology',
-        help = 'Find the servers with the drain module loaded',
-        fn = function(ctx)
-            local outstanding = {}
-            for _, server in ipairs(servers_known(ctx.net)) do
-                outstanding[server] = true
-            end
-            task.spawn('drains', {net = ctx.net, owner = M.name}, function(t)
-                local found = {}
-                t:send('MODLIST', 'drain', '*')
-                while next(outstanding) do
-                    local msg = t:wait_irc({N.RPL_MODLIST, N.RPL_ENDOFMODLIST}, 30000)
-                    if not msg then break end
-                    if msg.command == N.RPL_MODLIST and msg[2] == 'drain' then
-                        found[msg.source] = true
-                    elseif msg.command == N.RPL_ENDOFMODLIST then
-                        outstanding[msg.source] = nil
-                    end
-                end
-                M.get(t.net).drains = found
-                local names = {}
-                for k in pairs(found) do table.insert(names, k) end
-                table.sort(names)
-                t:log('drain', '%s', next(names) and 'Drains loaded: ' .. table.concat(names, ' ')
-                    or 'No drains loaded')
-            end)
         end,
     },
     {

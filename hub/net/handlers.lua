@@ -191,7 +191,7 @@ function H.NICK(rec, irc, msg)
     local oldkey = irc_model.fold(irc, oldnick)
     local newkey = irc_model.fold(irc, newnick)
     local rename = oldkey ~= newkey
-    local self = oldnick == irc.nick
+    local self = irc_model.is_me(irc, oldnick)
 
     if self then
         irc.nick = newnick
@@ -227,7 +227,7 @@ end
 function H.JOIN(_, irc, msg)
     local who = msg.nick
     local name = msg[1]
-    if who == irc.nick then
+    if irc_model.is_me(irc, who) then
         irc.channels[irc_model.fold(irc, name)] = irc_model.new_channel(name)
     end
 
@@ -260,7 +260,7 @@ end
 function H.PART(_, irc, msg)
     local who = msg.nick
     local name = msg[1]
-    if who == irc.nick then
+    if irc_model.is_me(irc, who) then
         irc.channels[irc_model.fold(irc, name)] = nil
     else
         local channel = irc_model.get_channel(irc, name)
@@ -273,7 +273,7 @@ end
 function H.KICK(_, irc, msg)
     local name = msg[1]
     local target = msg[2]
-    if target == irc.nick then
+    if irc_model.is_me(irc, target) then
         irc.channels[irc_model.fold(irc, name)] = nil
     else
         local channel = irc_model.get_channel(irc, name)
@@ -331,7 +331,7 @@ function H.MODE(rec, irc, msg)
     local modestring = msg[2]
     local cursor = 3
 
-    if target == irc.nick then
+    if irc_model.is_me(irc, target) then
         parse_umodes(irc.mode, modestring)
         if irc.mode.o then now_oper(rec, irc) end
         return

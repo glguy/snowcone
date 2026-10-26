@@ -147,4 +147,36 @@ T.case('filters follow the filter input while typing', function()
     T.eq(matching.compile '(', nil, 'invalid pattern does not compile')
 end)
 
+T.case('editor: line breaks, hex input and history', function()
+    boot {}
+    local editor = T.require 'hub.ui.editor'
+    local ed = editor.new()
+    local function typed(text)
+        editor.reset(ed)
+        for _, c in utf8.codes(text) do editor.add(ed, c) end
+    end
+
+    typed 'a^J'
+    editor.hexinput(ed)
+    T.eq(editor.content(ed), 'a\n', '^J makes a line break')
+    typed 'xa'
+    editor.hexinput(ed)
+    T.eq(editor.content(ed), '\n', 'x0a too')
+    typed 'xZ'
+    editor.hexinput(ed)
+    T.eq(editor.content(ed), 'xZ', 'not hex: left alone')
+    typed 'x0'
+    editor.hexinput(ed)
+    T.eq(editor.content(ed), 'x0', 'NUL refused')
+
+    typed '/join #ab'
+    editor.confirm(ed)
+    typed '/join #ba'
+    editor.confirm(ed)
+    T.eq(#ed.history, 2, 'an anagram of the last line is still new')
+    typed '/join #ba'
+    editor.confirm(ed)
+    T.eq(#ed.history, 2, 'a repeat is not')
+end)
+
 T.run()

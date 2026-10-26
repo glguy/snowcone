@@ -136,15 +136,14 @@ T.case('TESTMASK replies set range counts', function()
     T.eq(snotice().net_trackers.docs['192.0.2.0/24'].count, 12, 'count')
 end)
 
-T.case('drains and sheds from notices', function()
+T.case('sheds from notices; drains are not tracked', function()
     local c = boot()
     c:recv ':alpha.example NOTICE * :*** Notice -- Module drain [0x1] loaded at 0x2'
     c:recv ':beta.example NOTICE * :*** Notice -- o!o@staff/o{o} enabled user shedding (interval: 30 seconds, reason: x)'
-    T.eq(topo().drains, {['alpha.example'] = true}, 'drain')
+    T.eq(topo().drains, nil, 'no drain state')
     T.eq(topo().sheds, {['beta.example'] = 30}, 'shed')
-    c:recv ':alpha.example NOTICE * :*** Notice -- Module drain unloaded'
     c:recv ':beta.example NOTICE * :*** Notice -- o!o@staff/o{o} disabled user shedding'
-    T.eq({topo().drains, topo().sheds}, {{}, {}}, 'cleared')
+    T.eq(topo().sheds, {}, 'cleared')
 end)
 
 T.case('rotations come from DNS', function()

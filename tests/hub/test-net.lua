@@ -320,7 +320,57 @@ T.case('batches are collected and emitted whole', function()
     T.eq(batches[1].type, 'chathistory', 'type')
     T.eq(batches[1].params, {'#c'}, 'params')
     T.eq(#batches[1].messages, 2, 'messages')
-    T.eq(#messages, 2, 'only the BATCH lines are individual messages')
+    T.eq(#messages, 2, 'history: only the BATCH lines are individual messages')
+end)
+
+T.case('a batch that is not a replay updates the model as it arrives', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    c:recv ':me!u@h JOIN #c'
+    c:recv ':srv 353 me = #c :me alice bob'
+    local messages = record 'irc.message'
+    c:recv ':srv BATCH +s1 netsplit hub.example leaf.example'
+    c:recv '@batch=s1 :alice!a@h QUIT :hub.example leaf.example'
+    T.eq(rec().irc.channels['#C'].members.ALICE, nil, 'gone before the batch ends')
+    c:recv ':srv BATCH -s1'
+    T.eq(#messages, 3, 'each line is an ordinary message too')
+    T.eq(messages[2].msg.channels, {'#c'}, 'with the channels the user was in')
+end)
+
+T.case('replayed history never changes the connection', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    c:recv ':me!u@h JOIN #c'
+    c:recv ':srv 353 me = #c :me alice'
+    local messages = record 'irc.message'
+    local batches = record 'irc.batch'
+    c:recv ':srv BATCH +h1 chathistory #c'
+    c:recv '@batch=h1 :alice!a@h QUIT :long ago'
+    c:recv '@batch=h1 :me!u@h NICK past_me'
+    c:recv '@batch=h1 :srv BATCH +inner something'
+    c:recv '@batch=inner :alice!a@h PART #c'
+    c:recv '@batch=h1 :srv BATCH -inner'
+    c:recv ':srv BATCH -h1'
+    local irc = rec().irc
+    T.ok(irc.channels['#C'].members.ALICE, 'alice still a member')
+    T.eq(irc.nick, 'me', 'our nick unchanged')
+    T.eq(#messages, 2, 'only the outer BATCH lines are messages')
+    T.eq(#batches, 2, 'both batches emitted, the nested one first')
+    T.eq(batches[2].type, 'chathistory', 'outer')
+    T.eq(#batches[2].messages, 4, 'with its own lines, the nested BATCH lines included')
+    T.eq(#batches[1].messages, 1, 'the nested batch has its line')
+end)
+
+T.case('our nick matches in any case the casemapping allows', function()
+    local fake = boot {network('test', {identity = {nick = 'Me'}})}
+    local c = fake.last()
+    register(c, 'Me')
+    c:recv ':me!u@h JOIN #c'
+    T.ok(rec().irc.channels['#C'], 'joined although echoed as me')
+    c:recv ':ME!u@h NICK Other'
+    T.eq(rec().irc.nick, 'Other', 'our nick change recognised')
 end)
 
 T.case('secrets come from a command or a prompt', function()
