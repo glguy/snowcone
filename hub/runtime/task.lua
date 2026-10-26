@@ -7,7 +7,8 @@
 -- task module of whichever generation is current. The two meet only here:
 --
 --   record fields  id, name, owner, net, co, seq, wait, commands, timer,
---                  wait_since (optional, for /stats)
+--                  lookup (a dnslookup handle), wait_since (optional, for
+--                  /stats)
 --   resume values  wait_irc    the message, or nil on timeout
 --                  wait_event  the event, or nil on timeout
 --                  sleep       nothing
@@ -55,13 +56,17 @@ local function sorted_tasks()
     return list
 end
 
--- Clear what the current wait set up. DNS lookups and child processes
--- can't be cancelled natively (REVIEW.md F-070, F-071); their late result
--- finds a different seq, or no task, and is ignored.
+-- Clear what the current wait set up. Child processes can't be cancelled
+-- natively (REVIEW.md F-071); their late result finds a different seq, or
+-- no task, and is ignored.
 local function end_wait(t)
     if t.timer then
         timer.cancel(t.timer)
         t.timer = nil
+    end
+    if t.lookup then
+        t.lookup:cancel()
+        t.lookup = nil
     end
     t.wait = nil
     t.commands = nil
@@ -211,7 +216,7 @@ end
 ---@return string|nil error, string... addresses
 function methods.dnslookup(t, name)
     begin_wait(t, 'dns')
-    snowcone.dnslookup(name, dispatch.trampoline('task.wake', t.id, t.seq))
+    t.lookup = snowcone.dnslookup(name, dispatch.trampoline('task.wake', t.id, t.seq))
     return coroutine.yield()
 end
 

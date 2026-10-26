@@ -308,7 +308,7 @@ hub relies on these parts of the `snowcone` table (see `client/`):
 | --- | --- |
 | `connect(host, port, layers, cb)` | Handle with `send` and `close`; `cb` gets `CON`, then `MSG` (message, flush), then `END`. Bad layers raise. Dropping the handle doesn't end the session. |
 | `newtimer()` | `start(ms, fn)`, `cancel()`; a collected timer never fires. |
-| `dnslookup(name, fn)` | `fn(err)` or `fn(nil, addr...)`. Returns nothing usable and can't be cancelled (REVIEW.md F-070). |
+| `dnslookup(name, fn)` | `fn(err)` or `fn(nil, addr...)`. Returns a handle whose `cancel()` keeps `fn` from running; dropping the handle doesn't cancel. |
 | `execute(cmd, args, fn, input?)` | `fn(code, stdout, stderr)` or `fn(nil, err)`; can't be cancelled (F-071). Without `input` the child has the terminal. |
 | `time()`, `monotime()` | Wall clock (seconds, nanoseconds); monotonic seconds. |
 | `setmodule(fn)` | The single entry for keyboard, paste, mouse, resize and print. |
@@ -350,8 +350,8 @@ Work that the design leaves room for:
   record pointing at its parent connection.
 - **Drains and user shedding,** designed together (drains aren't tracked
   for now).
-- **Cancellable DNS and processes** once the native side offers handles
-  (F-070, F-071); tasks already ignore late results.
+- **Cancellable processes** once the native side offers a handle (F-071);
+  tasks already ignore late results.
 - **A table-driven notice parser,** checked against the golden fixtures.
 - **Paging back through chat history** with CHATHISTORY BEFORE when a
   buffer is scrolled to its start.

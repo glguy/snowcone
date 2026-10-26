@@ -442,11 +442,13 @@ T.case('task timeouts, cancellation and DNS', function()
         results.slept = true
     end)
     task.cancel(sleeper.id)
-    -- lookups can't be cancelled natively; the late answer is ignored
+    -- cancelling the task cancels its lookup
     local dns = task.spawn('dns', {}, function(t)
         results.dns = {t:dnslookup 'localhost'}
     end)
+    T.eq(type(dns.lookup), 'userdata', 'lookup handle kept')
     task.cancel(dns.id)
+    T.eq(dns.lookup, nil, 'lookup cancelled')
     task.spawn('dns2', {}, function(t)
         local err, addr = t:dnslookup 'localhost'
         results.dns2 = err == nil and addr ~= nil

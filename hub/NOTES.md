@@ -175,13 +175,11 @@ tick). Tested in `test-reload.lua`.
   has one.
 - `t:prompt(label)` emits `task.prompt`; `task.answer(id, text)` replies.
   The UI side is phase 2.
-- **DNS can't be cancelled.** `snowcone.dnslookup` returns its callback,
-  not a handle (REVIEW.md F-070), and neither DNS nor `execute` can be
-  cancelled natively (F-071). A cancelled task's late result finds no
-  task, or a different `seq`, and is dropped. The design's native API
-  table is wrong about `dnslookup` returning a handle with `cancel()`.
-  ircc's committed fix in `Task:cancel_dnslookup` calls `h:cancel()` on a
-  function, so it would raise.
+- **DNS can be cancelled; processes can't.** `snowcone.dnslookup` now
+  returns a handle (REVIEW.md F-070, fixed), which the task keeps as
+  `t.lookup` and cancels when its wait ends. `execute` still can't be
+  cancelled natively (F-071): a cancelled task's late result finds no
+  task, or a different `seq`, and is dropped.
 
 ### Network layer
 
