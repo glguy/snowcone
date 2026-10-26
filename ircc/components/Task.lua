@@ -27,7 +27,7 @@ end
 function M:cancel_timer()
     local timer = self.timer_handle
     if timer then
-        timer.cancel()
+        timer:cancel()
         self.timer_handle = nil
     end
 end
@@ -36,7 +36,7 @@ function M:cancel_dnslookup()
     local h = self.dnslookup_handle
     if h then
         h:cancel()
-        self.h = nil
+        self.dnslookup_handle = nil
     end
 end
 
