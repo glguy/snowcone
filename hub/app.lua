@@ -165,6 +165,8 @@ local function shutdown()
     HUB.shut_down = true
     -- networks first, so a closing connection can't schedule a reconnect
     manager.abandon_all()
+    -- a task's lookup or child process would keep the event loop running
+    task.cancel_all()
     resources.close_all()
     snowcone.shutdown()
 end

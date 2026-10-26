@@ -418,7 +418,12 @@ T.case('shutdown with a live connection does not reconnect', function()
     local fake = boot {network('test')}
     local c = fake.last()
     register(c)
+    local task = T.require 'hub.runtime.task'
+    local child = task.spawn('child', {}, function(t) t:execute('sleep', {'60'}, '') end)
+    task.spawn('dns', {}, function(t) t:dnslookup 'localhost' end)
     HUB.current.routes['app.shutdown']()
+    T.eq(next(HUB.tasks), nil, 'tasks cancelled')
+    T.eq(child.process, nil, 'child killed') -- else the script outlives ctest's timeout
     T.ok(c.closed, 'connection closed')
     T.eq(rec().phase, 'idle', 'idle')
     T.eq(rec().target, 'idle', 'target idle')

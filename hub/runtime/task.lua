@@ -133,6 +133,13 @@ function M.cancel(id)
     end
 end
 
+--- Cancel every task, at shutdown.
+function M.cancel_all()
+    for _, t in ipairs(sorted_tasks()) do
+        M.cancel(t.id)
+    end
+end
+
 --- Cancel every task scoped to a network.
 function M.cancel_net(net)
     for _, t in ipairs(sorted_tasks()) do

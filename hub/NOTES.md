@@ -184,6 +184,11 @@ tick). Tested in `test-reload.lua`.
   `t:execute(command, args, input, opts)` passes `opts` (`group`,
   `max_output`) through. The `task.executed` route stays only for an
   execute started before a reload into this code.
+- **Shutdown cancels every task** (`task.cancel_all`), after abandoning the
+  networks and before closing resources, so a pending lookup or child can't
+  keep the event loop running. Exiting cleanly is Lua's job: the C++ side
+  has no fallback, and a client that is simply broken gets killed from
+  outside (REVIEW.md F-052).
 
 ### Network layer
 

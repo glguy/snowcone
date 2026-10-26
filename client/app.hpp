@@ -12,9 +12,21 @@
 
 struct lua_State;
 
+/// An io_context whose pending handlers can be destroyed before the context
+/// itself, so ~App can do that while Lua is still open.
+struct IoContext : boost::asio::io_context
+{
+    using boost::asio::io_context::io_context;
+
+    /// Destroy every handler not yet invoked, leaving the services in place
+    /// so I/O objects can still be destroyed afterwards. The destructor
+    /// repeats this harmlessly.
+    using boost::asio::execution_context::shutdown;
+};
+
 class App
 {
-    boost::asio::io_context io_context;
+    IoContext io_context;
     boost::asio::posix::stream_descriptor stdin_poll;
     boost::asio::signal_set signals;
     lua_State* L;

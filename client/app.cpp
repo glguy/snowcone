@@ -96,8 +96,15 @@ App::App(char const* const filename, bool const headless)
     lua_rawsetp(L, LUA_REGISTRYINDEX, &app_key);
 }
 
+/// Handlers still pending may hold Lua references (httpd's LuaRefs, for
+/// example), so they are destroyed while Lua is open. Lua's finalizers then
+/// destroy their timers, sockets and pipes, which still need the services.
+/// Normally nothing is pending: startup() returns only once the event loop
+/// has no work, and an exception out of it ends in fatal(), which skips
+/// destructors.
 App::~App()
 {
+    io_context.shutdown();
     lua_close(L);
     // stdin is never closed: a closed fd 0 would be reused by the next socket
     // or pipe while ncurses still reads it
