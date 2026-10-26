@@ -208,7 +208,7 @@ T.case('the tick runs only when asked for', function()
     T.boot {tick = true}
     local n = 0
     for _, entry in resources.each() do
-        if entry.kind == 'timer' then n = n + 1 end
+        if entry.kind == 'timer' and entry.owner == 'app' then n = n + 1 end
     end
     T.eq(n, 1, 'one tick timer')
 end)

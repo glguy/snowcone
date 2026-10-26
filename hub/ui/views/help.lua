@@ -1,11 +1,19 @@
 -- Command list (from ircc/view/help.lua), with each command's help text.
 
+local cmdline <const> = require 'hub.ui.cmdline'
 local draw   <const> = require 'hub.ui.draw'
 local scrub  <const> = require 'hub.lib.scrub'
 local tablex <const> = require 'pl.tablex'
 
 return {
     id = 'help',
+    keypress = function(ctx, key)
+        if key == -string.byte 'a' then
+            ctx.vs.all = not ctx.vs.all
+            return true
+        end
+    end,
+
     title = 'help',
     scope = 'global',
 
@@ -14,7 +22,7 @@ return {
         draw.bold(win)
         win:waddstr 'Commands'
         draw.normal(win)
-        win:waddstr '   (net commands take an optional @network first)\n'
+        win:waddstr '   (net commands take an optional @network first; Meta-A: all features)\n'
 
         local width = 1
         for name, cmd in pairs(HUB.current.commands) do
@@ -23,6 +31,7 @@ return {
         end
 
         for name, cmd in tablex.sort(HUB.current.commands) do
+            if not cmdline.available(cmd) and not ctx.vs.all then goto continue end
             draw.bold(win)
             win:waddstr(string.format('/%-' .. width .. 's', name .. ' ' .. cmd.spec))
             draw.bold_(win)
@@ -35,6 +44,7 @@ return {
             end
             win:waddstr(scrub(cmd.help or ''), '\n')
             if ncurses.getyx(win) >= ctx.rows - 1 then break end
+            ::continue::
         end
     end,
 }

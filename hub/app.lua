@@ -6,7 +6,7 @@
 --   init_state(S), migrate(S, from)   see runtime/state.lua
 --   routes      [name] = function, targets for trampolines and late calls
 --   subscribe(sub)                   sub.on(topic, fn, opts) on the new bus
---   commands    sequence of {name, spec, fn, help, scope}
+--   commands    sequence of {name, spec, fn, help, scope, feature}
 --   views       sequence of view records (ui/init.lua)
 --   activate(first)                  runs once the generation is current
 
@@ -39,6 +39,7 @@ local function module_names(opts)
         'hub.net.manager',
         'hub.features.common',
         'hub.features.snotice',
+        'hub.features.topology',
     }
     if HUB.boot.ui then
         table.insert(names, 'hub.ui')
@@ -74,6 +75,7 @@ local function add_command(current, name, cmd)
         fn = cmd.fn,
         help = cmd.help,
         scope = cmd.scope or 'global',
+        feature = cmd.feature,
         owner = name,
     }
 end
@@ -159,6 +161,11 @@ local function activate(first)
         log.add('config', '%s', warning)
     end
 
+    -- networks first, so modules activate with every record in place
+    if not HUB.quitting then
+        manager.apply_config(HUB.state.config)
+    end
+
     for _, entry in ipairs(current.modules) do
         local m = entry.module
         if type(m) == 'table' and m.activate and m ~= M then
@@ -180,9 +187,6 @@ local function activate(first)
     end
 
     bus.emit('app.reloaded', {generation = current.id, first = first})
-    if not HUB.quitting then
-        manager.apply_config(HUB.state.config)
-    end
     dispatch.dirty()
 end
 

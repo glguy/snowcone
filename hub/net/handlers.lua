@@ -64,9 +64,18 @@ H[N.RPL_SNOMASK] = function(rec, irc, msg)
     log.add_net(rec.id, 'irc', 'snomask %s', msg[2])
 end
 
+-- Operator status, once per connection: from RPL_YOUREOPER or from user
+-- modes that include o (opered before we connected, through a bouncer)
+local function now_oper(rec, irc)
+    if not irc.oper then
+        irc.oper = true
+        bus.emit('irc.oper', {net = rec.id})
+    end
+end
+
 H[N.RPL_YOUREOPER] = function(rec, irc)
-    irc.oper = true
     log.add_net(rec.id, 'irc', "you're oper")
+    now_oper(rec, irc)
 end
 
 -----------------------------------------------------------------------
@@ -301,13 +310,14 @@ local function parse_umodes(modes, modestring)
     end
 end
 
-function H.MODE(_, irc, msg)
+function H.MODE(rec, irc, msg)
     local target = msg[1]
     local modestring = msg[2]
     local cursor = 3
 
     if target == irc.nick then
         parse_umodes(irc.mode, modestring)
+        if irc.mode.o then now_oper(rec, irc) end
         return
     end
 
@@ -408,11 +418,11 @@ H[N.RPL_CHANNELMODEIS] = function(_, irc, msg)
     end
 end
 
-H[N.RPL_UMODEIS] = function(_, irc, msg)
+H[N.RPL_UMODEIS] = function(rec, irc, msg)
     local modes = {}
     parse_umodes(modes, msg[2])
     irc.mode = modes
-    irc.oper = modes.o or irc.oper
+    if modes.o then now_oper(rec, irc) end
 end
 
 -----------------------------------------------------------------------
