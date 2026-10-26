@@ -25,7 +25,7 @@ local manager    <const> = require 'hub.net.manager'
 local M = {}
 
 -- Bumped by hand to see at a glance which code is running after a reload
-M.version = 'phase3'
+M.version = 'phase4'
 
 local function module_names(opts)
     local names = {

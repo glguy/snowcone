@@ -3,6 +3,15 @@
 Running record of decisions, deviations from `docs/hub-design.md`, fixes to
 ported bugs, and open questions. Newest phase last.
 
+## Requirements from the user
+
+- **Rolling buffers, not scrolling.** Every log-style view (status,
+  console, cliconn, cliexit, bans, channels, and chat buffers to come)
+  draws with `draw.draw_rotation`: new lines replace the oldest row above
+  a moving divider, so lines stay put while updates roll in and can be read
+  and clicked. Scrolling back pins the view (`vs.pin`). Keep this for every
+  new view of a stream.
+
 ## Phase 0: skeleton
 
 ### Structure
@@ -284,3 +293,73 @@ tick). Tested in `test-reload.lua`.
   unreachable network; SIGUSR1 reload with all three; Meta-2 and the
   all-networks console; a configuration reload that removed a network and
   marked a gecos change pending, applied by `/reconnect @gl2`.
+
+## Phase 4: dashboard features
+
+### Golden fixtures
+
+- `tests/hub/fixtures/snotes-live.log`: 666 notices captured from the live
+  network for five minutes and anonymised by
+  `tests/hub/tools/anonymize-snotes.lua`. Every nick, username, host,
+  cloak, address (into 198.18.0.0/15 and 2001:db8::/32), gecos, account,
+  oper name, channel, mask and non-server reason is replaced consistently,
+  so bans still match the notices about them. Lines that don't re-parse to
+  exactly the replaced fields are dropped, and no original value may
+  survive. Override and bad-login notices carry unparsed personal text and
+  are left out; the KILL path is replaced. The raw capture was deleted.
+- `snotes-synthetic.log` covers every format by hand, including ones that
+  didn't occur live and two lines that must not parse.
+- `*.expected.lua` come from the dashboard's parser
+  (`tests/hub/tools/expect-snotes.lua`); hub's copy of the parser matches it
+  on every line. The parser is unchanged; a table-driven rewrite can now be
+  checked against the fixtures.
+
+### Features
+
+- `features/common.lua`: `enabled(net, feature)` and per-network state in
+  `state.features[feature][net]`, dropped on `net.removed`.
+- snotice: stores per network (users, exits, klines, new_channels, load
+  trackers, net_trackers, watches) as records; LoadAverage/LoadTracker are
+  `lib/loadavg.lua`, NetTracker/MaskTracker `features/snotice/nettrack.lua`
+  (binary prefixes stored hex-encoded). Watches emit `notify.alert` with a
+  colour name instead of beeping. Users and exits fold keys with the
+  network's casemapping. Connection entries now keep `class`, which the
+  prefilter language could ask for but the dashboard never stored.
+- `irc.oper` (protocol layer) fires once per connection: RPL_YOUREOPER, or
+  user mode `o` (already opered, e.g. through a bouncer). Topology sends
+  MAP and LINKS, snotice a TESTMASK per tracked range; RPL_YOUREOPER also
+  sets `MODE <nick> +s <snomask>` (per network `snomask`, default
+  `BFZbcklnsx`). Netsplits and netjoins resync the same way.
+- topology: servers file per network (`servers_file`; the dashboard read
+  `servers.lua` from the config directory by default, hub only when
+  configured), populations, links/upstream, versions, uptimes, drains,
+  sheds, DNS rotations every 30 s (timer id kept in state so reloads don't
+  add timers). **Fixed:** LINKS replies merge both directions; the
+  dashboard replaced a server's set, so reply order could drop links.
+- oper: staged K-Line/unkline/undline per network with TESTMASK counts,
+  durations, reasons and tags (servers file plus `/tag`), freeze. Staging
+  sends only queries; `commit` sends the ban, from the UI's buttons.
+- Feature commands carry `feature`; they run and appear in help and
+  completion only when the current network has it (Meta-A in help shows
+  all).
+
+### Views and commands
+
+- cliconn, cliexit, connload, exitload, banload, spamload, bans, netcount,
+  repeats and channels (the dashboard's new-channel list; ircc's /list view
+  will need another id). Dashboard globals became view state: filter,
+  prefilter, server_filter, conn_filter, mark_filter, highlight,
+  show_reasons, ordering, descending, expanded. Esc clears the filters.
+- **To confirm:** the dashboard's `/filter` query language is `/prefilter`
+  in hub, because `/filter` is the per-view pattern filter of every view.
+  `lib/matchdsl.lua` no longer needs rex_pcre2 to load; regex terms do.
+- The action bar (reason/org/asn/ip, duration, trust, freeze, reason, tag,
+  staged KLINE/UNKLINE/UNDLINE with TRACE) is `ui/dashboard.lua`, shared by
+  cliconn, cliexit and bans.
+
+### Checked by hand
+
+Live against the soju bouncer: cliconn, connload with MAP populations, the
+status-bar load graph. Side by side with `snowcone dashboard` on the same
+network, the total population agreed to within 1-2 users over three
+samples (the difference is sampling time).

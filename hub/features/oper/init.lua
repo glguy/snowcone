@@ -201,6 +201,14 @@ function M.freeze_account(net)
     end
 end
 
+--- MASKTRACE the staged mask, to see who it would hit.
+function M.trace(net)
+    local staged = M.get(net).staged
+    if staged and staged.mask then
+        send.send(net, 'MASKTRACE', staged.mask)
+    end
+end
+
 --- Send the staged action.
 function M.commit(net)
     local O = M.get(net)

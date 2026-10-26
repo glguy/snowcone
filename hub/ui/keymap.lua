@@ -113,6 +113,11 @@ M.global = {
         vs.scroll = 0
         vs.hscroll = 0
         vs.filter = nil
+        -- the dashboard views' filters too
+        vs.server_filter = nil
+        vs.conn_filter = nil
+        vs.mark_filter = nil
+        vs.highlight = nil
     end,
 
     [-ncurses.KEY_RESUME] = function() HUB.state.ui.focus = true end,

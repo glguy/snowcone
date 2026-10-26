@@ -5,6 +5,7 @@
 -- becomes current and on every resize.
 
 local control   <const> = require 'hub.ui.control'
+local matchdsl  <const> = require 'hub.lib.matchdsl'
 local draw      <const> = require 'hub.ui.draw'
 local editor    <const> = require 'hub.ui.editor'
 local keymap    <const> = require 'hub.ui.keymap'
@@ -164,6 +165,10 @@ end
 M.init_state = control.init_state
 
 M.views = {
+    require 'hub.ui.views.bans',
+    require 'hub.ui.views.channels',
+    require 'hub.ui.views.netcount',
+    require 'hub.ui.views.repeats',
     require 'hub.ui.views.console',
     require 'hub.ui.views.help',
     require 'hub.ui.views.networks',
@@ -202,6 +207,34 @@ M.commands = {
         end,
     },
 }
+for _, list in ipairs {
+    require 'hub.ui.views.recent_conn',
+    require 'hub.ui.views.server_load',
+    require 'hub.ui.views.simple_load',
+} do
+    for _, view in ipairs(list) do
+        table.insert(M.views, view)
+    end
+end
+
+table.insert(M.commands, {
+    name = 'prefilter',
+    spec = '$R',
+    help = "Query for cliconn/cliexit: nick |re| and not (account '*' or server 'x'); empty clears",
+    fn = function(_, query)
+        local view = HUB.state.ui.view
+        if view ~= 'cliconn' and view ~= 'cliexit' then
+            view = 'cliconn'
+        end
+        if query == '' then
+            control.view_state(view).prefilter = nil
+            return
+        end
+        matchdsl(query) -- raises on a bad query
+        control.view_state(view).prefilter = query
+    end,
+})
+
 for _, view in ipairs(M.views) do
     table.insert(M.commands, {
         name = view.id,

@@ -107,6 +107,7 @@ function H.connect(S, ev)
         user = ev.user,
         nick = ev.nick,
         account = ev.account,
+        class = ev.class,
         ip = ev.ip,
         org = org,
         asn = math.tointeger(asn),
