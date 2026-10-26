@@ -35,7 +35,7 @@ bugs, and open questions, in the order they were made. Section numbers here
   generation, wires them together (`build`) and runs activation. The loader
   gets the name `hub.app` from init.lua, so the runtime layer never names
   an upper-layer module.
-- **Module protocol.** A module may export `init_state`, `migrate`,
+- **Module protocol.** A module may export `init_state`,
   `routes`, `subscribe(sub)`, `commands`, `views` and `activate(first)`.
   Duplicate routes, commands or views fail the load.
 - **Generation `require` via `_ENV`** (decided with the user). One
@@ -72,9 +72,8 @@ commands doesn't lose count).
 
 ### State
 
-- `state.VERSION` starts at 1; the design's example said 3. The version
-  is written in `activate`, after the swap, so a failed load can rerun
-  migrations.
+- There are no state versions or migrations: six phases only ever added
+  state, so `init_state` is the whole protocol.
 - `clock.uptime()` is `now - state.clock.started`, not a counter.
 - `state.log_last` is the status bar's copy of the last log line (`false`
   when dismissed).
@@ -120,8 +119,9 @@ tick). Tested in `test-reload.lua`.
 
 ### Settled with the user
 
-- `subscribe` receives `sub` with `sub.on(topic, fn, opts)`. The owner is
-  filled in with the module name; plugins get `plugin:<name>`.
+- `subscribe` receives `sub` with `sub.on(topic, fn)`. The owner is
+  filled in with the module name; plugins get `plugin:<name>@<build>`.
+  Subscribers run in subscription order; nothing needed priorities.
 - With no configuration yet, the profile defaults to `all`.
 - Tasks across reload (5.6): keep the handshake between a task record and
   the task module minimal. A coroutine suspended under old code is resumed
@@ -451,8 +451,8 @@ samples (the difference is sampling time).
   name a built-in already has) are the plugin's, logged, and the rest of
   the client loads. Handlers run under `xpcall`; errors are logged with the
   plugin's name and never stop other subscribers.
-- Plugin resources are owned by `plugin:<name>@<build>`; once a generation
-  is current, resources of earlier builds are closed, so timers and
+- Plugin resources and tasks are owned by `plugin:<name>@<build>`; once a
+  generation is current, those of other builds are closed, so timers and
   listeners don't outlive the code that set them. Timer and httpd callbacks
   go through a per-generation registry (`plugins.callback`); one that
   fires after a reload finds nothing and does nothing.

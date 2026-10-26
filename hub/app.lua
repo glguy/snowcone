@@ -2,9 +2,9 @@
 -- wired together, and what happens when one becomes current.
 --
 -- A module may export any of:
---   init_state(S), migrate(S, from)   see runtime/state.lua
+--   init_state(S)                   see runtime/state.lua
 --   routes      [name] = function, targets for trampolines and late calls
---   subscribe(sub)                   sub.on(topic, fn, opts) on the new bus
+--   subscribe(sub)                   sub.on(topic, fn) on the new bus
 --   commands    sequence of {name, spec, fn, help, scope, feature}
 --   views       sequence of view records (ui/init.lua)
 --   activate(first)                  runs once the generation is current
@@ -23,9 +23,6 @@ local manager    <const> = require 'hub.net.manager'
 local plugins    <const> = require 'hub.features.plugins'
 
 local M = {}
-
--- Bumped by hand to see at a glance which code is running after a reload
-M.version = 'phase6'
 
 local function module_names(opts)
     local names = {
@@ -109,7 +106,6 @@ function M.build(gen, opts)
         bus = bus.new(),
         commands = {},
         views = {},
-        version = M.version,
         config = cfg,
         task_methods = task.methods,
     }
@@ -122,8 +118,8 @@ function M.build(gen, opts)
             end
             if m.subscribe then
                 m.subscribe {
-                    on = function(topic, fn, o)
-                        bus.on(current.bus, topic, name, fn, o)
+                    on = function(topic, fn)
+                        bus.on(current.bus, topic, name, fn)
                     end,
                 }
             end
@@ -142,8 +138,8 @@ function M.build(gen, opts)
     -- Plugins load into this generation; their failures are only logged
     HUB.plugin_builds = (HUB.plugin_builds or 0) + 1
     plugins.load_all({
-        subscribe = function(owner, topic, fn, o)
-            bus.on(current.bus, topic, owner, fn, o)
+        subscribe = function(owner, topic, fn)
+            bus.on(current.bus, topic, owner, fn)
         end,
         add_command = function(owner, cmd)
             add_command(current, owner, cmd)
@@ -179,7 +175,6 @@ local function tick()
 end
 
 local function activate(first)
-    state.commit()
     local current = HUB.current
     HUB.last_reload = {at = os.time(), ok = true}
     HUB.state.config = current.config
@@ -207,9 +202,9 @@ local function activate(first)
         if HUB.boot.tick then
             timer.start('app', 1000, 'app.tick')
         end
-        log.add('app', 'started (%s)', current.version)
+        log.add('app', 'started')
     else
-        log.add('app', 'reloaded generation %d (%s)', current.id, current.version)
+        log.add('app', 'reloaded generation %d', current.id)
     end
 
     bus.emit('app.reloaded', {generation = current.id, first = first})

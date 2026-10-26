@@ -91,9 +91,8 @@ A module may export:
 | Export | Purpose |
 | --- | --- |
 | `init_state(S)` | Create its part of `HUB.state` if missing. Runs on every load, so it is idempotent and only adds. |
-| `migrate(S, from)` | Reshape old data when `state.VERSION` rises. Safe to run twice. |
 | `routes` | `[name] = function`, targets for trampolines and late calls. |
-| `subscribe(sub)` | `sub.on(topic, fn, opts)` on the generation's bus. |
+| `subscribe(sub)` | `sub.on(topic, fn)` on the generation's bus. |
 | `commands` | `{name, spec, fn, help, scope, feature}` entries. |
 | `views` | View records (section 7). |
 | `activate(first)` | Runs once the generation is current. |
@@ -127,7 +126,7 @@ whatever is pending.
 
 ### Events
 
-`bus.emit(topic, ev)` delivers synchronously, in priority order, each
+`bus.emit(topic, ev)` delivers synchronously, in subscription order, each
 subscriber under `xpcall`, then wakes tasks waiting on the event. Topics are
 `area.event`; events about a network carry `net`. `hub/EVENTS.md` lists
 every topic, and a test checks that every literal topic emitted is listed.

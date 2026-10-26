@@ -137,7 +137,7 @@ return {
         win:waddstr('  up ', draw.duration(clock.uptime()), '  filters ', matching.kind, '\n')
 
         label(win, 'code')
-        win:waddstr(string.format('generation %d (%s)', HUB.current.id, HUB.current.version))
+        win:waddstr(string.format('generation %d', HUB.current.id))
         local last = HUB.last_reload
         if last then
             win:waddstr('  last load ', os.date('%H:%M:%S', last.at), ' ')

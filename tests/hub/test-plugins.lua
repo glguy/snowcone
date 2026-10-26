@@ -25,6 +25,9 @@ return function(api)
     end, 'say hello')
     api.view('goodview', {render = function() end})
     HUB.test_timer = api.timer(60000, function() end)
+    api.on('app.reloaded', function()
+        HUB.test_task = api.task('waiter', function(t) t:sleep(60000) end).id
+    end)
     api.timer(10, function() HUB.test_fired = true end)
 end
 ]],
@@ -105,16 +108,19 @@ T.case('handlers, commands, state and timers', function()
     T.eq(HUB.state.features.plugins.good.loads, 1, 'state')
 end)
 
-T.case('a reload reloads plugins, keeps state and closes old timers', function()
+T.case('a reload reloads plugins, keeps state and closes old timers and tasks', function()
     boot()
-    local old_timer = HUB.test_timer
+    local old_timer, old_task = HUB.test_timer, HUB.test_task
     local resources = T.require 'hub.runtime.resources'
     T.ok(resources.get(old_timer), 'timer held')
+    T.ok(HUB.tasks[old_task], 'task running')
 
     T.ok(T.reload {config = config()}, 'reload')
     T.eq(HUB.state.features.plugins.good.loads, 2, 'loaded again with its state')
     T.eq(resources.get(old_timer), nil, "the old generation's timer is closed")
     T.ok(resources.get(HUB.test_timer), "the new generation's timer is held")
+    T.eq(HUB.tasks[old_task], nil, "the old generation's task is cancelled")
+    T.ok(HUB.tasks[HUB.test_task], "the new generation's task runs")
 end)
 
 -- a case of its own: T.run returns at the first sleep, before later cases

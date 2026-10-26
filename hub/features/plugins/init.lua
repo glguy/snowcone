@@ -6,13 +6,13 @@
 -- return a table) are not supported: port them to this api.
 --
 -- Plugins load with each generation and go with it: subscriptions,
--- commands and views belong to the generation, and resources a plugin
--- started are closed once the next generation is current. A plugin error is
+-- commands and views belong to the generation, and the resources and tasks
+-- a plugin started are closed once the next generation is current. A plugin error is
 -- logged with its name and never breaks the client.
 --
 -- api:
 --   api.name, api.state (persistent: state.features.plugins[name])
---   api.on(topic, fn, opts)          subscribe to an event
+--   api.on(topic, fn)                subscribe to an event
 --   api.command(name, spec, fn, help)  fn(ctx, ...) as for built-in commands
 --   api.view(id, {title, render, keypress, status})
 --   api.send(net, cmd, ...)  api.log(fmt, ...)  api.task(name, fn, ...)
@@ -46,12 +46,15 @@ M.loaded = loaded
 local callbacks = {}
 local next_callback = 0
 
--- Resource owner for this generation's plugins; older ones are closed
--- once this generation is current
+-- Tag of the build loading these plugins. Every owner handed out is kept
+-- in HUB.plugin_owners with its build's tag, failed builds included, so the
+-- current generation can close what all the others started.
 local owner_tag
 
 local function owner(name)
-    return 'plugin:' .. name .. '@' .. owner_tag
+    local o = 'plugin:' .. name .. '@' .. owner_tag
+    HUB.plugin_owners[o] = owner_tag
+    return o
 end
 
 local function report(name, what, err)
@@ -92,10 +95,10 @@ local function make_api(name, entry, current)
     local cfg = build_config and build_config.plugins
     api.config = cfg and cfg.custom and cfg.custom[name] or {}
 
-    function api.on(topic, fn, opts)
+    function api.on(topic, fn)
         current.subscribe(owner(name), topic, function(ev)
             guard(name, topic, fn, ev)
-        end, opts)
+        end)
     end
 
     function api.command(command, spec, fn, help)
@@ -173,10 +176,11 @@ local function load_one(name, current)
 end
 
 --- Load the configured plugins into a generation being built. `current`
---- gives subscribe(owner, topic, fn, opts), add_command(owner, spec) and
+--- gives subscribe(owner, topic, fn), add_command(owner, spec) and
 --- add_view(owner, view); cfg_all is the generation's configuration.
 function M.load_all(current, tag, cfg_all)
     owner_tag = tag
+    HUB.plugin_owners = HUB.plugin_owners or {}
     build_config = cfg_all
     for i = #loaded, 1, -1 do loaded[i] = nil end
     local cfg = cfg_all.plugins
@@ -185,13 +189,13 @@ function M.load_all(current, tag, cfg_all)
     end
 end
 
---- Close what plugins of earlier generations left open.
+--- Close what plugins of other builds left open.
 function M.activate()
-    local mine = '@' .. tostring(owner_tag)
-    for id, entry in resources.each() do
-        local o = entry.owner
-        if type(o) == 'string' and o:sub(1, 7) == 'plugin:' and o:sub(-#mine) ~= mine then
-            resources.close(id)
+    for o, tag in pairs(HUB.plugin_owners) do
+        if tag ~= owner_tag then
+            HUB.plugin_owners[o] = nil
+            resources.close_owner(o)
+            task.cancel_owner(o)
         end
     end
 end
