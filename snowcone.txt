@@ -1,219 +1,137 @@
 NAME
-  snowcone - solanum server notice console
+  snowcone - IRC client and solanum server notice console
 SYNOPSIS
-  snowcone MODE [--config PATH]
-
-  MODE is dashboard, ircc or hub, or the path of a Lua program. A
-  program has no terminal until it calls snowcone.start_ui(); snowcone
-  exits once the program has no work left, with a failure status after
-  any uncaught Lua error.
+  snowcone MODE [--config=PATH] [key.path=value ...]
 
 DESCRIPTION
-  snowcone provides a live view of server notices focused on awareness
-  of recent connections and disconnections to the network. It can show
-  information about the most recent connections as well as various load
-  meters split by server and operators. It does this with a run-time
-  editable scripting environment to support rapidly adapting to the
-  needs of the current situation.
+  snowcone is a terminal IRC client for network operators. Its hub mode
+  connects to any number of networks at once, chats on them, and turns
+  server notices into live views of recent connections, exits, bans and
+  per-server load. It runs on a scripting environment whose code and
+  configuration can be reloaded without dropping connections.
 
 MODES
-  F1  recent connections
-  F2  server connection load
-  F3  recent exits
-  F4  server exit load
-  F5  bans
-  F6  channel creates and floods
-  F7  network-mask connection tracker
-  F8  raw IRC console
-  C-n  next view
-  C-p  previous view
-  C-s  live filtering mode
-  C-u  kill to beginning of buffer
-  C-k  kill to end of buffer
-  C-w  kill previous word
-  M-d  kill next word
-  C-y  paste yanked region
-  C-a  move to beginning of buffer
-  C-e  move to end of buffer
-  C-f  move right
-  C-b  move left
-  C-t  swap characters
-  M-f  next word
-  M-b  previous word
-  UP   older command history
-  DOWN  newer command history
-  PgUp  scroll up
-  PgDn  scroll down
-  Esc   clear filters, reset scroll, clear status message
+  hub          Chat and server notices on many networks. This page is about
+               hub mode.
+  dashboard    The older server notice console, for one network.
+  ircc         The older IRC client, for one network.
+  program.lua  A Lua program, given by its path. It has no terminal until it
+               calls snowcone.start_ui(), and snowcone exits once the program
+               has no work left.
 
-SH RECENT CONNECTIONS
-  The recent connections view has a number of special features. Click on
-  a connection to select it for kline or unkline. The buttons below will
-  allow you to set kline reasons, durations, and to see the number of
-  affected users before you commit to the action.
+GETTING STARTED
+  hub reads ~/.config/snowcone/hub.toml. A minimal configuration names
+  one network with a short id, how to reach it and a nick:
 
-  Q     only live connections
-  W     only dead connections
-  E     all connections
-  K     issue kline
+	[[networks]]
+	id = 'libera'
 
-  The first column shows when a user connected. It fades from white a
-  character per second to indicate the most recent connections. Times
-  are displayed in UTC.
+	[networks.server]
+	host = 'irc.libera.chat'
+	port = 6697
 
-  The second column usually shows reconnection counts for that nickname.
-  When a client triggers a server-side filter, this counter will switch
-  to showing the number of times this connection has tripped a filter.
-  This is indicated with an exclamation point after the number.
+	[[networks.layers]]
+	type = 'tls'
 
-  The third column shows the nickname, username, and hostname of the
-  connected user. It will be green while the user is connected and turns
-  red when the user disconnects. It updates when a user changes nicknames.
+	[networks.identity]
+	nick = 'mynick'
 
-  The fourth column can show disconnect reasons, IP addresses, and GeoIP
-  ASN names (in that order of preference). You can override that preference
-  by cycling through modes using the first button in the toolbar.
+  Then run snowcone hub. Add a [[networks]] table for each network. SASL,
+  operator login, proxies, client certificates, features and the other
+  settings are described in docs/CONFIG.md in the snowcone source.
 
-  The fifth column shows the server the user is connected to.
+  Settings can be overridden for one run on the command line, for example
+  snowcone hub ui.profile=chat.
 
-  The sixth column shows the SASL identified account name for the user,
-  if applicable, as well as the GECOS field.
+USING HUB
+  The bottom line is the status bar: the view's name, then every network
+  coloured by state (green connected, yellow on the way, red idle), with
+  + or ! for unseen chat or a mention. Click a network, press Meta-1 to
+  Meta-9, or use /net to choose the current network. Views and commands
+  act on the current network.
 
-SERVER LOAD
-  The server load views (for connections and disconnections) provide a
-  view of the load rates as well as the current state of the DNS
-  rotations. Each column heading can be clicked in order to chose a
-  sort order for this view.
+  Commands start with / and are typed on the bottom line. A command that
+  acts on a network can name another one with @id first, for example
+  /quote @oftc WHOIS someone.
 
-  The rotating bar graphs show the number of events per second for the
-  last minute. The bar graphs max out at 8 events per second.
+  Many things on screen can be clicked: a network, a column title to
+  sort by it, a connection to stage a K-Line for it, a message to inspect
+  it in the console, or a [+N more] button to expand a list.
 
-  The load averages give an approximation of the number of connections
-  per second in either the last 1, 5, or 15 minutes. These varying
-  time windows can help interpret the numbers as showing when rates
-  are increasing or decreasing over time and to help put spikes into
-  perspective.
+KEYS
+  /            Type a command
+  t            Talk in the shown chat buffer
+  C-s          Filter the current view
+  Esc          Leave input, clear filters and scrolling
+  C-n, C-p     Next and previous view of the rotation
+  F1..F12      A view of the rotation
+  Meta-1..9    Choose a network
+  Meta-a       The next buffer with unseen messages, mentions first
+  PgUp, PgDn   Scroll by a page; Up and Down by a line
+  Tab          Complete commands, channels and nicks
+  C-c          Quit; a second C-c exits at once
 
-  The various columns full of 4 and 6 show which servers have known
-  IPv4 and IPv6 address. They turn yellow when that address is in
-  the DNS rotation corresponding to the column.
-
-  The Mn column shows the MAIN rotation. The region column shows the
-  region a server is in and if the server is in that region's DNS
-  rotation. The AF column shows the IPV4 and IPV6 rotations.
-
-  The Conns column shows the number number of connections for that
-  server.
-
-  The Up column shows the server this server is linked to in the
-  direction of the configured primary_hub.
-
-RAW CLIENT
-  The raw client view (F8) is primarily intended for debugging. It exists
-  to see what snowcone sees. To see details about any one message, click
-  on its command text.
+  While typing, the usual Emacs editing keys work: C-a, C-e, C-k, C-u,
+  C-w, C-y, Meta-f, Meta-b. Up and Down step through command history.
 
 COMMANDS
-  You can run client commands from any window. When you startup typing
-  a command with a '/' character, the input buffer will replace the last
-  line in the client.
+  /help lists the commands you can use on the current network; Meta-a
+  there shows those of every feature. To begin with:
 
-  /eval luacode             Evaluate arbitrary Lua code
-  /filter pattern           Update the recent connection filter
-                            using Lua pattern syntax
-  /nettrack label address/prefix  Add a network to the F7 tracking view
-  /quote raw_command        Send a raw IRC command
-  /reload                   Reload Lua files
-  /sync                     Manually refresh user counts
-  /addwatch pattern         Add a new watch
-  /delwatch number          Remove watch by number
-  /banload                  Load meters for kline setting
-  /spamload                 Load meters for filter events
-  /repeats                  List of repeated connections by nicknames and masks
-  /stats                    Internal client metrics
-  /versions                 Populate the server list version column
-  /uptimes                  Populate the server list startup column
-GEOIP SUPPORT
-  Both legacy GeoIP and modern GeoIP Maxmind database are supported
-  and will be used if they are found at startup time.
-NETWORK CONFIGURATION
-  Information about your network can be populated in the servers
-  configuration file. The MAIN, IPV4, and IPV6 regions get special
-  rendering treatment in the server list.
+  /talk target      Open a buffer for a channel or nick, joining the channel
+  /msg target text  Send a message
+  /net id          Choose the current network
+  /networks        Every network's state
+  /session         The current network's connection
+  /status          The client's log, where errors appear
+  /connect, /disconnect, /reconnect  
+                   Control the current network's connection
+  /quote command   Send an IRC command
+  /reload          Load new code and configuration, keeping connections
+  /quit            Disconnect from every network and exit
 
-	{
-	  primary_hub = 'hub.irc.tld',
-	  regions = {
-	    MAIN = { hostname = 'irc.tld' },
-	    US   = { hostname = 'us.irc.tld', color = 'red' },
-	  },
-	  servers = {
-	    'xyz.irc.tld' =
-	      { alias = 'Xy', region = 'US',
-	        ipv4 = '192.0.2.1', ipv6 = '2001:db8::16' }
-	  },
-	  kline_reasons = {
-	    { 'banned', 'You are banned.' },
-	  },
-	}
-SASL SUPPORT
-  mechanism          One of the mechanisms below
-  username           Authentication identity
-  password           Authentication password or private key password
-  authzid            Authorization identity
-  key                Private key path
+VIEWS
+  Each view has a command of the same name. With the snotice feature and
+  operator access:
 
-  For password-based authentication mechanisms the password
-  will be used as your credential. For asymmetric cryptography
-  mechanisms, this will be used to decrypt the private key.
+  cliconn, cliexit     Recent connections and exits
+  connload, exitload   Connection and exit load per server, and DNS rotations
+  bans                 K-Lines, D-Lines and kills
+  channels             New channels, flooders and spambots
+  netcount             Users per address range, and connection watches
 
-  Private key files should be PEM encoded.
+  For chat: buffer (the shown buffer) and list (/list results). For
+  everyone: console (raw IRC traffic), status, networks, session, stats,
+  help and plugins.
 
-  An optional (and very uncommon) authorization identity can be specified
-  with authzid.
+PLUGINS
+  Plugins are Lua files in ~/.config/snowcone/plugins, named in the
+  [plugins] modules setting. A plugin returns a function that receives
+  the plugin api; the README has an example.
 
-  PLAIN
-  EXTERNAL
-  ECDH-X25519-CHALLENGE
-  ECDSA-NIST256P-CHALLENGE
-  SCRAM-SHA-1
-  SCRAM-SHA-256
-  SCRAM-SHA-512
-
-HUB
-  hub mode does what dashboard and ircc do, on any number of networks at
-  once. It reads ~/.config/snowcone/hub.toml (or hub.lua), where each
-  network is a [[networks]] table with its own server, identity, sasl and
-  features (snotice, oper, topology, chat, bouncer). /help lists the
-  commands; /reload and SIGUSR1 load new code and configuration without
-  dropping connections. Plugins are Lua files returning function(api).
+SIGNALS
+  SIGUSR1  Reload code and configuration, like /reload.
+  SIGINT, SIGTERM, SIGHUP  
+           Quit, as C-c does.
 
 FILES
-  ~/.config/snowcone/settings.lua
-    Connection configuration file using lua syntax
+  ~/.config/snowcone/hub.toml  
+    The hub configuration (or hub.lua, or the file given with --config).
+    $XDG_CONFIG_HOME replaces ~/.config when it is set.
 
-  ~/.config/snowcone/hub.toml
-    Configuration for hub mode (or hub.lua)
+  ~/.config/snowcone/plugins/  
+    Plugin files and their saved data.
 
-  ~/.config/snowcone/plugins/
-    Plugins named in the [plugins] modules setting
+  ~/.config/snowcone/GeoLite2-ASN.mmdb  
+    With the mmdb Lua library installed, used to show the network that
+    owns each connecting address.
 
-  ~/.config/snowcone/servers.lua
-    Lua syntax table specifying server addresses and regions.
+  /usr/share/snowcone/  
+    The Lua sources of each mode.
 
-  /usr/share/snowcone/dashboard
-    Lua run-time source files for dashboard mode
+SEE ALSO
+  https://github.com/glguy/snowcone
 
-  /usr/share/snowcone/ircc
-    Lua run-time source files for ircc mode
-
-  /usr/share/snowcone/hub
-    Lua run-time source files for hub mode
-
-  ~/.config/snowcone/GeoLite2-ASN.mmdb
-    If the mmdb Lua library is installed, and the GeoLite2-ASN.mmdb
-    database is in the current directory, snowcone will use it to provide
-    more information about recent connections.
 AUTHOR
   snowcone was written by Eric Mertens <glguy@libera.chat> and is published
   under the ISC license.
