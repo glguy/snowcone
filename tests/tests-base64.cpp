@@ -54,7 +54,7 @@ TEST(Base64, Exhaust1)
          i++)
     {
         char input[1] {char(i)};
-        char output64[5];
+        char output64[5] {}; // encode writes no terminator
         char recovered[1];
 
         base64::encode({input, 1}, output64);
@@ -73,7 +73,7 @@ TEST(Base64, Zeros) {
 
 TEST(Base64, Ones) {
     uint32_t buffer = UINT32_C(0xffffffff);
-    char output[9];
+    char output[9] {}; // encode writes no terminator
 
     base64::encode({reinterpret_cast<char*>(&buffer), sizeof(buffer)}, output);
     EXPECT_STREQ(output, "/////w==");

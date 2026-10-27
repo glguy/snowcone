@@ -1,0 +1,46 @@
+# Builds, tests and packages snowcone on Debian stable.
+#
+#   container build -c 8 -m 12G -f Containerfile.debian -o type=local,dest=out/debian .
+#
+# The builder's default 2 CPUs and 2 GB can't hold parallel compiles of
+# the Boost.Asio code, and it thrashes for the better part of an hour.
+# -c and -m size the builder when it starts; if it is already running,
+# `container builder stop` first.
+#
+# A failing build or test fails the image build; the .deb lands in
+# out/debian. --build-arg DEBIAN=trixie (or another suite) pins the release.
+
+ARG DEBIAN=stable
+
+FROM debian:${DEBIAN} AS build
+
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        build-essential cmake ninja-build pkg-config git ca-certificates \
+        dpkg-dev file \
+        lua5.4 liblua5.4-dev libssl-dev libncurses-dev libboost-dev \
+        libidn-dev libarchive-dev libgeoip-dev \
+        lua-penlight lua-rex-pcre2 lua-mmdb lua-json \
+        libgtest-dev libgmock-dev lua-check curl \
+ && case "$(dpkg --print-architecture)" in \
+        amd64) hs=libhyperscan-dev ;; \
+        arm64) hs=libvectorscan-dev ;; \
+        *) hs= ;; \
+    esac \
+ && if [ -n "$hs" ]; then \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$hs"; \
+    fi \
+ && rm -rf /var/lib/apt/lists/*
+
+# .git comes along: the package version counts its commits
+WORKDIR /src
+COPY . .
+
+RUN cmake -S . -B /build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+ && cmake --build /build
+RUN ctest --test-dir /build --output-on-failure
+RUN cd /build && cpack
+
+# Only the package, for -o type=local
+FROM scratch AS package
+COPY --from=build /build/*.deb /

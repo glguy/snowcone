@@ -1,0 +1,5 @@
+# Host build trees and editor caches; .git stays for the package version
+/out
+/build
+/.cache
+/compile_commands.json
