@@ -23,6 +23,16 @@ WINDOW* checkwindow(struct lua_State* L, int arg);
  */
 WINDOW* optwindow(struct lua_State*, int arg);
 
+/**
+ * @brief Match an integer argument that fits an int, as ncurses takes it;
+ * a larger one would wrap to some other value
+ *
+ * @param L Lua state
+ * @param arg Stack index
+ * @return The argument
+ */
+int checkint(struct lua_State* L, int arg);
+
 int l_newwin(struct lua_State*);
 
 int l_newpad(struct lua_State*);

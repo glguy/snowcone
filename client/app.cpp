@@ -232,6 +232,8 @@ struct PasteMode
         if (text.ends_with(end_paste_marker))
         {
             text.resize(text.size() - end_paste_marker.size());
+            // The check below lets through up to a marker's length more
+            discarding = discarding || text.size() > max_paste;
             return true;
         }
         // Past the limit only a tail that may hold the start of the marker
@@ -268,14 +270,6 @@ auto App::resize() -> void
 /// no pending wait doesn't keep run() alive.
 auto App::signal_thread() -> boost::asio::awaitable<void>
 {
-    // Caught here rather than by ncurses' handlers, which exit or stop
-    // without turning off bracketed paste and focus reporting. Without a UI
-    // the defaults are right, so this starts with it.
-    for (auto const sig : {SIGWINCH, SIGUSR1, SIGINT, SIGTERM, SIGHUP, SIGTSTP, SIGCONT})
-    {
-        signals.add(sig);
-    }
-
     // shutdown() may come from inside reload() or on_resize, when no wait is
     // pending for its cancel() to abort
     while (not shutting_down)
@@ -398,6 +392,11 @@ auto App::stdin_thread(unsigned const generation) -> boost::asio::awaitable<void
             else if (BracketedPaste::focus_lost == key)
             {
                 do_keyboard(L, -KEY_EXIT);
+            }
+            else if (KEY_RESIZE == key)
+            {
+                // Queued by ncurses when resize() finds a new size, which
+                // it has reported already
             }
             else if (key > 0xff)
             {
@@ -557,6 +556,17 @@ auto App::start_ui() -> void
     ui = true;
     uses_terminal = true;
     input_running = true;
+
+    // Caught by signal_thread rather than by ncurses' handlers, which exit
+    // or stop without turning off bracketed paste and focus reporting, and
+    // which would take a SIGWINCH before signal_thread starts. initscr
+    // installs its own only for signals left at the default, so these come
+    // first; until signal_thread starts they wait. Without a UI the
+    // defaults are right, so this starts with it.
+    for (auto const sig : {SIGWINCH, SIGUSR1, SIGINT, SIGTERM, SIGHUP, SIGTSTP, SIGCONT})
+    {
+        signals.add(sig);
+    }
 
     setlocale(LC_ALL, "");
     initscr();

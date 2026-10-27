@@ -97,7 +97,8 @@ static int l_attrget(lua_State* const L)
 static int l_attrset(lua_State* const L)
 {
     int const a = luaL_checkinteger(L, 1);
-    int const color = luaL_checkinteger(L, 2);
+    lua_Integer const color = luaL_checkinteger(L, 2);
+    luaL_argcheck(L, 0 <= color && color < COLOR_PAIRS, 2, "out of range");
     WINDOW* const win = optwindow(L, 3);
 
     if (ERR == wattr_set(win, a, color, NULL))
@@ -121,8 +122,8 @@ static int l_addstr(lua_State* const L)
 
 static int l_mvaddstr(lua_State* const L)
 {
-    int const y = luaL_checkinteger(L, 1);
-    int const x = luaL_checkinteger(L, 2);
+    lua_Integer const y = luaL_checkinteger(L, 1);
+    lua_Integer const x = luaL_checkinteger(L, 2);
     size_t len;
     int const n = lua_gettop(L);
 
@@ -215,8 +216,8 @@ static int l_colorset(lua_State* const L)
 
 static int l_move(lua_State* const L)
 {
-    lua_Integer y = luaL_checkinteger(L, 1);
-    lua_Integer x = luaL_checkinteger(L, 2);
+    int const y = checkint(L, 1);
+    int const x = checkint(L, 2);
     WINDOW* const win = optwindow(L, 3);
     if (ERR == wmove(win, y, x))
     {
@@ -227,7 +228,7 @@ static int l_move(lua_State* const L)
 
 static int l_cursset(lua_State* const L)
 {
-    lua_Integer visibility = luaL_checkinteger(L, 1);
+    int const visibility = checkint(L, 1);
     int previous = curs_set(visibility);
     if (previous == ERR)
     {

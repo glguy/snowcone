@@ -5,7 +5,16 @@
 
 #include <ncurses.h>
 
+#include <limits.h>
+
 static char const window_name[] = "WINDOW*";
+
+int checkint(lua_State* const L, int const arg)
+{
+    lua_Integer const i = luaL_checkinteger(L, arg);
+    luaL_argcheck(L, INT_MIN <= i && i <= INT_MAX, arg, "out of range");
+    return (int)i;
+}
 
 WINDOW* checkwindow(lua_State* const L, int const arg)
 {
@@ -43,12 +52,12 @@ static int l_delwin(lua_State* const L)
 static int l_prefresh(lua_State* const L)
 {
     WINDOW* const win = checkwindow(L, 1);
-    lua_Integer const pminrow = luaL_checkinteger(L, 2);
-    lua_Integer const pmincol = luaL_checkinteger(L, 3);
-    lua_Integer const sminrow = luaL_checkinteger(L, 4);
-    lua_Integer const smincol = luaL_checkinteger(L, 5);
-    lua_Integer const smaxrow = luaL_checkinteger(L, 6);
-    lua_Integer const smaxcol = luaL_checkinteger(L, 7);
+    int const pminrow = checkint(L, 2);
+    int const pmincol = checkint(L, 3);
+    int const sminrow = checkint(L, 4);
+    int const smincol = checkint(L, 5);
+    int const smaxrow = checkint(L, 6);
+    int const smaxcol = checkint(L, 7);
 
     if (ERR == prefresh(win, pminrow, pmincol, sminrow, smincol, smaxrow, smaxcol))
     {
@@ -60,12 +69,12 @@ static int l_prefresh(lua_State* const L)
 static int l_pnoutrefresh(lua_State* const L)
 {
     WINDOW* const win = checkwindow(L, 1);
-    lua_Integer const pminrow = luaL_checkinteger(L, 2);
-    lua_Integer const pmincol = luaL_checkinteger(L, 3);
-    lua_Integer const sminrow = luaL_checkinteger(L, 4);
-    lua_Integer const smincol = luaL_checkinteger(L, 5);
-    lua_Integer const smaxrow = luaL_checkinteger(L, 6);
-    lua_Integer const smaxcol = luaL_checkinteger(L, 7);
+    int const pminrow = checkint(L, 2);
+    int const pmincol = checkint(L, 3);
+    int const sminrow = checkint(L, 4);
+    int const smincol = checkint(L, 5);
+    int const smaxrow = checkint(L, 6);
+    int const smaxcol = checkint(L, 7);
 
     if (ERR == pnoutrefresh(win, pminrow, pmincol, sminrow, smincol, smaxrow, smaxcol))
     {
@@ -77,8 +86,8 @@ static int l_pnoutrefresh(lua_State* const L)
 static int l_wresize(lua_State* const L)
 {
     WINDOW* const win = checkwindow(L, 1);
-    lua_Integer const lines = luaL_checkinteger(L, 2);
-    lua_Integer const columns = luaL_checkinteger(L, 3);
+    int const lines = checkint(L, 2);
+    int const columns = checkint(L, 3);
     if (ERR == wresize(win, lines, columns))
     {
         return luaL_error(L, "wresize: ncurses error");
@@ -89,8 +98,8 @@ static int l_wresize(lua_State* const L)
 static int l_wmove(lua_State* const L)
 {
     WINDOW* const win = checkwindow(L, 1);
-    lua_Integer const y = luaL_checkinteger(L, 2);
-    lua_Integer const x = luaL_checkinteger(L, 3);
+    int const y = checkint(L, 2);
+    int const x = checkint(L, 3);
     if (ERR == wmove(win, y, x))
     {
         return luaL_error(L, "wmove: ncurses error");
@@ -148,7 +157,6 @@ static luaL_Reg const Methods[] = {
     {"prefresh", l_prefresh},
     {"pnoutrefresh", l_pnoutrefresh},
     {"waddstr", l_waddstr},
-    {"wmove", l_wmove},
     {0}
 };
 
@@ -169,10 +177,10 @@ void pushwindow(lua_State* const L, WINDOW* const win)
 
 int l_newwin(lua_State* const L)
 {
-    lua_Integer const nlines = luaL_checkinteger(L, 1);
-    lua_Integer const ncols = luaL_checkinteger(L, 2);
-    lua_Integer const begin_y = luaL_checkinteger(L, 3);
-    lua_Integer const begin_x = luaL_checkinteger(L, 4);
+    int const nlines = checkint(L, 1);
+    int const ncols = checkint(L, 2);
+    int const begin_y = checkint(L, 3);
+    int const begin_x = checkint(L, 4);
 
     WINDOW* const result = newwin(nlines, ncols, begin_y, begin_x);
 
@@ -187,8 +195,8 @@ int l_newwin(lua_State* const L)
 
 int l_newpad(lua_State* const L)
 {
-    lua_Integer const nlines = luaL_checkinteger(L, 1);
-    lua_Integer const ncols = luaL_checkinteger(L, 2);
+    int const nlines = checkint(L, 1);
+    int const ncols = checkint(L, 2);
 
     WINDOW* const result = newpad(nlines, ncols);
 
