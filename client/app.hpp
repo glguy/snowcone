@@ -102,6 +102,13 @@ public:
      *
      * Destructors are deliberately skipped: unwinding App with work still
      * pending in the io_context is not safe.
+     *
+     * It may be called at any point, including from App's constructor before
+     * the Lua state exists or the UI has started, and from main's handler
+     * for an exception that may be std::bad_alloc. So it must use only
+     * process-wide state (no App instance, no Lua state), touch the terminal
+     * only once start_ui has taken it (restore_terminal checks), and not
+     * allocate.
      */
     [[noreturn]] static auto fatal(std::string_view message) -> void;
 
