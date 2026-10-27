@@ -85,11 +85,16 @@ end
 
 --- Ensure that a string isn't longer than a given limit, truncate if needed
 --- @param str string String to truncate
---- @param limit integer Maximum length of returned string
+--- @param limit integer Maximum length in bytes of the kept text
 --- @return string
 local function truncate(str, limit)
     if #str > limit then
-        return str:sub(1, limit - 1) .. '…'
+        -- cut before the UTF-8 character that byte `limit` belongs to
+        local cut = limit
+        while cut > 1 and str:byte(cut) & 0xC0 == 0x80 do
+            cut = cut - 1
+        end
+        return str:sub(1, cut - 1) .. '…'
     else
         return str
     end
@@ -210,13 +215,16 @@ local function match_rule(rule, event, body)
     for name, value in pairs(rule) do
         local thing
         if 'project' == name then
-            thing = body.repository and body.repository.full_name or body.organization.login
+            thing = body.repository and body.repository.full_name
+                 or body.organization and body.organization.login
         elseif 'sender' == name then
             thing = body.sender and body.sender.login
         elseif 'event' == name then
             thing = event
         elseif 'pr' == name then
+            -- comments on a PR's conversation arrive as issue_comment
             thing = body.pull_request and body.pull_request.number
+                 or body.issue and body.issue.pull_request and body.issue.number
         elseif 'issue' == name then
             thing = body.issue and body.issue.number
         end
@@ -237,6 +245,8 @@ local formatters = {
         end
 
         local n = #body.commits
+        -- a tag, or a new branch at an existing commit, brings no commits
+        local summary_commit = n > 0 and body.commits[n] or body.head_commit
 
         local target = body.ref:match('^refs/heads/(.*)$')
         if not target then
@@ -250,17 +260,18 @@ local formatters = {
             body.x_target = target
             body.x_after = format_commit_id(body.after)
             body.x_action = format_action(body.forced and 'force pushed' or 'pushed')
-            body.x_summary = body.commits[n].message:match('^%s*([^\r\n]*)')
+            body.x_summary = summary_commit.message:match('^%s*([^\r\n]*)')
 
-            if n == 1 then
-                body.x_n = '1 commit'
+            local messages
+            if n == 0 then
+                messages = {interpolate(body,
+                    action_prefix .. '\x0302{.x_target}\x0f {#.x_after}: {.x_summary} - \x0308{#.compare}')}
             else
-                body.x_n = n .. ' commits'
+                body.x_n = n == 1 and '1 commit' or n .. ' commits'
+                messages = {interpolate(body,
+                    action_prefix .. '{#.x_n} to \x0302{.x_target}\x0f {#.x_after}: {.x_summary} \z
+                    - \x0308{#.compare}')}
             end
-
-            local messages = {interpolate(body,
-                action_prefix .. '{#.x_n} to \x0302{.x_target}\x0f {#.x_after}: {.x_summary} \z
-                - \x0308{#.compare}')}
 
             for i = n-1, 1, -1 do
                 local repl = {
@@ -279,7 +290,8 @@ local formatters = {
         if body.action == 'created' then
             body.x_action = format_action('commented')
             return {interpolate(body,
-                action_prefix .. 'on {#.x_kind} #{#.issue.number} ({.issue.title}): {.comment.body} - \x0308{#.comment.html_url}')}
+                action_prefix .. 'on {#.x_kind} #{#.issue.number} ({.issue.title}): \z
+                {.comment.body} - \x0308{#.comment.html_url}')}
         else
             body.x_action = format_action(body.action)
             return {interpolate(body,
@@ -378,7 +390,8 @@ local formatters = {
             body.x_action = format_action(body.action)
         end
         return {interpolate(body,
-            common_prefix .. 'Check suite \x02{.check_suite.app.name}\x02 for {#.x_target} {#.x_commit_id}: {#.x_action}')}
+            common_prefix .. 'Check suite \x02{.check_suite.app.name}\x02 for {#.x_target} \z
+            {#.x_commit_id}: {#.x_action}')}
     end,
 
     -- Special event for r10k deployments
@@ -456,7 +469,12 @@ local function do_notify(authid, delivery, event, raw_body)
     -- simple mode decodes null as nil, so an absent field and a null one
     -- are the same (luajson's default gives a sentinel, which is truthy)
     local body = json.decode(raw_body, json.decode.simple)
-    local full_name = body.repository and body.repository.full_name or body.organization.login
+    local full_name = body.repository and body.repository.full_name
+                   or body.organization and body.organization.login
+    if not full_name then
+        api.log('Ignoring %s: no repository or organization', event)
+        return reply_no_content()
+    end
     local project = config.projects[full_name]
 
     if authid and project and not project.authorized[authid] then
@@ -465,9 +483,11 @@ local function do_notify(authid, delivery, event, raw_body)
 
     -- Save body for debugging and replay, but delay saving the event until we've checked it's valid
     if config.debug and delivery then
-        file.write(
-            path.join(cache_dir(), 'gh-notify-' .. event .. '-' .. delivery .. '.json'),
-            raw_body)
+        local filename = path.join(cache_dir(), 'gh-notify-' .. event .. '-' .. delivery .. '.json')
+        local ok, err = file.write(filename, raw_body)
+        if not ok then
+            api.log('Saving %s failed: %s', filename, err)
+        end
     end
 
     -- <event> or <event>:<action>
@@ -640,6 +660,22 @@ local function join_channels()
     end
 end
 
+--- Why an event name can't be announced, or nil when it can
+--- @param event string <event> or <event>:<action>
+--- @return string?
+local function event_problem(event)
+    -- Check that the event is in the GitHub API
+    if not all_events[event] then
+        return 'Unknown event'
+    end
+
+    -- Check if we have a formatter for this event
+    local prefix = event:match '^[^:]*'
+    if not formatters[prefix] then
+        return 'Event not yet implemented'
+    end
+end
+
 --- All the online documentation content
 --- @type table<string, string[]>
 local help_strings = {
@@ -701,15 +737,9 @@ local irc_commands = {
             return {'No such project'}
         end
 
-        -- Check that the event is in the GitHub API
-        if not all_events[event] then
-            return {'Unknown event'}
-        end
-
-        -- Check if we have a formatter for this event
-        local prefix = event:match '^[^:]*'
-        if not formatters[prefix] then
-            return {'Event not yet implemented'}
+        local problem = event_problem(event)
+        if problem then
+            return {problem}
         end
 
         local old = project.events[event]
@@ -793,9 +823,15 @@ local irc_commands = {
             elseif 'event' == k then
                 mute.rule.event = v
             elseif 'pr' == k then
-                mute.rule.pr = tonumber(v)
+                mute.rule.pr = math.tointeger(v)
+                if not mute.rule.pr then
+                    return {'Bad pr: ' .. v}
+                end
             elseif 'issue' == k then
-                mute.rule.issue = tonumber(v)
+                mute.rule.issue = math.tointeger(v)
+                if not mute.rule.issue then
+                    return {'Bad issue: ' .. v}
+                end
             else
                 return {'Unknown parameter: ' .. k}
             end
@@ -989,6 +1025,10 @@ local client_commands = {
     gh_event_on = {'$g $g', 'Announce an event for a project: <repo> <event>[:<action>]', function(repo, event)
         if not config.projects[repo] then
             error('no such project', 0)
+        end
+        local problem = event_problem(event)
+        if problem then
+            error(problem, 0)
         end
         config.projects[repo].events[event] = true
         save_config(config)

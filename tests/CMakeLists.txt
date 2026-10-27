@@ -51,11 +51,14 @@ foreach(name test-dnslookup test-escape test-execute test-sasl test-scram test-s
 endforeach()
 
 # hub's tests share tests/hub/lib.lua and load hub from the source tree
-foreach(name test-reload test-structure test-net test-ui test-snotice test-topology test-oper test-chat test-views test-plugins)
+foreach(name test-reload test-structure test-net test-ui test-snotice test-topology test-oper test-chat test-views test-plugins
+             test-github)
   add_test(NAME hub-${name}
     COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/hub/${name}.lua")
   set_tests_properties(hub-${name} PROPERTIES TIMEOUT 30)
 endforeach()
+# the GitHub plugin needs a Lua json module, and skips without one
+set_tests_properties(hub-test-github PROPERTIES SKIP_RETURN_CODE 77)
 
 # Drives start_httpd with curl through snowcone.execute
 find_program(CURL curl)
@@ -77,5 +80,8 @@ add_test(NAME luacheck-dashboard
   COMMAND ${LUACHECK} ".")
 add_test(NAME luacheck-hub
   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/hub"
+  COMMAND ${LUACHECK} ".")
+add_test(NAME luacheck-plugins
+  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/plugins"
   COMMAND ${LUACHECK} ".")
 endif()
