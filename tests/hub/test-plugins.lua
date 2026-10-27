@@ -121,6 +121,48 @@ T.case('a reload reloads plugins, keeps state and closes old timers and tasks', 
     T.ok(HUB.tasks[HUB.test_task], "the new generation's task runs")
 end)
 
+T.case('saved data and httpd replies reach their callers', function()
+    assert(file.write(path.join(dir, 'saver.lua'), [[
+return function(api)
+    local saved = api.load() or {count = 0}
+    saved.count = saved.count + 1
+    api.save(saved)
+    HUB.test_saved = saved.count
+    HUB.test_path = api.path 'txt'
+    api.httpd('::1', 0, function(method, target)
+        if target == '/fail' then error 'handler fails' end
+        return 200, method .. ' ' .. target, {['Content-Type'] = 'text/plain'}
+    end)
+end
+]]))
+    -- capture the callback hub gives the native httpd
+    local real = snowcone.start_httpd
+    local callback
+    snowcone.start_httpd = function(_, _, cb)
+        callback = cb
+        return {close = function() end}
+    end
+    local ok, err = pcall(function()
+        local function start()
+            HUB = nil
+            T.boot {strict = false, config = {plugins = {directory = dir, modules = {'saver'}}, networks = {}}}
+        end
+        start()
+        T.eq(HUB.test_saved, 1, 'nothing saved yet')
+        T.eq(HUB.test_path, path.join(dir, 'saver.txt'), 'path')
+        start()
+        T.eq(HUB.test_saved, 2, 'loaded what the last start saved')
+
+        T.eq({callback('GET', '/x', '', {})}, {200, 'GET /x', {['Content-Type'] = 'text/plain'}}, 'reply')
+        T.eq(select('#', callback('GET', '/fail', '', {})), 0, 'an error gives no reply')
+        T.ok(T.log_lines('error')[1], 'and is reported')
+    end)
+    snowcone.start_httpd = real
+    os.remove(path.join(dir, 'saver.dat'))
+    os.remove(path.join(dir, 'saver.lua'))
+    if not ok then error(err, 0) end
+end)
+
 -- a case of its own: T.run returns at the first sleep, before later cases
 T.case('remove the plugin directory', function()
     for name in pairs(sources) do os.remove(path.join(dir, name .. '.lua')) end

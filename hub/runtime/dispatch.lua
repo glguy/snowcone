@@ -74,12 +74,17 @@ end
 
 --- Call a route as an entry point from native code.
 function M.enter(route, ...)
-    local ok, err = xpcall(M.route, debug.traceback, route)
-    if ok then
-        ok, err = xpcall(err, debug.traceback, ...)
+    local results = table.pack(xpcall(M.route, debug.traceback, route))
+    if results[1] then
+        results = table.pack(xpcall(results[2], debug.traceback, ...))
     end
-    if not ok then M.report(route, err) end
+    if not results[1] then M.report(route, results[2]) end
     M.flush()
+    -- what the route returned, for native callers that read it (the httpd
+    -- takes its response from them); nothing after an error
+    if results[1] then
+        return table.unpack(results, 2, results.n)
+    end
 end
 
 --- Make a callback for native code.
@@ -94,14 +99,14 @@ function M.trampoline(route, ...)
     local bound = table.pack(...)
     if bound.n == 0 then
         return function(...)
-            HUB.current.routes['dispatch.enter'](route, ...)
+            return HUB.current.routes['dispatch.enter'](route, ...)
         end
     end
     return function(...)
         local args = table.pack(...)
         local all = table.move(bound, 1, bound.n, 1, {})
         table.move(args, 1, args.n, bound.n + 1, all)
-        HUB.current.routes['dispatch.enter'](route, table.unpack(all, 1, bound.n + args.n))
+        return HUB.current.routes['dispatch.enter'](route, table.unpack(all, 1, bound.n + args.n))
     end
 end
 

@@ -21,8 +21,14 @@
 --   api.timer(ms, fn) -> id, api.cancel_timer(id)
 --   api.httpd(host, service, handler) -> resource id
 --   api.networks() -> ids, api.config (the plugin's [plugins.custom.<name>])
+--   api.path(ext) -> <directory>/<name>.<ext>, for the plugin's own files
+--   api.load() -> the value last saved, or nil; api.save(value) writes it
+--             to <name>.dat (pretty-printed Lua, as ircc and the dashboard
+--             saved plugin state), so it survives restarts
 
+local file      <const> = require 'pl.file'
 local path      <const> = require 'pl.path'
+local pretty    <const> = require 'pl.pretty'
 local config    <const> = require 'hub.runtime.config'
 local dispatch  <const> = require 'hub.runtime.dispatch'
 local log       <const> = require 'hub.runtime.log'
@@ -114,6 +120,19 @@ local function make_api(name, entry, current)
         return task.spawn(task_name, {owner = owner(name)}, fn, ...)
     end
     function api.networks() return manager.ids() end
+
+    function api.path(ext) return path.join(directory(), name .. '.' .. ext) end
+    function api.load()
+        local text = file.read(api.path 'dat')
+        if text == nil then return nil end
+        local value, err = pretty.read(text)
+        if value == nil then error(api.path 'dat' .. ': ' .. tostring(err), 0) end
+        return value
+    end
+    function api.save(value)
+        local ok, err = file.write(api.path 'dat', pretty.write(value))
+        if not ok then error(api.path 'dat' .. ': ' .. tostring(err), 0) end
+    end
 
     function api.timer(ms, fn)
         local id = register_callback(fn)
