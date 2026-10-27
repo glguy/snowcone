@@ -589,6 +589,13 @@ private:
     }
 };
 
+} // namespace
+
+template <>
+char const* const udata_name<std::shared_ptr<Listener>> = "listener";
+
+namespace {
+
 auto l_listener_close(lua_State* const L) -> int
 {
     auto& l = *check_udata<std::shared_ptr<Listener>>(L, 1);
@@ -615,9 +622,6 @@ luaL_Reg const MT[]{
 };
 
 } // namespace
-
-template <>
-char const* udata_name<std::shared_ptr<Listener>> = "listener";
 
 auto start_httpd(lua_State* const L) -> int
 {

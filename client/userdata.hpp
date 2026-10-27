@@ -14,8 +14,11 @@ extern "C" {
 #include <concepts>
 #include <memory>
 
+/// The metatable name for userdata holding a T. Each type specializes it
+/// before its first use; there is no default, so a type without one fails
+/// to link instead of using a null name.
 template <typename T>
-char const* udata_name;
+extern char const* const udata_name;
 
 /**
  * @brief Push a new userdata onto the stack

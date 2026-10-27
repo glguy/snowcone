@@ -50,7 +50,7 @@ struct Timer
 } // namespace
 
 template <>
-char const* udata_name<Timer> = "steady_timer";
+char const* const udata_name<Timer> = "steady_timer";
 
 namespace {
 

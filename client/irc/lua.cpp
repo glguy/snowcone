@@ -27,6 +27,9 @@ extern "C" {
 #include <system_error>
 #include <variant>
 
+template <>
+char const* const udata_name<std::weak_ptr<connection>> = "irc_connection";
+
 namespace {
 
 using namespace std::literals::string_view_literals;
@@ -723,6 +726,3 @@ auto pushtags(lua_State* const L, std::vector<irctag> const& tags) -> void
         lua_settable(L, -3);
     }
 }
-
-template <>
-char const* udata_name<std::weak_ptr<connection>> = "irc_connection";

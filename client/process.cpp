@@ -248,7 +248,7 @@ auto start(std::shared_ptr<Exec> const& self, boost::asio::io_context& io_contex
 } // namespace
 
 template <>
-char const* udata_name<Handle> = "process";
+char const* const udata_name<Handle> = "process";
 
 namespace {
 

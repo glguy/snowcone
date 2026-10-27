@@ -55,7 +55,7 @@ struct Handle
 } // namespace
 
 template <>
-char const* udata_name<Handle> = "dnslookup";
+char const* const udata_name<Handle> = "dnslookup";
 
 namespace {
 
