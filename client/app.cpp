@@ -99,7 +99,7 @@ App::App(char const* const filename)
 #else
     : io_context{}
 #endif
-    , stdin_poll{io_context, STDIN_FILENO}
+    , stdin_poll{io_context}
     , signals{io_context}
     , main_source{filename}
 {
@@ -551,6 +551,9 @@ auto App::start_ui() -> void
     {
         return;
     }
+    // Registered only now: on Linux every fork for a child process
+    // re-registers it with epoll, which fails for /dev/null or a file
+    stdin_poll.assign(STDIN_FILENO);
     ui = true;
     uses_terminal = true;
     input_running = true;

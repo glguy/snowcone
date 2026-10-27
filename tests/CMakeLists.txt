@@ -40,6 +40,10 @@ endforeach()
 # the GitHub plugin needs a Lua json module, and skips without one
 set_tests_properties(hub-test-github PROPERTIES SKIP_RETURN_CODE 77)
 
+add_test(NAME script-execute
+  COMMAND sh -c "exec \"$0\" \"$1\" </dev/null" $<TARGET_FILE:snowcone> "${CMAKE_CURRENT_SOURCE_DIR}/script-execute.lua")
+set_tests_properties(script-execute PROPERTIES TIMEOUT 30)
+
 # Drives start_httpd with curl through snowcone.execute
 find_program(CURL curl)
 if(CURL)

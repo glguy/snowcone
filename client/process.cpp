@@ -41,9 +41,17 @@ constexpr lua_Integer max_max_output = lua_Integer{1} << 40;
 
 namespace process = boost::process::v2;
 
-/// Process initializer run in the child before exec. It restores the default
-/// SIGPIPE action, since main ignores SIGPIPE and an ignored signal stays
-/// ignored across exec, and optionally starts a new process group.
+/// Process initializer run in the child before exec, after the pipes are on
+/// 0-2. It restores the default SIGPIPE action, since main ignores SIGPIPE
+/// and an ignored signal stays ignored across exec, and optionally starts a
+/// new process group.
+///
+/// On Linux it also marks every other descriptor close-on-exec. Boost 1.83
+/// (Debian trixie) closes only those above the highest it keeps, so the
+/// child would inherit the httpd listener and the other pipes; a child that
+/// outlives a reload then holds the port. Marking rather than closing keeps
+/// the launcher's pipe for reporting a failed exec. Without kernel support
+/// (before 5.11) it is left to Boost.
 struct ChildSetup
 {
     bool group;
@@ -51,6 +59,9 @@ struct ChildSetup
     template <typename Launcher, typename Path>
     auto on_exec_setup(Launcher&, Path const&, char const* const*) -> boost::system::error_code
     {
+#ifdef CLOSE_RANGE_CLOEXEC
+        ::close_range(3, ~0U, CLOSE_RANGE_CLOEXEC);
+#endif
         std::signal(SIGPIPE, SIG_DFL);
         if (group && ::setpgid(0, 0) == -1)
         {
@@ -199,6 +210,17 @@ auto start(std::shared_ptr<Exec> const& self, boost::asio::io_context& io_contex
         file = process::environment::find_executable(file);
     }
 
+    // The launcher forks and then, in the child, lets the io_context adjust
+    // to the fork before exec. An exception from there must not return into
+    // a second copy of the client; the parent sees exit status 127.
+    auto const parent = ::getpid();
+    auto const exit_if_child = [parent] {
+        if (::getpid() != parent)
+        {
+            ::_exit(127);
+        }
+    };
+
     try {
         using in_t = decltype(process::process_stdio::in);
         self->proc_ = process::process{
@@ -213,11 +235,15 @@ auto start(std::shared_ptr<Exec> const& self, boost::asio::io_context& io_contex
             ChildSetup{self->group_}
         };
     } catch (boost::system::system_error const& e) {
+        exit_if_child();
         self->error_code_ = e.code();
         self->stage_ = 1;
         // Not inline: the caller hasn't returned to Lua yet
         boost::asio::post(io_context, [self] { self->complete(); });
         return;
+    } catch (...) {
+        exit_if_child();
+        throw;
     }
 
     if (has_input)
