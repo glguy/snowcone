@@ -93,7 +93,10 @@ auto build_response(
     push_string(L, req.target());
     push_string(L, req.body());
 
-    // Header names are case-insensitive, so handlers get them in lower case
+    // Header names are case-insensitive, so handlers get them in lower case.
+    // A repeated name is combined in order, as RFC 9110 §5.3 allows: with
+    // ", ", except cookie, whose pieces are joined with "; " (RFC 9113
+    // §8.2.3).
     lua_newtable(L);
     for (auto&& field : req) {
         std::string name{field.name_string()};
@@ -101,8 +104,16 @@ auto build_response(
             if ('A' <= c && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
         }
         push_string(L, name);
-        push_string(L, field.value());
-        lua_settable(L, -3);
+        lua_pushvalue(L, -1);
+        if (lua_rawget(L, -3) == LUA_TNIL) {
+            lua_pop(L, 1);
+            push_string(L, field.value());
+        } else {
+            lua_pushstring(L, name == "cookie" ? "; " : ", ");
+            push_string(L, field.value());
+            lua_concat(L, 3);
+        }
+        lua_rawset(L, -3);
     }
 
     if (LUA_OK != lua_pcall(L, 4, 3, base + 1))

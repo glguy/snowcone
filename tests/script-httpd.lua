@@ -56,6 +56,8 @@ local function server(tag)
             return 200, tostring(#body)
         elseif target == '/header' then
             return 200, tostring(headers['x-mixed-case'])
+        elseif target == '/repeated' then
+            return 200, tostring(headers['x-repeat']) .. '|' .. tostring(headers['cookie'])
         elseif target == '/nothing' then
             return
         elseif target == '/raise' then
@@ -128,6 +130,9 @@ sequence(function(step)
     -- Header names reach the handler in lower case
     _, out = curl {'-H', 'X-Mixed-CASE: yes', url '/header'}
     expect('header names in lower case', responses(out), '200 yes')
+    _, out = curl {'-H', 'X-Repeat: a', '-H', 'x-REPEAT: b', '-H', 'X-Repeat: c',
+        '-H', 'Cookie: one=1', '-H', 'Cookie: two=2', url '/repeated'}
+    expect('repeated headers joined in order', responses(out), '200 a, b, c|one=1; two=2')
 
     -- Status codes: any integer from 100 to 999, reported otherwise
     _, out = curl {url '/status/299'}

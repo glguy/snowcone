@@ -8,8 +8,9 @@ struct lua_State;
  *
  * Listens for HTTP/1.1 requests on host and service. Each request calls
  * handler(method, target, body, headers), where headers maps each request
- * header name, in lower case, to its value. It responds with the handler's
- * results (status, body, headers):
+ * header name, in lower case, to its value. A repeated name gets its values
+ * joined in order with ", " ("; " for cookie). It responds with the
+ * handler's results (status, body, headers):
  * - status: an integer from 100 to 999. Returning no status gives a 500.
  * - body: a string, or anything else for an empty body.
  * - headers: a table of string names to string values, or anything else for
