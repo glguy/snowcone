@@ -9,7 +9,7 @@ that way. It is for anyone changing hub, human or agent.
 Related files:
 
 - `hub/EVENTS.md` — every event topic and its payload.
-- `hub/NOTES.md` — decisions and their reasons, in the order they were made.
+- `hub/NOTES.md` — decisions and their reasons, and mistakes not to repeat.
 - `README.md`, section "Hub" — user-facing configuration and plugin docs.
 
 ## 1. Principles
@@ -109,6 +109,14 @@ Duplicate routes, commands or views fail the build.
 | `current` | replaced | The generation: routes, bus, commands, views, config, module cache. |
 | `boot` | yes | First-load options (ui, tick, strict, test transport...). |
 | `generation` | yes | Count of successful loads. |
+| `last_reload` | yes | Time and result of the last load, for `/stats`. |
+| `errors` | yes | Error counts, total and by origin, for `/stats`. |
+| `dirty`, `defer_draw` | yes | A draw is due; the current callback holds it back. |
+| `entry_installed` | yes | The `setmodule` entry is in place. |
+| `tty_suspended` | yes | How many children hold the terminal. |
+| `task_next_id` | yes | Last task id given out. |
+| `plugins_started` | yes | Plugin names to stop before the next generation starts its own. |
+| `quitting`, `shut_down` | yes | Quitting has begun; shutdown has run. |
 
 `HUB.state` holds `config` (the active configuration), `nets` (section 4),
 `features[name][net]` (per-network feature state), `ui` (view states, input,
@@ -185,13 +193,15 @@ connected at once.
   welcome and the end of MOTD finish it. A rejected nick gets a temporary
   one, and the wanted nick is reclaimed through MONITOR or server notices.
 - **Protocol model** (`rec.irc`): nick, modes, capabilities, ISUPPORT,
-  channels and members, monitor list, batches. Keys fold with the network's
+  channels and members, monitor list, batches, soju bouncer networks.
+  Keys fold with the network's
   CASEMAPPING, and so does "is this our nick".
 - **Batches** are handled line by line as they arrive and emitted whole
   when they close. Replays (chat history) are the exception: they never
   change the connection's state and reach only the chat buffers, placed
-  before what arrived on the current connection, in the server's order. Handlers update only the model and emit events; everything
-  user-facing is a feature.
+  before what arrived on the current connection, in the server's order.
+  Handlers update only the model and emit events; everything user-facing
+  is a feature.
 - **Operator status** fires `irc.oper` once per connection, from
   RPL_YOUREOPER or a user mode `o` (a bouncer session that is already
   opered).
@@ -212,7 +222,6 @@ and only run, and only show, for networks that have it.
 | topology | Populations from MAP, links and upstream from LINKS, versions, uptimes, user shedding, DNS rotations. Asks for MAP and LINKS at registration, on becoming an operator and on netsplits and netjoins. |
 | oper | Libera ban masks; staging a K-Line, unkline or undline with a TESTMASK count; sending it only on confirmation; operator commands. |
 | chat | Buffers per network and target, routing, mentions, chat history, MONITOR, WALLOPS, CTCP replies to staff, `/list`. |
-| bouncer | soju's bouncer-networks, shown in the bouncer view. |
 | notify | Desktop or terminal notifications of mentions while the terminal is unfocused (always loaded; not per network). |
 | plugins | Loads plugins into each generation (section 6). |
 
@@ -226,20 +235,23 @@ A plugin is a Lua file in the plugins directory, listed in
 `[plugins] modules`, that returns `function(api)`. The api is documented in
 the README and at the top of `features/plugins/init.lua`: events, commands,
 views, persistent `api.state`, sending, logging, tasks, timers and HTTP
-listeners. Plugins start once their generation is current, into that generation, so
-they reload with the client; a newer generation closes their resources and
-tasks before starting its own plugins, and their callbacks fire only into
-their own generation. A
-plugin's errors are logged under its name. Files written for ircc or the
+listeners. Plugins start once their generation is current, into that
+generation, so they reload with the client; a newer generation closes their
+resources and tasks before starting its own plugins, and their callbacks
+fire only into their own generation. A plugin's errors are logged under its
+name. Files written for ircc or the
 dashboard are refused with a message to port them.
 
 ## 7. User interface
 
 - **Views** are records `{id, title, scope, render(ctx, win),
-  keypress(ctx, key), status(ctx, win), modes(ctx), reset(vs)}`; Esc clears the
-  scroll and `/filter` and calls `reset` for anything else the view keeps.
-  A view module returns a view or a list of views, and may bring
-  `commands` of its own; `ui/init.lua` lists the modules once. `ctx` gives the view's persistent
+  keypress(ctx, key), status(ctx, win), modes(ctx), reset(vs), document,
+  command}`; Esc clears the scroll and `/filter` and calls `reset` for
+  anything else the view keeps. A `document` view is drawn whole into a
+  pad and paged; every view gets a command of its name unless `command`
+  is false. A view module returns a view or a list of views, and may bring
+  `commands` of its own; `ui/init.lua` lists the modules once. `ctx` gives
+  the view's persistent
   state (`ctx.vs`), the current network (`ctx.net`), the size, and
   `add_button`/`add_click` for mouse regions rebuilt each frame. Views read
   feature state and call feature functions; they don't send IRC or change
@@ -348,7 +360,7 @@ All tests run in snowcone without a UI, from CTest, with `luacheck` over
   renders every view after replaying real traffic and drives keys through
   the native entry point.
 - Golden replay: `fixtures/snotes-live.log` (captured from a live network,
-  anonymised by `tools/anonymize-snotes.lua`) and `snotes-synthetic.log`,
+  anonymised by `tests/hub/tools/anonymize-snotes.lua`) and `snotes-synthetic.log`,
   checked against the dashboard parser's output. Fixtures never contain
   personal data.
 - `test-structure.lua` enforces layering, native API ownership and the
@@ -356,10 +368,8 @@ All tests run in snowcone without a UI, from CTest, with `luacheck` over
 
 ## 11. Direction
 
-Open decisions:
-
-- Whether hub replaces `ircc` and `dashboard` once it covers their use, and
-  when they stop being installed.
+hub is replacing `ircc` and `dashboard`. They are only kept working when a
+native API changes; when they stop being installed is still open.
 
 Work that the design leaves room for:
 
