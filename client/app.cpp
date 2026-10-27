@@ -104,6 +104,11 @@ App::App(char const* const filename)
     , main_source{filename}
 {
     L = luaL_newstate();
+    // Only the state's own first allocation can fail, before any script runs
+    if (L == nullptr)
+    {
+        fatal("cannot create the Lua state: out of memory");
+    }
     lua_atpanic(L, panic);
     lua_pushlightuserdata(L, this);
     lua_rawsetp(L, LUA_REGISTRYINDEX, &app_key);
