@@ -211,22 +211,9 @@ M.global = {
         local net = control.current_net()
         if not (net and common.enabled(net, 'chat')) then return end
         local current = control.talk_target(net)
-        current = current and chat.fold(net, current) or ''
-        local best, best_mention, best_name
-        for key, buffer in pairs(chat.get(net).buffers) do
-            if buffer.activity > 0 then
-                if not best
-                or buffer.mention and not best_mention
-                or buffer.mention == best_mention
-                   and (best < current and current < key
-                        or (current < best) == (current < key) and key < best)
-                then
-                    best, best_mention, best_name = key, buffer.mention, buffer.name
-                end
-            end
-        end
+        local best = chat.next_buffer(net, current and chat.fold(net, current) or '', true)
         if best then
-            control.set_talk_target(net, best_name)
+            control.set_talk_target(net, best.name)
             control.set_view 'buffer'
         end
     end,

@@ -150,6 +150,68 @@ T.case('keys reach input modes, views and commands', function()
     T.eq(T.log_lines 'error', {}, 'no errors')
 end)
 
+T.case('closing the shown buffer moves to a mention, back, activity, then the next', function()
+    local c = boot()
+    local chat = T.require 'hub.features.chat'
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    for _, chan in ipairs {'#a', '#b', '#c', '#d'} do
+        c:recv(':me!u@h JOIN ' .. chan)
+    end
+    for _, chan in ipairs {'#a', '#b', '#c', '#d'} do
+        chat.look(chat.buffer('test', chan))
+    end
+    local function shown() return control.talk_target 'test' end
+    local function close() cmdline.execute 'close' end
+
+    cmdline.execute 'talk #b'
+    cmdline.execute 'talk #c'
+    c:recv ':bob!b@h PRIVMSG #a :hello'
+    c:recv ':carol!c@h PRIVMSG me :psst'
+
+    close()
+    T.eq(shown(), 'carol', 'a mention first')
+    T.eq(control.view_state 'buffer'.previous.test, '#b', 'Meta-S still goes back')
+    HUB.current.routes['ui.draw']()
+    close()
+    T.eq(shown(), '#b', 'then back to the previous one')
+    T.eq(control.view_state 'buffer'.previous.test, nil, 'which is no longer previous')
+    close()
+    T.eq(shown(), '#a', 'then activity')
+    HUB.current.routes['ui.draw']()
+    close()
+    T.eq(shown(), '#d', 'then the next by name')
+    close()
+    T.eq(shown(), nil, 'none left')
+
+    -- closing another buffer leaves the shown one
+    c:recv ':me!u@h JOIN #f'
+    c:recv ':me!u@h JOIN #g'
+    cmdline.execute 'talk #f'
+    cmdline.execute 'close #g'
+    T.eq(shown(), '#f', 'unchanged')
+    T.eq(T.log_lines 'error', {}, 'no errors')
+end)
+
+T.case('closing a query visited with Meta-A goes back to the channel', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':me!u@h JOIN #busy'
+    cmdline.execute 'talk #chan'
+    HUB.current.routes['ui.draw']()
+
+    c:recv ':bob!b@h PRIVMSG me :got a minute?'
+    key(-string.byte 'a')
+    T.eq(control.talk_target 'test', 'bob', 'to the query')
+    HUB.current.routes['ui.draw']()
+    c:recv ':alice!a@h PRIVMSG #busy :chatter'
+    c:recv ':alice!a@h PRIVMSG #chan :chatter'
+    cmdline.execute 'close'
+    T.eq(control.talk_target 'test', '#chan', 'back where I was')
+end)
+
 T.case('the paging keys scroll any rolling view within its log', function()
     boot()
     local control = T.require 'hub.ui.control'

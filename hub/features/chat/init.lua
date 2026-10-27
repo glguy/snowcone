@@ -122,6 +122,35 @@ function M.close(net, target)
     bus.emit('chat.buffer', {net = net, target = target, opened = false})
 end
 
+--- The buffer to move to from the one with folded name `from`: one with
+--- a mention, else one with activity, else (unless `active`) any; among
+--- equals the next by folded name after `from`, wrapping round, and
+--- `from` itself last. Nil when there is none.
+function M.next_buffer(net, from, active)
+    local function rank(buffer)
+        if buffer.activity == 0 then return 0 end
+        return buffer.mention and 2 or 1
+    end
+    -- 0 after `from`, 1 wrapped round before it, 2 for `from` itself
+    local function lap(key)
+        return key > from and 0 or key < from and 1 or 2
+    end
+    local best, best_key
+    for key, buffer in pairs(M.get(net).buffers) do
+        if not active or buffer.activity > 0 then
+            local better = not best
+                or rank(buffer) > rank(best)
+                or rank(buffer) == rank(best)
+                   and (lap(key) < lap(best_key)
+                        or lap(key) == lap(best_key) and key < best_key)
+            if better then
+                best, best_key = buffer, key
+            end
+        end
+    end
+    return best
+end
+
 --- Mark a buffer as seen.
 function M.look(buffer)
     buffer.activity = 0
