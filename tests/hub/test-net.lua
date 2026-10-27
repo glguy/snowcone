@@ -255,6 +255,19 @@ T.case('a refused connection retries; a configuration error does not', function(
     T.ok(not rec().reconnect_timer, 'no retry')
 end)
 
+T.case('a socks password that resolves empty stops the connect', function()
+    local fake = boot {network('test', {layers = {{type = 'socks', host = 'p', port = 1080,
+        username = 'u', password = {command = 'printf', arguments = {''}}}}})}
+    for _ = 1, 100 do
+        if rec().target == 'idle' then break end
+        T.sleep(10)
+    end
+    T.eq(rec().target, 'idle', 'target dropped to idle')
+    T.eq(#fake.conns, 0, 'no attempt')
+    T.ok(not rec().reconnect_timer, 'no retry')
+    T.ok(table.concat(T.log_lines 'irc', '\n'):find('socks password must not be empty', 1, true), 'reason logged')
+end)
+
 T.case('a server key that fails the fingerprint is not retried', function()
     local fake = boot {network('test', {server = {host = 'test.test', port = 6667, fingerprint = 'tls=abc$'}})}
     fake.last():con 'tcp=192.0.2.1:6667 tls=def'
@@ -555,6 +568,16 @@ T.case('configuration constraints from the dashboard', function()
         'baseline accepted')
     T.ok(pcall(config.normalize, {networks = {{id = 'x', server = {path = '/p'}, identity = {nick = 'n'}}}}),
         'a local socket accepted')
+    local ok, err = pcall(config.normalize, {networks = {{id = 'x', server = {host = 'h', port = 1},
+        identity = {nick = 'n'}, layers = {{type = 'http', host = 'p', port = 8080, username = 'a:b'}}}}})
+    T.ok(not ok and err:find('expected no colon', 1, true), 'the reason is given: ' .. tostring(err))
+    for _, layer in ipairs {
+        {type = 'http', host = 'p', port = 8080, username = 'u', password = ''},
+        {type = 'socks', host = 'p', port = 1080, username = 'u', password = 'p'},
+    } do
+        T.ok(pcall(config.normalize, {networks = {{id = 'x', server = {host = 'h', port = 1},
+            identity = {nick = 'n'}, layers = {layer}}}}), 'accepted: ' .. layer.type)
+    end
     for _, bad in ipairs {
         {identity = {nick = 'has space'}},
         {identity = {nick = 'n', user = 'a\nb'}},
@@ -567,6 +590,10 @@ T.case('configuration constraints from the dashboard', function()
         {server = {host = 'h', port = 0}},
         {server = {path = '/p', host = 'h'}},
         {server = {path = '/p', port = 1}},
+        {layers = {{type = 'socks', host = '', port = 1080}}},
+        {layers = {{type = 'socks', host = 'p', port = 1080, username = '', password = 'x'}}},
+        {layers = {{type = 'socks', host = 'p', port = 1080, username = 'u', password = ''}}},
+        {layers = {{type = 'http', host = 'p', port = 8080, username = 'a:b', password = 'x'}}},
     } do
         local net = {id = 'x', server = {host = 'h', port = 1}, identity = {nick = 'n'}}
         for k, v in pairs(bad) do net[k] = v end

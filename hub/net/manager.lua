@@ -158,12 +158,17 @@ local function build_layers(t, configured)
                 alpn = layer.alpn,
             })
         elseif layer.type == 'socks' or layer.type == 'http' then
+            local password = secrets.resolve(t, layer.password)
+            -- RFC 1929 has no empty password; config_schema checks literal ones
+            if layer.type == 'socks' and password == '' then
+                error('socks password must not be empty', 0)
+            end
             table.insert(layers, {
                 type = layer.type,
                 host = layer.host,
                 port = layer.port,
                 username = layer.username,
-                password = secrets.resolve(t, layer.password),
+                password = password,
             })
         else
             error('bad layer type: ' .. tostring(layer.type), 0)

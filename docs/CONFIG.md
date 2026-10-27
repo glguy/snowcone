@@ -261,7 +261,7 @@ username = 'proxyuser'
 password = 'proxypass'
 ```
 
-`host` and `port` are required. `username` and `password` must be given together or both left out. One without the other is an error, not a silent connection without authentication. `password` is a [secret](#secrets), and either form counts as given. A proxy that wants a username with an empty password takes `password = ''`.
+`host` and `port` are required. `username` and `password` must be given together or both left out. One without the other is an error, not a silent connection without authentication. `password` is a [secret](#secrets). SOCKS5 allows neither to be empty, and each is at most 255 bytes.
 
 ##### HTTP CONNECT layer
 
@@ -272,7 +272,7 @@ host = 'proxy.example.net'
 port = 8080
 ```
 
-This takes the same fields as SOCKS5. With `username` and `password`, the CONNECT request carries Basic authentication. For an HTTPS proxy, put a TLS layer (with `alpn = ['http/1.1']`) before this one.
+This takes the same fields as SOCKS5. With `username` and `password`, the CONNECT request carries Basic authentication. Here the password may be empty, but the username can't contain `:`. For an HTTPS proxy, put a TLS layer (with `alpn = ['http/1.1']`) before this one.
 
 ### Registering
 

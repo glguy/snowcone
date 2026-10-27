@@ -105,6 +105,10 @@ function M.check(schema, value, path, warnings)
 
         elseif schema.type == 'string' then
             if schema.pattern and not value:find(schema.pattern) then
+                -- `expected` says in words what the pattern requires
+                if schema.expected then
+                    fail('Pattern failure in %s: expected %s', table.concat(path, '.'), schema.expected)
+                end
                 fail('Pattern failure in %s', table.concat(path, '.'))
             end
         end

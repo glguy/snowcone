@@ -74,20 +74,33 @@ local server_fields <const> = {
     password     = line_password_schema,
 }
 
-local proxy_layer <const> = function(kind)
-    return table_ {
-        type     = {type = 'string', pattern = '^' .. kind .. '$', required = true},
-        host     = {type = 'string', required = true},
-        port     = required_port_schema,
-        username = {type = 'string'},
-        password = password_schema,
-    }
-end
+local proxy_host_schema <const> = {type = 'string', pattern = '.', expected = 'a host name', required = true}
+
+-- RFC 1929: a username and password of 1 to 255 bytes; the native layer
+-- refuses longer ones, and a resolved secret is checked when connecting
+local non_empty <const> = {type = 'string', pattern = '.', expected = 'a non-empty string'}
+
+local socks_layer <const> = table_ {
+    type     = {type = 'string', pattern = '^socks$', required = true},
+    host     = proxy_host_schema,
+    port     = required_port_schema,
+    username = non_empty,
+    password = password(non_empty),
+}
+
+-- RFC 7617: the user-id ends at the first colon, so it can't contain one
+local http_layer <const> = table_ {
+    type     = {type = 'string', pattern = '^http$', required = true},
+    host     = proxy_host_schema,
+    port     = required_port_schema,
+    username = {type = 'string', pattern = '^[^:]*$', expected = 'no colon'},
+    password = password_schema,
+}
 
 local layers_schema <const> = array {
     oneOf = {
-        proxy_layer 'socks',
-        proxy_layer 'http',
+        socks_layer,
+        http_layer,
         table_ {
             type            = {type = 'string', pattern = '^tls$', required = true},
             client_cert     = password_schema,
