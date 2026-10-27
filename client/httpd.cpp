@@ -83,7 +83,7 @@ template <class Body, class Allocator>
 auto build_response(
     LuaRef const& cb,
     http::request<Body, http::basic_fields<Allocator>> const& req
-) -> http::message_generator
+) -> http::response<http::string_body>
 {
     auto const L = cb.get_lua();
     auto const base = lua_gettop(L);
@@ -136,10 +136,11 @@ auto build_response(
 
     int is_integer;
     auto const code = lua_tointegerx(L, -3, &is_integer);
-    if (not is_integer || code < 100 || code > 999)
+    // A 1xx is interim: the client would wait for the final response
+    if (not is_integer || code < 200 || code > 999)
     {
         lua_settop(L, base);
-        report(cb, "handler", "status must be an integer from 100 to 999");
+        report(cb, "handler", "status must be an integer from 200 to 999");
         return server_error(req, "internal server error"sv);
     }
 
@@ -149,16 +150,21 @@ auto build_response(
     res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
     res.keep_alive(req.keep_alive());
 
-    std::size_t len;
-    auto const body_ptr = lua_tolstring(L, -2, &len);
-    if (body_ptr == nullptr)
+    // 204 and 304 never have content, and 204 has no Content-Length
+    // (RFC 9110 §8.6, §15.3.5, §15.4.5), so a body for them is dropped
+    if (code != 204 && code != 304)
     {
-        res.content_length(0);
-    }
-    else
-    {
-        res.content_length(len);
-        res.body() = {body_ptr, len};
+        std::size_t len;
+        auto const body_ptr = lua_tolstring(L, -2, &len);
+        if (body_ptr == nullptr)
+        {
+            res.content_length(0);
+        }
+        else
+        {
+            res.content_length(len);
+            res.body() = {body_ptr, len};
+        }
     }
 
     if (lua_type(L, -1) == LUA_TTABLE)
@@ -178,6 +184,13 @@ auto build_response(
                 report(cb, "handler", "header names and values must be strings without CR, LF or NUL");
                 return server_error(req, "internal server error"sv);
             }
+            // The framing is ours: another length would desynchronize a reused connection
+            if (beast::iequals(*key, "content-length") || beast::iequals(*key, "transfer-encoding"))
+            {
+                lua_settop(L, base);
+                report(cb, "handler", "headers must not set Content-Length or Transfer-Encoding");
+                return server_error(req, "internal server error"sv);
+            }
             res.set(*key, std::string_view{val, val_len});
             lua_pop(L, 1); // remove value
         }
@@ -186,6 +199,21 @@ auto build_response(
     lua_settop(L, base);
 
     return res;
+}
+
+// A response to HEAD has the headers a GET would get, Content-Length
+// included, and no body (RFC 9110 §9.3.2)
+template <class Body, class Allocator>
+auto for_method(
+    http::request<Body, http::basic_fields<Allocator>> const& req,
+    http::response<http::string_body>&& res
+) -> http::message_generator
+{
+    if (req.method() == http::verb::head)
+    {
+        return http::response<http::empty_body>{std::move(res.base())};
+    }
+    return std::move(res);
 }
 
 // Return a response for the given request.
@@ -202,13 +230,13 @@ auto handle_request(
     auto const top = lua_gettop(L);
     try
     {
-        return build_response(cb, req);
+        return for_method(req, build_response(cb, req));
     }
     catch (std::exception const& e)
     {
         lua_settop(L, top);
         report(cb, "response", e.what());
-        return server_error(req, "internal server error"sv);
+        return for_method(req, server_error(req, "internal server error"sv));
     }
 }
 

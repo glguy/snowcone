@@ -11,10 +11,12 @@ struct lua_State;
  * header name, in lower case, to its value. A repeated name gets its values
  * joined in order with ", " ("; " for cookie). It responds with the
  * handler's results (status, body, headers):
- * - status: an integer from 100 to 999. Returning no status gives a 500.
- * - body: a string, or anything else for an empty body.
+ * - status: an integer from 200 to 999. Returning no status gives a 500.
+ * - body: a string, or anything else for an empty body. It is dropped for
+ *   204 and 304, and a response to HEAD sends only its Content-Length.
  * - headers: a table of string names to string values, or anything else for
- *   none. CR, LF and NUL are not allowed in either.
+ *   none. CR, LF and NUL are not allowed in either, and Content-Length and
+ *   Transfer-Encoding are set by the server, not the handler.
  *
  * Errors are reported as handler(nil, kind, message) and their results are
  * ignored. A handler error is reported with kind "handler" and a traceback,

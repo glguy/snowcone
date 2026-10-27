@@ -66,6 +66,14 @@ local function server(tag)
             error({})
         elseif target:match '^/status/' then
             return tonumber(target:match '^/status/(.*)'), 'status'
+        elseif target == '/no-content' then
+            return 204, 'dropped'
+        elseif target == '/not-modified' then
+            return 304, 'dropped'
+        elseif target == '/set-length' then
+            return 200, 'x', {['Content-Length'] = '99'}
+        elseif target == '/set-encoding' then
+            return 200, 'x', {['transfer-encoding'] = 'chunked'}
         elseif target == '/bad-header' then
             return 200, 'x', {['X-Bad'] = 'a\r\nInjected: 1'}
         elseif target == '/reload-soon' then
@@ -134,14 +142,38 @@ sequence(function(step)
         '-H', 'Cookie: one=1', '-H', 'Cookie: two=2', url '/repeated'}
     expect('repeated headers joined in order', responses(out), '200 a, b, c|one=1; two=2')
 
-    -- Status codes: any integer from 100 to 999, reported otherwise
+    -- Status codes: any integer from 200 to 999, reported otherwise
     _, out = curl {url '/status/299'}
     expect('unregistered status passes through', responses(out), '299 status')
-    for _, bad in ipairs {'99', '1000', '-1', '200.5', '4294967496'} do
+    for _, bad in ipairs {'99', '100', '199', '1000', '-1', '200.5', '4294967496'} do
         out = select(2, curl {url('/status/' .. bad)})
         expect('status ' .. bad .. ' refused', responses(out):match('^%d+'), '500')
         expect('status ' .. bad .. ' reported', take_errors(),
-            'gen1 handler: status must be an integer from 100 to 999')
+            'gen1 handler: status must be an integer from 200 to 999')
+    end
+
+    -- 204 and 304 have no body, and 204 no Content-Length
+    for _i, case in ipairs {{'/no-content', '204'}, {'/not-modified', '304'}} do
+        _, out = curl {'-D', '-', url(case[1])}
+        expect(case[2] .. ' status', out:match '\n(%d+)$', case[2])
+        expect(case[2] .. ' without a body', out:find('dropped', 1, true), nil)
+        expect(case[2] .. ' without Content-Length', out:lower():find('content-length', 1, true), nil)
+    end
+
+    -- HEAD gets the GET's headers and no body, so the connection stays usable
+    _, out = curl {'-I', '-w', '[%{http_code} %{num_connects}]', url '/x', url '/x'}
+    expect('HEAD keeps the length', select(2, out:lower():gsub('content%-length: 4', '')), 2)
+    expect('HEAD has no body', out:find('gen1', 1, true), nil)
+    expect('HEAD reuses the connection', out:match '%[(%d+ %d+)%][^%[]*%[(%d+ %d+)%]$', '200 1')
+    expect('second HEAD on the same connection', select(2, out:match '%[(%d+ %d+)%][^%[]*%[(%d+ %d+)%]$'),
+        '200 0')
+
+    -- Content-Length and Transfer-Encoding are the server's
+    for _, target in ipairs {'/set-length', '/set-encoding'} do
+        out = select(2, curl {url(target)})
+        expect(target .. ' refused', responses(out):match('^%d+'), '500')
+        expect(target .. ' reported', take_errors(),
+            'gen1 handler: headers must not set Content-Length or Transfer-Encoding')
     end
     _, out = curl {url '/bad-header'}
     expect('header with CR LF refused', responses(out):match('^%d+'), '500')
