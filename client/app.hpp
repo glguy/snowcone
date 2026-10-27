@@ -51,6 +51,9 @@ public:
     static auto from_lua(lua_State*) -> App*;
     auto startup() -> void;
     auto shutdown() -> void;
+    /// Load and run the main file. Returns whether it loaded; an error while
+    /// running it is reported through safecall and counted by
+    /// safecall_failures(), which makes the exit status a failure.
     auto reload() -> bool;
 
     auto get_context() -> boost::asio::io_context&
