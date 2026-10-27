@@ -249,10 +249,25 @@ T.case('a refused connection retries; a configuration error does not', function(
     T.eq(rec().phase, 'idle', 'idle after refusal')
     T.ok(rec().reconnect_timer, 'retry scheduled')
 
-    local fake2 = boot {network('test', {server = {port = 6667}})}
-    T.eq(#fake2.conns, 0, 'no attempt without host')
+    local fake2 = boot {network('test', {layers = {{type = 'tls', client_cert = 'not a certificate'}}})}
+    T.eq(#fake2.conns, 0, 'no attempt with an unreadable certificate')
     T.eq(rec().target, 'idle', 'target dropped to idle')
     T.ok(not rec().reconnect_timer, 'no retry')
+end)
+
+T.case('a server key that fails the fingerprint is not retried', function()
+    local fake = boot {network('test', {server = {host = 'test.test', port = 6667, fingerprint = 'tls=abc$'}})}
+    fake.last():con 'tcp=192.0.2.1:6667 tls=def'
+    T.eq(rec().phase, 'idle', 'dropped')
+    T.eq(rec().target, 'idle', 'target dropped to idle')
+    T.ok(not rec().reconnect_timer, 'no retry')
+    T.eq(T.log_lines('irc')[#T.log_lines 'irc'], 'disconnected: bad fingerprint', 'logged')
+end)
+
+T.case('server.path connects to a local socket', function()
+    local fake = boot {network('test', {server = {path = '/run/ircd.sock'}})}
+    local c = fake.last()
+    T.eq({c.host, c.port}, {'/run/ircd.sock', 0}, 'the native call takes the path with port 0')
 end)
 
 T.case('casemapping from ISUPPORT', function()
@@ -499,17 +514,25 @@ end)
 T.case('network defaults', function()
     local fake = FakeTransport.new()
     T.boot {transport = fake, config = {networks = {{
+        id = 'example',
         server = {host = 'irc.example.test', port = 6697},
         identity = {nick = 'n'},
         layers = {{type = 'tls'}},
     }}}}
     local net = HUB.state.config.networks[1]
-    T.eq(net.id, 'irc.example.test', 'id defaults to the host')
     T.eq(net.features.snotice and net.features.chat, true, 'all features')
     T.eq({net.autoconnect, net.reclaim_nick}, {true, true}, 'flags')
     T.eq(net.reconnect, {min_delay = 1, max_delay = 300}, 'reconnect')
     T.eq(fake.last().host, 'irc.example.test', 'connects')
     T.eq(fake.last().layers[1].type, 'tls', 'layers')
+
+    local config = T.require 'hub.runtime.config'
+    local ok, err = pcall(config.normalize, {networks = {{
+        server = {host = 'irc.example.test', port = 6697},
+        identity = {nick = 'n'},
+    }}})
+    T.eq(ok, false, 'id is required')
+    T.ok(err:find('networks.1.id', 1, true), err)
 end)
 
 T.case('an invalid configuration on reload leaves the old one active', function()
@@ -530,6 +553,8 @@ T.case('configuration constraints from the dashboard', function()
     local config = T.require 'hub.runtime.config'
     T.ok(pcall(config.normalize, {networks = {{id = 'x', server = {host = 'h', port = 1}, identity = {nick = 'n'}}}}),
         'baseline accepted')
+    T.ok(pcall(config.normalize, {networks = {{id = 'x', server = {path = '/p'}, identity = {nick = 'n'}}}}),
+        'a local socket accepted')
     for _, bad in ipairs {
         {identity = {nick = 'has space'}},
         {identity = {nick = 'n', user = 'a\nb'}},
@@ -537,6 +562,11 @@ T.case('configuration constraints from the dashboard', function()
         {server = {host = 'h', password = 'line\nbreak'}},
         {oper = {username = 'o p', password = 'x'}},
         {challenge = {username = 'o\r', key = 'k'}},
+        {server = {}},
+        {server = {host = 'h'}},
+        {server = {host = 'h', port = 0}},
+        {server = {path = '/p', host = 'h'}},
+        {server = {path = '/p', port = 1}},
     } do
         local net = {id = 'x', server = {host = 'h', port = 1}, identity = {nick = 'n'}}
         for k, v in pairs(bad) do net[k] = v end

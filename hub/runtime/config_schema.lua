@@ -62,10 +62,12 @@ local identity_fields <const> = {
     gecos = {type = 'string', pattern = '^[^\n\r\x00]+$'},
 }
 
+-- host and port for TCP, or path for a local (unix-domain) socket;
+-- config.lua checks that exactly one is given
 local server_fields <const> = {
     host         = {type = 'string'},
-    -- 0 selects a local (unix-domain) socket, with `host` as the path
-    port         = {type = 'number', integer = true, minimum = 0, maximum = 65535},
+    port         = {type = 'number', integer = true, minimum = 1, maximum = 65535},
+    path         = {type = 'string'},
     fingerprint  = {type = 'string'},
     capabilities = array {type = 'string', pattern = word},
     username     = {type = 'string', pattern = '^[^\n\r\x00:]*$'},
@@ -133,7 +135,7 @@ local mention_schema <const> = table_ {
 local delay_schema <const> = {type = 'number', minimum = 0}
 
 --- The features a network may enable; config.lua checks names against it.
-M.features = {'snotice', 'oper', 'topology', 'chat', 'bouncer'}
+M.features = {'snotice', 'oper', 'topology', 'chat'}
 
 --- One entry of [[networks]].
 M.network = table_ {

@@ -74,7 +74,8 @@ local function render_network(ctx, win, rec, now)
     heading(win, rec.id)
 
     label(win, 'server')
-    win:waddstr(string.format('%s:%s\n', scrub(cfg.server.host or '?'), tostring(cfg.server.port or '?')))
+    local server = cfg.server
+    win:waddstr(server.path and scrub(server.path) or scrub(server.host) .. ':' .. server.port, '\n')
 
     label(win, 'state')
     local colour = phase_colour[rec.phase] or draw.yellow

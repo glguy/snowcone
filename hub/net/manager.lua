@@ -240,12 +240,13 @@ local function connect_body(t, attempt)
         return failed(id, attempt, layers, false)
     end
 
-    if not cfg.server.host then
-        return failed(id, attempt, 'connect host not specified', false)
-    end
+    -- the native connect takes a local socket as its path and port 0
+    local server = cfg.server
+    local host, port = server.host, server.port
+    if server.path then host, port = server.path, 0 end
 
     local cb = dispatch.trampoline('net.on_event', id, attempt)
-    local called, conn, err = pcall(transport_connect, cfg.server.host, cfg.server.port, layers, cb)
+    local called, conn, err = pcall(transport_connect, host, port, layers, cb)
     if not called then
         -- bad arguments raise; treat that like any other configuration error
         return failed(id, attempt, 'failed to connect: ' .. tostring(conn), false)
@@ -257,7 +258,7 @@ local function connect_body(t, attempt)
     rec.irc = irc_model.new()
     rec.liveness = clock.now()
     M.set_phase(id, 'connecting')
-    log.add_net(id, 'irc', 'connecting to %s', cfg.server.host)
+    log.add_net(id, 'irc', 'connecting to %s', server.path or host .. ':' .. port)
 end
 
 --- Start connecting an idle network.
@@ -352,7 +353,9 @@ function events.CON(rec, fingerprint)
 
     local want = rec.cfg.server.fingerprint
     if want and not string.match(fingerprint, want) then
-        M.finish(rec.id, 'bad fingerprint')
+        -- like any configuration problem, retrying won't fix it
+        rec.target = 'idle'
+        M.finish(rec.id, 'bad fingerprint', false)
         return
     end
 

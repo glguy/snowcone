@@ -124,7 +124,7 @@ patterns = ['%f[%w]mynick%f[^%w]']
 
 [[networks]]
 id = 'libera'
-features = ['snotice', 'oper', 'topology', 'chat', 'bouncer']  # default: all
+features = ['snotice', 'oper', 'topology', 'chat']  # default: all
 servers_file = 'servers.lua'          # regions, aliases, kline reasons
 reconnect = { min_delay = 1, max_delay = 300 }
 snomask = '+BFZbcklnsx'               # set after opering

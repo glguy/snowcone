@@ -109,12 +109,21 @@ for _, name in ipairs(cschema.features) do
     all_features[name] = true
 end
 
-local function normalize_network(net, warnings)
-    if net.id == nil and type(net.server) == 'table' and type(net.server.host) == 'string' then
-        net.id = net.server.host
-    end
+-- `i` names the network in errors until its id is known to be valid
+local function normalize_network(net, i, warnings)
+    local label = type(net.id) == 'string' and net.id or tostring(i)
+    schema.check(cschema.network, net, {'networks', label}, warnings)
 
-    schema.check(cschema.network, net, {'networks', tostring(net.id)}, warnings)
+    local server = net.server
+    if server.path then
+        if server.host or server.port then
+            error(string.format('networks.%s.server: path is a local socket; leave out host and port', net.id), 0)
+        end
+    elseif not server.host then
+        error(string.format('networks.%s.server: host and port, or path, is required', net.id), 0)
+    elseif not server.port then
+        error(string.format('networks.%s.server: port is required with host', net.id), 0)
+    end
 
     if net.features then
         local set = {}
@@ -179,7 +188,7 @@ function M.normalize(raw)
         if type(net) ~= 'table' then
             error('networks.' .. i .. ' is not a table', 0)
         end
-        normalize_network(net, warnings)
+        normalize_network(net, i, warnings)
         if seen[net.id] then
             error('Duplicate network id: ' .. net.id, 0)
         end
