@@ -217,7 +217,13 @@ function M.draw(win, textbox, layout, view, ctx)
             view.status(ctx, win)
         end
 
-        if ctx.vs.scroll ~= 0 then
+        -- a document longer than the screen shows how far down it is
+        if view.document then
+            if (ctx.vs.max_scroll or 0) > 0 then
+                M.fragment(win)
+                win:waddstr(string.format('SCROLL %d/%d', ctx.vs.scroll, ctx.vs.max_scroll))
+            end
+        elseif ctx.vs.scroll ~= 0 then
             M.fragment(win)
             win:waddstr(string.format('SCROLL %d', ctx.vs.scroll))
         end

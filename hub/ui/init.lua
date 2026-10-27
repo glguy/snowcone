@@ -17,6 +17,9 @@ local M = {}
 
 local pad_width <const> = keymap.pad_width
 
+-- Rows a document view's pad may grow to
+local document_limit <const> = 4096
+
 local layout = {textbox_offset = 0}
 
 -- Click regions, rebuilt every frame: clicks[y] = {{lo, hi, action}, ...}
@@ -45,6 +48,10 @@ local function make_layout()
     if layout.main_pad then layout.main_pad:delwin() end
     layout.main_pad = ncurses.newpad(tty_height - 1, pad_width)
 
+    -- document views wrap at the terminal's width and grow downward
+    if layout.document_pad then layout.document_pad:delwin() end
+    layout.document_pad = ncurses.newpad(tty_height - 1, tty_width)
+
     if layout.input_win then layout.input_win:delwin() end
     layout.input_win = ncurses.newwin(1, tty_width, tty_height - 1, 0)
 
@@ -65,6 +72,44 @@ local function view_context(view)
     }
 end
 
+-- Render a document view: everything, top to bottom, into a pad that
+-- doubles until it holds it all, shown from row vs.scroll. Records the
+-- page size and scroll limit for the paging keys (ui/keymap.lua), and
+-- moves the clicks into screen rows. Returns the refresh to do.
+local function render_document(view, ctx)
+    local pad, vs, rows = layout.document_pad, ctx.vs, ctx.rows
+    local height, y, x
+    repeat
+        clicks = {}
+        pad:werase()
+        draw.normal(pad)
+        view.render(ctx, pad)
+        height = ncurses.getmaxyx(pad)
+        y, x = ncurses.getyx(pad)
+        -- a cursor on the last row may mean rows were lost
+        local full = y >= height - 1 and height < document_limit
+        if full then
+            pad:wresize(math.min(height * 2, document_limit), tty_width)
+        end
+    until not full
+
+    local used = x > 0 and y + 1 or y
+    vs.page = math.max(1, rows - 1)
+    vs.max_scroll = math.max(0, used - rows)
+    vs.scroll = math.max(0, math.min(vs.scroll, vs.max_scroll))
+    local top = vs.scroll
+
+    local shown = {}
+    for row, list in pairs(clicks) do
+        if top <= row and row < top + rows then shown[row - top] = list end
+    end
+    clicks = shown
+
+    return function()
+        pad:pnoutrefresh(top, 0, 0, 0, tty_height - 2, tty_width - 1)
+    end
+end
+
 local function render()
     if tty.suspended() then return end
 
@@ -78,14 +123,22 @@ local function render()
     local view = control.current_view()
     local ctx = view_context(view)
 
-    draw.normal(main_pad)
-    view.render(ctx, main_pad)
+    local refresh
+    if view.document then
+        refresh = render_document(view, ctx)
+    else
+        draw.normal(main_pad)
+        view.render(ctx, main_pad)
+        local hscroll = math.max(0, math.min(ctx.vs.hscroll or 0, pad_width - tty_width))
+        refresh = function()
+            main_pad:pnoutrefresh(0, hscroll, 0, 0, tty_height - 2, tty_width - 1)
+        end
+    end
 
     statusbar.draw(input_win, textbox_pad, layout, view, ctx)
 
-    local hscroll = math.max(0, math.min(ctx.vs.hscroll or 0, pad_width - tty_width))
     ncurses.noutrefresh()
-    main_pad:pnoutrefresh(0, hscroll, 0, 0, tty_height - 2, tty_width - 1)
+    refresh()
     ncurses.noutrefresh(input_win)
 
     if HUB.state.ui.input.mode then

@@ -162,6 +162,107 @@ T.case('the paging keys scroll any rolling view within its log', function()
     T.eq(vs.scroll, 0, 'back to the newest')
 end)
 
+-- The pad document views draw into: the newest one as wide as the screen
+local function document_pad()
+    for i = #fake_ncurses.windows, 1, -1 do
+        local win = fake_ncurses.windows[i]
+        if win.kind == 'newpad' and win.w == tty_width then return win end
+    end
+end
+
+-- Rows of a window, from its top
+local function rows_of(win)
+    local rows = {}
+    for y = 0, win.y do rows[y] = fake_ncurses.row(win, y) end
+    return rows
+end
+
+T.case('a document view grows to its whole length and pages down from the top', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    control.set_view 'help'
+    key(-string.byte 'a') -- every feature's commands: longer than a screen
+    HUB.current.routes['ui.draw']()
+    local vs = control.view_state 'help'
+    local pad = document_pad()
+    T.ok(pad.h > tty_height, 'the pad grew past the screen')
+    T.ok(pad.y < pad.h - 1, 'and holds every row')
+    T.eq(vs.max_scroll, pad.y - (tty_height - 1), 'scrolls until the last row shows')
+
+    key(-ncurses.KEY_NPAGE)
+    T.eq(vs.scroll, math.min(tty_height - 2, vs.max_scroll), 'PgDn moves down a page less a row')
+    HUB.current.routes['ui.draw']()
+    T.eq(pad.top, vs.scroll, 'shown from that row')
+    for _ = 1, 50 do key(-ncurses.KEY_NPAGE) end
+    T.eq(vs.scroll, vs.max_scroll, 'stops at the end')
+    key(-ncurses.KEY_UP)
+    T.eq(vs.scroll, vs.max_scroll - 1, 'up a line')
+    key(0x1b)
+    T.eq(vs.scroll, 0, 'Esc returns to the top')
+end)
+
+T.case('session lists show one row and expand on a click', function()
+    local c = boot()
+    local tokens = {}
+    for i = 1, 60 do table.insert(tokens, string.format('TOKEN%02d=value', i)) end
+    c:recv(':srv 005 me ' .. table.concat(tokens, ' ') .. ' :are supported')
+    local control = T.require 'hub.ui.control'
+    control.set_view 'session'
+
+    local function isupport()
+        HUB.current.routes['ui.draw']()
+        local rows, found = rows_of(document_pad()), {}
+        for y = 0, #rows do
+            if rows[y]:find '^%s*isupport: ' then
+                found[1] = y
+            elseif found[1] and rows[y]:find '^%s*%w+: ' then
+                break
+            end
+            if found[1] then table.insert(found, rows[y]) end
+        end
+        return found
+    end
+
+    local folded = isupport()
+    T.eq(#folded, 2, 'one row')
+    local text = folded[2]
+    local more = text:match '%[%+(%d+) more%]%s*$'
+    T.ok(more, 'ends in an expand button: ' .. text)
+    T.ok(#text <= tty_width, 'within the screen')
+
+    -- click the button
+    local x = text:find('[+', 1, true) - 1
+    HUB.current.routes['ui.entry']('on_mouse', folded[1], x, false)
+    local open = isupport()
+    T.ok(#open > 2, 'several rows')
+    T.ok(open[#open]:find '%[less%]%s*$', 'ends in a fold button')
+    T.ok(open[#open]:find 'TOKEN60', 'shows the last token')
+
+    key(0x1b)
+    T.eq(#isupport(), 2, 'Esc folds it again')
+    T.eq(T.log_lines 'error', {}, 'no errors')
+end)
+
+T.case('an expanded list indents every row, even after one that fills the width', function()
+    boot()
+    local fields = T.require 'hub.ui.fields'
+    -- three 4-letter words and their spaces fill a 26-column row exactly
+    local cols = fields.width + 2 + 3 * 5 - 1
+    for _, n in ipairs {7, 8} do
+        local win = ncurses.newpad(20, cols)
+        local ctx = {cols = cols, vs = {expanded = {t = true}}, add_button = function(w, text) w:waddstr(text) end}
+        local list = {}
+        for i = 1, n do table.insert(list, string.rep(string.char(96 + i), 4)) end
+        fields.label(win, 't')
+        fields.words(ctx, win, 't', list)
+        local rows = rows_of(win)
+        T.ok(#rows > 1, 'wrapped')
+        for y = 1, #rows - 1 do
+            T.ok(rows[y]:find('^' .. string.rep(' ', fields.width + 2) .. '[%w%[]'), 'row ' .. y .. ' indented: ' .. rows[y])
+        end
+    end
+end)
+
 T.case("Esc resets the view's own filters too", function()
     boot()
     local control = T.require 'hub.ui.control'

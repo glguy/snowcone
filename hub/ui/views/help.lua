@@ -16,6 +16,7 @@ return {
 
     title = 'help',
     scope = 'global',
+    document = true,
 
     render = function(ctx, win)
         draw.magenta(win)
@@ -43,7 +44,6 @@ return {
                 win:waddstr '     '
             end
             win:waddstr(scrub(cmd.help or ''), '\n')
-            if ncurses.getyx(win) >= ctx.rows - 1 then break end
             ::continue::
         end
     end,

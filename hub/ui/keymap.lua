@@ -146,13 +146,17 @@ M.input = {
     [-ncurses.KEY_BTAB     ] = function() do_tab(-1) end,
 }
 
--- Scroll a rolling log by pages and lines; draw.draw_rotation records
--- the page size and limit of the views that have one
+-- Scroll by pages and lines toward older entries of a rolling log, or
+-- toward the top of a document. draw.draw_rotation and the document
+-- renderer (ui/init.lua) record the page size and limit.
 local function scroll(pages, lines)
     return function()
-        local vs = control.view_state(HUB.state.ui.view)
+        local view = control.current_view()
+        local vs = control.view_state(view.id)
         if vs.page then
-            local target = vs.scroll + pages * vs.page + lines
+            -- a document's scroll counts rows down from its top
+            local sign = view.document and -1 or 1
+            local target = vs.scroll + sign * (pages * vs.page + lines)
             vs.scroll = math.max(0, math.min(target, vs.max_scroll))
         end
     end

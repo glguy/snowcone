@@ -1,54 +1,193 @@
--- The current network: what lasts across connections (configuration in
--- effect, state, attempts and backoff, features), then the connection, if
--- any (link, transport, nick, modes, capabilities, channels, tasks). The
--- connection part comes from ircc/view/session.lua.
+-- The current network: what lasts across connections (server, state,
+-- features), then the connection, if any (nick, link, transport, modes,
+-- capabilities, channels, tasks). The connection part comes from
+-- ircc/view/session.lua.
+--
+-- Long lists show their first row; click [+N more] for the rest. Caps put
+-- the trouble first: red for wanted but not enabled, green for enabled,
+-- plain for offered but unused.
 
 local clock  <const> = require 'hub.runtime.clock'
 local draw   <const> = require 'hub.ui.draw'
+local fields <const> = require 'hub.ui.fields'
 local scrub  <const> = require 'hub.lib.scrub'
 local tablex <const> = require 'pl.tablex'
 
-local function section(win, text)
-    draw.green(win)
-    draw.bold(win)
-    win:waddstr(text, '\n')
-    draw.normal(win)
-end
+local heading <const> = fields.heading
+local label   <const> = fields.label
+local key     <const> = fields.key
+local words   <const> = fields.words
 
-local function label(win, txt)
-    win:waddstr(string.format('%14s: ', txt))
-end
+-- as in the networks view
+local phase_colour <const> = {
+    connected = draw.green,
+    idle = draw.red,
+}
 
--- Write words, wrapping under the value column
-local function words(ctx, win, list, colour_of)
-    for _, text in ipairs(list) do
-        local _, x = ncurses.getyx(win)
-        if x + #text > ctx.cols then
-            win:waddstr '\n                '
-        end
-        if colour_of then colour_of(win, text) end
-        win:waddstr(text, ' ')
-    end
-    draw.normal(win)
-    win:waddstr '\n'
+-- A word for fields.words: the name, or a {name, value} pair
+local function keyval(k, v)
+    if v == true then return scrub(k) end
+    return {scrub(k), scrub(tostring(v))}
 end
 
 local function keyvals(t)
     local list = {}
     for k, v in tablex.sort(t) do
-        local text = scrub(k)
-        if v ~= true then
-            text = text .. '=' .. scrub(tostring(v))
-        end
-        table.insert(list, text)
+        table.insert(list, keyval(k, v))
     end
     return list
+end
+
+-- Capabilities with their colours, trouble first, then enabled ones
+local function caps(irc)
+    local rank = {}
+    for cap in pairs(irc.caps_available) do
+        if irc.caps_enabled[cap] then rank[cap] = 2
+        elseif irc.caps_wanted[cap] then rank[cap] = 1
+        else rank[cap] = 3 end
+    end
+    for cap in pairs(irc.caps_wanted) do
+        if not irc.caps_enabled[cap] then rank[cap] = 1 end
+    end
+
+    local names = tablex.keys(rank)
+    table.sort(names, function(a, b)
+        if rank[a] ~= rank[b] then return rank[a] < rank[b] end
+        return a < b
+    end)
+
+    local list, colour = {}, {}
+    for _, cap in ipairs(names) do
+        local v = irc.caps_available[cap]
+        table.insert(list, keyval(cap, v == nil and true or v))
+        colour[scrub(cap)] = rank[cap] == 1 and draw.red or rank[cap] == 2 and draw.green or nil
+    end
+    return list, function(win, text)
+        local f = colour[text]
+        if f then f(win) end
+    end
+end
+
+local function render_network(ctx, win, rec, now)
+    local cfg = rec.cfg
+
+    heading(win, rec.id)
+
+    label(win, 'server')
+    win:waddstr(string.format('%s:%s\n', scrub(cfg.server.host or '?'), tostring(cfg.server.port or '?')))
+
+    label(win, 'state')
+    local colour = phase_colour[rec.phase] or draw.yellow
+    colour(win)
+    win:waddstr(rec.phase)
+    draw.normal(win)
+    win:waddstr(' ', draw.duration(now - rec.since))
+    if rec.target ~= rec.phase then
+        key(win, 'target')
+        win:waddstr(rec.target)
+    end
+    if rec.target == 'connected' and rec.phase ~= 'connected' then
+        key(win, 'attempt')
+        win:waddstr(tostring(rec.attempt))
+        if rec.reconnect_timer and rec.reconnect_at then
+            key(win, 'retry')
+            win:waddstr(draw.duration(math.max(0, rec.reconnect_at - now)))
+        end
+        key(win, 'backoff')
+        win:waddstr(string.format('%gs', rec.backoff))
+    end
+    if rec.restart_pending then
+        draw.yellow(win)
+        win:waddstr '  restart pending: /reconnect'
+        draw.normal(win)
+    end
+    win:waddstr '\n'
+
+    local features = tablex.keys(cfg.features)
+    table.sort(features)
+    label(win, 'features')
+    words(ctx, win, 'features', features)
+end
+
+local function render_connection(ctx, win, rec, now)
+    heading(win, 'Connection')
+
+    local irc = rec.irc
+    if irc and irc.nick then
+        label(win, 'nick')
+        draw.bold(win)
+        win:waddstr(scrub(irc.nick))
+        draw.normal(win)
+        local wanted = rec.cfg.identity.nick
+        if irc.nick ~= wanted then
+            key(win, 'wanted')
+            win:waddstr(scrub(wanted))
+        end
+        key(win, 'account')
+        win:waddstr(irc.account and scrub(irc.account) or '-', '\n')
+    end
+
+    label(win, 'link')
+    key(win, 'lag')
+    win:waddstr(rec.lag and string.format('%.3fs', rec.lag) or '-')
+    key(win, 'idle')
+    win:waddstr(rec.liveness and draw.duration(now - rec.liveness) or '-', '\n')
+
+    label(win, 'transport')
+    win:waddstr(scrub(rec.fingerprint or '-'), '\n')
+
+    if not irc then return end
+
+    local modes = tablex.keys(irc.mode)
+    table.sort(modes)
+    label(win, 'modes')
+    win:waddstr(next(modes) and '+' .. table.concat(modes) or '-')
+    if irc.snomask then
+        key(win, 'snomask')
+        win:waddstr(scrub(irc.snomask))
+    end
+    win:waddstr '\n'
+
+    label(win, 'caps')
+    words(ctx, win, 'caps', caps(irc))
+
+    label(win, 'isupport')
+    words(ctx, win, 'isupport', keyvals(irc.isupport))
+
+    label(win, 'channels')
+    local names = {}
+    for _, channel in tablex.sort(irc.channels) do
+        table.insert(names, scrub(channel.name))
+    end
+    words(ctx, win, 'channels', names)
+
+    if irc.monitor then
+        label(win, 'monitor')
+        local list = {}
+        for k, v in tablex.sort(irc.monitor) do
+            table.insert(list, (v.user and '+' or '-') .. scrub(v.user and v.user.nick or k))
+        end
+        words(ctx, win, 'monitor', list, function(w, text)
+            if text:sub(1, 1) == '+' then draw.green(w) end
+        end)
+    end
+
+    label(win, 'tasks')
+    local tasks = {}
+    for _, t in tablex.sort(HUB.tasks) do
+        if t.net == rec.id then table.insert(tasks, scrub(t.name)) end
+    end
+    words(ctx, win, 'tasks', tasks)
 end
 
 return {
     id = 'session',
     title = 'session',
     scope = 'net',
+    document = true,
+
+    -- Esc folds the lists again
+    reset = function(vs) vs.expanded = nil end,
 
     render = function(ctx, win)
         local rec = ctx.net and HUB.state.nets[ctx.net]
@@ -56,118 +195,10 @@ return {
             win:waddstr 'No network selected\n'
             return
         end
-        local cfg = rec.cfg
         local now = clock.now()
-
-        -- what lasts across connections
-        section(win, 'Network')
-
-        label(win, 'Network')
-        draw.bold(win)
-        win:waddstr(rec.id)
-        draw.normal(win)
-        win:waddstr(string.format('  %s:%s', scrub(cfg.server.host or '?'), tostring(cfg.server.port or '?')))
-        if cfg.identity then
-            win:waddstr('  as ', scrub(cfg.identity.nick))
+        render_network(ctx, win, rec, now)
+        if rec.conn then
+            render_connection(ctx, win, rec, now)
         end
-        win:waddstr '\n'
-
-        label(win, 'State')
-        win:waddstr(string.format('%s for %s, target %s, attempt %d',
-            rec.phase, draw.duration(now - rec.since), rec.target, rec.attempt))
-        if rec.reconnect_timer and rec.reconnect_at then
-            win:waddstr(string.format(', retry in %s', draw.duration(math.max(0, rec.reconnect_at - now))))
-        end
-        win:waddstr(string.format(', backoff %gs', rec.backoff))
-        if rec.restart_pending then
-            draw.yellow(win)
-            win:waddstr '  restart pending: /reconnect'
-            draw.normal(win)
-        end
-        win:waddstr '\n'
-
-        local features = {}
-        for name in pairs(cfg.features) do table.insert(features, name) end
-        table.sort(features)
-        label(win, 'Features')
-        win:waddstr(table.concat(features, ' '), '\n')
-
-        -- this connection
-        section(win, 'Connection')
-        if not rec.conn then
-            win:waddstr 'not connected\n'
-            return
-        end
-
-        label(win, 'Link')
-        win:waddstr(string.format('lag %s, idle %s',
-            rec.lag and string.format('%.3fs', rec.lag) or '?',
-            rec.liveness and draw.duration(now - rec.liveness) or '?'))
-        if rec.registered_at then
-            win:waddstr(', registered ', draw.duration(now - rec.registered_at), ' ago')
-        end
-        win:waddstr '\n'
-
-        if rec.fingerprint then
-            label(win, 'Transport')
-            win:waddstr(scrub(rec.fingerprint), '\n')
-        end
-
-        local irc = rec.irc
-        if not irc then return end
-
-        if irc.nick then
-            label(win, 'Nick')
-            draw.bold(win)
-            win:waddstr(scrub(irc.nick))
-            draw.normal(win)
-            if irc.account then
-                win:waddstr('  account ', scrub(irc.account))
-            end
-            win:waddstr '\n'
-        end
-
-        label(win, 'Mode')
-        win:waddstr(table.concat(tablex.keys(irc.mode)), '\n')
-
-        if irc.snomask then
-            label(win, 'Snomask')
-            win:waddstr(scrub(irc.snomask), '\n')
-        end
-
-        label(win, 'Casemapping')
-        win:waddstr(irc.casemapping, '\n')
-
-        label(win, 'Isupport')
-        words(ctx, win, keyvals(irc.isupport))
-
-        label(win, 'Caps')
-        words(ctx, win, keyvals(irc.caps_available), function(w, text)
-            local name = text:match '^[^=]*'
-            if irc.caps_enabled[name] then draw.green(w) else draw.red(w) end
-        end)
-
-        label(win, 'Channels')
-        local names = {}
-        for _, channel in tablex.sort(irc.channels) do
-            table.insert(names, scrub(channel.name))
-        end
-        words(ctx, win, names)
-
-        if irc.monitor then
-            label(win, 'Monitor')
-            local list = {}
-            for k, v in tablex.sort(irc.monitor) do
-                table.insert(list, (v.user and '+' or '-') .. scrub(v.user and v.user.nick or k))
-            end
-            words(ctx, win, list)
-        end
-
-        label(win, 'Tasks')
-        local tasks = {}
-        for _, t in tablex.sort(HUB.tasks) do
-            if t.net == rec.id then table.insert(tasks, t.name) end
-        end
-        words(ctx, win, tasks)
     end,
 }
