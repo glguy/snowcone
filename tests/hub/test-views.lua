@@ -135,6 +135,14 @@ T.case('keys reach input modes, views and commands', function()
     key(0x1f & string.byte 'N')
     T.eq(control.talk_target 'test', '#chan', 'next buffer')
 
+    -- Meta-H hides joins and the like in the buffer view
+    c:recv ':carol!c@h JOIN #chan'
+    key(-string.byte 'h')
+    T.eq(control.view_state 'buffer'.hide_presence, true, 'presence hidden')
+    HUB.current.routes['ui.draw']()
+    key(-string.byte 'h')
+    T.eq(control.view_state 'buffer'.hide_presence, false, 'presence shown')
+
     -- F1 picks the first view of the rotation
     key(-ncurses.KEY_F1)
     T.eq(HUB.state.ui.view, control.rotation()[1], 'F1')
@@ -177,6 +185,17 @@ local function rows_of(win)
     return rows
 end
 
+-- The text of the status bar as last drawn
+local function status_bar()
+    HUB.current.routes['ui.draw']()
+    for i = #fake_ncurses.windows, 1, -1 do
+        local win = fake_ncurses.windows[i]
+        if win.kind == 'newwin' and win.h == 1 and win.w == tty_width then
+            return fake_ncurses.row(win, 0)
+        end
+    end
+end
+
 T.case('a document view grows to its whole length and pages down from the top', function()
     boot()
     local control = T.require 'hub.ui.control'
@@ -189,8 +208,11 @@ T.case('a document view grows to its whole length and pages down from the top', 
     T.ok(pad.y < pad.h - 1, 'and holds every row')
     T.eq(vs.max_scroll, pad.y - (tty_height - 1), 'scrolls until the last row shows')
 
+    T.ok(not status_bar():find 'scroll', 'no position at the top')
+
     key(-ncurses.KEY_NPAGE)
     T.eq(vs.scroll, math.min(tty_height - 2, vs.max_scroll), 'PgDn moves down a page less a row')
+    T.ok(status_bar():find(string.format('scroll %d/%d', vs.scroll, vs.max_scroll), 1, true), 'position once down')
     HUB.current.routes['ui.draw']()
     T.eq(pad.top, vs.scroll, 'shown from that row')
     for _ = 1, 50 do key(-ncurses.KEY_NPAGE) end
@@ -199,6 +221,23 @@ T.case('a document view grows to its whole length and pages down from the top', 
     T.eq(vs.scroll, vs.max_scroll - 1, 'up a line')
     key(0x1b)
     T.eq(vs.scroll, 0, 'Esc returns to the top')
+end)
+
+T.case('the status bar shows the modes of the view as one fragment', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    local sep = T.require 'hub.ui.statusbar'.thin_separator
+    control.set_view 'console'
+    T.ok(not status_bar():find 'hide', 'none by default')
+
+    key(-string.byte 'h')
+    key(-string.byte 'r')
+    control.view_state 'console'.scroll = 3
+    control.view_state 'console'.filter = 'x'
+    T.ok(status_bar():find(' hide raw scroll 3 filter "x" ' .. sep, 1, true), 'in order, together')
+
+    control.view_state 'console'.hscroll = 16
+    T.ok(status_bar():find(' scroll 3,+16 ', 1, true), 'horizontal scroll')
 end)
 
 T.case('session lists show one row and expand on a click', function()

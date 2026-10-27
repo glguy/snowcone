@@ -249,13 +249,13 @@ return {
     title = 'console',
     scope = 'net',
 
-    status = function(ctx, win)
-        if ctx.vs.all then
-            ctx.fragment(win)
-            draw.yellow(win)
-            win:waddstr 'ALL'
-            draw.normal(win)
-        end
+    modes = function(ctx)
+        local vs = ctx.vs
+        local modes = {}
+        if vs.hide_snow then table.insert(modes, 'hide') end
+        if vs.show_raw then table.insert(modes, 'raw') end
+        if vs.all then table.insert(modes, 'all') end
+        return modes
     end,
 
     render = function(ctx, win)

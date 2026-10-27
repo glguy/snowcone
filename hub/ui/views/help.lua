@@ -14,6 +14,10 @@ return {
         end
     end,
 
+    modes = function(ctx)
+        return {ctx.vs.all and 'all' or nil}
+    end,
+
     title = 'help',
     scope = 'global',
     document = true,

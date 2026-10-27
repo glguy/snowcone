@@ -1,9 +1,11 @@
 -- A chat buffer of the current network (from ircc/view/buffer.lua).
 --
 -- t starts talk mode; Ctrl-N and Ctrl-P step through the network's
--- buffers. Click a sender to inspect the message in the console. Viewing a
--- buffer marks it seen and, with the terminal focused, withdraws its
--- notification.
+-- buffers; Meta-H hides joins, parts, quits, nick changes, account
+-- changes and host changes. Click a sender to inspect the message in the
+-- console. Viewing a buffer marks it seen and, with the terminal focused,
+-- withdraws its notification.
+-- View state: scroll, hscroll, hide_presence.
 
 local addircstr  <const> = require 'hub.ui.irc_formatting'
 local chat       <const> = require 'hub.features.chat'
@@ -142,6 +144,16 @@ local function render_msg(ctx, win, msg)
     if h then h(win, msg) end
 end
 
+-- Commands Meta-H hides: comings, goings and identity changes
+local presence_commands <const> = {
+    JOIN = true,
+    PART = true,
+    QUIT = true,
+    NICK = true,
+    ACCOUNT = true,
+    CHGHOST = true,
+}
+
 local function haystack(msg)
     local parts = {tostring(msg.command), table.concat(msg, ' ')}
     if msg.source then table.insert(parts, 1, msg.source) end
@@ -177,6 +189,7 @@ local function step_buffer(ctx, forward)
 end
 
 local keys = {
+    [-string.byte 'h'] = function(ctx) ctx.vs.hide_presence = not ctx.vs.hide_presence end,
     [0x1f & string.byte 'N'] = function(ctx) step_buffer(ctx, true) end,
     [0x1f & string.byte 'P'] = function(ctx) step_buffer(ctx, false) end,
     [string.byte 't'] = function()
@@ -220,10 +233,16 @@ return {
         local show
         if pattern then
             show = function(msg) return matching.safematch(haystack(msg), pattern) end
+        elseif ctx.vs.hide_presence then
+            show = function(msg) return not presence_commands[msg.command] end
         end
         draw.draw_rotation(win, ctx.vs, 0, ctx.rows, buffer.messages, show, function(w, msg)
             render_msg(ctx, w, msg)
         end)
+    end,
+
+    modes = function(ctx)
+        return {ctx.vs.hide_presence and 'hide' or nil}
     end,
 
     keypress = function(ctx, key)

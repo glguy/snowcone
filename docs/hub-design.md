@@ -236,7 +236,7 @@ dashboard are refused with a message to port them.
 ## 7. User interface
 
 - **Views** are records `{id, title, scope, render(ctx, win),
-  keypress(ctx, key), status(ctx, win), reset(vs)}`; Esc clears the
+  keypress(ctx, key), status(ctx, win), modes(ctx), reset(vs)}`; Esc clears the
   scroll and `/filter` and calls `reset` for anything else the view keeps.
   A view module returns a view or a list of views, and may bring
   `commands` of its own; `ui/init.lua` lists the modules once. `ctx` gives the view's persistent
@@ -257,7 +257,12 @@ dashboard are refused with a message to port them.
   connections above the current connection; `/networks` is the overview.
 - **Status bar fragments** are divided by one separator, the Powerline
   right-pointing triangle (U+E0B0, `statusbar.separator`). A view's
-  `status` function starts each fragment it adds with `ctx.fragment(win)`.
+  `status` function starts each fragment it adds with `ctx.fragment(win)`;
+  it shows data, such as loads or chat activity. A view's `modes` returns
+  the tags of what alters it from its default, such as `hide`, each a
+  string or `{tag, value}`. The bar draws them, then the scroll position
+  and filter every view has, as one fragment of lower-case tags in yellow
+  with their values in the normal colour, shown only when a mode is on.
 - **Input modes:** command, filter (live, per view), talk, and password —
   prompts from tasks, with their own editor so a half-typed command
   survives and secrets stay out of history.

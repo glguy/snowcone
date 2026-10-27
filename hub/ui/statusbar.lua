@@ -125,6 +125,46 @@ local input_mode_palette <const> = {
     password = ncurses.COLOR_RED,
 }
 
+--- Draw the active modes of the view, as one fragment of lower-case tags
+--- in yellow, each with its value (if any) in the normal colour: the
+--- view's own (from view.modes) and then the scroll and filter every view
+--- has. Nothing when no mode is on.
+local function draw_modes(win, view, ctx)
+    local vs = ctx.vs
+    local modes = view.modes and view.modes(ctx) or {}
+
+    -- once scrolled, a document shows how far down it is
+    local rows
+    if vs.scroll ~= 0 then
+        rows = view.document and string.format('%d/%d', vs.scroll, vs.max_scroll or 0)
+            or tostring(vs.scroll)
+    end
+    if (vs.hscroll or 0) > 0 then
+        table.insert(modes, {'scroll', string.format('%s,+%d', rows or '0', vs.hscroll)})
+    elseif rows then
+        table.insert(modes, {'scroll', rows})
+    end
+
+    if vs.filter then
+        table.insert(modes, {'filter', scrub(string.format('%q', vs.filter))})
+    end
+
+    if #modes == 0 then return end
+    M.fragment(win)
+    for i, mode in ipairs(modes) do
+        if i > 1 then win:waddstr ' ' end
+        draw.yellow(win)
+        if type(mode) == 'table' then
+            win:waddstr(mode[1])
+            draw.normal(win)
+            win:waddstr(' ', mode[2])
+        else
+            win:waddstr(mode)
+        end
+    end
+    draw.normal(win)
+end
+
 --- Colour behind the view title: red while a K-Line is staged on the
 --- current network (as the dashboard did), so it is hard to miss.
 function M.title_colour()
@@ -216,25 +256,7 @@ function M.draw(win, textbox, layout, view, ctx)
         if view.status then
             view.status(ctx, win)
         end
-
-        -- a document longer than the screen shows how far down it is
-        if view.document then
-            if (ctx.vs.max_scroll or 0) > 0 then
-                M.fragment(win)
-                win:waddstr(string.format('SCROLL %d/%d', ctx.vs.scroll, ctx.vs.max_scroll))
-            end
-        elseif ctx.vs.scroll ~= 0 then
-            M.fragment(win)
-            win:waddstr(string.format('SCROLL %d', ctx.vs.scroll))
-        end
-
-        if ctx.vs.filter then
-            M.fragment(win)
-            draw.yellow(win)
-            win:waddstr 'FILTER '
-            draw.normal(win)
-            win:waddstr(scrub(string.format('%q', ctx.vs.filter)))
-        end
+        draw_modes(win, view, ctx)
 
         local last = HUB.state.log_last
         if last then

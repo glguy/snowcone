@@ -428,7 +428,8 @@ samples (the difference is sampling time).
   `notify.alert` beeps or flashes in the UI.
 - UI: buffer view with a talk target per network (`vs.targets`), talk
   mode (`t`), Ctrl-N/P through buffers, Meta-A to the next buffer with
-  activity (mentions first), Meta-S back to the previous one, completion
+  activity (mentions first), Meta-S back to the previous one, Meta-H to
+  hide joins, parts, quits and nick, account and host changes, completion
   of channels and of nicks in the talk channel. The status bar marks
   networks with unseen chat: `+`, or `!` for a mention.
 - Crypto commands (`ecdsa_new`, `ecdsa_fp`, `x25519_new`, `cert_new`,
