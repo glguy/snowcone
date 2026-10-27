@@ -93,9 +93,14 @@ auto build_response(
     push_string(L, req.target());
     push_string(L, req.body());
 
+    // Header names are case-insensitive, so handlers get them in lower case
     lua_newtable(L);
     for (auto&& field : req) {
-        push_string(L, field.name_string());
+        std::string name{field.name_string()};
+        for (auto& c : name) {
+            if ('A' <= c && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+        }
+        push_string(L, name);
         push_string(L, field.value());
         lua_settable(L, -3);
     }

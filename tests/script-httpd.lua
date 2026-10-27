@@ -47,13 +47,15 @@ end
 local errors = {}
 
 local function server(tag)
-    return function(method, target, body)
+    return function(method, target, body, headers)
         if method == nil then
             errors[#errors + 1] = tag .. ' ' .. target .. ': ' .. body
             return
         end
         if target == '/length' then
             return 200, tostring(#body)
+        elseif target == '/header' then
+            return 200, tostring(headers['x-mixed-case'])
         elseif target == '/nothing' then
             return
         elseif target == '/raise' then
@@ -122,6 +124,10 @@ sequence(function(step)
     _, out = curl {url '/raise-table'}
     expect('handler raising a table', responses(out):match('^%d+'), '500')
     expect('table error reported', take_errors():match '^gen1 handler: table: ' ~= nil, true)
+
+    -- Header names reach the handler in lower case
+    _, out = curl {'-H', 'X-Mixed-CASE: yes', url '/header'}
+    expect('header names in lower case', responses(out), '200 yes')
 
     -- Status codes: any integer from 100 to 999, reported otherwise
     _, out = curl {url '/status/299'}
