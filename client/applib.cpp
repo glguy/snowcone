@@ -428,8 +428,10 @@ auto l_print(lua_State* const L) -> int
             luaL_addchar(&b, '\t');
     }
 
+    // The result goes to the bottom: with no arguments, lua_replace(L, 1)
+    // would pop it onto itself and leave nothing
     luaL_pushresult(&b);
-    lua_replace(L, 1);
+    lua_insert(L, 1);
     lua_settop(L, 1);
 
     // Without a UI, print is plain output
