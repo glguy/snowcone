@@ -12,15 +12,18 @@ project(snowcone
 )
 
 include(GNUInstallDirs)
+
+# AddressSanitizer and UndefinedBehaviorSanitizer for every target; any
+# report fails the run. Leak checking comes with ASan on Linux only.
+option(SNOWCONE_SANITIZE "Build with ASan and UBSan" OFF)
+if(SNOWCONE_SANITIZE)
+    add_compile_options(-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address,undefined)
+endif()
 include(CTest)
 find_package(PkgConfig REQUIRED)
 
 pkg_search_module(LUA      REQUIRED IMPORTED_TARGET lua>=5.4 lua5.4 lua-5.4 lua54)
-string(REGEX MATCH "^[0-9]+\\.[0-9]+" SNOWCONE_LUA_ABI "${LUA_VERSION}")
-# An interpreter for the same Lua version, for tests that load our modules
-# into it; a plain `lua` on PATH may be a different version
-find_program(LUA_INTERPRETER NAMES lua${SNOWCONE_LUA_ABI} lua-${SNOWCONE_LUA_ABI}
-    HINTS "${LUA_PREFIX}/bin")
 pkg_check_modules(NCURSESW REQUIRED IMPORTED_TARGET ncursesw>=6)
 pkg_check_modules(GEOIP             IMPORTED_TARGET geoip)
 pkg_check_modules(LIBHS             IMPORTED_TARGET libhs)

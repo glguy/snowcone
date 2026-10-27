@@ -9,6 +9,10 @@
 #
 # A failing build or test fails the image build; the .deb lands in
 # out/debian. --build-arg DEBIAN=trixie (or another suite) pins the release.
+#
+# To test with ASan, UBSan and LeakSanitizer instead, packaging nothing:
+#
+#   container build -c 8 -m 12G -f Containerfile.debian --build-arg SANITIZE=ON --target build .
 
 ARG DEBIAN=stable
 
@@ -18,7 +22,7 @@ RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         build-essential cmake ninja-build pkg-config git ca-certificates \
         dpkg-dev file \
-        lua5.4 liblua5.4-dev libssl-dev libncurses-dev libboost-dev \
+        liblua5.4-dev libssl-dev libncurses-dev libboost-dev \
         libidn-dev libarchive-dev libgeoip-dev \
         lua-penlight lua-rex-pcre2 lua-mmdb lua-json \
         libgtest-dev libgmock-dev lua-check curl \
@@ -36,10 +40,12 @@ RUN apt-get update \
 WORKDIR /src
 COPY . .
 
-RUN cmake -S . -B /build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+ARG SANITIZE=OFF
+RUN cmake -S . -B /build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSNOWCONE_SANITIZE=${SANITIZE} \
  && cmake --build /build
-RUN ctest --test-dir /build --output-on-failure
-RUN cd /build && cpack
+RUN UBSAN_OPTIONS=print_stacktrace=1 ctest --test-dir /build --output-on-failure
+# a sanitized build is for testing only
+RUN if [ "${SANITIZE}" = OFF ]; then cd /build && cpack; fi
 
 # Only the package, for -o type=local
 FROM scratch AS package

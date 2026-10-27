@@ -2,6 +2,14 @@
     "version": 6,
     "configurePresets": [
         {
+            "name": "sanitize",
+            "hidden": true,
+            "description": "ASan and UBSan; the build tree is for testing, not installing",
+            "cacheVariables": {
+                "SNOWCONE_SANITIZE": "ON"
+            }
+        },
+        {
             "name": "linux",
             "description": "Configure for Debian Bookworm",
             "generator": "Ninja",
@@ -42,6 +50,22 @@
             "environment": {
                 "PKG_CONFIG_PATH": "/usr/local/opt/ncurses/lib/pkgconfig:/usr/local/opt/libarchive/lib/pkgconfig"
             }
+        },
+        {
+            "name": "linux-asan",
+            "description": "Debian with ASan and UBSan",
+            "inherits": [
+                "sanitize",
+                "linux"
+            ]
+        },
+        {
+            "name": "arm-mac-asan",
+            "description": "Apple Silicon macOS with ASan and UBSan",
+            "inherits": [
+                "sanitize",
+                "arm-mac"
+            ]
         }
     ],
     "buildPresets": [
@@ -56,6 +80,14 @@
         {
             "name": "intel-mac",
             "configurePreset": "intel-mac"
+        },
+        {
+            "name": "linux-asan",
+            "configurePreset": "linux-asan"
+        },
+        {
+            "name": "arm-mac-asan",
+            "configurePreset": "arm-mac-asan"
         }
     ],
     "testPresets": [
@@ -70,6 +102,26 @@
         {
             "name": "intel-mac",
             "configurePreset": "intel-mac"
+        },
+        {
+            "name": "linux-asan",
+            "configurePreset": "linux-asan",
+            "environment": {
+                "UBSAN_OPTIONS": "print_stacktrace=1"
+            },
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "arm-mac-asan",
+            "configurePreset": "arm-mac-asan",
+            "environment": {
+                "UBSAN_OPTIONS": "print_stacktrace=1"
+            },
+            "output": {
+                "outputOnFailure": true
+            }
         }
     ]
 }
