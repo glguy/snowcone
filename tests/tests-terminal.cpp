@@ -1,6 +1,7 @@
 // Runs the client on a pseudo-terminal: tests/terminal/*.lua report what
 // the client's terminal layer delivers, one line per event on descriptor 3,
-// and these tests compare that with the bytes they typed.
+// and these tests compare that with the bytes they typed. libvterm keeps
+// the screen the client draws, for the tests of what it shows.
 
 #include <gtest/gtest.h>
 
@@ -12,6 +13,8 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include <vterm.h>
+
 #if __has_include(<pty.h>)
 #include <pty.h>
 #else
@@ -21,14 +24,20 @@
 #include <cerrno>
 #include <chrono>
 #include <cstdlib>
+#include <cstdint>
 #include <cstring>
+#include <filesystem>
+#include <functional>
 #include <mutex>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>
 #include <thread>
 #include <vector>
+
+extern char** environ;
 
 namespace {
 
@@ -55,6 +64,68 @@ constexpr char const* utf8_locale = "LC_ALL=en_US.UTF-8";
 constexpr char const* utf8_locale = "LC_ALL=C.UTF-8";
 #endif
 
+/// A script in tests/terminal
+auto script(std::string_view const name) -> std::string
+{
+    return std::string{TERMINAL_SCRIPTS} + "/" + std::string{name};
+}
+
+/// The environment for the client: this one (PATH lets the sanitizers find
+/// their symbolizer, LUA_PATH finds Penlight) without what would change the
+/// terminal or the configuration, then the given settings
+auto client_environment(std::vector<std::string> const& extra) -> std::vector<std::string>
+{
+    std::vector<std::string> result;
+    for (auto e = environ; *e; ++e)
+    {
+        std::string_view const entry{*e};
+        auto const name = entry.substr(0, entry.find('='));
+        if (name != "TERM" && name != "TERMINFO" && name != "LINES" && name != "COLUMNS" && name != "LANG"
+            && not name.starts_with("LC_") && name != "HOME" && not name.starts_with("XDG_"))
+        {
+            result.emplace_back(entry);
+        }
+    }
+    result.emplace_back("TERM=xterm-256color");
+    result.emplace_back(utf8_locale);
+    result.emplace_back("HOME=/nonexistent");
+    result.insert(result.end(), extra.begin(), extra.end());
+    return result;
+}
+
+/// The text of a cell as UTF-8
+auto cell_text(VTermScreenCell const& cell) -> std::string
+{
+    std::string result;
+    for (int i = 0; i < VTERM_MAX_CHARS_PER_CELL && cell.chars[i] != 0; ++i)
+    {
+        auto const c = cell.chars[i];
+        if (c < 0x80)
+        {
+            result += static_cast<char>(c);
+        }
+        else if (c < 0x800)
+        {
+            result += static_cast<char>(0xc0 | c >> 6);
+            result += static_cast<char>(0x80 | (c & 0x3f));
+        }
+        else if (c < 0x10000)
+        {
+            result += static_cast<char>(0xe0 | c >> 12);
+            result += static_cast<char>(0x80 | (c >> 6 & 0x3f));
+            result += static_cast<char>(0x80 | (c & 0x3f));
+        }
+        else
+        {
+            result += static_cast<char>(0xf0 | c >> 18);
+            result += static_cast<char>(0x80 | (c >> 12 & 0x3f));
+            result += static_cast<char>(0x80 | (c >> 6 & 0x3f));
+            result += static_cast<char>(0x80 | (c & 0x3f));
+        }
+    }
+    return result.empty() ? " " : result;
+}
+
 /// snowcone running a script on a terminal of its own
 class Terminal
 {
@@ -63,13 +134,46 @@ class Terminal
     int events_ = -1;
     std::string pending_; // event bytes read past the last line
     std::thread reader_;
-    mutable std::mutex mutex_;
+    mutable std::mutex mutex_; // for output_, vterm_ and altscreen_
     std::string output_; // everything the client wrote to the terminal
+    std::unique_ptr<VTerm, decltype(&vterm_free)> vterm_{nullptr, vterm_free};
+    VTermScreen* screen_ = nullptr;
+    bool altscreen_ = false;
     std::optional<int> status_;
 
-public:
-    explicit Terminal(std::string const& script, unsigned short const rows = 24, unsigned short const cols = 80)
+    static auto settermprop(VTermProp const prop, VTermValue* const val, void* const user) -> int
     {
+        if (prop == VTERM_PROP_ALTSCREEN)
+        {
+            static_cast<Terminal*>(user)->altscreen_ = val->boolean;
+        }
+        return 1;
+    }
+
+    static constexpr VTermScreenCallbacks callbacks{.settermprop = settermprop};
+
+public:
+    /// Run tests/terminal/<name> on a 24x80 terminal
+    explicit Terminal(char const* const name)
+        : Terminal{{script(name)}}
+    {
+    }
+
+    /// Run snowcone with these arguments and settings added to its
+    /// environment
+    explicit Terminal(
+        std::vector<std::string> const& args,
+        unsigned short const rows = 24,
+        unsigned short const cols = 80,
+        std::vector<std::string> const& env = {})
+    {
+        vterm_.reset(vterm_new(rows, cols));
+        vterm_set_utf8(vterm_.get(), 1);
+        screen_ = vterm_obtain_screen(vterm_.get());
+        vterm_screen_enable_altscreen(screen_, 1);
+        vterm_screen_set_callbacks(screen_, &callbacks, this);
+        vterm_screen_reset(screen_, 1);
+
         int pipe[2];
         check(::pipe(pipe), "pipe");
         set_cloexec(pipe[0]);
@@ -78,12 +182,21 @@ public:
 
         // Built before the fork: the child may only make async-signal-safe
         // calls
-        std::string const path = SNOWCONE_PATH;
-        std::string const file = std::string{TERMINAL_SCRIPTS} + "/" + script;
-        char const* const argv[] = {path.c_str(), file.c_str(), nullptr};
-        // PATH lets the sanitizers find their symbolizer
-        std::string const path_env = std::string{"PATH="} + (std::getenv("PATH") ? std::getenv("PATH") : "/usr/bin:/bin");
-        char const* const envp[] = {"TERM=xterm-256color", utf8_locale, "HOME=/nonexistent", path_env.c_str(), nullptr};
+        std::vector<std::string> arg_strings{SNOWCONE_PATH};
+        arg_strings.insert(arg_strings.end(), args.begin(), args.end());
+        std::vector<char const*> argv;
+        for (auto const& a : arg_strings)
+        {
+            argv.push_back(a.c_str());
+        }
+        argv.push_back(nullptr);
+        auto const env_strings = client_environment(env);
+        std::vector<char const*> envp;
+        for (auto const& e : env_strings)
+        {
+            envp.push_back(e.c_str());
+        }
+        envp.push_back(nullptr);
 
         winsize ws{};
         ws.ws_row = rows;
@@ -96,7 +209,7 @@ public:
             {
                 ::_exit(126);
             }
-            ::execve(argv[0], const_cast<char* const*>(argv), const_cast<char* const*>(envp));
+            ::execve(argv[0], const_cast<char* const*>(argv.data()), const_cast<char* const*>(envp.data()));
             ::_exit(127);
         }
         ::close(pipe[1]);
@@ -114,6 +227,7 @@ public:
                 {
                     std::lock_guard lock{mutex_};
                     output_.append(buffer, n);
+                    vterm_input_write(vterm_.get(), buffer, n);
                 }
                 else if (n == 0 || errno != EINTR)
                 {
@@ -157,10 +271,89 @@ public:
     /// Change the terminal's size; the kernel sends SIGWINCH
     auto resize(unsigned short const rows, unsigned short const cols) -> void
     {
+        {
+            std::lock_guard lock{mutex_};
+            vterm_set_size(vterm_.get(), rows, cols);
+        }
         winsize ws{};
         ws.ws_row = rows;
         ws.ws_col = cols;
         check(::ioctl(master_, TIOCSWINSZ, &ws), "TIOCSWINSZ");
+    }
+
+    auto signal(int const sig) const -> void
+    {
+        check(::kill(pid_, sig), "kill");
+    }
+
+    /// The terminal's modes, which the client sets on its side
+    auto modes() const -> termios
+    {
+        termios t;
+        check(::tcgetattr(master_, &t), "tcgetattr");
+        return t;
+    }
+
+    /// Row y of the screen, without trailing blanks
+    auto row(int const y) const -> std::string
+    {
+        std::lock_guard lock{mutex_};
+        int rows, cols;
+        vterm_get_size(vterm_.get(), &rows, &cols);
+        std::string result;
+        for (int x = 0; x < cols;)
+        {
+            VTermScreenCell cell;
+            vterm_screen_get_cell(screen_, {.row = y, .col = x}, &cell);
+            result += cell_text(cell);
+            x += cell.width > 0 ? cell.width : 1;
+        }
+        return result.substr(0, result.find_last_not_of(' ') + 1);
+    }
+
+    /// The whole screen, for failure messages
+    auto screen() const -> std::string
+    {
+        int rows, cols;
+        {
+            std::lock_guard lock{mutex_};
+            vterm_get_size(vterm_.get(), &rows, &cols);
+        }
+        std::string result;
+        for (int y = 0; y < rows; ++y)
+        {
+            result += "|" + row(y) + "\n";
+        }
+        return result;
+    }
+
+    auto cell(int const y, int const x) const -> VTermScreenCell
+    {
+        std::lock_guard lock{mutex_};
+        VTermScreenCell cell;
+        vterm_screen_get_cell(screen_, {.row = y, .col = x}, &cell);
+        return cell;
+    }
+
+    auto altscreen() const -> bool
+    {
+        std::lock_guard lock{mutex_};
+        return altscreen_;
+    }
+
+    /// Whether the condition holds within the timeout
+    auto wait_until(std::function<bool()> const& condition, std::chrono::milliseconds const timeout = 5s) const -> bool
+    {
+        auto const deadline = steady::now() + timeout;
+        while (not condition())
+        {
+            if (steady::now() >= deadline)
+            {
+                return false;
+            }
+            std::this_thread::sleep_for(10ms);
+        }
+        return true;
     }
 
     /// The next event line, or nothing once the timeout passes or the
@@ -222,18 +415,9 @@ public:
     }
 
     /// Whether the client writes text to the terminal within the timeout
-    auto wait_output(std::string_view const text, std::chrono::milliseconds const timeout = 5s) const -> bool
+    auto wait_output(std::string_view const text) const -> bool
     {
-        auto const deadline = steady::now() + timeout;
-        while (output().find(text) == std::string::npos)
-        {
-            if (steady::now() >= deadline)
-            {
-                return false;
-            }
-            std::this_thread::sleep_for(10ms);
-        }
-        return true;
+        return wait_until([&] { return output().find(text) != std::string::npos; });
     }
 };
 
@@ -268,19 +452,16 @@ auto expect_events(Terminal& term, std::vector<std::string> const& expected) -> 
     }
 }
 
-/// The client must exit successfully and leave the terminal as it found it
-auto expect_clean_exit(Terminal& term) -> void
+/// The terminal is as the client found it: each mode it turned on is
+/// turned off again later
+auto expect_restored(Terminal& term) -> void
 {
-    auto const status = term.wait();
-    ASSERT_TRUE(status) << "the client did not exit\n" << shown(term.output());
     auto const output = term.output();
-    ASSERT_TRUE(WIFEXITED(*status) && WEXITSTATUS(*status) == 0) << "exit status " << *status << "\n" << shown(output);
-
-    // Each mode turned on is turned off again later
+    EXPECT_FALSE(term.altscreen()) << term.screen();
     for (auto const& [on, off] : {
-             std::pair{"\x1b[?1049h", "\x1b[?1049l"}, // alternate screen
              std::pair{"\x1b[?2004h", "\x1b[?2004l"}, // bracketed paste
              std::pair{"\x1b[?1004h", "\x1b[?1004l"}, // focus reporting
+             std::pair{"\x1b[?1000h", "\x1b[?1000l"}, // mouse
          })
     {
         auto const last_on = output.rfind(on);
@@ -289,6 +470,27 @@ auto expect_clean_exit(Terminal& term) -> void
             EXPECT_NE(std::string::npos, output.find(off, last_on)) << shown(on) << " left on\n" << shown(output);
         }
     }
+    auto const modes = term.modes();
+    EXPECT_TRUE(modes.c_lflag & ICANON) << "not in canonical mode";
+    EXPECT_TRUE(modes.c_lflag & ECHO) << "not echoing";
+}
+
+/// The client must exit successfully and restore the terminal
+auto expect_clean_exit(Terminal& term) -> void
+{
+    auto const status = term.wait();
+    ASSERT_TRUE(status) << "the client did not exit\n" << shown(term.output());
+    ASSERT_TRUE(WIFEXITED(*status) && WEXITSTATUS(*status) == 0) << "exit status " << *status << "\n" << shown(term.output());
+    expect_restored(term);
+}
+
+/// The client must die of the signal and restore the terminal
+auto expect_killed_by(Terminal& term, int const sig) -> void
+{
+    auto const status = term.wait();
+    ASSERT_TRUE(status) << "the client did not exit\n" << shown(term.output());
+    ASSERT_TRUE(WIFSIGNALED(*status) && WTERMSIG(*status) == sig) << "exit status " << *status << "\n" << shown(term.output());
+    expect_restored(term);
 }
 
 /// End the client with ^D
@@ -511,6 +713,168 @@ TEST(Bindings, EveryCall)
         failures += *event + "\n";
     }
     EXPECT_EQ("", failures);
+    expect_clean_exit(term);
+}
+
+/// A client running tests/terminal/screen.lua, drawn
+struct Screen : testing::Test
+{
+    Terminal term{"screen.lua"};
+
+    void SetUp() override
+    {
+        expect_events(term, {"drawn 80 24", "ready"});
+        ASSERT_TRUE(term.wait_until([&] { return term.row(23) == "bottom 80x24"; })) << term.screen();
+    }
+};
+
+TEST_F(Screen, Draws)
+{
+    EXPECT_TRUE(term.altscreen());
+    EXPECT_EQ("hello", term.row(0));
+    EXPECT_EQ("bold reverse red", term.row(1));
+    EXPECT_TRUE(term.cell(1, 0).attrs.bold);
+    EXPECT_FALSE(term.cell(1, 4).attrs.reverse);
+    EXPECT_TRUE(term.cell(1, 5).attrs.reverse);
+    EXPECT_FALSE(term.cell(1, 5).attrs.bold);
+    auto const red = term.cell(1, 13).fg;
+    EXPECT_TRUE(VTERM_COLOR_IS_INDEXED(&red) && red.indexed.idx == 1);
+    auto const plain = term.cell(0, 0).fg;
+    EXPECT_TRUE(VTERM_COLOR_IS_DEFAULT_FG(&plain));
+    finish(term);
+}
+
+TEST_F(Screen, WideCharacters)
+{
+    EXPECT_EQ("wide: \u00e9\u20ac\U0001f600\u6f22\u5b57|", term.row(2));
+    EXPECT_EQ(2, term.cell(2, 8).width);
+    EXPECT_EQ("|", cell_text(term.cell(2, 14))) << term.screen();
+    finish(term);
+}
+
+TEST_F(Screen, Resize)
+{
+    term.resize(30, 100);
+    expect_events(term, {"drawn 100 30"});
+    EXPECT_TRUE(term.wait_until([&] { return term.row(29) == "bottom 100x30"; })) << term.screen();
+    term.resize(10, 40);
+    expect_events(term, {"drawn 40 10"});
+    EXPECT_TRUE(term.wait_until([&] { return term.row(9) == "bottom 40x10"; })) << term.screen();
+    EXPECT_EQ("hello", term.row(0));
+    finish(term);
+}
+
+TEST_F(Screen, StopInputGivesBackTheTerminal)
+{
+    term.send("s");
+    expect_events(term, {"stopped"});
+    EXPECT_TRUE(term.wait_until([&] { return not term.altscreen(); })) << term.screen();
+    EXPECT_TRUE(term.modes().c_lflag & ICANON);
+    EXPECT_TRUE(term.modes().c_lflag & ECHO);
+    expect_events(term, {"drawn 80 24", "started"});
+    EXPECT_TRUE(term.wait_until([&] { return term.altscreen() && term.row(0) == "hello"; })) << term.screen();
+    EXPECT_FALSE(term.modes().c_lflag & ICANON);
+    EXPECT_FALSE(term.modes().c_lflag & ECHO);
+    finish(term);
+}
+
+TEST_F(Screen, SuspendWhereItCannotStop)
+{
+    // The client is the leader of its own session here, as under
+    // tmux new-session or exec from a login shell: its process group is
+    // orphaned, so the kernel discards SIGTSTP and the client carries on.
+    // The screen must come back without a SIGCONT.
+    term.send("z");
+    EXPECT_TRUE(term.wait_until([&] { return term.altscreen() && term.row(23) == "bottom 80x24"; })) << term.screen();
+    // and input carries on
+    term.send("s");
+    expect_events(term, {"stopped", "drawn 80 24", "started"});
+    finish(term);
+}
+
+TEST_F(Screen, Sigterm)
+{
+    term.signal(SIGTERM);
+    expect_killed_by(term, SIGTERM);
+}
+
+TEST(Error, ControlCStillEnds)
+{
+    Terminal term{"error.lua"};
+    ASSERT_TRUE(term.wait_output("boom")) << shown(term.output());
+    // With no module to take it, ^C raises SIGINT
+    term.send("\x03");
+    expect_killed_by(term, SIGINT);
+    // the report stays on the screen
+    EXPECT_NE(std::string::npos, term.screen().find("error.lua:7:")) << term.screen();
+}
+
+/// A directory of its own for the hub's configuration and saved state
+struct TempDir
+{
+    std::string path;
+
+    TempDir()
+    {
+        std::string templ = std::filesystem::temp_directory_path() / "snowcone-test.XXXXXX";
+        path = ::mkdtemp(templ.data()) ? templ : throw std::system_error{errno, std::generic_category(), "mkdtemp"};
+    }
+
+    ~TempDir()
+    {
+        std::error_code ignored;
+        std::filesystem::remove_all(path, ignored);
+    }
+};
+
+/// hub, with tests/terminal/hub.toml
+struct Hub : testing::Test
+{
+    TempDir config;
+    Terminal term{
+        {SOURCE_DIR "/hub/init.lua", "--config", script("hub.toml")},
+        24,
+        80,
+        {"XDG_CONFIG_HOME=" + config.path}};
+};
+
+TEST_F(Hub, CommandLineHelpResizeAndQuit)
+{
+    auto const status = [&](int const row, std::string_view const text) {
+        return term.wait_until([&] { return term.row(row).starts_with(text); });
+    };
+    std::string const sep = "\ue0b0"; // the status bar's powerline separator
+
+    // With no networks it opens on the console
+    ASSERT_TRUE(status(23, "console")) << term.screen();
+    EXPECT_EQ("No network selected", term.row(0));
+
+    // A paste goes into the command line
+    term.send("/");
+    ASSERT_TRUE(status(23, "console " + sep + " command")) << term.screen();
+    term.send("\x1b[200~help\x1b[201~");
+    ASSERT_TRUE(status(23, "console " + sep + " command " + sep + " help")) << term.screen();
+    term.send("\r");
+    ASSERT_TRUE(status(23, "help")) << term.screen();
+    EXPECT_TRUE(term.row(0).starts_with("Commands")) << term.screen();
+
+    // The help wraps at the terminal's width, and again after a resize
+    auto const has_row = [&](std::string_view const text) {
+        return term.wait_until([&] {
+            for (int y = 0; y < 30; ++y)
+            {
+                if (term.row(y) == text) return true;
+            }
+            return false;
+        });
+    };
+    EXPECT_TRUE(has_row("v CERT ADD command")) << term.screen();
+    term.resize(30, 120);
+    ASSERT_TRUE(status(29, "help")) << term.screen();
+    EXPECT_TRUE(has_row("/cert_new $g         Make a self-signed client certificate and print its NickServ CERT ADD command"))
+        << term.screen();
+
+    term.send("/quit\r");
     expect_clean_exit(term);
 }
 

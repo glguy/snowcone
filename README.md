@@ -32,7 +32,7 @@ apt install libhyperscan-dev
 # Optional on arm64
 apt install libvectorscan-dev
 # Optional for testing
-apt install libgmock-dev libgtest-dev lua-check
+apt install libgmock-dev libgtest-dev libvterm-dev lua-check
 
 # Homebrew
 brew install cmake pkg-config lua luarocks libidn ncurses openssl pcre2
@@ -40,6 +40,8 @@ brew install cmake pkg-config lua luarocks libidn ncurses openssl pcre2
 brew install hyperscan
 # Optional on arm64
 brew install vectorscan
+# Optional for testing
+brew install googletest libvterm luacheck
 # Lua run-time dependencies
 luarocks install penlight mmdblua lrexlib-pcre2
 

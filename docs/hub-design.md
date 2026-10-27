@@ -368,10 +368,13 @@ All tests run in snowcone without a UI, from CTest, with `luacheck` over
   renders every view after replaying real traffic and drives keys through
   the native entry point. It has exactly the real module's names and
   raises an error for any other; `tests-terminal` checks the two match.
-- `tests-terminal` runs the client on a pseudo-terminal: it types bytes
-  and checks the key, paste, mouse and resize callbacks the scripts in
-  `tests/terminal/` report, calls every ncurses binding, and checks the
-  terminal is restored on exit.
+- `tests-terminal` runs the client on a pseudo-terminal, keeping the
+  screen with libvterm: it types bytes and checks the key, paste, mouse
+  and resize callbacks the scripts in `tests/terminal/` report, calls every
+  ncurses binding, checks what is drawn (attributes, colors, wide
+  characters, redraws on resize, stop_input), runs hub itself through its
+  command line, and checks the terminal is restored however the client
+  ends. It is built only when libvterm is found.
 - Golden replay: `fixtures/snotes-live.log` (captured from a live network,
   anonymised by `tests/hub/tools/anonymize-snotes.lua`) and `snotes-synthetic.log`,
   checked against the dashboard parser's output. Fixtures never contain
