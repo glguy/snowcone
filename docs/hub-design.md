@@ -366,7 +366,12 @@ All tests run in snowcone without a UI, from CTest, with `luacheck` over
   server line by line.
 - `fake_ncurses.lua` lets the whole UI load and draw, so `test-views.lua`
   renders every view after replaying real traffic and drives keys through
-  the native entry point.
+  the native entry point. It has exactly the real module's names and
+  raises an error for any other; `tests-terminal` checks the two match.
+- `tests-terminal` runs the client on a pseudo-terminal: it types bytes
+  and checks the key, paste, mouse and resize callbacks the scripts in
+  `tests/terminal/` report, calls every ncurses binding, and checks the
+  terminal is restored on exit.
 - Golden replay: `fixtures/snotes-live.log` (captured from a live network,
   anonymised by `tests/hub/tools/anonymize-snotes.lua`) and `snotes-synthetic.log`,
   checked against the dashboard parser's output. Fixtures never contain

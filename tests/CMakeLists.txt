@@ -20,6 +20,18 @@ add_executable(tests-session tests-session.cpp)
 target_link_libraries(tests-session PRIVATE snowcone_bindings)
 add_test(NAME tests-session COMMAND tests-session)
 
+# Runs the client on a pseudo-terminal with the scripts in terminal/
+add_executable(tests-terminal tests-terminal.cpp)
+target_compile_definitions(tests-terminal PRIVATE
+  SNOWCONE_PATH="$<TARGET_FILE:snowcone>"
+  TERMINAL_SCRIPTS="${CMAKE_CURRENT_SOURCE_DIR}/terminal")
+target_link_libraries(tests-terminal PRIVATE GTest::gtest_main)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(tests-terminal PRIVATE util) # forkpty before glibc 2.34
+endif()
+add_dependencies(tests-terminal snowcone)
+gtest_discover_tests(tests-terminal)
+
 endif()
 
 # Lua tests run inside the real client, without a UI: snowcone exits once

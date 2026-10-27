@@ -1,5 +1,5 @@
--- Command line and prompts, without a terminal. The renderer and views
--- need ncurses and are checked by hand.
+-- Command line and prompts, without a terminal. test-views.lua draws the
+-- views with a fake ncurses.
 --
 -- Run with:  snowcone tests/hub/test-ui.lua
 

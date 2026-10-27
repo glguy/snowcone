@@ -1,25 +1,44 @@
 -- A stand-in for the ncurses module, so the UI can load and draw without a
--- terminal. Upper-case names (KEY_, COLOR_, WA_ constants) are numbers;
--- everything else is a function that does nothing. Windows accept any
--- method, track the cursor through wmove and waddstr, and keep their text.
+-- terminal. It has the real module's names (tests-terminal checks that they
+-- match) and raises an error for any other. Constants are distinct numbers;
+-- functions do nothing unless defined below. Windows track the cursor
+-- through wmove and waddstr, and keep their text.
 --
 --   local fake = dofile 'fake_ncurses.lua'
 --   fake.install()    -- sets the ncurses, tty_width and tty_height globals
 
 local M = {}
 
-local constants = {}
-local next_constant = 1000
+-- The real module's names
+M.functions = {
+    'addstr', 'attrget', 'attroff', 'attron', 'attrset', 'beep', 'clear',
+    'colorset', 'cursset', 'doupdate', 'erase', 'flash', 'getmaxyx', 'getyx',
+    'move', 'mvaddstr', 'newpad', 'newwin', 'noutrefresh', 'refresh',
+}
+M.methods = {
+    'delwin', 'pnoutrefresh', 'prefresh', 'waddstr', 'wclear', 'werase',
+    'wmove', 'wresize',
+}
+M.constants = {
+    'COLOR_BLACK', 'COLOR_BLUE', 'COLOR_CYAN', 'COLOR_DEFAULT', 'COLOR_GREEN',
+    'COLOR_MAGENTA', 'COLOR_RED', 'COLOR_WHITE', 'COLOR_YELLOW',
+    'KEY_BACKSPACE', 'KEY_BTAB', 'KEY_DC', 'KEY_DOWN', 'KEY_END', 'KEY_EXIT',
+    'KEY_F1', 'KEY_F10', 'KEY_F11', 'KEY_F12', 'KEY_F2', 'KEY_F3', 'KEY_F4',
+    'KEY_F5', 'KEY_F6', 'KEY_F7', 'KEY_F8', 'KEY_F9', 'KEY_HOME', 'KEY_LEFT',
+    'KEY_NPAGE', 'KEY_PPAGE', 'KEY_RESUME', 'KEY_RIGHT', 'KEY_UP',
+    'WA_ALTCHARSET', 'WA_BLINK', 'WA_BOLD', 'WA_DIM', 'WA_ITALIC', 'WA_NORMAL',
+    'WA_REVERSE', 'WA_STANDOUT', 'WA_UNDERLINE',
+}
 
-local function constant(name)
-    local v = constants[name]
-    if not v then
-        next_constant = next_constant + 1
-        v = next_constant
-        constants[name] = v
-    end
-    return v
+local function set(list)
+    local result = {}
+    for _, name in ipairs(list) do result[name] = true end
+    return result
 end
+local is_function, is_method, is_constant = set(M.functions), set(M.methods), set(M.constants)
+
+local constant_values = {}
+for i, name in ipairs(M.constants) do constant_values[name] = 1000 + i end
 
 -- Every window made, in order
 M.windows = {}
@@ -59,8 +78,10 @@ local function new_window(kind, h, w)
             return function(self, rows, cols) self.h, self.w = rows, cols end
         elseif name == 'pnoutrefresh' then
             return function(self, top) self.top = top end
+        elseif is_method[name] then
+            return function() end
         end
-        return function() end
+        error('fake ncurses: windows have no method ' .. tostring(name), 2)
     end})
 end
 
@@ -75,8 +96,8 @@ function M.row(win, y)
 end
 
 M.ncurses = setmetatable({}, {__index = function(_, name)
-    if name:match '^%u' then
-        return constant(name)
+    if is_constant[name] then
+        return constant_values[name]
     elseif name == 'newwin' or name == 'newpad' then
         return function(h, w) return new_window(name, h, w) end
     elseif name == 'getyx' then
@@ -89,8 +110,10 @@ M.ncurses = setmetatable({}, {__index = function(_, name)
             if type(win) == 'table' then return win.h, win.w end
             return rawget(_G, 'tty_height'), rawget(_G, 'tty_width')
         end
+    elseif is_function[name] then
+        return function() end
     end
-    return function() end
+    error('fake ncurses: no ' .. tostring(name), 2)
 end})
 
 function M.install(width, height)
