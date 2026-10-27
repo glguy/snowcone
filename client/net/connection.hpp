@@ -10,6 +10,7 @@
 #include <openssl/evp.h>
 #include <openssl/x509.h>
 
+#include <cassert>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -19,13 +20,25 @@
 
 struct lua_State;
 
+/// A counted reference to an OpenSSL object that someone else also owns,
+/// such as the Lua userdata it came from. Construction takes a reference,
+/// so it is explicit: a pointer the caller already owns would leak one.
 template <typename T, auto UpRef(T *) -> int, auto Free(T *) -> void>
 class Ref {
     struct Deleter { auto operator()(T * const ptr) -> void { Free(ptr); }};
     std::unique_ptr<T, Deleter> obj;
 public:
     Ref() = default;
-    Ref(T* t) : obj{t} { if (t) UpRef(t); }
+    explicit Ref(T* t) : obj{t}
+    {
+        if (t)
+        {
+            // Fails only without atomic counters or for an object already
+            // freed, so this checks a use-after-free rather than handling it
+            [[maybe_unused]] auto const ok = UpRef(t);
+            assert(ok == 1);
+        }
+    }
     auto get() const noexcept -> T* { return obj.get(); }
 };
 

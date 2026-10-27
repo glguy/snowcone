@@ -533,11 +533,12 @@ auto l_start_irc(lua_State* const L) -> int
             TlsLayer layer;
 
             raw_field(L, 5, "client_cert"); // 7
-            layer.client_cert = luaL_opt(L, myopenssl::check_x509, 7, nullptr);
+            // Lua keeps its own reference; the layer takes another
+            layer.client_cert = decltype(layer.client_cert){luaL_opt(L, myopenssl::check_x509, 7, nullptr)};
             lua_pop(L, 1);
 
             raw_field(L, 5, "client_key"); // 7
-            layer.client_key = luaL_opt(L, myopenssl::check_pkey, 7, nullptr);
+            layer.client_key = decltype(layer.client_key){luaL_opt(L, myopenssl::check_pkey, 7, nullptr)};
             lua_pop(L, 1);
 
             raw_field(L, 5, "verify"); // 7
