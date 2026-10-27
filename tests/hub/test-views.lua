@@ -78,6 +78,23 @@ T.case('every view draws after real traffic', function()
     T.eq(T.log_lines 'error', {}, 'no drawing errors')
 end)
 
+T.case('every view draws with no networks configured', function()
+    T.boot {ui = true, config = {networks = {}}}
+    HUB.current.routes['app.tick']()
+    local control = T.require 'hub.ui.control'
+    local ids = {}
+    for id in pairs(HUB.current.views) do table.insert(ids, id) end
+    table.sort(ids)
+    for _, id in ipairs(ids) do
+        control.set_view(id)
+        HUB.current.routes['ui.draw']()
+        key(-ncurses.KEY_NPAGE)
+        key(0x1b)
+        HUB.current.routes['ui.draw']()
+    end
+    T.eq(T.log_lines 'error', {}, 'no drawing errors')
+end)
+
 T.case('keys reach input modes, views and commands', function()
     local c = boot()
     local control = T.require 'hub.ui.control'

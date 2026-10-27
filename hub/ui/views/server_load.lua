@@ -208,6 +208,8 @@ local function make_view(id, title, tracker_name, header_colour)
         end,
 
         status = function(ctx, win)
+            -- as render: nothing to show without a network that has snotice
+            if not (ctx.net and common.enabled(ctx.net, 'snotice')) then return end
             dashboard.load_status(ctx, win, id == 'connload' and 'cliconn' or 'cliexit', tracker_name)
             local n = 0
             for _, v in pairs(dashboard.topology(ctx).population) do n = n + v end
