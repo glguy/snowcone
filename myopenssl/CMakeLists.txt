@@ -1,20 +1,25 @@
-add_library(myopenssl STATIC myopenssl.cpp digest.cpp pkey.cpp errors.cpp bignum.cpp x509.cpp)
-target_include_directories(myopenssl PUBLIC include)
-target_link_libraries(myopenssl PUBLIC OpenSSL::Crypto PkgConfig::LUA)
+# Compiled once, position-independent, for the client and for the Lua
+# module the tests load into a stand-alone interpreter
+add_library(myopenssl_objects OBJECT
+    myopenssl.cpp digest.cpp pkey.cpp errors.cpp bignum.cpp x509.cpp)
+set_target_properties(myopenssl_objects PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_include_directories(myopenssl_objects PUBLIC include)
+target_link_libraries(myopenssl_objects PUBLIC OpenSSL::Crypto PkgConfig::LUA)
 
-add_library(myopenssl_shared SHARED myopenssl.cpp digest.cpp pkey.cpp errors.cpp bignum.cpp x509.cpp)
-set_target_properties(myopenssl_shared PROPERTIES OUTPUT_NAME "myopenssl" PREFIX "" SUFFIX ".so")
-target_include_directories(myopenssl_shared PUBLIC include)
-target_link_libraries(myopenssl_shared PUBLIC OpenSSL::Crypto PkgConfig::LUA)
+add_library(myopenssl STATIC)
+target_link_libraries(myopenssl PUBLIC myopenssl_objects)
 
-if(LUA_INTERPRETER)
+if(BUILD_TESTING AND LUA_INTERPRETER)
+    add_library(myopenssl_module MODULE)
+    set_target_properties(myopenssl_module PROPERTIES OUTPUT_NAME "myopenssl" PREFIX "" SUFFIX ".so")
+    target_link_libraries(myopenssl_module PRIVATE myopenssl_objects)
     add_test(
         NAME TestMyopenssl
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         COMMAND ${LUA_INTERPRETER} test/test.lua)
     set_property(
         TEST TestMyopenssl
-        PROPERTY ENVIRONMENT LUA_CPATH=${CMAKE_CURRENT_BINARY_DIR}/?.so)
-else()
+        PROPERTY ENVIRONMENT LUA_CPATH=$<TARGET_FILE_DIR:myopenssl_module>/?.so)
+elseif(BUILD_TESTING)
     message(STATUS "No lua${SNOWCONE_LUA_ABI} interpreter found; skipping TestMyopenssl")
 endif()

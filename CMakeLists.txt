@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.13)
-cmake_policy(SET CMP0135 NEW)
+cmake_minimum_required(VERSION 3.25)
 set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 20)
-set(CXX_STANDARD_REQUIRED On)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(snowcone
     VERSION 1
@@ -100,8 +100,18 @@ install(FILES "snowcone.1" DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
 
 set(CPACK_GENERATOR "DEB")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Eric Mertens <emertens@gmail.com>")
-# Depend on the Lua and OpenSSL versions this build found: liblua5.4-0 and
-# libssl3 on Debian stable
-string(REGEX MATCH "^[0-9]+" SNOWCONE_OPENSSL_ABI "${OPENSSL_VERSION}")
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "liblua${SNOWCONE_LUA_ABI}-0, lua-penlight, libssl${SNOWCONE_OPENSSL_ABI}, libncursesw6, libidn12")
+# dpkg-shlibdeps finds the shared libraries this build linked, optional ones
+# included; Penlight is loaded at run time, so it is named here
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "lua-penlight")
+# Loaded only where used: the legacy dashboard and ircc (rex_pcre2), IP
+# organisations from GeoLite2 (mmdb), the GitHub plugin (json)
+set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "lua-rex-pcre2, lua-mmdb, lua-json")
+# The version counts commits when cpack runs (cmake/CPackProjectConfig.cmake),
+# and the file name follows it: snowcone_<version>_<arch>.deb
+find_package(Git QUIET)
+set(CPACK_SNOWCONE_GIT "${GIT_EXECUTABLE}")
+set(CPACK_SNOWCONE_SOURCE_DIR "${PROJECT_SOURCE_DIR}")
+set(CPACK_PROJECT_CONFIG_FILE "${PROJECT_SOURCE_DIR}/cmake/CPackProjectConfig.cmake")
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 include(CPack)
