@@ -208,6 +208,7 @@ return {
     id = 'buffer',
     title = 'buffer',
     scope = 'net',
+    feature = 'chat',
 
     render = function(ctx, win)
         if not ctx.net then

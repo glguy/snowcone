@@ -22,6 +22,7 @@ return {
     id = 'repeats',
     title = 'repeats',
     scope = 'net',
+    feature = 'snotice',
 
     render = function(ctx, win)
         local S = dashboard.stores(ctx, win)

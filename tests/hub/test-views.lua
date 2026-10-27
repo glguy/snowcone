@@ -95,6 +95,61 @@ T.case('every view draws with no networks configured', function()
     T.eq(T.log_lines 'error', {}, 'no drawing errors')
 end)
 
+T.case('the first view is one the network has the features for', function()
+    T.boot {ui = true, transport = FakeTransport.new(), config = {networks = {{
+        id = 'chatty',
+        server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'},
+        features = {'chat'},
+    }}}}
+    T.eq(HUB.state.ui.view, 'buffer', 'not a dashboard view')
+    local control = T.require 'hub.ui.control'
+    T.eq(control.rotation(), {'console', 'buffer', 'networks', 'status'}, 'no dashboard views to step through')
+    key(-ncurses.KEY_F1)
+    T.eq(HUB.state.ui.view, 'console', 'F1 is the first left')
+
+    T.boot {ui = true, transport = FakeTransport.new(), config = {networks = {{
+        id = 'plain',
+        server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'},
+        features = {},
+    }}}}
+    T.eq(HUB.state.ui.view, 'console', 'no features: the first general view')
+end)
+
+T.case('a view the network lacks the feature for gives way to its first view', function()
+    local function config(chatty_features)
+        return {networks = {
+            {id = 'full', server = {host = 'a.example', port = 6667}, identity = {nick = 'me'}},
+            {id = 'chatty', server = {host = 'b.example', port = 6667}, identity = {nick = 'me'},
+             features = chatty_features},
+        }}
+    end
+    T.boot {ui = true, transport = FakeTransport.new(), config = config {'chat'}}
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    T.eq(HUB.state.ui.view, 'cliconn', 'the first network has notices')
+
+    control.set_current_net 'chatty'
+    T.eq(HUB.state.ui.view, 'buffer', 'switching networks leaves cliconn')
+
+    cmdline.execute 'cliconn'
+    T.eq(HUB.state.ui.view, 'buffer', 'not shown for a network without notices')
+    T.eq(#T.log_lines 'error', 1, 'and says why')
+    T.ok(not cmdline.available(HUB.current.commands.cliconn), 'nor offered')
+
+    cmdline.execute 'cliconn @full'
+    T.eq({control.current_net(), HUB.state.ui.view}, {'full', 'cliconn'}, 'shown with its network')
+
+    control.set_view 'console'
+    control.set_current_net 'chatty'
+    T.eq(HUB.state.ui.view, 'console', 'a general view stays')
+
+    control.set_view 'buffer'
+    T.reload {config = config {}}
+    T.eq(HUB.state.ui.view, 'console', 'a reload that drops the feature moves on')
+end)
+
 T.case('keys reach input modes, views and commands', function()
     local c = boot()
     local control = T.require 'hub.ui.control'

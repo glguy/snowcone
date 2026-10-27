@@ -86,6 +86,7 @@ return {
     id = 'bans',
     title = 'bans',
     scope = 'net',
+    feature = 'snotice',
 
     render = function(ctx, win)
         local S = dashboard.stores(ctx, win)

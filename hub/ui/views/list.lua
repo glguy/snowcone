@@ -23,6 +23,7 @@ return {
     id = 'list',
     title = 'list',
     scope = 'net',
+    feature = 'chat',
     command = false, -- the chat feature's /list fetches and shows it
 
     render = function(ctx, win)

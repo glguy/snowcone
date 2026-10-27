@@ -52,6 +52,7 @@ return {
     id = 'netcount',
     title = 'netcount',
     scope = 'net',
+    feature = 'snotice',
 
     render = function(ctx, win)
         local S = dashboard.stores(ctx, win)

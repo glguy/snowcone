@@ -165,6 +165,7 @@ local function make_view(id, title, store, tracker)
         id = id,
         title = title,
         scope = 'net',
+        feature = 'snotice',
 
         render = function(ctx, win)
             local S = dashboard.stores(ctx, win)

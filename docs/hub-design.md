@@ -246,8 +246,14 @@ dashboard are refused with a message to port them.
 
 - **Views** are records `{id, title, scope, render(ctx, win),
   keypress(ctx, key), status(ctx, win), modes(ctx), reset(vs), document,
-  command}`; Esc clears the scroll and `/filter` and calls `reset` for
-  anything else the view keeps. A `document` view is drawn whole into a
+  command, feature}`; Esc clears the scroll and `/filter` and calls `reset`
+  for anything else the view keeps. A view with a `feature` belongs to
+  that feature, so a network without it looks like a client without it:
+  the view leaves the rotation (Profiles, below), its command is hidden and
+  refused like any feature command (`/cliconn @net` shows that network's),
+  and switching to such a network, or a reload that removes the feature,
+  moves to the first view. The first view is the first of the rotation for
+  a feature the current network has, else the first that needs none. A `document` view is drawn whole into a
   pad and paged; every view gets a command of its name unless `command`
   is false. A view module returns a view or a list of views, and may bring
   `commands` of its own; `ui/init.lua` lists the modules once. `ctx` gives
@@ -279,7 +285,9 @@ dashboard are refused with a message to port them.
   prompts from tasks, with their own editor so a half-typed command
   survives and secrets stay out of history.
 - **Profiles** (`[ui] profile`, `/profile`) choose the view rotation for
-  Ctrl-N/Ctrl-P and the function keys: `dashboard`, `chat` or `all`.
+  Ctrl-N/Ctrl-P and the function keys: `dashboard`, `chat` or `all`. The
+  rotation leaves out views for features the current network lacks, so
+  the function keys renumber when the current network changes.
 - **Filters:** `/filter` and Ctrl-S filter any view by pattern (PCRE2 when
   rex_pcre2 is installed). The connection views also take a structured
   query with `/prefilter`.

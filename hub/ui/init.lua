@@ -288,12 +288,19 @@ M.commands = {
 for _, m in ipairs(view_modules) do
     for _, view in ipairs(m.id and {m} or m) do
         table.insert(M.views, view)
+        -- a view for a feature has a command for that feature, which
+        -- also takes @network to show that network's view
         if view.command ~= false then
             table.insert(M.commands, {
                 name = view.id,
                 spec = '',
                 help = 'Show the ' .. view.title .. ' view',
-                fn = function() control.set_view(view.id) end,
+                scope = view.feature and 'net' or nil,
+                feature = view.feature,
+                fn = function(ctx)
+                    if view.feature then control.set_current_net(ctx.net) end
+                    control.set_view(view.id)
+                end,
             })
         end
     end
@@ -367,8 +374,9 @@ end
 function M.activate(first)
     control.apply_config(HUB.state.config)
     if first then
-        local rotation = control.rotation()
-        control.set_view(rotation[1] or 'status')
+        control.set_view(control.first_view())
+    else
+        control.ensure_usable_view()
     end
     control.check_prompts()
     make_layout()

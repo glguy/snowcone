@@ -1,6 +1,7 @@
 -- View selection and input modes, shared by the key handlers, the command
 -- line and the renderer.
 
+local common   <const> = require 'hub.features.common'
 local dispatch <const> = require 'hub.runtime.dispatch'
 local editor   <const> = require 'hub.ui.editor'
 local task     <const> = require 'hub.runtime.task'
@@ -8,8 +9,8 @@ local manager  <const> = require 'hub.net.manager'
 
 local M = {}
 
--- Main view rotation for Ctrl-N/Ctrl-P per profile.
--- Views that aren't loaded are skipped.
+-- Main view rotation for Ctrl-N/Ctrl-P per profile. Views that aren't
+-- loaded, or need a feature the current network lacks, are skipped.
 M.profiles = {
     dashboard = {
         'cliconn', 'connload', 'cliexit', 'exitload', 'bans', 'channels', 'netcount',
@@ -61,6 +62,7 @@ function M.set_current_net(id)
         error('no such network: ' .. tostring(id), 0)
     end
     HUB.state.ui.current_net = id
+    M.ensure_usable_view()
     dispatch.dirty()
 end
 
@@ -99,17 +101,49 @@ function M.apply_config(cfg)
     end
 end
 
---- The views in the current profile's rotation that exist.
+--- Whether a view can show anything for a network: a view with a
+--- `feature` needs the network to have it.
+function M.usable(view, net)
+    return view.feature == nil or net ~= nil and common.enabled(net, view.feature)
+end
+
+--- The views of the current profile's rotation that exist and that the
+--- current network has the features for, for Ctrl-N/Ctrl-P and the
+--- function keys (which renumber with the network).
 ---@return string[]
 function M.rotation()
-    local views = HUB.current.views
+    local views, net = HUB.current.views, M.current_net()
     local order = {}
     for _, id in ipairs(M.profiles[HUB.state.ui.profile] or M.profiles.all) do
-        if views[id] then
+        local view = views[id]
+        if view and M.usable(view, net) then
             table.insert(order, id)
         end
     end
     return order
+end
+
+--- The view to open with: the first of the rotation for a feature the
+--- current network has (cliconn with server notices, buffer with only
+--- chat), else the first that needs no feature.
+function M.first_view()
+    local views = HUB.current.views
+    local general
+    for _, id in ipairs(M.rotation()) do
+        if views[id].feature then return id end
+        general = general or id
+    end
+    return general or 'status'
+end
+
+--- Move to the first view when the current one needs a feature the
+--- current network lacks, as after switching networks or a reload that
+--- changed a network's features.
+function M.ensure_usable_view()
+    local view = HUB.current.views[HUB.state.ui.view]
+    if view and not M.usable(view, M.current_net()) then
+        M.set_view(M.first_view())
+    end
 end
 
 --- The current view record, falling back to status when it is missing

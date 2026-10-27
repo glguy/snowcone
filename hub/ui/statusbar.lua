@@ -196,8 +196,9 @@ function M.draw(win, textbox, layout, view, ctx)
         local ed = control.editor()
         local input_mode_color = input_mode_palette[mode]
         transition(win, titlecolor, input_mode_color)
+        -- padded on either side, as M.fragment pads a fragment
         ncurses.colorset(ncurses.COLOR_WHITE, input_mode_color, win)
-        win:waddstr(mode)
+        win:waddstr(' ', mode, ' ')
         transition(win, input_mode_color, nil)
 
         if mode == 'password' then

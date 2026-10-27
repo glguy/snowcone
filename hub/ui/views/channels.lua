@@ -46,6 +46,7 @@ return {
     id = 'channels',
     title = 'channels',
     scope = 'net',
+    feature = 'snotice',
 
     render = function(ctx, win)
         local S = dashboard.stores(ctx, win)
