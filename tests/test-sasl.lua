@@ -162,6 +162,18 @@ local function suite(tree)
         end
     end
 
+    -- a configuration problem is logged as a message, without a source position
+    if tree == 'hub' then
+        for _, c in ipairs{
+            {{mechanism = 'PLAIN', password = 'p'}, 'Startup failed: PLAIN missing sasl `username`'},
+            {{mechanism = 'PLAIN', username = 'u\0evil', password = 'p'}, 'Startup failed: PLAIN authcid must not contain NUL'},
+            {{mechanism = 'NONESUCH'}, 'Startup failed: NONESUCH unknown mechanism'},
+        } do
+            run(c[1], {})
+            expect(statuses[#statuses] == c[2], 'logged ' .. c[2] .. ', got ' .. tostring(statuses[#statuses]))
+        end
+    end
+
     ------------------------------------------------------------------------
     -- failure numerics end the exchange instead of hanging
 

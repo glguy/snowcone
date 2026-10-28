@@ -6,13 +6,14 @@
 -- client reports an uncaught error by leaving curses mode, so they are
 -- logged here instead.
 
-local scrub <const> = require 'hub.lib.scrub'
+local scrub     <const> = require 'hub.lib.scrub'
+local traceback <const> = require 'hub.lib.traceback'
 
 local M = {}
 
 --- Report an error raised by a route.
 ---@param where string route or other description
----@param err string message with traceback
+---@param err string message, with a traceback for an error from code
 function M.report(where, err)
     local current = HUB.current
     local report = current and current.routes['log.error']
@@ -51,7 +52,7 @@ function M.flush()
         local draw = current.routes['ui.draw']
         if draw then
             HUB.dirty = false
-            local ok, err = xpcall(draw, debug.traceback)
+            local ok, err = xpcall(draw, traceback)
             if not ok then M.report('ui.draw', err) end
         else
             HUB.dirty = false
@@ -74,9 +75,9 @@ end
 
 --- Call a route as an entry point from native code.
 function M.enter(route, ...)
-    local results = table.pack(xpcall(M.route, debug.traceback, route))
+    local results = table.pack(xpcall(M.route, traceback, route))
     if results[1] then
-        results = table.pack(xpcall(results[2], debug.traceback, ...))
+        results = table.pack(xpcall(results[2], traceback, ...))
     end
     if not results[1] then M.report(route, results[2]) end
     M.flush()

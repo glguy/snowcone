@@ -1,10 +1,12 @@
 -- The PLAIN Simple Authentication and Security Layer (SASL) Mechanism
 -- https://datatracker.ietf.org/doc/html/rfc4616
 
+local check <const> = require 'hub.lib.check'
+
 -- NUL separates the fields of the initial response; a NUL inside a field
 -- would silently change the meaning of the message.
 local function check_no_nul(name, value)
-    assert(not (value and value:find('\0', 1, true)), name .. ' must not contain NUL')
+    check(not (value and value:find('\0', 1, true)), name .. ' must not contain NUL')
 end
 
 return function(authzid, authcid, password)

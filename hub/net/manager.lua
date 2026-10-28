@@ -40,6 +40,7 @@ local secrets      <const> = require 'hub.runtime.secrets'
 local send         <const> = require 'hub.net.send'
 local task         <const> = require 'hub.runtime.task'
 local timer        <const> = require 'hub.runtime.timer'
+local traceback    <const> = require 'hub.lib.traceback'
 local tablex       <const> = require 'pl.tablex'
 
 local M = {}
@@ -402,7 +403,7 @@ function events.MSG(rec, msg, flush)
     else
         local h = handlers.commands[msg.command]
         if h then
-            local ok, err = xpcall(h, debug.traceback, rec, irc, msg)
+            local ok, err = xpcall(h, traceback, rec, irc, msg)
             if not ok then
                 dispatch.report('irc handler ' .. tostring(msg.command), err)
             end

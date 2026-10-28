@@ -1,19 +1,11 @@
 -- Running a command typed on the command line.
 
-local common  <const> = require 'hub.features.common'
-local control <const> = require 'hub.ui.control'
-local log     <const> = require 'hub.runtime.log'
+local common    <const> = require 'hub.features.common'
+local control   <const> = require 'hub.ui.control'
+local log       <const> = require 'hub.runtime.log'
+local traceback <const> = require 'hub.lib.traceback'
 
 local M = {}
-
---- Error handler: a traceback for errors from code (those with a source
---- position), just the message for errors raised for the user with level 0.
-function M.traceback(err)
-    if type(err) == 'string' and not err:match '^[^:\n]+:%d+:' then
-        return err
-    end
-    return debug.traceback(err, 2)
-end
 
 --- Parse and run one command line (without the leading slash).
 ---@param text string
@@ -54,7 +46,7 @@ function M.execute(text)
 
     log.dismiss()
     local ctx = {net = net, target = net and control.talk_target(net)}
-    local ok, err = xpcall(cmd.fn, M.traceback, ctx, table.unpack(params))
+    local ok, err = xpcall(cmd.fn, traceback, ctx, table.unpack(params))
     if not ok then
         log.error(name, err)
     end

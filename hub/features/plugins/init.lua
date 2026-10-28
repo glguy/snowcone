@@ -36,6 +36,7 @@ local resources <const> = require 'hub.runtime.resources'
 local send      <const> = require 'hub.net.send'
 local task      <const> = require 'hub.runtime.task'
 local timer     <const> = require 'hub.runtime.timer'
+local traceback <const> = require 'hub.lib.traceback'
 
 local M = {}
 
@@ -60,10 +61,11 @@ end
 local function report(name, what, err)
     log.count_error('plugin ' .. name)
     log.add('plugin', '%s %s: %s', name, what, tostring(err):match '^[^\n]*')
+    log.trace(err)
 end
 
 local function guard(name, what, f, ...)
-    local ok, err = xpcall(f, debug.traceback, ...)
+    local ok, err = xpcall(f, traceback, ...)
     if not ok then report(name, what, err) end
     return ok, err
 end
@@ -158,7 +160,7 @@ local function load_one(name, current)
         return {name = name, error = err}
     end
 
-    local ok, result = xpcall(chunk, debug.traceback)
+    local ok, result = xpcall(chunk, traceback)
     if not ok then
         -- old plugins usually fail first on the old clients' modules
         local old_module = tostring(result):match "module '((%a+)%.[%w_.]+)' not found"

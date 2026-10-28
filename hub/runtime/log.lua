@@ -73,15 +73,20 @@ function M.count_error(where)
     errors.by_origin[where] = (errors.by_origin[where] or 0) + 1
 end
 
+--- Log the lines of an error after its first, which hold its traceback.
+function M.trace(err)
+    for line in tostring(err):gmatch '\n([^\n]*)' do
+        M.add('trace', '%s', (line:gsub('^\t', '  ')))
+    end
+end
+
 --- Log an error, keeping the traceback lines out of the status bar.
 function M.error(where, err)
     M.count_error(where)
     err = tostring(err)
     local first = err:match '^[^\n]*'
     M.add('error', '%s: %s', where, first)
-    for line in err:gmatch '\n([^\n]*)' do
-        M.add('trace', '%s', (line:gsub('^\t', '  ')))
-    end
+    M.trace(err)
     local S = HUB.state
     if S and S.log then
         S.log_last = string.format('%s: %s', where, first)

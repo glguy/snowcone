@@ -30,6 +30,7 @@ local dispatch  <const> = require 'hub.runtime.dispatch'
 local log       <const> = require 'hub.runtime.log'
 local timer     <const> = require 'hub.runtime.timer'
 local tty       <const> = require 'hub.runtime.tty'
+local traceback <const> = require 'hub.lib.traceback'
 
 local M = {}
 
@@ -95,7 +96,7 @@ function M.resume(id, seq, ...)
         HUB.tasks[id] = nil
     end
     if not ok then
-        dispatch.report('task ' .. t.name, debug.traceback(t.co, err))
+        dispatch.report('task ' .. t.name, traceback(err, t.co))
     end
 end
 

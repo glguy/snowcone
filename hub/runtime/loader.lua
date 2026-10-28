@@ -126,10 +126,12 @@ function M.reload(root, init, app, opts)
 
     local first <const> = HUB.current == nil
     local gen <const> = M.new_generation(root, opts.overrides)
+    -- errors raised at level 0, such as configuration errors, need no traceback
+    local traceback <const> = gen.require 'hub.lib.traceback'
 
     local ok, new = xpcall(function()
         return gen.require(app).build(gen, opts)
-    end, debug.traceback)
+    end, traceback)
 
     if not ok then
         local old = HUB.current
@@ -146,7 +148,7 @@ function M.reload(root, init, app, opts)
     HUB.generation = HUB.generation + 1
     new.id = HUB.generation
     HUB.current = new
-    local activated, err = xpcall(new.routes['app.activate'], debug.traceback, first)
+    local activated, err = xpcall(new.routes['app.activate'], traceback, first)
     if not activated then
         new.routes['app.reload_failed'](err)
         return false, err

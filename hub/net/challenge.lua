@@ -1,5 +1,6 @@
 -- Solanum CHALLENGE operator authentication. Runs in a network task.
 
+local check   <const> = require 'hub.lib.check'
 local N       <const> = require 'hub.lib.numerics'
 local secrets <const> = require 'hub.runtime.secrets'
 
@@ -52,8 +53,8 @@ return function(t, cfg)
     end
 
     local input    <const> = table.concat(chunks)
-    local envelope <const> = assert(mybase64.from_base64(input), 'bad base64')
-    local message  <const> = assert(key:decrypt(envelope, 'oaep'))
+    local envelope <const> = check(mybase64.from_base64(input), 'bad base64 in the challenge from the server')
+    local message  <const> = key:decrypt(envelope, 'oaep')
     local digest   <const> = myopenssl.get_digest('sha1'):digest(message)
     local response <const> = mybase64.to_base64(digest)
 

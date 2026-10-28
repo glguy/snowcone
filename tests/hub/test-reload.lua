@@ -99,6 +99,15 @@ T.case('a module may not create globals', function()
     T.eq(rawget(_G, 'leaked'), nil, 'no global was made')
 end)
 
+T.case('a configuration error fails the reload without a traceback', function()
+    T.boot()
+    local ok, err = T.reload {config = {networks = {{id = 'x'}}}}
+    T.eq(ok, false, 'reload result')
+    T.ok(err:find('networks', 1, true), 'error names the setting')
+    T.ok(not err:find('traceback', 1, true), 'no traceback in the error')
+    T.eq(T.log_lines 'trace', {}, 'no traceback logged')
+end)
+
 T.case('conflicting routes fail the load', function()
     T.boot()
     local ok, err = T.reload {
@@ -166,6 +175,24 @@ T.case('route errors are logged, and raised only in strict mode', function()
     local errors = T.log_lines 'error'
     T.ok(errors[#errors]:find('test.bad: ', 1, true), 'logged with route name')
     T.ok(#T.log_lines 'trace' > 0, 'traceback logged')
+end)
+
+T.case('errors raised at level 0 are logged without a traceback', function()
+    T.boot()
+    HUB.boot.strict = false
+    local bus = T.require 'hub.runtime.bus'
+    local task = T.require 'hub.runtime.task'
+
+    task.spawn('expected', {}, function() error('bad input', 0) end)
+    bus.on(HUB.current.bus, 'test.expected', 'test', function() error('bad event', 0) end)
+    bus.emit('test.expected', {})
+    local errors = T.log_lines 'error'
+    T.eq(errors[#errors - 1], 'task expected: bad input', 'task error logged')
+    T.eq(errors[#errors], 'test.expected (test): bad event', 'subscriber error logged')
+    T.eq(T.log_lines 'trace', {}, 'no traceback logged')
+
+    task.spawn('bug', {}, function() error 'kaboom' end)
+    T.ok(#T.log_lines 'trace' > 0, 'traceback logged for an error from code')
 end)
 
 T.case('messages draw only at the end of a read', function()

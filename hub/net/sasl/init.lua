@@ -4,6 +4,7 @@
 -- The mechanisms in this directory are coroutine factories. The driver and
 -- mechanisms are tested by tests/test-sasl.lua and tests/test-scram.lua.
 
+local check   <const> = require 'hub.lib.check'
 local N       <const> = require 'hub.lib.numerics'
 local secrets <const> = require 'hub.runtime.secrets'
 
@@ -51,14 +52,14 @@ end
 
 local function mechanism_factory(mechanism, authcid, password, key, authzid, use_store)
     if mechanism == 'PLAIN' then
-        assert(authcid, "missing sasl `username`")
-        assert(password, "missing sasl `password`")
+        check(authcid, "missing sasl `username`")
+        check(password, "missing sasl `password`")
         return require 'hub.net.sasl.plain' (authzid, authcid, password)
     elseif mechanism == 'EXTERNAL' then
         return require 'hub.net.sasl.external' (authzid)
     elseif mechanism == 'ECDSA-NIST256P-CHALLENGE' then
-        assert(authcid, "missing sasl `username`")
-        assert(key, "missing sasl `key`")
+        check(authcid, "missing sasl `username`")
+        check(key, "missing sasl `key`")
         if use_store then
             key = myopenssl.pkey_from_store(key, true, password)
         else
@@ -66,8 +67,8 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid, use
         end
         return require 'hub.net.sasl.ecdsa' (authzid, authcid, key)
     elseif mechanism == 'ECDH-X25519-CHALLENGE' then
-        assert(authcid, "missing sasl `username`")
-        assert(key, 'missing sasl `key`')
+        check(authcid, "missing sasl `username`")
+        check(key, 'missing sasl `key`')
         if use_store then
             key = myopenssl.pkey_from_store(key, true, password)
         elseif key:find('-----BEGIN', 1, true) then
@@ -75,33 +76,33 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid, use
             key = myopenssl.read_pem(key, true, password)
         else
             -- raw 32-byte X25519 private key, base64 encoded (never encrypted)
-            key = assert(mybase64.from_base64(key), 'bad base64 in private sasl `key`')
+            key = check(mybase64.from_base64(key), 'bad base64 in private sasl `key`')
             key = myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, true, key)
         end
         return require 'hub.net.sasl.ecdh' (authzid, authcid, key)
     elseif mechanism == 'SCRAM-SHA-1'   then
-        assert(authcid, "missing sasl `username`")
-        assert(password, "missing sasl `password`")
+        check(authcid, "missing sasl `username`")
+        check(password, "missing sasl `password`")
         return require 'hub.net.sasl.scram' ('sha1', authzid, authcid, password)
     elseif mechanism == 'SCRAM-SHA-256' then
-        assert(authcid, "missing sasl `username`")
-        assert(password, "missing sasl `password`")
+        check(authcid, "missing sasl `username`")
+        check(password, "missing sasl `password`")
         return require 'hub.net.sasl.scram' ('sha256', authzid, authcid, password)
     elseif mechanism == 'SCRAM-SHA-512' then
-        assert(authcid, "missing sasl `username`")
-        assert(password, "missing sasl `password`")
+        check(authcid, "missing sasl `username`")
+        check(password, "missing sasl `password`")
         return require 'hub.net.sasl.scram' ('sha512', authzid, authcid, password)
     elseif mechanism == 'ANONYMOUS' then
-        assert(authcid, "missing sasl `username`")
+        check(authcid, "missing sasl `username`")
         return require 'hub.net.sasl.anonymous' (authcid)
     elseif mechanism == 'AUTHCOOKIE' then
-        assert(authcid, "missing sasl `username`")
-        assert(password, "missing sasl `password`")
-        assert(authzid, "missing sasl `authzid`")
+        check(authcid, "missing sasl `username`")
+        check(password, "missing sasl `password`")
+        check(authzid, "missing sasl `authzid`")
         -- AUTHCOOKIE uses the same AUTHENTICATE messages as PLAIN
         return require 'hub.net.sasl.plain' (authzid, authcid, password)
     else
-        error 'unknown mechanism'
+        error('unknown mechanism', 0)
     end
 end
 

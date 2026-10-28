@@ -22,6 +22,8 @@ local PBKDF2_ITERATION_MIN = {
     sha512 = 10000, -- draft-melnikov-scram-sha-512-05
 }
 
+local check = require 'hub.lib.check'
+
 local xor = myopenssl.xor
 local to_base64 = mybase64.to_base64
 local from_base64 = mybase64.from_base64
@@ -65,13 +67,13 @@ return function(digest_name, authzid, authcid, password, nonce)
         end
 
         local server_nonce, salt, iterations = string.match(server_first, '^r=([!-+--~]*),s=([%w+/]*=?=?),i=(%d+)$')
-        assert(server_nonce, 'bad server initial')
-        salt = assert(from_base64(salt), 'bad salt encoding')
-        assert(server_nonce:startswith(client_nonce), 'server nonce does not match client nonce')
-        assert(#server_nonce - #client_nonce >= MIN_NONCE_LEN, 'server nonce too short')
-        iterations = assert(math.tointeger(tonumber(iterations)), 'server pbkdf2 iteration count invalid')
-        assert(iterations >= iteration_min, 'server pbdkf2 iteration count too low')
-        assert(iterations <= iteration_max, 'server pbdkf2 iteration count too high')
+        check(server_nonce, 'bad server initial')
+        salt = check(from_base64(salt), 'bad salt encoding')
+        check(server_nonce:startswith(client_nonce), 'server nonce does not match client nonce')
+        check(#server_nonce - #client_nonce >= MIN_NONCE_LEN, 'server nonce too short')
+        iterations = check(math.tointeger(tonumber(iterations)), 'server pbkdf2 iteration count invalid')
+        check(iterations >= iteration_min, 'server pbkdf2 iteration count too low')
+        check(iterations <= iteration_max, 'server pbkdf2 iteration count too high')
 
         local salted_password = digest:pbkdf2(password, salt, iterations, digest:size())
         local client_key = digest:hmac('Client Key', salted_password)
@@ -93,9 +95,9 @@ return function(digest_name, authzid, authcid, password, nonce)
             error({server_error = server_final:sub(3)}, 0)
         end
 
-        local sig64 = assert(string.match(server_final, '^v=([%w+/]*=?=?)$'), 'bad server final')
-        local sig = assert(from_base64(sig64), 'bad server final signature base64')
-        assert(server_signature == sig, 'bad server final signature')
+        local sig64 = check(string.match(server_final, '^v=([%w+/]*=?=?)$'), 'bad server final')
+        local sig = check(from_base64(sig64), 'bad server final signature base64')
+        check(server_signature == sig, 'bad server final signature')
         return ''
     end)
 end

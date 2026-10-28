@@ -3,7 +3,8 @@
 -- Each generation builds its own bus; subscriptions are never persisted.
 -- Every topic emitted with a literal name MUST be listed in hub/EVENTS.md.
 
-local dispatch <const> = require 'hub.runtime.dispatch'
+local dispatch  <const> = require 'hub.runtime.dispatch'
+local traceback <const> = require 'hub.lib.traceback'
 
 local M = {}
 
@@ -41,7 +42,7 @@ function M.emit_on(b, topic, ev)
     b.depth = b.depth + 1
     -- a snapshot, so subscribing during delivery doesn't disturb it
     for _, sub in ipairs(table.move(subs, 1, #subs, 1, {})) do
-        local ok, err = xpcall(sub.fn, debug.traceback, ev)
+        local ok, err = xpcall(sub.fn, traceback, ev)
         if not ok then
             -- restored first so a strict re-raise leaves the bus usable
             b.depth = b.depth - 1

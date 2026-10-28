@@ -158,8 +158,10 @@ a decision is made, and change or remove it when the decision does.
 
 - **Filters** are per view and use PCRE2 everywhere when `rex_pcre2` is
   installed, Lua patterns otherwise.
-- **Command errors** raised at level 0 (no source position) are the
-  user's and log as one line; anything else gets a traceback.
+- **Errors raised at level 0** (no source position) are the user's:
+  configuration and usage errors, and bad input from a server. Every
+  handler logs them as one line; anything else is a bug and gets a
+  traceback. `lib/check` is `assert` for these expected failures.
 - **Prompts** have their own editor, so a half-typed command survives and
   secrets never reach history. Esc aborts, and the task's secret fails.
 - **The status view cuts lines at 400 bytes,** so a long line can't wrap
