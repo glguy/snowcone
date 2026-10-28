@@ -2,6 +2,11 @@
 -- when full. It is a plain record plus functions, so a map in HUB.state
 -- works the same after a reload.
 --
+-- Entries are numbered from 1 in insertion order, and the map holds the
+-- numbers first(om) to last(om). A number names the same entry until it
+-- is dropped, unless the map pops: pop removes the newest entry and the
+-- next insert reuses its number.
+--
 -- Keys are optional; an entry inserted with a nil key can only be reached
 -- by iteration. With a casemapping name, keys are folded before indexing.
 
@@ -22,7 +27,8 @@ function M.new(max, casemapping)
     return {
         kind = 'OrderedMap',
         max = max,
-        n = 0,
+        n = 0,      -- number of the newest entry
+        lo = 1,     -- number of the oldest entry held
         ticker = 0,
         keys = {},
         vals = {},
@@ -37,6 +43,11 @@ local function fold(om, key)
         return casemap.fold(name, key)
     end
     return key
+end
+
+-- Where entry k is stored
+local function slot(om, k)
+    return (k - 1) % om.max + 1
 end
 
 local function setindex(om, key, i)
@@ -54,10 +65,12 @@ function M.set_predicate(om, p)
 end
 
 function M.insert(om, key, val)
-    local m = om.max
-    local n = om.n
-    local i = n % m + 1
-    om.n = n + 1
+    local n = om.n + 1
+    local i = slot(om, n)
+    om.n = n
+    if n - om.lo + 1 > om.max then
+        om.lo = om.lo + 1
+    end
 
     -- Overwriting an old entry: remove it from the index if needed
     local old = om.keys[i]
@@ -95,42 +108,68 @@ end
 
 --- Number of entries currently held.
 function M.size(om)
-    return math.min(om.n, om.max)
+    return om.n - om.lo + 1
+end
+
+--- Number of the oldest entry held
+function M.first(om)
+    return om.lo
+end
+
+--- Number of the newest entry held, or first(om) - 1 when empty
+function M.last(om)
+    return om.n
+end
+
+--- The entry numbered k, while the map holds it: val, key
+function M.get(om, k)
+    if om.lo <= k and k <= om.n then
+        local i = slot(om, k)
+        return om.vals[i], om.keys[i]
+    end
 end
 
 function M.get_oldest(om)
-    if om.n <= om.max then
-        return om.vals[1]
-    else
-        return om.vals[om.n % om.max + 1]
+    return (M.get(om, om.lo))
+end
+
+--- Remove the newest entry: val, key
+function M.pop(om)
+    local n = om.n
+    if n < om.lo then return end
+    local i = slot(om, n)
+    local val, key = om.vals[i], om.keys[i]
+    if key ~= nil and getindex(om, key) == i then
+        setindex(om, key, nil)
     end
+    om.vals[i] = nil
+    om.keys[i] = nil
+    om.n = n - 1
+    return val, key
 end
 
 --- Iterate newest first, skipping the newest `offset` entries: val, key
 function M.each(om, offset)
-    local i = offset or 0
-    local n = om.n
-    local m = om.max
-    local t = math.min(n, m)
+    local k = om.n - (offset or 0)
+    local lo = om.lo
     return function()
-        if i < t then
-            i = i + 1
-            local j = (n - i) % m + 1
-            return om.vals[j], om.keys[j]
+        if lo <= k then
+            local i = slot(om, k)
+            k = k - 1
+            return om.vals[i], om.keys[i]
         end
     end
 end
 
 --- Iterate oldest first: val, key
 function M.reveach(om)
-    local i = 0
+    local k = om.lo
     local n = om.n
-    local t = math.min(n, om.max)
     return function()
-        if i < t then
-            local j = (n + i) % t + 1
-            i = i + 1
-            return om.vals[j], om.keys[j]
+        if k <= n then
+            local i = slot(om, k)
+            k = k + 1
+            return om.vals[i], om.keys[i]
         end
     end
 end
@@ -141,6 +180,7 @@ function M.reset(om)
     om.keys = {}
     om.vals = {}
     om.n = 0
+    om.lo = 1
     om.ticker = 0
 end
 

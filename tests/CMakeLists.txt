@@ -50,7 +50,7 @@ foreach(name test-dnslookup test-escape test-execute test-print test-sasl test-s
 endforeach()
 
 # hub's tests share tests/hub/lib.lua and load hub from the source tree
-foreach(name test-reload test-structure test-net test-ui test-snotice test-topology test-oper test-chat test-views test-plugins
+foreach(name test-reload test-structure test-lib test-net test-ui test-snotice test-topology test-oper test-chat test-views test-plugins
              test-github)
   add_test(NAME hub-${name}
     COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/hub/${name}.lua")
