@@ -1,5 +1,4 @@
--- New channels, flooders and spambots, from the dashboard's
--- view/channels.lua. (ircc's /list view is a different one, for phase 5.)
+-- New channels, flooders and spambots. /list results are the list view.
 
 local control   <const> = require 'hub.ui.control'
 local dashboard <const> = require 'hub.ui.dashboard'

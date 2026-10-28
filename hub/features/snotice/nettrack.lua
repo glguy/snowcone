@@ -1,5 +1,4 @@
--- Counting connected users per address range (from dashboard's
--- components/NetTracker.lua and MaskTracker.lua), as records.
+-- Counting connected users per address range, as records.
 --
 -- A net tracker is a named group of ranges. Each range keeps a count,
 -- set from TESTMASK replies and moved by connect and exit notices.

@@ -1,5 +1,4 @@
--- Nicks and masks that keep reconnecting, from the dashboard's
--- view/repeats.lua.
+-- Nicks and masks that keep reconnecting.
 
 local dashboard  <const> = require 'hub.ui.dashboard'
 local draw       <const> = require 'hub.ui.draw'

@@ -1,4 +1,4 @@
--- A chat buffer of the current network (from ircc/view/buffer.lua).
+-- A chat buffer of the current network.
 --
 -- t starts talk mode; Ctrl-N and Ctrl-P step through the network's
 -- buffers; Meta-H hides joins, parts, quits, nick changes, account

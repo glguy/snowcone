@@ -1,6 +1,5 @@
--- Ban workflow (from the dashboard's init.lua and
--- handlers/commands.lua): stage a K-Line, unkline or undline, see how many
--- users it matches, then send it.
+-- Ban workflow: stage a K-Line, unkline or undline, see how many users it
+-- matches, then send it.
 --
 -- state.features.oper[net] = {
 --   staged    nil, or {action = 'kline'|'unkline'|'undline', mask, nick,
@@ -57,8 +56,8 @@ end
 
 local units <const> = {m = 1, h = 60, d = 1440, w = 10080, M = 43200, Y = 525600}
 
---- Minutes in a duration like '1d', '4h', '1w 2d' (from dashboard's
---- utils/time.lua), or nil if it doesn't parse.
+--- Minutes in a duration like '1d', '4h', '1w 2d', or nil if it doesn't
+--- parse.
 function M.parse_duration(str)
     local acc = 0
     local leftover = str:gsub(' *(%-?%d+) *([mhdwMY]) *', function(n, u)
@@ -300,7 +299,7 @@ end
 -- Commands ============================================================
 
 -- Find a user that isn't in the connection store with WHO, then WHOWAS,
--- and stage a K-Line (from the dashboard's /kline_nick)
+-- and stage a K-Line
 local function kline_lookup(t, nick)
     local irc = HUB.state.nets[t.net].irc
     local key = irc_model.fold(irc, nick)

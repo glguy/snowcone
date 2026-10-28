@@ -1,15 +1,15 @@
--- RFC 5802 SCRAM-SHA-1 example exchange against ircc/sasl/scram.lua, using
+-- RFC 5802 SCRAM-SHA-1 example exchange against hub/net/sasl/scram.lua, using
 -- snowcone's real crypto.
 --
 -- Run with:  snowcone tests/test-scram.lua
 
 local here = (arg and arg[0] or ''):match('^(.*)/[^/]*$') or '.'
-package.path = here .. '/../ircc/?.lua;' .. here .. '/../ircc/?/init.lua;' .. package.path
+package.path = here .. '/../?.lua;' .. here .. '/../?/init.lua;' .. package.path
 
 -- string:startswith comes from Penlight's stringx in the real client
 function string.startswith(s, prefix) return s:sub(1, #prefix) == prefix end
 
-local impl = require 'sasl.scram'
+local impl = require 'hub.net.sasl.scram'
 local thread = impl('sha1', nil, 'user', 'pencil', 'fyko+d2lbbFgONRv9qkxdawL')
 local success, message
 success, message = coroutine.resume(thread, '')

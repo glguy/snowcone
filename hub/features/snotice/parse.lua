@@ -1,9 +1,8 @@
--- Server notice parser (from dashboard/utils/parse_snote.lua, without
--- the time argument: the caller stamps the time).
+-- Server notice parser. The caller stamps the time.
 --
 -- parse(server, text) returns a flat record with `name` and the
--- notice's fields, or nil. tests/hub/test-snotice.lua replays fixtures
--- against the dashboard parser's results.
+-- notice's fields, or nil. tests/hub/test-snotice.lua replays recorded
+-- notices against their expected parses.
 
 local simple = {
     ['Filtering enabled.'] = 'filtering_enabled',

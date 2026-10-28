@@ -1,4 +1,4 @@
--- Notification by iTerm2's OSC 9 escape (from ircc/notification/iterm2.lua).
+-- Notification by iTerm2's OSC 9 escape.
 -- https://iterm2.com/documentation-escape-codes.html
 
 local scrub <const> = require 'hub.lib.scrub'

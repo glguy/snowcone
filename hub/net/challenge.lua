@@ -1,5 +1,4 @@
--- Solanum CHALLENGE operator authentication (from ircc/utils/challenge.lua,
--- the superset of the two copies: it adds use_store). Runs in a network task.
+-- Solanum CHALLENGE operator authentication. Runs in a network task.
 
 local N       <const> = require 'hub.lib.numerics'
 local secrets <const> = require 'hub.runtime.secrets'

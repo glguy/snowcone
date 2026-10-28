@@ -1,5 +1,5 @@
 -- Connections (connload) and exits (exitload) per server, with the
--- network's topology, from the dashboard's view/server_load.lua.
+-- network's topology.
 --
 -- Click a column title to sort by it, again to reverse. A yellow 4 or 6
 -- marks an address in a DNS rotation; S user shedding.

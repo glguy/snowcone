@@ -1,5 +1,5 @@
--- Drawing helpers: attribute and colour setters (globals in ircc and the
--- dashboard) and the rotating log display from ircc/utils/drawing.lua.
+-- Drawing helpers: attribute and colour setters and the rotating log
+-- display.
 
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local clock      <const> = require 'hub.runtime.clock'
@@ -80,8 +80,8 @@ end
 
 -- Lay out a rolling window of entries around a divider that rotates as new
 -- entries arrive. While scrolled back, vs.pin holds the map's ticker from
--- when scrolling started so the viewport stays put. (ircc kept the pin on
--- the map itself, which two views of one map would fight over.)
+-- when scrolling started so the viewport stays put. The pin is the view's,
+-- not the map's, so two views of one map don't fight over it.
 local function rotating_window(vs, source, rows, predicate)
     OrderedMap.set_predicate(source, predicate)
 

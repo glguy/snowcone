@@ -1,14 +1,12 @@
--- Notifications of mentions while the terminal is unfocused (from ircc's
--- components/NotificationManager.lua and notification/).
+-- Notifications of mentions while the terminal is unfocused.
 --
 -- `[notifications] module` picks a backend: bell, mac (terminal-notifier)
--- or iterm2 (ircc's names, notification.mac and so on, work too). A
--- buffer gets one notification until it is seen; viewing it with the
--- terminal focused dismisses it.
+-- or iterm2. A buffer gets one notification until it is seen; viewing it
+-- with the terminal focused dismisses it.
 --
--- ircc's dismiss looked up the muted entry by the unfolded target and then
--- cleared it under the backend's key, so a notification could never be
--- dismissed twice. Here both use the folded target.
+-- Muted entries are keyed by the folded target, both when a notification
+-- is recorded and when it is dismissed, so the two always meet whatever
+-- case the target arrives in.
 
 local chat   <const> = require 'hub.features.chat'
 local common <const> = require 'hub.features.common'
@@ -39,7 +37,6 @@ local function backend()
     local cfg = HUB.state.config and HUB.state.config.notifications
     local name = cfg and cfg.module
     if not name then return nil end
-    name = name:gsub('^notification%.', '')
     local module = backends[name]
     if module then
         return HUB.current.gen.require(module)

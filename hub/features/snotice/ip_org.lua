@@ -1,5 +1,5 @@
--- The organisation and AS number of an address (from dashboard's
--- utils/ip_org.lua): MaxMind's GeoLite2-ASN.mmdb in the configuration
+-- The organisation and AS number of an address: MaxMind's
+-- GeoLite2-ASN.mmdb in the configuration
 -- directory through the optional mmdb library, else the legacy GeoIP
 -- databases through mygeoip, else nothing.
 

@@ -1,4 +1,4 @@
--- Filter patterns (from ircc/utils/matching.lua).
+-- Filter patterns.
 --
 -- Patterns are PCRE2 regular expressions when rex_pcre2 is installed, and
 -- Lua patterns otherwise. A pattern without capital letters matches

@@ -1,4 +1,4 @@
--- Line editor with history and kill ring (from ircc/components/Editor.lua).
+-- Line editor with history and kill ring.
 --
 -- The editor is a plain record in HUB.state.ui.input, so the line being
 -- typed and the history survive a reload.
@@ -51,8 +51,8 @@ function M.reset(self)
     M.move(self, 1)
 end
 
--- Two lines hold the same characters in the same order. (ircc compared
--- without regard to order, so an anagram of the last line was dropped.)
+-- Two lines hold the same characters in the same order. Order matters:
+-- otherwise an anagram of the last line would be dropped from history.
 local function same_line(a, b)
     if #a ~= #b then return false end
     for i = 1, #a do

@@ -1,4 +1,5 @@
--- Driver- and mechanism-level tests for ircc/sasl and dashboard/sasl.
+-- Driver- and mechanism-level tests for hub/net/sasl, ircc/sasl and
+-- dashboard/sasl.
 -- The real mybase64, myopenssl and (when built) mystringprep come from
 -- snowcone; only I/O and Penlight are replaced by small fakes.
 --
@@ -47,14 +48,27 @@ package.preload['pl.file'] = function()
     return {read = function(path) return 'FILE:' .. path end}
 end
 
-local N, sasl
+-- hub resolves secrets in a task; these tests pass them as plain strings
+package.preload['hub.runtime.secrets'] = function()
+    return { resolve = function(_, v) return v end }
+end
+
+-- N, the driver as sasl(task, credentials), and the mechanisms' module prefix
+local N, sasl, mechanisms
 
 local function use_tree(tree)
-    package.path = here .. '/../' .. tree .. '/?.lua;' .. here .. '/../' .. tree .. '/?/init.lua;' .. original_path
+    local root = tree == 'hub' and here .. '/..' or here .. '/../' .. tree
+    package.path = root .. '/?.lua;' .. root .. '/?/init.lua;' .. original_path
     for name in pairs(package.loaded) do
-        if name == 'sasl' or name:find('^sasl%.') or name:find('^utils%.') then
+        if name == 'sasl' or name:find('^sasl%.') or name:find('^utils%.') or name:find('^hub%.') then
             package.loaded[name] = nil
         end
+    end
+    if tree == 'hub' then
+        N = require 'hub.lib.numerics'
+        sasl = require 'hub.net.sasl'.authenticate
+        mechanisms = 'hub.net.sasl.'
+        return
     end
     package.loaded['utils.send'] = function(command, arg)
         local text = type(arg) == 'table' and arg.content or arg
@@ -62,6 +76,16 @@ local function use_tree(tree)
     end
     N = require 'utils.numerics'
     sasl = require 'sasl'
+    mechanisms = 'sasl.'
+end
+
+-- ircc waits on a set of commands, hub on a list
+local function waits_for(wanted, command)
+    if wanted[command] then return true end
+    for _, c in ipairs(wanted) do
+        if c == command then return true end
+    end
+    return false
 end
 
 local function run(credentials, script)
@@ -71,9 +95,15 @@ local function run(credentials, script)
         wait_irc = function(_, wanted)
             i = i + 1
             local msg = assert(script[i], 'driver kept waiting after the script ended')
-            assert(wanted[msg.command], 'driver does not wait for ' .. tostring(msg.command))
+            assert(waits_for(wanted, msg.command), 'driver does not wait for ' .. tostring(msg.command))
             return msg
         end,
+        -- hub's driver sends and logs through its task
+        send = function(_, command, arg)
+            local text = type(arg) == 'table' and arg.content or arg
+            sent[#sent + 1] = command .. ' ' .. tostring(text)
+        end,
+        log = function(_, _, fmt, ...) statuses[#statuses + 1] = fmt:format(...) end,
     }
     local result = sasl(task, credentials)
     return result, i == #script
@@ -193,7 +223,7 @@ local function suite(tree)
         end
 
         -- error in server-final: drive the mechanism directly
-        local scram = require 'sasl.scram'
+        local scram = require(mechanisms .. 'scram')
         local co = scram('sha1', nil, 'u', 'p', nonce)
         assert(coroutine.resume(co))
         assert(coroutine.resume(co, server_first))
@@ -216,7 +246,7 @@ local function suite(tree)
     do
         local seen
         mystringprep = {stringprep = function(s, profile) seen = profile; return s end}
-        local co = require('sasl.anonymous')('trace')
+        local co = require(mechanisms .. 'anonymous')('trace')
         local _, msg = coroutine.resume(co)
         mystringprep = real_mystringprep
         expect(msg == 'trace' and seen == 'trace', 'anonymous uses stringprep(trace)')
@@ -285,6 +315,7 @@ local function suite(tree)
     end
 end
 
+suite('hub')
 suite('ircc')
 suite('dashboard')
 print('ok')

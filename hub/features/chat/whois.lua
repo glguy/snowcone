@@ -1,5 +1,5 @@
--- A WHOIS summarised in the status log (from ircc/utils/pretty_whois.lua),
--- run as a network task: whois(t, nick, remote).
+-- A WHOIS summarised in the status log, run as a network task:
+-- whois(t, nick, remote).
 
 local ip_org    <const> = require 'hub.features.snotice.ip_org'
 local irc_model <const> = require 'hub.net.irc'

@@ -1,5 +1,4 @@
--- A small query language for connection entries (from dashboard's
--- utils/matchdsl.lua), used by /prefilter.
+-- A small query language for connection entries, used by /prefilter.
 --
 --   query  := conj ('or' query)?
 --   conj   := atom ('and' conj)?

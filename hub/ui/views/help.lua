@@ -1,4 +1,4 @@
--- Command list (from ircc/view/help.lua), with each command's help text.
+-- Command list, with each command's help text.
 
 local cmdline <const> = require 'hub.ui.cmdline'
 local draw   <const> = require 'hub.ui.draw'

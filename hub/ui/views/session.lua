@@ -1,7 +1,6 @@
 -- The current network: what lasts across connections (server, state,
 -- features), then the connection, if any (nick, link, transport, modes,
--- capabilities, channels, tasks). The connection part comes from
--- ircc/view/session.lua.
+-- capabilities, channels, tasks).
 --
 -- Long lists show their first row; click [+N more] for the rest. Caps put
 -- the trouble first: red for wanted but not enabled, green for enabled,

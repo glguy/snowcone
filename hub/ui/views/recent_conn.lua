@@ -1,5 +1,4 @@
--- Recent connections (cliconn) and exits (cliexit), from the dashboard's
--- view/recent_conn.lua.
+-- Recent connections (cliconn) and exits (cliexit).
 --
 -- Click a mask to stage a K-Line (or an unkline for a K-Lined user); click
 -- a server to show only it. q shows live users, w exits, e both.

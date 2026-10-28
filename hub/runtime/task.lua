@@ -1,6 +1,5 @@
 -- Tasks: coroutines that wait for IRC messages, events, timers, DNS,
--- child processes and prompts (from ircc's
--- components/Task.lua).
+-- child processes and prompts.
 --
 -- Tasks live in HUB.tasks, outside HUB.state. A task keeps running the code
 -- it started with across a reload, but it is woken by the

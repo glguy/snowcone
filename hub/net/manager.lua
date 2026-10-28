@@ -123,7 +123,7 @@ end
 -- Layers =============================================================
 
 -- Resolve the secrets in the configured layers and build the list that
--- snowcone.connect takes (from ircc's connect()). Raises on failure.
+-- snowcone.connect takes. Raises on failure.
 local function build_layers(t, configured)
     local layers = {}
     for _, layer in ipairs(configured) do

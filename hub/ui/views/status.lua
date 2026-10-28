@@ -1,4 +1,4 @@
--- The status log (from ircc/view/status.lua).
+-- The status log.
 
 local addircstr  <const> = require 'hub.ui.irc_formatting'
 local control    <const> = require 'hub.ui.control'

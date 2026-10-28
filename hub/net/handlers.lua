@@ -1,4 +1,4 @@
--- Protocol handlers for inbound IRC messages (from ircc/handlers/irc.lua).
+-- Protocol handlers for inbound IRC messages.
 --
 -- Handlers update only the protocol model of the network: nick, channels,
 -- members, modes, topics, away, isupport, capabilities, monitor. Buffers,
@@ -242,8 +242,8 @@ H[N.RPL_NAMREPLY] = function(_, irc, msg)
     local channel = irc_model.get_channel(irc, msg[3])
     if not channel then return end
 
-    -- Prefixes come off before the userhost (userhost-in-names) does.
-    -- ircc matched '[^!@ ]+' first, which dropped the @ prefix of ops.
+    -- Prefixes come off before the userhost (userhost-in-names) does;
+    -- matching the nick first with '[^!@ ]+' would drop the @ of ops.
     for word in msg[4]:gmatch '[^ ]+' do
         local entry = word
         local modes = {}

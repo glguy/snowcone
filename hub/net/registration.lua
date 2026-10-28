@@ -1,5 +1,4 @@
--- Connection registration (from ircc/utils/irc_registration.lua and the
--- dashboard's end_of_registration), run as a network task after CON.
+-- Connection registration, run as a network task after CON.
 --
 -- CAP LS, PASS, NICK and USER go out together; the server holds
 -- registration until CAP END, so SASL still happens first. A server

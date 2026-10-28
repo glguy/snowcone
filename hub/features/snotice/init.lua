@@ -21,7 +21,7 @@ local M = {}
 M.name = 'snotice'
 
 --- Server notice mask set after opering, unless the network configures
---- `snomask` (the dashboard's choice)
+--- `snomask`
 M.default_snomask = 'BFZbcklnsx'
 
 local header <const> = '*** Notice -- '

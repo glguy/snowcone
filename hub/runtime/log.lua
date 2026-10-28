@@ -1,5 +1,4 @@
--- Status log. Replaces ircc's status() and
--- status_message, and receives the client's print().
+-- Status log. It also receives the client's print().
 
 local bus        <const> = require 'hub.runtime.bus'
 local clock      <const> = require 'hub.runtime.clock'

@@ -1,4 +1,4 @@
--- IRCv3 batches (from ircc's BATCH handler and handlers/batch.lua).
+-- IRCv3 batches.
 --
 -- Messages tagged with an open batch are collected, and when the batch
 -- closes it is emitted whole as `irc.batch`. Most batches (a netsplit's

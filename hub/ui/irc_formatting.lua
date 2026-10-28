@@ -1,4 +1,4 @@
--- Draw text with IRC formatting codes (from ircc/utils/irc_formatting.lua).
+-- Draw text with IRC formatting codes.
 
 local draw  <const> = require 'hub.ui.draw'
 local scrub <const> = require 'hub.lib.scrub'

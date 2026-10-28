@@ -1,7 +1,5 @@
--- Chat (from ircc's handlers/irc.lua, handlers/batch.lua,
--- handlers/commands.lua and utils/irc_registration.lua): buffers of
--- messages per network and target, mentions, history and the chat
--- commands.
+-- Chat: buffers of messages per network and target, mentions, history
+-- and the chat commands.
 --
 -- state.features.chat[net] = {
 --   buffers  [folded target] = {name, messages = OrderedMap, activity,
@@ -421,7 +419,7 @@ function M.merge(buffer, messages, since)
 end
 
 -- After registration: history for the open buffers, and MONITOR for the
--- private ones (from ircc's irc_registration)
+-- private ones
 local function on_registered(ev)
     local net = ev.net
     if not enabled(net) then return end

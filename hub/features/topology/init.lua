@@ -1,6 +1,6 @@
--- Network topology (from the dashboard's init.lua,
--- handlers/irc.lua and handlers/snotice.lua): server populations from MAP, links from LINKS, versions, startup times,
--- user shedding, and the addresses in each DNS rotation.
+-- Network topology: server populations from MAP, links from LINKS,
+-- versions, startup times, user shedding, and the addresses in each DNS
+-- rotation.
 --
 -- state.features.topology[net] = {
 --   population  [server] = users, from MAP and moved by connect/exit notices
@@ -105,7 +105,7 @@ H[N.RPL_LINKS] = function(T, msg)
     local partial = T.partial_links or {}
     T.partial_links = partial
     -- links go both ways; merge, since a server can appear in several
-    -- replies (the dashboard replaced a server's set, so reply order mattered)
+    -- replies (replacing its set would make the result depend on reply order)
     local server, linked = msg[2], msg[3]
     if server and linked and server ~= linked then
         partial[server] = partial[server] or {}
@@ -248,7 +248,7 @@ function M.subscribe(sub)
         local h = H[ev.msg.command]
         if h then h(M.get(ev.net), ev.msg, ev.net) end
     end)
-    -- the dashboard filled its server list this way at registration
+    -- fill the server list at registration
     sub.on('net.registered', function(ev)
         if enabled(ev.net) then M.sync(ev.net) end
     end)

@@ -1,4 +1,4 @@
--- Networks of a soju bouncer (from ircc/view/bouncer.lua).
+-- Networks of a soju bouncer.
 
 local draw   <const> = require 'hub.ui.draw'
 local scrub  <const> = require 'hub.lib.scrub'

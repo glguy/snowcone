@@ -1,4 +1,4 @@
--- Sending IRC commands (from ircc/utils/send.lua).
+-- Sending IRC commands.
 --
 -- An argument is a string, or {content = string, secret = true} to keep it
 -- out of logs. The masked message goes to the network's console log and

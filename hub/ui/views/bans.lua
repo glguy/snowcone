@@ -1,4 +1,4 @@
--- Bans, unbans and kills, from the dashboard's view/bans.lua.
+-- Bans, unbans and kills.
 --
 -- Click an active K-Line's mask to stage removing it (TESTLINE shows its
 -- details), or a D-Line's to stage an undline.

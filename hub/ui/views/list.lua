@@ -1,5 +1,4 @@
--- /list results of the current network (from ircc/view/channels.lua, whose
--- page keys were defined twice so PgUp and PgDn moved one line).
+-- /list results of the current network.
 
 local addircstr  <const> = require 'hub.ui.irc_formatting'
 local chat       <const> = require 'hub.features.chat'

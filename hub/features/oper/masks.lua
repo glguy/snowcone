@@ -1,4 +1,4 @@
--- K-Line masks for Libera.Chat (from dashboard/utils/libera_masks.lua).
+-- K-Line masks for Libera.Chat.
 -- The cases are tested in tests/hub/test-oper.lua.
 --
 -- Gateway and NAT cloaks are banned by cloak; everyone else by IP, with

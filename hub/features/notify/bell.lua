@@ -1,4 +1,4 @@
--- Notification by terminal bell (from ircc/notification/bell.lua).
+-- Notification by terminal bell.
 
 local M = {}
 

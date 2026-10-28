@@ -1,5 +1,4 @@
--- Capability negotiation (from ircc's utils/cap_negotiation.lua and
--- handlers/cap.lua). LS and REQ run inside network tasks.
+-- Capability negotiation. LS and REQ run inside network tasks.
 
 local irc_model <const> = require 'hub.net.irc'
 local N         <const> = require 'hub.lib.numerics'

@@ -28,7 +28,6 @@ end
 
 --- Parse a table assignment of the form: (key '.')* key '=' value
 --- Keys and values can be numbers, quoted strings, or unquoted strings.
---- (from ircc/init.lua)
 function M.apply_override(tab, src)
     local keys = {}
     local key
@@ -153,7 +152,7 @@ local function normalize_network(net, i, warnings)
     return net
 end
 
--- The servers file (from the dashboard): {servers = {[name] = {alias,
+-- The servers file: {servers = {[name] = {alias,
 -- region, ipv4, ipv6, expect}}, regions = {[label] = {hostname, color}},
 -- kline_reasons, kline_tags, net_tracks, flags, primary_hub}
 local function read_servers(net, dir)

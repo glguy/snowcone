@@ -1,4 +1,4 @@
--- Key and certificate helpers for services (from ircc's handlers/commands.lua).
+-- Key and certificate helpers for services.
 -- Each prints the NickServ command to register what it made or read.
 
 local file <const> = require 'pl.file'
@@ -27,7 +27,7 @@ end
 
 -- Ask for a PEM password; an empty one leaves the key unencrypted. Both
 -- cipher and password are nil then: to_private_pem rejects a password
--- without a cipher (ircc passed '', so unencrypted keys failed).
+-- without a cipher, so '' would make every unencrypted key fail.
 local function pem_password(t)
     local password = t:prompt 'New private key PEM password'
     if password == nil then
@@ -66,7 +66,7 @@ M.commands = {
         help = 'Make an X25519 key and print it with its NickServ SET X25519-PUBKEY command',
         fn = function()
             local k = myopenssl.gen_pkey 'X25519'
-            -- ircc called k:get_raw_private(), which myopenssl doesn't have
+            -- myopenssl has no get_raw_private(); the raw key is in export()
             log.add('crypto', 'Private key: %s', mybase64.to_base64(k:export().priv))
             log.add('crypto', '/msg NickServ SET X25519-PUBKEY %s', pub64(k))
         end,

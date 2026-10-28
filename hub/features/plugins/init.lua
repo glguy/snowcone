@@ -23,8 +23,7 @@
 --   api.networks() -> ids, api.config (the plugin's [plugins.custom.<name>])
 --   api.path(ext) -> <directory>/<name>.<ext>, for the plugin's own files
 --   api.load() -> the value last saved, or nil; api.save(value) writes it
---             to <name>.dat (pretty-printed Lua, as ircc and the dashboard
---             saved plugin state), so it survives restarts
+--             to <name>.dat (pretty-printed Lua), so it survives restarts
 
 local file      <const> = require 'pl.file'
 local path      <const> = require 'pl.path'

@@ -1,4 +1,4 @@
--- Raw IRC traffic of the current network (from ircc/view/console.lua).
+-- Raw IRC traffic of the current network.
 --
 -- Click a command to inspect the message above the log (a server notice
 -- also shows its parsed fields). Meta-H hides

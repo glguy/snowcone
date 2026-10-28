@@ -1,5 +1,4 @@
--- The bottom line: view name, input box or last log line (from ircc's
--- utils/drawing.lua draw_status_bar).
+-- The bottom line: view name, input box or last log line.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
 local common    <const> = require 'hub.features.common'
@@ -166,7 +165,7 @@ local function draw_modes(win, view, ctx)
 end
 
 --- Colour behind the view title: red while a K-Line is staged on the
---- current network (as the dashboard did), so it is hard to miss.
+--- current network, so it is hard to miss.
 function M.title_colour()
     local net = control.current_net()
     if net and common.enabled(net, 'oper') then

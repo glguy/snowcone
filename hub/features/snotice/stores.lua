@@ -1,5 +1,4 @@
--- What server notices tell us, per network (from the dashboard's
--- handlers/snotice.lua, keeping only the model updates).
+-- What server notices tell us, per network.
 --
 -- state.features.snotice[net] = {
 --   users         OrderedMap of recent connections by nick; an entry gains

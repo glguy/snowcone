@@ -1,5 +1,4 @@
--- Key codes and the key handler tables (from ircc handlers/keyboard.lua
--- and handlers/input.lua).
+-- Key codes and the key handler tables.
 --
 -- Keys arrive as integers: a code point, or a negated ncurses KEY_ value
 -- for special keys, or a negated character for Meta combinations.
@@ -206,7 +205,7 @@ M.global = {
     end,
 
     -- the next buffer of the current network with unseen messages,
-    -- mentions first (from ircc)
+    -- mentions first
     [meta 'a'] = function()
         local net = control.current_net()
         if not (net and common.enabled(net, 'chat')) then return end

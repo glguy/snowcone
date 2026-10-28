@@ -1,5 +1,5 @@
--- Replies to CTCP requests (from ircc/handlers/ctcp.lua). The chat feature
--- answers only requests sent to us by network staff.
+-- Replies to CTCP requests. The chat feature answers only requests sent
+-- to us by network staff.
 
 local M = {}
 
@@ -22,7 +22,8 @@ function M.TIME()
     return os.date '!%c'
 end
 
--- ircc ran `git rev-parse` here; a reply shouldn't start a process
+-- A fixed string: a reply shouldn't start a process (such as git) to
+-- find a version
 function M.VERSION()
     return 'snowcone hub'
 end

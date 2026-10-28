@@ -1,5 +1,4 @@
--- Resolving secrets from configuration (from ircc's
--- utils/configuration_tools.lua). A secret is one of:
+-- Resolving secrets from configuration. A secret is one of:
 --   "text"                                     used as is
 --   {file = path}                              file contents
 --   {command = c, arguments = {...},

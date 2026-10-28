@@ -1,5 +1,5 @@
--- Validation of configuration tables against a schema (from
--- ircc/utils/schema.lua). Errors are raised; unexpected fields are
+-- Validation of configuration tables against a schema. Errors are
+-- raised; unexpected fields are
 -- collected as warnings instead of logged, so this stays pure.
 
 local tablex <const> = require 'pl.tablex'

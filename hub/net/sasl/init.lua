@@ -1,8 +1,8 @@
--- SASL authentication driver (from ircc/sasl/init.lua), run inside a
--- network task. https://ircv3.net/specs/extensions/sasl-3.1
+-- SASL authentication driver, run inside a network task.
+-- https://ircv3.net/specs/extensions/sasl-3.1
 --
--- The mechanisms in this directory are coroutine factories, unchanged
--- from ircc and covered by tests/test-sasl.lua there.
+-- The mechanisms in this directory are coroutine factories. The driver and
+-- mechanisms are tested by tests/test-sasl.lua and tests/test-scram.lua.
 
 local N       <const> = require 'hub.lib.numerics'
 local secrets <const> = require 'hub.runtime.secrets'

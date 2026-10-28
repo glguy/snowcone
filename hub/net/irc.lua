@@ -1,5 +1,5 @@
--- The protocol model of one IRC connection (from ircc's components/Irc.lua,
--- Channel.lua, Member.lua and User.lua), as plain records and functions.
+-- The protocol model of one IRC connection, as plain records and
+-- functions.
 --
 -- The model is a field of the network record, state.nets[id].irc, and
 -- exists while a connection does. Nick and channel keys are folded with the

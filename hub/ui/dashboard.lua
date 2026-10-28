@@ -1,5 +1,4 @@
--- Drawing shared by the dashboard views (from the dashboard's
--- utils/drawing.lua and init.lua): load averages, populations, the
+-- Drawing shared by the dashboard views: load averages, populations, the
 -- action bar for ban staging, and the load in the status bar.
 
 local common   <const> = require 'hub.features.common'

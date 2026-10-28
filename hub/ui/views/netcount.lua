@@ -1,5 +1,4 @@
--- Users per address range, and the connection watches, from the
--- dashboard's view/netcount.lua.
+-- Users per address range, and the connection watches.
 
 local control   <const> = require 'hub.ui.control'
 local dashboard <const> = require 'hub.ui.dashboard'

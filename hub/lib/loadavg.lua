@@ -1,5 +1,4 @@
--- Event rates (from dashboard's components/LoadAverage.lua and
--- LoadTracker.lua), as records and functions.
+-- Event rates, as records and functions.
 --
 -- An average holds 1, 5 and 15 minute exponential moving averages of a
 -- per-second count and the last 60 samples. A tracker counts events by

@@ -1,4 +1,4 @@
--- Command argument specs, compiled with pl.sip (from ircc/utils/mkcommand.lua).
+-- Command argument specs, compiled with pl.sip.
 --
 -- Type      Meaning
 -- v         identifier

@@ -1,6 +1,5 @@
--- macOS notifications through terminal-notifier (from
--- ircc/notification/mac.lua). The program runs in a task, since only the
--- runtime may start processes.
+-- macOS notifications through terminal-notifier. The program runs in a
+-- task, since only the runtime may start processes.
 
 local task <const> = require 'hub.runtime.task'
 

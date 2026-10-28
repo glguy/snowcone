@@ -1,7 +1,5 @@
--- Configuration schema, built from ircc/utils/configuration_schema.lua
--- with every connection setting moved under [[networks]]. The dashboard's
--- checks for spaces and line breaks are constraints here. There is no
--- compatibility with the ircc and dashboard files.
+-- Configuration schema. Every connection setting is per network, under
+-- [[networks]]. Checks for spaces and line breaks are schema constraints.
 
 local M = {}
 
@@ -188,7 +186,8 @@ M.file = table_ {
         custom    = {type = 'table'},
     },
     notifications = table_ {
-        module = {type = 'string', required = true},
+        module = {type = 'string', required = true, pattern = '^%w+$',
+                  expected = 'a backend name: bell, mac or iterm2'},
     },
     mention = mention_schema,
 }

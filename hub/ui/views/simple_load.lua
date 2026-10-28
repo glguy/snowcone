@@ -1,5 +1,5 @@
 -- Load per name: K-Lines by operator (banload) and filter hits by server
--- (spamload), from the dashboard's view/simple_load.lua.
+-- (spamload).
 
 local dashboard <const> = require 'hub.ui.dashboard'
 local draw      <const> = require 'hub.ui.draw'

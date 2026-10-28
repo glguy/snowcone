@@ -1,6 +1,6 @@
 -- A bounded map that remembers insertion order and drops the oldest entry
--- when full. Ported from ircc/components/OrderedMap.lua as a plain record
--- plus functions, so a map in HUB.state works the same after a reload.
+-- when full. It is a plain record plus functions, so a map in HUB.state
+-- works the same after a reload.
 --
 -- Keys are optional; an entry inserted with a nil key can only be reached
 -- by iteration. With a casemapping name, keys are folded before indexing.

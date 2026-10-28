@@ -211,7 +211,7 @@ T.case('talk, close and list', function()
 end)
 
 T.case('mentions notify once until seen, and dismiss', function()
-    local c, chat = boot(nil, {notifications = {module = 'notification.test'}})
+    local c, chat = boot(nil, {notifications = {module = 'test'}})
     -- a backend that records what it was asked
     local calls = {}
     HUB.current.gen.loaded['hub.features.notify.test'] = {
