@@ -1,11 +1,18 @@
--- Line editor with history and kill ring.
+-- Line editor with history, undo and a kill ring.
 --
 -- The editor is a plain record in HUB.state.ui.input, so the line being
 -- typed and the history survive a reload.
 
+local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local tablex <const> = require 'pl.tablex'
 
 local M = {}
+
+-- Lines kept in history, changes kept for undo and kills kept for
+-- yanking; the oldest are dropped first
+local history_limit <const> = 1000
+local undo_limit <const> = 100
+local kill_limit <const> = 60
 
 local render
 
@@ -13,16 +20,38 @@ local render
 function M.new()
     local self = {}
     self.buffer = {}        -- Array[Code]
-    self.history = {}       -- Array[Array[Code]]
+    -- lines entered, numbered from 1 in the order they were entered
+    self.history = OrderedMap.new(history_limit)
+    -- edits to lines recalled from history, by number; the line being
+    -- typed is number last(history) + 1. Cleared with the line.
+    self.edits = {}
     self.cursor = 1         -- Index into buffer
-    self.retrospect = nil   -- Index into history
-    self.stash = nil        -- Original buffer when retrospect ~= nil
-    self.yank = {}          -- Array[Code]
-    self.state = nil        -- edit(nil), kill, tab
-    self.tablist = nil
-    self.tabix = nil
+    self.undo = OrderedMap.new(undo_limit)  -- {buffer, cursor} before each change
+    self.kills = OrderedMap.new(kill_limit) -- Array[Code]
+    -- Also, nil until used:
+    --   at          the number of the history line shown, while recalling
+    --   state       the last change: edit(nil), insert, kill, tab, yank
+    --   tablist, tabix  completions and the one shown, when state is tab
+    --   yanked      {at, n, k}: the text the last yank put in, and its
+    --               number in kills, when state is yank
     render(self)
     return self
+end
+
+-- Remember the line before a change. A change that continues the last
+-- one, when the state is already kind, joins it: a run of typing undoes
+-- at once, and so does a run of completions.
+local function save(self, kind)
+    if kind and self.state == kind then return end
+    OrderedMap.insert(self.undo, nil, {buffer = tablex.copy(self.buffer), cursor = self.cursor})
+end
+
+function M.undo(self)
+    local last = OrderedMap.pop(self.undo)
+    if last then
+        self.buffer = last.buffer
+        M.move(self, last.cursor)
+    end
 end
 
 function M.content(self)
@@ -46,8 +75,9 @@ end
 
 function M.reset(self)
     self.buffer = {}
-    self.retrospect = nil
-    self.stash = nil
+    OrderedMap.reset(self.undo)
+    self.edits = {}
+    self.at = nil
     M.move(self, 1)
 end
 
@@ -62,62 +92,44 @@ local function same_line(a, b)
 end
 
 function M.confirm(self)
-    local n = #self.history
-    if n == 0 or not same_line(self.history[n], self.buffer) then
-        self.history[n+1] = self.buffer
+    local history = self.history
+    local newest = OrderedMap.get(history, OrderedMap.last(history))
+    if not (newest and same_line(newest, self.buffer)) then
+        OrderedMap.insert(history, nil, self.buffer)
     end
     M.reset(self)
 end
 
+-- Show line k: a line from history, or last(history) + 1 for the line being
+-- typed. What was shown is kept in edits, so coming back to it finds it
+-- as it was left; history itself never changes.
+local function go_to(self, k)
+    local typing = OrderedMap.last(self.history) + 1
+    local here = self.at or typing
+    local line = OrderedMap.get(self.history, k)
+    if k == here or not (line or k == typing) then return end
+    self.edits[here] = self.buffer
+    self.buffer = self.edits[k] or tablex.copy(line or {})
+    self.at = line and k or nil
+    OrderedMap.reset(self.undo)
+    M.move_to_end(self)
+end
+
 function M.older_history(self)
-    local r = self.retrospect
-    local h = self.history
-
-    if r ~= nil and 1 < r then
-        if self.buffer[1] ~= nil then
-            h[r] = self.buffer
-        else
-            table.remove(h, r)
-        end
-        r = r - 1
-
-        self.buffer = tablex.copy(h[r])
-        self.retrospect = r
-        M.move_to_end(self)
-    elseif r == nil and h[1] ~= nil then
-        r = #h
-        self.stash = self.buffer
-        self.buffer = tablex.copy(h[r])
-        self.retrospect = r
-        M.move_to_end(self)
-    end
+    go_to(self, (self.at or OrderedMap.last(self.history) + 1) - 1)
 end
 
 function M.newer_history(self)
-    local r = self.retrospect
-    local h = self.history
+    if self.at then go_to(self, self.at + 1) end
+end
 
-    if r == nil then
-        return
-    end
+function M.oldest_history(self)
+    go_to(self, OrderedMap.first(self.history))
+end
 
-    if self.buffer[1] ~= nil then
-        h[r] = self.buffer
-        r = r + 1
-    else
-        table.remove(h, r)
-    end
-
-    if h[r] == nil then
-        self.buffer = self.stash
-        self.stash = nil
-        self.retrospect = nil
-    else
-        self.buffer = tablex.copy(h[r])
-        self.retrospect = r
-    end
-
-    M.move_to_end(self)
+-- back to the line being typed before recalling
+function M.newest_history(self)
+    go_to(self, OrderedMap.last(self.history) + 1)
 end
 
 function M.is_empty(self)
@@ -127,75 +139,69 @@ end
 function M.backspace(self)
     local i = self.cursor
     if 1 < i then
+        save(self)
         table.remove(self.buffer, i - 1)
         M.move(self, i - 1)
     end
 end
 
 function M.delete(self)
-    table.remove(self.buffer, self.cursor)
+    if self.cursor <= #self.buffer then
+        save(self)
+        table.remove(self.buffer, self.cursor)
+    end
     self.state = nil
     render(self)
 end
 
-function M.add_yank_left(self, lo, hi)
-    local t = tablex.sub(self.buffer, lo, hi)
-    if self.state == 'kill' then
-        tablex.insertvalues(self.yank, 1, t)
-    else
-        self.yank = t
-        self.state = 'kill'
+-- Cut buffer[lo..hi] into the kill ring. Consecutive kills add to the
+-- newest kill, before it when killing backward. Killing nothing leaves
+-- the ring alone.
+local function kill(self, lo, hi, backward)
+    if lo <= hi then
+        save(self)
+        local t = tablex.sub(self.buffer, lo, hi)
+        tablex.removevalues(self.buffer, lo, hi)
+        local kills = self.kills
+        local newest = OrderedMap.get(kills, OrderedMap.last(kills))
+        if self.state == 'kill' and newest then
+            tablex.insertvalues(newest, backward and 1 or #newest + 1, t)
+        else
+            OrderedMap.insert(kills, nil, t)
+        end
     end
+    M.move(self, lo, 'kill')
 end
 
 function M.kill_to_beg(self)
-    M.add_yank_left(self, 1, self.cursor - 1)
-    self.buffer = tablex.sub(self.buffer, self.cursor, -1)
-    M.move(self, 1, 'kill')
+    kill(self, 1, self.cursor - 1, true)
 end
 
 function M.kill_to_end(self)
-    if self.state == 'kill' then
-        table.move(self.buffer, self.cursor, #self.buffer, #self.yank + 1, self.yank)
-    else
-        self.yank = tablex.sub(self.buffer, self.cursor, -1)
-        self.state = 'kill'
-    end
-    tablex.removevalues(self.buffer, self.cursor, - 1)
-    render(self)
+    kill(self, self.cursor, #self.buffer, false)
 end
 
-function M.kill_prev_word(self)
-    local i = M.search_prev_word(self)
-    local j = self.cursor - 1
-
-    M.add_yank_left(self, i, j)
-    tablex.removevalues(self.buffer, i, j)
-    M.move(self, i, 'kill')
+-- Words end at spaces rather than punctuation, as readline's C-w
+local function not_space(c)
+    return c ~= 0x20 and c ~= 0x09 and c ~= 0x0a
 end
 
+function M.kill_prev_word(self, p)
+    kill(self, M.search_prev_word(self, p), self.cursor - 1, true)
+end
+
+function M.kill_prev_spaced_word(self)
+    M.kill_prev_word(self, not_space)
+end
 
 function M.kill_next_word(self)
-    local i = self.cursor
-    local j = M.search_next_word(self) - 1
-
-    -- extract that region
-    local region = tablex.sub(self.buffer, i, j)
-    tablex.removevalues(self.buffer, i, j)
-
-    if self.state == 'kill' then
-        tablex.insertvalues(self.yank, #self.yank + 1, region)
-    else
-        self.yank = region
-        self.state = 'kill'
-    end
-
-    M.move(self, i, 'kill')
+    kill(self, self.cursor, M.search_next_word(self) - 1, false)
 end
 
 function M.add(self, code)
+    save(self, 'insert')
     table.insert(self.buffer, self.cursor, code)
-    M.move(self, self.cursor + 1)
+    M.move(self, self.cursor + 1, 'insert')
 end
 
 function M.swap(self)
@@ -207,6 +213,7 @@ function M.swap(self)
         elseif i <= n then
             i = i + 1
         end
+        save(self)
         local t = self.buffer[i - 2]
         self.buffer[i - 2] = self.buffer[i - 1]
         self.buffer[i - 1] = t
@@ -247,6 +254,7 @@ function M.hexinput(self)
         local c = b[last]
         if 0x41 <= c and c <= 0x5f -- ^A-^Z ^[ ^\ ^] ^^ ^_
         then
+            save(self)
             b[last - 1] = c - 0x40 -- replaces the '^' with control character
             table.remove(b, last)
             M.move(self, last)
@@ -262,15 +270,16 @@ function M.hexinput(self)
         if b[first - 1] == 120 then -- check for 'x'
 
             -- Compute new value
+            -- the value must be a code point other than NUL
             local acc = 0
             for j = first, last do
                 acc = 16 * acc + hexdigits[b[j]]
+                if acc > 0x10ffff then return end
             end
-
-            -- ensure value is valid for the input buffer
-            if acc == 0 or acc > 0x10ffff then return end
+            if acc == 0 then return end
 
             -- replace escape sequence with value
+            save(self)
             tablex.removevalues(b, first, last)
             b[first - 1] = acc -- replaces the 'x'
 
@@ -312,9 +321,15 @@ function M.move_prev_word(self)
     M.move(self, M.search_prev_word(self))
 end
 
-function M.search_next_word(self)
-    local p = snowcone.isalnum
-    local i = self.cursor
+-- Letters and digits, counting every non-ASCII character as a letter
+local function is_word(c)
+    return c >= 0x80 or snowcone.isalnum(c)
+end
+
+-- The end of the word at or after a position (default: the cursor)
+function M.search_next_word(self, at)
+    local p = is_word
+    local i = at or self.cursor
     local b = self.buffer
     local n = #b
     if i <= n then
@@ -326,9 +341,10 @@ function M.search_next_word(self)
     return i
 end
 
-function M.search_prev_word(self, p)
-    p = p or snowcone.isalnum
-    local i = self.cursor
+-- The start of the word before a position (default: the cursor)
+function M.search_prev_word(self, p, at)
+    p = p or is_word
+    local i = at or self.cursor
     local b = self.buffer
     if 1 < i then
         i = i - 1
@@ -342,9 +358,95 @@ function M.search_prev_word(self, p)
     return i
 end
 
+-- Swap the words before and after the cursor, or at the end of the line
+-- the last two, leaving the cursor after them
+function M.swap_words(self)
+    local s2 = M.search_prev_word(self, nil, M.search_next_word(self))
+    local e2 = M.search_next_word(self, s2)
+    local s1 = M.search_prev_word(self, nil, s2)
+    local e1 = M.search_next_word(self, s1)
+    if s2 < e1 then return end -- fewer than two words
+
+    save(self)
+    local b = self.buffer
+    local t = tablex.sub(b, 1, s1 - 1)
+    tablex.insertvalues(t, tablex.sub(b, s2, e2 - 1))
+    tablex.insertvalues(t, tablex.sub(b, e1, s2 - 1))
+    tablex.insertvalues(t, tablex.sub(b, s1, e1 - 1))
+    tablex.insertvalues(t, tablex.sub(b, e2, -1))
+    self.buffer = t
+    M.move(self, e2)
+end
+
+-- Case changes are ASCII only
+local function upcase(c)
+    if 0x61 <= c and c <= 0x7a then return c - 0x20 end
+    return c
+end
+
+local function downcase(c)
+    if 0x41 <= c and c <= 0x5a then return c + 0x20 end
+    return c
+end
+
+-- Change the letters from the cursor to the end of the word and move
+-- there. f gets each word character and whether it is the first.
+local function change_word(self, f)
+    local b = self.buffer
+    local j = M.search_next_word(self)
+    local first, saved = true, false
+    for i = self.cursor, j - 1 do
+        if is_word(b[i]) then
+            local c = f(b[i], first)
+            first = false
+            if c ~= b[i] then
+                if not saved then
+                    save(self)
+                    saved = true
+                end
+                b[i] = c
+            end
+        end
+    end
+    M.move(self, j)
+end
+
+function M.upcase_word(self) change_word(self, upcase) end
+function M.downcase_word(self) change_word(self, downcase) end
+function M.capitalize_word(self)
+    change_word(self, function(c, first)
+        if first then return upcase(c) else return downcase(c) end
+    end)
+end
+
+-- Insert kill k at the cursor, remembering where for paste_older
+local function yank(self, k)
+    local t = OrderedMap.get(self.kills, k)
+    local at = self.cursor
+    tablex.insertvalues(self.buffer, at, t)
+    self.yanked = {at = at, n = #t, k = k}
+    M.move(self, at + #t, 'yank')
+end
+
 function M.paste(self)
-    tablex.insertvalues(self.buffer, self.cursor, self.yank)
-    M.move(self, self.cursor + #self.yank)
+    if OrderedMap.size(self.kills) > 0 then
+        save(self)
+        yank(self, OrderedMap.last(self.kills))
+    end
+end
+
+-- Right after a paste, replace what it put in with the next older kill,
+-- going round to the newest after the oldest
+function M.paste_older(self)
+    local y = self.yanked
+    local kills = self.kills
+    if self.state ~= 'yank' or OrderedMap.size(kills) < 2 then return end
+    save(self)
+    tablex.removevalues(self.buffer, y.at, y.at + y.n - 1)
+    self.cursor = y.at
+    local k = y.k - 1
+    if k < OrderedMap.first(kills) then k = OrderedMap.last(kills) end
+    yank(self, k)
 end
 
 function M.tab(self, dir, mklist)
@@ -369,6 +471,7 @@ function M.tab(self, dir, mklist)
         end
     end
 
+    save(self, 'tab')
     local buffer = self.buffer
     tablex.removevalues(buffer, i, cur - 1)
     local new = self.tablist[self.tabix]

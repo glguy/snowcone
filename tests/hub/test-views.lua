@@ -170,6 +170,15 @@ T.case('keys reach input modes, views and commands', function()
     key(13)
     local sent = c:take()
     T.eq(sent[#sent], 'PRIVMSG #chan :hi there', 'sent')
+    key(string.byte 't')
+    key(-ncurses.KEY_UP)
+    T.eq(T.require 'hub.ui.editor'.content(control.editor()), 'hi there', 'chat goes into history')
+    control.view_state 'buffer'.filter = 'kept'
+    key(0x1f & string.byte 'G')
+    T.eq(HUB.state.ui.input.mode, nil, 'C-g leaves input mode')
+    T.eq(T.require 'hub.ui.editor'.content(control.editor()), '', 'and drops the line')
+    T.eq(control.view_state 'buffer'.filter, 'kept', 'but not the filter')
+    control.view_state 'buffer'.filter = nil
 
     -- tab completes nicks in the channel
     c:recv ':srv 353 me = #chan :@me +alice'
@@ -179,6 +188,25 @@ T.case('keys reach input modes, views and commands', function()
     T.eq(T.require 'hub.ui.editor'.content(control.editor()), 'alice', 'completed')
     key(0x1b)
     T.eq(HUB.state.ui.input.mode, nil, 'Esc leaves input mode')
+
+    -- Shift-Tab completes from the last candidate
+    c:recv ':srv 353 me = #chan :alfred'
+    key(string.byte 't')
+    type_text 'al'
+    key(-ncurses.KEY_BTAB)
+    T.eq(T.require 'hub.ui.editor'.content(control.editor()), 'alice', 'last of alfred, alice')
+    key(-ncurses.KEY_BTAB)
+    T.eq(T.require 'hub.ui.editor'.content(control.editor()), 'alfred', 'then backward')
+
+    -- Meta-Del kills a word, C-d deletes forward
+    type_text ' and bob'
+    key(-0x7f)
+    key(0x1f & string.byte 'A')
+    key(0x1f & string.byte 'D')
+    T.eq(T.require 'hub.ui.editor'.content(control.editor()), 'lfred and ', 'edited')
+    key(0x1f) -- C-_
+    T.eq(T.require 'hub.ui.editor'.content(control.editor()), 'alfred and ', 'C-_ undoes')
+    key(0x1b)
 
     -- Meta-A jumps to a buffer with activity
     c:recv ':bob!b@h PRIVMSG me :ping'
@@ -265,6 +293,26 @@ T.case('closing a query visited with Meta-A goes back to the channel', function(
     c:recv ':alice!a@h PRIVMSG #chan :chatter'
     cmdline.execute 'close'
     T.eq(control.talk_target 'test', '#chan', 'back where I was')
+end)
+
+T.case('C-s leaves a prompt in place', function()
+    local fake = FakeTransport.new()
+    T.boot {ui = true, transport = fake, config = {networks = {{
+        id = 'test',
+        server = {host = 'test.example', port = 6667, password = {prompt = 'server password'}},
+        identity = {nick = 'me'},
+    }}}}
+    fake.last():con()
+    local control = T.require 'hub.ui.control'
+    local input = HUB.state.ui.input
+    T.eq(input.mode, 'password', 'prompting')
+    type_text 'hunter'
+    key(0x1f & string.byte 'S')
+    T.eq(input.mode, 'password', 'still prompting')
+    T.eq(T.require 'hub.ui.editor'.content(control.editor()), 'hunter', 'answer kept')
+    key(0x1f & string.byte 'G')
+    T.eq(input.mode, nil, 'C-g aborts it')
+    T.eq(input.prompts, {}, 'queue empty')
 end)
 
 T.case('the paging keys scroll any rolling view within its log', function()

@@ -55,9 +55,12 @@ function execute.talk()
     local text = editor.content(ed)
     local net = control.current_net()
     local target = net and control.talk_target(net)
-    editor.reset(ed)
     control.set_input_mode()
-    if text == '' then return end
+    if text == '' then
+        editor.reset(ed)
+        return
+    end
+    editor.confirm(ed)
     if not target then
         log.add('error', 'no buffer to talk in')
         return
@@ -104,7 +107,8 @@ local function do_tab(dir)
         end
         if next(t) then
             table.sort(t)
-            return 1, t
+            -- Shift-Tab starts from the last candidate
+            return dir == 1 and 1 or #t, t
         end
     end)
 end
@@ -116,6 +120,8 @@ end
 -- Keys while an input mode is active
 M.input = {
     [0x7f                  ] = with_editor(editor.backspace), -- Del
+    [ctrl 'H'              ] = with_editor(editor.backspace),
+    [ctrl 'D'              ] = with_editor(editor.delete),
     [ctrl 'M'              ] = function()
         local f = execute[HUB.state.ui.input.mode]
         if f then f() end
@@ -124,15 +130,34 @@ M.input = {
     [ctrl 'K'              ] = with_editor(editor.kill_to_end),
     [ctrl 'A'              ] = with_editor(editor.move_to_beg),
     [ctrl 'E'              ] = with_editor(editor.move_to_end),
-    [ctrl 'W'              ] = with_editor(editor.kill_prev_word),
+    [ctrl 'W'              ] = with_editor(editor.kill_prev_spaced_word),
     [meta 'd'              ] = with_editor(editor.kill_next_word),
+    [-0x7f                 ] = with_editor(editor.kill_prev_word), -- Meta-Del
+    [-ctrl 'H'             ] = with_editor(editor.kill_prev_word),
     [ctrl 'B'              ] = with_editor(editor.move_left),
     [ctrl 'F'              ] = with_editor(editor.move_right),
     [ctrl 'Y'              ] = with_editor(editor.paste),
+    [meta 'y'              ] = with_editor(editor.paste_older),
+    [ctrl '_'              ] = with_editor(editor.undo), -- also C-/
     [ctrl 'T'              ] = with_editor(editor.swap),
     [meta 'f'              ] = with_editor(editor.move_next_word),
     [meta 'b'              ] = with_editor(editor.move_prev_word),
     [meta 'k'              ] = with_editor(editor.hexinput),
+    [meta 't'              ] = with_editor(editor.swap_words),
+    [meta 'u'              ] = with_editor(editor.upcase_word),
+    [meta 'l'              ] = with_editor(editor.downcase_word),
+    [meta 'c'              ] = with_editor(editor.capitalize_word),
+    [meta '<'              ] = with_editor(editor.oldest_history),
+    [meta '>'              ] = with_editor(editor.newest_history),
+    -- abandons the line or prompt, but not the view's scroll and filter
+    [ctrl 'G'              ] = function()
+        if control.current_prompt() then
+            control.answer_prompt(nil)
+            return
+        end
+        editor.reset(control.editor())
+        control.set_input_mode()
+    end,
     [-ncurses.KEY_LEFT     ] = with_editor(editor.move_left),
     [-ncurses.KEY_RIGHT    ] = with_editor(editor.move_right),
     [-ncurses.KEY_HOME     ] = with_editor(editor.move_to_beg),
@@ -200,6 +225,8 @@ M.global = {
     end,
 
     [ctrl 'S'] = function()
+        -- a prompt is answered or aborted, not left behind
+        if control.current_prompt() then return end
         editor.reset(control.editor())
         control.set_input_mode 'filter'
     end,
