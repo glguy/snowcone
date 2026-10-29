@@ -121,6 +121,22 @@ a decision is made, and change or remove it when the decision does.
   the server's order, skipping lines a buffer already has (by msgid, else
   time tag, source and text).
 - **"Is this our nick"** uses the network's casemapping.
+- **The rate limit lives in Lua.** The native connection writes whatever
+  it is given at once, so pacing the hand-off paces the wire. Lines that
+  back up in the native or kernel buffers on a stalled link can still
+  reach the server together.
+- **Queued lines are shown at once, marked.** `irc.sent` fires when a
+  line is queued, so chat and the console show it in the order it was
+  typed; `msg.delivery` says whether it has gone. It is a table of its
+  own so the copies chat makes for STATUSMSG targets share it, and one
+  line to several targets changes every buffer it reached together. It
+  describes our queue only, not what the server did with each target.
+  There is no event when a queued line is written.
+- **PONG goes ahead of queued lines** so a backlog can't time the
+  connection out; it still counts against the limit. **QUIT drops the
+  queue** and ignores the limit, so it isn't lost to the quit timeout.
+  **The lag PING waits** until it would go at once, so time in the queue
+  isn't measured as lag.
 - QUIT and NICK carry `msg.channels`, filled before the model forgets the
   user, so features can tell which channels they concern.
 - Interleaved ban-list replies share one collector; servers don't
@@ -147,7 +163,8 @@ a decision is made, and change or remove it when the decision does.
 - **oper:** staging sends only queries (TESTMASK); the ban goes out only
   from a confirming click.
 - **chat:** our own messages come back through `irc.sent`, since
-  echo-message isn't assumed. CTCP replies go only to staff, and VERSION
+  echo-message isn't assumed; a line the rate limit holds back is shown
+  as `queued` until it goes. CTCP replies go only to staff, and VERSION
   is a fixed string, so a reply never starts a process. A nick
   change onto a nick that already has a buffer renames nothing; the change
   is noted in the old buffer.

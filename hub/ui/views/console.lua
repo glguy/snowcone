@@ -36,9 +36,11 @@ for name, numeric in pairs(numerics) do
     end
 end
 
-local function pretty_source(win, source)
+local function pretty_source(win, source, msg)
     if source == '>>>' then
-        draw.red(win)
+        local colour
+        source, colour = draw.outbound(msg)
+        colour(win)
     else
         local head, kind = string.match(source, '^(.-)([.!])')
         source = head or source
@@ -68,7 +70,7 @@ local function render_msg(ctx, win, msg)
 
     local snote_text = match_snotice(msg)
     if snote_text ~= nil then
-        pretty_source(win, msg.source)
+        pretty_source(win, msg.source, msg)
         draw.magenta(win)
         draw.bold(win)
         ctx.add_button(win, 'SNOW ', inspect, true)
@@ -81,7 +83,7 @@ local function render_msg(ctx, win, msg)
     end
 
     if msg.source then
-        pretty_source(win, msg.source)
+        pretty_source(win, msg.source, msg)
     else
         win:waddstr(string.rep(' ', 18))
     end
@@ -156,6 +158,18 @@ local function draw_focus(ctx, win, msg)
         win:waddstr '    source: '
         draw.normal(win)
         win:waddstr(scrub(msg.source), '\n')
+    end
+
+    local delivery = msg.delivery
+    if delivery then
+        draw.blue(win)
+        win:waddstr '  delivery: '
+        draw.normal(win)
+        if delivery.state == 'sent' then
+            win:waddstr(string.format('sent after %.1f s in the queue\n', delivery.delay))
+        else
+            win:waddstr(delivery.state, '\n')
+        end
     end
 
     draw.blue(win)

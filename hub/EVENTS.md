@@ -17,7 +17,7 @@ carry `net`, the network id.
 | `net.closed` | `{net, reason}` an attempt ended | net/manager |
 | `net.removed` | `{net}` a network left the configuration and its record is gone; drop its feature state | net/manager |
 | `irc.message` | `{net, msg}` every inbound message after the model update, except replayed history (chathistory batches) | net/manager |
-| `irc.sent` | `{net, msg}` outbound, secrets masked | net/send |
+| `irc.sent` | `{net, msg}` outbound, secrets masked, once per line when it is sent or queued; `msg.delivery` is `{state = 'queued'}` for a queued line, later `'sent'` (with `delay`, seconds) or `'dropped'`, and absent for a line written at once | net/send |
 | `irc.batch` | `{net, type, params, messages}` when a batch closes, with every message in it | net/batch |
 | `irc.nick` | `{net, old, new, self}` | net/handlers |
 | `irc.oper` | `{net}` once per connection, when we are an operator (RPL_YOUREOPER, or user mode o) | net/handlers |

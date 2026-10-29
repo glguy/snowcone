@@ -20,6 +20,7 @@
 --   irc                protocol model (net/irc.lua), nil when idle
 --   fingerprint        of the current connection
 --   console            OrderedMap of recent raw messages, both directions
+--   sendq              lines held back by the rate limit (net/send.lua)
 -- }
 --
 -- Connection callbacks are trampolines bound to (id, attempt). Events from
@@ -201,6 +202,7 @@ function M.finish(id, reason, retry)
         resources.close(rec.conn)
         rec.conn = nil
     end
+    send.drop(rec)
     cancel_timer(rec, 'close_timer')
     task.cancel_net(id)
 
@@ -282,8 +284,9 @@ function M.connect(id)
     task.spawn('connect', {net = id, owner = 'net'}, connect_body, rec.attempt)
 end
 
---- Disconnect and stay disconnected. A registered connection gets a QUIT
---- and a few seconds for the server to close it.
+--- Disconnect and stay disconnected. A registered connection gets a QUIT,
+--- ahead of anything the rate limit held back (which is dropped), and a
+--- few seconds for the server to close it.
 function M.disconnect(id, quit_msg)
     local rec = get(id)
     if rec.target ~= 'removed' then
@@ -292,7 +295,7 @@ function M.disconnect(id, quit_msg)
     cancel_timer(rec, 'reconnect_timer')
 
     if rec.phase == 'connected' then
-        local ok = pcall(send.send, id, 'QUIT', quit_msg or rec.cfg.quit_message or 'snowcone')
+        local ok = pcall(send.send_last, id, 'QUIT', quit_msg or rec.cfg.quit_message or 'snowcone')
         if ok then
             M.set_phase(id, 'closing')
             rec.close_timer = timer.start('net', M.quit_grace_ms, 'net.force_close', id, rec.attempt)
@@ -437,8 +440,10 @@ end
 
 -- Liveness ===========================================================
 
--- Send a PING whose PONG measures lag; one at a time
+-- Send a PING whose PONG measures lag; one at a time, and only when
+-- it would go at once, so time in the send queue isn't counted as lag
 local function lag_ping(id, rec, now)
+    if not send.ready(id) then return end
     local token = string.format('%d', math.floor(now * 1000))
     if pcall(send.send, id, 'PING', token) then
         rec.lag_token = token

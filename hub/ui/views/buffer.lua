@@ -116,7 +116,9 @@ local function render_msg(ctx, win, msg)
     local action = command == 'PRIVMSG' and (msg[2] or ''):match '^\x01ACTION (.*)\x01$'
 
     if source == '>>>' then
-        draw.red(win)
+        local colour
+        source, colour = draw.outbound(msg)
+        colour(win)
     elseif action then
         draw.blue(win)
     elseif command == 'PRIVMSG' then

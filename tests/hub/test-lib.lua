@@ -51,4 +51,20 @@ T.case('OrderedMap pops the newest, even after wrapping', function()
     T.eq({OrderedMap.first(om), OrderedMap.last(om), OrderedMap.size(om)}, {1, 0, 0}, 'reset')
 end)
 
+T.case('ratelimit allows a burst, then one line per interval', function()
+    T.boot {}
+    local ratelimit = T.require 'hub.lib.ratelimit'
+    local burst, interval = 3, 2
+    local t, now = 0, 100
+    local waits = {}
+    for _ = 1, 4 do
+        table.insert(waits, ratelimit.wait(t, now, burst, interval))
+        t = ratelimit.take(t, now, interval)
+    end
+    T.eq(waits, {0, 0, 0, 2}, 'three at once, the fourth waits an interval')
+    T.eq(ratelimit.wait(t, now + 2, burst, interval), 2, 'the fifth an interval later')
+    T.eq(ratelimit.wait(t, now + 4, burst, interval), 0, 'and may go then')
+    T.eq(ratelimit.take(t, now + 100, interval), now + 102, 'idle time refills the burst, no further')
+end)
+
 T.run()

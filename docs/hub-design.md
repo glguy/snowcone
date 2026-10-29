@@ -208,6 +208,13 @@ connected at once.
 - **Sending** goes through `send.send(net, cmd, ...)`: arguments are checked,
   `{content, secret}` arguments are masked in logs, and every line, in or
   out, is recorded in the network's console and the all-networks console.
+- **Rate limit:** a network's `rate_limit` paces outgoing lines with a
+  token bucket kept as a single time (`lib/ratelimit.lua`). A line that
+  can't go yet waits in `rec.sendq`, in order, and a timer drains it. It is
+  recorded and reported when queued, with `msg.delivery` showing whether
+  its line has gone; the queue is dropped with the connection.
+  `send.send_first` (PONG) goes ahead of the queue; `send.send_last` (QUIT)
+  drops it and goes at once; the lag PING waits until it would go at once.
 
 ## 5. Features
 
@@ -313,6 +320,7 @@ id = 'libera'                  # required; shown in the status bar
 features = ['snotice', 'oper', 'topology', 'chat']
 autoconnect = true
 reconnect = { min_delay = 1, max_delay = 300 }
+rate_limit = { burst = 5, interval = 2 }  # optional
 reclaim_nick = true
 snomask = '+BFZbcklnsx'
 servers_file = 'servers.lua'   # read with the configuration; a bad one fails the load

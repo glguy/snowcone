@@ -65,6 +65,37 @@ local function fire_reconnect(id)
     HUB.current.routes['net.reconnect'](id, r.attempt)
 end
 
+-- Stop the clock for the current generation; returns a function that
+-- moves it on by seconds
+local function stop_clock()
+    local clock = T.require 'hub.runtime.clock'
+    local now = clock.now()
+    clock.now = function() return now end
+    return function(seconds) now = now + seconds end
+end
+
+-- Run a network's pending send-queue drain now instead of waiting for its
+-- timer
+local function fire_drain(id)
+    local r = rec(id)
+    T.ok(r.sendq and r.sendq.timer, 'drain scheduled')
+    T.require 'hub.runtime.timer'.cancel(r.sendq.timer)
+    HUB.current.routes['net.send_drain'](r.id, r.attempt)
+end
+
+-- A registered network whose lines the rate limit paces from now on, with
+-- the clock stopped
+local function limited(limit)
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    c:take()
+    local advance = stop_clock()
+    advance(100) -- a full burst
+    rec().cfg.rate_limit = limit
+    return c, advance, T.require 'hub.net.send'
+end
+
 T.case('registration with CAP and SASL PLAIN', function()
     local fake = boot {network('test', {
         sasl = {
@@ -568,6 +599,8 @@ T.case('configuration constraints from the dashboard', function()
         'baseline accepted')
     T.ok(pcall(config.normalize, {networks = {{id = 'x', server = {path = '/p'}, identity = {nick = 'n'}}}}),
         'a local socket accepted')
+    T.ok(pcall(config.normalize, {networks = {{id = 'x', server = {host = 'h', port = 1}, identity = {nick = 'n'},
+        rate_limit = {burst = 5, interval = 0.5}}}}), 'a rate limit accepted')
     local ok, err = pcall(config.normalize, {networks = {{id = 'x', server = {host = 'h', port = 1},
         identity = {nick = 'n'}, layers = {{type = 'http', host = 'p', port = 8080, username = 'a:b'}}}}})
     T.ok(not ok and err:find('expected no colon', 1, true), 'the reason is given: ' .. tostring(err))
@@ -594,6 +627,11 @@ T.case('configuration constraints from the dashboard', function()
         {layers = {{type = 'socks', host = 'p', port = 1080, username = '', password = 'x'}}},
         {layers = {{type = 'socks', host = 'p', port = 1080, username = 'u', password = ''}}},
         {layers = {{type = 'http', host = 'p', port = 8080, username = 'a:b', password = 'x'}}},
+        {rate_limit = {burst = 5}},
+        {rate_limit = {interval = 2}},
+        {rate_limit = {burst = 0, interval = 2}},
+        {rate_limit = {burst = 1.5, interval = 2}},
+        {rate_limit = {burst = 5, interval = 0}},
     } do
         local net = {id = 'x', server = {host = 'h', port = 1}, identity = {nick = 'n'}}
         for k, v in pairs(bad) do net[k] = v end
@@ -751,6 +789,101 @@ T.case('a task waiting on wait_irc resumes after a reload', function()
     T.eq(rec().phase, 'connected', 'registration finished')
     T.eq(#sent, 1, 'its MODE went through the new generation')
     T.eq(sent[1].msg.command, 'MODE', 'command')
+end)
+
+T.case('a rate limit sends a burst, then a line per interval', function()
+    local c, advance, send = limited {burst = 3, interval = 2}
+    local sent = record 'irc.sent'
+    for i = 1, 5 do send.send('test', 'PRIVMSG', '#c', 'm' .. i) end
+    T.eq(c:take(), {'PRIVMSG #c m1', 'PRIVMSG #c m2', 'PRIVMSG #c m3'}, 'the burst')
+    T.eq(#sent, 5, 'every line reported at once')
+    T.eq(sent[1].msg.delivery, nil, 'a line written at once has no delivery')
+    T.eq(sent[4].msg.delivery, {state = 'queued'}, 'queued')
+    T.ok(not send.ready('test'), 'not ready while lines wait')
+
+    advance(1.5)
+    fire_drain()
+    T.eq(c:take(), {}, 'too early')
+    advance(0.5)
+    fire_drain()
+    T.eq(c:take(), {'PRIVMSG #c m4'}, 'one interval later')
+    T.eq(sent[4].msg.delivery, {state = 'sent', delay = 2}, 'sent after its wait')
+    advance(2)
+    fire_drain()
+    T.eq(c:take(), {'PRIVMSG #c m5'}, 'and the next')
+    T.eq({#rec().sendq.lines, rec().sendq.timer}, {0, nil}, 'nothing pending')
+
+    rec().cfg.rate_limit = nil
+    for i = 6, 9 do send.send('test', 'PRIVMSG', '#c', 'm' .. i) end
+    T.eq(#c:take(), 4, 'no limit, no waiting')
+end)
+
+T.case('PONG goes ahead of queued lines and QUIT drops them', function()
+    local c, advance, send = limited {burst = 1, interval = 10}
+    local sent = record 'irc.sent'
+    for i = 1, 3 do send.send('test', 'PRIVMSG', '#c', 'm' .. i) end
+    T.eq(c:take(), {'PRIVMSG #c m1'}, 'the burst')
+    c:recv 'PING :tok'
+    advance(10)
+    fire_drain()
+    T.eq(c:take(), {'PONG tok'}, 'PONG first')
+    advance(10)
+    fire_drain()
+    T.eq(c:take(), {'PRIVMSG #c m2'}, 'then the queue in order')
+
+    manager().disconnect('test')
+    T.eq(c:take(), {'QUIT snowcone'}, 'QUIT at once')
+    T.eq(sent[3].msg.delivery.state, 'dropped', 'the line still queued is dropped')
+    T.eq(rec().sendq, nil, 'queue gone')
+end)
+
+T.case('an ended connection marks its queued lines dropped', function()
+    local c, _, send = limited {burst = 1, interval = 10}
+    local sent = record 'irc.sent'
+    for i = 1, 3 do send.send('test', 'PRIVMSG', '#c', 'm' .. i) end
+    c:take()
+    local drain = rec().sendq.timer
+    c:finish 'reset'
+    T.eq({sent[2].msg.delivery.state, sent[3].msg.delivery.state}, {'dropped', 'dropped'}, 'dropped')
+    T.eq(rec().sendq, nil, 'queue gone')
+    T.eq(T.require 'hub.runtime.resources'.get(drain), nil, 'drain timer cancelled')
+    local lines = T.log_lines 'irc'
+    T.ok(lines[#lines - 2]:find('dropped 2 queued lines', 1, true), 'logged: ' .. lines[#lines - 2])
+end)
+
+T.case('the lag PING waits for the send queue to empty', function()
+    local c, advance, send = limited {burst = 1, interval = 10}
+    send.send('test', 'PRIVMSG', '#c', 'm1')
+    send.send('test', 'PRIVMSG', '#c', 'm2')
+    c:take()
+    local now = T.require 'hub.runtime.clock'.now()
+    rec().liveness = now -- not silent, just unmeasured
+    manager().check_liveness(now)
+    T.eq({#rec().sendq.lines, rec().lag_token}, {1, nil}, 'no PING behind the queue')
+    advance(20)
+    fire_drain()
+    T.eq(c:take(), {'PRIVMSG #c m2'}, 'drained')
+    rec().liveness = now + 20
+    manager().check_liveness(now + 20)
+    T.eq(c:take(), {}, 'nor while the burst is used up')
+    advance(10)
+    rec().liveness = now + 30
+    manager().check_liveness(now + 30)
+    local lines = c:take()
+    T.eq(#lines, 1, 'one line')
+    T.ok(lines[1]:find '^PING ', 'then the PING: ' .. lines[1])
+end)
+
+T.case('the drain timer writes queued lines', function()
+    local fake = boot {network('test', {rate_limit = {burst = 1, interval = 0.02}})}
+    local c = fake.last()
+    register(c)
+    T.sleep(200)
+    c:take()
+    local send = T.require 'hub.net.send'
+    for i = 1, 3 do send.send('test', 'PRIVMSG', '#c', 'm' .. i) end
+    T.sleep(200)
+    T.eq(c:take(), {'PRIVMSG #c m1', 'PRIVMSG #c m2', 'PRIVMSG #c m3'}, 'all sent, in order')
 end)
 
 T.run()

@@ -129,6 +129,7 @@ id = 'libera'
 features = ['snotice', 'oper', 'topology', 'chat']  # default: all
 servers_file = 'servers.lua'          # regions, aliases, kline reasons
 reconnect = { min_delay = 1, max_delay = 300 }
+rate_limit = { burst = 5, interval = 2 }  # optional; unlimited without it
 snomask = '+BFZbcklnsx'               # set after opering
 [networks.server]
 host = 'irc.libera.chat'

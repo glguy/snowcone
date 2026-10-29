@@ -54,6 +54,19 @@ local scrolled_divider_string <const> =
     5·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·\z
     6·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·"
 
+--- The source column of one of our own messages, and its colour setter:
+--- '>>>', or marked while the rate limit holds its line back, or once the
+--- line was dropped unsent (msg.delivery, net/send.lua).
+function M.outbound(msg)
+    local state = msg.delivery and msg.delivery.state
+    if state == 'queued' then
+        return 'queued >>>', M.yellow
+    elseif state == 'dropped' then
+        return 'unsent >>>', M.red
+    end
+    return '>>>', M.red
+end
+
 --- A length of time in a few characters: 45s, 12m, 3h 20m, 2d 4h.
 function M.duration(seconds)
     seconds = math.floor(seconds)

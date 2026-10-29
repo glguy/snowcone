@@ -145,6 +145,13 @@ local mention_schema <const> = table_ {
 
 local delay_schema <const> = {type = 'number', minimum = 0}
 
+-- Lines that may go at once, and seconds to earn back one; config.lua
+-- checks that interval is above 0
+local rate_limit_schema <const> = table_ {
+    burst    = {type = 'number', integer = true, minimum = 1, required = true},
+    interval = {type = 'number', minimum = 0, required = true},
+}
+
 --- The features a network may enable; config.lua checks names against it.
 M.features = {'snotice', 'oper', 'topology', 'chat'}
 
@@ -154,6 +161,7 @@ M.network = table_ {
     features     = array {type = 'string'},
     autoconnect  = {type = 'boolean'},
     reconnect    = table_ {min_delay = delay_schema, max_delay = delay_schema},
+    rate_limit   = rate_limit_schema,
     reclaim_nick = {type = 'boolean'},
     snomask      = {type = 'string', pattern = word},
     quit_message = {type = 'string', pattern = line},

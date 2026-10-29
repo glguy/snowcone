@@ -146,6 +146,9 @@ local function normalize_network(net, i, warnings)
     if net.reconnect.max_delay < net.reconnect.min_delay then
         error(string.format('networks.%s.reconnect: max_delay is below min_delay', net.id), 0)
     end
+    if net.rate_limit and net.rate_limit.interval <= 0 then
+        error(string.format('networks.%s.rate_limit: interval must be above 0', net.id), 0)
+    end
     net.layers = net.layers or {}
     -- the servers file's contents, or these defaults without one
     net.servers = {servers = {}, regions = {}, kline_reasons = {}, kline_tags = {}}

@@ -149,6 +149,8 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 | `autoconnect` | `true` | Connect at startup, and after a reload that adds the network. With `false`, the network waits for `/connect`. |
 | `reconnect.min_delay` | `1` | Seconds before the first reconnect attempt. |
 | `reconnect.max_delay` | `300` | The longest wait between attempts. The delay doubles after each failure up to this limit, and returns to `min_delay` once a connection has stayed registered for a minute. It must not be below `min_delay`. |
+| `rate_limit.burst` | none | Lines that may go to the server at once. Without a `rate_limit` table, lines are never held back. With one, `burst` and `interval` are both required. |
+| `rate_limit.interval` | none | Seconds to earn back one line of the burst, above 0. A line that has to wait shows as `queued` in chat and the console until it goes, or `unsent` if the connection ends first. A PONG goes ahead of waiting lines, and QUIT drops them and goes at once. `burst = 5` and `interval = 2` match RFC 1459's message timer. |
 | `reclaim_nick` | `true` | When the configured nick is taken at registration, watch it with MONITOR and take it back once it is free. |
 | `quit_message` | `'snowcone'` | The QUIT message for `/disconnect`, `/reconnect` and quitting. |
 | `snomask` | `'BFZbcklnsx'` | The server notice mask set after becoming an operator. Used only with the `snotice` feature. |

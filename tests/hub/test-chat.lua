@@ -84,6 +84,22 @@ T.case('statusmsg, echo and membership changes', function()
     T.eq(texts(renamed)[3], 'QUIT bye', 'and in the private buffer')
 end)
 
+T.case('every buffer a queued line went to shows its delivery', function()
+    local c, chat = boot {rate_limit = {burst = 1, interval = 60}}
+    c:recv ':me!u@h JOIN #a'
+    c:recv ':me!u@h JOIN #b'
+    T.require 'hub.net.send'.send('test', 'PRIVMSG', '#a', 'fill the burst')
+    chat.say('test', '#a,@#b', 'both')
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    local a = OrderedMap.lookup(chat.buffer('test', '#a').messages, true)
+    local b = OrderedMap.lookup(chat.buffer('test', '#b').messages, true)
+    T.eq({a[2], b[2], b.statusmsg}, {'both', 'both', '@'}, 'in both buffers')
+    T.eq(a.delivery, {state = 'queued'}, 'queued')
+    T.ok(a.delivery == b.delivery, 'the statusmsg copy shares the delivery')
+    c:finish 'reset'
+    T.eq(b.delivery.state, 'dropped', 'both dropped together')
+end)
+
 T.case('history goes before the message that opened the buffer', function()
     local c, chat = boot()
     c:recv '@time=2026-01-01T00:00:10.000Z :bob!b@h PRIVMSG me :newest'
