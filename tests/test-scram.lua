@@ -6,9 +6,6 @@
 local here = (arg and arg[0] or ''):match('^(.*)/[^/]*$') or '.'
 package.path = here .. '/../?.lua;' .. here .. '/../?/init.lua;' .. package.path
 
--- string:startswith comes from Penlight's stringx in the real client
-function string.startswith(s, prefix) return s:sub(1, #prefix) == prefix end
-
 local impl = require 'hub.net.sasl.scram'
 local thread = impl('sha1', nil, 'user', 'pencil', 'fyko+d2lbbFgONRv9qkxdawL')
 local success, message

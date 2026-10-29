@@ -36,6 +36,10 @@ local function scram_encode_username(name)
     return (string.gsub(name, '[,=]', table))
 end
 
+local function startswith(s, prefix)
+    return string.sub(s, 1, #prefix) == prefix
+end
+
 -- luacheck: ignore 631
 return function(digest_name, authzid, authcid, password, nonce)
     local digest = myopenssl.get_digest(digest_name)
@@ -62,14 +66,14 @@ return function(digest_name, authzid, authcid, password, nonce)
 
         --------------------------------------------------
         local server_first = coroutine.yield(client_first)
-        if server_first:startswith 'e=' then
+        if startswith(server_first, 'e=') then
             error({server_error = server_first:sub(3)}, 0)
         end
 
         local server_nonce, salt, iterations = string.match(server_first, '^r=([!-+--~]*),s=([%w+/]*=?=?),i=(%d+)$')
         check(server_nonce, 'bad server initial')
         salt = check(from_base64(salt), 'bad salt encoding')
-        check(server_nonce:startswith(client_nonce), 'server nonce does not match client nonce')
+        check(startswith(server_nonce, client_nonce), 'server nonce does not match client nonce')
         check(#server_nonce - #client_nonce >= MIN_NONCE_LEN, 'server nonce too short')
         iterations = check(math.tointeger(tonumber(iterations)), 'server pbkdf2 iteration count invalid')
         check(iterations >= iteration_min, 'server pbkdf2 iteration count too low')
@@ -91,7 +95,7 @@ return function(digest_name, authzid, authcid, password, nonce)
 
         --------------------------------------------------
         local server_final = coroutine.yield(client_final)
-        if server_final:startswith 'e=' then
+        if startswith(server_final, 'e=') then
             error({server_error = server_final:sub(3)}, 0)
         end
 

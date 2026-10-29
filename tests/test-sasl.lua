@@ -18,9 +18,6 @@ end
 ------------------------------------------------------------------------
 -- fakes
 
--- string:startswith comes from Penlight's stringx in the real client
-function string.startswith(s, prefix) return s:sub(1, #prefix) == prefix end
-
 local sent, statuses
 
 -- hub resolves secrets in a task; these tests pass them as plain strings
