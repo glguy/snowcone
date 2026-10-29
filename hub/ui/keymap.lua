@@ -4,13 +4,13 @@
 -- for special keys, or a negated character for Meta combinations.
 
 local chat      <const> = require 'hub.features.chat'
-local cmdline <const> = require 'hub.ui.cmdline'
+local cmdline   <const> = require 'hub.ui.cmdline'
 local common    <const> = require 'hub.features.common'
 local irc_model <const> = require 'hub.net.irc'
-local control <const> = require 'hub.ui.control'
-local editor  <const> = require 'hub.ui.editor'
-local dispatch <const> = require 'hub.runtime.dispatch'
-local log     <const> = require 'hub.runtime.log'
+local control   <const> = require 'hub.ui.control'
+local editor    <const> = require 'hub.ui.editor'
+local dispatch  <const> = require 'hub.runtime.dispatch'
+local log       <const> = require 'hub.runtime.log'
 
 local M = {}
 

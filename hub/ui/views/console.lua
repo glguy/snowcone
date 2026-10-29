@@ -8,14 +8,14 @@
 -- View state: scroll, hscroll, filter, focus (the inspected message),
 -- hide_snow, show_raw, all.
 
-local addircstr  <const> = require 'hub.ui.irc_formatting'
-local control    <const> = require 'hub.ui.control'
-local draw       <const> = require 'hub.ui.draw'
-local matching   <const> = require 'hub.lib.matching'
-local numerics   <const> = require 'hub.lib.numerics'
-local parse_snote <const> = require 'hub.features.snotice.parse'
-local scrub      <const> = require 'hub.lib.scrub'
-local tablex     <const> = require 'pl.tablex'
+local addircstr     <const> = require 'hub.ui.irc_formatting'
+local control       <const> = require 'hub.ui.control'
+local draw          <const> = require 'hub.ui.draw'
+local matching      <const> = require 'hub.lib.matching'
+local numerics      <const> = require 'hub.lib.numerics'
+local parse_snote   <const> = require 'hub.features.snotice.parse'
+local scrub         <const> = require 'hub.lib.scrub'
+local tablex        <const> = require 'pl.tablex'
 
 local meta <const> = function(x) return -string.byte(x) end
 

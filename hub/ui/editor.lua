@@ -3,16 +3,16 @@
 -- The editor is a plain record in HUB.state.ui.input, so the line being
 -- typed and the history survive a reload.
 
-local OrderedMap <const> = require 'hub.lib.OrderedMap'
-local tablex <const> = require 'pl.tablex'
+local OrderedMap    <const> = require 'hub.lib.OrderedMap'
+local tablex        <const> = require 'pl.tablex'
 
 local M = {}
 
 -- Lines kept in history, changes kept for undo and kills kept for
 -- yanking; the oldest are dropped first
 local history_limit <const> = 1000
-local undo_limit <const> = 100
-local kill_limit <const> = 60
+local undo_limit    <const> = 100
+local kill_limit    <const> = 60
 
 local render
 

@@ -1,9 +1,9 @@
 -- Command list, with each command's help text.
 
-local cmdline <const> = require 'hub.ui.cmdline'
-local draw   <const> = require 'hub.ui.draw'
-local scrub  <const> = require 'hub.lib.scrub'
-local tablex <const> = require 'pl.tablex'
+local cmdline   <const> = require 'hub.ui.cmdline'
+local draw      <const> = require 'hub.ui.draw'
+local scrub     <const> = require 'hub.lib.scrub'
+local tablex    <const> = require 'pl.tablex'
 
 return {
     id = 'help',
