@@ -23,7 +23,7 @@ sip.custom_pattern('R', '(.*)')
 --- Compile a spec into a matcher: matcher(args, params) fills params and
 --- returns true when args fit the spec.
 ---@param spec string
----@return function
+---@return fun(args: string, params: table): boolean
 return function(spec)
     if spec == '' then
         return function(args) return args == '' end

@@ -31,10 +31,19 @@ M.list_size = 10000
 --- WALLOPS and OPERWALL collect in this buffer of each network
 M.wallops = '*wallops'
 
+--- A network's chat, state.features.chat[net].
+---@class hub.ChatState
+---@field buffers table<string, hub.ChatBuffer> by folded target
+---@field list hub.OrderedMap the last LIST reply
+---@field listing true|nil while LIST replies arrive
+
+---@return hub.ChatState
 local function new_state()
     return {buffers = {}, list = OrderedMap.new(M.list_size)}
 end
 
+---@param net string
+---@return hub.ChatState
 function M.get(net)
     return common.net_state(M.name, net, new_state)
 end
@@ -88,8 +97,17 @@ function M.buffer(net, target)
     return M.get(net).buffers[M.fold(net, target)]
 end
 
+---@class hub.ChatBuffer
+---@field name string the target, as last seen
+---@field messages hub.OrderedMap
+---@field activity integer messages since it was last seen
+---@field mention boolean
+
 --- A buffer, created (and its history requested) when missing.
+---@param net string
+---@param target string
 ---@param before string|nil server time of the message that opened it
+---@return hub.ChatBuffer
 function M.open(net, target, before)
     local C = M.get(net)
     local key = M.fold(net, target)
@@ -393,6 +411,8 @@ end
 --- registration), which puts it before everything when a buffer opens and
 --- between the old and new messages after a reconnect. Messages already
 --- there are skipped.
+---@param buffer hub.ChatBuffer
+---@param messages hub.Message[]
 ---@param since number|nil clock.now() at registration
 function M.merge(buffer, messages, since)
     local older, newer, seen = {}, {}, {}
@@ -424,6 +444,7 @@ local function on_registered(ev)
     local net = ev.net
     if not enabled(net) then return end
     local irc = model(net)
+    ---@cast irc -nil registered, so connected
     local C = M.get(net)
     for key, buffer in pairs(C.buffers) do
         if key ~= M.fold(net, M.wallops) then

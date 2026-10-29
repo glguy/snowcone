@@ -28,6 +28,10 @@ function M.register_backend(name, module)
     backends[name] = module
 end
 
+---@class hub.NotifyState
+---@field muted table<string, table<string, any>> the backend's handle of each
+--- notified buffer, by network id, then folded target
+
 function M.init_state(S)
     S.features.notify = S.features.notify or {muted = {}}
 end

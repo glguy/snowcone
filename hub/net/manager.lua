@@ -1,28 +1,6 @@
 -- Connection manager: one record per network, any number connected at
 -- once.
 --
--- state.nets[id] = {
---   id, cfg            network configuration (from state.config)
---   target             'connected' | 'idle' | 'removed'
---   phase              'idle' | 'resolving_secrets' | 'connecting'
---                      | 'registering' | 'connected' | 'closing'
---   attempt            increments per connect attempt
---   conn               resource id of the connection, nil when idle
---   since              clock when phase last changed
---   liveness           clock of the last inbound message
---   backoff            seconds, next reconnect delay before jitter
---   reconnect_timer    resource id while a reconnect is scheduled, due at
---                      reconnect_at
---   restart_pending    connection settings changed under a live connection;
---                      /reconnect applies them
---   lag                seconds, from the last PING we sent and its PONG
---   lag_token          the PING argument awaiting its PONG, lag_sent its time
---   irc                protocol model (net/irc.lua), nil when idle
---   fingerprint        of the current connection
---   console            OrderedMap of recent raw messages, both directions
---   sendq              lines held back by the rate limit (net/send.lua)
--- }
---
 -- Connection callbacks are trampolines bound to (id, attempt). Events from
 -- any attempt but the current live one are dropped, so a connection that
 -- closed and reconnected before its old events drained is safe.
@@ -45,6 +23,43 @@ local traceback    <const> = require 'hub.lib.traceback'
 local tablex       <const> = require 'pl.tablex'
 
 local M = {}
+
+--- A network's record, state.nets[id].
+---@class hub.Network
+---@field id string
+---@field cfg table network configuration (from state.config)
+---@field target 'connected'|'idle'|'removed'
+---@field phase 'idle'|'resolving_secrets'|'connecting'|'registering'|'connected'|'closing'
+---@field attempt integer increments per connect attempt
+---@field conn integer|nil resource id of the connection, nil when idle
+---@field since number clock when phase last changed
+---@field liveness number|nil clock of the last inbound message
+---@field backoff number seconds, next reconnect delay before jitter
+---@field reconnect_timer integer|nil resource id while a reconnect is scheduled
+---@field reconnect_at number|nil when the scheduled reconnect is due
+---@field restart_pending boolean|nil connection settings changed under a live
+--- connection; /reconnect applies them
+---@field lag number|nil seconds, from the last PING we sent and its PONG
+---@field lag_token string|nil the PING argument awaiting its PONG
+---@field lag_sent number|nil when lag_token was sent
+---@field irc hub.Irc|nil protocol model (net/irc.lua), nil when idle
+---@field fingerprint string|nil of the current connection
+---@field registered_at number|nil clock when registration finished
+---@field close_timer integer|nil resource id while waiting for the server to
+--- close after QUIT
+---@field console hub.OrderedMap recent raw messages, both directions
+---@field sendq hub.SendQueue|nil lines held back by the rate limit (net/send.lua)
+
+--- An inbound message, as handlers and events see it.
+---@class hub.Message: snowcone.Message
+---@field time string HH:MM:SS, from the server-time tag when present
+---@field timestamp number clock.now() on arrival
+---@field nick string|nil from a nick!user@host source
+---@field user string|nil
+---@field host string|nil
+---@field channels string[]|nil channels a QUIT or NICK affected (net/handlers.lua)
+---@field delivery {state: 'queued'|'sent'|'dropped', delay: number|nil}|nil
+--- of a sent message held by the rate limit (net/send.lua)
 
 M.console_size = 1000
 M.ping_after = 30          -- seconds of silence before PING
@@ -69,6 +84,7 @@ local function remove_record(id)
     bus.emit('net.removed', {net = id})
 end
 
+---@return hub.Network
 local function get(id)
     local rec = nets()[id]
     if rec == nil then
@@ -193,6 +209,8 @@ end
 
 --- End the current attempt: close the connection, cancel the network's
 --- tasks, and reconnect if that is still the target.
+---@param id string
+---@param reason string
 ---@param retry boolean|nil false prevents a reconnect
 function M.finish(id, reason, retry)
     local rec = get(id)

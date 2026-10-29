@@ -8,6 +8,7 @@
 
 ---@param err any
 ---@param co thread|nil
+---@return any
 return function(err, co)
     if type(err) == 'string' and not err:match '^[^:\n]+:%d+:' then
         return err

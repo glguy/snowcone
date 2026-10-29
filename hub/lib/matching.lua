@@ -12,7 +12,7 @@ M.kind = has_rex and 'pcre2' or 'lua'
 
 --- Compile a pattern into a matcher, or nil when it is invalid.
 ---@param pat string
----@return function|nil matcher(str) -> boolean
+---@return (fun(str: string): boolean)|nil
 function M.compile(pat)
     local insensitive = not pat:find '%u'
     if has_rex then

@@ -28,7 +28,7 @@ local header <const> = '*** Notice -- '
 
 --- The text of a server notice, without its header, or nil. A server
 --- notice is a NOTICE to * from a server (no ! or @ in the source).
----@param msg table
+---@param msg hub.Message
 ---@return string|nil
 function M.notice_text(msg)
     local source = msg.source
@@ -114,6 +114,7 @@ end
 -- The servers file's servers, and its address ranges to count
 local function apply_servers(net)
     local servers = common.servers(net)
+    ---@cast servers -nil snotice is enabled, so the network exists
     track_servers(net, servers.servers)
     local S = stores.get(net)
     for name, ranges in pairs(servers.net_tracks or {}) do

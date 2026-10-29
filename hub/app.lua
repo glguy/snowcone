@@ -83,9 +83,9 @@ local function add_command(current, name, cmd)
 end
 
 --- Load every module and wire up a generation, without making it current.
----@param gen table loader generation
----@param opts table reload options (runtime/loader.lua)
----@return table the generation, ready for HUB.current
+---@param gen hub.Generation
+---@param opts hub.ReloadOptions
+---@return hub.Current # ready for HUB.current
 function M.build(gen, opts)
     -- read and validate first: a bad file leaves everything as it was
     local cfg = config.load(HUB.boot.args, opts.config or HUB.boot.config)
@@ -98,6 +98,16 @@ function M.build(gen, opts)
 
     state.prepare(modules)
 
+    --- A generation as it runs: its modules and what they registered.
+    ---@class hub.Current
+    ---@field id integer set when it becomes current
+    ---@field modules {name: string, module: any}[] in layer order
+    ---@field routes table<string, function>
+    ---@field route_owner table<string, string> module that added each route
+    ---@field commands table<string, table> by name
+    ---@field views table<string, table> by id
+    ---@field config table normalized configuration (runtime/config.lua)
+    ---@field task_methods hub.Task the methods of every task
     local current = {
         gen = gen,
         modules = modules,
@@ -158,6 +168,7 @@ end
 
 local function activate(first)
     local current = HUB.current
+    ---@cast current -nil the loader makes the generation current first
     HUB.last_reload = {at = os.time(), ok = true}
     HUB.state.config = current.config
     for _, warning in ipairs(current.config.warnings) do

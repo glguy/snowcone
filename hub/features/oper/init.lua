@@ -1,14 +1,6 @@
 -- Ban workflow: stage a K-Line, unkline or undline, see how many users it
 -- matches, then send it.
 --
--- state.features.oper[net] = {
---   staged    nil, or {action = 'kline'|'unkline'|'undline', mask, nick,
---             user, host, ip, count}; count comes from TESTMASK
---   settings  {duration = '1d', reason = index into kline_reasons,
---             tag = string or nil, trust_uname, add_freeze,
---             tags = extra tags added with /tag}
--- }
---
 -- K-Line reasons and tags come from the network's servers file
 -- (runtime/config.lua). Staging sends only queries (TESTMASK, TESTKLINE,
 -- WHO, WHOWAS); KLINE, UNKLINE, UNDLINE and NickServ FREEZE go out only
@@ -33,6 +25,30 @@ M.name = 'oper'
 --- K-Line durations offered by the duration button
 M.durations = {'4h', '1d', '3d'}
 
+--- A staged ban. count comes from TESTMASK.
+---@class hub.Staged
+---@field action 'kline'|'unkline'|'undline'
+---@field mask string|nil
+---@field nick string|nil
+---@field user string|nil
+---@field host string|nil
+---@field ip string|nil
+---@field count integer|nil
+
+---@class hub.OperSettings
+---@field duration string
+---@field reason integer index into the servers file's kline_reasons
+---@field tag string|nil
+---@field trust_uname boolean
+---@field add_freeze boolean
+---@field tags string[] extra tags added with /tag
+
+--- A network's ban workflow, state.features.oper[net].
+---@class hub.OperState
+---@field staged hub.Staged|nil
+---@field settings hub.OperSettings
+
+---@return hub.OperState
 local function new_state()
     return {
         staged = nil,
@@ -40,6 +56,8 @@ local function new_state()
     }
 end
 
+---@param net string
+---@return hub.OperState
 function M.get(net)
     return common.net_state(M.name, net, new_state)
 end

@@ -1,16 +1,5 @@
 -- What server notices tell us, per network.
 --
--- state.features.snotice[net] = {
---   users         OrderedMap of recent connections by nick; an entry gains
---                 `reason` when the user exits and `filters` per FILTER hit
---   exits         OrderedMap of recent exits
---   klines        OrderedMap of bans, unbans and kills, keyed '<kind> <mask>'
---   new_channels  OrderedMap of channel creations, flooders and spambots
---   trackers      {conn, exit, kline, filter} load trackers (lib/loadavg)
---   net_trackers  [name] = NetTracker (nettrack.lua)
---   watches       sequence of {pattern, active, hits, colour, beep, flash}
--- }
---
 -- Notices may also send IRC: a reclaim when the wanted nick goes away. A
 -- watch hit emits notify.alert instead of beeping.
 
@@ -28,7 +17,32 @@ local M = {}
 
 M.sizes = {users = 1000, exits = 1000, klines = 1000, new_channels = 100}
 
+--- A watch for connections whose mask matches pattern.
+---@class hub.Watch
+---@field pattern string
+---@field active boolean
+---@field hits integer
+---@field colour string|nil
+---@field beep boolean|nil
+---@field flash boolean|nil
+---@field from_config boolean|nil from the network's `watches`, replaced
+--- whenever the configuration is applied; /addwatch ones stay
+
+--- What server notices tell about a network, state.features.snotice[net].
+---@class hub.Stores
+---@field users hub.OrderedMap recent connections by nick; an entry gains
+--- `reason` when the user exits and `filters` per FILTER hit
+---@field exits hub.OrderedMap recent exits
+---@field klines hub.OrderedMap bans, unbans and kills, keyed '<kind> <mask>'
+---@field new_channels hub.OrderedMap channel creations, flooders and spambots
+---@field trackers {conn: hub.LoadTracker, exit: hub.LoadTracker, kline: hub.LoadTracker, filter: hub.LoadTracker}
+---@field net_trackers table<string, table<string, hub.Range>> ranges by
+--- label, in trackers by name (nettrack.lua)
+---@field watches hub.Watch[]
+
 --- Fresh stores for a network record.
+---@param rec hub.Network|nil
+---@return hub.Stores
 function M.new(rec)
     local casemapping = rec and rec.irc and rec.irc.casemapping or 'rfc1459'
     return {
@@ -48,6 +62,8 @@ function M.new(rec)
 end
 
 --- The stores of a network, created on first use.
+---@param net string
+---@return hub.Stores
 function M.get(net)
     return common.net_state('snotice', net, M.new)
 end

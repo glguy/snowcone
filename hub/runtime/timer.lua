@@ -13,7 +13,8 @@ local M = {}
 ---@param owner string
 ---@param ms integer
 ---@param route string
----@return integer resource id, for cancel
+---@param ... string|number|boolean|nil passed to the route
+---@return integer # resource id, for cancel
 function M.start(owner, ms, route, ...)
     local t = snowcone.newtimer()
     local id = resources.add('timer', owner, t, 'cancel')

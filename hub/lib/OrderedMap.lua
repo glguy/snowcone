@@ -19,16 +19,27 @@ local M = {}
 -- frame. Weak keys let a dropped map take its predicate with it.
 local predicates <const> = setmetatable({}, {__mode = 'k'})
 
+---@class hub.OrderedMap
+---@field kind 'OrderedMap'
+---@field max integer capacity
+---@field n integer number of the newest entry
+---@field lo integer number of the oldest entry held
+---@field ticker integer inserts counted by the predicate
+---@field keys table<integer, any> by slot
+---@field vals table<integer, any> by slot
+---@field index table<any, integer> slot by folded key
+---@field casemapping string|nil
+
 --- Make an empty map.
 ---@param max integer capacity
 ---@param casemapping string|nil name from lib/casemap, for folding keys
----@return table
+---@return hub.OrderedMap
 function M.new(max, casemapping)
     return {
         kind = 'OrderedMap',
         max = max,
-        n = 0,      -- number of the newest entry
-        lo = 1,     -- number of the oldest entry held
+        n = 0,
+        lo = 1,
         ticker = 0,
         keys = {},
         vals = {},
@@ -60,10 +71,17 @@ local function getindex(om, key)
 end
 
 --- Count only inserts whose value satisfies p in om.ticker; nil counts all.
+---@param om hub.OrderedMap
+---@param p (fun(val: any): boolean)|nil
 function M.set_predicate(om, p)
     predicates[om] = p
 end
 
+--- Add the newest entry, dropping the oldest when full. A key already in
+--- the map then looks up the new entry; the old one stays in the order.
+---@param om hub.OrderedMap
+---@param key any nil for an entry reached only by iteration
+---@param val any
 function M.insert(om, key, val)
     local n = om.n + 1
     local i = slot(om, n)
@@ -91,12 +109,18 @@ function M.insert(om, key, val)
     end
 end
 
+---@param om hub.OrderedMap
+---@param key any
+---@return any # the value, or nil when no entry has the key
 function M.lookup(om, key)
     local i = getindex(om, key)
     return i and om.vals[i]
 end
 
 --- Change the key of an entry, keeping its place in the order.
+---@param om hub.OrderedMap
+---@param old any
+---@param new any
 function M.rekey(om, old, new)
     local i = getindex(om, old)
     if i ~= nil then
@@ -107,21 +131,31 @@ function M.rekey(om, old, new)
 end
 
 --- Number of entries currently held.
+---@param om hub.OrderedMap
+---@return integer
 function M.size(om)
     return om.n - om.lo + 1
 end
 
 --- Number of the oldest entry held
+---@param om hub.OrderedMap
+---@return integer
 function M.first(om)
     return om.lo
 end
 
 --- Number of the newest entry held, or first(om) - 1 when empty
+---@param om hub.OrderedMap
+---@return integer
 function M.last(om)
     return om.n
 end
 
---- The entry numbered k, while the map holds it: val, key
+--- The entry numbered k, while the map holds it.
+---@param om hub.OrderedMap
+---@param k integer
+---@return any val
+---@return any key
 function M.get(om, k)
     if om.lo <= k and k <= om.n then
         local i = slot(om, k)
@@ -129,11 +163,16 @@ function M.get(om, k)
     end
 end
 
+---@param om hub.OrderedMap
+---@return any # the oldest value, or nil when empty
 function M.get_oldest(om)
     return (M.get(om, om.lo))
 end
 
---- Remove the newest entry: val, key
+--- Remove the newest entry.
+---@param om hub.OrderedMap
+---@return any val
+---@return any key
 function M.pop(om)
     local n = om.n
     if n < om.lo then return end
@@ -148,7 +187,10 @@ function M.pop(om)
     return val, key
 end
 
---- Iterate newest first, skipping the newest `offset` entries: val, key
+--- Iterate newest first, skipping the newest `offset` entries.
+---@param om hub.OrderedMap
+---@param offset integer|nil
+---@return fun(): any, any # yields val, key
 function M.each(om, offset)
     local k = om.n - (offset or 0)
     local lo = om.lo
@@ -161,7 +203,9 @@ function M.each(om, offset)
     end
 end
 
---- Iterate oldest first: val, key
+--- Iterate oldest first.
+---@param om hub.OrderedMap
+---@return fun(): any, any # yields val, key
 function M.reveach(om)
     local k = om.lo
     local n = om.n
@@ -175,6 +219,7 @@ function M.reveach(om)
 end
 
 --- Remove every entry, keeping the capacity and casemapping.
+---@param om hub.OrderedMap
 function M.reset(om)
     om.index = {}
     om.keys = {}

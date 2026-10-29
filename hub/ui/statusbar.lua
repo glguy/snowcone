@@ -178,10 +178,12 @@ function M.title_colour()
 end
 
 --- Draw the status bar.
----@param win any window for the bar
----@param textbox any pad for the input text
----@param layout table shared with the renderer: textbox_offset is kept here
----@param ctx table view context of the current view
+---@param win ncurses.Window for the bar
+---@param textbox ncurses.Window pad for the input text
+---@param layout {textbox_offset: integer} shared with the renderer: the bar
+--- keeps textbox_offset here
+---@param view table the current view
+---@param ctx hub.ViewContext of the current view
 function M.draw(win, textbox, layout, view, ctx)
     local titlecolor = M.title_colour()
     local input = HUB.state.ui.input

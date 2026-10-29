@@ -12,6 +12,7 @@ local M = {}
 ---@param now number
 ---@param burst integer lines that may go at once
 ---@param interval number seconds to earn back one line
+---@return number
 function M.wait(t, now, burst, interval)
     return math.max(0, t - now - (burst - 1) * interval)
 end

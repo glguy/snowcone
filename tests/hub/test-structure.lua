@@ -52,7 +52,10 @@ local function sources()
     local list = {}
     for _, filename in ipairs(dir.getallfiles(root, '*.lua')) do
         local rel = path.relpath(filename, root)
-        table.insert(list, {rel = rel, src = strip_comments(assert(file.read(filename)))})
+        -- type declarations for the language server, never loaded
+        if rel ~= 'types.lua' then
+            table.insert(list, {rel = rel, src = strip_comments(assert(file.read(filename)))})
+        end
     end
     table.sort(list, function(a, b) return a.rel < b.rel end)
     return list

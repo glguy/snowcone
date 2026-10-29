@@ -17,7 +17,7 @@ local commands2 <const> = {
     N.ERR_NOOPERHOST,
 }
 
----@param t table network task
+---@param t hub.Task
 ---@param cfg table the network's `challenge` section
 return function(t, cfg)
     -- make sure we have a username and a key before bothering the server

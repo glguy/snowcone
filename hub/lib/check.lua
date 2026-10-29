@@ -3,7 +3,7 @@
 -- reported as a message, without a traceback (see lib/traceback.lua).
 
 ---@generic T
----@param value T
+---@param value T|nil|false
 ---@param message string
 ---@return T
 return function(value, message)

@@ -53,11 +53,13 @@ end
 --- Write words, wrapping under the value column. Unless expanded, only
 --- the first row shows, ending in a button that expands the rest; the
 --- view state remembers which lists are open in vs.expanded[id].
+---@param ctx hub.ViewContext
+---@param win ncurses.Window
 ---@param id string names the list in the view state
----@param list table[] words, or {key, value} pairs drawn with a muted
---- '=' between; already scrubbed
----@param colour_of function|nil colour_of(win, text) sets the colour of a
---- word, or of both halves of a pair from its key
+---@param list any[] words, or {key, value} pairs drawn with a muted '='
+--- between; already scrubbed
+---@param colour_of fun(win: ncurses.Window, text: string)|nil sets the colour
+--- of a word, or of both halves of a pair from its key
 function M.words(ctx, win, id, list, colour_of)
     if #list == 0 then
         win:waddstr '-\n'

@@ -20,7 +20,7 @@ end
 ---@param owner string module or plugin that is responsible for it
 ---@param handle any
 ---@param finalizer string|nil method that closes it
----@return integer id
+---@return integer
 function M.add(kind, owner, handle, finalizer)
     local t = items()
     local id = HUB.resources.next_id + 1
@@ -29,14 +29,16 @@ function M.add(kind, owner, handle, finalizer)
     return id
 end
 
----@return any handle, or nil if the id is unknown
+---@param id integer
+---@return any # the handle, or nil if the id is unknown
 function M.get(id)
     local entry = items()[id]
     return entry and entry.handle
 end
 
 --- Forget a handle without closing it, after it finished on its own.
----@return any handle, or nil if the id is unknown
+---@param id integer
+---@return any # the handle, or nil if the id is unknown
 function M.remove(id)
     local t = items()
     local entry = t[id]

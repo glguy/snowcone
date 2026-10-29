@@ -24,7 +24,7 @@ function M.resume()
     end
 end
 
----@return boolean true while a child process has the terminal
+---@return boolean # true while a child process has the terminal
 function M.suspended()
     return (HUB.tty_suspended or 0) > 0
 end

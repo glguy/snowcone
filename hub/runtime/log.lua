@@ -7,6 +7,13 @@ local OrderedMap <const> = require 'hub.lib.OrderedMap'
 
 local M = {}
 
+---@class hub.LogEntry
+---@field time string HH:MM:SS
+---@field timestamp number
+---@field category string
+---@field text string
+---@field net string|nil
+
 M.capacity = 1000
 
 function M.init_state(S)
@@ -49,12 +56,16 @@ end
 --- Add a line to the log.
 ---@param category string
 ---@param fmt string format string, or the text when no arguments follow
+---@param ... any format arguments
 function M.add(category, fmt, ...)
     add(nil, category, fmt, ...)
 end
 
 --- Add a line about a network to the log.
 ---@param net string|nil network id
+---@param category string
+---@param fmt string format string, or the text when no arguments follow
+---@param ... any format arguments
 function M.add_net(net, category, fmt, ...)
     add(net, category, fmt, ...)
 end

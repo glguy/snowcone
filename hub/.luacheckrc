@@ -4,6 +4,8 @@ std = "lua54+snowcone",
 allow_defined = false,
 allow_defined_top = false,
 globals = {"HUB"},
+-- type declarations for the language server; never loaded
+exclude_files = {"types.lua"},
 stds = {
     snowcone = {
         read_globals = {

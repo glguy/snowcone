@@ -14,7 +14,17 @@ end
 
 local ticks <const> = {[0] = ' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 
----@return table average
+--- Exponentially damped averages over 1, 5 and 15 minutes of one count a
+--- second, and the last 60 counts.
+---@class hub.LoadAverage
+---@field kind 'LoadAverage'
+---@field [1] number
+---@field [5] number
+---@field [15] number
+---@field recent integer[] the last 60 samples, a ring indexed by n
+---@field n integer samples so far
+
+---@return hub.LoadAverage
 function M.new_average()
     return {kind = 'LoadAverage', [1] = 0, [5] = 0, [15] = 0, recent = {}, n = 0}
 end
@@ -35,6 +45,7 @@ function M.sample(avg, x)
 end
 
 --- The last 60 samples as a bar graph, newest first.
+---@param avg hub.LoadAverage
 ---@return string
 function M.graph(avg)
     local output = {}
@@ -51,7 +62,14 @@ function M.graph(avg)
     return table.concat(output)
 end
 
----@return table tracker
+--- Load averages of named events, and of all of them.
+---@class hub.LoadTracker
+---@field kind 'LoadTracker'
+---@field events table<string, integer> counts in the current second
+---@field global hub.LoadAverage
+---@field detail table<string, hub.LoadAverage> by name
+
+---@return hub.LoadTracker
 function M.new_tracker()
     return {kind = 'LoadTracker', events = {}, global = M.new_average(), detail = {}}
 end

@@ -107,9 +107,9 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid, use
 end
 
 --- Authenticate with one credential.
----@param t table network task
+---@param t hub.Task
 ---@param credentials table a `sasl.credentials` entry
----@return boolean success
+---@return boolean # success
 function M.authenticate(t, credentials)
     local mechanism = credentials.mechanism
 

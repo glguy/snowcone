@@ -32,8 +32,17 @@ consumers['soju.im/bouncer-networks'] = function(irc, _, messages)
     irc.bouncer_networks = networks
 end
 
+---@class hub.Batch
+---@field type string
+---@field params string[]
+---@field messages hub.Message[]
+---@field n integer messages so far
+---@field replay boolean tells of the past (M.replay_types), or nested in such a batch
+
 --- Collect a message into its open batch.
----@return table|nil the batch the message belongs to
+---@param irc hub.Irc
+---@param msg hub.Message
+---@return hub.Batch|nil # the batch the message belongs to
 function M.collect(irc, msg)
     local batch = irc.batches[msg.tags.batch]
     if batch then

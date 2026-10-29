@@ -92,6 +92,7 @@ local function make_view(id, title, tracker_name, header_colour)
             if not S then return end
             local topo = dashboard.topology(ctx)
             local servers = common.servers(ctx.net)
+            ---@cast servers -nil the stores exist, so the network does
             local tracker = S.trackers[tracker_name]
             local vs = ctx.vs
 

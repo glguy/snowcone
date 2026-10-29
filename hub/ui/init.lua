@@ -61,6 +61,19 @@ local function make_layout()
 end
 
 --- Context handed to a view's render, keypress and status functions.
+--- What a view's render and key handlers get.
+---@class hub.ViewContext
+---@field id string the view's id
+---@field vs hub.ViewState
+---@field net string|nil the current network
+---@field rows integer
+---@field cols integer
+---@field add_click fun(y: integer, lo: integer, hi: integer, action: fun())
+---@field add_button fun(win: ncurses.Window, text: string, action: fun(), plain: boolean|nil)
+---@field fragment fun(win: ncurses.Window, bg: integer|nil)|nil starts a fragment of the
+--- status bar, while a view draws its status (ui/statusbar.lua)
+
+---@return hub.ViewContext
 local function view_context(view)
     return {
         id = view.id,

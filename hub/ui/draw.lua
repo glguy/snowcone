@@ -77,7 +77,9 @@ function M.duration(seconds)
 end
 
 --- Draw an HH:MM:SS time whose digits brighten for the first seconds.
+---@param win ncurses.Window
 ---@param timestamp number clock.now() when the entry arrived
+---@param time string HH:MM:SS
 function M.fade_time(win, timestamp, time)
     local age = math.max(0, math.floor(clock.now() - timestamp))
     if age < 8 then
@@ -129,10 +131,13 @@ end
 
 --- Draw entries of an OrderedMap as a rotating log. It records the page
 --- size and the scroll limit in vs for the paging keys (ui/keymap.lua).
----@param vs table view state with scroll (and pin, maintained here)
----@param data table OrderedMap of entries with time and timestamp
----@param show_entry function|nil predicate selecting entries
----@param draw_entry function draw_entry(win, entry) draws after the time
+---@param win ncurses.Window
+---@param vs hub.ViewState scroll is read, and pin maintained here
+---@param start integer first row
+---@param rows integer
+---@param data hub.OrderedMap entries with time and timestamp
+---@param show_entry (fun(entry: table): boolean)|nil selects entries
+---@param draw_entry fun(win: ncurses.Window, entry: table) draws after the time
 function M.draw_rotation(win, vs, start, rows, data, show_entry, draw_entry)
     -- one row is the divider; a page keeps one entry in view
     vs.page = math.max(1, rows - 2)

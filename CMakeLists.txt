@@ -97,7 +97,8 @@ install(
 install(
     DIRECTORY   "hub"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/snowcone"
-    PATTERN     ".luacheckrc" EXCLUDE)
+    PATTERN     ".luacheckrc" EXCLUDE
+    PATTERN     "types.lua" EXCLUDE)
 
 install(FILES "snowcone.1" DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
 

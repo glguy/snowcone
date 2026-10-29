@@ -10,16 +10,20 @@ local M = {}
 
 local max_depth <const> = 32
 
----@return table a new, empty bus
+---@class hub.Bus
+---@field topics table<string, {owner: string, fn: fun(ev: table)}[]>
+---@field depth integer emits in progress
+
+---@return hub.Bus # a new, empty bus
 function M.new()
     return {topics = {}, depth = 0}
 end
 
 --- Subscribe to a topic. Subscribers run in the order they subscribed.
----@param b table bus
+---@param b hub.Bus
 ---@param topic string
 ---@param owner string module or plugin, for error reports
----@param fn function called with the event table
+---@param fn fun(ev: table)
 function M.on(b, topic, owner, fn)
     local subs = b.topics[topic]
     if subs == nil then

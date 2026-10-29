@@ -93,7 +93,8 @@ end
 --- Bound arguments are passed before the callback's own and MUST be plain
 --- data (ids, numbers, strings): they outlive the generation that bound them.
 ---@param route string
----@return function
+---@param ... string|number|boolean|nil bound arguments
+---@return fun(...): any
 function M.trampoline(route, ...)
     -- The closure must not capture anything from this module: it outlives
     -- the generation, and the current entry point is found through HUB.

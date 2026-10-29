@@ -104,6 +104,7 @@ return function(t, nick, remote)
     for k in pairs(handlers) do commands[k] = true end
 
     local irc = HUB.state.nets[t.net].irc
+    ---@cast irc -nil the WHOIS went out, so the network is connected
     local key = irc_model.fold(irc, nick)
     while true do
         local msg = t:wait_irc(commands, 30000)

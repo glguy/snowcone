@@ -12,8 +12,8 @@ end
 
 ---@param schema table
 ---@param value any
----@param path table|nil field names leading to value
----@param warnings table|nil receives a message per unexpected field
+---@param path string[]|nil field names leading to value
+---@param warnings string[]|nil receives a message per unexpected field
 function M.check(schema, value, path, warnings)
     path = path or {}
     warnings = warnings or {}

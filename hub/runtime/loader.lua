@@ -11,8 +11,13 @@ local prefix <const> = 'hub.'
 
 --- Make a fresh module cache rooted at the hub directory.
 ---@param root string directory holding init.lua
----@param overrides table|nil [module name] = source string or chunk function
+---@param overrides table<string, string|function>|nil source or chunk by module name
+---@return hub.Generation
 function M.new_generation(root, overrides)
+    ---@class hub.Generation
+    ---@field root string
+    ---@field loaded table<string, any> results of the modules required so far
+    ---@field env table the environment every module runs in
     local gen = {root = root, loaded = {}}
     overrides = overrides or {}
 
@@ -28,6 +33,8 @@ function M.new_generation(root, overrides)
 
     local loading <const> = {}
 
+    ---@param name string
+    ---@return any ...
     function gen.require(name)
         if name:sub(1, #prefix) ~= prefix then
             return require(name)
@@ -77,26 +84,64 @@ function M.new_generation(root, overrides)
     return gen
 end
 
+--- Options of reload. The first load's ui, tick, strict, echo, args,
+--- config and transport are kept in HUB.boot for later reloads; overrides,
+--- modules and config apply to the one load.
+---@class hub.ReloadOptions
+---@field init string|nil path of init.lua (default: arg[0]), read by init.lua
+---@field root string|nil the hub directory (default: the directory of init)
+---@field ui boolean|nil false runs without a terminal (default: ncurses is present)
+---@field tick boolean|nil false skips the 1 Hz timer (default: same as ui)
+---@field strict boolean|nil true re-raises errors from routes and subscribers
+--- after logging them, so headless tests fail (a failed reload still just
+--- returns false)
+---@field echo boolean|nil true prints log lines to stdout
+---@field args string[]|nil command line arguments for configuration (default: arg)
+---@field config table|nil raw configuration table to use instead of reading a file
+---@field transport {connect: fun(...): snowcone.Connection}|nil replaces snowcone.connect
+---@field overrides table<string, string|function>|nil source or chunk by module
+--- name, replacing files on disk
+---@field modules string[]|nil extra module names loaded after the standard ones
+
+---@class hub.Boot
+---@field root string
+---@field init string path of init.lua
+---@field ui boolean
+---@field tick boolean
+---@field strict boolean
+---@field echo boolean
+---@field args string[]
+---@field config table|nil
+---@field transport {connect: fun(...): snowcone.Connection}|nil
+
+--- The one global, which survives reloads.
+---@class hub.Root
+---@field state hub.State
+---@field resources table native handles (runtime/resources.lua)
+---@field tasks table<integer, hub.Task> live tasks by id
+---@field current hub.Current|nil the active generation
+---@field generation integer id of the active generation
+---@field boot hub.Boot
+---@field task_next_id integer|nil
+---@field tty_suspended integer|nil children holding the terminal
+---@field dirty boolean|nil the screen needs drawing
+---@field defer_draw boolean|nil
+---@field entry_installed boolean|nil
+---@field errors {total: integer, by_origin: table<string, integer>}|nil
+---@field last_reload {at: integer, ok: boolean, error: string|nil}|nil
+---@field plugins_started string[]|nil
+---@field quitting boolean|nil
+---@field shut_down boolean|nil
+
 --- Load a new generation and make it current, or leave the old one running.
----
---- opts on the first load (kept in HUB.boot for later reloads):
----   ui      false runs without a terminal (default: ncurses is present)
----   tick    false skips the 1 Hz timer (default: same as ui)
----   strict  true re-raises errors from routes and subscribers after
----           logging them, so headless tests fail (a failed reload still
----           just returns false)
----   echo    true prints log lines to stdout
----   args    command line arguments for configuration (default: arg)
----   config  raw configuration table to use instead of reading a file
----   transport  {connect = f} replacing snowcone.connect
---- opts on any load (this generation only):
----   overrides  [module name] = source or chunk, replacing files on disk
----   modules    extra module names loaded after the standard ones
----   config     raw configuration for this load only
+---@param root string the hub directory
+---@param init string path of init.lua
 ---@param app string name of the module that builds a generation
+---@param opts hub.ReloadOptions
 ---@return boolean ok
----@return string|nil error message
+---@return string|nil error
 function M.reload(root, init, app, opts)
+    ---@type hub.Root
     HUB = HUB or {
         state = nil,
         resources = {},

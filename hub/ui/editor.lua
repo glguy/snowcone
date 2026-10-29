@@ -16,24 +16,33 @@ local kill_limit    <const> = 60
 
 local render
 
----@return table a new, empty editor record
+---@return hub.Editor # a new, empty editor record
 function M.new()
+    ---@class hub.Editor
+    ---@field buffer integer[] code points of the line
+    ---@field cursor integer index into buffer
+    ---@field history hub.OrderedMap lines entered, numbered from 1
+    ---@field edits table<integer, integer[]> edits to recalled lines, by
+    --- number; the line being typed is number last(history) + 1. Cleared
+    --- with the line.
+    ---@field undo hub.OrderedMap {buffer, cursor} before each change
+    ---@field kills hub.OrderedMap killed text, as code points
+    ---@field before_cursor string rendered text, for the status bar
+    ---@field at_cursor string
+    ---@field at integer|nil the number of the history line shown, while recalling
+    ---@field state 'insert'|'kill'|'tab'|'yank'|nil the last change; nil for an edit
+    ---@field tablist any[]|nil completions, when state is tab: strings from
+    --- mklist, turned into code point arrays in place
+    ---@field tabix integer|nil the completion shown
+    ---@field yanked {at: integer, n: integer, k: integer}|nil the text the last
+    --- yank put in, and its number in kills, when state is yank
     local self = {}
-    self.buffer = {}        -- Array[Code]
-    -- lines entered, numbered from 1 in the order they were entered
+    self.buffer = {}
     self.history = OrderedMap.new(history_limit)
-    -- edits to lines recalled from history, by number; the line being
-    -- typed is number last(history) + 1. Cleared with the line.
     self.edits = {}
-    self.cursor = 1         -- Index into buffer
-    self.undo = OrderedMap.new(undo_limit)  -- {buffer, cursor} before each change
-    self.kills = OrderedMap.new(kill_limit) -- Array[Code]
-    -- Also, nil until used:
-    --   at          the number of the history line shown, while recalling
-    --   state       the last change: edit(nil), insert, kill, tab, yank
-    --   tablist, tabix  completions and the one shown, when state is tab
-    --   yanked      {at, n, k}: the text the last yank put in, and its
-    --               number in kills, when state is yank
+    self.cursor = 1
+    self.undo = OrderedMap.new(undo_limit)
+    self.kills = OrderedMap.new(kill_limit)
     render(self)
     return self
 end
@@ -41,11 +50,13 @@ end
 -- Remember the line before a change. A change that continues the last
 -- one, when the state is already kind, joins it: a run of typing undoes
 -- at once, and so does a run of completions.
+---@param self hub.Editor
 local function save(self, kind)
     if kind and self.state == kind then return end
     OrderedMap.insert(self.undo, nil, {buffer = tablex.copy(self.buffer), cursor = self.cursor})
 end
 
+---@param self hub.Editor
 function M.undo(self)
     local last = OrderedMap.pop(self.undo)
     if last then
@@ -54,25 +65,30 @@ function M.undo(self)
     end
 end
 
+---@param self hub.Editor
 function M.content(self)
     return utf8.char(table.unpack(self.buffer))
 end
 
+---@param self hub.Editor
 function M.size(self)
     return #self.buffer
 end
 
+---@param self hub.Editor
 function M.move(self, x, state)
     self.cursor = x
     self.state = state
     render(self)
 end
 
+---@param self hub.Editor
 function render(self)
     self.before_cursor = utf8.char(table.unpack(self.buffer, 1, self.cursor - 1))
     self.at_cursor = utf8.char(table.unpack(self.buffer, self.cursor))
 end
 
+---@param self hub.Editor
 function M.reset(self)
     self.buffer = {}
     OrderedMap.reset(self.undo)
@@ -91,6 +107,7 @@ local function same_line(a, b)
     return true
 end
 
+---@param self hub.Editor
 function M.confirm(self)
     local history = self.history
     local newest = OrderedMap.get(history, OrderedMap.last(history))
@@ -103,6 +120,7 @@ end
 -- Show line k: a line from history, or last(history) + 1 for the line being
 -- typed. What was shown is kept in edits, so coming back to it finds it
 -- as it was left; history itself never changes.
+---@param self hub.Editor
 local function go_to(self, k)
     local typing = OrderedMap.last(self.history) + 1
     local here = self.at or typing
@@ -115,27 +133,33 @@ local function go_to(self, k)
     M.move_to_end(self)
 end
 
+---@param self hub.Editor
 function M.older_history(self)
     go_to(self, (self.at or OrderedMap.last(self.history) + 1) - 1)
 end
 
+---@param self hub.Editor
 function M.newer_history(self)
     if self.at then go_to(self, self.at + 1) end
 end
 
+---@param self hub.Editor
 function M.oldest_history(self)
     go_to(self, OrderedMap.first(self.history))
 end
 
 -- back to the line being typed before recalling
+---@param self hub.Editor
 function M.newest_history(self)
     go_to(self, OrderedMap.last(self.history) + 1)
 end
 
+---@param self hub.Editor
 function M.is_empty(self)
     return not self.buffer[1]
 end
 
+---@param self hub.Editor
 function M.backspace(self)
     local i = self.cursor
     if 1 < i then
@@ -145,6 +169,7 @@ function M.backspace(self)
     end
 end
 
+---@param self hub.Editor
 function M.delete(self)
     if self.cursor <= #self.buffer then
         save(self)
@@ -157,6 +182,7 @@ end
 -- Cut buffer[lo..hi] into the kill ring. Consecutive kills add to the
 -- newest kill, before it when killing backward. Killing nothing leaves
 -- the ring alone.
+---@param self hub.Editor
 local function kill(self, lo, hi, backward)
     if lo <= hi then
         save(self)
@@ -173,10 +199,12 @@ local function kill(self, lo, hi, backward)
     M.move(self, lo, 'kill')
 end
 
+---@param self hub.Editor
 function M.kill_to_beg(self)
     kill(self, 1, self.cursor - 1, true)
 end
 
+---@param self hub.Editor
 function M.kill_to_end(self)
     kill(self, self.cursor, #self.buffer, false)
 end
@@ -186,24 +214,29 @@ local function not_space(c)
     return c ~= 0x20 and c ~= 0x09 and c ~= 0x0a
 end
 
+---@param self hub.Editor
 function M.kill_prev_word(self, p)
     kill(self, M.search_prev_word(self, p), self.cursor - 1, true)
 end
 
+---@param self hub.Editor
 function M.kill_prev_spaced_word(self)
     M.kill_prev_word(self, not_space)
 end
 
+---@param self hub.Editor
 function M.kill_next_word(self)
     kill(self, self.cursor, M.search_next_word(self) - 1, false)
 end
 
+---@param self hub.Editor
 function M.add(self, code)
     save(self, 'insert')
     table.insert(self.buffer, self.cursor, code)
     M.move(self, self.cursor + 1, 'insert')
 end
 
+---@param self hub.Editor
 function M.swap(self)
     local n = #self.buffer
     local i = self.cursor
@@ -243,6 +276,7 @@ local hexdigits = {
 -- Look for sequences of 'x' and then hex digits just before the cursor.
 -- Line breaks are allowed: the editor also takes Lua code (/eval). NUL is
 -- not, since text goes through C strings.
+---@param self hub.Editor
 function M.hexinput(self)
     local b = self.buffer
     local last = self.cursor - 1
@@ -293,30 +327,36 @@ function M.hexinput(self)
     end
 end
 
+---@param self hub.Editor
 function M.move_to_beg(self)
     M.move(self, 1)
 end
 
+---@param self hub.Editor
 function M.move_to_end(self)
     M.move(self, #self.buffer + 1)
 end
 
+---@param self hub.Editor
 function M.move_left(self)
     if self.cursor > 1 then
         M.move(self, self.cursor - 1)
     end
 end
 
+---@param self hub.Editor
 function M.move_right(self)
     if self.cursor <= #self.buffer then
         M.move(self, self.cursor + 1)
     end
 end
 
+---@param self hub.Editor
 function M.move_next_word(self)
     M.move(self, M.search_next_word(self))
 end
 
+---@param self hub.Editor
 function M.move_prev_word(self)
     M.move(self, M.search_prev_word(self))
 end
@@ -327,6 +367,7 @@ local function is_word(c)
 end
 
 -- The end of the word at or after a position (default: the cursor)
+---@param self hub.Editor
 function M.search_next_word(self, at)
     local p = is_word
     local i = at or self.cursor
@@ -342,6 +383,7 @@ function M.search_next_word(self, at)
 end
 
 -- The start of the word before a position (default: the cursor)
+---@param self hub.Editor
 function M.search_prev_word(self, p, at)
     p = p or is_word
     local i = at or self.cursor
@@ -360,6 +402,7 @@ end
 
 -- Swap the words before and after the cursor, or at the end of the line
 -- the last two, leaving the cursor after them
+---@param self hub.Editor
 function M.swap_words(self)
     local s2 = M.search_prev_word(self, nil, M.search_next_word(self))
     local e2 = M.search_next_word(self, s2)
@@ -391,6 +434,7 @@ end
 
 -- Change the letters from the cursor to the end of the word and move
 -- there. f gets each word character and whether it is the first.
+---@param self hub.Editor
 local function change_word(self, f)
     local b = self.buffer
     local j = M.search_next_word(self)
@@ -411,8 +455,11 @@ local function change_word(self, f)
     M.move(self, j)
 end
 
+---@param self hub.Editor
 function M.upcase_word(self) change_word(self, upcase) end
+---@param self hub.Editor
 function M.downcase_word(self) change_word(self, downcase) end
+---@param self hub.Editor
 function M.capitalize_word(self)
     change_word(self, function(c, first)
         if first then return upcase(c) else return downcase(c) end
@@ -420,6 +467,7 @@ function M.capitalize_word(self)
 end
 
 -- Insert kill k at the cursor, remembering where for paste_older
+---@param self hub.Editor
 local function yank(self, k)
     local t = OrderedMap.get(self.kills, k)
     local at = self.cursor
@@ -428,6 +476,7 @@ local function yank(self, k)
     M.move(self, at + #t, 'yank')
 end
 
+---@param self hub.Editor
 function M.paste(self)
     if OrderedMap.size(self.kills) > 0 then
         save(self)
@@ -437,10 +486,12 @@ end
 
 -- Right after a paste, replace what it put in with the next older kill,
 -- going round to the newest after the oldest
+---@param self hub.Editor
 function M.paste_older(self)
     local y = self.yanked
     local kills = self.kills
     if self.state ~= 'yank' or OrderedMap.size(kills) < 2 then return end
+    ---@cast y -nil yank sets yanked with the state
     save(self)
     tablex.removevalues(self.buffer, y.at, y.at + y.n - 1)
     self.cursor = y.at
@@ -449,6 +500,7 @@ function M.paste_older(self)
     yank(self, k)
 end
 
+---@param self hub.Editor
 function M.tab(self, dir, mklist)
     local cur = self.cursor
     local i
@@ -456,6 +508,8 @@ function M.tab(self, dir, mklist)
     if self.state == 'tab' then
         local tabix = self.tabix
         local tablist = self.tablist
+        ---@cast tabix -nil
+        ---@cast tablist -nil a completion sets both with the state
         self.tabix = (tabix + dir - 1) % #tablist + 1
         i = cur - #tablist[tabix]
     else

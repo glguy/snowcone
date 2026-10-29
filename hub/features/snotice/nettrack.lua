@@ -15,8 +15,20 @@ local function unhex(s)
     return (s:gsub('..', function(h) return string.char(tonumber(h, 16)) end))
 end
 
+--- An address range. A prefix that isn't a whole number of bytes
+--- compares the byte at tailix under tailmask.
+---@class hub.Range
+---@field label string as given
+---@field network string hex of the prefix's whole bytes
+---@field addrlen integer 4 or 16
+---@field tailix integer|nil
+---@field tailmask integer|nil
+---@field tailbyte integer|nil
+---@field count integer
+
 --- A range, from 'address' or 'address/prefix'.
----@return table range {label, network, addrlen, tailix, tailmask, tailbyte, count}
+---@param label string
+---@return hub.Range
 function M.new_range(label)
     local address, prefix = label:match '^([^/]*)/(%d+)$'
     local b

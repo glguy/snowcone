@@ -12,9 +12,16 @@ local config <const> = require 'hub.runtime.config'
 
 local M = {}
 
+--- A secret in the configuration: the text itself, or where to get it.
+---@alias hub.Secret
+---| string
+---| {command: string, arguments: string[]|nil, use_tty: boolean|nil, multiline: boolean|nil}
+---| {prompt: string}
+---| {file: string}
+
 --- Resolve one secret; nil stays nil.
----@param t table task
----@param entry any
+---@param t hub.Task
+---@param entry hub.Secret|nil
 ---@return string|nil
 function M.resolve(t, entry)
     local kind = type(entry)
@@ -72,6 +79,8 @@ end
 
 --- The PASS password for a server section, with `username:` prepended
 --- when a username is configured.
+---@param t hub.Task
+---@param server {password: hub.Secret|nil, username: string|nil}
 ---@return string|nil
 function M.server_password(t, server)
     local password = M.resolve(t, server.password)

@@ -6,6 +6,10 @@ local sasl      <const> = require 'hub.net.sasl'
 
 local M = {}
 
+-- These tasks start once connected (registration, CAP NEW) and are
+-- cancelled when the connection ends
+---@param t hub.Task
+---@return hub.Irc
 local function model(t)
     return HUB.state.nets[t.net].irc
 end
@@ -77,7 +81,8 @@ end
 
 --- The initial negotiation during registration, after CAP LS was sent.
 --- Ends negotiation with CAP END.
----@return table|nil RPL_WELCOME if the server registered without CAP
+---@param t hub.Task
+---@return hub.Message|nil # RPL_WELCOME if the server registered without CAP
 function M.LS(t)
     local irc = model(t)
     local more = true
@@ -115,7 +120,10 @@ function M.LS(t)
 end
 
 --- Handle CAP subcommands outside the initial negotiation.
----@param spawn function spawn(name, fn, ...) starts a task on the network
+---@param net string
+---@param irc hub.Irc
+---@param msg hub.Message
+---@param spawn fun(name: string, fn: fun(t: hub.Task, ...), ...) starts a task on the network
 function M.on_cap(net, irc, msg, spawn)
     local sub = msg[2]
     if sub == 'DEL' then

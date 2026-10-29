@@ -2,16 +2,6 @@
 -- versions, startup times, user shedding, and the addresses in each DNS
 -- rotation.
 --
--- state.features.topology[net] = {
---   population  [server] = users, from MAP and moved by connect/exit notices
---   links       [server] = {[server] = true}, from LINKS
---   upstream    [server] = its link towards primary_hub
---   versions    [server] = version text
---   uptimes     [server] = startup time text
---   sheds       [server] = shedding interval in seconds
---   rotations   [region] = {[address] = true}, refreshed every 30 s
--- }
---
 -- Sending: MAP and LINKS at registration, on becoming an operator, and on
 -- netsplits and netjoins; VERSION and STATS on request. All are queries.
 --
@@ -36,6 +26,23 @@ M.refresh_ms = 30000
 -- STATS E line of a server that sheds users
 local shed_pattern <const> = 'user shedding event +[0-9]+ +seconds %(frequency=([0-9]+)%)'
 
+--- A network's topology, state.features.topology[net].
+---@class hub.Topology
+---@field population table<string, integer> users by server, from MAP and
+--- moved by connect and exit notices
+---@field links table<string, table<string, true>> from LINKS
+---@field upstream table<string, string> each server's link towards primary_hub
+---@field versions table<string, string> version text by server
+---@field uptimes table<string, string> startup time text by server
+---@field sheds table<string, number> shedding interval in seconds, by server
+---@field rotations table<string, table<string, true>> addresses by region,
+--- refreshed every 30 s
+---@field synced_at number|nil clock of the last MAP and LINKS request
+---@field in_map true|nil while MAP replies arrive
+---@field partial_links table<string, table<string, true>>|nil while LINKS
+--- replies arrive
+
+---@return hub.Topology
 local function new_state()
     return {
         population = {},
@@ -49,6 +56,8 @@ local function new_state()
 end
 
 --- The topology of a network, created on first use.
+---@param net string
+---@return hub.Topology
 function M.get(net)
     return common.net_state(M.name, net, new_state)
 end
@@ -272,6 +281,7 @@ end
 -- Keep the rotation refresh running. The timer's id lives in state so a
 -- reload doesn't start a second one.
 function M.activate()
+    ---@type {timer: integer|nil}
     local meta = HUB.state.features.topology_meta or {}
     HUB.state.features.topology_meta = meta
     if not (meta.timer and resources.get(meta.timer)) and HUB.boot.tick then

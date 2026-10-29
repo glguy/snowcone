@@ -24,7 +24,7 @@ M.mappings = {
 
 --- Find a mapping by name. Unknown names fall back to rfc1459, the IRC default.
 ---@param name string|nil
----@return function
+---@return fun(s: string): string
 function M.get(name)
     return M.mappings[name] or snowcone.irccase
 end

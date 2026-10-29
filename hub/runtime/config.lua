@@ -79,7 +79,7 @@ end
 
 --- Read the configuration file named by --config, or the first default
 --- that exists.
----@return table raw configuration
+---@return table raw
 ---@return string filename
 local function read_file(dir, flags)
     if flags.config then
@@ -178,7 +178,7 @@ end
 --- Validate and normalize a raw configuration table. The table is copied
 --- first, so the caller's stays untouched.
 ---@param raw table
----@return table configuration
+---@return table
 function M.normalize(raw)
     raw = tablex.deepcopy(raw)
     local warnings = {}
@@ -212,9 +212,9 @@ function M.normalize(raw)
 end
 
 --- Load configuration from the command line and files.
----@param args table command line arguments
+---@param args string[] command line arguments
 ---@param override table|nil raw configuration to use instead of a file (tests)
----@return table configuration
+---@return table
 function M.load(args, override)
     local dir = M.config_dir()
     local raw, filename

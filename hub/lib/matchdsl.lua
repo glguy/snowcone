@@ -68,7 +68,7 @@ local fields <const> = {
 --- Compile a query into a predicate on entries. Raises with a message
 --- naming what was expected.
 ---@param s string
----@return function
+---@return fun(entry: table): boolean
 return function(s)
     local scan = lexer.scan(s, matches, {space = true})
     local token, lexeme

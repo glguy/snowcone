@@ -24,7 +24,7 @@ local function oper_up(t, cfg)
     end
 end
 
----@param t table network task
+---@param t hub.Task
 return function(t)
     local rec <const> = HUB.state.nets[t.net]
     local cfg <const> = rec.cfg

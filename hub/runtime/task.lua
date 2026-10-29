@@ -44,6 +44,24 @@ local task_mt <const> = {
     end,
 }
 
+--- A task record. The methods are looked up in HUB.current.task_methods.
+---@class hub.Task
+---@field id integer
+---@field name string
+---@field owner string module or plugin, for cancel_owner
+---@field net string|nil network id, for t:send and cancel_net
+---@field co thread
+---@field seq integer changes with every wait
+---@field wait 'irc'|'event'|'sleep'|'dns'|'execute'|'prompt'|nil
+---@field wait_since number|nil clock.now() when the wait began
+---@field commands table<string|integer, true>|nil while waiting in wait_irc
+---@field topic string|nil while waiting in wait_event
+---@field predicate (fun(ev: table): boolean)|nil while waiting in wait_event
+---@field label string|nil while waiting in prompt
+---@field timer integer|nil resource id of the wait's timeout
+---@field lookup snowcone.Cancellable|nil
+---@field process snowcone.Cancellable|nil
+---@field tty boolean|nil true while the child has the terminal
 local methods = {}
 M.methods = methods
 
@@ -102,9 +120,10 @@ end
 
 --- Start a task. It runs until its first wait before spawn returns.
 ---@param name string
----@param opts table {net = network id, owner = string}
----@param fn function body, called as fn(t, ...)
----@return table task
+---@param opts {net: string|nil, owner: string|nil}
+---@param fn fun(t: hub.Task, ...)
+---@param ... any passed to fn after the task
+---@return hub.Task
 function M.spawn(name, opts, fn, ...)
     local id = (HUB.task_next_id or 0) + 1
     HUB.task_next_id = id
@@ -228,7 +247,10 @@ function methods.sleep(t, ms)
     coroutine.yield()
 end
 
----@return string|nil error, string... addresses
+--- Resolve a hostname: nil and its addresses, or an error.
+---@param name string
+---@return string|nil error
+---@return string ... addresses
 function methods.dnslookup(t, name)
     begin_wait(t, 'dns')
     t.lookup = snowcone.dnslookup(name, dispatch.trampoline('task.wake', t.id, t.seq))
@@ -237,9 +259,15 @@ end
 
 --- Run a program. Without input the child gets the terminal, and the UI
 --- is suspended until it exits. Cancelling the task kills the child.
----@param opts table|nil {group = true} kills the child's descendants too
----  on cancel (needs input), {max_output = bytes} limits stdout and stderr
----@return integer|nil exit code, string stdout or error, string stderr
+---@param command string
+---@param args (string|number)[]|nil
+---@param input string|nil written to the child's stdin
+---@param opts {group: boolean|nil, max_output: integer|nil}|nil group kills
+--- the child's descendants too on cancel (needs input); max_output limits
+--- the bytes of stdout and of stderr
+---@return integer|nil code exit status, nil on failure
+---@return string output stdout, or the error
+---@return string|nil stderr
 function methods.execute(t, command, args, input, opts)
     begin_wait(t, 'execute')
     if input == nil then

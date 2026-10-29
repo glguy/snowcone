@@ -23,6 +23,28 @@ M.profiles = {
     },
 }
 
+---@class hub.Prompt
+---@field task integer the asking task's id
+---@field label string
+---@field net string|nil
+
+---@class hub.InputState
+---@field mode 'command'|'filter'|'talk'|'password'|nil
+---@field mode_before_prompt string|false|nil the mode to go back
+--- to after the prompts (false for none); nil when no prompt is shown
+---@field editor hub.Editor
+---@field secret hub.Editor for prompts
+---@field prompts hub.Prompt[] from tasks, oldest first
+
+---@class hub.UiState
+---@field profile string
+---@field view string the shown view's id
+---@field views table<string, hub.ViewState> by view id
+---@field input hub.InputState
+---@field focus boolean the terminal has focus
+---@field current_net string|nil the network chosen for net-scoped views
+---@field profile_configured string|nil ui.profile from configuration, last applied
+
 function M.init_state(S)
     local ui = S.ui or {}
     S.ui = ui
@@ -34,9 +56,7 @@ function M.init_state(S)
     -- Secrets get their own editor: a half-typed command survives a prompt,
     -- and nothing typed here reaches the history
     ui.input.secret = ui.input.secret or editor.new()
-    -- Prompts from tasks, oldest first: {task = id, label = string, net = id}
     ui.input.prompts = ui.input.prompts or {}
-    -- input.mode: nil, 'command', 'filter', 'talk' or 'password'
     if ui.focus == nil then ui.focus = true end
 end
 
@@ -154,8 +174,19 @@ function M.current_view()
 end
 
 --- Persistent state of a view, created on first use.
+--- A view's persistent state. Views keep their own fields here too.
+---@class hub.ViewState
+---@field scroll integer
+---@field hscroll integer
+---@field page integer|nil rows a page key moves, set by the renderer
+---@field max_scroll integer|nil set by the renderer
+---@field pin integer|nil entry number that holds a rotating log still (ui/draw.lua)
+---@field filter string|nil the saved filter
+---@field expanded table<string, boolean>|nil open lists (ui/fields.lua)
+---@field [string] any
+
 ---@param id string
----@return table
+---@return hub.ViewState
 function M.view_state(id)
     local views = HUB.state.ui.views
     local vs = views[id]
@@ -194,7 +225,7 @@ end
 function M.next_view() step_view(1) end
 function M.prev_view() step_view(-1) end
 
----@return table the editor record for the current input mode
+---@return hub.Editor # the editor record for the current input mode
 function M.editor()
     local input = HUB.state.ui.input
     if input.mode == 'password' then
@@ -213,6 +244,7 @@ end
 
 --- The filter for a view: what is being typed in filter mode, else the
 --- view's saved filter.
+---@param id string view id
 ---@return string|nil
 function M.filter(id)
     local input = HUB.state.ui.input
@@ -251,7 +283,7 @@ local function next_prompt()
     dispatch.dirty()
 end
 
----@return table|nil the prompt being answered
+---@return hub.Prompt|nil # the prompt being answered
 function M.current_prompt()
     local input = HUB.state.ui.input
     if input.mode == 'password' then

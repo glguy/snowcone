@@ -273,6 +273,7 @@ return {
                 if irc_model.get_channel(irc, target) then draw.green(win) else draw.red(win) end
             elseif irc_model.has_monitor(irc) and irc_model.get_monitor(irc, target) then
                 local entry = irc_model.get_monitor(irc, target)
+                ---@cast entry -nil found by the condition above
                 if entry.user then
                     if entry.user.away then draw.magenta(win) else draw.green(win) end
                 else

@@ -24,6 +24,13 @@ local ratelimit  <const> = require 'hub.lib.ratelimit'
 
 local M = {}
 
+---@alias hub.SendArg string|number|{content: string, secret: boolean|nil}
+
+---@class hub.SendQueue
+---@field t number the bucket's time
+---@field lines {raw: string, msg: hub.Message}[] in order
+---@field timer integer|nil resource id of the pending drain
+
 M.console_all_size = 2000
 
 function M.init_state(S)
@@ -44,8 +51,10 @@ function M.record(rec, msg)
 end
 
 --- Build the wire form of a command and its masked message record.
+---@param cmd string|integer
+---@param ... hub.SendArg
 ---@return string raw line with CRLF
----@return table message as recorded
+---@return hub.Message msg as recorded
 function M.build(cmd, ...)
     local msg = {
         tags = {},
@@ -159,7 +168,8 @@ end
 
 --- Drop the network's queued lines, marking them dropped, and its drain
 --- timer.
----@return integer how many lines were dropped
+---@param rec hub.Network
+---@return integer # how many lines were dropped
 function M.drop(rec)
     local q = rec.sendq
     if q == nil then return 0 end
@@ -222,7 +232,8 @@ end
 --- Send a command on a network's connection. It waits its turn when the
 --- network's rate limit holds it back.
 ---@param net string network id
----@param cmd string
+---@param cmd string|integer
+---@param ... hub.SendArg
 function M.send(net, cmd, ...)
     send(nil, net, cmd, ...)
 end

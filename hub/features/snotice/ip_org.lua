@@ -31,7 +31,9 @@ local function open()
     end
 
     if mygeoip then
+        ---@type boolean, mygeoip.Db|nil
         local ok4, geoip4 = pcall(mygeoip.open_db, mygeoip.GEOIP_ISP_EDITION)
+        ---@type boolean, mygeoip.Db|nil
         local ok6, geoip6 = pcall(mygeoip.open_db, mygeoip.GEOIP_ASNUM_EDITION_V6)
         if not ok4 then geoip4 = nil end
         if not ok6 then geoip6 = nil end
@@ -55,7 +57,8 @@ end
 
 --- Organisation and AS number of an address, when known.
 ---@param addr string
----@return string|nil org, integer|nil asn
+---@return string|nil org
+---@return integer|nil asn
 function M.lookup(addr)
     if lookup_impl == nil then
         lookup_impl = open()

@@ -79,6 +79,13 @@ a decision is made, and change or remove it when the decision does.
 - **Tests** pass a configuration table (`{}` by default) so they never read
   the user's files, and have a watchdog because snowcone exits 0 when
   nothing is pending.
+- **Type annotations** are for the Lua Language Server. `types.lua`
+  declares the native globals; nothing loads it, so luacheck, the
+  structure test and `install` skip it. Records that cross modules are
+  `hub.*` classes, declared where they are made. One value per `@return`,
+  named only when there are several; a description of an unnamed one
+  follows `#`. Optional is `T|nil`. Callbacks are `fun(...)` types and
+  record shapes `{k: T}`, rather than prose.
 
 ## Configuration
 
