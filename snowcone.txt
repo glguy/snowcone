@@ -13,8 +13,6 @@ DESCRIPTION
 MODES
   hub          Chat and server notices on many networks. This page is about
                hub mode.
-  dashboard    The older server notice console, for one network.
-  ircc         The older IRC client, for one network.
   program.lua  A Lua program, given by its path. It has no terminal until it
                calls snowcone.start_ui(), and snowcone exits once the program
                has no work left.
@@ -127,7 +125,7 @@ FILES
     owns each connecting address.
 
   /usr/share/snowcone/  
-    The Lua sources of each mode.
+    The Lua sources of hub.
 
 SEE ALSO
   https://github.com/glguy/snowcone

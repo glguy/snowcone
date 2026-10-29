@@ -14,16 +14,11 @@ auto main(int argc, char const* argv[]) -> int
         std::cerr << "Usage: snowcone PROGRAM [ARGS]\n"
                      "  Programs:\n"
                      "    hub                - multi-network client\n"
-                     "    ircc               - chat client\n"
-                     "    dashboard          - server notice dashboard\n"
                      "    path/to/FILE.lua   - any Lua program\n"
                      "\n"
                      "  A program has no terminal until it calls snowcone.start_ui().\n"
                      "  snowcone exits once the program has no work left, and with a\n"
-                     "  failure status after any uncaught Lua error.\n"
-                     "\n"
-                     "  ircc and dashboard take --config=PATH to override their\n"
-                     "  configuration file (default ~/.config/snowcone/settings.lua).\n";
+                     "  failure status after any uncaught Lua error.\n";
         return EXIT_FAILURE;
     }
 
@@ -31,15 +26,7 @@ auto main(int argc, char const* argv[]) -> int
     // of killing the client. Child processes get the default back (process.cpp).
     std::signal(SIGPIPE, SIG_IGN);
 
-    if (not strcmp("dashboard", argv[1]))
-    {
-        argv[1] = CMAKE_INSTALL_FULL_DATAROOTDIR "/snowcone/dashboard/init.lua";
-    }
-    else if (not strcmp("ircc", argv[1]))
-    {
-        argv[1] = CMAKE_INSTALL_FULL_DATAROOTDIR "/snowcone/ircc/init.lua";
-    }
-    else if (not strcmp("hub", argv[1]))
+    if (not strcmp("hub", argv[1]))
     {
         argv[1] = CMAKE_INSTALL_FULL_DATAROOTDIR "/snowcone/hub/init.lua";
     }

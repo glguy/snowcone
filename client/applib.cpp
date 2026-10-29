@@ -22,16 +22,8 @@ extern "C" {
 #include <lualib.h>
 }
 
-#ifdef LIBHS_FOUND
-#include "hsfilter.hpp"
-#endif
-
 #ifdef LIBIDN_FOUND
 #include "mystringprep.h"
-#endif
-
-#ifdef LIBARCHIVE_FOUND
-#include "myarchive.h"
 #endif
 
 #include "process.hpp"
@@ -490,18 +482,8 @@ auto prepare_globals(lua_State* const L, int const argc, char const* const* cons
     luaL_requiref(L, "mytoml", luaopen_mytoml, 1);
     lua_pop(L, 1);
 
-#ifdef LIBHS_FOUND
-    luaL_requiref(L, "hsfilter", luaopen_hsfilter, 1);
-    lua_pop(L, 1);
-#endif
-
 #ifdef LIBIDN_FOUND
     luaL_requiref(L, "mystringprep", luaopen_mystringprep, 1);
-    lua_pop(L, 1);
-#endif
-
-#ifdef LIBARCHIVE_FOUND
-    luaL_requiref(L, "myarchive", luaopen_myarchive, 1);
     lua_pop(L, 1);
 #endif
 

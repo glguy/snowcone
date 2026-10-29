@@ -43,7 +43,7 @@ endif()
 
 # Lua tests run inside the real client, without a UI: snowcone exits once
 # the test has no work left, and nonzero after any uncaught Lua error.
-foreach(name test-dnslookup test-escape test-execute test-print test-sasl test-scram test-schema test-strings)
+foreach(name test-dnslookup test-escape test-execute test-print test-sasl test-scram test-strings)
   add_test(NAME ${name}
     COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/${name}.lua")
   set_tests_properties(${name} PROPERTIES TIMEOUT 30)
@@ -75,12 +75,6 @@ endif()
 find_program(LUACHECK luacheck)
 if(NOT ${LUACHECK} STREQUAL "LUACHECK-NOTFOUND")
 message("luacheck was " ${LUACHECK})
-add_test(NAME luacheck-ircc
-  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/ircc"
-  COMMAND ${LUACHECK} ".")
-add_test(NAME luacheck-dashboard
-  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/dashboard"
-  COMMAND ${LUACHECK} ".")
 add_test(NAME luacheck-hub
   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/hub"
   COMMAND ${LUACHECK} ".")

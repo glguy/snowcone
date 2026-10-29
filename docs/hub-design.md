@@ -1,9 +1,9 @@
 # hub design
 
-`hub` is snowcone's third Lua application, beside `dashboard/` and `ircc/`.
-It does the work of both — the solanum server-notice console with its ban
-workflow, and a chat client — on any number of IRC networks at once, in one
-process. This document describes how it is built and the rules that keep it
+`hub` is snowcone's Lua application, which replaced the retired `dashboard`
+and `ircc`. It does the work of both — the solanum server-notice console
+with its ban workflow, and a chat client — on any number of IRC networks at
+once, in one process. This document describes how it is built and the rules that keep it
 that way. It is for anyone changing hub, human or agent.
 
 Related files:
@@ -43,8 +43,8 @@ These hold everywhere. A change that breaks one needs a decision recorded in
    in snowcone without a UI, with a fake transport, so they are tested without
    a terminal or a network.
 10. **Clean breaks over compatibility.** hub reads its own configuration
-    format and its own plugin API. ircc and dashboard files are not read and
-    their plugins are ported, not shimmed.
+    format and its own plugin API. Old ircc and dashboard files are not read
+    and their plugins are ported, not shimmed.
 
 ## 2. Layers
 
@@ -359,8 +359,8 @@ hub relies on these parts of the `snowcone` table (see `client/`):
 | `catch_signals(on)` | SIGINT, SIGTERM and SIGHUP arrive as `on_signal(name)`; otherwise the terminal is restored and the default action taken. `shutdown()` restores the terminal and the defaults for good, so a ^C then ends a process that fails to exit. ^Z (SIGTSTP) is handled natively: the terminal is restored, the process group stops, and SIGCONT redraws through `on_resize`. |
 | `start_httpd`, `parse_irc`, `parse_irc_tags`, `irccase`, `pton`, `shutdown`, `raise`, `isalnum`, `stop_input`, `start_input` | As documented in `client/`. |
 
-Optional libraries (`mystringprep`, `hsfilter`, `myarchive`, `mygeoip`,
-`mmdb`, `rex_pcre2`) are detected, never assumed.
+Optional libraries (`mystringprep`, `mygeoip`, `mmdb`, `rex_pcre2`) are
+detected, never assumed.
 
 ## 10. Testing
 
@@ -385,15 +385,13 @@ All tests run in snowcone without a UI, from CTest, with `luacheck` over
   ends. It is built only when libvterm is found.
 - Golden replay: `fixtures/snotes-live.log` (captured from a live network,
   anonymised by `tests/hub/tools/anonymize-snotes.lua`) and `snotes-synthetic.log`,
-  checked against the dashboard parser's output. Fixtures never contain
+  checked against the output of the reference parser in
+  `tests/hub/tools/parse_snote.lua` (the retired dashboard's). Fixtures never contain
   personal data.
 - `test-structure.lua` enforces layering, native API ownership and the
   event catalogue.
 
 ## 11. Direction
-
-hub is replacing `ircc` and `dashboard`. They are only kept working when a
-native API changes; when they stop being installed is still open.
 
 Work that the design leaves room for:
 
@@ -406,4 +404,5 @@ Work that the design leaves room for:
   buffer is scrolled to its start.
 - **State across restarts** (buffers, watches, plugin state) by saving
   `HUB.state` parts on quit.
-- **More plugins ported** from ircc and the dashboard as they are needed.
+- **More plugins ported** from the retired ircc and dashboard as they are
+  needed.

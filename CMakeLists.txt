@@ -26,9 +26,7 @@ find_package(PkgConfig REQUIRED)
 pkg_search_module(LUA      REQUIRED IMPORTED_TARGET lua>=5.4 lua5.4 lua-5.4 lua54)
 pkg_check_modules(NCURSESW REQUIRED IMPORTED_TARGET ncursesw>=6)
 pkg_check_modules(GEOIP             IMPORTED_TARGET geoip)
-pkg_check_modules(LIBHS             IMPORTED_TARGET libhs)
 pkg_check_modules(LIBIDN            IMPORTED_TARGET libidn)
-pkg_check_modules(LIBARCHIVE        IMPORTED_TARGET libarchive)
 
 find_package(OpenSSL REQUIRED)
 
@@ -61,16 +59,8 @@ if(GEOIP_FOUND)
 add_subdirectory(mygeoip)
 endif()
 
-if(LIBHS_FOUND)
-add_subdirectory(hsfilter)
-endif()
-
 if (LIBIDN_FOUND)
 add_subdirectory(mystringprep)
-endif()
-
-if (LIBARCHIVE_FOUND)
-add_subdirectory(myarchive)
 endif()
 
 add_subdirectory(base64)
@@ -87,14 +77,6 @@ add_subdirectory(tests)
 endif()
 
 install(
-    DIRECTORY   "ircc"
-    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/snowcone"
-    PATTERN     ".luacheckrc" EXCLUDE)
-install(
-    DIRECTORY   "dashboard"
-    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/snowcone"
-    PATTERN     ".luacheckrc" EXCLUDE)
-install(
     DIRECTORY   "hub"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/snowcone"
     PATTERN     ".luacheckrc" EXCLUDE
@@ -108,7 +90,7 @@ set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Eric Mertens <emertens@gmail.com>")
 # included; Penlight is loaded at run time, so it is named here
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "lua-penlight")
-# Loaded only where used: the legacy dashboard and ircc (rex_pcre2), IP
+# Loaded only where used: regular expression filters (rex_pcre2), IP
 # organisations from GeoLite2 (mmdb), the GitHub plugin (json)
 set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "lua-rex-pcre2, lua-mmdb, lua-json")
 # The version counts commits when cpack runs (cmake/CPackProjectConfig.cmake),

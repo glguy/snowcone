@@ -17,7 +17,7 @@ stds = {
             },
             "tty_height", "tty_width", "ncurses",
             "myopenssl", "mybase64", "mytoml",
-            "mystringprep", "hsfilter", "myarchive", "mygeoip",
+            "mystringprep", "mygeoip",
         },
     },
 },

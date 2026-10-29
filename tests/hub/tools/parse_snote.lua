@@ -1,4 +1,6 @@
--- Logic for breaking down server notices into semantic notice objects
+-- Logic for breaking down server notices into semantic notice objects.
+-- The retired dashboard's parser, kept as the reference for hub's snotice
+-- feature by expect-snotes.lua and anonymize-snotes.lua.
 
 local simple = {
     ['Filtering enabled.'] = 'filtering_enabled',

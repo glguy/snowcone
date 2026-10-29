@@ -23,17 +23,9 @@ RUN apt-get update \
         build-essential cmake ninja-build pkg-config git ca-certificates \
         dpkg-dev file \
         liblua5.4-dev libssl-dev libncurses-dev libboost-dev \
-        libidn-dev libarchive-dev libgeoip-dev \
+        libidn-dev libgeoip-dev \
         lua-penlight lua-rex-pcre2 lua-mmdb lua-json \
         libgtest-dev libgmock-dev libvterm-dev lua-check curl \
- && case "$(dpkg --print-architecture)" in \
-        amd64) hs=libhyperscan-dev ;; \
-        arm64) hs=libvectorscan-dev ;; \
-        *) hs= ;; \
-    esac \
- && if [ -n "$hs" ]; then \
-        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$hs"; \
-    fi \
  && rm -rf /var/lib/apt/lists/*
 
 # .git comes along: the package version counts its commits

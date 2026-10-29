@@ -2,22 +2,17 @@
 
 Snowcone is a small core C++ project that provides the facilities
 necessary for a highly configurable and robust IRC functionality.
-Its behavior is programmable via the Lua scripting language. Two
-Lua packages are provided enabling snowcone to be the premiere
-solanum server notice console as well as a relaxed chat client.
+Its behavior is programmable via the Lua scripting language. Its Lua
+application, hub, makes snowcone the premiere solanum server notice
+console as well as a relaxed chat client, on any number of networks.
 
 To use snowcone, create a configuration file as described below
-and invoke one of the two modes:
+and run hub:
 
 ```sh
-# These mode shortcuts (dashboard/ircc) work when snowcone is installed
-# otherwise you'll need to provide a path to the appropriate init.lua
-
-# Launch the dashboard
-$ snowcone dashboard
-
-# Launch the client
-$ snowcone ircc
+# The hub shortcut works when snowcone is installed; otherwise
+# give the path to hub/init.lua
+$ snowcone hub
 ```
 
 ## Dependencies
@@ -27,19 +22,11 @@ These are the baseline dependencies
 ```sh
 # Debian build dependencies
 apt install cmake pkg-config liblua5.4-dev libidn-dev libssl-dev libncurses-dev libgeoip-dev lua-mmdb lua-penlight lua-rex-pcre2-dev
-# Optional on x86_64
-apt install libhyperscan-dev
-# Optional on arm64
-apt install libvectorscan-dev
 # Optional for testing
 apt install libgmock-dev libgtest-dev libvterm-dev lua-check
 
 # Homebrew
 brew install cmake pkg-config lua luarocks libidn ncurses openssl pcre2
-# Optional on x86_64
-brew install hyperscan
-# Optional on arm64
-brew install vectorscan
 # Optional for testing
 brew install googletest libvterm luacheck
 # Lua run-time dependencies
@@ -49,73 +36,23 @@ luarocks install penlight mmdblua lrexlib-pcre2
 luarocks install lrexlib-pcre2 PCRE2_DIR=/opt/homebrew/opt/pcre2
 ```
 
-Snowcone can also make use of doxygen, luacheck, libhyperscan/libvectorscan.
+Snowcone can also make use of doxygen and luacheck.
 
 ## Building and running
 
 ```sh
 cmake --preset arm-mac
 cmake --build --preset arm-mac --target install
-out/install/arm-mac/bin/snowcone dashboard
+out/install/arm-mac/bin/snowcone hub
 ```
-
-## Dashboard - Important commands and behaviors
-
-### Important keyboard keys
-
-* <kbd>/</kbd> - start typing a command
-* <kbd>Ctrl</kbd><kbd>S</kbd> - start typing a search query (Lua pattern string)
-* <kbd>Esc</kbd> - exit current input mode
-* <kbd>Ctrl</kbd><kbd>N</kbd> - next view
-* <kbd>Ctrl</kbd><kbd>P</kbd> - previous view
-* <kbd>F1</kbd>-<kbd>F8</kbd> - jump to view
-
-### Main commands
-
-* `/console` - raw IRC message view
-* `/help` - list of slash commands
-* `/quit` - quit the IRC connection and exit the application
-* `/quote` - enter a RAW IRC command (lots of stuff isn't implemented so you might use this more than usual)
-
-### Extra commands
-
-* `/status` - client log messages
-* `/session` - state of the IRC connection
-* `/stats` - internal information
-* `/eval` - run some Lua code
-
-## IRCC - Important commands and behaviors
-
-### Important keyboard keys
-
-* <kbd>/</kbd> - start typing a command
-* <kbd>t</kbd> - start typing a chat message
-* <kbd>Ctrl</kbd><kbd>S</kbd> - start typing a search query (Lua pattern string)
-* <kbd>Esc</kbd> - exit current input mode
-
-### Main commands
-
-* `/console` - raw IRC message view
-* `/help` - list of slash commands
-* `/talk <target>` - open a chat buffer for a channel or PM
-* `/close` - close the current chat buffer
-* `/quit` - quit the IRC connection and exit the application
-* `/quote` - enter a RAW IRC command (lots of stuff isn't implemented so you might use this more than usual)
-
-### Extra commands
-
-* `/status` - client log messages
-* `/session` - state of the IRC connection
-* `/stats` - internal information
-* `/eval` - run some Lua code
 
 ## Hub - dashboard and chat on many networks
 
-`snowcone hub` (in development) combines the dashboard and ircc, and
-connects to any number of networks at once. It reads
-`~/.config/snowcone/hub.toml` (or `hub.lua`, or `--config=PATH`). It does
-not read the ircc and dashboard `settings` files: every connection setting
-lives in a `[[networks]]` table.
+`snowcone hub` is a server notice dashboard and chat client, and connects
+to any number of networks at once. It reads `~/.config/snowcone/hub.toml`
+(or `hub.lua`, or `--config=PATH`); every connection setting lives in a
+`[[networks]]` table. [docs/CONFIG.md](docs/CONFIG.md) describes every
+setting.
 
 ```toml
 [ui]
@@ -164,7 +101,7 @@ nick = 'mynick'
 Secrets (passwords, keys) can be a string, `{ file = 'path' }`,
 `{ command = 'program', arguments = [...] }` or `{ prompt = 'label' }`.
 
-Differences from the two older modes:
+Some things to know:
 
 - The status bar lists every network, coloured by state, with `+` or `!`
   for unseen chat; click one, use Meta-1..9, or `/net <id>` to choose the
@@ -174,15 +111,14 @@ Differences from the two older modes:
 - Every scrolling list is a rolling buffer: new lines replace the oldest
   above the divider, so nothing moves under the mouse.
 - The console's Meta-G shows all networks interleaved.
-- `/filter` filters the current view by pattern; the dashboard's query
-  language is `/prefilter`.
+- `/filter` filters the current view by pattern; the connection views
+  also take a query with `/prefilter` (below).
 - `/reload` and SIGUSR1 load new code and configuration and keep
   connections, scrollback and the line being typed; changed connection
   settings wait for `/reconnect`.
 
 Plugins are Lua files in `~/.config/snowcone/plugins/`, listed in
-`[plugins] modules`. A plugin returns a function that receives an api;
-ircc and dashboard plugins need porting.
+`[plugins] modules`. A plugin returns a function that receives an api.
 
 ```lua
 -- ~/.config/snowcone/plugins/hello.lua
@@ -209,138 +145,13 @@ The api also has `api.log`, `api.task`, `api.timer`, `api.httpd`,
 `api.networks()` and `api.config` (the `[plugins.custom.<name>]` table).
 `/plugins` lists loaded plugins and their errors.
 
-## Configuration
+## Pre-filter
 
-Default configuration path in order of preference
+The connection views can be filtered with the `/prefilter <disjunct>` command.
 
-* Argument to `--config` flag
-* `$XDG_CONFIG_HOME/snowcone/settings.toml`
-* `$HOME/.config/snowcone/settings.toml`
+Example: `/prefilter nick "glguy" and (host |\.com$|I or account "*")`
 
-Configuration file format is selected by file extension:
-
-* `.toml` - parsed as normal TOML
-* `.lua` - Lua module is executed
-
-```toml
-[identity]
-nick = 'snowcone'
-user = 'myuser' # optional; defaults to nick
-gecos = 'your realname text' # optional; defaults to nick
-
-[server]
-host = 'irc.libera.chat'
-username = 'me' # optional; field that get prepended to the server password with ':'
-password = 'a server password' # optional; server password
-# this would generate 'me:a server password' in help password manager interop
-
-# optional; enables TLS
-[tls]
-client_cert.file = '/path/to/pem' # optional; specify TLS client certificate
-client_key.file = '/path/to/pem' # optional; special TLS client private key
-verify_host = 'host.name' # optional; used to override expected hostname; set '' to disable verification
-
-# optional; enables SASL
-[sasl]
-automatic = ['EXTERNAL'] # optional; Automatic SASL mechanisms in fallback order
-
-# optional; adds a credential with name defaulting to PLAIN
-[[sasl.credentials]]
-mechanism = 'PLAIN'
-username = 'username'
-password = 'somepassword'
-
-# optional; adds a credential named EXTERNAL
-[[sasl.credentials]]
-mechanism = 'EXTERNAL'
-
-# optional; adds a credential named mybot
-[[sasl.credentials]]
-name = 'mybot'
-mechanism = 'PLAIN'
-username = 'mybot'
-password = 'another password'
-
-# optional; adds a highlight pattern
-[mention]
-patterns = [ # Lua's pattern match syntax
-    '%f[%w]yournickname%f[^%w]',
-]
-
-[notification]
-module = 'notification.mac' # works on macOS using terminal-notifier
-# module = 'notification.bell' # uses normal terminal BELL character
-
-# optional; configure your network operator credentials
-[oper]
-automatic = false
-username = 'username'
-password = 'password'
-
-# optional; configure your network operator challenge key
-[challenge]
-username = 'username'
-key.file = '/path/to/pem'
-password = 'password' # optional; private key decryption password
-
-# optional; configuration for dynamic plugin logic
-[plugins]
-modules = ['liveness'] # optional; the names of the lua files in plugins/
-directory = '/path/to/plugins' # optional; defaults to ~/.config/snowcone/plugins/
-```
-
-Credentials can be specified as:
-
-* Literal string: `"example"`
-* File contents: `{file="path"}`
-* Command stdout: `{command="executable", arguments={"arg1", "arg2"}, multiline=false}`
-
-Lua module example
-
-```lua
-return {
-    server = {
-        host = 'irc.libera.chat'
-    },
-    tls = {}, -- enables TLS with default settings
-    identity = {
-        nick = 'snowcone'
-    }
-}
-```
-
-Tor configuration example
-
-```toml
-[identity]
-nick = 'ghoulguy'
-
-[server]
-host = 'libera75jm6of4wxpxt4aynol3xjmbtxgfyjpu34ss4d7r7q2v5zrpyd.onion'
-
-[tls]
-verify_host = 'palladium.libera.chat'
-
-[socks]
-host = 'localhost'
-port = 9050
-
-[sasl]
-automatic = ['ECDSA-NIST256P-CHALLENGE']
-
-[[sasl.credentials]]
-mechanism = 'ECDSA-NIST256P-CHALLENGE'
-username = 'glguy'
-key.file = 'sasl-ecdsa.pem'
-```
-
-## Dashboard Pre-filter
-
-Viewed connections can be filtered with the `/filter <disjunct>` command.
-
-Example: `/filter nick "glguy" and (host |\.com$|I or account "*")`
-
-To reset the filter use an empty `/filter`
+To reset the filter use an empty `/prefilter`
 
 ```
 disjunct := conjunct ('or' disjunct)*
@@ -369,29 +180,4 @@ pattern  := '|' regular-expression '|'  # pcre regexp
           | '"' literal string '"'      # exact match
           | "'" literal string "'"      # exact match
 
-```
-
-## Server-side spam filter configuration
-
-Snowcone's ircc mode can load hyperscan databases for configuring the
-server-side message filter extension. This requires installing either
-the `hyperscan` or `vectorscan` optional packages.
-
-Example `patterns.lua` can be loaded with `/upload_filterdb /path/to/patterns.lua`.
-
-```lua
-{
-    patterns = {
-        {
-            actions = {'DROP', 'ALARM'},
-            flags = {'HS_FLAG_SINGLEMATCH', 'HS_FLAG_CASELESS'},
-            regexp = 'example spam string',
-        },
-        {
-            actions = {'KILL'},
-            flags = {'HS_FLAG_SINGLEMATCH'},
-            regexp = 'example kill string',
-        },
-    },
-}
 ```

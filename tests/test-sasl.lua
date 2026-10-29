@@ -1,12 +1,10 @@
--- Driver- and mechanism-level tests for hub/net/sasl, ircc/sasl and
--- dashboard/sasl.
+-- Driver- and mechanism-level tests for hub/net/sasl.
 -- The real mybase64, myopenssl and (when built) mystringprep come from
 -- snowcone; only I/O and Penlight are replaced by small fakes.
 --
 -- Run with:  snowcone tests/test-sasl.lua
 
 local here = (arg and arg[0] or ''):match('^(.*)/[^/]*$') or '.'
-local original_path = package.path
 
 assert(mybase64 and myopenssl, 'run this with snowcone')
 local real_myopenssl <const> = myopenssl
@@ -20,68 +18,22 @@ end
 ------------------------------------------------------------------------
 -- fakes
 
-package.preload['pl.Set'] = function()
-    return function(list)
-        local set = {}
-        for _, v in ipairs(list) do set[v] = true end
-        return set
-    end
-end
-
-package.preload['utils.configuration_tools'] = function()
-    return { resolve_password = function(_, v) return v end }
-end
-
-local sent
-package.loaded['utils.send'] = function(command, arg)
-    local text = type(arg) == 'table' and arg.content or arg
-    sent[#sent + 1] = command .. ' ' .. tostring(text)
-end
-
 -- string:startswith comes from Penlight's stringx in the real client
 function string.startswith(s, prefix) return s:sub(1, #prefix) == prefix end
 
-local statuses
-function status(_, fmt, ...) statuses[#statuses + 1] = fmt:format(...) end
-
-package.preload['pl.file'] = function()
-    return {read = function(path) return 'FILE:' .. path end}
-end
+local sent, statuses
 
 -- hub resolves secrets in a task; these tests pass them as plain strings
 package.preload['hub.runtime.secrets'] = function()
     return { resolve = function(_, v) return v end }
 end
 
--- N, the driver as sasl(task, credentials), and the mechanisms' module prefix
-local N, sasl, mechanisms
+package.path = here .. '/../?.lua;' .. here .. '/../?/init.lua;' .. package.path
+local N <const> = require 'hub.lib.numerics'
+local sasl <const> = require 'hub.net.sasl'.authenticate
 
-local function use_tree(tree)
-    local root = tree == 'hub' and here .. '/..' or here .. '/../' .. tree
-    package.path = root .. '/?.lua;' .. root .. '/?/init.lua;' .. original_path
-    for name in pairs(package.loaded) do
-        if name == 'sasl' or name:find('^sasl%.') or name:find('^utils%.') or name:find('^hub%.') then
-            package.loaded[name] = nil
-        end
-    end
-    if tree == 'hub' then
-        N = require 'hub.lib.numerics'
-        sasl = require 'hub.net.sasl'.authenticate
-        mechanisms = 'hub.net.sasl.'
-        return
-    end
-    package.loaded['utils.send'] = function(command, arg)
-        local text = type(arg) == 'table' and arg.content or arg
-        sent[#sent + 1] = command .. ' ' .. tostring(text)
-    end
-    N = require 'utils.numerics'
-    sasl = require 'sasl'
-    mechanisms = 'sasl.'
-end
-
--- ircc waits on a set of commands, hub on a list
+-- hub waits on a list of commands
 local function waits_for(wanted, command)
-    if wanted[command] then return true end
     for _, c in ipairs(wanted) do
         if c == command then return true end
     end
@@ -117,9 +69,7 @@ local function expect(cond, what)
 end
 
 
-local function suite(tree)
-    use_tree(tree)
-    print('testing ' .. tree)
+do
 
     ------------------------------------------------------------------------
     -- PLAIN end to end
@@ -163,7 +113,7 @@ local function suite(tree)
     end
 
     -- a configuration problem is logged as a message, without a source position
-    if tree == 'hub' then
+    do
         for _, c in ipairs{
             {{mechanism = 'PLAIN', password = 'p'}, 'Startup failed: PLAIN missing sasl `username`'},
             {{mechanism = 'PLAIN', username = 'u\0evil', password = 'p'}, 'Startup failed: PLAIN authcid must not contain NUL'},
@@ -235,7 +185,7 @@ local function suite(tree)
         end
 
         -- error in server-final: drive the mechanism directly
-        local scram = require(mechanisms .. 'scram')
+        local scram = require 'hub.net.sasl.scram'
         local co = scram('sha1', nil, 'u', 'p', nonce)
         assert(coroutine.resume(co))
         assert(coroutine.resume(co, server_first))
@@ -258,7 +208,7 @@ local function suite(tree)
     do
         local seen
         mystringprep = {stringprep = function(s, profile) seen = profile; return s end}
-        local co = require(mechanisms .. 'anonymous')('trace')
+        local co = require 'hub.net.sasl.anonymous' ('trace')
         local _, msg = coroutine.resume(co)
         mystringprep = real_mystringprep
         expect(msg == 'trace' and seen == 'trace', 'anonymous uses stringprep(trace)')
@@ -327,7 +277,4 @@ local function suite(tree)
     end
 end
 
-suite('hub')
-suite('ircc')
-suite('dashboard')
 print('ok')

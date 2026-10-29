@@ -2,7 +2,7 @@
 --
 -- Each fixtures/*.log is replayed through a fake network with the snotice
 -- feature; the snote events must equal fixtures/*.expected.lua, which
--- tests/hub/tools/expect-snotes.lua wrote with the dashboard's parser.
+-- tests/hub/tools/expect-snotes.lua wrote with the reference parser.
 -- snotes-live.log comes from a live network through
 -- tests/hub/tools/anonymize-snotes.lua; snotes-synthetic.log is written by
 -- hand for notices that didn't occur.

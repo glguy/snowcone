@@ -6,7 +6,7 @@
 -- personal data and must stay out of the repository. OUT.log gets IRC lines
 -- with synthetic server-time tags.
 --
--- Every personal field the dashboard parser extracts (nicks, usernames,
+-- Every personal field the reference parser extracts (nicks, usernames,
 -- hosts, IPs, gecos, accounts, oper names, channels, masks, reasons) is
 -- replaced with a synthetic value, consistently across the capture, so a
 -- K-Line and the notices about users it rejects still refer to the same
@@ -18,7 +18,7 @@
 -- value may appear anywhere in the output.
 
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
-local parse = dofile(here .. '/../../../dashboard/utils/parse_snote.lua')
+local parse = dofile(here .. '/parse_snote.lua')
 
 local capture_name, out_name = arg[1], arg[2]
 assert(capture_name and out_name, 'usage: anonymize-snotes.lua CAPTURE OUT.log')

@@ -7,13 +7,12 @@ a decision is made, and change or remove it when the decision does.
 
 ## Scope
 
-- **hub replaces ircc and dashboard.** Lua-side fixes and features go into
-  hub only. ircc and dashboard are only kept working when a native API
-  they use changes.
+- **hub replaced ircc and dashboard,** which are removed from the tree.
+  Native modules only they used (hsfilter, myarchive) went with them.
 - **No plugin compatibility.** ircc and dashboard plugins are ported to the
   hub api, not shimmed. A plugin that returns a table, or fails on a
   `utils.*`/`components.*` module, is refused with a message to port it.
-- **No filterdb** (ircc's `/upload_filterdb` with hsfilter) for now.
+- **No filterdb** (ircc's `/upload_filterdb` with hyperscan) for now.
 - **Not ported from the dashboard:** `/shed_eta` and drain tracking (to be
   designed together with user shedding), and Esc cancelling a staged ban
   (the CANCEL button does it).
