@@ -382,6 +382,48 @@ T.case('batches are collected and emitted whole', function()
     T.eq(#messages, 2, 'history: only the BATCH lines are individual messages')
 end)
 
+-- A soju network list: network 1, named libera and connected
+local function bouncer_list(c)
+    c:recv ':srv BATCH +b soju.im/bouncer-networks'
+    c:recv '@batch=b :srv BOUNCER NETWORK 1 :name=libera;state=connected'
+    c:recv ':srv BATCH -b'
+end
+
+T.case('bouncer network updates set and remove attributes', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    bouncer_list(c)
+    local networks = rec().irc.bouncer_networks
+    T.eq(networks['1'], {name = 'libera', state = 'connected'}, 'listed')
+    c:recv ':srv BOUNCER NETWORK 1 :state=disconnected;error=gone'
+    T.eq(networks['1'], {name = 'libera', state = 'disconnected', error = 'gone'}, 'updated')
+    c:recv ':srv BOUNCER NETWORK 1 :error;state='
+    T.eq(networks['1'], {name = 'libera'}, 'no value removes, with or without =')
+    c:recv ':srv BOUNCER NETWORK 1 *'
+    T.eq(networks['1'], nil, 'deleted')
+end)
+
+T.case('bad bouncer network attributes are reported, not applied', function()
+    local fake = boot({network('test')}, {strict = false})
+    local c = fake.last()
+    register(c)
+    bouncer_list(c)
+    c:recv ':srv BOUNCER NETWORK 1 :name=other;'
+    c:recv ':srv BOUNCER NETWORK 2 :name=new;'
+    c:recv ':srv BOUNCER NETWORK 3'
+    local networks = rec().irc.bouncer_networks
+    T.eq(networks['1'], {name = 'libera', state = 'connected'}, 'unchanged')
+    T.eq(networks['2'], nil, 'no record for a bad update')
+    T.eq(networks['3'], nil, 'nor for a missing one')
+    local reported = 0
+    for _, line in ipairs(T.log_lines()) do
+        T.ok(not line:find 'traceback', 'no traceback: ' .. line)
+        if line:find 'bad BOUNCER NETWORK attributes' then reported = reported + 1 end
+    end
+    T.eq(reported, 3, 'each reported')
+end)
+
 T.case('a batch that is not a replay updates the model as it arrives', function()
     local fake = boot {network('test')}
     local c = fake.last()

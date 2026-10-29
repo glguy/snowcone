@@ -10,6 +10,7 @@
 
 local bus       <const> = require 'hub.runtime.bus'
 local cap       <const> = require 'hub.net.cap'
+local check     <const> = require 'hub.lib.check'
 local clock     <const> = require 'hub.runtime.clock'
 local irc_model <const> = require 'hub.net.irc'
 local log       <const> = require 'hub.runtime.log'
@@ -476,14 +477,17 @@ function H.BOUNCER(_, irc, msg)
         return
     end
 
+    local updates = check(snowcone.parse_irc_tags(attrs or ''),
+        'bad BOUNCER NETWORK attributes: ' .. tostring(attrs))
     local network = irc.bouncer_networks[netid]
     if nil == network then
         network = {}
         irc.bouncer_networks[netid] = network
     end
-    for k, v in pairs(snowcone.parse_irc_tags(attrs)) do
-        -- no value indicates the attribute was deleted
-        if true == v then
+    for k, v in pairs(updates) do
+        -- no value indicates the attribute was deleted; tag syntax makes
+        -- that the same as an empty one
+        if v == '' then
             network[k] = nil
         else
             network[k] = v
