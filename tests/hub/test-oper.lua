@@ -117,6 +117,19 @@ T.case('kline_nick looks up unknown users with WHO', function()
     T.eq(c:take(), {'TESTMASK *@192.0.2.10'}, 'staged from WHO')
 end)
 
+T.case('kline_nick without a connection says so', function()
+    local c = boot()
+    T.require 'hub.ui.control'.init_state(HUB.state)
+    c:finish 'reset'
+    T.require 'hub.ui.cmdline'.execute 'kline_nick Someone'
+    local found
+    for _, line in ipairs(T.log_lines()) do
+        T.ok(not line:find 'attempt to index', 'no crash: ' .. line)
+        found = found or line:find 'network not connected' ~= nil
+    end
+    T.ok(found, 'not connected reported')
+end)
+
 T.case('the servers file reaches oper without the topology feature', function()
     local _, oper = boot {'oper', 'snotice'}
     T.eq(oper.reasons('test')[2][1], 'abuse', 'reasons from the file')

@@ -319,11 +319,14 @@ end
 -- Find a user that isn't in the connection store with WHO, then WHOWAS,
 -- and stage a K-Line
 local function kline_lookup(t, nick)
+    -- first, so a network without a connection fails with a message
+    t:send('WHO', nick, '%tuihn,696')
+
     local irc = HUB.state.nets[t.net].irc
+    ---@cast irc -nil the WHO went out, so the network is connected
     local key = irc_model.fold(irc, nick)
     local function same(n) return n and irc_model.fold(irc, n) == key end
 
-    t:send('WHO', nick, '%tuihn,696')
     while true do
         local msg = t:wait_irc({N.RPL_WHOSPCRPL, N.RPL_ENDOFWHO}, 30000)
         if not msg then return t:log('kline', 'no WHO reply for %s', nick) end
