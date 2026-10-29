@@ -326,6 +326,11 @@ function Pkey:sign(msg) end
 ---@return string
 function Pkey:decrypt(msg, padding) end
 
+---@param msg string
+---@param padding 'oaep'|nil
+---@return string
+function Pkey:encrypt(msg, padding) end
+
 ---@param public myopenssl.Pkey
 ---@return string
 function Pkey:derive(public) end

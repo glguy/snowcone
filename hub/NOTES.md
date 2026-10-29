@@ -123,6 +123,16 @@ a decision is made, and change or remove it when the decision does.
   model at once, and are still emitted whole. A replay batch
   (`chathistory`, `draft/chathistory-targets` and anything nested in one)
   never touches the connection's state.
+- **Requests use labeled-response when they can,** and work without it:
+  `t:request` iterates over the labeled reply, or over `wait_irc` steps,
+  so callers still check that a reply is about their request and break
+  at its end. Solanum labels remote WHOIS and STATS replies too: the
+  labeled batch closes after the remote server's end numeric, and it
+  labels both CHALLENGE steps. `/sheds`
+  stays on `wait_irc`, since it asks every server at once. A staged
+  unkline whose TESTLINE finds no K-Line is dropped, like one whose
+  TESTKLINE finds none. A labeled batch
+  nested in another isn't flattened; no server sends one yet.
 - **Chat history** goes before the messages of the current connection, in
   the server's order, skipping lines a buffer already has (by msgid, else
   time tag, source and text).

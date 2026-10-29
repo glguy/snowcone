@@ -566,6 +566,160 @@ T.case('task timeouts, cancellation and DNS', function()
     T.eq(next(HUB.tasks), nil, 'no tasks left')
 end)
 
+-- Register with labeled-response, which needs batch
+local function register_labeled(c)
+    c:con()
+    c:recv ':srv CAP * LS :batch labeled-response'
+    c:recv ':srv CAP me ACK :batch labeled-response'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 376 me :End of MOTD'
+    c:take()
+end
+
+-- Start a request task that collects the commands it iterates over
+local function requester(commands, timeout_ms, ...)
+    local task = T.require 'hub.runtime.task'
+    local result = {}
+    local args = table.pack(...)
+    task.spawn('requester', {net = 'test'}, function(t)
+        for msg in t:request(commands, timeout_ms, table.unpack(args, 1, args.n)) do
+            table.insert(result, msg.command .. ' ' .. msg[2])
+            if msg.command == 318 then break end -- needed without labels
+        end
+        result.done = true
+    end)
+    return result
+end
+
+T.case('a labeled request gets its whole reply', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register_labeled(c)
+    local sent = record 'irc.sent'
+
+    local result = requester({311, 318}, 1000, 'WHOIS', 'nick', 'nick')
+    T.eq(c:take(), {'@label=1 WHOIS nick nick'}, 'sent with a label')
+    T.eq(sent[1].msg.tags, {label = '1'}, 'label recorded')
+
+    c:recv ':srv 311 me other u h * :someone else' -- not ours
+    c:recv '@label=1 :srv BATCH +b labeled-response'
+    c:recv '@batch=b :remote 311 me nick u h * :Real'
+    c:recv '@batch=b :remote 312 me nick remote :info'
+    T.eq(result, {}, 'nothing before the batch closes')
+    c:recv ':srv BATCH :-b'
+    T.eq(result, {'311 nick', done = true}, 'only its reply, filtered by command')
+
+    local acked = requester({311}, 1000, 'WHOIS', 'gone')
+    T.eq(c:take(), {'@label=2 WHOIS gone'}, 'labels count up')
+    c:recv '@label=2 :srv ACK'
+    T.eq(acked, {done = true}, 'ACK is an empty reply')
+
+    local single = requester({401}, 1000, 'WHOIS', 'x')
+    c:recv '@label=3 :srv 401 me x :No such nick'
+    T.eq(single, {'401 x', done = true}, 'a single labeled message')
+
+    local late = requester({401}, 20, 'WHOIS', 'y')
+    T.sleep(100)
+    T.eq(late, {done = true}, 'a timeout ends the iteration')
+    c:recv '@label=4 :srv 401 me y :No such nick' -- late, and harmless
+    T.eq(next(HUB.tasks), nil, 'no tasks left')
+end)
+
+T.case('without labeled-response a request waits for each reply', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    c:take()
+
+    local result = requester({311, 318}, 1000, 'WHOIS', 'nick')
+    T.eq(c:take(), {'WHOIS nick'}, 'sent without a label')
+    c:recv ':srv 311 me nick u h * :Real'
+    T.eq(result, {'311 nick'}, 'each reply as it arrives')
+    c:recv ':srv 318 me nick :End of WHOIS'
+    T.eq(result, {'311 nick', '318 nick', done = true}, 'the body ends it')
+
+    local late = requester({311}, 20, 'WHOIS', 'y')
+    T.sleep(100)
+    T.eq(late, {done = true}, 'a timeout ends the iteration')
+end)
+
+T.case('a CAP REQ sent by hand takes effect when acked', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    c:take()
+    c:recv ':srv CAP me ACK :batch labeled-response'
+    T.eq(rec().irc.caps_enabled['labeled-response'], true, 'enabled')
+    requester({401}, 1000, 'WHOIS', 'x')
+    T.eq(c:take(), {'@label=1 WHOIS x'}, 'requests are labeled')
+    c:recv '@label=1 :srv ACK'
+    c:recv ':srv CAP me ACK :-labeled-response'
+    T.eq(rec().irc.caps_enabled['labeled-response'], nil, 'disabled')
+end)
+
+-- Answer a CHALLENGE as the server would, with or without labels
+local function challenge_exchange(labeled)
+    local fake = boot {network('test')}
+    local c = fake.last()
+    if labeled then register_labeled(c) else register(c) c:take() end
+
+    local pem = assert(io.open(here .. '/../../myopenssl/test/rsa.pem')):read 'a'
+    local task = T.require 'hub.runtime.task'
+    local challenge = T.require 'hub.net.challenge'
+    task.spawn('challenge', {net = 'test'}, challenge, {username = 'oper', key = pem})
+
+    local secret = 'the challenge secret'
+    local key = myopenssl.read_pem(pem, true)
+    local encoded = mybase64.to_base64(key:encrypt(secret, 'oaep'))
+    local half = #encoded // 2
+    local lines = {
+        ':srv 740 me :' .. encoded:sub(1, half),
+        ':srv 740 me :' .. encoded:sub(half + 1),
+        ':srv 741 me :End of CHALLENGE',
+    }
+    if labeled then
+        T.eq(c:take(), {'@label=1 CHALLENGE oper'}, 'labeled')
+        c:recv '@label=1 :srv BATCH +c labeled-response'
+        for _, line in ipairs(lines) do c:recv('@batch=c ' .. line) end
+        c:recv ':srv BATCH -c'
+    else
+        T.eq(c:take(), {'CHALLENGE oper'}, 'unlabeled')
+        for _, line in ipairs(lines) do c:recv(line) end
+    end
+
+    local response = mybase64.to_base64(myopenssl.get_digest('sha1'):digest(secret))
+    if labeled then
+        T.eq(c:take(), {'@label=2 CHALLENGE +' .. response}, 'labeled response')
+        c:recv '@label=2 :srv 381 me :You are now an IRC operator'
+    else
+        T.eq(c:take(), {'CHALLENGE +' .. response}, 'response')
+        c:recv ':srv 381 me :You are now an IRC operator'
+    end
+    T.eq(T.log_lines 'challenge', {'oper up'}, 'opered')
+    T.eq(next(HUB.tasks), nil, 'finished')
+end
+
+T.case('CHALLENGE with labeled-response', function() challenge_exchange(true) end)
+T.case('CHALLENGE without labeled-response', function() challenge_exchange(false) end)
+
+T.case('tags are escaped and not counted in the line length', function()
+    local fake = boot {network('test')}
+    local send = T.require 'hub.net.send'
+    T.eq(send.tag_prefix {}, '', 'no tags')
+    T.eq(send.tag_prefix {b = 'x y;z\\', a = ''}, '@a;b=x\\sy\\:z\\\\ ', 'escaped, in order')
+
+    local c = fake.last()
+    register_labeled(c)
+    local long = string.rep('x', 512 - #'PRIVMSG #c \r\n')
+    local task = T.require 'hub.runtime.task'
+    task.spawn('long', {net = 'test'}, function(t)
+        for _ in t:request({}, 1000, 'PRIVMSG', '#c', long) do end
+    end)
+    T.eq(c:take(), {'@label=1 PRIVMSG #c ' .. long}, 'a full line still goes')
+    c:recv '@label=1 :srv ACK'
+    T.eq(next(HUB.tasks), nil, 'answered')
+end)
+
 T.case('cancelling a task kills its child and returns the terminal', function()
     boot {}
     local task = T.require 'hub.runtime.task'

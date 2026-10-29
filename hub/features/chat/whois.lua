@@ -15,12 +15,6 @@ local function pretty_seconds(s)
 end
 
 return function(t, nick, remote)
-    if remote then
-        t:send('WHOIS', nick, nick)
-    else
-        t:send('WHOIS', nick)
-    end
-
     local username, host, info
     local channels = {}
     local server, away, operator, privset, certfp, mask, ip
@@ -103,16 +97,20 @@ return function(t, nick, remote)
     local commands = {}
     for k in pairs(handlers) do commands[k] = true end
 
+    local replies
+    if remote then
+        replies = t:request(commands, 30000, 'WHOIS', nick, nick)
+    else
+        replies = t:request(commands, 30000, 'WHOIS', nick)
+    end
+
     local irc = HUB.state.nets[t.net].irc
     ---@cast irc -nil the WHOIS went out, so the network is connected
     local key = irc_model.fold(irc, nick)
-    while true do
-        local msg = t:wait_irc(commands, 30000)
-        if not msg then
-            return out('whois %s: no reply', nick)
-        end
+    for msg in replies do
         if msg[2] and irc_model.fold(irc, msg[2]) == key and handlers[msg.command](msg) then
             return
         end
     end
+    out('whois %s: no reply', nick)
 end

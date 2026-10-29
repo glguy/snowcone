@@ -34,14 +34,14 @@ return function(t, cfg)
     local n = 0
     local chunks <const> = {}
 
-    t:send('CHALLENGE', user)
-    while true do
-        local msg     <const> = t:wait_irc(commands1)
+    local ended
+    for msg in t:request(commands1, 30000, 'CHALLENGE', user) do
         local command <const> = msg.command
         if command == N.RPL_RSACHALLENGE2 then
             n = n + 1
             chunks[n] = msg[2]
         elseif command == N.RPL_ENDOFRSACHALLENGE2 then
+            ended = true
             break
         elseif command == N.RPL_YOUREOPER then
             t:log('challenge', 'already oper')
@@ -51,6 +51,10 @@ return function(t, cfg)
             return
         end
     end
+    if not ended then
+        t:log('challenge', 'no challenge from the server')
+        return
+    end
 
     local input    <const> = table.concat(chunks)
     local envelope <const> = check(mybase64.from_base64(input), 'bad base64 in the challenge from the server')
@@ -58,14 +62,16 @@ return function(t, cfg)
     local digest   <const> = myopenssl.get_digest('sha1'):digest(message)
     local response <const> = mybase64.to_base64(digest)
 
-    t:send('CHALLENGE', '+' .. response)
-    local msg     <const> = t:wait_irc(commands2)
-    local command <const> = msg.command
-    if command == N.RPL_YOUREOPER then
-        t:log('challenge', 'oper up')
-    elseif command == N.ERR_PASSWDMISMATCH then
-        t:log('challenge', 'key mismatch')
-    elseif command == N.ERR_NOOPERHOST then
-        t:log('challenge', 'host mismatch')
+    for msg in t:request(commands2, 30000, 'CHALLENGE', '+' .. response) do
+        local command <const> = msg.command
+        if command == N.RPL_YOUREOPER then
+            t:log('challenge', 'oper up')
+        elseif command == N.ERR_PASSWDMISMATCH then
+            t:log('challenge', 'key mismatch')
+        elseif command == N.ERR_NOOPERHOST then
+            t:log('challenge', 'host mismatch')
+        end
+        return
     end
+    t:log('challenge', 'no answer to the challenge response')
 end

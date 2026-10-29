@@ -417,8 +417,9 @@ function events.MSG(rec, msg, flush)
     -- BATCH lines are always handled, so nested batches open and close;
     -- replayed messages stop here and reach only irc.batch (net/batch.lua)
     local open = batch.collect(irc, msg)
+    local closed
     if msg.command == 'BATCH' then
-        batch.BATCH(id, irc, msg)
+        closed = batch.BATCH(id, irc, msg)
     elseif open and open.replay then
         return
     else
@@ -436,6 +437,14 @@ function events.MSG(rec, msg, flush)
     if open and open.replay then return end
 
     task.deliver_irc(id, msg)
+    -- a labeled reply is one message (ACK when empty) or a batch
+    if closed then
+        if closed.label then
+            task.deliver_reply(id, closed.label, closed.messages)
+        end
+    elseif msg.tags.label and msg.command ~= 'BATCH' then
+        task.deliver_reply(id, msg.tags.label, {msg})
+    end
     bus.emit('irc.message', {net = id, msg = msg})
 end
 

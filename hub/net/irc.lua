@@ -28,6 +28,7 @@ M.caps_supported = {
     'extended-join',
     'extended-monitor',
     'invite-notify',
+    'labeled-response',
     'message-tags',
     'multi-prefix',
     'sasl',
@@ -65,6 +66,7 @@ function M.new()
     ---@field invex string|nil
     ---@field excepts string|nil
     ---@field bouncer_networks table<string, table<string, string>>|nil by netid
+    ---@field label_next integer|nil the last label given to a request
     local irc = {
         kind = 'Irc',
         casemapping = 'rfc1459',
@@ -370,6 +372,15 @@ function M.del_caps(irc, capsarg)
         if 'sasl' == cap then
             set_sasl_mechs(irc, nil)
         end
+    end
+end
+
+--- Record a CAP ACK: names enabled, or disabled with a leading -
+---@param irc hub.Irc
+---@param capsarg string
+function M.ack_caps(irc, capsarg)
+    for minus, cap in capsarg:gmatch '(%-?)([^ ]+)' do
+        irc.caps_enabled[cap] = minus == '' or nil
     end
 end
 

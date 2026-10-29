@@ -1,7 +1,8 @@
 -- Sending IRC commands.
 --
 -- An argument is a string, or {content = string, secret = true} to keep it
--- out of logs. The masked message goes to the network's console log and
+-- out of logs. Requests (t:request) carry a label tag when the network has
+-- labeled-response; tags don't count against the line length. The masked message goes to the network's console log and
 -- the `irc.sent` event; chat echo is the chat feature's business.
 --
 -- A network's `rate_limit` paces its lines (lib/ratelimit.lua). A line
@@ -96,6 +97,27 @@ function M.build(cmd, ...)
     end
 
     return table.concat(parts, ' ') .. '\r\n', msg
+end
+
+local tag_escapes <const> = {
+    [';'] = '\\:', [' '] = '\\s', ['\\'] = '\\\\', ['\r'] = '\\r', ['\n'] = '\\n',
+}
+
+--- The wire form of message tags, '@a=1;b=2 ', or '' without any.
+---@param tags table<string, string>|nil
+---@return string
+function M.tag_prefix(tags)
+    if tags == nil or next(tags) == nil then return '' end
+    local keys = {}
+    for k in pairs(tags) do table.insert(keys, k) end
+    table.sort(keys)
+    for i, k in ipairs(keys) do
+        local v = tags[k]
+        if v ~= '' then
+            keys[i] = k .. '=' .. string.gsub(v, '[; \\\r\n]', tag_escapes)
+        end
+    end
+    return '@' .. table.concat(keys, ';') .. ' '
 end
 
 -- The send queue ====================================================
@@ -208,14 +230,19 @@ local function connection(net)
 end
 
 -- how: nil to wait in turn, 'first' to go ahead of the queue, 'last' to
--- drop the queue and write at once
-local function send(how, net, cmd, ...)
+-- drop the queue and write at once. Tags don't count against the line
+-- length.
+local function send(how, net, tags, cmd, ...)
     local rec, conn = connection(net)
 
     local raw, msg = M.build(cmd, ...)
     local linelen = rec.irc and rec.irc.linelen or 512
     if #raw > linelen then
         error('message too long: ' .. #raw, 0)
+    end
+    if tags then
+        raw = M.tag_prefix(tags) .. raw
+        for k, v in pairs(tags) do msg.tags[k] = v end
     end
 
     if how == 'last' then
@@ -235,19 +262,39 @@ end
 ---@param cmd string|integer
 ---@param ... hub.SendArg
 function M.send(net, cmd, ...)
-    send(nil, net, cmd, ...)
+    send(nil, net, nil, cmd, ...)
 end
 
 --- Send a command ahead of any queued lines, for replies that can't wait,
 --- like PONG. It still counts against the rate limit.
 function M.send_first(net, cmd, ...)
-    send('first', net, cmd, ...)
+    send('first', net, nil, cmd, ...)
 end
 
 --- Drop the queued lines and send a command at once, outside the rate
 --- limit: a last line, like QUIT.
 function M.send_last(net, cmd, ...)
-    send('last', net, cmd, ...)
+    send('last', net, nil, cmd, ...)
+end
+
+--- Send a command whose replies a task waits for (t:request). With
+--- labeled-response it carries a label, unique on the connection, that
+--- the reply will carry too.
+---@param net string network id
+---@param cmd string|integer
+---@param ... hub.SendArg
+---@return string|nil label nil when the network can't label replies
+function M.send_request(net, cmd, ...)
+    local rec = HUB.state.nets[net]
+    local irc = rec and rec.irc
+    if irc and irc.caps_enabled['labeled-response'] and irc.caps_enabled.batch then
+        local n = (irc.label_next or 0) + 1
+        local label = tostring(n)
+        send(nil, net, {label = label}, cmd, ...)
+        irc.label_next = n
+        return label
+    end
+    send(nil, net, nil, cmd, ...)
 end
 
 --- Send text as a line exactly as given, without checking it as a
@@ -272,6 +319,7 @@ end
 
 M.routes = {
     ['net.send'] = M.send,
+    ['net.send_request'] = M.send_request,
     ['net.send_drain'] = function(id, attempt)
         local rec = HUB.state.nets[id]
         if not (rec and rec.attempt == attempt and rec.sendq) then return end

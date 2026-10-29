@@ -148,6 +148,9 @@ every topic, and a test checks that every literal topic emitted is listed.
 - `task.spawn(name, {net, owner}, fn, ...)` runs a coroutine that can
   `wait_irc(commands, timeout)`, `wait_event`, `sleep`, `dnslookup`,
   `execute` and `prompt`, and calls `t:send`, `t:log`, `t:emit`, `t:api`.
+  `t:request(commands, timeout, cmd, ...)` sends a command and iterates
+  over its replies: the labeled reply when the network has
+  `labeled-response`, else `wait_irc` steps.
   A task scoped to a network is cancelled when its connection ends.
   A task keeps running the code it started with across a reload; the
   contract between a suspended task and the current task module is the

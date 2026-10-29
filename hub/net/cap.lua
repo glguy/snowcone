@@ -33,8 +33,8 @@ local function send_reqs(t, request)
     end
 end
 
+-- The CAP handler has recorded each ACK by the time the task sees it
 local function wait_for_ack(t, request)
-    local irc = model(t)
     local outstanding = {}
     for _, cap in ipairs(request) do
         outstanding[cap] = true
@@ -46,9 +46,8 @@ local function wait_for_ack(t, request)
 
         -- CAP * <ACK|NAK> :x y z
         if subcommand == 'ACK' then
-            for minus, cap in caps:gmatch '(%-?)([^ ]+)' do
-                outstanding[minus .. cap] = nil
-                irc.caps_enabled[cap] = minus == '' or nil
+            for cap in caps:gmatch '[^ ]+' do
+                outstanding[cap] = nil
             end
         elseif subcommand == 'NAK' then
             for cap in caps:gmatch '[^ ]+' do
@@ -119,14 +118,17 @@ function M.LS(t)
     t:send('CAP', 'END')
 end
 
---- Handle CAP subcommands outside the initial negotiation.
+--- Handle CAP subcommands as they arrive. An ACK is recorded whoever
+--- asked, so a CAP REQ sent by hand takes effect too.
 ---@param net string
 ---@param irc hub.Irc
 ---@param msg hub.Message
 ---@param spawn fun(name: string, fn: fun(t: hub.Task, ...), ...) starts a task on the network
 function M.on_cap(net, irc, msg, spawn)
     local sub = msg[2]
-    if sub == 'DEL' then
+    if sub == 'ACK' then
+        irc_model.ack_caps(irc, msg[3])
+    elseif sub == 'DEL' then
         irc_model.del_caps(irc, msg[3])
     elseif sub == 'NEW' then
         local new_caps = irc_model.add_caps(irc, msg[3])

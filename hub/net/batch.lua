@@ -38,6 +38,7 @@ end
 ---@field messages hub.Message[]
 ---@field n integer messages so far
 ---@field replay boolean tells of the past (M.replay_types), or nested in such a batch
+---@field label string|nil the label of the request it answers (labeled-response)
 
 --- Collect a message into its open batch.
 ---@param irc hub.Irc
@@ -54,6 +55,7 @@ function M.collect(irc, msg)
 end
 
 --- Handle a BATCH command.
+---@return hub.Batch|nil # the batch it closed
 function M.BATCH(net, irc, msg)
     local polarity = msg[1]:sub(1, 1)
     local name = msg[1]:sub(2)
@@ -66,6 +68,7 @@ function M.BATCH(net, irc, msg)
             messages = {},
             n = 0,
             replay = M.replay_types[msg[2]] or (parent ~= nil and parent.replay),
+            label = msg.tags.label,
         }
     elseif '-' == polarity then
         local batch = irc.batches[name]
@@ -82,6 +85,7 @@ function M.BATCH(net, irc, msg)
                 messages = batch.messages,
             })
         end
+        return batch
     end
 end
 

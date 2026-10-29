@@ -7,7 +7,7 @@ local T = dofile(here .. '/lib.lua')
 local FakeTransport = dofile(here .. '/fake_transport.lua')
 local path = require 'pl.path'
 
-local function boot(features)
+local function boot(features, labeled)
     local fake = FakeTransport.new()
     T.boot {transport = fake, config = {networks = {{
         id = 'test',
@@ -18,7 +18,12 @@ local function boot(features)
     }}}}
     local c = fake.last()
     c:con()
-    c:recv ':srv CAP * LS :'
+    if labeled then
+        c:recv ':srv CAP * LS :batch labeled-response'
+        c:recv ':srv CAP me ACK :batch labeled-response'
+    else
+        c:recv ':srv CAP * LS :'
+    end
     c:recv ':srv 001 me :Welcome'
     c:recv ':srv 376 me :End of MOTD'
     c:take()
@@ -105,6 +110,49 @@ T.case('trusting the username restages', function()
     oper.toggle_trust('test')
     T.eq(oper.get('test').staged.mask, '~u@192.0.2.9', 'restaged')
     T.eq(c:take(), {'TESTMASK ~u@192.0.2.9'}, 'counted again')
+end)
+
+T.case('a labeled TESTMASK counts only its own staging', function()
+    local c, oper = boot(nil, true)
+    oper.prepare_kline('test', 'n', '~u', 'h.example', '192.0.2.9')
+    T.eq(c:take(), {'@label=1 TESTMASK *@192.0.2.9'}, 'labeled')
+    oper.toggle_trust('test')
+    T.eq(c:take(), {'@label=2 TESTMASK ~u@192.0.2.9'}, 'restaged')
+
+    c:recv '@label=1 :srv 727 me 7 0 *!*@192.0.2.9 * :Local/remote clients match'
+    T.eq(oper.get('test').staged.count, nil, 'the old staging is not counted')
+    c:recv '@label=2 :srv 727 me 1 1 *!~u@192.0.2.9 * :Local/remote clients match'
+    T.eq(oper.get('test').staged.count, 2, 'counted')
+
+    oper.prepare_kline('test', 'n', '~u', 'h.example', '192.0.2.11')
+    c:recv '@label=3 :srv 723 me testmask :Insufficient oper privs'
+    T.eq(oper.get('test').staged.count, nil, 'no count')
+    T.eq(T.log_lines 'kline', {'no TESTMASK count for ~u@192.0.2.11'}, 'said so')
+    T.eq(next(HUB.tasks), nil, 'no tasks left')
+end)
+
+T.case('an unkline by mask checks that a K-Line matches', function()
+    local c, oper = boot(nil, true)
+    oper.stage_unkline('test', '*@192.0.2.12')
+    T.eq(c:take(), {'@label=1 TESTLINE *@192.0.2.12'}, 'TESTLINE')
+    T.eq(oper.ready('test'), true, 'ready meanwhile')
+    c:recv '@label=1 :srv 725 me k 60 *@192.0.2.12 :reason'
+    T.eq(oper.get('test').staged.mask, '*@192.0.2.12', 'still staged')
+
+    oper.stage_unkline('test', '*@192.0.2.13')
+    c:recv '@label=2 :srv 726 me *@192.0.2.13 :No matches'
+    T.eq(oper.get('test').staged, nil, 'nothing to remove')
+    T.eq(T.log_lines 'unkline', {'no K-Line matches *@192.0.2.13'}, 'said so')
+end)
+
+T.case('staging without a connection logs instead of raising', function()
+    local c, oper = boot()
+    c:finish 'reset'
+    oper.prepare_kline('test', 'n', '~u', 'h.example', '192.0.2.14')
+    T.eq(oper.get('test').staged.mask, '*@192.0.2.14', 'staged')
+    T.eq(T.log_lines 'oper', {'network not connected: test'}, 'logged')
+    oper.entry_to_unkline('test', {nick = 'n', user = '~u', ip = '192.0.2.15'})
+    T.eq(oper.get('test').staged, nil, 'an unkline without its mask is dropped')
 end)
 
 T.case('kline_nick looks up unknown users with WHO', function()

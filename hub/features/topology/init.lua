@@ -166,10 +166,7 @@ end
 
 -- Check that a joining server still sheds users, and at what rate
 local function check_shed(t, server)
-    t:send('STATS', 'E', server)
-    while true do
-        local msg = t:wait_irc({N.RPL_STATSDEBUG, N.RPL_ENDOFSTATS}, 30000)
-        if not msg then return end
+    for msg in t:request({N.RPL_STATSDEBUG, N.RPL_ENDOFSTATS}, 30000, 'STATS', 'E', server) do
         if msg.source == server then
             local T = M.get(t.net)
             if msg.command == N.RPL_STATSDEBUG and msg[2] == 'E' then

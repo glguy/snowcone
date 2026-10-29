@@ -3,8 +3,9 @@
 --
 -- K-Line reasons and tags come from the network's servers file
 -- (runtime/config.lua). Staging sends only queries (TESTMASK, TESTKLINE,
--- WHO, WHOWAS); KLINE, UNKLINE, UNDLINE and NickServ FREEZE go out only
--- from commit, which the UI calls when the operator confirms.
+-- TESTLINE, WHO, WHOWAS), each from a task that waits for its reply.
+-- KLINE, UNKLINE, UNDLINE and NickServ FREEZE go out only from commit,
+-- which the UI calls when the operator confirms.
 
 local challenge  <const> = require 'hub.net.challenge'
 local common     <const> = require 'hub.features.common'
@@ -62,12 +63,14 @@ function M.get(net)
     return common.net_state(M.name, net, new_state)
 end
 
-local function query(net, ...)
-    local ok, err = pcall(send.send, net, ...)
-    if not ok then
-        log.add_net(net, 'oper', '%s', err)
-    end
-    return ok
+-- t:request for a staging query, logging instead of raising when the
+-- network can't send it
+---@param t hub.Task
+---@return (fun(): hub.Message|nil)|nil
+local function try_request(t, commands, ...)
+    local ok, replies = pcall(t.request, t, commands, 30000, ...)
+    if ok then return replies end
+    t:log('oper', '%s', replies)
 end
 
 -- Durations ===========================================================
@@ -142,6 +145,23 @@ end
 
 -- Staging =============================================================
 
+-- Count the users a staged K-Line matches
+---@param t hub.Task
+---@param staged hub.Staged
+local function count_matches(t, staged)
+    local mask = staged.mask
+    local replies = try_request(t, {N.RPL_TESTMASKGECOS}, 'TESTMASK', mask)
+    if not replies then return end
+    for msg in replies do
+        -- "<client> <local> <remote> <mask> <gecos> :Local/remote clients match"
+        if msg[4] == '*!' .. mask and msg[5] == '*' then
+            staged.count = (math.tointeger(msg[2]) or 0) + (math.tointeger(msg[3]) or 0)
+            return
+        end
+    end
+    t:log('kline', 'no TESTMASK count for %s', mask)
+end
+
 --- Stage a K-Line for a user and ask how many users it matches.
 function M.prepare_kline(net, nick, user, host, ip)
     local O = M.get(net)
@@ -151,8 +171,9 @@ function M.prepare_kline(net, nick, user, host, ip)
         O.staged = nil
         return
     end
-    O.staged = {action = 'kline', mask = mask, nick = nick, user = user, host = host, ip = ip}
-    query(net, 'TESTMASK', mask)
+    local staged = {action = 'kline', mask = mask, nick = nick, user = user, host = host, ip = ip}
+    O.staged = staged
+    task.spawn('kline count', {net = net, owner = M.name}, count_matches, staged)
 end
 
 --- Stage a K-Line for a connection entry from the notice stores.
@@ -171,14 +192,16 @@ function M.entry_to_unkline(net, entry)
     local staged = {action = 'unkline', nick = entry.nick}
     O.staged = staged
     task.spawn('unkline lookup', {net = net, owner = M.name}, function(t)
-        t:send('TESTKLINE', probe)
-        while true do
-            local msg = t:wait_irc({N.RPL_NOTESTLINE, N.RPL_TESTLINE}, 30000)
-            if M.get(t.net).staged ~= staged then return end -- replaced meanwhile
-            if not msg then
+        local replies = try_request(t, {N.RPL_NOTESTLINE, N.RPL_TESTLINE}, 'TESTKLINE', probe)
+        if not replies then
+            if M.get(t.net).staged == staged then
                 M.get(t.net).staged = nil
-                return
-            elseif msg.command == N.RPL_NOTESTLINE and msg[2] == probe then
+            end
+            return
+        end
+        for msg in replies do
+            if M.get(t.net).staged ~= staged then return end -- replaced meanwhile
+            if msg.command == N.RPL_NOTESTLINE and msg[2] == probe then
                 M.get(t.net).staged = nil
                 return
             elseif msg.command == N.RPL_TESTLINE and msg[2] == 'k' then
@@ -186,13 +209,32 @@ function M.entry_to_unkline(net, entry)
                 return
             end
         end
+        if M.get(t.net).staged == staged then
+            M.get(t.net).staged = nil
+        end
     end)
 end
 
---- Stage removing a K-Line by mask (from the bans view).
+--- Stage removing a K-Line by mask (from the bans view), and check with
+--- TESTLINE that one still matches it.
 function M.stage_unkline(net, mask)
-    M.get(net).staged = {action = 'unkline', mask = mask}
-    query(net, 'TESTLINE', mask)
+    local staged = {action = 'unkline', mask = mask}
+    M.get(net).staged = staged
+    task.spawn('unkline check', {net = net, owner = M.name}, function(t)
+        local replies = try_request(t, {N.RPL_NOTESTLINE, N.RPL_TESTLINE}, 'TESTLINE', mask)
+        if not replies then return end
+        for msg in replies do
+            if msg.command == N.RPL_NOTESTLINE and msg[2] == mask then
+                t:log('unkline', 'no K-Line matches %s', mask)
+                if M.get(t.net).staged == staged then
+                    M.get(t.net).staged = nil
+                end
+                return
+            elseif msg.command == N.RPL_TESTLINE then
+                return
+            end
+        end
+    end)
 end
 
 --- Stage removing a D-Line by mask.
@@ -294,23 +336,9 @@ function M.toggle_trust(net)
     end
 end
 
--- Replies =============================================================
-
--- "<client> <local> <remote> <mask> <gecos> :Local/remote clients match"
-local function on_testmask(net, msg)
-    local staged = M.get(net).staged
-    local loc, rem, mask, gecos = msg[2], msg[3], msg[4], msg[5]
-    if staged and staged.mask and gecos == '*' and mask == '*!' .. staged.mask then
-        staged.count = (math.tointeger(loc) or 0) + (math.tointeger(rem) or 0)
-    end
-end
+-- Events ==============================================================
 
 function M.subscribe(sub)
-    sub.on('irc.message', function(ev)
-        if ev.msg.command == N.RPL_TESTMASKGECOS and common.enabled(ev.net, M.name) then
-            on_testmask(ev.net, ev.msg)
-        end
-    end)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
 end
 
@@ -320,28 +348,28 @@ end
 -- and stage a K-Line
 local function kline_lookup(t, nick)
     -- first, so a network without a connection fails with a message
-    t:send('WHO', nick, '%tuihn,696')
+    local who = t:request({N.RPL_WHOSPCRPL, N.RPL_ENDOFWHO}, 30000, 'WHO', nick, '%tuihn,696')
 
     local irc = HUB.state.nets[t.net].irc
     ---@cast irc -nil the WHO went out, so the network is connected
     local key = irc_model.fold(irc, nick)
     local function same(n) return n and irc_model.fold(irc, n) == key end
 
-    while true do
-        local msg = t:wait_irc({N.RPL_WHOSPCRPL, N.RPL_ENDOFWHO}, 30000)
-        if not msg then return t:log('kline', 'no WHO reply for %s', nick) end
+    local found_end
+    for msg in who do
         if msg.command == N.RPL_WHOSPCRPL and msg[2] == '696' and same(msg[6]) then
             return M.prepare_kline(t.net, msg[6], msg[3], msg[5], msg[4])
         elseif msg.command == N.RPL_ENDOFWHO and same(msg[2]) then
+            found_end = true
             break
         end
     end
+    if not found_end then return t:log('kline', 'no WHO reply for %s', nick) end
 
-    t:send('WHOWAS', nick, '1')
     local user, host, gecos
-    while true do
-        local msg = t:wait_irc({N.RPL_WHOWASUSER, N.ERR_WASNOSUCHNICK, N.RPL_ENDOFWHOWAS, N.RPL_WHOISACTUALLY}, 30000)
-        if not msg then return t:log('kline', 'no WHOWAS reply for %s', nick) end
+    for msg in t:request({N.RPL_WHOWASUSER, N.ERR_WASNOSUCHNICK, N.RPL_ENDOFWHOWAS, N.RPL_WHOISACTUALLY},
+        30000, 'WHOWAS', nick, '1')
+    do
         local command = msg.command
         if command == N.RPL_WHOWASUSER and same(msg[2]) then
             -- "<client> <nick> <username> <host> * :<realname>"
@@ -361,6 +389,7 @@ local function kline_lookup(t, nick)
             return t:log('kline', 'Missing 314 response for %s', msg[2])
         end
     end
+    t:log('kline', 'no WHOWAS reply for %s', nick)
 end
 
 local function oper_command(name, spec, help, fn)

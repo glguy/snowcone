@@ -5,11 +5,12 @@
 -- it started with across a reload, but it is woken by the
 -- task module of whichever generation is current. The two meet only here:
 --
---   record fields  id, name, owner, net, co, seq, wait, commands, timer,
---                  lookup (a dnslookup handle), process (an execute
---                  handle), tty (true while the child has the terminal),
---                  wait_since (optional, for /stats)
+--   record fields  id, name, owner, net, co, seq, wait, commands,
+--                  reply_label, timer, lookup (a dnslookup handle),
+--                  process (an execute handle), tty (true while the child
+--                  has the terminal), wait_since (optional, for /stats)
 --   resume values  wait_irc    the message, or nil on timeout
+--                  request     the reply's messages, or nil on timeout
 --                  wait_event  the event, or nil on timeout
 --                  sleep       nothing
 --                  dnslookup   err_or_nil, addr...
@@ -52,9 +53,10 @@ local task_mt <const> = {
 ---@field net string|nil network id, for t:send and cancel_net
 ---@field co thread
 ---@field seq integer changes with every wait
----@field wait 'irc'|'event'|'sleep'|'dns'|'execute'|'prompt'|nil
+---@field wait 'irc'|'reply'|'event'|'sleep'|'dns'|'execute'|'prompt'|nil
 ---@field wait_since number|nil clock.now() when the wait began
 ---@field commands table<string|integer, true>|nil while waiting in wait_irc
+---@field reply_label string|nil while waiting in request for a labeled reply
 ---@field topic string|nil while waiting in wait_event
 ---@field predicate (fun(ev: table): boolean)|nil while waiting in wait_event
 ---@field label string|nil while waiting in prompt
@@ -96,6 +98,7 @@ local function end_wait(t)
     end
     t.wait = nil
     t.commands = nil
+    t.reply_label = nil
     t.topic = nil
     t.predicate = nil
     t.label = nil
@@ -186,6 +189,16 @@ function M.deliver_irc(net, msg)
     end
 end
 
+--- Wake the task of a network waiting for the reply labeled label.
+---@param messages hub.Message[]
+function M.deliver_reply(net, label, messages)
+    for _, t in pairs(HUB.tasks) do
+        if t.wait == 'reply' and t.net == net and t.reply_label == label then
+            return M.resume(t.id, t.seq, messages)
+        end
+    end
+end
+
 --- Wake tasks waiting for this event. Called by bus.emit.
 function M.deliver_event(topic, ev)
     for _, t in ipairs(sorted_tasks()) do
@@ -232,6 +245,41 @@ function methods.wait_irc(t, commands, timeout_ms)
     begin_wait(t, 'irc', timeout_ms)
     t.commands = as_set(commands)
     return coroutine.yield()
+end
+
+--- Send a command and iterate over its replies whose command is in
+--- commands (a list or a set):
+---
+---   for msg in t:request(commands, timeout_ms, cmd, ...) do ... end
+---
+--- With labeled-response the iteration covers the server's whole reply,
+--- received before the first step, and ends with it; timeout_ms limits
+--- the wait for the reply. Without it, each step is a wait_irc, and only a
+--- timeout ends the iteration, so the body must break once it has its
+--- answer and check that each message is about its request.
+---@param commands (string|integer)[]|table<string|integer, true>
+---@param timeout_ms integer|nil
+---@param cmd string|integer
+---@param ... hub.SendArg
+---@return fun(): hub.Message|nil
+function methods.request(t, commands, timeout_ms, cmd, ...)
+    commands = as_set(commands)
+    local label = dispatch.route 'net.send_request' (t.net, cmd, ...)
+    if label == nil then
+        return function() return t:wait_irc(commands, timeout_ms) end
+    end
+
+    begin_wait(t, 'reply', timeout_ms)
+    t.reply_label = label
+    local messages = coroutine.yield() or {}
+    local i = 0
+    return function()
+        repeat
+            i = i + 1
+            local msg = messages[i]
+        until msg == nil or commands[msg.command]
+        return messages[i]
+    end
 end
 
 --- Wait for an event on the bus. Returns nil on timeout.
