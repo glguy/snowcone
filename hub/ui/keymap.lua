@@ -171,15 +171,21 @@ M.input = {
 }
 
 -- Scroll by pages and lines toward older entries of a rolling log, or
--- toward the top of a document. draw.draw_rotation and the document
+-- toward the top of a document. The detail pane, while it is open, takes
+-- the scrolling from the view. draw.draw_rotation and the document
 -- renderer (ui/init.lua) record the page size and limit.
 local function scroll(pages, lines)
     return function()
         local view = control.current_view()
-        local vs = control.view_state(view.id)
+        local vs = control.detail()
+        local document = true
+        if not vs then
+            vs = control.view_state(view.id)
+            document = view.document
+        end
         if vs.page then
             -- a document's scroll counts rows down from its top
-            local sign = view.document and -1 or 1
+            local sign = document and -1 or 1
             local target = vs.scroll + sign * (pages * vs.page + lines)
             vs.scroll = math.max(0, math.min(target, vs.max_scroll))
         end
@@ -192,6 +198,11 @@ M.global = {
         log.dismiss()
         if control.current_prompt() then
             control.answer_prompt(nil) -- aborts the task's prompt
+            return
+        end
+        -- outside input modes the detail pane closes first
+        if control.detail() and not HUB.state.ui.input.mode then
+            control.close_detail()
             return
         end
         editor.reset(control.editor())

@@ -44,6 +44,7 @@ M.profiles = {
 ---@field focus boolean the terminal has focus
 ---@field current_net string|nil the network chosen for net-scoped views
 ---@field profile_configured string|nil ui.profile from configuration, last applied
+---@field detail hub.Detail|nil shown in the detail pane
 
 function M.init_state(S)
     local ui = S.ui or {}
@@ -260,6 +261,36 @@ function M.set_filter(id, pattern)
     if pattern == '' then pattern = nil end
     M.view_state(id).filter = pattern
     dispatch.dirty()
+end
+
+-- Detail pane ========================================================
+
+--- What the detail pane shows, above the view: one record for the client,
+--- drawn by the renderer for its kind (ui/details/). It doubles as the
+--- pane's view state, so it keeps the scroll and whatever the renderer
+--- keeps.
+---@class hub.Detail: hub.ViewState
+---@field kind string names the renderer
+---@field net string|nil the network it is about
+---@field data any what the renderer shows
+
+--- Show something in the detail pane, replacing what it showed.
+---@param kind string
+---@param net string|nil
+---@param data any
+function M.open_detail(kind, net, data)
+    HUB.state.ui.detail = {kind = kind, net = net, data = data, scroll = 0, hscroll = 0}
+    dispatch.dirty()
+end
+
+function M.close_detail()
+    HUB.state.ui.detail = nil
+    dispatch.dirty()
+end
+
+---@return hub.Detail|nil
+function M.detail()
+    return HUB.state.ui.detail
 end
 
 -- Prompts ============================================================

@@ -54,18 +54,25 @@ USING HUB
 
   Many things on screen can be clicked: a network, a column title to
   sort by it, a connection to stage a K-Line for it, a message to inspect
-  it in the console, or a [+N more] button to expand a list.
+  it in the detail pane, or a [+N more] button to expand a list.
+
+  The detail pane opens above the view to show one thing in full: a
+  message, or a /whois reply. A status line that starts with ▸ opens
+  what it summarizes. While the pane is open it takes the scrolling keys;
+  Esc or its [CLOSE] closes it.
 
 KEYS
   /            Type a command
   t            Talk in the shown chat buffer
   C-s          Filter the current view
-  Esc          Leave input, clear filters and scrolling
+  Esc          Close the detail pane; else leave input, clear filters and
+               scrolling
   C-n, C-p     Next and previous view of the rotation
   F1..F12      A view of the rotation
   Meta-1..9    Choose a network
   Meta-a       The next buffer with unseen messages, mentions first
-  PgUp, PgDn   Scroll by a page; Up and Down by a line
+  PgUp, PgDn   Scroll by a page; Up and Down by a line (the detail pane
+               while it is open)
   Tab          Complete commands, channels and nicks
   C-c          Quit; a second C-c exits at once
 

@@ -13,6 +13,13 @@ local M = {}
 ---@field category string
 ---@field text string
 ---@field net string|nil
+---@field detail hub.LogDetail|nil
+
+--- What a log line can open in the UI's detail pane: data for the
+--- renderer of its kind (ui/details/).
+---@class hub.LogDetail
+---@field kind string
+---@field data any
 
 M.capacity = 1000
 
@@ -22,7 +29,7 @@ function M.init_state(S)
     if S.log_last == nil then S.log_last = false end
 end
 
-local function add(net, category, fmt, ...)
+local function add(net, category, detail, fmt, ...)
     local text = select('#', ...) == 0 and fmt or string.format(fmt, ...)
     local S = HUB.state
 
@@ -37,6 +44,7 @@ local function add(net, category, fmt, ...)
         category = category,
         text = text,
         net = net,
+        detail = detail,
     }
     OrderedMap.insert(S.log, nil, entry)
     S.log_last = net and (net .. ': ' .. text) or text
@@ -58,7 +66,7 @@ end
 ---@param fmt string format string, or the text when no arguments follow
 ---@param ... any format arguments
 function M.add(category, fmt, ...)
-    add(nil, category, fmt, ...)
+    add(nil, category, nil, fmt, ...)
 end
 
 --- Add a line about a network to the log.
@@ -67,7 +75,17 @@ end
 ---@param fmt string format string, or the text when no arguments follow
 ---@param ... any format arguments
 function M.add_net(net, category, fmt, ...)
-    add(net, category, fmt, ...)
+    add(net, category, nil, fmt, ...)
+end
+
+--- Add a line that summarizes something the UI can show in full.
+---@param net string|nil network id
+---@param category string
+---@param detail hub.LogDetail
+---@param fmt string format string, or the text when no arguments follow
+---@param ... any format arguments
+function M.add_detail(net, category, detail, fmt, ...)
+    add(net, category, detail, fmt, ...)
 end
 
 --- Clear the status bar's copy of the last line.

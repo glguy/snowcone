@@ -705,7 +705,7 @@ M.commands = {
         M.list(ctx.net, arg)
         bus.emit('chat.show_list', {net = ctx.net})
     end),
-    chat_command('whois', '$g', 'WHOIS a nick, summarized in the status log', function(ctx, nick)
+    chat_command('whois', '$g', 'WHOIS a nick, shown in the detail pane', function(ctx, nick)
         task.spawn('whois', {net = ctx.net, owner = M.name}, whois, nick, false)
     end),
     chat_command('wii', '$g', 'WHOIS a nick on its server (with idle time)', function(ctx, nick)

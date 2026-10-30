@@ -3,7 +3,7 @@
 -- t starts talk mode; Ctrl-N and Ctrl-P step through the network's
 -- buffers; Meta-H hides joins, parts, quits, nick changes, account
 -- changes and host changes. Click a sender to inspect the message in the
--- console. A reply (the +reply tag) starts with ↩: click it to scroll to
+-- detail pane. A reply (the +reply tag) starts with ↩: click it to scroll to
 -- the message it answers, which is highlighted until Esc. Viewing a
 -- buffer marks it seen and, with the terminal focused, withdraws its
 -- notification.
@@ -152,11 +152,13 @@ local function render_msg(ctx, win, buffer, msg)
         draw.magenta(win)
     end
 
-    -- the highlighted message shows its sender as a button would
+    -- the highlighted or inspected message shows its sender as a button
+    -- would
+    local detail = control.detail()
+    local marked = msg == ctx.vs.highlight or detail and detail.data == msg
     ctx.add_button(win, string.format(' %16.16s', scrub(source)), function()
-        control.view_state('console').focus = msg
-        control.set_view 'console'
-    end, msg ~= ctx.vs.highlight)
+        control.open_detail('message', ctx.net, msg)
+    end, not marked)
 
     if msg.statusmsg then
         draw.red(win)

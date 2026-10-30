@@ -21,10 +21,33 @@ local pad_width <const> = keymap.pad_width
 -- Rows a document view's pad may grow to
 local document_limit <const> = 4096
 
-local layout = {textbox_offset = 0}
+local layout = {textbox_offset = 0, detail_rows = 0}
 
--- Click regions, rebuilt every frame: clicks[y] = {{lo, hi, action}, ...}
+-- Renderers of the detail pane, by kind
+local details = {}
+for _, m in ipairs {
+    require 'hub.ui.details.message',
+    require 'hub.ui.details.whois',
+} do
+    details[m.kind] = m
+end
+
+-- Click regions, rebuilt every frame: clicks[y] = {{lo, hi, action}, ...}.
+-- Each part of the screen records its clicks in the rows of the window it
+-- draws into, and place_clicks moves them to screen rows in shown.
 local clicks = {}
+local shown = {}
+
+-- Move the clicks on rows [first, first + count) of the part just drawn
+-- to screen rows from `at`, and start the next part.
+local function place_clicks(first, count, at)
+    for row, list in pairs(clicks) do
+        if first <= row and row < first + count then
+            shown[row - first + at] = list
+        end
+    end
+    clicks = {}
+end
 
 local function add_click(y, lo, hi, action)
     local list = clicks[y]
@@ -49,7 +72,10 @@ local function make_layout()
     if layout.main_pad then layout.main_pad:delwin() end
     layout.main_pad = ncurses.newpad(tty_height - 1, pad_width)
 
-    -- document views wrap at the terminal's width and grow downward
+    -- the detail pane and document views wrap at the terminal's width
+    -- and grow downward
+    if layout.detail_pad then layout.detail_pad:delwin() end
+    layout.detail_pad = ncurses.newpad(tty_height - 1, tty_width)
     if layout.document_pad then layout.document_pad:delwin() end
     layout.document_pad = ncurses.newpad(tty_height - 1, tty_width)
 
@@ -73,31 +99,44 @@ end
 ---@field fragment fun(win: ncurses.Window, bg: integer|nil)|nil starts a fragment of the
 --- status bar, while a view draws its status (ui/statusbar.lua)
 
+-- The view gets the rows below the detail pane
 ---@return hub.ViewContext
 local function view_context(view)
     return {
         id = view.id,
         vs = control.view_state(view.id),
         net = control.current_net(),
-        rows = tty_height - 1,
+        rows = tty_height - 1 - layout.detail_rows,
         cols = tty_width,
         add_click = add_click,
         add_button = add_button,
     }
 end
 
--- Render a document view: everything, top to bottom, into a pad that
--- doubles until it holds it all, shown from row vs.scroll. Records the
--- page size and scroll limit for the paging keys (ui/keymap.lua), and
--- moves the clicks into screen rows. Returns the refresh to do.
-local function render_document(view, ctx)
-    local pad, vs, rows = layout.document_pad, ctx.vs, ctx.rows
+-- A detail renderer gets the detail as its view state
+---@param detail hub.Detail
+---@return hub.ViewContext
+local function detail_context(detail)
+    return {
+        id = 'detail',
+        vs = detail,
+        net = detail.net,
+        rows = layout.detail_rows,
+        cols = tty_width,
+        add_click = add_click,
+        add_button = add_button,
+    }
+end
+
+-- Draw everything, top to bottom, into a pad that doubles until it holds
+-- it all. Returns the rows used.
+local function draw_grown(pad, render_into)
     local height, y, x
     repeat
         clicks = {}
         pad:werase()
         draw.normal(pad)
-        view.render(ctx, pad)
+        render_into(pad)
         height = ncurses.getmaxyx(pad)
         y, x = ncurses.getyx(pad)
         -- a cursor on the last row may mean rows were lost
@@ -106,52 +145,132 @@ local function render_document(view, ctx)
             pad:wresize(math.min(height * 2, document_limit), tty_width)
         end
     until not full
+    return x > 0 and y + 1 or y
+end
 
-    local used = x > 0 and y + 1 or y
+-- Record the page size and scroll limit of a document for the paging keys
+-- (ui/keymap.lua), and keep its scroll in range.
+local function set_paging(vs, used, rows)
     vs.page = math.max(1, rows - 1)
     vs.max_scroll = math.max(0, used - rows)
     vs.scroll = math.max(0, math.min(vs.scroll, vs.max_scroll))
-    local top = vs.scroll
+end
 
-    local shown = {}
-    for row, list in pairs(clicks) do
-        if top <= row and row < top + rows then shown[row - top] = list end
-    end
-    clicks = shown
+-- Render a document view into its pad, shown from row vs.scroll on the
+-- screen rows from `at`. Returns the refresh to do.
+local function render_document(view, ctx, at)
+    local pad, vs, rows = layout.document_pad, ctx.vs, ctx.rows
+    set_paging(vs, draw_grown(pad, function(win) view.render(ctx, win) end), rows)
+    local top = vs.scroll
+    place_clicks(top, rows, at)
 
     return function()
-        pad:pnoutrefresh(top, 0, 0, 0, tty_height - 2, tty_width - 1)
+        pad:pnoutrefresh(top, 0, at, 0, tty_height - 2, tty_width - 1)
+    end
+end
+
+-- Render the detail pane at the top of the screen: its content, up to
+-- half the screen and scrolled by the paging keys, over a rule with
+-- [CLOSE], its title, its modes and the rows shown. Returns the rows it
+-- takes, and the refresh to do.
+---@param detail hub.Detail
+local function render_detail(detail, kind)
+    local limit = (tty_height - 1) // 2 - 1
+    if limit < 1 then return 0 end -- no room
+
+    local pad = layout.detail_pad
+    local ctx = detail_context(detail)
+    ctx.rows = limit
+    local used = draw_grown(pad, function(win) kind.render(ctx, win) end)
+    local rows = math.min(used, limit)
+    set_paging(detail, used, rows)
+    local top = detail.scroll
+    place_clicks(top, rows, 0)
+
+    -- the rule goes on the row after the content, with a row to spare for
+    -- the cursor after the last column
+    if ncurses.getmaxyx(pad) < used + 2 then
+        pad:wresize(used + 2, tty_width)
+    end
+    pad:wmove(used, 0)
+    draw.normal(pad)
+    pad:waddstr '─'
+    add_button(pad, '[CLOSE]', control.close_detail)
+    pad:waddstr '─ '
+    draw.bold(pad)
+    pad:waddstr(kind.title and kind.title(detail) or detail.kind)
+    draw.bold_(pad)
+    if detail.net then
+        draw.cyan(pad)
+        pad:waddstr(' ', detail.net)
+        draw.normal(pad)
+    end
+    for _, mode in ipairs(kind.modes and kind.modes(detail) or {}) do
+        draw.yellow(pad)
+        pad:waddstr(' ', mode)
+        draw.normal(pad)
+    end
+    if detail.max_scroll > 0 then
+        pad:waddstr(string.format(' rows %d-%d of %d', top + 1, top + rows, used))
+    end
+    pad:waddstr ' '
+    local _, x = ncurses.getyx(pad)
+    pad:waddstr(string.rep('─', math.max(0, tty_width - x)))
+    place_clicks(used, 1, rows)
+
+    return rows + 1, function()
+        if rows > 0 then
+            pad:pnoutrefresh(top, 0, 0, 0, rows - 1, tty_width - 1)
+        end
+        pad:pnoutrefresh(used, 0, rows, 0, rows, tty_width - 1)
     end
 end
 
 local function render()
     if tty.suspended() then return end
 
-    clicks = {}
+    clicks, shown = {}, {}
     local main_pad, input_win, textbox_pad = layout.main_pad, layout.input_win, layout.textbox_pad
     ncurses.erase()
     main_pad:werase()
     input_win:werase()
     textbox_pad:werase()
 
+    -- the detail pane first: the view gets the rows it leaves
+    local detail = control.detail()
+    local kind = detail and details[detail.kind]
+    if detail and not kind then
+        control.close_detail() -- a reload removed its renderer
+    end
+    local refresh_detail
+    layout.detail_rows = 0
+    if kind then
+        layout.detail_rows, refresh_detail = render_detail(detail, kind)
+    end
+    local at = layout.detail_rows
+
     local view = control.current_view()
     local ctx = view_context(view)
 
     local refresh
     if view.document then
-        refresh = render_document(view, ctx)
+        refresh = render_document(view, ctx, at)
     else
         draw.normal(main_pad)
         view.render(ctx, main_pad)
+        place_clicks(0, ctx.rows, at)
         local hscroll = math.max(0, math.min(ctx.vs.hscroll or 0, pad_width - tty_width))
         refresh = function()
-            main_pad:pnoutrefresh(0, hscroll, 0, 0, tty_height - 2, tty_width - 1)
+            main_pad:pnoutrefresh(0, hscroll, at, 0, tty_height - 2, tty_width - 1)
         end
     end
 
+    -- the status bar's clicks are in screen rows already
     statusbar.draw(input_win, textbox_pad, layout, view, ctx)
+    place_clicks(tty_height - 1, 1, tty_height - 1)
 
     ncurses.noutrefresh()
+    if refresh_detail then refresh_detail() end
     refresh()
     ncurses.noutrefresh(input_win)
 
@@ -184,7 +303,14 @@ function entry.on_keyboard(key)
         end
     end
 
-    -- the view gets a chance before the global keys; true consumes the key
+    -- then the detail pane, and the view, before the global keys; true
+    -- consumes the key
+    local detail = control.detail()
+    local kind = detail and details[detail.kind]
+    if kind and kind.keypress and kind.keypress(detail_context(detail), key) then
+        return
+    end
+
     local view = control.current_view()
     if view.keypress and view.keypress(view_context(view), key) then
         return
@@ -215,7 +341,7 @@ function entry.on_paste(paste, size)
 end
 
 function entry.on_mouse(y, x, shifted)
-    for _, button in ipairs(clicks[y] or {}) do
+    for _, button in ipairs(shown[y] or {}) do
         if button.lo <= x and x < button.hi then
             button.action(shifted)
             dispatch.dirty()
@@ -356,6 +482,9 @@ function M.subscribe(sub)
             end
             vs.previous[net] = previous
         end
+    end)
+    sub.on('chat.whois', function(ev)
+        control.open_detail('whois', ev.net, ev.whois)
     end)
     sub.on('chat.show_list', function(ev)
         control.set_current_net(ev.net)

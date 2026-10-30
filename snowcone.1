@@ -69,7 +69,12 @@ acts on a network can name another one with @id first, for example
 .PP
 Many things on screen can be clicked: a network, a column title to
 sort by it, a connection to stage a K-Line for it, a message to inspect
-it in the console, or a [+N more] button to expand a list.
+it in the detail pane, or a [+N more] button to expand a list.
+.PP
+The detail pane opens above the view to show one thing in full: a
+message, or a /whois reply. A status line that starts with \[u25B8] opens
+what it summarizes. While the pane is open it takes the scrolling keys;
+Esc or its [CLOSE] closes it.
 .SH KEYS
 .TP
 .B
@@ -86,7 +91,7 @@ Filter the current view
 .TP
 .B
 Esc
-Leave input, clear filters and scrolling
+Close the detail pane; else leave input, clear filters and scrolling
 .TP
 .B
 C-n, C-p
@@ -106,7 +111,7 @@ The next buffer with unseen messages, mentions first
 .TP
 .B
 PgUp, PgDn
-Scroll by a page; Up and Down by a line
+Scroll by a page; Up and Down by a line (the detail pane while it is open)
 .TP
 .B
 Tab

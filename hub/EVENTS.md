@@ -29,4 +29,5 @@ carry `net`, the network id.
 | `chat.buffer` | `{net, target, opened}` a buffer opened or closed | features/chat |
 | `chat.focus` | `{net, target}` /talk asks the UI to show a buffer | features/chat |
 | `chat.show_list` | `{net}` /list asks the UI to show the list | features/chat |
+| `chat.whois` | `{net, whois}` a WHOIS reply ended, as a `hub.Whois`; the UI shows it | features/chat |
 | `notify.alert` | `{net, kind, text, beep?, flash?, color?}` something wants attention; the UI and notify decide how | features (snotice watches) |

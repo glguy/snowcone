@@ -336,6 +336,7 @@ T.case('the paging keys scroll any rolling view within its log', function()
 end)
 
 -- The pad document views draw into: the newest one as wide as the screen
+-- (the detail pane's is made before it)
 local function document_pad()
     for i = #fake_ncurses.windows, 1, -1 do
         local win = fake_ncurses.windows[i]
@@ -396,10 +397,10 @@ T.case('the status bar shows the modes of the view as one fragment', function()
     T.ok(not status_bar():find 'hide', 'none by default')
 
     key(-string.byte 'h')
-    key(-string.byte 'r')
+    key(-string.byte 'g')
     control.view_state 'console'.scroll = 3
     control.view_state 'console'.filter = 'x'
-    T.ok(status_bar():find(' hide raw scroll 3 filter "x" ' .. sep, 1, true), 'in order, together')
+    T.ok(status_bar():find(' hide all scroll 3 filter "x" ' .. sep, 1, true), 'in order, together')
 
     control.view_state 'console'.hscroll = 16
     T.ok(status_bar():find(' scroll 3,+16 ', 1, true), 'horizontal scroll')
@@ -591,22 +592,127 @@ T.case('a staged K-Line turns the title red', function()
     T.eq(statusbar.title_color(), ncurses.COLOR_WHITE, 'only K-Lines')
 end)
 
-T.case('the console inspector decodes server notices', function()
+T.case('the message detail decodes server notices', function()
     local c = boot()
     local line = ':gold.example NOTICE * :*** Notice -- Client connecting: n (u@h.example) [192.0.2.1] {users} <*> [Real]'
     c:recv(line)
     local msg = T.require 'hub.lib.OrderedMap'.lookup(HUB.state.nets.test.console, true)
-    local console = HUB.current.views.console
-    local note = console.decode(msg)
+    local message = T.require 'hub.ui.details.message'
+    local note = message.decode(msg)
     T.eq({note.name, note.nick, note.ip, note.server}, {'connect', 'n', '192.0.2.1', 'gold.example'}, 'decoded')
-    T.eq(console.decode(snowcone.parse_irc ':srv 001 me :Welcome'), nil, 'not a notice')
+    T.eq(message.decode(snowcone.parse_irc ':srv 001 me :Welcome'), nil, 'not a notice')
 
     local control = T.require 'hub.ui.control'
     control.set_view 'console'
-    control.view_state('console').focus = msg
+    control.open_detail('message', 'test', msg)
     HUB.current.routes['ui.draw']()
-    control.view_state('console').show_raw = true
+    key(-string.byte 'r')
+    T.eq(control.detail().show_raw, true, 'Meta-R goes to the detail')
     HUB.current.routes['ui.draw']()
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
+T.case('the detail pane sits above the view, scrolls, and closes', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    control.set_view 'status'
+    HUB.current.routes['ui.draw']()
+
+    -- a message with more rows than half the screen
+    local tags = {}
+    for i = 1, 40 do tags['t' .. i] = 'v' end
+    local msg = snowcone.parse_irc ':a!b@c PRIVMSG #chan :hi'
+    msg.tags = tags
+    control.open_detail('message', 'test', msg)
+    HUB.current.routes['ui.draw']()
+    local detail = control.detail()
+    T.eq(detail.max_scroll > 0, true, 'longer than the pane')
+    -- 40 rows: 39 above the status bar, half of them for the pane
+    -- with its rule, and a page keeps one row in view
+    T.eq(detail.page, 17, 'a page of the pane')
+
+    -- the paging keys scroll the pane, not the view
+    key(-ncurses.KEY_NPAGE)
+    T.eq(detail.scroll, 17, 'paged down')
+    T.eq(control.view_state 'status'.scroll, 0, 'the view stays')
+    key(-ncurses.KEY_UP)
+    T.eq(detail.scroll, 16, 'a line up')
+
+    -- the rule's [CLOSE] is clickable on the row below the pane
+    local entry = HUB.current.routes['ui.entry']
+    entry('on_mouse', 18, 2, false)
+    T.eq(control.detail(), nil, 'closed by click')
+
+    -- Esc closes the pane before it resets the view
+    control.open_detail('message', 'test', msg)
+    control.view_state 'status'.filter = 'kept'
+    key(0x1b)
+    T.eq(control.detail(), nil, 'closed by Esc')
+    T.eq(control.view_state 'status'.filter, 'kept', 'the view is untouched')
+    key(0x1b)
+    T.eq(control.view_state 'status'.filter, nil, 'the next Esc resets the view')
+
+    -- an unknown kind, as after a reload that removed it, is dropped
+    control.open_detail('nonesuch', nil, {})
+    HUB.current.routes['ui.draw']()
+    T.eq(control.detail(), nil, 'dropped')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
+T.case('clicking a buffer sender inspects the message in place', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':alice!a@h PRIVMSG #chan :hello'
+    control.set_talk_target('test', '#chan')
+    control.set_view 'buffer'
+    HUB.current.routes['ui.draw']()
+    local inspected = {}
+    for y = 0, tty_height - 2 do
+        HUB.current.routes['ui.entry']('on_mouse', y, 15, false)
+        local detail = control.detail()
+        if detail then
+            table.insert(inspected, detail.data.command .. ' ' .. table.concat(detail.data, ' '))
+            control.close_detail()
+        end
+    end
+    T.eq(inspected, {'JOIN #chan', 'PRIVMSG #chan hello'}, 'each sender opens its message')
+    T.eq(HUB.state.ui.view, 'buffer', 'still in the buffer')
+    HUB.current.routes['ui.draw']()
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
+T.case('a WHOIS opens in the detail pane, and from its status line', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:take()
+    cmdline.execute 'whois alice'
+    T.eq(c:take(), {'WHOIS alice'}, 'sent')
+    c:recv ':srv 311 me alice a h.example * :Alice A'
+    c:recv ':srv 319 me alice :@#ops +#chan #lobby'
+    c:recv ':srv 312 me alice srv.example :A server'
+    c:recv ':srv 330 me alice acct :is logged in as'
+    c:recv ':srv 317 me alice 75 1700000000 :seconds idle, signon time'
+    c:recv ':srv 318 me alice :End of /WHOIS list.'
+
+    T.eq(T.log_lines 'whois', {'alice!a@h.example account acct, 3 channels'}, 'one line')
+    local detail = control.detail()
+    T.eq({detail.kind, detail.net, detail.data.server, detail.data.idle}, {'whois', 'test', 'srv.example', 75}, 'shown')
+    T.eq(detail.data.channels, {'@#ops', '+#chan', '#lobby'}, 'channels')
+    HUB.current.routes['ui.draw']()
+
+    -- the status line opens it again
+    control.close_detail()
+    control.set_view 'status'
+    HUB.current.routes['ui.draw']()
+    local opened
+    for y = 0, tty_height - 1 do
+        HUB.current.routes['ui.entry']('on_mouse', y, 40, false)
+        if control.detail() then opened = true break end
+    end
+    T.ok(opened, 'clicked open')
+    T.eq(control.detail().data.nick, 'alice', 'the same whois')
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 

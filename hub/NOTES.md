@@ -211,6 +211,12 @@ a decision is made, and change or remove it when the decision does.
   traceback. `lib/check` is `assert` for these expected failures.
 - **Prompts** have their own editor, so a half-typed command survives and
   secrets never reach history. Esc aborts, and the task's secret fails.
+- **One detail pane for the client, at the top,** rather than one per
+  view: inspecting a buffer's message no longer switches to the console,
+  and a WHOIS stays open across views. It takes the paging keys while it
+  is open; if wanting to scroll both becomes common, revisit that. A
+  multi-line report goes there, with a one-line summary in the status log
+  that reopens it, rather than as several log lines.
 - **The status view cuts lines at 400 bytes,** so a long line can't wrap
   past the pad onto the rows below.
 - **The editor** accepts line breaks (it also takes Lua for `/eval`), and
