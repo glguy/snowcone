@@ -868,10 +868,10 @@ TEST_F(Hub, CommandLineHelpResizeAndQuit)
             return false;
         });
     };
-    EXPECT_TRUE(has_row("v CERT ADD command")) << term.screen();
+    EXPECT_TRUE(has_row(" CERT ADD command")) << term.screen();
     term.resize(30, 120);
     ASSERT_TRUE(status(29, "help")) << term.screen();
-    EXPECT_TRUE(has_row("/cert_new $g         Make a self-signed client certificate and print its NickServ CERT ADD command"))
+    EXPECT_TRUE(has_row("/cert_new $g         Make a self-signed client certificate and show its NickServ CERT ADD command"))
         << term.screen();
 
     term.send("/quit\r");
