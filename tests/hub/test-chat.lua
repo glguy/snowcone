@@ -33,6 +33,17 @@ local function texts(buffer)
     return list
 end
 
+T.case('whois reports a refused remote whois', function()
+    local c = boot()
+    local task = T.require 'hub.runtime.task'
+    local whois = T.require 'hub.features.chat.whois'
+    task.spawn('whois', {net = 'test'}, whois, 'Nick', true)
+    T.eq(c:take(), {'WHOIS Nick Nick'}, 'remote')
+    c:recv ':srv 263 me WHOIS :Server load is temporarily too heavy.'
+    T.eq(T.log_lines 'whois', {'whois Nick failed: Server load is temporarily too heavy.'}, 'refused')
+    T.eq(next(HUB.tasks), nil, 'finished')
+end)
+
 T.case('channel and private messages go to buffers', function()
     local c, chat = boot({mention = {patterns = {'%f[%w]me%f[^%w]'}}})
     c:recv ':me!u@h JOIN #chan'

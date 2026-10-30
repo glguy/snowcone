@@ -96,6 +96,7 @@ return function(t, nick, remote)
 
     local commands = {}
     for k in pairs(handlers) do commands[k] = true end
+    commands[N.RPL_LOAD2HI] = true -- a remote WHOIS refused
 
     local replies
     if remote then
@@ -108,7 +109,12 @@ return function(t, nick, remote)
     ---@cast irc -nil the WHOIS went out, so the network is connected
     local key = irc_model.fold(irc, nick)
     for msg in replies do
-        if msg[2] and irc_model.fold(irc, msg[2]) == key and handlers[msg.command](msg) then
+        -- "<client> <command> :Server load is temporarily too heavy..."
+        if msg.command == N.RPL_LOAD2HI then
+            if msg[2] == 'WHOIS' then
+                return out('whois %s failed: %s', nick, msg[3] or 'try again later')
+            end
+        elseif msg[2] and irc_model.fold(irc, msg[2]) == key and handlers[msg.command](msg) then
             return
         end
     end

@@ -63,7 +63,8 @@ return function(t, cfg)
     local response <const> = mybase64.to_base64(digest)
 
     -- the first reply that matters is the answer
-    local msg <const> = t:request(commands2, 30000, 'CHALLENGE', '+' .. response)()
+    local msg <const> = t:request(commands2, 30000, 'CHALLENGE',
+        {content = '+' .. response, secret = true})()
     local command <const> = msg and msg.command
     if command == nil then
         t:log('challenge', 'no answer to the challenge response')

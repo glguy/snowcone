@@ -192,26 +192,28 @@ function M.entry_to_unkline(net, entry)
     local staged = {action = 'unkline', nick = entry.nick}
     O.staged = staged
     task.spawn('unkline lookup', {net = net, owner = M.name}, function(t)
-        local replies = try_request(t, {N.RPL_NOTESTLINE, N.RPL_TESTLINE}, 'TESTKLINE', probe)
-        if not replies then
+        -- unless replaced meanwhile
+        local function drop(fmt)
             if M.get(t.net).staged == staged then
                 M.get(t.net).staged = nil
+                if fmt then t:log('unkline', fmt, probe) end
             end
-            return
         end
+
+        local replies = try_request(t, {N.RPL_NOTESTLINE, N.RPL_TESTLINE}, 'TESTKLINE', probe)
+        if not replies then return drop() end -- try_request logged why
         for msg in replies do
-            if M.get(t.net).staged ~= staged then return end -- replaced meanwhile
+            if M.get(t.net).staged ~= staged then return end
+            -- "<client> <type> <duration> <mask> :<reason>", type k (temporary)
+            -- or K; ! lines about throttling come first
             if msg.command == N.RPL_NOTESTLINE and msg[2] == probe then
-                M.get(t.net).staged = nil
-                return
-            elseif msg.command == N.RPL_TESTLINE and msg[2] == 'k' then
+                return drop('no K-Line matches %s')
+            elseif msg.command == N.RPL_TESTLINE and (msg[2] == 'k' or msg[2] == 'K') then
                 staged.mask = msg[4]
                 return
             end
         end
-        if M.get(t.net).staged == staged then
-            M.get(t.net).staged = nil
-        end
+        drop('no K-Line found for %s')
     end)
 end
 
@@ -221,16 +223,20 @@ function M.stage_unkline(net, mask)
     local staged = {action = 'unkline', mask = mask}
     M.get(net).staged = staged
     task.spawn('unkline check', {net = net, owner = M.name}, function(t)
-        local replies = try_request(t, {N.RPL_NOTESTLINE, N.RPL_TESTLINE}, 'TESTLINE', mask)
+        local replies = try_request(t, {N.RPL_NOTESTLINE, N.RPL_STATSILINE, N.RPL_TESTLINE},
+            'TESTLINE', mask)
         if not replies then return end
         for msg in replies do
-            if msg.command == N.RPL_NOTESTLINE and msg[2] == mask then
+            -- Solanum answers with the auth block when no ban matches, and
+            -- with NOTESTLINE only when nothing does
+            if msg.command == N.RPL_NOTESTLINE and msg[2] == mask
+            or msg.command == N.RPL_STATSILINE then
                 t:log('unkline', 'no K-Line matches %s', mask)
                 if M.get(t.net).staged == staged then
                     M.get(t.net).staged = nil
                 end
                 return
-            elseif msg.command == N.RPL_TESTLINE then
+            elseif msg.command == N.RPL_TESTLINE and msg[2] ~= '!' then
                 return
             end
         end

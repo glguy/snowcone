@@ -598,11 +598,11 @@ T.case('a labeled request gets its whole reply', function()
     local sent = record 'irc.sent'
 
     local result = requester({311, 318}, 1000, 'WHOIS', 'nick', 'nick')
-    T.eq(c:take(), {'@label=1 WHOIS nick nick'}, 'sent with a label')
-    T.eq(sent[1].msg.tags, {label = '1'}, 'label recorded')
+    T.eq(c:take(), {'@label=sc1 WHOIS nick nick'}, 'sent with a label')
+    T.eq(sent[1].msg.tags, {label = 'sc1'}, 'label recorded')
 
     c:recv ':srv 311 me other u h * :someone else' -- not ours
-    c:recv '@label=1 :srv BATCH +b labeled-response'
+    c:recv '@label=sc1 :srv BATCH +b labeled-response'
     c:recv '@batch=b :remote 311 me nick u h * :Real'
     c:recv '@batch=b :remote 312 me nick remote :info'
     T.eq(result, {}, 'nothing before the batch closes')
@@ -610,19 +610,44 @@ T.case('a labeled request gets its whole reply', function()
     T.eq(result, {'311 nick', done = true}, 'only its reply, filtered by command')
 
     local acked = requester({311}, 1000, 'WHOIS', 'gone')
-    T.eq(c:take(), {'@label=2 WHOIS gone'}, 'labels count up')
-    c:recv '@label=2 :srv ACK'
+    T.eq(c:take(), {'@label=sc2 WHOIS gone'}, 'labels count up')
+    c:recv '@label=sc2 :srv ACK'
     T.eq(acked, {done = true}, 'ACK is an empty reply')
 
     local single = requester({401}, 1000, 'WHOIS', 'x')
-    c:recv '@label=3 :srv 401 me x :No such nick'
+    c:recv '@label=sc3 :srv 401 me x :No such nick'
     T.eq(single, {'401 x', done = true}, 'a single labeled message')
 
     local late = requester({401}, 20, 'WHOIS', 'y')
     T.sleep(100)
     T.eq(late, {done = true}, 'a timeout ends the iteration')
-    c:recv '@label=4 :srv 401 me y :No such nick' -- late, and harmless
+    c:recv '@label=sc4 :srv 401 me y :No such nick' -- late, and harmless
     T.eq(next(HUB.tasks), nil, 'no tasks left')
+end)
+
+T.case('a label inside its own batch waits for the batch', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register_labeled(c)
+    local result = requester({311, 312}, 1000, 'WHOIS', 'nick')
+    c:recv '@label=sc1 :srv BATCH +b labeled-response'
+    c:recv '@batch=b;label=sc1 :srv 311 me nick u h * :Real'
+    T.eq(result, {}, 'not yet')
+    c:recv '@batch=b :srv 312 me nick srv :info'
+    c:recv ':srv BATCH -b'
+    T.eq(result, {'311 nick', '312 nick', done = true}, 'the whole batch')
+end)
+
+T.case('a request from outside its task sends nothing', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register_labeled(c)
+    local task = T.require 'hub.runtime.task'
+    local t = task.spawn('idle', {net = 'test'}, function(t) t:sleep(1000) end)
+    T.raises('own coroutine', t.request, t, {401}, 1000, 'WHOIS', 'x')
+    T.eq(c:take(), {}, 'nothing sent')
+    T.eq(t.wait, 'sleep', 'its wait untouched')
+    task.cancel(t.id)
 end)
 
 T.case('without labeled-response a request waits for each reply', function()
@@ -651,8 +676,8 @@ T.case('a CAP REQ sent by hand takes effect when acked', function()
     c:recv ':srv CAP me ACK :batch labeled-response'
     T.eq(rec().irc.caps_enabled['labeled-response'], true, 'enabled')
     requester({401}, 1000, 'WHOIS', 'x')
-    T.eq(c:take(), {'@label=1 WHOIS x'}, 'requests are labeled')
-    c:recv '@label=1 :srv ACK'
+    T.eq(c:take(), {'@label=sc1 WHOIS x'}, 'requests are labeled')
+    c:recv '@label=sc1 :srv ACK'
     c:recv ':srv CAP me ACK :-labeled-response'
     T.eq(rec().irc.caps_enabled['labeled-response'], nil, 'disabled')
 end)
@@ -672,14 +697,15 @@ local function challenge_exchange(labeled)
     local key = myopenssl.read_pem(pem, true)
     local encoded = mybase64.to_base64(key:encrypt(secret, 'oaep'))
     local half = #encoded // 2
+    local sent = record 'irc.sent'
     local lines = {
         ':srv 740 me :' .. encoded:sub(1, half),
         ':srv 740 me :' .. encoded:sub(half + 1),
         ':srv 741 me :End of CHALLENGE',
     }
     if labeled then
-        T.eq(c:take(), {'@label=1 CHALLENGE oper'}, 'labeled')
-        c:recv '@label=1 :srv BATCH +c labeled-response'
+        T.eq(c:take(), {'@label=sc1 CHALLENGE oper'}, 'labeled')
+        c:recv '@label=sc1 :srv BATCH +c labeled-response'
         for _, line in ipairs(lines) do c:recv('@batch=c ' .. line) end
         c:recv ':srv BATCH -c'
     else
@@ -689,13 +715,14 @@ local function challenge_exchange(labeled)
 
     local response = mybase64.to_base64(myopenssl.get_digest('sha1'):digest(secret))
     if labeled then
-        T.eq(c:take(), {'@label=2 CHALLENGE +' .. response}, 'labeled response')
-        c:recv '@label=2 :srv 381 me :You are now an IRC operator'
+        T.eq(c:take(), {'@label=sc2 CHALLENGE +' .. response}, 'labeled response')
+        c:recv '@label=sc2 :srv 381 me :You are now an IRC operator'
     else
         T.eq(c:take(), {'CHALLENGE +' .. response}, 'response')
         c:recv ':srv 381 me :You are now an IRC operator'
     end
     T.eq(T.log_lines 'challenge', {'oper up'}, 'opered')
+    T.eq(sent[1].msg[1], '\x0304*', 'the response is kept out of the logs')
     T.eq(next(HUB.tasks), nil, 'finished')
 end
 
@@ -715,8 +742,8 @@ T.case('tags are escaped and not counted in the line length', function()
     task.spawn('long', {net = 'test'}, function(t)
         for _ in t:request({}, 1000, 'PRIVMSG', '#c', long) do end
     end)
-    T.eq(c:take(), {'@label=1 PRIVMSG #c ' .. long}, 'a full line still goes')
-    c:recv '@label=1 :srv ACK'
+    T.eq(c:take(), {'@label=sc1 PRIVMSG #c ' .. long}, 'a full line still goes')
+    c:recv '@label=sc1 :srv ACK'
     T.eq(next(HUB.tasks), nil, 'answered')
 end)
 

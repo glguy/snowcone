@@ -289,7 +289,8 @@ function M.send_request(net, cmd, ...)
     local irc = rec and rec.irc
     if irc and irc.caps_enabled['labeled-response'] and irc.caps_enabled.batch then
         local n = (irc.label_next or 0) + 1
-        local label = tostring(n)
+        -- sc for snowcone, apart from labels typed by hand
+        local label = 'sc' .. n
         send(nil, net, {label = label}, cmd, ...)
         irc.label_next = n
         return label

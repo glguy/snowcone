@@ -437,12 +437,13 @@ function events.MSG(rec, msg, flush)
     if open and open.replay then return end
 
     task.deliver_irc(id, msg)
-    -- a labeled reply is one message (ACK when empty) or a batch
+    -- a labeled reply is one message (ACK when empty) or a batch; a label
+    -- inside a labeled batch belongs to the batch's reply
     if closed then
         if closed.label then
             task.deliver_reply(id, closed.label, closed.messages)
         end
-    elseif msg.tags.label and msg.command ~= 'BATCH' then
+    elseif msg.tags.label and msg.command ~= 'BATCH' and not (open and open.label) then
         task.deliver_reply(id, msg.tags.label, {msg})
     end
     bus.emit('irc.message', {net = id, msg = msg})

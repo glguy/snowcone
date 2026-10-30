@@ -9,8 +9,10 @@
 --                  reply_label, timer, lookup (a dnslookup handle),
 --                  process (an execute handle), tty (true while the child
 --                  has the terminal), wait_since (optional, for /stats)
+--   wait kinds     irc, reply, event, sleep, dns, execute, prompt
 --   resume values  wait_irc    the message, or nil on timeout
---                  request     the reply's messages, or nil on timeout
+--                  request     (wait 'reply') the reply's messages, or nil
+--                              on timeout
 --                  wait_event  the event, or nil on timeout
 --                  sleep       nothing
 --                  dnslookup   err_or_nil, addr...
@@ -263,6 +265,10 @@ end
 ---@param ... hub.SendArg
 ---@return fun(): hub.Message|nil
 function methods.request(t, commands, timeout_ms, cmd, ...)
+    -- checked before the command goes out, not only when the wait begins
+    if coroutine.running() ~= t.co then
+        error('a task can only wait from its own coroutine', 2)
+    end
     commands = as_set(commands)
     local label = dispatch.route 'net.send_request' (t.net, cmd, ...)
     if label == nil then
