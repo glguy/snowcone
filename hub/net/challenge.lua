@@ -62,16 +62,16 @@ return function(t, cfg)
     local digest   <const> = myopenssl.get_digest('sha1'):digest(message)
     local response <const> = mybase64.to_base64(digest)
 
-    for msg in t:request(commands2, 30000, 'CHALLENGE', '+' .. response) do
-        local command <const> = msg.command
-        if command == N.RPL_YOUREOPER then
-            t:log('challenge', 'oper up')
-        elseif command == N.ERR_PASSWDMISMATCH then
-            t:log('challenge', 'key mismatch')
-        elseif command == N.ERR_NOOPERHOST then
-            t:log('challenge', 'host mismatch')
-        end
-        return
+    -- the first reply that matters is the answer
+    local msg <const> = t:request(commands2, 30000, 'CHALLENGE', '+' .. response)()
+    local command <const> = msg and msg.command
+    if command == nil then
+        t:log('challenge', 'no answer to the challenge response')
+    elseif command == N.RPL_YOUREOPER then
+        t:log('challenge', 'oper up')
+    elseif command == N.ERR_PASSWDMISMATCH then
+        t:log('challenge', 'key mismatch')
+    elseif command == N.ERR_NOOPERHOST then
+        t:log('challenge', 'host mismatch')
     end
-    t:log('challenge', 'no answer to the challenge response')
 end
