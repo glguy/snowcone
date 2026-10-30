@@ -132,6 +132,11 @@ a decision is made, and change or remove it when the decision does.
   `/sheds` stays on `wait_irc`, since it asks every server at once. A
   labeled batch nested in another isn't flattened; no server sends one
   yet.
+- **`/quote` labels its line** with labeled-response and shows the reply
+  in the detail pane at once, filled in when it comes (30 s, then "no
+  reply"; a later reply is only in the console). A label typed by hand
+  is left alone, so the user can follow it in the console, and so is a
+  network without labels.
 - **echo-message only with labeled-response** (and batch): PRIVMSG and
   NOTICE are labeled, so an echo is matched to the line already shown.
   An unlabeled echo would show it twice, so echo-message is requested

@@ -850,4 +850,118 @@ T.case('/eval shows its values in the detail pane, tables as a tree', function()
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+-- Boot with labeled-response, which needs batch
+local function boot_labeled()
+    local fake = FakeTransport.new()
+    T.boot {ui = true, transport = fake, config = {networks = {{
+        id = 'test',
+        server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'},
+    }}}}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :batch labeled-response message-tags'
+    c:recv ':srv CAP me ACK :batch labeled-response message-tags'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 376 me :End of MOTD'
+    c:take()
+    return c
+end
+
+-- The rows of the reply shown in the detail pane
+local function reply_rows(control)
+    local reply = control.detail().data
+    local rows = {reply.state}
+    for _, msg in ipairs(reply.messages) do
+        table.insert(rows, tostring(msg.command) .. ' ' .. table.concat(msg, ' '))
+    end
+    return rows
+end
+
+T.case('a labeled /quote shows its reply batch in the detail pane', function()
+    local c = boot_labeled()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    control.set_view 'status'
+
+    cmdline.execute 'quote @+draft/x=1 LUSERS'
+    T.eq(c:take(), {'@+draft/x=1;label=sc1 LUSERS'}, 'sent with its tags and a label')
+    T.eq(control.detail().kind, 'reply', 'shown at once')
+    T.eq(reply_rows(control), {'waiting'}, 'waiting')
+    HUB.current.routes['ui.draw']()
+
+    c:recv '@label=sc1 :srv BATCH +q labeled-response'
+    c:recv '@batch=q :srv 251 me :There are 3 users'
+    c:recv '@batch=q :srv 255 me :I have 3 clients'
+    c:recv ':srv BATCH :-q'
+    T.eq(reply_rows(control), {'done', '251 me There are 3 users', '255 me I have 3 clients'}, 'filled in')
+    T.eq(T.log_lines 'quote', {'LUSERS: 2 replies'}, 'one line')
+    HUB.current.routes['ui.draw']()
+
+    -- a reply's command opens that message
+    local opened
+    for y = 0, tty_height - 2 do
+        HUB.current.routes['ui.entry']('on_mouse', y, 18, false)
+        if control.detail().kind == 'message' then
+            opened = control.detail().data
+            break
+        end
+    end
+    T.eq(opened and opened.command, 251, 'inspected')
+    T.eq(next(HUB.tasks), nil, 'finished')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
+T.case('a labeled /quote takes a single reply, an ACK, or none', function()
+    local c = boot_labeled()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+
+    cmdline.execute 'quote TIME'
+    T.eq(c:take(), {'@label=sc1 TIME'}, 'labeled')
+    c:recv '@label=sc1 :srv 391 me srv :Friday'
+    T.eq(reply_rows(control), {'done', '391 me srv Friday'}, 'one message')
+
+    cmdline.execute 'quote MODE me +i'
+    c:take()
+    c:recv '@label=sc2 :srv ACK'
+    T.eq(reply_rows(control), {'done', 'ACK '}, 'acknowledged')
+
+    cmdline.execute 'quote PRIVMSG #chan :hi there'
+    T.eq(c:take(), {'@label=sc3 PRIVMSG #chan :hi there'}, 'one label, not two')
+    local t = select(2, next(HUB.tasks))
+    HUB.current.routes['task.wake'](t.id, t.seq)
+    T.eq(reply_rows(control), {'timeout'}, 'no reply')
+    T.eq(T.log_lines 'quote', {'TIME: 1 reply', 'MODE me +i: acknowledged', 'PRIVMSG #chan :hi there: no reply'},
+        'summaries')
+
+    -- the status line opens a reply again
+    control.close_detail()
+    control.set_view 'status'
+    HUB.current.routes['ui.draw']()
+    for y = 0, tty_height - 1 do
+        HUB.current.routes['ui.entry']('on_mouse', y, 40, false)
+        if control.detail() then break end
+    end
+    T.eq(control.detail() and control.detail().kind, 'reply', 'reopened')
+end)
+
+T.case('/quote without labeled-response, or with a label typed, only sends', function()
+    local c = boot_labeled()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    cmdline.execute 'quote @label=mine TIME'
+    T.eq(c:take(), {'@label=mine TIME'}, 'the label as typed')
+    T.eq(control.detail(), nil, 'nothing shown')
+
+    local c2 = boot()
+    c2:take()
+    cmdline = T.require 'hub.ui.cmdline'
+    control = T.require 'hub.ui.control'
+    cmdline.execute 'quote TIME'
+    T.eq(c2:take(), {'TIME'}, 'unlabeled')
+    T.eq(control.detail(), nil, 'nothing shown')
+    T.eq(next(HUB.tasks), nil, 'nothing waits')
+end)
+
 T.run()

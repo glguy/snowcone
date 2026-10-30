@@ -86,17 +86,18 @@ T.case('quote sends tags as typed', function()
     local c = fake.last()
     register_caps(c, 'batch labeled-response message-tags')
 
+    -- with labeled-response every line gets a label for its reply, unless
+    -- one is given
     cmdline.execute [[quote @+draft/react=a\sb;+x TAGMSG #c]]
-    T.eq(c:take(), {[[@+draft/react=a\sb;+x TAGMSG #c]]}, 'escapes kept, bare key kept')
-
-    -- a chat line keeps its label, unless one is given
+    T.eq(c:take(), {[[@+draft/react=a\sb;+x;label=sc1 TAGMSG #c]]}, 'escapes kept, bare key kept')
     cmdline.execute 'quote @+draft/reply=m1 PRIVMSG #c :hi'
-    T.eq(c:take(), {'@+draft/reply=m1;label=sc1 PRIVMSG #c hi'}, 'label added')
+    T.eq(c:take(), {'@+draft/reply=m1;label=sc2 PRIVMSG #c hi'}, 'label added')
     cmdline.execute 'quote @label=mine PRIVMSG #c :hi'
     T.eq(c:take(), {'@label=mine PRIVMSG #c hi'}, 'own label kept')
 
+    -- the label counts against the limit too
     cmdline.execute('quote @+big=' .. string.rep('x', 4090) .. ' TAGMSG #c')
-    T.eq(last_error(), 'quote: tags too long: 4095', 'over the client limit')
+    T.eq(last_error(), 'quote: tags too long: 4105', 'over the client limit')
     T.eq(c:take(), {}, 'nothing sent')
 end)
 

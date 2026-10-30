@@ -275,9 +275,7 @@ function methods.request(t, commands, timeout_ms, cmd, ...)
         return function() return t:wait_irc(commands, timeout_ms) end
     end
 
-    begin_wait(t, 'reply', timeout_ms)
-    t.reply_label = label
-    local messages = coroutine.yield() or {}
+    local messages = t:wait_reply(label, timeout_ms) or {}
     local i = 0
     return function()
         repeat
@@ -286,6 +284,18 @@ function methods.request(t, commands, timeout_ms, cmd, ...)
         until msg == nil or commands[msg.command]
         return messages[i]
     end
+end
+
+--- Wait for the labeled reply to a line sent with label (net/send.lua):
+--- its messages, one ACK when the server had nothing to say, or nil on
+--- timeout.
+---@param label string
+---@param timeout_ms integer|nil
+---@return hub.Message[]|nil
+function methods.wait_reply(t, label, timeout_ms)
+    begin_wait(t, 'reply', timeout_ms)
+    t.reply_label = label
+    return coroutine.yield()
 end
 
 --- Wait for an event on the bus. Returns nil on timeout.

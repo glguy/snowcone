@@ -335,9 +335,29 @@ end
 ---@param ... hub.SendArg
 ---@return string|nil label nil when the network can't label replies
 function M.send_request(net, cmd, ...)
+    return M.send_labeled(net, nil, cmd, ...)
+end
+
+--- Send a command with message tags (as send_tagged) and, with
+--- labeled-response, a new label that its reply will carry.
+---@param net string network id
+---@param tags table<string, string>|nil without a label
+---@param cmd string|integer
+---@param ... hub.SendArg
+---@return string|nil label nil when the network can't label replies
+function M.send_labeled(net, tags, cmd, ...)
     local rec = connection(net)
     local label = new_label(rec.irc)
-    send(nil, net, label and {label = label}, cmd, ...)
+    if label then
+        local t = {label = label}
+        for k, v in pairs(tags or {}) do t[k] = v end
+        tags = t
+    end
+    if tags then
+        M.send_tagged(net, tags, cmd, ...)
+    else
+        send(nil, net, nil, cmd, ...)
+    end
     return label
 end
 

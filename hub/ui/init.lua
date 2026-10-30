@@ -29,6 +29,7 @@ for _, m in ipairs {
     require 'hub.ui.details.error',
     require 'hub.ui.details.keys',
     require 'hub.ui.details.message',
+    require 'hub.ui.details.reply',
     require 'hub.ui.details.value',
     require 'hub.ui.details.whois',
     require 'hub.ui.details.whowas',
@@ -486,6 +487,9 @@ function M.subscribe(sub)
             end
             vs.previous[net] = previous
         end
+    end)
+    sub.on('quote.sent', function(ev)
+        control.open_detail('reply', ev.net, ev.reply)
     end)
     sub.on('chat.whois', function(ev)
         control.open_detail('whois', ev.net, ev.whois)

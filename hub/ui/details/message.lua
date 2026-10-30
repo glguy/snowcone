@@ -21,8 +21,9 @@ M.palette = {
     QUIT = draw.magenta,
 }
 
--- Names of numerics
+--- Names of numerics, by number.
 local numeric_names = {}
+M.numeric_names = numeric_names
 for name, numeric in pairs(numerics) do
     numeric_names[numeric] = name
     if name:sub(1, 4) == 'ERR_' then
