@@ -401,6 +401,34 @@ T.case('a document view grows to its whole length and pages down from the top', 
     T.eq(vs.scroll, 0, 'Esc returns to the top')
 end)
 
+T.case('the status bar names the two who last started typing', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local clock = T.require 'hub.runtime.clock'
+    local now = clock.now()
+    clock.now = function() return now end
+    local sep = T.require 'hub.ui.statusbar'.thin_separator
+    c:recv ':me!u@h JOIN #chan'
+    control.set_talk_target('test', '#chan')
+    control.set_view 'buffer'
+    T.ok(not status_bar():find('…', 1, true), 'nobody typing')
+
+    c:recv '@+typing=active :alice!a@h TAGMSG #chan'
+    now = now + 1
+    c:recv '@+typing=active :bob!b@h TAGMSG #chan'
+    now = now + 1
+    c:recv '@+typing=active :carol!c@h TAGMSG #chan'
+    c:recv '@+typing=active :alice!a@h TAGMSG #chan'
+    T.ok(status_bar():find(' carol, bob… ', 1, true), 'the latest two; a refresh is no change')
+
+    now = now + 1
+    c:recv '@+typing=paused :carol!c@h TAGMSG #chan'
+    T.ok(status_bar():find(' bob, alice… ', 1, true), 'not those who paused')
+
+    now = now + 6
+    T.ok(not status_bar():find('…', 1, true), 'gone once they lapse')
+end)
+
 T.case('the status bar shows the modes of the view as one fragment', function()
     boot()
     local control = T.require 'hub.ui.control'

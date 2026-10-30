@@ -148,6 +148,75 @@ T.case('statusmsg, echo and membership changes', function()
     T.eq(texts(renamed)[3], 'QUIT bye', 'and in the private buffer')
 end)
 
+T.case('typing is tracked in buffers until it lapses or ends', function()
+    local c, chat = boot()
+    local clock = T.require 'hub.runtime.clock'
+    local now = clock.now()
+    clock.now = function() return now end
+    local function typing(target)
+        local list = {}
+        for _, entry in ipairs(chat.typing('test', chat.buffer('test', target))) do
+            table.insert(list, entry.nick .. ' ' .. entry.state)
+        end
+        return list
+    end
+
+    c:recv ':me!u@h JOIN #c'
+    c:recv ':alice!a@h JOIN #c'
+    c:recv '@+typing=active :bob!b@h TAGMSG me'
+    T.eq(chat.buffer('test', 'bob'), nil, 'typing to us opens no buffer')
+    c:recv ':bob!b@h PRIVMSG me :hi'
+    c:recv '@+typing=active :bob!b@h TAGMSG me'
+    T.eq(typing 'bob', {'bob active'}, 'in the private buffer')
+
+    c:recv '@+typing=active :alice!a@h TAGMSG #c'
+    c:recv '@+typing=paused :Bob!b@h TAGMSG @#c'
+    c:recv '@+typing=active :me!u@h TAGMSG #c'
+    T.eq(typing '#c', {'alice active', 'Bob paused'}, 'sorted, statusmsg included, ours ignored')
+
+    now = now + 6
+    T.eq(typing '#c', {'Bob paused'}, 'active lapses after 6 seconds')
+    c:recv '@+typing=active :alice!a@h TAGMSG #c'
+    c:recv '@+typing=done :bob!b@h TAGMSG #c'
+    T.eq(typing '#c', {'alice active'}, 'done ends it')
+
+    now = now + 1
+    c:recv '@+typing=paused :Bob!b@h TAGMSG #c'
+    T.eq(typing '#c', {'Bob paused', 'alice active'}, 'the latest change first')
+    now = now + 1
+    c:recv '@+typing=active :alice!a@h TAGMSG #c'
+    c:recv '@+typing=paused :Bob!b@h TAGMSG #c'
+    T.eq(typing '#c', {'Bob paused', 'alice active'}, 'refreshing is no change')
+    c:recv '@+typing=done :bob!b@h TAGMSG #c'
+
+    c:recv ':alice!a@h PRIVMSG #c :sent'
+    T.eq(typing '#c', {}, 'a message ends it')
+
+    c:recv '@+typing=active :alice!a@h TAGMSG #c'
+    c:recv '@+typing=active :bob!b@h TAGMSG me'
+    c:recv ':alice!a@h NICK alicia'
+    T.eq(typing '#c', {'alicia active'}, 'follows a nick change')
+    c:recv ':bob!b@h NICK robert'
+    T.eq(typing 'robert', {'robert active'}, 'and the renamed private buffer')
+    c:recv ':dave!d@h PRIVMSG me :one'
+    c:recv ':dan!d@h PRIVMSG me :two'
+    c:recv '@+typing=active :dave!d@h TAGMSG me'
+    c:recv ':dave!d@h NICK dan'
+    T.eq({typing 'dave', typing 'dan'}, {{}, {}}, 'not carried into a buffer kept apart')
+    c:recv ':alicia!a@h PART #c'
+    T.eq(typing '#c', {}, 'parting ends it')
+
+    c:recv '@+typing=active :carol!c@h TAGMSG #c'
+    c:recv ':op!o@h KICK #c me :out'
+    T.eq(typing '#c', {}, 'leaving ourselves ends everyone\'s')
+    c:recv ':robert!b@h QUIT :bye'
+    T.eq(typing 'robert', {}, 'quitting ends it')
+
+    c:recv '@+typing=active :robert!b@h TAGMSG me'
+    c:finish 'reset'
+    T.eq(typing 'robert', {}, 'disconnecting ends it')
+end)
+
 T.case('every buffer a queued line went to shows its delivery', function()
     local c, chat = boot {rate_limit = {burst = 1, interval = 60}}
     c:recv ':me!u@h JOIN #a'

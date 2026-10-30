@@ -5,9 +5,10 @@
 -- changes and host changes. Click a sender to inspect the message in the
 -- detail pane. A reply (the +reply tag) starts with ↩: click it to scroll to
 -- the message it answers, which is highlighted until Esc. Click a
--- channel's name in the status bar for its information. Viewing a
--- buffer marks it seen and, with the terminal focused, withdraws its
--- notification.
+-- channel's name in the status bar for its information. After the name,
+-- the two who most recently started typing there (not those who paused).
+-- Viewing a buffer marks it seen and, with the terminal focused,
+-- withdraws its notification.
 -- View state: scroll, hscroll, hide_presence, highlight (a message).
 
 local addircstr  <const> = require 'hub.ui.irc_formatting'
@@ -22,6 +23,9 @@ local log        <const> = require 'hub.runtime.log'
 local matching   <const> = require 'hub.lib.matching'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local scrub      <const> = require 'hub.lib.scrub'
+
+-- How many of those typing the status bar names
+local typing_shown <const> = 2
 
 local function chat_renderer(win, msg)
     local text = msg[2] or ''
@@ -292,8 +296,8 @@ return {
         end
     end,
 
-    -- The target, colored by whether we can reach it, then buffers with
-    -- unseen messages (magenta for mentions)
+    -- The target, colored by whether we can reach it, who is typing there,
+    -- then buffers with unseen messages (magenta for mentions)
     status = function(ctx, win)
         local net = ctx.net
         if not (net and common.enabled(net, 'chat')) then return end
@@ -331,6 +335,20 @@ return {
                     chat.channel_info(net, name)
                     control.open_detail('channel', net, {name = name})
                 end)
+            end
+
+            local nicks = {}
+            for _, entry in ipairs(buffer and chat.typing(net, buffer) or {}) do
+                if #nicks == typing_shown then break end
+                if entry.state == 'active' then
+                    table.insert(nicks, scrub(entry.nick))
+                end
+            end
+            if #nicks > 0 then
+                ctx.fragment(win)
+                draw.italic(win)
+                win:waddstr(table.concat(nicks, ', '), '…')
+                draw.normal(win)
             end
         end
 

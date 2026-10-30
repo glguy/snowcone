@@ -3,8 +3,9 @@
 --
 -- state.features.chat[net] = {
 --   buffers  [folded target] = {name, messages = OrderedMap, activity,
---            mention}; activity counts unseen messages, and messages
---            are keyed by their msgid tag when they have one
+--            mention, typing}; activity counts unseen messages, messages
+--            are keyed by their msgid tag when they have one, and typing
+--            holds who is typing there (see Typing below)
 --   list     OrderedMap of /list results: {channel, users, topic}
 --   pending  [label] = {[folded target] = {msg, buffer}}: our labeled
 --            PRIVMSG and NOTICE lines awaiting the server's reply
@@ -21,6 +22,7 @@
 -- the reply never settled it. The echo itself isn't shown again.
 
 local bus        <const> = require 'hub.runtime.bus'
+local clock      <const> = require 'hub.runtime.clock'
 local common     <const> = require 'hub.features.common'
 local ctcp       <const> = require 'hub.features.chat.ctcp'
 local irc_model  <const> = require 'hub.net.irc'
@@ -117,6 +119,8 @@ end
 ---@field messages hub.OrderedMap keyed by msgid, when there is one
 ---@field activity integer messages since it was last seen
 ---@field mention boolean
+---@field typing table<string, hub.ChatTyping>|nil by folded nick; nil in
+--- buffers from before typing was tracked
 
 --- A buffer, created (and its history requested) when missing.
 ---@param net string
@@ -215,8 +219,58 @@ function M.newest(buffer)
     return (OrderedMap.get(buffer.messages, OrderedMap.last(buffer.messages)))
 end
 
+-- Typing ============================================================
+--
+-- +typing on a TAGMSG (the IRCv3 typing spec) to a channel or to us,
+-- kept only in a buffer that already exists: a nick typing to us doesn't
+-- open one. An entry lasts until its timeout, or until the nick sends
+-- a message there, leaves, or says done; a nick change carries it over.
+
+--- Seconds an entry lasts without being refreshed, by state.
+M.typing_timeout = {active = 6, paused = 30}
+
+---@class hub.ChatTyping
+---@field nick string as last seen
+---@field state 'active'|'paused'
+---@field changed number clock.now() when it started or changed state;
+--- a refresh in the same state keeps it
+---@field expires number clock.now() when it lapses
+
+--- Forget a nick's typing in a buffer.
+local function stop_typing(net, buffer, nick)
+    if buffer and buffer.typing and nick then
+        buffer.typing[M.fold(net, nick)] = nil
+    end
+end
+
+--- Who is typing in a buffer, the most recent change first (ties by
+--- folded nick); expired entries are dropped.
+---@param net string
+---@param buffer hub.ChatBuffer
+---@return hub.ChatTyping[]
+function M.typing(net, buffer)
+    local list = {}
+    if not buffer.typing then return list end
+    local now = clock.now()
+    for key, entry in pairs(buffer.typing) do
+        if now >= entry.expires then
+            buffer.typing[key] = nil
+        else
+            table.insert(list, entry)
+        end
+    end
+    table.sort(list, function(a, b)
+        if a.changed ~= b.changed then return a.changed > b.changed end
+        return M.fold(net, a.nick) < M.fold(net, b.nick)
+    end)
+    return list
+end
+
 local function add(net, target, msg, mention, activity)
     local buffer = M.open(net, target, msg.tags and msg.tags.time)
+    if msg.command == 'PRIVMSG' or msg.command == 'NOTICE' then
+        stop_typing(net, buffer, msg.nick)
+    end
     local id = msgid(msg)
     -- a message the buffer already has, from history or a bouncer
     if id and M.find(buffer, id) then return end
@@ -332,9 +386,58 @@ function H.WALLOPS(net, _, msg)
 end
 H.OPERWALL = H.WALLOPS
 
+function H.TAGMSG(net, irc, msg)
+    local state = msg.tags['+typing']
+    local nick = msg.nick
+    if not (state and nick and msg[1]) or irc_model.is_me(irc, nick) then return end
+    local _, target = irc_model.split_statusmsg(irc, msg[1])
+    local buffer
+    if irc_model.is_channel_name(irc, target) then
+        buffer = M.buffer(net, target)
+    elseif irc_model.is_me(irc, target) then
+        buffer = M.buffer(net, nick)
+    end
+    if not buffer then return end
+    local timeout = M.typing_timeout[state]
+    if timeout then
+        buffer.typing = buffer.typing or {}
+        local key = M.fold(net, nick)
+        local old = buffer.typing[key]
+        local now = clock.now()
+        local changed = now
+        if old and old.state == state and now < old.expires then
+            changed = old.changed
+        end
+        buffer.typing[key] = {nick = nick, state = state, changed = changed, expires = now + timeout}
+    else
+        -- done, or a state the spec may add later
+        stop_typing(net, buffer, nick)
+    end
+end
+
+-- Leaving a channel ends typing there; our own leaving ends all of it
+local function left(net, irc, channel, nick)
+    local buffer = M.buffer(net, channel)
+    if not buffer then return end
+    if irc_model.is_me(irc, nick) then
+        buffer.typing = nil
+    else
+        stop_typing(net, buffer, nick)
+    end
+end
+
 function H.JOIN(net, _, msg) add(net, msg[1], msg, false, false) end
-function H.PART(net, _, msg) add(net, msg[1], msg, false, false) end
-function H.KICK(net, _, msg) add(net, msg[1], msg, false, false) end
+
+function H.PART(net, irc, msg)
+    left(net, irc, msg[1], msg.nick)
+    add(net, msg[1], msg, false, false)
+end
+
+function H.KICK(net, irc, msg)
+    left(net, irc, msg[1], msg[2])
+    add(net, msg[1], msg, false, false)
+end
+
 function H.TOPIC(net, _, msg) add(net, msg[1], msg, false, false) end
 
 function H.MODE(net, irc, msg)
@@ -345,11 +448,37 @@ end
 
 -- QUIT and NICK carry the channels the user was in (net/handlers.lua)
 function H.QUIT(net, _, msg)
+    for _, name in ipairs(msg.channels or {}) do
+        stop_typing(net, M.buffer(net, name), msg.nick)
+    end
+    stop_typing(net, msg.nick and M.buffer(net, msg.nick), msg.nick)
     to_channels(net, msg.channels or {}, msg)
     to_user(net, msg.nick, msg)
 end
 
+-- A nick's typing, carried over to its new nick
+local function rename_typing(net, buffer, old, new)
+    local entry = buffer and buffer.typing and buffer.typing[M.fold(net, old)]
+    if not entry then return end
+    buffer.typing[M.fold(net, old)] = nil
+    entry.nick = new
+    buffer.typing[M.fold(net, new)] = entry
+end
+
 function H.NICK(net, _, msg)
+    if msg.nick then
+        for _, name in ipairs(msg.channels or {}) do
+            rename_typing(net, M.buffer(net, name), msg.nick, msg[1])
+        end
+        local query, other = M.buffer(net, msg.nick), M.buffer(net, msg[1])
+        if other and other ~= query then
+            -- the buffers stay apart (below), and the nick's typing
+            -- belongs in the other one
+            stop_typing(net, query, msg.nick)
+        else
+            rename_typing(net, query, msg.nick, msg[1])
+        end
+    end
     to_channels(net, msg.channels or {}, msg)
     local C = M.get(net)
     local old = msg.nick and M.fold(net, msg.nick)
@@ -635,6 +764,8 @@ function M.subscribe(sub)
         if not enabled(ev.net) then return end
         local C = M.get(ev.net)
         for label in pairs(C.pending) do settle(C, label) end
+        -- and nobody's typing outlives the connection
+        for _, buffer in pairs(C.buffers) do buffer.typing = nil end
     end)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
 end
