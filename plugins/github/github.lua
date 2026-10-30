@@ -936,30 +936,31 @@ end
 --#endregion
 --#region IN-CLIENT COMMANDS
 
---- Commands typed in the client: name = {spec, usage, help, fn(...)}
+--- Commands typed in the client, in the order /help lists them:
+--- {name, spec, usage, help, fn(...)}
 local client_commands = {
-    gh_replay = {'$g $g', 'event file', 'Replay an event from a request body saved in debug mode',
+    {'gh_replay', '$g $g', 'event file', 'Replay an event from a request body saved in debug mode',
         function(event, name)
             do_notify(nil, nil, event, file.read(path.join(cache_dir(), name)))
         end},
 
-    gh_debug_on = {'', nil, 'Save request bodies for inspection and replay', function()
+    {'gh_debug_on', '', nil, 'Save request bodies for inspection and replay', function()
         config.debug = true
         save_config(config)
     end},
 
-    gh_debug_off = {'', nil, 'Stop saving request bodies', function()
+    {'gh_debug_off', '', nil, 'Stop saving request bodies', function()
         config.debug = false
         save_config(config)
     end},
 
-    gh_set_credential = {'$g $g', 'authid secret', 'Set the webhook secret of a notify name',
+    {'gh_set_credential', '$g $g', 'authid secret', 'Set the webhook secret of a notify name',
         function(authid, secret)
             config.credentials[authid] = secret
             save_config(config)
         end},
 
-    gh_drop_credential = {'$g', 'authid', 'Remove a webhook secret and its authorizations', function(authid)
+    {'gh_drop_credential', '$g', 'authid', 'Remove a webhook secret and its authorizations', function(authid)
         if not config.credentials[authid] then
             error('no such credential', 0)
         end
@@ -970,7 +971,7 @@ local client_commands = {
         save_config(config)
     end},
 
-    gh_authorize = {'$g $g', 'repo authid', 'Let a notify name announce a project', function(repo, authid)
+    {'gh_authorize', '$g $g', 'repo authid', 'Let a notify name announce a project', function(repo, authid)
         local project = config.projects[repo]
         if not project then
             error('no such project', 0)
@@ -982,7 +983,7 @@ local client_commands = {
         save_config(config)
     end},
 
-    gh_deauthorize = {'$g $g', 'repo authid', 'Stop a notify name announcing a project', function(repo, authid)
+    {'gh_deauthorize', '$g $g', 'repo authid', 'Stop a notify name announcing a project', function(repo, authid)
         local project = config.projects[repo]
         if not project then
             error('no such project', 0)
@@ -991,7 +992,7 @@ local client_commands = {
         save_config(config)
     end},
 
-    gh_add_project = {'$g $g', 'repo channel', 'Add a project announced in a channel', function(repo, channel)
+    {'gh_add_project', '$g $g', 'repo channel', 'Add a project announced in a channel', function(repo, channel)
         if config.projects[repo] then
             error('project exists', 0)
         end
@@ -1005,7 +1006,7 @@ local client_commands = {
         join_channels()
     end},
 
-    gh_set_channel = {'$g $g', 'repo channel', "Change a project's channel", function(repo, channel)
+    {'gh_set_channel', '$g $g', 'repo channel', "Change a project's channel", function(repo, channel)
         if not config.projects[repo] then
             error('no such project', 0)
         end
@@ -1014,7 +1015,7 @@ local client_commands = {
         join_channels()
     end},
 
-    gh_drop_project = {'$g', 'repo', 'Remove a project', function(repo)
+    {'gh_drop_project', '$g', 'repo', 'Remove a project', function(repo)
         if not config.projects[repo] then
             error('no such project', 0)
         end
@@ -1022,7 +1023,7 @@ local client_commands = {
         save_config(config)
     end},
 
-    gh_event_on = {'$g $g', 'repo event[:action]', 'Announce an event for a project', function(repo, event)
+    {'gh_event_on', '$g $g', 'repo event[:action]', 'Announce an event for a project', function(repo, event)
         if not config.projects[repo] then
             error('no such project', 0)
         end
@@ -1034,7 +1035,7 @@ local client_commands = {
         save_config(config)
     end},
 
-    gh_event_off = {'$g $g', 'repo event[:action]', 'Stop announcing an event', function(repo, event)
+    {'gh_event_off', '$g $g', 'repo event[:action]', 'Stop announcing an event', function(repo, event)
         if not config.projects[repo] then
             error('no such project', 0)
         end
@@ -1043,7 +1044,7 @@ local client_commands = {
     end},
 
     --- Short-cut when setting up a new project to copy the settings of a previous project
-    gh_event_copy_from_to = {'$g $g', 'from to', "Copy one project's events to another",
+    {'gh_event_copy_from_to', '$g $g', 'from to', "Copy one project's events to another",
         function(repo_src, repo_dst)
             local src = config.projects[repo_src]
             if not src then
@@ -1059,7 +1060,7 @@ local client_commands = {
             save_config(config)
         end},
 
-    gh_set_port = {'$i', 'port', 'Set the webhook port, used from the next reload', function(port)
+    {'gh_set_port', '$i', 'port', 'Set the webhook port, used from the next reload', function(port)
         if port <= 0 or port > 65535 then
             error('bad port number', 0)
         end
@@ -1106,8 +1107,8 @@ return function(plugin_api)
         if ev.net == net then join_channels() end
     end)
 
-    for name, command in pairs(client_commands) do
-        local spec, usage, help, fn = table.unpack(command, 1, 4)
+    for _, command in ipairs(client_commands) do
+        local name, spec, usage, help, fn = table.unpack(command, 1, 5)
         api.command(name, spec, function(_, ...) return fn(...) end, help, usage)
     end
 

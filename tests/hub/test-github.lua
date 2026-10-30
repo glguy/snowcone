@@ -313,6 +313,18 @@ end)
 T.case('client commands save, join and check events', function()
     local c = boot()
     c:take()
+    -- registered in the order the plugin lists them, which /help keeps
+    local names = {}
+    for name, cmd in pairs(HUB.current.commands) do
+        if cmd.group == 'plugin github' then table.insert(names, {cmd.order, name}) end
+    end
+    table.sort(names, function(x, y) return x[1] < y[1] end)
+    for i, entry in ipairs(names) do names[i] = entry[2] end
+    T.eq(names, {'gh_replay', 'gh_debug_on', 'gh_debug_off', 'gh_set_credential', 'gh_drop_credential',
+        'gh_authorize', 'gh_deauthorize', 'gh_add_project', 'gh_set_channel', 'gh_drop_project',
+        'gh_event_on', 'gh_event_off', 'gh_event_copy_from_to', 'gh_set_port'}, 'in order')
+    T.eq(HUB.current.commands.gh_authorize.usage, 'repo authid', 'with usages')
+
     command 'gh_add_project a/b #new'
     T.eq(T.log_lines 'error', {}, 'added')
     T.ok(table.concat(c:take(), ' '):find('#new', 1, true), 'joined the new channel')
