@@ -26,6 +26,7 @@ local layout = {textbox_offset = 0, detail_rows = 0}
 -- Renderers of the detail pane, by kind
 local details = {}
 for _, m in ipairs {
+    require 'hub.ui.details.error',
     require 'hub.ui.details.message',
     require 'hub.ui.details.whois',
     require 'hub.ui.details.whowas',

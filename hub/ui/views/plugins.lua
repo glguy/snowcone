@@ -1,7 +1,9 @@
--- Loaded plugins, their errors and the views they added.
+-- Loaded plugins, their errors and the views they added. Click an error
+-- marked ▸ for its traceback.
 
 local control <const> = require 'hub.ui.control'
 local draw    <const> = require 'hub.ui.draw'
+local log     <const> = require 'hub.runtime.log'
 local plugins <const> = require 'hub.features.plugins'
 local scrub   <const> = require 'hub.lib.scrub'
 
@@ -26,7 +28,19 @@ return {
             draw.normal(win)
             if entry.error then
                 draw.red(win)
-                win:waddstr(' ', scrub(tostring(entry.error):match '^[^\n]*'))
+                win:waddstr ' '
+                local first = scrub(tostring(entry.error):match '^[^\n]*')
+                local data = log.error_data('plugin ' .. entry.name, entry.error)
+                if data then
+                    -- the rest of it in the detail pane
+                    ctx.add_button(win, first, function()
+                        control.open_detail('error', nil, data)
+                    end, true)
+                    draw.yellow(win)
+                    win:waddstr ' ▸'
+                else
+                    win:waddstr(first)
+                end
                 draw.normal(win)
             else
                 for _, id in ipairs(entry.views or {}) do

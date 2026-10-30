@@ -733,4 +733,41 @@ T.case('a WHOIS opens in the detail pane, and from its status line', function()
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case('an error from code logs one line that opens its traceback', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    HUB.boot.strict = false
+    cmdline.execute 'eval error({}, 1)' -- caught by eval: not an error
+    T.eq(T.log_lines 'error', {}, 'eval reports its own')
+
+    -- a usage error is one line, with nothing more to show
+    cmdline.execute 'quote'
+    T.eq(T.tracebacks(), {}, 'no traceback')
+
+    -- a bug in a command: one line, the traceback in its detail
+    HUB.current.commands.boom = {name = 'boom', spec = '', help = '', pattern = function() return true end,
+        fn = function() error 'kaboom' end}
+    cmdline.execute 'boom'
+    local errors = T.log_lines 'error'
+    T.ok(errors[#errors]:find('^boom: .*kaboom$'), errors[#errors])
+    T.eq(T.log_lines 'trace', {}, 'no trace lines')
+    T.eq(#T.tracebacks(), 1, 'the traceback is in the detail')
+    T.ok(HUB.state.log_last:find('^boom: '), 'the status bar has the first line')
+    T.eq(control.detail(), nil, 'not opened by itself')
+
+    control.set_view 'status'
+    HUB.current.routes['ui.draw']()
+    for y = 0, tty_height - 1 do
+        HUB.current.routes['ui.entry']('on_mouse', y, 40, false)
+        if control.detail() then break end
+    end
+    local detail = control.detail()
+    T.ok(detail, 'the status line opens it')
+    T.eq({detail.kind, detail.data.where}, {'error', 'boom'}, 'the error')
+    T.ok(detail.data.traceback:find('^stack traceback:'), 'with its traceback')
+    T.ok(not detail.data.message:find '\n', 'the message without it')
+    HUB.current.routes['ui.draw']()
+end)
+
 T.run()

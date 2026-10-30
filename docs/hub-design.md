@@ -125,7 +125,8 @@ current network), `log`, `console_all` and `clock`.
 ### Routes, dispatch and drawing
 
 Every native callback enters through `dispatch.enter(route, ...)`: the route
-runs under `xpcall`, an error is logged with its traceback (and re-raised
+runs under `xpcall`, an error is logged as one line whose detail holds its
+traceback (and re-raised
 only in the tests' strict mode), and the screen is drawn if something called
 `dispatch.dirty()`. A callback that knows more is coming calls
 `dispatch.defer_draw()`; the connection does that for every line but the

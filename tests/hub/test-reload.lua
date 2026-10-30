@@ -105,7 +105,7 @@ T.case('a configuration error fails the reload without a traceback', function()
     T.eq(ok, false, 'reload result')
     T.ok(err:find('networks', 1, true), 'error names the setting')
     T.ok(not err:find('traceback', 1, true), 'no traceback in the error')
-    T.eq(T.log_lines 'trace', {}, 'no traceback logged')
+    T.eq(T.tracebacks(), {}, 'no traceback logged')
 end)
 
 T.case('conflicting routes fail the load', function()
@@ -174,7 +174,7 @@ T.case('route errors are logged, and raised only in strict mode', function()
     cb()
     local errors = T.log_lines 'error'
     T.ok(errors[#errors]:find('test.bad: ', 1, true), 'logged with route name')
-    T.ok(#T.log_lines 'trace' > 0, 'traceback logged')
+    T.ok(#T.tracebacks() > 0, 'traceback logged')
 end)
 
 T.case('errors raised at level 0 are logged without a traceback', function()
@@ -189,10 +189,10 @@ T.case('errors raised at level 0 are logged without a traceback', function()
     local errors = T.log_lines 'error'
     T.eq(errors[#errors - 1], 'task expected: bad input', 'task error logged')
     T.eq(errors[#errors], 'test.expected (test): bad event', 'subscriber error logged')
-    T.eq(T.log_lines 'trace', {}, 'no traceback logged')
+    T.eq(T.tracebacks(), {}, 'no traceback logged')
 
     task.spawn('bug', {}, function() error 'kaboom' end)
-    T.ok(#T.log_lines 'trace' > 0, 'traceback logged for an error from code')
+    T.ok(#T.tracebacks() > 0, 'traceback logged for an error from code')
 end)
 
 T.case('messages draw only at the end of a read', function()

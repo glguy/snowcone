@@ -102,20 +102,37 @@ function M.count_error(where)
     errors.by_origin[where] = (errors.by_origin[where] or 0) + 1
 end
 
---- Log the lines of an error after its first, which hold its traceback.
-function M.trace(err)
-    for line in tostring(err):gmatch '\n([^\n]*)' do
-        M.add('trace', '%s', (line:gsub('^\t', '  ')))
-    end
+--- An error for the detail pane (ui/details/error.lua): where it came
+--- from, its message, and the traceback an error from code carries. nil
+--- for a one-line error, as one raised for the user at level 0 is.
+---@param where string
+---@param err any
+---@return {where: string, message: string, traceback: string|nil}|nil
+function M.error_data(where, err)
+    err = tostring(err)
+    if not err:find '\n' then return nil end
+    local message, traceback = err:match '^(.-)\n(stack traceback:\n.*)$'
+    return {where = where, message = message or err, traceback = traceback}
 end
 
---- Log an error, keeping the traceback lines out of the status bar.
+--- Log the first line of an error, with the rest in the line's detail.
+---@param category string
+---@param where string
+---@param err any
+---@param fmt string format string for the line
+---@param ... any format arguments
+function M.add_error(category, where, err, fmt, ...)
+    local data = M.error_data(where, err)
+    add(nil, category, data and {kind = 'error', data = data}, fmt, ...)
+end
+
+--- Log an error as one line, keeping its traceback out of the log and the
+--- status bar: it is in the line's detail.
 function M.error(where, err)
     M.count_error(where)
     err = tostring(err)
     local first = err:match '^[^\n]*'
-    M.add('error', '%s: %s', where, first)
-    M.trace(err)
+    M.add_error('error', where, err, '%s: %s', where, first)
     local S = HUB.state
     if S and S.log then
         S.log_last = string.format('%s: %s', where, first)

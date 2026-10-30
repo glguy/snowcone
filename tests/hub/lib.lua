@@ -113,6 +113,19 @@ function T.log_lines(category)
     return lines
 end
 
+--- Tracebacks logged, in the details of error lines, oldest first.
+function T.tracebacks()
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    local list = {}
+    for entry in OrderedMap.reveach(HUB.state.log) do
+        local detail = entry.detail
+        if detail and detail.kind == 'error' and detail.data.traceback then
+            table.insert(list, detail.data.traceback)
+        end
+    end
+    return list
+end
+
 ------------------------------------------------------------------------
 -- async
 

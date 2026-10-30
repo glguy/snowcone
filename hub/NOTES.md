@@ -208,7 +208,9 @@ a decision is made, and change or remove it when the decision does.
 - **Errors raised at level 0** (no source position) are the user's:
   configuration and usage errors, and bad input from a server. Every
   handler logs them as one line; anything else is a bug and gets a
-  traceback. `lib/check` is `assert` for these expected failures.
+  traceback, kept in the line's detail rather than as lines of the log
+  (one error, one line). `lib/check` is `assert` for these expected
+  failures.
 - **Prompts** have their own editor, so a half-typed command survives and
   secrets never reach history. Esc aborts, and the task's secret fails.
 - **One detail pane for the client, at the top,** rather than one per

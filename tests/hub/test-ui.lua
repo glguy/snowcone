@@ -124,14 +124,14 @@ T.case('command errors are reported briefly', function()
     cmdline.execute 'quote'
     T.eq(last_error(), 'quote requires: $r', 'missing argument')
 
-    local before = #T.log_lines 'trace'
+    local before = #T.tracebacks()
     T.require 'hub.net.manager'.disconnect 'a'
     cmdline.execute 'quote PING x'
     T.ok(last_error():find('network not connected', 1, true), last_error())
-    T.eq(#T.log_lines 'trace', before, 'no traceback for a usage error')
+    T.eq(#T.tracebacks(), before, 'no traceback for a usage error')
 
     cmdline.execute 'eval error({}, 1)'
-    T.eq(#T.log_lines 'trace', before, 'eval catches its own errors')
+    T.eq(#T.tracebacks(), before, 'eval catches its own errors')
 end)
 
 T.case('a prompt takes over input and keeps the typed command', function()

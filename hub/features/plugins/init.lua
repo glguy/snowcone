@@ -60,8 +60,8 @@ end
 
 local function report(name, what, err)
     log.count_error('plugin ' .. name)
-    log.add('plugin', '%s %s: %s', name, what, tostring(err):match '^[^\n]*')
-    log.trace(err)
+    log.add_error('plugin', name .. ' ' .. what, err,
+        '%s %s: %s', name, what, tostring(err):match '^[^\n]*')
 end
 
 local function guard(name, what, f, ...)
