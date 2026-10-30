@@ -274,7 +274,7 @@ dashboard are refused with a message to port them.
   stores themselves.
 - **The detail pane** shows one thing in full above the view, for the
   whole client: `ui.detail` in state, `{kind, net, data}`, drawn by the
-  renderer for its kind in `ui/details/` (`message`, `whois`). The record
+  renderer for its kind in `ui/details/` (`message`, `whois`, `whowas`). The record
   doubles as the renderer's view state (`ctx.vs`), so it keeps the scroll
   and the renderer's own fields. It is as tall as its content up to half
   the screen, over a rule with [CLOSE], the title and the rows shown;
@@ -283,7 +283,7 @@ dashboard are refused with a message to port them.
   it before anything else, outside input modes. Features don't open it:
   they log one line with a `detail` (`log.add_detail`), which the status
   view makes clickable, and emit an event the UI answers by opening it
-  when the user asked for the thing (`chat.whois`).
+  when the user asked for the thing (`chat.whois`, `chat.whowas`).
 - **Streams** draw with `draw.draw_rotation` (principle 6), which also
   records the page size, so Page Up/Down and the arrows scroll every
   stream the same way.

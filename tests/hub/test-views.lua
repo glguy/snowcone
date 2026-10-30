@@ -682,6 +682,23 @@ T.case('clicking a buffer sender inspects the message in place', function()
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case('a WHOWAS opens in the detail pane', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:take()
+    cmdline.execute 'whowas old'
+    T.eq(c:take(), {'WHOWAS old'}, 'sent')
+    c:recv ':srv 314 me old u1 h1.example * :First'
+    c:recv ':srv 312 me old srv.example :Fri Oct 30 10:00:00 2026'
+    c:recv ':srv 314 me old u2 h2.example * :Second'
+    c:recv ':srv 369 me old :End of WHOWAS'
+    local detail = control.detail()
+    T.eq({detail.kind, detail.net, #detail.data.entries}, {'whowas', 'test', 2}, 'shown')
+    HUB.current.routes['ui.draw']()
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.case('a WHOIS opens in the detail pane, and from its status line', function()
     local c = boot()
     local control = T.require 'hub.ui.control'

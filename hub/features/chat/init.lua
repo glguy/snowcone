@@ -30,6 +30,7 @@ local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local send       <const> = require 'hub.net.send'
 local task       <const> = require 'hub.runtime.task'
 local whois      <const> = require 'hub.features.chat.whois'
+local whowas     <const> = require 'hub.features.chat.whowas'
 
 local M = {}
 
@@ -711,8 +712,8 @@ M.commands = {
     chat_command('wii', '$g', 'WHOIS a nick on its server (with idle time)', function(ctx, nick)
         task.spawn('whois', {net = ctx.net, owner = M.name}, whois, nick, true)
     end),
-    chat_command('whowas', '$g', 'WHOWAS a nick', function(ctx, nick)
-        send.send(ctx.net, 'WHOWAS', nick)
+    chat_command('whowas', '$g', 'WHOWAS a nick, shown in the detail pane', function(ctx, nick)
+        task.spawn('whowas', {net = ctx.net, owner = M.name}, whowas, nick)
     end),
     chat_command('umode', '$r', 'Change our user modes, e.g. +i-w', function(ctx, args)
         local irc = model(ctx.net)

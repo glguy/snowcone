@@ -44,6 +44,46 @@ T.case('whois reports a refused remote whois', function()
     T.eq(next(HUB.tasks), nil, 'finished')
 end)
 
+T.case('whowas gathers every past entry, and reports failures', function()
+    local c = boot()
+    local task = T.require 'hub.runtime.task'
+    local whowas = T.require 'hub.features.chat.whowas'
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'chat.whowas', 'test', function(ev) table.insert(events, ev) end)
+
+    task.spawn('whowas', {net = 'test'}, whowas, 'Old')
+    T.eq(c:take(), {'WHOWAS Old'}, 'sent')
+    c:recv ':srv 314 me old u1 h1.example * :First'
+    c:recv ':srv 338 me old 192.0.2.7 :actually using host'
+    c:recv ':srv 330 me old acct :was logged in as'
+    c:recv ':srv 312 me old srv.example :Fri Oct 30 10:00:00 2026'
+    c:recv ':srv 314 me old u2 h2.example * :Second'
+    c:recv ':srv 312 me old other.example :Thu Oct 29 09:00:00 2026'
+    c:recv ':srv 369 me old :End of WHOWAS'
+    T.eq(#events, 1, 'emitted')
+    local w = events[1].whowas
+    T.eq(#w.entries, 2, 'both entries')
+    local first, second = w.entries[1], w.entries[2]
+    T.eq({first.user, first.host, first.gecos, first.ip, first.account, first.server, first.signoff},
+        {'u1', 'h1.example', 'First', '192.0.2.7', 'acct', 'srv.example', 'Fri Oct 30 10:00:00 2026'}, 'first')
+    T.eq({second.user, second.server, second.account}, {'u2', 'other.example', nil}, 'second')
+    T.eq(T.log_lines 'whowas', {'old!u1@h1.example Fri Oct 30 10:00:00 2026, 2 entries'}, 'one line')
+    T.eq(next(HUB.tasks), nil, 'finished')
+
+    task.spawn('whowas', {net = 'test'}, whowas, 'gone')
+    c:take()
+    c:recv ':srv 406 me gone :There was no such nickname'
+    c:recv ':srv 369 me gone :End of WHOWAS'
+    T.eq(T.log_lines 'whowas'[2], 'whowas gone: no such nickname', 'no such nick')
+
+    task.spawn('whowas', {net = 'test'}, whowas, 'busy')
+    c:take()
+    c:recv ':srv 263 me WHOWAS :Server load is temporarily too heavy.'
+    T.eq(T.log_lines 'whowas'[3], 'whowas busy failed: Server load is temporarily too heavy.', 'refused')
+    T.eq(#events, 1, 'failures open nothing')
+    T.eq(next(HUB.tasks), nil, 'finished')
+end)
+
 T.case('channel and private messages go to buffers', function()
     local c, chat = boot({mention = {patterns = {'%f[%w]me%f[^%w]'}}})
     c:recv ':me!u@h JOIN #chan'

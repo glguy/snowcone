@@ -28,6 +28,7 @@ local details = {}
 for _, m in ipairs {
     require 'hub.ui.details.message',
     require 'hub.ui.details.whois',
+    require 'hub.ui.details.whowas',
 } do
     details[m.kind] = m
 end
@@ -485,6 +486,9 @@ function M.subscribe(sub)
     end)
     sub.on('chat.whois', function(ev)
         control.open_detail('whois', ev.net, ev.whois)
+    end)
+    sub.on('chat.whowas', function(ev)
+        control.open_detail('whowas', ev.net, ev.whowas)
     end)
     sub.on('chat.show_list', function(ev)
         control.set_current_net(ev.net)
