@@ -32,10 +32,15 @@ local clicks = {}
 local shown = {}
 
 -- Move the clicks on rows [first, first + count) of the part just drawn
--- to screen rows from `at`, and start the next part.
-local function place_clicks(first, count, at)
+-- to screen rows from `at`, and left by the columns `hscroll` scrolls
+-- past, and start the next part.
+local function place_clicks(first, count, at, hscroll)
+    hscroll = hscroll or 0
     for row, list in pairs(clicks) do
         if first <= row and row < first + count then
+            for _, entry in ipairs(list) do
+                entry.lo, entry.hi = entry.lo - hscroll, entry.hi - hscroll
+            end
             shown[row - first + at] = list
         end
     end
@@ -121,10 +126,12 @@ local function detail_context(detail)
     }
 end
 
--- Draw everything, top to bottom, into a pad that doubles until it holds
--- it all. Returns the rows used.
-local function draw_grown(pad, render_into)
+-- Draw everything, top to bottom, into a pad `width` columns wide that
+-- doubles until it holds it all. Returns the rows used.
+local function draw_grown(pad, width, render_into)
     local height, y, x
+    local h, w = ncurses.getmaxyx(pad)
+    if w ~= width then pad:wresize(h, width) end
     repeat
         clicks = {}
         pad:werase()
@@ -135,7 +142,7 @@ local function draw_grown(pad, render_into)
         -- a cursor on the last row may mean rows were lost
         local full = y >= height - 1 and height < document_limit
         if full then
-            pad:wresize(math.min(height * 2, document_limit), tty_width)
+            pad:wresize(math.min(height * 2, document_limit), width)
         end
     until not full
     return x > 0 and y + 1 or y
@@ -153,7 +160,7 @@ end
 -- screen rows from `at`. Returns the refresh to do.
 local function render_document(view, ctx, at)
     local pad, vs, rows = layout.document_pad, ctx.vs, ctx.rows
-    set_paging(vs, draw_grown(pad, function(win) view.render(ctx, win) end), rows)
+    set_paging(vs, draw_grown(pad, tty_width, function(win) view.render(ctx, win) end), rows)
     local top = vs.scroll
     place_clicks(top, rows, at)
 
@@ -163,7 +170,8 @@ local function render_document(view, ctx, at)
 end
 
 -- Render the detail pane at the top of the screen: its content, up to
--- half the screen and scrolled by the paging keys, over a rule with
+-- half the screen and scrolled by the paging keys (sideways too, for a
+-- `wide` kind, whose rows don't wrap), over a rule with
 -- [CLOSE], [DISCARD] when a log line holds it, its title, its modes, its
 -- filter and the rows shown. Returns the rows it
 -- takes, and the refresh to do.
@@ -175,16 +183,19 @@ local function render_detail(detail, kind)
     local pad = layout.detail_pad
     local ctx = detail_context(detail)
     ctx.rows = limit
-    local used = draw_grown(pad, function(win) kind.render(ctx, win) end)
+    local width = kind.wide and pad_width or tty_width
+    local used = draw_grown(pad, width, function(win) kind.render(ctx, win) end)
     local rows = math.min(used, limit)
     set_paging(detail, used, rows)
     local top = detail.scroll
-    place_clicks(top, rows, 0)
+    local hscroll = kind.wide and math.max(0, math.min(detail.hscroll or 0, pad_width - tty_width)) or 0
+    detail.hscroll = hscroll
+    place_clicks(top, rows, 0, hscroll)
 
     -- the rule goes on the row after the content, with a row to spare for
-    -- the cursor after the last column
+    -- the cursor after the last column; it doesn't scroll sideways
     if ncurses.getmaxyx(pad) < used + 2 then
-        pad:wresize(used + 2, tty_width)
+        pad:wresize(used + 2, width)
     end
     pad:wmove(used, 0)
     draw.normal(pad)
@@ -223,6 +234,9 @@ local function render_detail(detail, kind)
     if detail.max_scroll > 0 then
         pad:waddstr(string.format(' rows %d-%d of %d', top + 1, top + rows, used))
     end
+    if hscroll > 0 then
+        pad:waddstr(string.format(' cols +%d', hscroll))
+    end
     pad:waddstr ' '
     local _, x = ncurses.getyx(pad)
     pad:waddstr(string.rep('─', math.max(0, tty_width - x)))
@@ -230,7 +244,7 @@ local function render_detail(detail, kind)
 
     return rows + 1, function()
         if rows > 0 then
-            pad:pnoutrefresh(top, 0, 0, 0, rows - 1, tty_width - 1)
+            pad:pnoutrefresh(top, hscroll, 0, 0, rows - 1, tty_width - 1)
         end
         pad:pnoutrefresh(used, 0, rows, 0, rows, tty_width - 1)
     end
@@ -268,8 +282,8 @@ local function render()
     else
         draw.normal(main_pad)
         view.render(ctx, main_pad)
-        place_clicks(0, ctx.rows, at)
         local hscroll = math.max(0, math.min(ctx.vs.hscroll or 0, pad_width - tty_width))
+        place_clicks(0, ctx.rows, at, hscroll)
         refresh = function()
             main_pad:pnoutrefresh(0, hscroll, at, 0, tty_height - 2, tty_width - 1)
         end

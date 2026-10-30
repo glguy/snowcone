@@ -10,7 +10,7 @@ local matching  <const> = require 'hub.lib.matching'
 local message   <const> = require 'hub.ui.details.message'
 local scrub     <const> = require 'hub.lib.scrub'
 
-local M = {kind = 'reply', filter = true}
+local M = {kind = 'reply', filter = true, wide = true}
 
 function M.title(detail)
     return 'reply ' .. scrub(detail.data.line)

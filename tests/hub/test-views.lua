@@ -1078,4 +1078,49 @@ T.case('the filter shows the /whowas entries with a field that matches', functio
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case('Left and Right scroll a wide detail, and never the view under it', function()
+    local c = boot_labeled()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    control.set_view 'console'
+    local unit = tty_width - 26
+
+    -- a kind that wraps has nothing to the side
+    control.open_detail('message', 'test', snowcone.parse_irc ':a!b@c PRIVMSG #x :hi')
+    key(-ncurses.KEY_RIGHT)
+    T.eq({control.detail().hscroll, control.view_state 'console'.hscroll}, {0, 0}, 'neither moves')
+
+    -- a reply's rows don't wrap, and scroll
+    cmdline.execute 'quote INFO'
+    c:take()
+    c:recv('@label=sc1 :srv 371 me :' .. string.rep('x', 300) .. 'END')
+    T.eq(control.detail().kind, 'reply', 'the reply')
+    key(-ncurses.KEY_RIGHT)
+    T.eq(control.detail().hscroll, unit, 'the pane moves')
+    T.eq(control.view_state 'console'.hscroll, 0, 'the view does not')
+    T.ok(detail_text():find('cols +' .. unit, 1, true), 'the rule says how far')
+    key(-ncurses.KEY_LEFT)
+    T.eq(control.detail().hscroll, 0, 'and back')
+
+    -- closed, the keys are the view's again
+    control.close_detail()
+    key(-ncurses.KEY_RIGHT)
+    T.eq(control.view_state 'console'.hscroll, unit, 'the view moves')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
+T.case('clicks follow a view scrolled sideways', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    control.set_view 'console'
+    -- a command's button starts at column 26: time, then the source
+    control.view_state 'console'.hscroll = 10
+    HUB.current.routes['ui.draw']()
+    for y = 0, tty_height - 2 do
+        HUB.current.routes['ui.entry']('on_mouse', y, 17, false)
+        if control.detail() then break end
+    end
+    T.eq(control.detail() and control.detail().kind, 'message', 'clicked where it is shown')
+end)
+
 T.run()

@@ -8,7 +8,7 @@
 local draw  <const> = require 'hub.ui.draw'
 local scrub <const> = require 'hub.lib.scrub'
 
-local M = {kind = 'value'}
+local M = {kind = 'value', wide = true}
 
 -- Entries a table shows before its [+N more]
 local shown_entries <const> = 50

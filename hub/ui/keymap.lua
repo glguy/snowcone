@@ -193,6 +193,23 @@ local function scroll(pages, lines)
     end
 end
 
+-- Scroll sideways by most of a screen. The detail pane, while it is open,
+-- takes this from the view, though only a wide kind has anything to the
+-- side; the renderer (ui/init.lua) keeps its scroll in range.
+local function hscroll(direction)
+    local vs
+    local detail = control.detail()
+    if detail then
+        local kind = details.kinds[detail.kind]
+        if not (kind and kind.wide) then return end
+        vs = detail
+    else
+        vs = control.view_state(HUB.state.ui.view)
+    end
+    local unit = math.max(1, tty_width - 26)
+    vs.hscroll = math.max(0, math.min(M.pad_width - tty_width, (vs.hscroll or 0) + direction * unit))
+end
+
 -- Keys when neither an input mode nor the view handled them
 M.global = {
     [0x1b] = function() -- Esc
@@ -277,16 +294,8 @@ M.global = {
         end
     end,
 
-    [-ncurses.KEY_RIGHT] = function()
-        local vs = control.view_state(HUB.state.ui.view)
-        local unit = math.max(1, tty_width - 26)
-        vs.hscroll = math.max(0, math.min(M.pad_width - tty_width, vs.hscroll + unit))
-    end,
-    [-ncurses.KEY_LEFT] = function()
-        local vs = control.view_state(HUB.state.ui.view)
-        local unit = math.max(1, tty_width - 26)
-        vs.hscroll = math.max(0, vs.hscroll - unit)
-    end,
+    [-ncurses.KEY_RIGHT] = function() hscroll(1) end,
+    [-ncurses.KEY_LEFT] = function() hscroll(-1) end,
 }
 
 -- Meta-1..9 select networks in configuration order

@@ -1,9 +1,11 @@
 -- The renderers of the detail pane, by kind, and where the filter goes.
 --
 -- A renderer is {kind, render(ctx, win), title(detail), modes(detail),
--- keypress(ctx, key), filter}; ctx.vs is the detail record. One with
+-- keypress(ctx, key), filter, wide}; ctx.vs is the detail record. One with
 -- `filter` set takes the filter (Ctrl-S, /filter) while it is shown, and
--- reads it with control.filter(ctx.id), as a view does.
+-- reads it with control.filter(ctx.id), as a view does. A `wide` one draws
+-- rows that don't wrap, which Left and Right scroll; the rest wrap at the
+-- terminal's width (ctx.cols), as document views do.
 
 local control <const> = require 'hub.ui.control'
 
