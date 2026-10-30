@@ -344,6 +344,18 @@ local function document_pad()
     end
 end
 
+-- The detail pane's pad, which a wide kind makes wider than the screen:
+-- the layout makes it just before the document pad, and the input line's
+-- one-row pad after
+local function detail_pad()
+    local pads = {}
+    for _, win in ipairs(fake_ncurses.windows) do
+        if win.kind == 'newpad' and win.h > 1 then table.insert(pads, win) end
+    end
+    return pads[#pads - 1]
+end
+
+
 -- Rows of a window, from its top
 local function rows_of(win)
     local rows = {}
@@ -810,11 +822,7 @@ T.case('/eval shows its values in the detail pane, tables as a tree', function()
     -- the detail pane's pad: made just before the document views' pad
     local function detail_rows()
         HUB.current.routes['ui.draw']()
-        local pads = {}
-        for _, win in ipairs(fake_ncurses.windows) do
-            if win.kind == 'newpad' and win.w == tty_width then table.insert(pads, win) end
-        end
-        local rows = rows_of(pads[#pads - 1])
+        local rows = rows_of(detail_pad())
         return table.concat(rows, '\n', 0, #rows)
     end
 
@@ -990,6 +998,83 @@ T.case('[DISCARD] drops a detail from the log lines that hold it', function()
     HUB.current.routes['ui.draw']()
     HUB.current.routes['ui.entry']('on_mouse', rule, 10, false)
     T.ok(control.detail(), 'nothing there to click')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
+-- The text of the detail pane as last drawn
+local function detail_text()
+    HUB.current.routes['ui.draw']()
+    local pad = detail_pad()
+    local rows = {}
+    for y = 0, pad.y do table.insert(rows, fake_ncurses.row(pad, y)) end
+    return table.concat(rows, '\n')
+end
+
+T.case('the filter searches a /quote reply live, and leaves the view alone', function()
+    local c = boot_labeled()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    control.set_view 'status'
+    control.view_state 'status'.filter = 'kept'
+
+    cmdline.execute 'quote STATS o'
+    c:take()
+    c:recv '@label=sc1 :srv BATCH +q labeled-response'
+    c:recv '@batch=q :srv 243 me O *@alpha.example * alice admin'
+    c:recv '@batch=q :srv 243 me O *@beta.example * bob oper'
+    c:recv '@batch=q :srv 243 me O *@gamma.example * carol admin'
+    c:recv '@batch=q :srv 219 me o :End of /STATS report'
+    c:recv ':srv BATCH :-q'
+    T.ok(detail_text():find 'carol', 'every reply')
+
+    -- Ctrl-S filters the pane as the pattern is typed
+    key(0x1f & string.byte 'S')
+    T.eq(HUB.state.ui.input.filter_target, 'detail', 'the pane takes the filter')
+    type_text 'admin'
+    local text = detail_text()
+    T.ok(text:find 'alice' and text:find 'carol' and not text:find 'bob', 'live')
+    T.ok(text:find '2 of 4 messages match', 'counted')
+    T.ok(text:find 'filter "admin"', 'on the rule')
+
+    -- Enter keeps it on the pane; the view's own is untouched
+    key(13)
+    T.eq(control.detail().filter, 'admin', 'saved on the detail')
+    T.eq(control.view_state 'status'.filter, 'kept', 'not the view')
+    T.ok(not detail_text():find 'bob', 'still filtered')
+
+    -- Esc while filtering clears the pane's filter and keeps it open
+    key(0x1f & string.byte 'S')
+    type_text 'bob'
+    key(0x1b)
+    T.eq({control.detail().filter, HUB.state.ui.input.mode}, {nil, nil}, 'cleared')
+    T.ok(detail_text():find 'bob', 'everything again')
+    T.eq(control.view_state 'status'.filter, 'kept', 'the view keeps its own')
+
+    -- /filter goes to the pane too
+    cmdline.execute 'filter beta'
+    T.eq(control.detail().filter, 'beta', '/filter')
+
+    -- a kind that doesn't filter leaves the filter to the view
+    control.open_detail('message', 'test', snowcone.parse_irc ':a!b@c PRIVMSG #x :hi')
+    key(0x1f & string.byte 'S')
+    T.eq(HUB.state.ui.input.filter_target, 'status', 'the view')
+    type_text 'x'
+    key(13)
+    T.eq(control.view_state 'status'.filter, 'x', 'saved on the view')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
+T.case('the filter shows the /whowas entries with a field that matches', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    control.open_detail('whowas', 'test', {nick = 'old', at = os.time(), entries = {
+        {nick = 'old', user = 'u1', host = 'h1.example', server = 'alpha.example'},
+        {nick = 'old', user = 'u2', host = 'h2.example', server = 'beta.example', account = 'acct'},
+    }})
+    control.set_filter('detail', 'acct')
+    local text = detail_text()
+    T.ok(text:find 'h2.example' and not text:find 'h1.example', 'the matching entry')
+    T.ok(text:find '1 of 2 entries match', 'counted')
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 

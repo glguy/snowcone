@@ -35,6 +35,8 @@ M.profiles = {
 ---@field editor hub.Editor
 ---@field secret hub.Editor for prompts
 ---@field prompts hub.Prompt[] from tasks, oldest first
+---@field filter_target string|nil what filter mode filters: a view id, or
+--- 'detail' for the detail pane
 
 ---@class hub.UiState
 ---@field profile string
@@ -237,30 +239,50 @@ end
 
 ---@param mode string|nil
 function M.set_input_mode(mode)
-    HUB.state.ui.input.mode = mode
+    local input = HUB.state.ui.input
+    input.mode = mode
+    if mode ~= 'filter' then input.filter_target = nil end
     dispatch.dirty()
 end
 
 -- Filters ============================================================
 
---- The filter for a view: what is being typed in filter mode, else the
---- view's saved filter.
----@param id string view id
+--- The filter for a view, or for the detail pane with id 'detail': what
+--- is being typed in filter mode for it, else its saved filter.
+---@param id string view id, or 'detail'
 ---@return string|nil
 function M.filter(id)
     local input = HUB.state.ui.input
-    if input.mode == 'filter' and HUB.state.ui.view == id then
+    if input.mode == 'filter' and (input.filter_target or HUB.state.ui.view) == id then
         local text = editor.content(input.editor)
         if text ~= '' then return text end
         return nil
     end
+    if id == 'detail' then
+        local detail = M.detail()
+        return detail and detail.filter
+    end
     return M.view_state(id).filter
 end
 
+---@param id string view id, or 'detail'
+---@param pattern string|nil
 function M.set_filter(id, pattern)
     if pattern == '' then pattern = nil end
-    M.view_state(id).filter = pattern
+    if id == 'detail' then
+        local detail = M.detail()
+        if detail then detail.filter = pattern end
+    else
+        M.view_state(id).filter = pattern
+    end
     dispatch.dirty()
+end
+
+--- Start filter mode for a view, or for the detail pane ('detail').
+---@param id string
+function M.start_filter(id)
+    HUB.state.ui.input.filter_target = id
+    M.set_input_mode 'filter'
 end
 
 -- Detail pane ========================================================

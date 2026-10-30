@@ -65,7 +65,8 @@ USING HUB
 KEYS
   /            Type a command
   t            Talk in the shown chat buffer
-  C-s          Filter the current view
+  C-s          Filter the current view, or the detail pane when it shows
+               a /quote reply or a /whowas
   Esc          Close the detail pane; else leave input, clear filters and
                scrolling
   C-n, C-p     Next and previous view of the rotation

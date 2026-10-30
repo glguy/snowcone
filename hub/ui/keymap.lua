@@ -8,6 +8,7 @@ local cmdline   <const> = require 'hub.ui.cmdline'
 local common    <const> = require 'hub.features.common'
 local irc_model <const> = require 'hub.net.irc'
 local control   <const> = require 'hub.ui.control'
+local details   <const> = require 'hub.ui.details'
 local editor    <const> = require 'hub.ui.editor'
 local dispatch  <const> = require 'hub.runtime.dispatch'
 local log       <const> = require 'hub.runtime.log'
@@ -45,7 +46,7 @@ end
 
 function execute.filter()
     local ed = control.editor()
-    control.set_filter(HUB.state.ui.view, editor.content(ed))
+    control.set_filter(HUB.state.ui.input.filter_target or HUB.state.ui.view, editor.content(ed))
     editor.reset(ed)
     control.set_input_mode()
 end
@@ -201,8 +202,16 @@ M.global = {
             return
         end
         -- outside input modes the detail pane closes first
-        if control.detail() and not HUB.state.ui.input.mode then
+        local input = HUB.state.ui.input
+        if control.detail() and not input.mode then
             control.close_detail()
+            return
+        end
+        -- filtering the pane, Esc clears its filter and leaves the view's
+        if input.mode == 'filter' and input.filter_target == 'detail' then
+            editor.reset(control.editor())
+            control.set_input_mode()
+            control.set_filter('detail', nil)
             return
         end
         editor.reset(control.editor())
@@ -239,7 +248,7 @@ M.global = {
         -- a prompt is answered or aborted, not left behind
         if control.current_prompt() then return end
         editor.reset(control.editor())
-        control.set_input_mode 'filter'
+        control.start_filter(details.filter_target())
     end,
 
     -- the next buffer of the current network with unseen messages,

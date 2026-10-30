@@ -282,7 +282,10 @@ dashboard are refused with a message to port them.
   lines that hold it, so it can be freed), the title and the rows shown;
   the view gets the rows below. While it is open the paging keys scroll
   it, its renderer's `keypress` comes before the view's, and Esc closes
-  it before anything else, outside input modes. Features don't open it:
+  it before anything else, outside input modes. A kind with `filter`
+  (`reply`, `whowas`) takes the filter too: Ctrl-S and `/filter` filter
+  it, live, instead of the view, and it keeps its own (`control.filter
+  'detail'`); the renderers are listed in `ui/details/init.lua`. Features don't open it:
   they log one line with a `detail` (`log.add_detail`), which the status
   view makes clickable, and emit an event the UI answers by opening it
   when the user asked for the thing (`chat.whois`, `chat.whowas`).

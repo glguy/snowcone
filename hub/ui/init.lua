@@ -6,12 +6,14 @@
 
 local chat      <const> = require 'hub.features.chat'
 local control   <const> = require 'hub.ui.control'
+local details   <const> = require 'hub.ui.details'
 local draw      <const> = require 'hub.ui.draw'
 local editor    <const> = require 'hub.ui.editor'
 local keymap    <const> = require 'hub.ui.keymap'
 local statusbar <const> = require 'hub.ui.statusbar'
 local dispatch  <const> = require 'hub.runtime.dispatch'
 local log       <const> = require 'hub.runtime.log'
+local scrub     <const> = require 'hub.lib.scrub'
 local tty       <const> = require 'hub.runtime.tty'
 
 local M = {}
@@ -22,20 +24,6 @@ local pad_width <const> = keymap.pad_width
 local document_limit <const> = 4096
 
 local layout = {textbox_offset = 0, detail_rows = 0}
-
--- Renderers of the detail pane, by kind
-local details = {}
-for _, m in ipairs {
-    require 'hub.ui.details.error',
-    require 'hub.ui.details.keys',
-    require 'hub.ui.details.message',
-    require 'hub.ui.details.reply',
-    require 'hub.ui.details.value',
-    require 'hub.ui.details.whois',
-    require 'hub.ui.details.whowas',
-} do
-    details[m.kind] = m
-end
 
 -- Click regions, rebuilt every frame: clicks[y] = {{lo, hi, action}, ...}.
 -- Each part of the screen records its clicks in the rows of the window it
@@ -176,8 +164,8 @@ end
 
 -- Render the detail pane at the top of the screen: its content, up to
 -- half the screen and scrolled by the paging keys, over a rule with
--- [CLOSE], [DISCARD] when a log line holds it, its title, its modes and
--- the rows shown. Returns the rows it
+-- [CLOSE], [DISCARD] when a log line holds it, its title, its modes, its
+-- filter and the rows shown. Returns the rows it
 -- takes, and the refresh to do.
 ---@param detail hub.Detail
 local function render_detail(detail, kind)
@@ -225,6 +213,13 @@ local function render_detail(detail, kind)
         pad:waddstr(' ', mode)
         draw.normal(pad)
     end
+    local filter = kind.filter and control.filter 'detail'
+    if filter then
+        draw.yellow(pad)
+        pad:waddstr ' filter '
+        draw.normal(pad)
+        pad:waddstr(scrub(string.format('%q', filter)))
+    end
     if detail.max_scroll > 0 then
         pad:waddstr(string.format(' rows %d-%d of %d', top + 1, top + rows, used))
     end
@@ -253,7 +248,7 @@ local function render()
 
     -- the detail pane first: the view gets the rows it leaves
     local detail = control.detail()
-    local kind = detail and details[detail.kind]
+    local kind = detail and details.kinds[detail.kind]
     if detail and not kind then
         control.close_detail() -- a reload removed its renderer
     end
@@ -321,7 +316,7 @@ function entry.on_keyboard(key)
     -- then the detail pane, and the view, before the global keys; true
     -- consumes the key
     local detail = control.detail()
-    local kind = detail and details[detail.kind]
+    local kind = detail and details.kinds[detail.kind]
     if kind and kind.keypress and kind.keypress(detail_context(detail), key) then
         return
     end
@@ -412,9 +407,9 @@ M.commands = {
     {
         name = 'filter',
         spec = '$R',
-        help = 'Show only lines of this view that match; no pattern clears it',
+        help = 'Show only lines of this view, or of the detail pane, that match; no pattern clears it',
         fn = function(_, pattern)
-            control.set_filter(HUB.state.ui.view, pattern)
+            control.set_filter(details.filter_target(), pattern)
         end,
     },
     {
