@@ -858,7 +858,14 @@ TEST_F(Hub, CommandLineHelpResizeAndQuit)
     ASSERT_TRUE(status(23, "help")) << term.screen();
     EXPECT_TRUE(term.row(0).starts_with("Commands")) << term.screen();
 
-    // The help wraps at the terminal's width, and again after a resize
+    // C-s searches it as you type
+    term.send("\x13");
+    ASSERT_TRUE(status(23, "help    " + sep + " filter")) << term.screen();
+    term.send("cert_new\r");
+    ASSERT_TRUE(status(23, "help")) << term.screen();
+
+    // The help wraps under its column at the terminal's width, and again
+    // after a resize
     auto const has_row = [&](std::string_view const text) {
         return term.wait_until([&] {
             for (int y = 0; y < 30; ++y)
@@ -868,10 +875,12 @@ TEST_F(Hub, CommandLineHelpResizeAndQuit)
             return false;
         });
     };
-    EXPECT_TRUE(has_row(" CERT ADD command")) << term.screen();
+    EXPECT_TRUE(has_row("  /cert_new file     Make a self-signed client certificate and show its"))
+        << term.screen();
+    EXPECT_TRUE(has_row("                     NickServ CERT ADD command")) << term.screen();
     term.resize(30, 120);
     ASSERT_TRUE(status(29, "help")) << term.screen();
-    EXPECT_TRUE(has_row("/cert_new $g         Make a self-signed client certificate and show its NickServ CERT ADD command"))
+    EXPECT_TRUE(has_row("  /cert_new file     Make a self-signed client certificate and show its NickServ CERT ADD command"))
         << term.screen();
 
     term.send("/quit\r");

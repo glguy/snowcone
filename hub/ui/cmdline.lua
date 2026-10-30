@@ -45,7 +45,11 @@ function M.execute(text)
 
     local params = {}
     if not cmd.pattern(args, params) then
-        log.add('error', '%s requires: %s', name, cmd.spec)
+        if cmd.usage then
+            log.add('error', 'usage: /%s %s', name, cmd.usage)
+        else
+            log.add('error', '/%s takes no arguments', name)
+        end
         return
     end
 

@@ -421,6 +421,8 @@ M.commands = {
     {
         name = 'filter',
         spec = '$R',
+        usage = '[pattern]',
+        group = 'client',
         help = 'Show only lines of this view, or of the detail pane, that match; no pattern clears it',
         fn = function(_, pattern)
             control.set_filter(details.filter_target(), pattern)
@@ -429,7 +431,9 @@ M.commands = {
     {
         name = 'profile',
         spec = '$g',
-        help = 'Switch the view rotation: dashboard, chat or all',
+        usage = 'dashboard|chat|all',
+        group = 'client',
+        help = 'Switch the view rotation',
         fn = function(_, name)
             if not control.profiles[name] then
                 error('unknown profile: ' .. name, 0)
@@ -441,6 +445,8 @@ M.commands = {
     {
         name = 'net',
         spec = '$g',
+        usage = 'network',
+        group = 'client',
         help = 'Choose the network that views and commands act on',
         fn = function(_, id)
             control.set_current_net(id)
@@ -458,6 +464,8 @@ for _, m in ipairs(view_modules) do
                 name = view.id,
                 spec = '',
                 help = 'Show the ' .. view.title .. ' view',
+                -- /help lists the views together, by name
+                group = 'views',
                 scope = view.feature and 'net' or nil,
                 feature = view.feature,
                 fn = function(ctx)

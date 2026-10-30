@@ -15,7 +15,8 @@
 -- api:
 --   api.name, api.state (persistent: state.features.plugins[name])
 --   api.on(topic, fn)                subscribe to an event
---   api.command(name, spec, fn, help)  fn(ctx, ...) as for built-in commands
+--   api.command(name, spec, fn, help, usage)  fn(ctx, ...) as for built-in
+--                                    commands; usage such as 'nick [count]'
 --   api.view(id, {title, render, keypress, status})
 --   api.send(net, cmd, ...)  api.log(fmt, ...)  api.task(name, fn, ...)
 --   api.timer(ms, fn) -> id, api.cancel_timer(id)
@@ -53,6 +54,16 @@ M.loaded = loaded
 -- Callbacks of this generation's plugins, by id, for timers and httpd
 local callbacks = {}
 local next_callback = 0
+
+-- Words for a spec's arguments, for a plugin command that gives no usage
+local spec_words <const> = {
+    g = 'word', r = 'text', R = '[text]', i = 'number', f = 'number',
+    v = 'name', q = "'text'", p = 'path',
+}
+local function spec_usage(spec)
+    if spec == nil or spec == '' then return nil end
+    return (spec:gsub('%$(.)', function(c) return spec_words[c] or '...' end))
+end
 
 local function owner(name)
     return 'plugin:' .. name
@@ -99,10 +110,12 @@ local function make_api(name, entry, current)
         end)
     end
 
-    function api.command(command, spec, fn, help)
+    function api.command(command, spec, fn, help, usage)
         guard(name, 'command ' .. command, current.add_command, owner(name), {
             name = command, spec = spec, fn = fn,
             help = help or ('from plugin ' .. name),
+            usage = usage or spec_usage(spec),
+            group = 'plugin ' .. name,
         })
     end
 

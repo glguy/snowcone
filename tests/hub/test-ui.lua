@@ -123,7 +123,7 @@ T.case('command errors are reported briefly', function()
     cmdline.execute 'eval@a 1'
     T.eq(last_error(), 'eval takes no network', 'not a net command')
     cmdline.execute 'quote'
-    T.eq(last_error(), 'quote requires: $r', 'missing argument')
+    T.eq(last_error(), 'usage: /quote [@tags] command [arguments]', 'missing argument')
 
     local before = #T.tracebacks()
     T.require 'hub.net.manager'.disconnect 'a'

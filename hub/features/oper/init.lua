@@ -398,12 +398,29 @@ local function kline_lookup(t, nick)
     t:log('kline', 'no WHOWAS reply for %s', nick)
 end
 
-local function oper_command(name, spec, help, fn)
-    return {name = name, spec = spec, scope = 'net', feature = M.name, help = help, fn = fn}
+local function oper_command(name, spec, usage, help, fn)
+    return {name = name, spec = spec, usage = usage, scope = 'net', feature = M.name, help = help, fn = fn}
 end
 
 M.commands = {
-    oper_command('kline_nick', '$g', 'Stage a K-Line for a nick, looking it up if needed', function(ctx, nick)
+    oper_command('oper', '', nil, 'Become an operator with OPER', function(ctx)
+        local cfg = HUB.state.nets[ctx.net].cfg.oper
+        if not cfg then
+            error('no oper configuration', 0)
+        end
+        task.spawn('oper', {net = ctx.net, owner = M.name}, function(t)
+            local password = secrets.resolve(t, cfg.password)
+            t:send('OPER', cfg.username, {content = password, secret = true})
+        end)
+    end),
+    oper_command('challenge', '', nil, 'Become an operator with CHALLENGE', function(ctx)
+        local cfg = HUB.state.nets[ctx.net].cfg.challenge
+        if not cfg then
+            error('no challenge configuration', 0)
+        end
+        task.spawn('challenge', {net = ctx.net, owner = M.name}, challenge, cfg)
+    end),
+    oper_command('kline_nick', '$g', 'nick', 'Stage a K-Line for a nick, looking it up if needed', function(ctx, nick)
         local entry = common.enabled(ctx.net, 'snotice')
             and OrderedMap.lookup(stores.get(ctx.net).users, nick)
         if entry then
@@ -412,7 +429,7 @@ M.commands = {
             task.spawn('kline lookup', {net = ctx.net, owner = M.name}, kline_lookup, nick)
         end
     end),
-    oper_command('duration', '$r', 'Set the K-Line duration: 4h, 1d, 1w 2d ...', function(ctx, text)
+    oper_command('duration', '$r', 'duration', 'Set the K-Line duration: 4h, 1d, 1w 2d ...', function(ctx, text)
         text = text:gsub(' +', '')
         local n = M.parse_duration(text)
         if not n or n <= 0 then
@@ -420,7 +437,7 @@ M.commands = {
         end
         M.get(ctx.net).settings.duration = text
     end),
-    oper_command('tag', '$g', 'Choose a K-Line tag, adding it if new', function(ctx, tag)
+    oper_command('tag', '$g', 'tag', 'Choose a K-Line tag, adding it if new', function(ctx, tag)
         local settings = M.get(ctx.net).settings
         local known = false
         for _, t in ipairs(M.tags(ctx.net)) do
@@ -431,7 +448,7 @@ M.commands = {
         end
         settings.tag = tag
     end),
-    oper_command('droptag', '', 'Stop tagging, and forget the tag if /tag added it', function(ctx)
+    oper_command('droptag', '', nil, 'Stop tagging, and forget the tag if /tag added it', function(ctx)
         local settings = M.get(ctx.net).settings
         for i, t in ipairs(settings.tags) do
             if t == settings.tag then
@@ -441,28 +458,11 @@ M.commands = {
         end
         settings.tag = nil
     end),
-    oper_command('masktrace', '$g', 'MASKTRACE a mask', function(ctx, mask)
+    oper_command('masktrace', '$g', 'mask', 'MASKTRACE a mask', function(ctx, mask)
         send.send(ctx.net, 'MASKTRACE', mask)
     end),
-    oper_command('testline', '$g', 'TESTLINE a mask', function(ctx, mask)
+    oper_command('testline', '$g', 'mask', 'TESTLINE a mask', function(ctx, mask)
         send.send(ctx.net, 'TESTLINE', mask)
-    end),
-    oper_command('challenge', '', 'Become an operator with CHALLENGE', function(ctx)
-        local cfg = HUB.state.nets[ctx.net].cfg.challenge
-        if not cfg then
-            error('no challenge configuration', 0)
-        end
-        task.spawn('challenge', {net = ctx.net, owner = M.name}, challenge, cfg)
-    end),
-    oper_command('oper', '', 'Become an operator with OPER', function(ctx)
-        local cfg = HUB.state.nets[ctx.net].cfg.oper
-        if not cfg then
-            error('no oper configuration', 0)
-        end
-        task.spawn('oper', {net = ctx.net, owner = M.name}, function(t)
-            local password = secrets.resolve(t, cfg.password)
-            t:send('OPER', cfg.username, {content = password, secret = true})
-        end)
     end),
 }
 

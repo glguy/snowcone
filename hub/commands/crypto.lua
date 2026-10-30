@@ -70,7 +70,7 @@ end
 
 M.commands = {
     {
-        name = 'ecdsa_new', spec = '$g',
+        name = 'ecdsa_new', spec = '$g', usage = 'file', group = 'keys',
         help = 'Make an ECDSA key file and show its NickServ SET PUBKEY command',
         fn = function(_, filename)
             task.spawn('ecdsa_new', {owner = 'crypto'}, function(t)
@@ -85,7 +85,7 @@ M.commands = {
         end,
     },
     {
-        name = 'ecdsa_fp', spec = '$g',
+        name = 'ecdsa_fp', spec = '$g', usage = 'file', group = 'keys',
         help = "Show the NickServ SET PUBKEY command for an ECDSA key file",
         fn = function(_, filename)
             local pem = assert(file.read(filename))
@@ -95,7 +95,7 @@ M.commands = {
         end,
     },
     {
-        name = 'x25519_new', spec = '',
+        name = 'x25519_new', spec = '', group = 'keys',
         help = 'Make an X25519 key and show it with its NickServ SET X25519-PUBKEY command',
         fn = function()
             local k = myopenssl.gen_pkey 'X25519'
@@ -107,7 +107,7 @@ M.commands = {
         end,
     },
     {
-        name = 'cert_new', spec = '$g',
+        name = 'cert_new', spec = '$g', usage = 'file', group = 'keys',
         help = 'Make a self-signed client certificate and show its NickServ CERT ADD command',
         fn = function(_, filename)
             task.spawn('cert_new', {owner = 'crypto'}, function(t)
@@ -137,7 +137,7 @@ M.commands = {
         end,
     },
     {
-        name = 'cert_fp', spec = '$g',
+        name = 'cert_fp', spec = '$g', usage = 'file', group = 'keys',
         help = 'Show the NickServ CERT ADD command for a certificate file',
         fn = function(_, filename)
             local pem <const> = assert(file.read(filename))

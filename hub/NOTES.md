@@ -238,6 +238,11 @@ a decision is made, and change or remove it when the decision does.
   or creation time, so opening it asks for MODE when the modes aren't
   known; list modes (bans, quiets, ...) are fetched only from their
   buttons, since they can be long and some need operator status.
+- **`/help` groups commands** by what they're for (client, connection,
+  each feature, each plugin), in the order modules list them, so related
+  commands sit together; the view commands are one row of names. A
+  command's `usage` is what people read; its `spec` is only for the
+  parser. A plugin command without a usage gets one from its spec.
 - **The status view cuts lines at 400 bytes,** so a long line can't wrap
   past the pad onto the rows below.
 - **The editor** accepts line breaks (it also takes Lua for `/eval`), and

@@ -83,6 +83,8 @@ T.case('plugins load, and failures stay with their plugin', function()
     T.ok(errors.older:find('it needs utils.numerics); port it', 1, true), errors.older)
     T.ok(errors.missing, 'missing file reported')
     T.ok(HUB.current.commands.greet, 'command registered')
+    T.eq({HUB.current.commands.greet.usage, HUB.current.commands.greet.group}, {'word', 'plugin good'},
+        'a usage from its spec, and its plugin as group')
     T.ok(HUB.current.views.goodview, 'view registered')
     local logged = table.concat(T.log_lines 'plugin', '\n')
     T.ok(logged:find('clash command quit', 1, true), 'clashing command reported')

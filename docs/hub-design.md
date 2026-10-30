@@ -93,7 +93,7 @@ A module may export:
 | `init_state(S)` | Create its part of `HUB.state` if missing. Runs on every load, so it is idempotent and only adds. |
 | `routes` | `[name] = function`, targets for trampolines and late calls. |
 | `subscribe(sub)` | `sub.on(topic, fn)` on the generation's bus. |
-| `commands` | `{name, spec, fn, help, scope, feature}` entries. |
+| `commands` | `{name, spec, usage, fn, help, scope, feature, group}` entries: `spec` is for the parser, `usage` (`nick [count]`) for people; `group` (default: the feature) places it in `/help`. |
 | `views` | View records (section 7). |
 | `activate(first)` | Runs once the generation is current. |
 

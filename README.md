@@ -132,7 +132,7 @@ return function(api)
 
     api.command('hello', '$g', function(ctx, who)
         api.send(ctx.net, 'PRIVMSG', who, 'hello!')
-    end, 'Say hello')
+    end, 'Say hello', 'nick')                   -- help, and usage for /help
 
     api.view('hello', {
         render = function(ctx, win)

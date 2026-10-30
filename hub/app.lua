@@ -5,7 +5,7 @@
 --   init_state(S)                   see runtime/state.lua
 --   routes      [name] = function, targets for trampolines and late calls
 --   subscribe(sub)                   sub.on(topic, fn) on the new bus
---   commands    sequence of {name, spec, fn, help, scope, feature}
+--   commands    sequence of {name, spec, usage, fn, help, scope, feature, group}
 --   views       sequence of view records (ui/init.lua)
 --   activate(first)                  runs once the generation is current
 
@@ -65,6 +65,7 @@ local function add_routes(current, name, routes)
 end
 
 local function add_command(current, name, cmd)
+    current.command_count = (current.command_count or 0) + 1
     local existing = current.commands[cmd.name]
     if existing then
         error(string.format('%s: command %s is already defined by %s',
@@ -73,11 +74,17 @@ local function add_command(current, name, cmd)
     current.commands[cmd.name] = {
         name = cmd.name,
         spec = cmd.spec,
+        -- the arguments as /help shows them, such as 'nick [count]'
+        usage = cmd.usage,
         pattern = mkcommand(cmd.spec),
         fn = cmd.fn,
         help = cmd.help,
         scope = cmd.scope or 'global',
         feature = cmd.feature,
+        -- where /help lists it: its feature's group unless it names one
+        group = cmd.group or cmd.feature,
+        -- /help lists a group in the order its commands were added
+        order = current.command_count,
         owner = name,
     }
 end

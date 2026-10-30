@@ -251,11 +251,12 @@ end
 M.commands = {
     {
         name = 'addwatch', spec = '$r', scope = 'net', feature = 'snotice',
-        help = "Mark and alert on connections: [id] 'pattern'|filter [color] [no]beep [no]flash",
+        usage = "[id] 'pattern'|filter [color] [no]beep [no]flash",
+        help = 'Mark and alert on connections',
         fn = addwatch,
     },
     {
-        name = 'delwatch', spec = '$i', scope = 'net', feature = 'snotice',
+        name = 'delwatch', spec = '$i', usage = 'number', scope = 'net', feature = 'snotice',
         help = 'Remove a watch by number',
         fn = function(ctx, i)
             local watches = stores.get(ctx.net).watches
@@ -266,8 +267,8 @@ M.commands = {
         end,
     },
     {
-        name = 'nettrack', spec = '$g $g', scope = 'net', feature = 'snotice',
-        help = 'Count users in an address range: name address[/prefix]',
+        name = 'nettrack', spec = '$g $g', usage = 'name address[/prefix]', scope = 'net', feature = 'snotice',
+        help = 'Count users in an address range',
         fn = function(ctx, name, range)
             nettrack.add(stores.get(ctx.net).net_trackers, name, range)
             local irc = HUB.state.nets[ctx.net].irc
@@ -277,7 +278,7 @@ M.commands = {
         end,
     },
     {
-        name = 'inject', spec = '$r', scope = 'net', feature = 'snotice',
+        name = 'inject', spec = '$r', usage = 'notice', scope = 'net', feature = 'snotice',
         help = 'Handle a server notice as if a server sent it (for testing)',
         fn = function(ctx, text)
             local note = parse('INJECT.', text)

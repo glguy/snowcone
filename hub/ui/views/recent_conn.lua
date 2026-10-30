@@ -219,6 +219,8 @@ return {
         {
             name = 'prefilter',
             spec = '$R',
+            usage = '[query]',
+            group = 'snotice',
             help = "Query for cliconn/cliexit: nick |re| and not (account '*' or server 'x'); empty clears",
             fn = function(_, query)
                 local view = HUB.state.ui.view

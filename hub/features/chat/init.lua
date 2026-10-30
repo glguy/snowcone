@@ -697,16 +697,17 @@ end
 
 -- Commands ============================================================
 
-local function chat_command(name, spec, help, fn)
-    return {name = name, spec = spec, scope = 'net', feature = M.name, help = help, fn = fn}
+local function chat_command(name, spec, usage, help, fn)
+    return {name = name, spec = spec, usage = usage, scope = 'net', feature = M.name, help = help, fn = fn}
 end
 
 M.commands = {
-    chat_command('talk', '$g', 'Talk to a channel or nick: opens a buffer, joins or monitors', function(ctx, target)
+    chat_command('talk', '$g', 'target', 'Talk to a channel or nick: opens a buffer, joins or monitors',
+    function(ctx, target)
         M.talk(ctx.net, target)
         bus.emit('chat.focus', {net = ctx.net, target = target})
     end),
-    chat_command('close', '$R', 'Close a buffer (the shown one by default)', function(ctx, target)
+    chat_command('close', '$R', '[target]', 'Close a buffer, the shown one by default', function(ctx, target)
         if target == '' then
             target = ctx.target
         end
@@ -715,16 +716,16 @@ M.commands = {
         end
         M.close(ctx.net, target)
     end),
-    chat_command('msg', '$g $r', 'Send a message', function(ctx, target, text)
+    chat_command('msg', '$g $r', 'target text', 'Send a message', function(ctx, target, text)
         M.say(ctx.net, target, text)
     end),
-    chat_command('notice', '$g $r', 'Send a notice', function(ctx, target, text)
+    chat_command('notice', '$g $r', 'target text', 'Send a notice', function(ctx, target, text)
         send.send(ctx.net, 'NOTICE', target, text)
     end),
-    chat_command('ctcp', '$g $r', 'Send a CTCP request', function(ctx, target, text)
+    chat_command('ctcp', '$g $r', 'target request', 'Send a CTCP request', function(ctx, target, text)
         send.send(ctx.net, 'PRIVMSG', target, '\x01' .. text .. '\x01')
     end),
-    chat_command('chaninfo', '$R', "Show a channel's topic, modes and members (the shown one by default)",
+    chat_command('chaninfo', '$R', '[channel]', "Show a channel's topic, modes and members, the shown one by default",
     function(ctx, target)
         if target == '' then target = ctx.target end
         local irc = model(ctx.net)
@@ -734,17 +735,17 @@ M.commands = {
         M.channel_info(ctx.net, target)
         bus.emit('chat.show_channel', {net = ctx.net, target = target})
     end),
-    chat_command('list', '$R', 'List channels, optionally matching a pattern', function(ctx, arg)
+    chat_command('list', '$R', '[pattern]', 'List channels, optionally matching a pattern', function(ctx, arg)
         M.list(ctx.net, arg)
         bus.emit('chat.show_list', {net = ctx.net})
     end),
-    chat_command('whois', '$g', 'WHOIS a nick, shown in the detail pane', function(ctx, nick)
+    chat_command('whois', '$g', 'nick', 'WHOIS a nick, shown in the detail pane', function(ctx, nick)
         task.spawn('whois', {net = ctx.net, owner = M.name}, whois, nick, false)
     end),
-    chat_command('wii', '$g', 'WHOIS a nick on its server (with idle time)', function(ctx, nick)
+    chat_command('wii', '$g', 'nick', 'WHOIS a nick on its server (with idle time)', function(ctx, nick)
         task.spawn('whois', {net = ctx.net, owner = M.name}, whois, nick, true)
     end),
-    chat_command('whowas', '$g $R', 'WHOWAS a nick, at most count entries: nick [count]', function(ctx, nick, count)
+    chat_command('whowas', '$g $R', 'nick [count]', 'WHOWAS a nick, at most count entries', function(ctx, nick, count)
         local n
         if count ~= '' then
             n = math.tointeger(tonumber(count))
@@ -752,7 +753,7 @@ M.commands = {
         end
         task.spawn('whowas', {net = ctx.net, owner = M.name}, whowas, nick, n)
     end),
-    chat_command('umode', '$r', 'Change our user modes, e.g. +i-w', function(ctx, args)
+    chat_command('umode', '$r', 'modes', 'Change our user modes, e.g. +i-w', function(ctx, args)
         local irc = model(ctx.net)
         if not irc then error('not connected', 0) end
         local parts = {}

@@ -82,6 +82,7 @@ M.commands = {
     {
         name = 'reload',
         spec = '',
+        group = 'client',
         help = 'Reload code and configuration, keeping connections and state',
         fn = function()
             -- Not from inside the command's own frame: the reload replaces
@@ -92,6 +93,8 @@ M.commands = {
     {
         name = 'eval',
         spec = '$r',
+        usage = 'code',
+        group = 'client',
         help = 'Run Lua code and show its values in the detail pane',
         fn = function(_, code)
             local chunk, message = load(code, '=(eval)', 't')
@@ -119,6 +122,7 @@ M.commands = {
     {
         name = 'connect',
         spec = '',
+        group = 'connection',
         scope = 'net',
         help = 'Connect the network, and keep it connected',
         fn = function(ctx)
@@ -133,6 +137,8 @@ M.commands = {
     {
         name = 'disconnect',
         spec = '$R',
+        usage = '[message]',
+        group = 'connection',
         scope = 'net',
         help = 'Disconnect the network and stay disconnected; optional QUIT message',
         fn = function(ctx, message)
@@ -142,6 +148,7 @@ M.commands = {
     {
         name = 'reconnect',
         spec = '',
+        group = 'connection',
         scope = 'net',
         help = 'Drop the connection and connect again now, with current configuration',
         fn = function(ctx)
@@ -151,6 +158,8 @@ M.commands = {
     {
         name = 'quote',
         spec = '$r',
+        usage = '[@tags] command [arguments]',
+        group = 'connection',
         scope = 'net',
         help = 'Send an IRC command, checked; its labeled reply shows in the detail pane',
         fn = function(ctx, text)
@@ -170,6 +179,8 @@ M.commands = {
     {
         name = 'raw',
         spec = '$r',
+        usage = 'line',
+        group = 'connection',
         scope = 'net',
         help = 'Send a line exactly as typed',
         fn = function(ctx, text)
@@ -179,6 +190,8 @@ M.commands = {
     {
         name = 'nick',
         spec = '$g',
+        usage = 'nick',
+        group = 'connection',
         scope = 'net',
         help = 'Change nickname',
         fn = function(ctx, nick)
@@ -188,6 +201,8 @@ M.commands = {
     {
         name = 'sasl',
         spec = '$g',
+        usage = 'credential',
+        group = 'connection',
         scope = 'net',
         help = 'Authenticate now with a configured SASL credential',
         fn = function(ctx, name)
@@ -205,6 +220,8 @@ M.commands = {
     {
         name = 'dump',
         spec = '$r',
+        usage = 'file',
+        group = 'connection',
         scope = 'net',
         help = "Write the network's console to a file, as client and server lines",
         fn = function(ctx, filename)
@@ -245,6 +262,7 @@ M.commands = {
     {
         name = 'quit',
         spec = '',
+        group = 'client',
         help = 'Close every connection and exit',
         fn = function()
             dispatch.route 'app.quit' ()

@@ -1231,4 +1231,60 @@ T.case('channel information: topic, modes, members and lists, live', function()
     T.ok(T.log_lines 'error'[1]:find 'not a channel: bob', 'refused')
 end)
 
+T.case('every built-in command has a group, and a usage when it takes arguments', function()
+    boot()
+    local problems = {}
+    for name, cmd in pairs(HUB.current.commands) do
+        if not cmd.group then table.insert(problems, name .. ': no group') end
+        if cmd.spec ~= '' and not cmd.usage then table.insert(problems, name .. ': no usage') end
+    end
+    table.sort(problems)
+    T.eq(problems, {}, 'complete')
+end)
+
+T.case('/help lists views as a row, then commands by group, and searches', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    control.set_view 'help'
+    local function text()
+        HUB.current.routes['ui.draw']()
+        return table.concat(rows_of(document_pad()), '\n', 0, document_pad().y)
+    end
+
+    local t = text()
+    local headings = {}
+    for line in t:gmatch '[^\n]+' do
+        if line:match '^%u' and not line:match '^Commands' then table.insert(headings, line) end
+    end
+    T.eq(headings, {'Views', 'Client', 'Connection', 'Chat', 'Server notices', 'Operator', 'Topology',
+        'Services keys'}, 'groups in order')
+    T.ok(t:find('/whowas nick [count]', 1, true), 'usage, not the parser spec')
+    T.ok(not t:find('$g', 1, true), 'no specs')
+    T.ok(t:find('/addwatch', 1, true) < t:find('/delwatch', 1, true)
+        and t:find('/delwatch', 1, true) < t:find('/oper', 1, true), 'related commands together')
+
+    -- a view's name shows it
+    local rows = rows_of(document_pad())
+    for y = 0, #rows do
+        local x = rows[y]:find('/status', 1, true)
+        if x and rows[y]:match '^  /' and not rows[y]:find 'Show' then
+            HUB.current.routes['ui.entry']('on_mouse', y, x, false)
+            break
+        end
+    end
+    T.eq(HUB.state.ui.view, 'status', 'clicked')
+
+    -- C-s searches names, usage and help
+    control.set_view 'help'
+    key(0x1f & string.byte 'S')
+    type_text 'watch'
+    t = text()
+    T.ok(t:find('/addwatch', 1, true) and t:find('/delwatch', 1, true), 'matches')
+    T.ok(not t:find('/oper', 1, true) and not t:find('Views', 1, true), 'nothing else')
+    type_text 'zzz'
+    T.ok(text():find('No command matches', 1, true), 'none')
+    key(0x1b)
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.run()
