@@ -59,7 +59,8 @@ USING HUB
   The detail pane opens above the view to show one thing in full: a
   message, or a /whois or /whowas reply. A status line that starts
   with ▸ opens what it summarizes. While the pane is open it takes the
-  scrolling keys; Esc or its [CLOSE] closes it.
+  scrolling keys; Esc or its [CLOSE] closes it, and [DISCARD] also
+  drops it from the status lines that would reopen it.
 
 KEYS
   /            Type a command

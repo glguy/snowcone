@@ -225,10 +225,14 @@ a decision is made, and change or remove it when the decision does.
   multi-line report goes there, with a one-line summary in the status log
   that reopens it, rather than as several log lines.
 - **A private key is shown only in the detail pane.** The crypto commands
-  log the services command, with a copy of the record that leaves the key
-  out, and open the pane through the `ui.open_detail` route rather than
-  an event, which plugins could subscribe to. Once the pane shows
-  something else the key is gone; headless, it is never shown.
+  log the services command; only `/x25519_new`, whose key has no file,
+  opens the pane, through the `ui.open_detail` route rather than an
+  event, which plugins could subscribe to. Once the pane shows something
+  else the key is gone; headless, it is never shown. A result that fits
+  on one line stays a log line: the pane is for more than that.
+- **Events or the route.** A detail a plugin might want to watch (a WHOIS
+  reply) arrives as an event the UI answers; anything private opens with
+  the `ui.open_detail` route, which no plugin hears.
 - **The status view cuts lines at 400 bytes,** so a long line can't wrap
   past the pad onto the rows below.
 - **The editor** accepts line breaks (it also takes Lua for `/eval`), and

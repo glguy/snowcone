@@ -1,5 +1,5 @@
--- A WHOWAS run as a network task: whowas(t, nick). Every past entry the
--- server keeps is gathered into a hub.Whowas, logged as one line that
+-- A WHOWAS run as a network task: whowas(t, nick, count). Every past
+-- entry the server keeps, or the newest count, is gathered into a hub.Whowas, logged as one line that
 -- opens it, and emitted as chat.whowas for the UI to show.
 
 local bus       <const> = require 'hub.runtime.bus'
@@ -27,7 +27,7 @@ local N         <const> = require 'hub.lib.numerics'
 ---@field entries hub.WhowasEntry[]
 ---@field at integer epoch seconds when the reply came
 
-return function(t, nick)
+return function(t, nick, count)
     ---@type hub.Whowas
     local w = {nick = nick, entries = {}, at = os.time()}
     local entry -- the one the replies after a 314 describe
@@ -77,7 +77,12 @@ return function(t, nick)
     for k in pairs(handlers) do commands[k] = true end
     commands[N.RPL_LOAD2HI] = true
 
-    local replies = t:request(commands, 30000, 'WHOWAS', nick)
+    local replies
+    if count then
+        replies = t:request(commands, 30000, 'WHOWAS', nick, tostring(count))
+    else
+        replies = t:request(commands, 30000, 'WHOWAS', nick)
+    end
 
     local irc = HUB.state.nets[t.net].irc
     ---@cast irc -nil the WHOWAS went out, so the network is connected

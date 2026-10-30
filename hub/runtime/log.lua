@@ -88,6 +88,23 @@ function M.add_detail(net, category, detail, fmt, ...)
     add(net, category, detail, fmt, ...)
 end
 
+--- Whether a line of the log holds a detail with this data.
+function M.holds_detail(data)
+    for entry in OrderedMap.each(HUB.state.log) do
+        if entry.detail and entry.detail.data == data then return true end
+    end
+    return false
+end
+
+--- Drop the detail with this data from every line that holds it; the
+--- lines stay.
+function M.forget_detail(data)
+    for entry in OrderedMap.each(HUB.state.log) do
+        if entry.detail and entry.detail.data == data then entry.detail = nil end
+    end
+    dispatch.dirty()
+end
+
 --- Clear the status bar's copy of the last line.
 function M.dismiss()
     HUB.state.log_last = false

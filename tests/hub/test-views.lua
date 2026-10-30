@@ -791,16 +791,14 @@ T.case('a new X25519 key shows its private key in the pane and nowhere else', fu
         end
     end
 
-    -- reopened from its status line, it has no private key
+    -- a result of one line stays a log line
     control.close_detail()
-    control.set_view 'status'
-    HUB.current.routes['ui.draw']()
-    for y = 0, tty_height - 2 do
-        HUB.current.routes['ui.entry']('on_mouse', y, 40, false)
-        if control.detail() then break end
-    end
-    T.eq({control.detail().kind, control.detail().data.private}, {'keys', nil}, 'reopened without it')
-    HUB.current.routes['ui.draw']()
+    local dir = os.tmpname()
+    T.require 'hub.ui.cmdline'.execute('cert_new ' .. dir)
+    T.require 'hub.runtime.task'.answer(HUB.state.ui.input.prompts[1].task, '')
+    T.require 'hub.ui.cmdline'.execute('cert_fp ' .. dir)
+    os.remove(dir)
+    T.eq(control.detail(), nil, 'no pane for a certificate')
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
@@ -962,6 +960,37 @@ T.case('/quote without labeled-response, or with a label typed, only sends', fun
     T.eq(c2:take(), {'TIME'}, 'unlabeled')
     T.eq(control.detail(), nil, 'nothing shown')
     T.eq(next(HUB.tasks), nil, 'nothing waits')
+end)
+
+T.case('[DISCARD] drops a detail from the log lines that hold it', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local log = T.require 'hub.runtime.log'
+    c:take()
+    T.require 'hub.ui.cmdline'.execute 'whois alice'
+    c:recv ':srv 311 me alice a h.example * :Alice'
+    c:recv ':srv 318 me alice :End of /WHOIS list.'
+    local data = control.detail().data
+    T.ok(log.holds_detail(data), 'the log holds it')
+
+    -- [DISCARD] follows [CLOSE] on the rule, the row below the pane
+    HUB.current.routes['ui.draw']()
+    local rule
+    for y = 0, tty_height - 2 do
+        HUB.current.routes['ui.entry']('on_mouse', y, 10, false)
+        if not control.detail() then rule = y break end
+    end
+    T.eq(control.detail(), nil, 'closed')
+    T.ok(rule and rule > 0, 'from the rule')
+    T.ok(not log.holds_detail(data), 'and dropped from the log')
+    T.eq(T.log_lines 'whois', {'alice!a@h.example 0 channels'}, 'the line stays')
+
+    -- a message, which no log line holds, has no [DISCARD]
+    control.open_detail('message', 'test', snowcone.parse_irc ':a!b@c PRIVMSG #x :hi')
+    HUB.current.routes['ui.draw']()
+    HUB.current.routes['ui.entry']('on_mouse', rule, 10, false)
+    T.ok(control.detail(), 'nothing there to click')
+    T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
 T.run()

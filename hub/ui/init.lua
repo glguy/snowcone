@@ -176,7 +176,8 @@ end
 
 -- Render the detail pane at the top of the screen: its content, up to
 -- half the screen and scrolled by the paging keys, over a rule with
--- [CLOSE], its title, its modes and the rows shown. Returns the rows it
+-- [CLOSE], [DISCARD] when a log line holds it, its title, its modes and
+-- the rows shown. Returns the rows it
 -- takes, and the refresh to do.
 ---@param detail hub.Detail
 local function render_detail(detail, kind)
@@ -201,6 +202,15 @@ local function render_detail(detail, kind)
     draw.normal(pad)
     pad:waddstr '─'
     add_button(pad, '[CLOSE]', control.close_detail)
+    -- the log keeps what its lines open until they roll off; this lets it
+    -- go now
+    if log.holds_detail(detail.data) then
+        pad:waddstr '─'
+        add_button(pad, '[DISCARD]', function()
+            log.forget_detail(detail.data)
+            control.close_detail()
+        end)
+    end
     pad:waddstr '─ '
     draw.bold(pad)
     pad:waddstr(kind.title and kind.title(detail) or detail.kind)

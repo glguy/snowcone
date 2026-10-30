@@ -82,6 +82,19 @@ T.case('whowas gathers every past entry, and reports failures', function()
     T.eq(T.log_lines 'whowas'[3], 'whowas busy failed: Server load is temporarily too heavy.', 'refused')
     T.eq(#events, 1, 'failures open nothing')
     T.eq(next(HUB.tasks), nil, 'finished')
+
+    -- the command takes a count of entries
+    T.require 'hub.ui.control'.init_state(HUB.state)
+    local cmdline = T.require 'hub.ui.cmdline'
+    cmdline.execute 'whowas Old 3'
+    T.eq(c:take(), {'WHOWAS Old 3'}, 'with a count')
+    c:recv ':srv 369 me Old :End of WHOWAS'
+    cmdline.execute 'whowas Old'
+    T.eq(c:take(), {'WHOWAS Old'}, 'without')
+    c:recv ':srv 369 me Old :End of WHOWAS'
+    cmdline.execute 'whowas Old x'
+    T.eq(c:take(), {}, 'a bad count sends nothing')
+    T.ok(T.log_lines 'error'[1]:find 'count must be a positive number', 'and says why')
 end)
 
 T.case('channel and private messages go to buffers', function()
@@ -431,7 +444,7 @@ T.case('crypto commands write keys and print the services commands', function()
     for e in T.require 'hub.lib.OrderedMap'.each(HUB.state.log) do
         if e.category == 'crypto' then entry = e break end
     end
-    T.eq({entry.detail.kind, entry.detail.data.private}, {'keys', nil}, 'reopens without the private key')
+    T.eq(entry.detail, nil, 'a plain line')
 
     local prompts = {}
     T.require 'hub.runtime.bus'.on(HUB.current.bus, 'task.prompt', 'test', function(ev)

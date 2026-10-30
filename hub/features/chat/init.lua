@@ -712,8 +712,13 @@ M.commands = {
     chat_command('wii', '$g', 'WHOIS a nick on its server (with idle time)', function(ctx, nick)
         task.spawn('whois', {net = ctx.net, owner = M.name}, whois, nick, true)
     end),
-    chat_command('whowas', '$g', 'WHOWAS a nick, shown in the detail pane', function(ctx, nick)
-        task.spawn('whowas', {net = ctx.net, owner = M.name}, whowas, nick)
+    chat_command('whowas', '$g $R', 'WHOWAS a nick, at most count entries: nick [count]', function(ctx, nick, count)
+        local n
+        if count ~= '' then
+            n = math.tointeger(tonumber(count))
+            if not n or n < 1 then error('count must be a positive number: ' .. count, 0) end
+        end
+        task.spawn('whowas', {net = ctx.net, owner = M.name}, whowas, nick, n)
     end),
     chat_command('umode', '$r', 'Change our user modes, e.g. +i-w', function(ctx, args)
         local irc = model(ctx.net)

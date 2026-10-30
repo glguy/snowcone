@@ -1,7 +1,7 @@
 -- Key and certificate helpers for services.
--- Each shows what it made or read in the detail pane (ui/details/keys.lua)
--- and logs the NickServ command to register it. A private key is shown
--- only in the pane, never logged.
+-- Each logs the NickServ command to register what it made or read. A new
+-- X25519 key, which has no file, also shows in the detail pane
+-- (ui/details/keys.lua) with its private key, which is never logged.
 
 local file <const> = require 'pl.file'
 local log  <const> = require 'hub.runtime.log'
@@ -24,21 +24,20 @@ end
 ---@field private string|nil base64, for a key that has no file
 ---@field commands string[] to send to services
 
--- Log each services command, with the record to reopen without its
--- private key, and show the whole record in the detail pane, when there
--- is a UI. Only the pane holds the private key, until it shows something
--- else. A route, unlike an event, reaches no plugin subscribers.
+-- Log each services command. A private key is more than a line can
+-- show, and must not be logged, so the record goes to the detail pane,
+-- when there is a UI; only the pane holds the key, until it shows
+-- something else. A route, unlike an event, reaches no plugin
+-- subscribers.
 ---@param keys hub.Keys
 local function report(keys)
-    local public = {}
-    for k, v in pairs(keys) do
-        if k ~= 'private' then public[k] = v end
-    end
     for _, command in ipairs(keys.commands) do
-        log.add_detail(nil, 'crypto', {kind = 'keys', data = public}, '%s', command)
+        log.add('crypto', '%s', command)
     end
-    local open = HUB.current.routes['ui.open_detail']
-    if open then open('keys', nil, keys) end
+    if keys.private then
+        local open = HUB.current.routes['ui.open_detail']
+        if open then open('keys', nil, keys) end
+    end
 end
 
 local function cert_fingerprint(x509)
