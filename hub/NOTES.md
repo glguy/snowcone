@@ -233,6 +233,11 @@ a decision is made, and change or remove it when the decision does.
 - **Events or the route.** A detail a plugin might want to watch (a WHOIS
   reply) arrives as an event the UI answers; anything private opens with
   the `ui.open_detail` route, which no plugin hears.
+- **Channel information is read live** from the model, so the pane
+  follows topic and mode changes. Joining doesn't bring a channel's modes
+  or creation time, so opening it asks for MODE when the modes aren't
+  known; list modes (bans, quiets, ...) are fetched only from their
+  buttons, since they can be long and some need operator status.
 - **The status view cuts lines at 400 bytes,** so a long line can't wrap
   past the pad onto the rows below.
 - **The editor** accepts line breaks (it also takes Lua for `/eval`), and

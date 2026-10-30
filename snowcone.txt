@@ -57,16 +57,17 @@ USING HUB
   it in the detail pane, or a [+N more] button to expand a list.
 
   The detail pane opens above the view to show one thing in full: a
-  message, or a /whois or /whowas reply. A status line that starts
-  with ▸ opens what it summarizes. While the pane is open it takes the
-  scrolling keys; Esc or its [CLOSE] closes it, and [DISCARD] also
-  drops it from the status lines that would reopen it.
+  message, a /whois or /whowas reply, or a channel's topic, modes and
+  members (/chaninfo, or click its name in the status bar). A status
+  line that starts with ▸ opens what it summarizes. While the pane is
+  open it takes the scrolling keys; Esc or its [CLOSE] closes it, and
+  [DISCARD] also drops it from the status lines that would reopen it.
 
 KEYS
   /            Type a command
   t            Talk in the shown chat buffer
   C-s          Filter the current view, or the detail pane when it shows
-               a /quote reply or a /whowas
+               a /quote reply, a /whowas or a channel
   Esc          Close the detail pane; else leave input, clear filters and
                scrolling
   C-n, C-p     Next and previous view of the rotation

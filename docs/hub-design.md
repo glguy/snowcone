@@ -275,7 +275,8 @@ dashboard are refused with a message to port them.
   stores themselves.
 - **The detail pane** shows one thing in full above the view, for the
   whole client: `ui.detail` in state, `{kind, net, data}`, drawn by the
-  renderer for its kind in `ui/details/` (`error`, `keys`, `message`, `reply`, `value`, `whois`, `whowas`). The record
+  renderer for its kind in `ui/details/` (`channel`, `error`, `keys`, `message`, `reply`, `value`, `whois`,
+  `whowas`). The record
   doubles as the renderer's view state (`ctx.vs`), so it keeps the scroll
   and the renderer's own fields. It is as tall as its content up to half
   the screen, over a rule with [CLOSE], [DISCARD] (drops it from the log
@@ -283,7 +284,7 @@ dashboard are refused with a message to port them.
   the view gets the rows below. While it is open the paging keys scroll
   it, its renderer's `keypress` comes before the view's, and Esc closes
   it before anything else, outside input modes. A kind with `filter`
-  (`reply`, `whowas`) takes the filter too: Ctrl-S and `/filter` filter
+  (`channel`, `reply`, `whowas`) takes the filter too: Ctrl-S and `/filter` filter
   it, live, instead of the view, and it keeps its own (`control.filter
   'detail'`); the renderers are listed in `ui/details/init.lua`. A
   `wide` kind (`reply`, `value`) draws rows that don't wrap, and Left and
@@ -291,7 +292,8 @@ dashboard are refused with a message to port them.
   do nothing while they are shown. Features don't open it:
   they log one line with a `detail` (`log.add_detail`), which the status
   view makes clickable, and emit an event the UI answers by opening it
-  when the user asked for the thing (`chat.whois`, `chat.whowas`).
+  when the user asked for the thing (`chat.whois`, `chat.whowas`,
+  `chat.show_channel`).
   Anything private (a new private key) opens with the `ui.open_detail`
   route instead, which no plugin hears.
 - **Streams** draw with `draw.draw_rotation` (principle 6), which also

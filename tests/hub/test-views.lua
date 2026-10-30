@@ -1138,4 +1138,97 @@ T.case('clicks follow a view scrolled sideways', function()
     T.eq(control.detail() and control.detail().kind, 'message', 'clicked where it is shown')
 end)
 
+T.case('channel information: topic, modes, members and lists, live', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:recv ':srv 005 me CHANMODES=eIbq,k,flj,mnst PREFIX=(ov)@+ :are supported'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':srv 332 me #chan :the \x02topic'
+    c:recv ':srv 333 me #chan alice!a@h 1700000000'
+    c:recv ':srv 353 me = #chan :@me +bob alice carol'
+    c:take()
+    control.set_talk_target('test', '#chan')
+
+    cmdline.execute 'chaninfo'
+    T.eq(c:take(), {'MODE #chan'}, 'asks for the modes it lacks')
+    T.eq({control.detail().kind, control.detail().data.name}, {'channel', '#chan'}, 'shown')
+    local text = detail_text()
+    T.ok(text:find 'topic: the topic', text)
+    T.ok(text:find 'set by: alice  on ', 'who set it')
+    T.ok(text:find 'modes: not known', 'modes not yet known')
+    T.ok(text:find 'members: 4  @ 1  %+ 1', 'counted by rank')
+    T.ok(text:find('nicks: @me +bob alice carol', 1, true), 'ranked, then by name')
+    T.ok(text:find 'bans: not fetched %[FETCH%]', 'lists to fetch')
+
+    -- replies fill it in as they come
+    c:recv ':srv 324 me #chan +ntk sekrit'
+    c:recv ':srv 329 me #chan 1600000000'
+    c:recv ':carol!c@h TOPIC #chan :new topic'
+    text = detail_text()
+    T.ok(text:find('modes: k=sekrit n t', 1, true), text)
+    T.ok(text:find 'created: ', 'created')
+    T.ok(text:find 'topic: new topic' and text:find 'set by: carol', 'a new topic')
+
+    -- [FETCH] asks for a list; its entries show newest first
+    local fetched
+    for y = 0, tty_height - 2 do
+        for x = 0, 40 do
+            HUB.current.routes['ui.entry']('on_mouse', y, x, false)
+            local sent = c:take()
+            -- past the modes' [REFRESH], which asks for MODE again
+            if sent[1] and sent[1]:find '+' then fetched = sent[1] break end
+        end
+        if fetched then break end
+    end
+    T.eq(fetched, 'MODE #chan +e', 'the first list, excepts')
+    c:recv ':srv 367 me #chan *!*@old.example op!o@h 1600000000'
+    c:recv ':srv 367 me #chan *!*@new.example op!o@h 1700000000'
+    c:recv ':srv 368 me #chan :End of Channel Ban List'
+    text = detail_text()
+    T.ok(text:find 'bans: 2 entries %[%+%] %[REFRESH%]', text)
+    T.ok(not text:find('new.example', 1, true), 'folded')
+
+    -- [+] opens it, newest first; [-] folds it again
+    local function click_text(label)
+        local rows = {}
+        for row in detail_text():gmatch '[^\n]*' do table.insert(rows, row) end
+        for y, row in ipairs(rows) do
+            local x = row:find(label, 1, true)
+            if x and row:find 'bans:' then
+                HUB.current.routes['ui.entry']('on_mouse', y - 1, x, false)
+                return
+            end
+        end
+        error('no ' .. label)
+    end
+    click_text '[+]'
+    text = detail_text()
+    T.ok(text:find('new.example', 1, true) < text:find('old.example', 1, true), 'newest first')
+    T.ok(text:find('bans: 2 entries [-]', 1, true), 'open')
+    click_text '[-]'
+    T.ok(not detail_text():find('new.example', 1, true), 'folded again')
+
+    -- the filter shows matching members and entries, folded or not
+    control.set_filter('detail', 'old')
+    text = detail_text()
+    T.ok(text:find 'bans: 1 of 2' and text:find 'old.example' and not text:find 'new.example', 'entries')
+    T.ok(text:find 'matching: %-', 'no member matches')
+    control.set_filter('detail', nil)
+
+    -- the channel name in the status bar opens it too
+    control.close_detail()
+    control.set_view 'buffer'
+    HUB.current.routes['ui.draw']()
+    for x = 0, tty_width - 1 do
+        HUB.current.routes['ui.entry']('on_mouse', tty_height - 1, x, false)
+        if control.detail() then break end
+    end
+    T.eq(control.detail() and control.detail().kind, 'channel', 'from the status bar')
+
+    -- not a channel
+    cmdline.execute 'chaninfo bob'
+    T.ok(T.log_lines 'error'[1]:find 'not a channel: bob', 'refused')
+end)
+
 T.run()

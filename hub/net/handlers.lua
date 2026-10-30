@@ -88,6 +88,8 @@ function H.TOPIC(_, irc, msg)
     local channel = irc_model.get_channel(irc, msg[1])
     if channel then
         channel.topic = msg[2]
+        channel.topic_who = msg.source
+        channel.topic_time = os.time()
     end
 end
 
@@ -96,6 +98,15 @@ H[N.RPL_TOPIC] = function(_, irc, msg)
     local channel = irc_model.get_channel(irc, msg[2])
     if channel then
         channel.topic = msg[3]
+    end
+end
+
+-- "<client> <channel> <nick> <setat>"
+H[N.RPL_TOPICWHOTIME] = function(_, irc, msg)
+    local channel = irc_model.get_channel(irc, msg[2])
+    if channel then
+        channel.topic_who = msg[3]
+        channel.topic_time = tonumber(msg[4])
     end
 end
 

@@ -97,6 +97,7 @@ function M.new()
     ---@field excepts string|nil
     ---@field bouncer_networks table<string, table<string, string>>|nil by netid
     ---@field label_next integer|nil the last label given to a request
+    ---@field prefixes string membership prefixes, highest first (PREFIX)
     local irc = {
         kind = 'Irc',
         casemapping = 'rfc1459',
@@ -120,6 +121,7 @@ function M.new()
         statusmsg = '@+',
         prefix_to_mode = {['@'] = 'o', ['+'] = 'v'},
         mode_to_prefix = {o = '@', v = '+'},
+        prefixes = '@+', -- highest first, from PREFIX
         modes_A = '', -- Modes that add or remove an address to or from a list.
         modes_B = '', -- Modes that change a setting on a channel. Arg always set
         modes_C = '', -- Modes that change a setting on a channel. Arg when set
@@ -142,6 +144,8 @@ end
 ---@field modes table<string, string|true>|nil from RPL_CHANNELMODEIS: the
 --- argument, or true without one
 ---@field topic string|nil
+---@field topic_who string|nil who set the topic
+---@field topic_time number|nil when, epoch seconds
 ---@field creationtime number|nil
 
 ---@class hub.Member
@@ -214,6 +218,7 @@ function isupport_logic.PREFIX(irc, arg)
     end
     irc.prefix_to_mode = prefix_to_mode
     irc.mode_to_prefix = mode_to_prefix
+    irc.prefixes = modes and prefixes or ''
 end
 
 function isupport_logic.CHANMODES(irc, arg)

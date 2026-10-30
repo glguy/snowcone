@@ -4,7 +4,8 @@
 -- buffers; Meta-H hides joins, parts, quits, nick changes, account
 -- changes and host changes. Click a sender to inspect the message in the
 -- detail pane. A reply (the +reply tag) starts with ↩: click it to scroll to
--- the message it answers, which is highlighted until Esc. Viewing a
+-- the message it answers, which is highlighted until Esc. Click a
+-- channel's name in the status bar for its information. Viewing a
 -- buffer marks it seen and, with the terminal focused, withdraws its
 -- notification.
 -- View state: scroll, hscroll, hide_presence, highlight (a message).
@@ -318,9 +319,19 @@ return {
                 draw.yellow(win)
             end
             local buffer = chat.buffer(net, target)
+            local name = buffer and buffer.name or target
+            local _, x1 = ncurses.getyx(win)
             draw.bold(win)
-            win:waddstr(scrub(buffer and buffer.name or target))
+            win:waddstr(scrub(name))
             draw.normal(win)
+            -- a channel's name opens its information
+            if irc and irc_model.is_channel_name(irc, name) then
+                local _, x2 = ncurses.getyx(win)
+                ctx.add_click(tty_height - 1, x1, x2, function()
+                    chat.channel_info(net, name)
+                    control.open_detail('channel', net, {name = name})
+                end)
+            end
         end
 
         for _, entry in ipairs(sorted_names(net)) do

@@ -661,6 +661,28 @@ function M.say(net, target, text)
     send.send(net, 'PRIVMSG', target, text)
 end
 
+-- Channels ============================================================
+
+--- Ask for what a channel's information needs and the server didn't send
+--- on join: its modes and creation time (MODE), unless they are known.
+function M.channel_info(net, name)
+    local irc = model(net)
+    local channel = irc and irc_model.get_channel(irc, name)
+    if channel and not channel.modes then
+        query(net, 'MODE', name)
+    end
+end
+
+--- Ask again for a channel's modes and creation time.
+function M.refresh_modes(net, name)
+    query(net, 'MODE', name)
+end
+
+--- Fetch a list mode of a channel, such as its bans (b) or quiets (q).
+function M.fetch_list(net, name, mode)
+    query(net, 'MODE', name, '+' .. mode)
+end
+
 --- Fetch the channel list.
 function M.list(net, arg)
     local C = M.get(net)
@@ -701,6 +723,16 @@ M.commands = {
     end),
     chat_command('ctcp', '$g $r', 'Send a CTCP request', function(ctx, target, text)
         send.send(ctx.net, 'PRIVMSG', target, '\x01' .. text .. '\x01')
+    end),
+    chat_command('chaninfo', '$R', "Show a channel's topic, modes and members (the shown one by default)",
+    function(ctx, target)
+        if target == '' then target = ctx.target end
+        local irc = model(ctx.net)
+        if not (target and irc and irc_model.is_channel_name(irc, target)) then
+            error('not a channel: ' .. tostring(target or 'no buffer'), 0)
+        end
+        M.channel_info(ctx.net, target)
+        bus.emit('chat.show_channel', {net = ctx.net, target = target})
     end),
     chat_command('list', '$R', 'List channels, optionally matching a pattern', function(ctx, arg)
         M.list(ctx.net, arg)
