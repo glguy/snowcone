@@ -5,6 +5,7 @@
 -- without a terminal.
 
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
+local bus      <const> = require 'hub.runtime.bus'
 local dispatch <const> = require 'hub.runtime.dispatch'
 local log      <const> = require 'hub.runtime.log'
 local manager  <const> = require 'hub.net.manager'
@@ -16,6 +17,20 @@ local task     <const> = require 'hub.runtime.task'
 local timer    <const> = require 'hub.runtime.timer'
 
 local M = {}
+
+-- A value for a one-line summary: a table by its size, a string quoted,
+-- anything else as tostring gives it (which a __tostring can break)
+local function summarize(v)
+    if type(v) == 'table' then
+        local n = 0
+        for _ in next, v do n = n + 1 end
+        return string.format('table (%d %s)', n, n == 1 and 'entry' or 'entries')
+    elseif type(v) == 'string' then
+        return string.format('%q', #v > 60 and v:sub(1, 60) .. '…' or v)
+    end
+    local ok, text = pcall(tostring, v)
+    return ok and text or '?'
+end
 
 M.commands = {
     {
@@ -31,7 +46,7 @@ M.commands = {
     {
         name = 'eval',
         spec = '$r',
-        help = 'Run Lua code and show its result',
+        help = 'Run Lua code and show its values in the detail pane',
         fn = function(_, code)
             local chunk, message = load(code, '=(eval)', 't')
             if not chunk then
@@ -39,13 +54,20 @@ M.commands = {
                 return
             end
             local results = table.pack(pcall(chunk))
-            if results.n > 1 or not results[1] then
-                local parts = {}
-                for i = 2, results.n do
-                    parts[i - 1] = tostring(results[i])
-                end
-                log.add('eval', '%s', table.concat(parts, '\t'))
+            if not results[1] then
+                log.add('eval', '%s', tostring(results[2]))
+                return
             end
+            if results.n == 1 then return end
+
+            -- the values themselves, live, for the UI to show in full
+            local value = {code = code, n = results.n - 1, table.unpack(results, 2, results.n)}
+            local parts = {}
+            for i = 1, value.n do
+                parts[i] = summarize(value[i])
+            end
+            log.add_detail(nil, 'eval', {kind = 'value', data = value}, '%s', table.concat(parts, ', '))
+            bus.emit('eval.result', {value = value})
         end,
     },
     {

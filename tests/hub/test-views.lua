@@ -804,4 +804,50 @@ T.case('a new X25519 key shows its private key in the pane and nowhere else', fu
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case('/eval shows its values in the detail pane, tables as a tree', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+
+    -- the detail pane's pad: made just before the document views' pad
+    local function detail_rows()
+        HUB.current.routes['ui.draw']()
+        local pads = {}
+        for _, win in ipairs(fake_ncurses.windows) do
+            if win.kind == 'newpad' and win.w == tty_width then table.insert(pads, win) end
+        end
+        local rows = rows_of(pads[#pads - 1])
+        return table.concat(rows, '\n', 0, #rows)
+    end
+
+    cmdline.execute "eval return 1, 'two', nil, {a = {b = 1}, [2] = true}"
+    T.eq(T.log_lines 'eval', {'1, "two", nil, table (2 entries)'}, 'one summary line')
+    local detail = control.detail()
+    T.eq({detail.kind, detail.data.n}, {'value', 4}, 'shown, nil included')
+    local text = detail_rows()
+    T.ok(text:find('  2: "two"', 1, true), text)
+    T.ok(text:find('  4: [-] table: ', 1, true), 'results start open')
+    T.ok(text:find '     %[2%] = true\n     a = %[%+%] table: [^\n]* 1 entry', text)
+    T.ok(not text:find('\n       b = 1', 1, true), 'not opened')
+
+    -- the top result's toggle closes it, on the pane's rows
+    HUB.current.routes['ui.entry']('on_mouse', 3, 6, false)
+    T.ok(detail_rows():find('  4: [+] table: ', 1, true), 'closed by a click')
+
+    -- a long table stops at 50 entries; a cycle doesn't recurse
+    cmdline.execute 'eval local t = {} for i = 1, 60 do t[i] = i end t.self = t return t'
+    detail = control.detail()
+    text = detail_rows()
+    T.ok(text:find('[+11 more]', 1, true), 'the rest behind a button')
+    T.ok(not text:find 'self', 'string keys after numbers')
+    detail.all['1'] = true
+    T.ok(detail_rows():find('     self = cycle: table: ', 1, true), 'a cycle')
+
+    -- an error stays one line, with no pane
+    control.close_detail()
+    cmdline.execute 'eval error "boom"'
+    T.eq(control.detail(), nil, 'no pane for an error')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.run()

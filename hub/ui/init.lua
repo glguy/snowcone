@@ -29,6 +29,7 @@ for _, m in ipairs {
     require 'hub.ui.details.error',
     require 'hub.ui.details.keys',
     require 'hub.ui.details.message',
+    require 'hub.ui.details.value',
     require 'hub.ui.details.whois',
     require 'hub.ui.details.whowas',
 } do
@@ -491,6 +492,9 @@ function M.subscribe(sub)
     end)
     sub.on('chat.whowas', function(ev)
         control.open_detail('whowas', ev.net, ev.whowas)
+    end)
+    sub.on('eval.result', function(ev)
+        control.open_detail('value', nil, ev.value)
     end)
     sub.on('chat.show_list', function(ev)
         control.set_current_net(ev.net)

@@ -275,7 +275,7 @@ dashboard are refused with a message to port them.
   stores themselves.
 - **The detail pane** shows one thing in full above the view, for the
   whole client: `ui.detail` in state, `{kind, net, data}`, drawn by the
-  renderer for its kind in `ui/details/` (`message`, `whois`, `whowas`). The record
+  renderer for its kind in `ui/details/` (`error`, `keys`, `message`, `value`, `whois`, `whowas`). The record
   doubles as the renderer's view state (`ctx.vs`), so it keeps the scroll
   and the renderer's own fields. It is as tall as its content up to half
   the screen, over a rule with [CLOSE], the title and the rows shown;
