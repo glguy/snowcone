@@ -1,6 +1,7 @@
 -- A channel's information in the detail pane, read live from the model
 -- (net/irc.lua): topic and who set it, creation time, modes, members by
--- rank, and the list modes (bans, quiets, ...) with buttons to fetch them.
+-- rank, and the list modes (bans, quiets, ...); [↻] asks the server for
+-- a list, or for the modes, again or for the first time.
 -- A fetched list shows its count and folds its entries behind [+]; the
 -- detail keeps the open ones in open_lists. The data is {name}; the
 -- filter (Ctrl-S, /filter) shows only the members and list entries that
@@ -93,7 +94,7 @@ local function list_mode(ctx, win, channel, mode, pattern)
     label(win, list_names[mode] or '+' .. mode)
     if not entries then
         win:waddstr 'not fetched '
-        ctx.add_button(win, '[FETCH]', function() chat.fetch_list(ctx.net, name, mode) end)
+        ctx.add_button(win, '[↻]', function() chat.fetch_list(ctx.net, name, mode) end)
         win:waddstr '\n'
         return
     end
@@ -123,7 +124,7 @@ local function list_mode(ctx, win, channel, mode, pattern)
         end)
         win:waddstr ' '
     end
-    ctx.add_button(win, '[REFRESH]', function() chat.fetch_list(ctx.net, name, mode) end)
+    ctx.add_button(win, '[↻]', function() chat.fetch_list(ctx.net, name, mode) end)
     win:waddstr '\n'
 
     -- a search shows what it finds, folded or not
@@ -215,7 +216,7 @@ function M.render(ctx, win)
     else
         win:waddstr 'not known '
     end
-    ctx.add_button(win, '[REFRESH]', function() chat.refresh_modes(ctx.net, name) end)
+    ctx.add_button(win, '[↻]', function() chat.refresh_modes(ctx.net, name) end)
     win:waddstr '\n'
 
     members(ctx, win, irc, channel, pattern)

@@ -34,7 +34,7 @@ return {
         draw.magenta(win)
         draw.bold(win)
         win:waddstr('         channels: ', tostring(OrderedMap.size(C.list)), ' ')
-        ctx.add_button(win, '[REFRESH]', function() chat.list(ctx.net) end)
+        ctx.add_button(win, '[↻]', function() chat.list(ctx.net) end)
         draw.bold_(win)
 
         local pattern = control.filter(ctx.id)

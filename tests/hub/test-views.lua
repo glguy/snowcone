@@ -1159,7 +1159,7 @@ T.case('channel information: topic, modes, members and lists, live', function()
     T.ok(text:find 'modes: not known', 'modes not yet known')
     T.ok(text:find 'members: 4  @ 1  %+ 1', 'counted by rank')
     T.ok(text:find('nicks: @me +bob alice carol', 1, true), 'ranked, then by name')
-    T.ok(text:find 'bans: not fetched %[FETCH%]', 'lists to fetch')
+    T.ok(text:find('bans: not fetched [↻]', 1, true), 'lists to fetch')
 
     -- replies fill it in as they come
     c:recv ':srv 324 me #chan +ntk sekrit'
@@ -1170,13 +1170,13 @@ T.case('channel information: topic, modes, members and lists, live', function()
     T.ok(text:find 'created: ', 'created')
     T.ok(text:find 'topic: new topic' and text:find 'set by: carol', 'a new topic')
 
-    -- [FETCH] asks for a list; its entries show newest first
+    -- [↻] asks for a list; its entries show newest first
     local fetched
     for y = 0, tty_height - 2 do
         for x = 0, 40 do
             HUB.current.routes['ui.entry']('on_mouse', y, x, false)
             local sent = c:take()
-            -- past the modes' [REFRESH], which asks for MODE again
+            -- past the modes' [↻], which asks for MODE again
             if sent[1] and sent[1]:find '+' then fetched = sent[1] break end
         end
         if fetched then break end
@@ -1186,7 +1186,7 @@ T.case('channel information: topic, modes, members and lists, live', function()
     c:recv ':srv 367 me #chan *!*@new.example op!o@h 1700000000'
     c:recv ':srv 368 me #chan :End of Channel Ban List'
     text = detail_text()
-    T.ok(text:find 'bans: 2 entries %[%+%] %[REFRESH%]', text)
+    T.ok(text:find('bans: 2 entries [+] [↻]', 1, true), text)
     T.ok(not text:find('new.example', 1, true), 'folded')
 
     -- [+] opens it, newest first; [-] folds it again
