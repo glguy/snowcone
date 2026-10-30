@@ -347,6 +347,9 @@ M.check_prompts = next_prompt
 M.routes = {
     ['ui.show_view'] = M.set_view,
     ['ui.set_current_net'] = M.set_current_net,
+    -- for commands, which don't require ui (and a route, unlike an event,
+    -- reaches no subscribers, so a detail can hold a secret)
+    ['ui.open_detail'] = M.open_detail,
 }
 
 return M

@@ -770,4 +770,38 @@ T.case('an error from code logs one line that opens its traceback', function()
     HUB.current.routes['ui.draw']()
 end)
 
+T.case('a new X25519 key shows its private key in the pane and nowhere else', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    T.require 'hub.ui.cmdline'.execute 'x25519_new'
+    local detail = control.detail()
+    T.eq(detail.kind, 'keys', 'shown')
+    local private = detail.data.private
+    T.ok(private and #private > 0, 'with the private key')
+    HUB.current.routes['ui.draw']()
+
+    -- nothing in the log holds it, text or detail
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    for entry in OrderedMap.each(HUB.state.log) do
+        T.ok(not entry.text:find(private, 1, true), 'not in a line')
+        if entry.detail then
+            for _, v in pairs(entry.detail.data) do
+                T.ok(v ~= private, 'not in a detail')
+            end
+        end
+    end
+
+    -- reopened from its status line, it has no private key
+    control.close_detail()
+    control.set_view 'status'
+    HUB.current.routes['ui.draw']()
+    for y = 0, tty_height - 2 do
+        HUB.current.routes['ui.entry']('on_mouse', y, 40, false)
+        if control.detail() then break end
+    end
+    T.eq({control.detail().kind, control.detail().data.private}, {'keys', nil}, 'reopened without it')
+    HUB.current.routes['ui.draw']()
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.run()

@@ -426,6 +426,12 @@ T.case('crypto commands write keys and print the services commands', function()
     local lines = T.log_lines 'crypto'
     T.eq(T.log_lines 'error', {}, 'no errors')
     T.ok(lines[#lines]:match '^/msg NickServ SET X25519%-PUBKEY %S+$', lines[#lines])
+    T.eq(#lines, 1, 'only the services command is logged')
+    local entry
+    for e in T.require 'hub.lib.OrderedMap'.each(HUB.state.log) do
+        if e.category == 'crypto' then entry = e break end
+    end
+    T.eq({entry.detail.kind, entry.detail.data.private}, {'keys', nil}, 'reopens without the private key')
 
     local prompts = {}
     T.require 'hub.runtime.bus'.on(HUB.current.bus, 'task.prompt', 'test', function(ev)
