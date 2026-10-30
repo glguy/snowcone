@@ -91,7 +91,7 @@ set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Eric Mertens <emertens@gmail.com>")
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "lua-penlight")
 # Loaded only where used: regular expression filters (rex_pcre2), IP
-# organisations from GeoLite2 (mmdb), the GitHub plugin (json)
+# organizations from GeoLite2 (mmdb), the GitHub plugin (json)
 set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "lua-rex-pcre2, lua-mmdb, lua-json")
 # The version counts commits when cpack runs (cmake/CPackProjectConfig.cmake),
 # and the file name follows it: snowcone_<version>_<arch>.deb

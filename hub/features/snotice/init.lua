@@ -1,4 +1,4 @@
--- Server notices: recognise them on networks with the
+-- Server notices: recognize them on networks with the
 -- snotice feature, parse them, update the stores and emit `snote` and
 -- `snote.<name>` with the network id.
 
@@ -163,7 +163,7 @@ function M.apply_watches()
                 if matching.compile(w.pattern) then
                     table.insert(configured, {
                         pattern = w.pattern,
-                        colour = w.colour,
+                        color = w.color,
                         beep = w.beep,
                         flash = w.flash,
                         active = w.active ~= false,
@@ -189,12 +189,12 @@ end
 
 -- Commands ============================================================
 
-local colours <const> = {
+local colors <const> = {
     black = true, red = true, green = true, yellow = true,
     blue = true, magenta = true, cyan = true, white = true,
 }
 
--- /addwatch [id] ['pattern'|filter] [colour] [beep|nobeep] [flash|noflash]
+-- /addwatch [id] ['pattern'|filter] [color] [beep|nobeep] [flash|noflash]
 local function addwatch(ctx, args)
     local S = stores.get(ctx.net)
     local watch = {}
@@ -208,8 +208,8 @@ local function addwatch(ctx, args)
             watch.flash = true
         elseif kind == 'iden' and token == 'noflash' then
             watch.flash = false
-        elseif kind == 'iden' and colours[token] then
-            watch.colour = token
+        elseif kind == 'iden' and colors[token] then
+            watch.color = token
         elseif kind == 'iden' and token == 'filter' then
             -- the cliconn view's filter
             local vs = HUB.state.ui and HUB.state.ui.views.cliconn
@@ -251,7 +251,7 @@ end
 M.commands = {
     {
         name = 'addwatch', spec = '$r', scope = 'net', feature = 'snotice',
-        help = "Mark and alert on connections: [id] 'pattern'|filter [colour] [no]beep [no]flash",
+        help = "Mark and alert on connections: [id] 'pattern'|filter [color] [no]beep [no]flash",
         fn = addwatch,
     },
     {

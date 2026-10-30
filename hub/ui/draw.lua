@@ -1,4 +1,4 @@
--- Drawing helpers: attribute and colour setters and the rotating log
+-- Drawing helpers: attribute and color setters and the rotating log
 -- display.
 
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
@@ -29,8 +29,8 @@ do
     function M.underline_(w)    attroff(WA_UNDERLINE, w)   end
 
     for _, name in ipairs {'red', 'green', 'blue', 'cyan', 'black', 'magenta', 'yellow', 'white'} do
-        local colour <const> = ncurses['COLOR_' .. name:upper()]
-        M[name] = function(w) colorset(colour, nil, w) end
+        local color <const> = ncurses['COLOR_' .. name:upper()]
+        M[name] = function(w) colorset(color, nil, w) end
     end
 end
 
@@ -54,7 +54,7 @@ local scrolled_divider_string <const> =
     5·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·\z
     6·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·↓·"
 
---- The source column of one of our own messages, and its colour setter:
+--- The source column of one of our own messages, and its color setter:
 --- '>>>', or marked while the rate limit holds its line back, or once the
 --- line was dropped unsent (msg.delivery, net/send.lua).
 function M.outbound(msg)

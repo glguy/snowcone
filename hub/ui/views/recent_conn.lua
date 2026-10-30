@@ -61,11 +61,11 @@ local function make_view(id, title, store, tracker)
         local vs = ctx.vs
         local net = ctx.net
         local y = ncurses.getyx(win)
-        local mask_colour = entry.reason and draw.red or draw.green
+        local mask_color = entry.reason and draw.red or draw.green
 
         -- filter hits or reconnect count
         if entry.filters then
-            mask_colour(win)
+            mask_color(win)
             win:waddstr(string.format(' %3d!', entry.filters))
         elseif entry.count then
             if entry.count < 2 then draw.black(win) else draw.normal(win) end
@@ -75,8 +75,8 @@ local function make_view(id, title, store, tracker)
         end
 
         if entry.mark then
-            local colour = dashboard.colour(entry.mark)
-            if colour then colour(win) end
+            local color = dashboard.color(entry.mark)
+            if color then color(win) end
             ctx.add_button(win, '◆', function() vs.mark_filter = entry.mark end, true)
         else
             win:waddstr ' '
@@ -85,15 +85,15 @@ local function make_view(id, title, store, tracker)
         -- mask
         if vs.highlight == entry.mask then draw.bold(win) end
         win:wmove(y, 14)
-        mask_colour(win)
+        mask_color(win)
         win:waddstr(scrub(entry.nick))
         draw.black(win)
         win:waddstr '!'
-        mask_colour(win)
+        mask_color(win)
         win:waddstr(scrub(entry.user))
         draw.black(win)
         win:waddstr '@'
-        mask_colour(win)
+        mask_color(win)
         local maxwidth = 63 - #entry.nick - #entry.user
         if #entry.host <= maxwidth then
             win:waddstr(scrub(entry.host))
@@ -104,7 +104,7 @@ local function make_view(id, title, store, tracker)
             win:waddstr '…'
         end
 
-        -- address, organisation or reason
+        -- address, organization or reason
         if not entry.reason then
             draw.yellow(win)
         elseif entry.reason == 'K-Lined' then

@@ -43,7 +43,7 @@ GETTING STARTED
 
 USING HUB
   The bottom line is the status bar: the view's name, then every network
-  coloured by state (green connected, yellow on the way, red idle), with
+  colored by state (green connected, yellow on the way, red idle), with
   + or ! for unseen chat or a mention. Click a network, press Meta-1 to
   Meta-9, or use /net to choose the current network. Views and commands
   act on the current network.

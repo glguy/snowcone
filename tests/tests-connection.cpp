@@ -607,7 +607,7 @@ TEST(Connection, ClosingBeforeConnectAbortsConnect)
     }
 }
 
-TEST(Connection, CancellingConnectBeforeItStartsAbortsConnect)
+TEST(Connection, CancelingConnectBeforeItStartsAbortsConnect)
 {
     asio::io_context io;
     auto acceptor = loopback_acceptor(io);
@@ -733,7 +733,7 @@ auto connect_noting_close(
 }
 
 // TLS: a test CA is made trusted through SSL_CERT_FILE, which the client's
-// set_default_verify_paths honours
+// set_default_verify_paths honors
 
 using PkeyPtr = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
 using X509Ptr = std::unique_ptr<X509, decltype(&X509_free)>;
@@ -1164,7 +1164,7 @@ TEST(HappyEyeballs, CoroutineCancellationBeforeStartAborts)
     EXPECT_FALSE(socket.is_open());
 }
 
-TEST(HappyEyeballs, CancelledSourceStaysCancelled)
+TEST(HappyEyeballs, CanceledSourceStaysCanceled)
 {
     asio::io_context io;
     auto acceptor = loopback_acceptor(io);

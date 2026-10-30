@@ -227,7 +227,7 @@ end)
 T.case('watches mark entries and alert', function()
     local c = boot {'snotice'}
     local alerts = record 'notify.alert'
-    table.insert(stores().watches, {pattern = 'badguy', active = true, hits = 0, colour = 'yellow', beep = true})
+    table.insert(stores().watches, {pattern = 'badguy', active = true, hits = 0, color = 'yellow', beep = true})
     notice(c, 'a.example', 'Client connecting: BadGuy (u@h) [192.0.2.1] {users} <*> [g]')
     notice(c, 'a.example', 'Client connecting: fine (u@h) [192.0.2.1] {users} <*> [g]')
     local OrderedMap = T.require 'hub.lib.OrderedMap'
@@ -245,7 +245,7 @@ T.case('watches from configuration', function()
         }}}
     end
     local fake = FakeTransport.new()
-    T.boot {transport = fake, config = config {{pattern = 'evil', colour = 'magenta', beep = true}}}
+    T.boot {transport = fake, config = config {{pattern = 'evil', color = 'magenta', beep = true}}}
     local c = fake.last()
     c:con()
     c:recv ':srv CAP * LS :'
@@ -256,15 +256,15 @@ T.case('watches from configuration', function()
     table.insert(stores().watches, {pattern = 'manual', active = true, hits = 0})
     notice(c, 'a.example', 'Client connecting: EvilBot (u@h) [192.0.2.1] {users} <*> [g]')
     local w = stores().watches[1]
-    T.eq({w.pattern, w.colour, w.beep, w.hits, w.from_config}, {'evil', 'magenta', true, 1, true}, 'configured watch hit')
+    T.eq({w.pattern, w.color, w.beep, w.hits, w.from_config}, {'evil', 'magenta', true, 1, true}, 'configured watch hit')
 
-    T.ok(T.reload {config = config {{pattern = 'evil', colour = 'red'}, {pattern = 'other'}}}, 'reload')
+    T.ok(T.reload {config = config {{pattern = 'evil', color = 'red'}, {pattern = 'other'}}}, 'reload')
     local patterns = {}
     for _, watch in ipairs(stores().watches) do
         table.insert(patterns, watch.pattern .. ':' .. watch.hits)
     end
     T.eq(patterns, {'evil:1', 'other:0', 'manual:0'}, 'configured first, hits kept, manual kept')
-    T.eq(stores().watches[1].colour, 'red', 'updated')
+    T.eq(stores().watches[1].color, 'red', 'updated')
 
     T.ok(T.reload {config = config {}}, 'reload')
     T.eq(#stores().watches, 1, 'only the manual one is left')

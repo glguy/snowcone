@@ -7,7 +7,7 @@ local control <const> = require 'hub.ui.control'
 local draw    <const> = require 'hub.ui.draw'
 local scrub   <const> = require 'hub.lib.scrub'
 
-local phase_colour <const> = {
+local phase_color <const> = {
     connected = draw.green,
     idle = draw.red,
 }
@@ -38,8 +38,8 @@ return {
             draw.normal(win)
             win:waddstr ' '
 
-            local colour = phase_colour[rec.phase] or draw.yellow
-            colour(win)
+            local color = phase_color[rec.phase] or draw.yellow
+            color(win)
             local phase = rec.phase
             if rec.target ~= 'connected' and rec.target ~= rec.phase then
                 phase = phase .. '→' .. rec.target

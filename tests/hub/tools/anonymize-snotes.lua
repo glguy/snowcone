@@ -1,4 +1,4 @@
--- Turn captured server notices into an anonymised fixture.
+-- Turn captured server notices into an anonymized fixture.
 --
 --   snowcone tests/hub/tools/anonymize-snotes.lua CAPTURE OUT.log
 --

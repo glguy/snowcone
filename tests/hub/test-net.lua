@@ -1,4 +1,4 @@
--- Network layer behaviour with a fake transport.
+-- Network layer behavior with a fake transport.
 --
 -- Run with:  snowcone tests/hub/test-net.lua
 
@@ -471,7 +471,7 @@ T.case('our nick matches in any case the casemapping allows', function()
     c:recv ':me!u@h JOIN #c'
     T.ok(rec().irc.channels['#C'], 'joined although echoed as me')
     c:recv ':ME!u@h NICK Other'
-    T.eq(rec().irc.nick, 'Other', 'our nick change recognised')
+    T.eq(rec().irc.nick, 'Other', 'our nick change recognized')
 end)
 
 T.case('secrets come from a command or a prompt', function()
@@ -523,7 +523,7 @@ T.case('shutdown with a live connection does not reconnect', function()
     local child = task.spawn('child', {}, function(t) t:execute('sleep', {'60'}, '') end)
     task.spawn('dns', {}, function(t) t:dnslookup 'localhost' end)
     HUB.current.routes['app.shutdown']()
-    T.eq(next(HUB.tasks), nil, 'tasks cancelled')
+    T.eq(next(HUB.tasks), nil, 'tasks canceled')
     T.eq(child.process, nil, 'child killed') -- else the script outlives ctest's timeout
     T.ok(c.closed, 'connection closed')
     T.eq(rec().phase, 'idle', 'idle')
@@ -548,13 +548,13 @@ T.case('task timeouts, cancellation and DNS', function()
         results.slept = true
     end)
     task.cancel(sleeper.id)
-    -- cancelling the task cancels its lookup
+    -- canceling the task cancels its lookup
     local dns = task.spawn('dns', {}, function(t)
         results.dns = {t:dnslookup 'localhost'}
     end)
     T.eq(type(dns.lookup), 'userdata', 'lookup handle kept')
     task.cancel(dns.id)
-    T.eq(dns.lookup, nil, 'lookup cancelled')
+    T.eq(dns.lookup, nil, 'lookup canceled')
     task.spawn('dns2', {}, function(t)
         local err, addr = t:dnslookup 'localhost'
         results.dns2 = err == nil and addr ~= nil
@@ -562,7 +562,7 @@ T.case('task timeouts, cancellation and DNS', function()
 
     T.sleep(300)
     T.eq(results, {wait = 'timed out', dns2 = true},
-        'timeout resumed with nil; cancelled tasks never resumed')
+        'timeout resumed with nil; canceled tasks never resumed')
     T.eq(next(HUB.tasks), nil, 'no tasks left')
 end)
 
@@ -720,23 +720,23 @@ T.case('tags are escaped and not counted in the line length', function()
     T.eq(next(HUB.tasks), nil, 'answered')
 end)
 
-T.case('cancelling a task kills its child and returns the terminal', function()
+T.case('canceling a task kills its child and returns the terminal', function()
     boot {}
     local task = T.require 'hub.runtime.task'
     local tty = T.require 'hub.runtime.tty'
     local piped = task.spawn('piped', {}, function(t)
         t:execute('sleep', {'60'}, '')
-        error 'cancelled execute resumed'
+        error 'canceled execute resumed'
     end)
     local terminal = task.spawn('terminal', {}, function(t)
         t:execute('sleep', {'60'})
-        error 'cancelled execute resumed'
+        error 'canceled execute resumed'
     end)
     T.eq(type(piped.process), 'userdata', 'process handle kept')
     T.eq(tty.suspended(), true, 'terminal lent to the child')
     task.cancel(piped.id)
     task.cancel(terminal.id)
-    T.eq(piped.process, nil, 'process cancelled')
+    T.eq(piped.process, nil, 'process canceled')
     T.eq(tty.suspended(), false, 'terminal returned')
     -- a child left running would keep the script past ctest's timeout
 end)
@@ -748,7 +748,7 @@ T.case('a closing network cancels its tasks', function()
     local task = T.require 'hub.runtime.task'
     local t = task.spawn('scoped', {net = 'test'}, function(t) t:wait_irc {'NEVER'} end)
     c:finish 'reset'
-    T.eq(HUB.tasks[t.id], nil, 'cancelled')
+    T.eq(HUB.tasks[t.id], nil, 'canceled')
 end)
 
 T.case('network defaults', function()
@@ -1042,7 +1042,7 @@ T.case('an ended connection marks its queued lines dropped', function()
     c:finish 'reset'
     T.eq({sent[2].msg.delivery.state, sent[3].msg.delivery.state}, {'dropped', 'dropped'}, 'dropped')
     T.eq(rec().sendq, nil, 'queue gone')
-    T.eq(T.require 'hub.runtime.resources'.get(drain), nil, 'drain timer cancelled')
+    T.eq(T.require 'hub.runtime.resources'.get(drain), nil, 'drain timer canceled')
     local lines = T.log_lines 'irc'
     T.ok(lines[#lines - 2]:find('dropped 2 queued lines', 1, true), 'logged: ' .. lines[#lines - 2])
 end)

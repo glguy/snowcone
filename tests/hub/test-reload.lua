@@ -1,4 +1,4 @@
--- Reload behaviour of hub's runtime.
+-- Reload behavior of hub's runtime.
 --
 -- Run with:  snowcone tests/hub/test-reload.lua
 
@@ -134,7 +134,7 @@ T.case('a timer started before reload fires into new code', function()
     end
 end)
 
-T.case('a cancelled timer does not fire', function()
+T.case('a canceled timer does not fire', function()
     T.boot(with_marker 'v1')
     HUB.test_fired = {}
     local timer = T.require 'hub.runtime.timer'

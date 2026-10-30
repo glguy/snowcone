@@ -115,7 +115,7 @@ return {
                 control.set_view 'cliconn'
             end)
             win:waddstr(string.format(' %3d ', i))
-            ;(dashboard.colour(watch.colour) or draw.red)(win)
+            ;(dashboard.color(watch.color) or draw.red)(win)
             win:waddstr '◆'
             draw.blue(win)
             win:waddstr(string.format(' %4d', watch.hits))

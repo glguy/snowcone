@@ -83,7 +83,7 @@ username = 'mynick'
 password = { command = 'pass', arguments = ['show', 'libera'] }
 [[networks.watches]]
 pattern = 'badbot'
-colour = 'red'
+color = 'red'
 beep = true
 
 [[networks]]
@@ -103,7 +103,7 @@ Secrets (passwords, keys) can be a string, `{ file = 'path' }`,
 
 Some things to know:
 
-- The status bar lists every network, coloured by state, with `+` or `!`
+- The status bar lists every network, colored by state, with `+` or `!`
   for unseen chat; click one, use Meta-1..9, or `/net <id>` to choose the
   current network. `/networks` shows them all.
 - Commands that act on a network take an optional `@network` first:

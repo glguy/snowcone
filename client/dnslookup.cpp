@@ -46,7 +46,7 @@ struct Lookup
 };
 
 /// The Lua handle. It doesn't keep the lookup going: a lookup runs to the
-/// end, or until cancelled, whether or not its handle is collected.
+/// end, or until canceled, whether or not its handle is collected.
 struct Handle
 {
     std::weak_ptr<Lookup> lookup;
@@ -70,7 +70,7 @@ auto l_gc(lua_State* const L) -> int
 
 /// Drop the callback so it never runs. A getaddrinfo already running can't
 /// be interrupted (REVIEW.md F-022), but its result is discarded. Does
-/// nothing once the lookup has finished or been cancelled.
+/// nothing once the lookup has finished or been canceled.
 auto l_cancel(lua_State* const L) -> int
 {
     if (auto const lookup = check_udata<Handle>(L, 1)->lookup.lock())
@@ -129,7 +129,7 @@ auto l_dnslookup(lua_State* const L) -> int
     ) {
         if (not lookup->armed)
         {
-            return; // cancelled
+            return; // canceled
         }
         lookup->disarm(L, true);
 

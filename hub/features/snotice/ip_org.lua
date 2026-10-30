@@ -1,4 +1,4 @@
--- The organisation and AS number of an address: MaxMind's
+-- The organization and AS number of an address: MaxMind's
 -- GeoLite2-ASN.mmdb in the configuration
 -- directory through the optional mmdb library, else the legacy GeoIP
 -- databases through mygeoip, else nothing.
@@ -55,7 +55,7 @@ function M.set_impl(f)
     lookup_impl = f
 end
 
---- Organisation and AS number of an address, when known.
+--- Organization and AS number of an address, when known.
 ---@param addr string
 ---@return string|nil org
 ---@return integer|nil asn

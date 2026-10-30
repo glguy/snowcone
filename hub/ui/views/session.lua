@@ -18,7 +18,7 @@ local key     <const> = fields.key
 local words   <const> = fields.words
 
 -- as in the networks view
-local phase_colour <const> = {
+local phase_color <const> = {
     connected = draw.green,
     idle = draw.red,
 }
@@ -37,7 +37,7 @@ local function keyvals(t)
     return list
 end
 
--- Capabilities with their colours, trouble first, then enabled ones
+-- Capabilities with their colors, trouble first, then enabled ones
 local function caps(irc)
     local rank = {}
     for cap in pairs(irc.caps_available) do
@@ -55,14 +55,14 @@ local function caps(irc)
         return a < b
     end)
 
-    local list, colour = {}, {}
+    local list, color = {}, {}
     for _, cap in ipairs(names) do
         local v = irc.caps_available[cap]
         table.insert(list, keyval(cap, v == nil and true or v))
-        colour[scrub(cap)] = rank[cap] == 1 and draw.red or rank[cap] == 2 and draw.green or nil
+        color[scrub(cap)] = rank[cap] == 1 and draw.red or rank[cap] == 2 and draw.green or nil
     end
     return list, function(win, text)
-        local f = colour[text]
+        local f = color[text]
         if f then f(win) end
     end
 end
@@ -77,8 +77,8 @@ local function render_network(ctx, win, rec, now)
     win:waddstr(server.path and scrub(server.path) or scrub(server.host) .. ':' .. server.port, '\n')
 
     label(win, 'state')
-    local colour = phase_colour[rec.phase] or draw.yellow
-    colour(win)
+    local color = phase_color[rec.phase] or draw.yellow
+    color(win)
     win:waddstr(rec.phase)
     draw.normal(win)
     win:waddstr(' ', draw.duration(now - rec.since))

@@ -1,4 +1,4 @@
--- A WHOIS summarised in the status log, run as a network task:
+-- A WHOIS summarized in the status log, run as a network task:
 -- whois(t, nick, remote).
 
 local ip_org    <const> = require 'hub.features.snotice.ip_org'

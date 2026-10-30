@@ -240,7 +240,7 @@ function ncurses.getyx(win) end
 ---@return integer columns
 function ncurses.getmaxyx(win) end
 
---- Colours run from -1 (the default) to 7.
+--- Colors run from -1 (the default) to 7.
 ---@param fore integer|nil
 ---@param back integer|nil
 ---@param win ncurses.Window|nil

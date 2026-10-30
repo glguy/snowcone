@@ -31,12 +31,12 @@ local M = {}
 M.separator = utf8.char(0xE0B0)
 M.thin_separator = utf8.char(0xE0B1)
 
--- Background colour of the fragment being drawn (nil for the terminal's)
+-- Background color of the fragment being drawn (nil for the terminal's)
 local background
 
 --- Draw the separator from a region on background `from` into one on `to`
 --- (nil for the terminal's): a triangle in the old background on the new
---- one, so the colours stay connected, or the line when they are the same.
+--- one, so the colors stay connected, or the line when they are the same.
 local function transition(win, from, to)
     draw.normal(win)
     if from == to then
@@ -46,7 +46,7 @@ local function transition(win, from, to)
         ncurses.colorset(from, to, win)
         win:waddstr(M.separator)
     else
-        -- the terminal's background has no colour number to draw in, but
+        -- the terminal's background has no color number to draw in, but
         -- reverse video paints the triangle with it
         ncurses.colorset(to, nil, win)
         draw.reversevideo(win)
@@ -68,17 +68,17 @@ function M.fragment(win, bg)
     win:waddstr ' '
 end
 
--- Every network as a region of its own, coloured by phase (yellow while on
--- the way): the current one on a background of that colour, so the bar's
--- colours run through it. The first follows straight on from the title.
+-- Every network as a region of its own, colored by phase (yellow while on
+-- the way): the current one on a background of that color, so the bar's
+-- colors run through it. The first follows straight on from the title.
 -- Click one to make it current.
 local function draw_nets(win, ctx, titlecolor)
     local current = ctx.net
     local first = true
     for _, id in ipairs(control.net_ids()) do
         local rec = HUB.state.nets[id]
-        local colour = phase_palette[rec.phase] or ncurses.COLOR_YELLOW
-        local bg = id == current and colour or nil
+        local color = phase_palette[rec.phase] or ncurses.COLOR_YELLOW
+        local bg = id == current and color or nil
         if first then
             transition(win, titlecolor, bg)
             ncurses.colorset(nil, bg, win)
@@ -91,7 +91,7 @@ local function draw_nets(win, ctx, titlecolor)
         if bg then
             ncurses.colorset(ncurses.COLOR_BLACK, bg, win)
         else
-            ncurses.colorset(colour, nil, win)
+            ncurses.colorset(color, nil, win)
         end
         local _, x1 = ncurses.getyx(win)
         win:waddstr(scrub(id))
@@ -99,7 +99,7 @@ local function draw_nets(win, ctx, titlecolor)
         ctx.add_click(tty_height - 1, x1, x2, function() control.set_current_net(id) end)
 
         -- unseen chat: ! for a mention, + otherwise (in black on the
-        -- current network, where the colours would vanish)
+        -- current network, where the colors would vanish)
         local marker = activity(id)
         if marker then
             if bg then
@@ -125,7 +125,7 @@ local input_mode_palette <const> = {
 }
 
 --- Draw the active modes of the view, as one fragment of lower-case tags
---- in yellow, each with its value (if any) in the normal colour: the
+--- in yellow, each with its value (if any) in the normal color: the
 --- view's own (from view.modes) and then the scroll and filter every view
 --- has. Nothing when no mode is on.
 local function draw_modes(win, view, ctx)
@@ -164,9 +164,9 @@ local function draw_modes(win, view, ctx)
     draw.normal(win)
 end
 
---- Colour behind the view title: red while a K-Line is staged on the
+--- Color behind the view title: red while a K-Line is staged on the
 --- current network, so it is hard to miss.
-function M.title_colour()
+function M.title_color()
     local net = control.current_net()
     if net and common.enabled(net, 'oper') then
         local staged = oper.get(net).staged
@@ -185,7 +185,7 @@ end
 ---@param view table the current view
 ---@param ctx hub.ViewContext of the current view
 function M.draw(win, textbox, layout, view, ctx)
-    local titlecolor = M.title_colour()
+    local titlecolor = M.title_color()
     local input = HUB.state.ui.input
     local mode = input.mode
 
@@ -266,7 +266,7 @@ function M.draw(win, textbox, layout, view, ctx)
             addircstr(win, last)
         end
 
-        -- close a coloured last fragment onto the terminal's background
+        -- close a colored last fragment onto the terminal's background
         if background then
             M.fragment(win, nil)
         end

@@ -117,7 +117,7 @@ T.case('a reload reloads plugins, keeps state and closes old timers and tasks', 
     T.eq(HUB.state.features.plugins.good.loads, 2, 'loaded again with its state')
     T.eq(resources.get(old_timer), nil, "the old generation's timer is closed")
     T.ok(resources.get(HUB.test_timer), "the new generation's timer is held")
-    T.eq(HUB.tasks[old_task], nil, "the old generation's task is cancelled")
+    T.eq(HUB.tasks[old_task], nil, "the old generation's task is canceled")
     T.ok(HUB.tasks[HUB.test_task], "the new generation's task runs")
 end)
 

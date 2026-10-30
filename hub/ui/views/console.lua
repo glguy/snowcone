@@ -38,9 +38,9 @@ end
 
 local function pretty_source(win, source, msg)
     if source == '>>>' then
-        local colour
-        source, colour = draw.outbound(msg)
-        colour(win)
+        local color
+        source, color = draw.outbound(msg)
+        color(win)
     else
         local head, kind = string.match(source, '^(.-)([.!])')
         source = head or source

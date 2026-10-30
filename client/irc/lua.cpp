@@ -209,7 +209,7 @@ auto run_session(
 /// open (and Lua able to send on it) until that write completed.
 ///
 /// A failure that follows a local close() (the read on the closed stream, a
-/// cancelled connect) is just the consequence of that close, so it ends the
+/// canceled connect) is just the consequence of that close, so it ends the
 /// session normally instead of being reported as an error.
 ///
 /// @param L The main Lua state.

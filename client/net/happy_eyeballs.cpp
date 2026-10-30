@@ -135,7 +135,7 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
     auto start_on_strand() -> void
     {
         std::weak_ptr<ConnectOperation> weak = this->shared_from_this();
-        auto const close_cancelled = close_cancellation_.assign([weak, strand = strand_](asio::cancellation_type const type) {
+        auto const close_canceled = close_cancellation_.assign([weak, strand = strand_](asio::cancellation_type const type) {
             if (type != asio::cancellation_type::none)
             {
                 post_cancel(strand, weak);
@@ -143,7 +143,7 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
         });
 
         // assign() does not replay an earlier cancellation; act on it here.
-        if (close_cancelled != asio::cancellation_type::none)
+        if (close_canceled != asio::cancellation_type::none)
         {
             cancel();
             return;
@@ -509,7 +509,7 @@ auto happy_eyeballs::async_connect(
     }
 
     // Checked here, on the coroutine's own executor with no suspension point
-    // before the initiation below, so an already-cancelled coroutine never
+    // before the initiation below, so an already-canceled coroutine never
     // starts any work.
     auto const cancellation_state = co_await boost::asio::this_coro::cancellation_state;
     if (cancellation_state.cancelled() != boost::asio::cancellation_type::none)

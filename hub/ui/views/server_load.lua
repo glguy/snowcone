@@ -12,8 +12,8 @@ local scrub     <const> = require 'hub.lib.scrub'
 
 local palette <const> = {draw.red, draw.green, draw.yellow, draw.blue, draw.magenta, draw.cyan, draw.white}
 
--- A colour for each distinct value, the empty value black
-local function make_colours(values)
+-- A color for each distinct value, the empty value black
+local function make_colors(values)
     local list = {}
     for _, v in pairs(values) do table.insert(list, v) end
     table.sort(list)
@@ -65,7 +65,7 @@ local function orderings(topo, info)
     }
 end
 
-local function make_view(id, title, tracker_name, header_colour)
+local function make_view(id, title, tracker_name, header_color)
     local function add_column(ctx, win, text, name)
         local vs = ctx.vs
         local active = name == (vs.ordering or 'name')
@@ -98,8 +98,8 @@ local function make_view(id, title, tracker_name, header_colour)
 
             local has_versions = next(topo.versions) ~= nil
             local has_uptimes = next(topo.uptimes) ~= nil
-            local version_colour = make_colours(topo.versions)
-            local uplink_colour = make_colours(topo.upstream)
+            local version_color = make_colors(topo.versions)
+            local uplink_color = make_colors(topo.upstream)
 
             local rows = {}
             for server, avg in pairs(tracker.detail) do
@@ -115,7 +115,7 @@ local function make_view(id, title, tracker_name, header_colour)
 
             local pad = math.max(ctx.rows - #rows - 1, 0)
 
-            header_colour(win)
+            header_color(win)
             win:wmove(pad, 0)
             add_column(ctx, win, '          Server', 'name')
             add_column(ctx, win, '    1m', 'load1')
@@ -148,8 +148,8 @@ local function make_view(id, title, tracker_name, header_colour)
 
                 local region = info.region
                 if region then
-                    local colour = dashboard.colour((servers.regions[region] or {}).color)
-                    if colour then colour(win) end
+                    local color = dashboard.color((servers.regions[region] or {}).color)
+                    if color then color(win) end
                     win:waddstr('  ' .. region .. ' ')
                     draw.normal(win)
                 else
@@ -166,14 +166,14 @@ local function make_view(id, title, tracker_name, header_colour)
                 dashboard.add_population(win, topo.population[name])
 
                 local link = topo.upstream[name]
-                ;(uplink_colour[link or ''] or draw.normal)(win)
+                ;(uplink_color[link or ''] or draw.normal)(win)
                 local linktext = (servers.servers[link] or {}).alias or link or '?'
                 win:waddstr(string.format('  %-2.2s', linktext))
                 draw.normal(win)
 
                 if has_versions then
                     local version = topo.versions[name]
-                    ;(version_colour[version or ''] or draw.normal)(win)
+                    ;(version_color[version or ''] or draw.normal)(win)
                     win:waddstr(string.format('  %-17.17s', version or '?'))
                     draw.normal(win)
                 end
@@ -184,8 +184,8 @@ local function make_view(id, title, tracker_name, header_colour)
 
                 for _, flag in ipairs(servers.flags or {}) do
                     if in_rotation(topo, flag, info.ipv4, info.ipv6) then
-                        local colour = dashboard.colour((servers.regions[flag] or {}).color)
-                        if colour then colour(win) end
+                        local color = dashboard.color((servers.regions[flag] or {}).color)
+                        if color then color(win) end
                         win:waddstr(' ' .. flag)
                         draw.normal(win)
                     else

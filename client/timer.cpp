@@ -93,7 +93,7 @@ auto l_start(lua_State* const L) -> int
     t->timer->async_wait([pending](auto const error) {
         if (not *pending)
         {
-            return; // cancelled, restarted or collected
+            return; // canceled, restarted or collected
         }
         // Each wait fires once; the Lua object no longer refers to it
         auto const callback = std::move(**pending);

@@ -512,13 +512,13 @@ T.case('a staged K-Line turns the title red', function()
     boot()
     local statusbar = T.require 'hub.ui.statusbar'
     local oper = T.require 'hub.features.oper'
-    T.eq(statusbar.title_colour(), ncurses.COLOR_WHITE, 'white normally')
+    T.eq(statusbar.title_color(), ncurses.COLOR_WHITE, 'white normally')
     oper.prepare_kline('test', 'n', '~u', 'h.example', '192.0.2.9')
-    T.eq(statusbar.title_colour(), ncurses.COLOR_RED, 'red with a K-Line staged')
+    T.eq(statusbar.title_color(), ncurses.COLOR_RED, 'red with a K-Line staged')
     oper.cancel 'test'
-    T.eq(statusbar.title_colour(), ncurses.COLOR_WHITE, 'white once cancelled')
+    T.eq(statusbar.title_color(), ncurses.COLOR_WHITE, 'white once canceled')
     oper.stage_undline('test', '198.51.100.0/24')
-    T.eq(statusbar.title_colour(), ncurses.COLOR_WHITE, 'only K-Lines')
+    T.eq(statusbar.title_color(), ncurses.COLOR_WHITE, 'only K-Lines')
 end)
 
 T.case('the console inspector decodes server notices', function()

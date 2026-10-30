@@ -7,7 +7,7 @@ local sasl      <const> = require 'hub.net.sasl'
 local M = {}
 
 -- These tasks start once connected (registration, CAP NEW) and are
--- cancelled when the connection ends
+-- canceled when the connection ends
 ---@param t hub.Task
 ---@return hub.Irc
 local function model(t)

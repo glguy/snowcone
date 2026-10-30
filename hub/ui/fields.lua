@@ -1,4 +1,4 @@
--- Labelled fields for document views (/stats, /session): a green heading
+-- Labeled fields for document views (/stats, /session): a green heading
 -- per section, a blue right-aligned label per row, and blue keys for the
 -- further values of a row. Lists show their first row and fold the rest
 -- behind a button.
@@ -58,9 +58,9 @@ end
 ---@param id string names the list in the view state
 ---@param list any[] words, or {key, value} pairs drawn with a muted '='
 --- between; already scrubbed
----@param colour_of fun(win: ncurses.Window, text: string)|nil sets the colour
+---@param color_of fun(win: ncurses.Window, text: string)|nil sets the color
 --- of a word, or of both halves of a pair from its key
-function M.words(ctx, win, id, list, colour_of)
+function M.words(ctx, win, id, list, color_of)
     if #list == 0 then
         win:waddstr '-\n'
         return
@@ -93,13 +93,13 @@ function M.words(ctx, win, id, list, colour_of)
         end
         local text = type(word) == 'table' and word[1] or word
         draw.normal(win)
-        if colour_of then colour_of(win, text) end
+        if color_of then color_of(win, text) end
         win:waddstr(text)
         if type(word) == 'table' then
             draw.black(win)
             win:waddstr '='
             draw.normal(win)
-            if colour_of then colour_of(win, text) end
+            if color_of then color_of(win, text) end
             win:waddstr(word[2])
         end
         draw.normal(win)

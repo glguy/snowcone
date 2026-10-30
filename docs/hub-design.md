@@ -151,7 +151,7 @@ every topic, and a test checks that every literal topic emitted is listed.
   `t:request(commands, timeout, cmd, ...)` sends a command and iterates
   over its replies: the labeled reply when the network has
   `labeled-response`, else `wait_irc` steps.
-  A task scoped to a network is cancelled when its connection ends.
+  A task scoped to a network is canceled when its connection ends.
   A task keeps running the code it started with across a reload; the
   contract between a suspended task and the current task module is the
   short list of record fields and resume values at the top of
@@ -290,7 +290,7 @@ dashboard are refused with a message to port them.
   the tags of what alters it from its default, such as `hide`, each a
   string or `{tag, value}`. The bar draws them, then the scroll position
   and filter every view has, as one fragment of lower-case tags in yellow
-  with their values in the normal colour, shown only when a mode is on.
+  with their values in the normal color, shown only when a mode is on.
 - **Input modes:** command, filter (live, per view), talk, and password —
   prompts from tasks, with their own editor so a half-typed command
   survives and secrets stay out of history.
@@ -333,7 +333,7 @@ quit_message = 'bye'
 [networks.identity]            # nick, user, gecos
 [networks.sasl]                # automatic, credentials
 [networks.oper]                # or [networks.challenge]
-[[networks.watches]]           # pattern, colour, beep, flash, active
+[[networks.watches]]           # pattern, color, beep, flash, active
 ```
 
 On reload the new configuration is validated before anything changes, then
@@ -387,12 +387,12 @@ All tests run in snowcone without a UI, from CTest, with `luacheck` over
   command line, and checks the terminal is restored however the client
   ends. It is built only when libvterm is found.
 - Golden replay: `fixtures/snotes-live.log` (captured from a live network,
-  anonymised by `tests/hub/tools/anonymize-snotes.lua`) and `snotes-synthetic.log`,
+  anonymized by `tests/hub/tools/anonymize-snotes.lua`) and `snotes-synthetic.log`,
   checked against the output of the reference parser in
   `tests/hub/tools/parse_snote.lua` (the retired dashboard's). Fixtures never contain
   personal data.
 - `test-structure.lua` enforces layering, native API ownership and the
-  event catalogue.
+  event catalog.
 
 ## 11. Direction
 

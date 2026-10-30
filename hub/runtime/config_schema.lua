@@ -175,7 +175,7 @@ M.network = table_ {
     mention      = mention_schema,
     watches      = array (table_ {
         pattern = {type = 'string', required = true},
-        colour  = {type = 'string', pattern = '^%l+$'},
+        color  = {type = 'string', pattern = '^%l+$'},
         beep    = {type = 'boolean'},
         flash   = {type = 'boolean'},
         active  = {type = 'boolean'},

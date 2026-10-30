@@ -97,7 +97,7 @@ struct Exec
     std::string stderr_text_;
 
     boost::system::error_code error_code_;
-    std::string failure_; // why stop() was called, when not cancelled
+    std::string failure_; // why stop() was called, when not canceled
 
     Exec(lua_State* const L, boost::asio::io_context& io_context, std::optional<std::string> input, bool const group, std::size_t const max_output)
         : L{L}
@@ -125,7 +125,7 @@ struct Exec
     }
 
     /// Kill the child, or its group, and close our ends of the pipes, so
-    /// every pending operation finishes soon. The child is signalled only
+    /// every pending operation finishes soon. The child is signaled only
     /// while it is unreaped (the exit status is stored as it is reaped), so
     /// its pid can't have been reused. A descendant that left the group
     /// keeps running, but we no longer wait on its output.
@@ -197,7 +197,7 @@ struct Exec
 };
 
 /// The Lua handle. It doesn't keep the process going: a process runs to the
-/// end, or until cancelled, whether or not its handle is collected.
+/// end, or until canceled, whether or not its handle is collected.
 struct Handle
 {
     std::weak_ptr<Exec> exec;
@@ -289,7 +289,7 @@ auto l_gc(lua_State* const L) -> int
 
 /// Drop the callback so it never runs, kill the child (its group when
 /// started with group), and stop reading its output. Does nothing once the
-/// process has finished or been cancelled.
+/// process has finished or been canceled.
 auto l_cancel(lua_State* const L) -> int
 {
     if (auto const exec = check_udata<Handle>(L, 1)->exec.lock())

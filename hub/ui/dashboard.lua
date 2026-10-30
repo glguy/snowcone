@@ -79,8 +79,8 @@ function M.load_status(ctx, win, label, which)
     draw.normal(win)
 end
 
---- Draw function for a colour name, or nil.
-function M.colour(name)
+--- Draw function for a color name, or nil.
+function M.color(name)
     if name and draw[name] then return draw[name] end
 end
 

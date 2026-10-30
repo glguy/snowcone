@@ -1,5 +1,5 @@
 -- Structural rules of hub's source: layering,
--- which layer may use which native API, and the event catalogue.
+-- which layer may use which native API, and the event catalog.
 --
 -- Run with:  snowcone tests/hub/test-structure.lua
 

@@ -14,7 +14,7 @@ a decision is made, and change or remove it when the decision does.
   `utils.*`/`components.*` module, is refused with a message to port it.
 - **No filterdb** (ircc's `/upload_filterdb` with hyperscan) for now.
 - **Not ported from the dashboard:** `/shed_eta` and drain tracking (to be
-  designed together with user shedding), and Esc cancelling a staged ban
+  designed together with user shedding), and Esc canceling a staged ban
   (the CANCEL button does it).
 - **Different from the dashboard on purpose:** `servers_file` must be
   configured; the connection query language is `/prefilter`, because
@@ -51,7 +51,7 @@ a decision is made, and change or remove it when the decision does.
   record fields and resume values at the top of `runtime/task.lua` are a
   contract: keep them few and stable. `seq` changes with every wait so
   stale wakeups are ignored.
-- **A task's lookup or child is cancelled with it**, and cancelling an
+- **A task's lookup or child is canceled with it**, and canceling an
   execute kills the child. Completion and cancellation share `end_wait`,
   which also gives back the terminal.
 - **Plugins start at activation, not during the build,** so their tasks
@@ -162,7 +162,7 @@ a decision is made, and change or remove it when the decision does.
 
 - **snotice:** the parser must match the golden fixtures on every line,
   and so must any rewrite of it.
-  Fixtures never contain personal data: the live capture was anonymised
+  Fixtures never contain personal data: the live capture was anonymized
   consistently (so bans still match their notices), override and
   bad-login notices were left out because they carry unparsed personal
   text, and the raw capture was deleted. Connection entries keep `class`,

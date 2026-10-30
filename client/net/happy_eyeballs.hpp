@@ -25,12 +25,12 @@ class CancellationSource
 {
     boost::asio::cancellation_signal signal_;
     std::mutex mutex_;
-    boost::asio::cancellation_type cancelled_ = boost::asio::cancellation_type::none;
+    boost::asio::cancellation_type canceled_ = boost::asio::cancellation_type::none;
 
 public:
     /**
      * Registers handler and returns the cancellation type already emitted
-     * (none if the source has not been cancelled). The handler is not invoked
+     * (none if the source has not been canceled). The handler is not invoked
      * for a cancellation that happened before registration; callers must act
      * on the returned value instead.
      */
@@ -38,7 +38,7 @@ public:
     {
         std::lock_guard lock{mutex_};
         signal_.slot().assign(std::move(handler));
-        return cancelled_;
+        return canceled_;
     }
 
     /// Remove the registered handler, whichever operation registered it.
@@ -53,7 +53,7 @@ public:
         std::lock_guard lock{mutex_};
         if (type != boost::asio::cancellation_type::none)
         {
-            cancelled_ = cancelled_ | type;
+            canceled_ = canceled_ | type;
         }
         signal_.emit(type);
     }

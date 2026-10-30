@@ -52,18 +52,18 @@ co = coroutine.create(function()
     assert(code == 0 and out == 'kept\n', 'dropped handle stopped the process')
 
     -- cancel kills the child, and the callback never runs
-    h = snowcone.execute('sleep', {'60'}, function() error 'cancelled process called back' end, {input = ''})
+    h = snowcone.execute('sleep', {'60'}, function() error 'canceled process called back' end, {input = ''})
     h:cancel()
     h:cancel()
 
-    -- the terminal case: no input, only the child is signalled
-    h = snowcone.execute('sleep', {'60'}, function() error 'cancelled process called back' end)
+    -- the terminal case: no input, only the child is signaled
+    h = snowcone.execute('sleep', {'60'}, function() error 'canceled process called back' end)
     h:cancel()
 
     -- group: the shell's background child dies too
     local pidfile = os.tmpname()
     h = snowcone.execute('sh', {'-c', 'sleep 60 & echo $! > "$0"; wait', pidfile},
-        function() error 'cancelled process called back' end, {input = '', group = true})
+        function() error 'canceled process called back' end, {input = '', group = true})
     pause(200)
     local f = assert(io.open(pidfile))
     local pid = f:read 'l'
@@ -83,7 +83,7 @@ co = coroutine.create(function()
     _, fail, err = run('sh', {'-c', 'head -c 2000 /dev/zero >&2'}, {max_output = 1000})
     assert(fail == nil and err == 'execute: output exceeded 1000 bytes', 'stderr: ' .. tostring(err))
 
-    -- A cancelled child left running would keep the script waiting past
+    -- A canceled child left running would keep the script waiting past
     -- ctest's 30 second timeout
     print 'ok'
 end)

@@ -22,7 +22,7 @@ M.sizes = {users = 1000, exits = 1000, klines = 1000, new_channels = 100}
 ---@field pattern string
 ---@field active boolean
 ---@field hits integer
----@field colour string|nil
+---@field color string|nil
 ---@field beep boolean|nil
 ---@field flash boolean|nil
 ---@field from_config boolean|nil from the network's `watches`, replaced
@@ -89,14 +89,14 @@ local function check_watches(S, ev, entry)
             or entry.ip and safematch(ev.nick .. '!' .. ev.user .. '@' .. ev.ip .. '#' .. ev.gecos, p)
             then
                 watch.hits = watch.hits + 1
-                entry.mark = watch.colour or 'red'
+                entry.mark = watch.color or 'red'
                 bus.emit('notify.alert', {
                     net = ev.net,
                     kind = 'watch',
                     text = entry.mask,
                     beep = watch.beep,
                     flash = watch.flash,
-                    colour = entry.mark,
+                    color = entry.mark,
                 })
             end
         end

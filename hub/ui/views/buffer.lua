@@ -116,9 +116,9 @@ local function render_msg(ctx, win, msg)
     local action = command == 'PRIVMSG' and (msg[2] or ''):match '^\x01ACTION (.*)\x01$'
 
     if source == '>>>' then
-        local colour
-        source, colour = draw.outbound(msg)
-        colour(win)
+        local color
+        source, color = draw.outbound(msg)
+        color(win)
     elseif action then
         draw.blue(win)
     elseif command == 'PRIVMSG' then
@@ -256,7 +256,7 @@ return {
         end
     end,
 
-    -- The target, coloured by whether we can reach it, then buffers with
+    -- The target, colored by whether we can reach it, then buffers with
     -- unseen messages (magenta for mentions)
     status = function(ctx, win)
         local net = ctx.net

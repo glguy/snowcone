@@ -80,7 +80,7 @@ password.prompt = 'challenge key password'
 
 [[networks.watches]]
 pattern = 'badbot'
-colour = 'red'
+color = 'red'
 beep = true
 
 [[networks]]
@@ -399,7 +399,7 @@ Without `automatic`, use `/oper` or `/challenge` (these need the `oper` feature)
 | Field | Default | Meaning |
 |---|---|---|
 | `pattern` | | Required. A PCRE2 regular expression when `rex_pcre2` is installed, otherwise a Lua pattern. `/stats` shows which, under `filters`. A pattern without capital letters ignores case. |
-| `colour` | | The highlight colour: `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan` or `white`. |
+| `color` | | The highlight color: `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan` or `white`. |
 | `beep` | `false` | Ring the bell on a match. |
 | `flash` | `false` | Flash the screen on a match. |
 | `active` | `true` | With `false`, the watch is listed but doesn't match. |

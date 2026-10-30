@@ -80,7 +80,7 @@ auto rethrow(std::exception_ptr const e) -> void
     }
 }
 
-/// Errors that just mean an I/O object was cancelled or closed on purpose.
+/// Errors that just mean an I/O object was canceled or closed on purpose.
 auto is_stop(boost::system::error_code const& ec) -> bool
 {
     return ec == boost::asio::error::operation_aborted
@@ -591,7 +591,7 @@ auto App::start_ui() -> void
 }
 
 /// Stop input and signal handling for good, and restore the terminal.
-/// Pending waits are cancelled, and each coroutine also checks the flag,
+/// Pending waits are canceled, and each coroutine also checks the flag,
 /// which covers a coroutine that isn't waiting right now (the caller may be
 /// one of its callbacks).
 auto App::shutdown() -> void

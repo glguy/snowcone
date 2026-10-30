@@ -77,7 +77,7 @@ local function sorted_tasks()
     return list
 end
 
--- Clear what the current wait set up. Cancelling a lookup or a child that
+-- Clear what the current wait set up. Canceling a lookup or a child that
 -- has finished does nothing; one still running never calls back.
 local function end_wait(t)
     if t.timer then
@@ -149,7 +149,7 @@ function M.cancel(id)
     if t == nil then return end
     HUB.tasks[id] = nil
     end_wait(t)
-    -- a task cancelling itself finishes its current step; nothing resumes it
+    -- a task canceling itself finishes its current step; nothing resumes it
     if coroutine.running() ~= t.co then
         coroutine.close(t.co)
     end
@@ -306,7 +306,7 @@ function methods.dnslookup(t, name)
 end
 
 --- Run a program. Without input the child gets the terminal, and the UI
---- is suspended until it exits. Cancelling the task kills the child.
+--- is suspended until it exits. Canceling the task kills the child.
 ---@param command string
 ---@param args (string|number)[]|nil
 ---@param input string|nil written to the child's stdin
