@@ -45,17 +45,25 @@ M.windows = {}
 
 -- A window of h rows and w columns (unbounded when not given). Text wraps
 -- at the right edge and stops at the bottom, as with scrolling off; each
--- row's text is kept for M.row.
+-- row's text is kept for M.row. As in ncurses, writing the last column of
+-- a row moves the cursor to the start of the next at once, and on the
+-- last row it stays in the last column.
 local function new_window(kind, h, w)
     local win = {kind = kind, y = 0, x = 0, h = h or math.huge, w = w or math.huge, text = {}}
     table.insert(M.windows, win)
     local function put(self, c)
-        if self.x >= self.w then self.y, self.x = self.y + 1, 0 end
-        if self.y >= self.h then self.y, self.x = self.h - 1, self.w - 1 return end
+        if self.y >= self.h then return end
         local row = self.text[self.y] or {}
         self.text[self.y] = row
         row[self.x + 1] = c
         self.x = self.x + 1
+        if self.x >= self.w then
+            if self.y + 1 < self.h then
+                self.y, self.x = self.y + 1, 0
+            else
+                self.x = self.w - 1
+            end
+        end
     end
     return setmetatable(win, {__index = function(_, name)
         if name == 'wmove' then

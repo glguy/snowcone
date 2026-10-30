@@ -418,6 +418,21 @@ T.case('the status bar shows the modes of the view as one fragment', function()
     T.ok(status_bar():find(' scroll 3,+16 ', 1, true), 'horizontal scroll')
 end)
 
+T.case('a list wraps under its value column, even when a word ends at the edge', function()
+    boot()
+    local fields = T.require 'hub.ui.fields'
+    -- 32 columns: the label takes 12, so four words and their spaces end
+    -- in the last column, which moves the cursor to the next row
+    local win = ncurses.newpad(10, 32)
+    local ctx = {cols = 32, vs = {expanded = {w = true}}, add_button = function(w, text) w:waddstr(text) end}
+    fields.label(win, 'words')
+    fields.words(ctx, win, 'w', {'aaaa', 'bbbb', 'cccc', 'dddd', 'eeee', 'ffff', 'gggg', 'hhhh'})
+    T.eq(fake_ncurses.row(win, 0), '     words: aaaa bbbb cccc ', 'the fourth word goes to the next row')
+    for y = 1, win.y - 1 do
+        T.ok(fake_ncurses.row(win, y):find '^            %S', 'row ' .. y .. ' under the values')
+    end
+end)
+
 T.case('session lists show one row and expand on a click', function()
     local c = boot()
     local tokens = {}

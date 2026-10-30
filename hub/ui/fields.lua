@@ -76,15 +76,15 @@ function M.words(ctx, win, id, list, color_of)
     local _, x = ncurses.getyx(win)
     local total = x
     for _, word in ipairs(list) do total = total + word_width(word) + 1 end
-    local folds = total > ctx.cols
+    local folds = total >= ctx.cols
     -- room for the widest button
     local reserve = folds and not expanded and width(string.format('[+%d more]', #list)) or 0
 
-    -- a word and its space must fit before the right edge: writing the
+    -- a word and its space must end before the last column: writing the
     -- last column moves the cursor to the start of the next row
     for i, word in ipairs(list) do
         _, x = ncurses.getyx(win)
-        if x + word_width(word) + 1 + reserve > ctx.cols then
+        if x + word_width(word) + 1 + reserve >= ctx.cols then
             if not expanded then
                 ctx.add_button(win, string.format('[+%d more]', #list - i + 1), toggle)
                 break
