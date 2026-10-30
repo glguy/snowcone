@@ -58,11 +58,49 @@ local function wait_for_ack(t, request)
     end
 end
 
+-- The wanted capabilities among `offered` (names) that aren't enabled,
+-- sorted, leaving out those whose requirements wouldn't be met
+local function wanted(irc, offered)
+    local set = {}
+    for _, cap in ipairs(offered) do
+        if irc.caps_wanted[cap] and not irc.caps_enabled[cap] then
+            set[cap] = true
+        end
+    end
+    local req = {}
+    for cap in pairs(set) do
+        if irc_model.cap_satisfied(irc, cap, set) then
+            table.insert(req, cap)
+        end
+    end
+    table.sort(req)
+    return req
+end
+
+--- Turn off enabled capabilities whose requirements are gone, as after a
+--- NAK or CAP DEL.
+---@param t hub.Task
+function M.drop_unsatisfied(t)
+    local irc = model(t)
+    local req = {}
+    for cap in pairs(irc_model.caps_required) do
+        if irc.caps_enabled[cap] and not irc_model.cap_satisfied(irc, cap) then
+            table.insert(req, '-' .. cap)
+        end
+    end
+    table.sort(req)
+    if next(req) then
+        send_reqs(t, req)
+        wait_for_ack(t, req)
+    end
+end
+
 --- Request capabilities, then authenticate if SASL was just enabled and
 --- credentials are waiting. Credentials are used once, by the first REQ.
 function M.REQ(t, request)
     send_reqs(t, request)
     wait_for_ack(t, request)
+    M.drop_unsatisfied(t)
 
     local irc = model(t)
     local credentials = irc.sasl_credentials
@@ -103,13 +141,11 @@ function M.LS(t)
         end
     end
 
-    local req = {}
+    local offered = {}
     for cap in pairs(irc.caps_available) do
-        if irc.caps_wanted[cap] then
-            table.insert(req, cap)
-        end
+        table.insert(offered, cap)
     end
-    table.sort(req)
+    local req = wanted(irc, offered)
 
     if next(req) then
         M.REQ(t, req)
@@ -130,15 +166,15 @@ function M.on_cap(net, irc, msg, spawn)
         irc_model.ack_caps(irc, msg[3])
     elseif sub == 'DEL' then
         irc_model.del_caps(irc, msg[3])
-    elseif sub == 'NEW' then
-        local new_caps = irc_model.add_caps(irc, msg[3])
-        local req = {}
-        for cap in pairs(irc.caps_wanted) do
-            if new_caps[cap] ~= nil and not irc.caps_enabled[cap] then
-                table.insert(req, cap)
-            end
+        if HUB.state.nets[net].phase == 'connected' then
+            spawn('cap negotiation', M.drop_unsatisfied)
         end
-        table.sort(req)
+    elseif sub == 'NEW' then
+        local offered = {}
+        for cap in pairs(irc_model.add_caps(irc, msg[3])) do
+            table.insert(offered, cap)
+        end
+        local req = wanted(irc, offered)
         if next(req) and HUB.state.nets[net].phase == 'connected' then
             spawn('cap negotiation', M.REQ, req)
         end

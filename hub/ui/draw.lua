@@ -56,13 +56,23 @@ local scrolled_divider_string <const> =
 
 --- The source column of one of our own messages, and its color setter:
 --- '>>>', or marked while the rate limit holds its line back, or once the
---- line was dropped unsent (msg.delivery, net/send.lua).
+--- line was dropped unsent (msg.delivery, net/send.lua); yellow while the
+--- server hasn't confirmed it, and marked when it refused it or never said
+--- (msg.receipt, features/chat).
 function M.outbound(msg)
     local state = msg.delivery and msg.delivery.state
     if state == 'queued' then
         return 'queued >>>', M.yellow
     elseif state == 'dropped' then
         return 'unsent >>>', M.red
+    end
+    local receipt = msg.receipt
+    if receipt == 'awaiting' then
+        return '>>>', M.yellow
+    elseif receipt == 'rejected' then
+        return 'refused >>>', M.red
+    elseif receipt == 'unknown' then
+        return 'unconfirmed >>>', M.yellow
     end
     return '>>>', M.red
 end

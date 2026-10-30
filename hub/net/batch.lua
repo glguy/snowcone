@@ -83,6 +83,7 @@ function M.BATCH(net, irc, msg)
                 type = batch.type,
                 params = batch.params,
                 messages = batch.messages,
+                label = batch.label,
             })
         end
         return batch

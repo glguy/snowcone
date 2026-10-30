@@ -29,6 +29,10 @@ T.case('OrderedMap numbers entries and drops the oldest', function()
     T.eq(collect(OrderedMap.each(om, 1)), {'d', 'c'}, 'skipping the newest')
     T.eq(collect(OrderedMap.reveach(om)), {'c', 'd', 'e'}, 'oldest first')
     T.eq({OrderedMap.lookup(om, 'b'), OrderedMap.lookup(om, 'c')}, {nil, 'c'}, 'dropped keys forgotten')
+    T.eq({OrderedMap.number(om, 'b'), OrderedMap.number(om, 'c'), OrderedMap.number(om, 'e')}, {nil, 3, 5},
+        'numbers by key')
+    for _, v in ipairs {'f', 'g'} do OrderedMap.insert(om, v, v) end
+    T.eq({OrderedMap.number(om, 'e'), OrderedMap.number(om, 'g')}, {5, 7}, 'across the wrap')
 end)
 
 T.case('OrderedMap pops the newest, even after wrapping', function()

@@ -60,6 +60,9 @@ local M = {}
 ---@field channels string[]|nil channels a QUIT or NICK affected (net/handlers.lua)
 ---@field delivery {state: 'queued'|'sent'|'dropped', delay: number|nil}|nil
 --- of a sent message held by the rate limit (net/send.lua)
+---@field receipt 'awaiting'|'received'|'rejected'|'unknown'|nil of our labeled chat
+--- line in a buffer, by the server's reply (features/chat)
+---@field rejection string|nil the error text when rejected
 
 M.console_size = 1000
 M.ping_after = 30          -- seconds of silence before PING

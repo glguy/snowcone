@@ -302,7 +302,9 @@ password.prompt = 'bouncer password'
 
 By default hub requests these capabilities when the server offers them:
 
-`account-notify`, `account-tag`, `away-notify`, `batch`, `cap-notify`, `chghost`, `draft/chathistory`, `extended-join`, `extended-monitor`, `invite-notify`, `message-tags`, `multi-prefix`, `sasl`, `server-time`, `setname`, `soju.im/bouncer-networks`, `soju.im/bouncer-networks-notify`, `solanum.chat/identify-msg`, `solanum.chat/oper`, `solanum.chat/realhost`.
+`account-notify`, `account-tag`, `away-notify`, `batch`, `cap-notify`, `chghost`, `draft/chathistory`, `echo-message`, `extended-join`, `extended-monitor`, `invite-notify`, `labeled-response`, `message-tags`, `multi-prefix`, `sasl`, `server-time`, `setname`, `soju.im/bouncer-networks`, `soju.im/bouncer-networks-notify`, `solanum.chat/identify-msg`, `solanum.chat/oper`, `solanum.chat/realhost`.
+
+`echo-message` is requested only together with `labeled-response` and `batch`, which hub uses to match each echo to the message it already shows.
 
 `server.capabilities` adds names to that list, or removes them with a leading `-`:
 

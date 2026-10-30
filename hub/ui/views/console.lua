@@ -172,6 +172,18 @@ local function draw_focus(ctx, win, msg)
         end
     end
 
+    local receipt = msg.receipt
+    if receipt then
+        draw.blue(win)
+        win:waddstr '   receipt: '
+        draw.normal(win)
+        win:waddstr(receipt)
+        if msg.rejection then
+            win:waddstr(': ', scrub(msg.rejection))
+        end
+        win:waddstr '\n'
+    end
+
     draw.blue(win)
     win:waddstr '   command: '
     local cmd_color = palette[msg.command]

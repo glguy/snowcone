@@ -76,7 +76,7 @@ T.case('statusmsg, echo and membership changes', function()
     c:recv ':me!u@h JOIN #c'
     c:recv ':alice!a@h JOIN #c'
     c:recv ':alice!a@h PRIVMSG @#c :ops only'
-    local msg = T.require 'hub.lib.OrderedMap'.lookup(chat.buffer('test', '#c').messages, true)
+    local msg = chat.newest(chat.buffer('test', '#c'))
     T.eq(msg.statusmsg, '@', 'statusmsg prefix')
 
     chat.say('test', '#c', 'from me')
@@ -101,9 +101,8 @@ T.case('every buffer a queued line went to shows its delivery', function()
     c:recv ':me!u@h JOIN #b'
     T.require 'hub.net.send'.send('test', 'PRIVMSG', '#a', 'fill the burst')
     chat.say('test', '#a,@#b', 'both')
-    local OrderedMap = T.require 'hub.lib.OrderedMap'
-    local a = OrderedMap.lookup(chat.buffer('test', '#a').messages, true)
-    local b = OrderedMap.lookup(chat.buffer('test', '#b').messages, true)
+    local a = chat.newest(chat.buffer('test', '#a'))
+    local b = chat.newest(chat.buffer('test', '#b'))
     T.eq({a[2], b[2], b.statusmsg}, {'both', 'both', '@'}, 'in both buffers')
     T.eq(a.delivery, {state = 'queued'}, 'queued')
     T.ok(a.delivery == b.delivery, 'the statusmsg copy shares the delivery')
@@ -126,6 +125,110 @@ T.case('history goes before the message that opened the buffer', function()
     c:recv '@batch=h2;time=2026-01-01T00:00:10.000Z :bob!b@h PRIVMSG me :newest'
     c:recv ':srv BATCH -h2'
     T.eq(#texts(chat.buffer('test', 'bob')), 3, 'no duplicates')
+end)
+
+T.case('messages are found by msgid, and one already held is not added again', function()
+    local c, chat = boot()
+    c:recv '@msgid=m1 :bob!b@h PRIVMSG me :live'
+    c:recv ':srv BATCH +h1 chathistory bob'
+    c:recv '@batch=h1;msgid=m0 :bob!b@h PRIVMSG me :history'
+    c:recv ':srv BATCH -h1'
+    local buffer = chat.buffer('test', 'bob')
+    T.eq({chat.find(buffer, 'm0')[2], chat.find(buffer, 'm1')[2]}, {'history', 'live'}, 'both found')
+    T.eq(chat.find(buffer, 'M1'), nil, 'msgids are not folded')
+
+    c:recv '@msgid=m1 :bob!b@h PRIVMSG me :live'
+    T.eq(texts(buffer), {'PRIVMSG me history', 'PRIVMSG me live'}, 'not repeated')
+    T.eq(buffer.activity, 1, 'and not counted')
+end)
+
+-- Register with labels and echoes
+local function boot_echo()
+    local fake = FakeTransport.new()
+    T.boot {transport = fake, config = {networks = {
+        {id = 'test', server = {host = 'h', port = 1}, identity = {nick = 'me'}}}}}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :batch echo-message labeled-response message-tags'
+    c:recv ':srv CAP me ACK :batch echo-message labeled-response message-tags'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 005 me CHANTYPES=# STATUSMSG=@+ :are supported'
+    c:recv ':srv 376 me :End of MOTD'
+    c:recv ':me!u@h JOIN #a'
+    c:recv ':me!u@h JOIN #b'
+    c:take()
+    return c, T.require 'hub.features.chat'
+end
+
+T.case('an echo confirms our message and gives it its msgid', function()
+    local c, chat = boot_echo()
+    local a = chat.buffer('test', '#a')
+    chat.say('test', '#a', 'hello')
+    T.eq(c:take(), {'@label=sc1 PRIVMSG #a hello'}, 'labeled')
+    local mine = chat.newest(a)
+    T.eq(mine.receipt, 'awaiting', 'awaiting')
+
+    c:recv '@label=sc1;msgid=m1;time=2026-01-01T00:00:00.000Z :me!u@h PRIVMSG #a :hello'
+    T.eq(texts(a), {'JOIN #a', 'PRIVMSG #a hello'}, 'the echo is not shown again')
+    T.eq({mine.receipt, mine.tags.msgid, mine.tags.time}, {'received', 'm1', '2026-01-01T00:00:00.000Z'}, 'received')
+    T.ok(chat.find(a, 'm1') == mine, 'found by its msgid')
+    T.eq(chat.get('test').pending, {}, 'settled')
+
+    -- history with the same message adds nothing
+    c:recv ':srv BATCH +h chathistory #a'
+    c:recv '@batch=h;msgid=m1;time=2026-01-01T00:00:00.000Z :me!u@h PRIVMSG #a :hello'
+    c:recv ':srv BATCH -h'
+    T.eq(#texts(a), 2, 'no duplicate from history')
+end)
+
+T.case('the buffer shows the echo as the server edited it; the console what was sent', function()
+    local c, chat = boot_echo()
+    local sent = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'irc.sent', 'test', function(ev)
+        table.insert(sent, ev.msg)
+    end)
+    chat.say('test', '#a', '\x0304red\x03 text')
+    c:recv '@label=sc1;msgid=m1;account=me :me!u@h PRIVMSG #a :red text'
+    local mine = chat.newest(chat.buffer('test', '#a'))
+    T.eq({mine[2], mine.tags.account, mine.source}, {'red text', 'me', '>>>'}, 'the echo, still drawn as ours')
+    T.eq(sent[1][2], '\x0304red\x03 text', 'the sent line is unchanged')
+    T.ok(sent[1] ~= mine, 'a copy')
+end)
+
+T.case('ACK confirms, an error refuses, and a lost connection leaves it unknown', function()
+    local c, chat = boot_echo()
+    local a = chat.buffer('test', '#a')
+    chat.say('test', '#a', 'one')
+    c:recv '@label=sc1 :srv ACK'
+    T.eq(chat.newest(a).receipt, 'received', 'ACK')
+
+    T.require 'hub.net.send'.send('test', 'NOTICE', '#a', 'two')
+    c:recv '@label=sc2 :srv 404 me #a :Cannot send to nick/channel'
+    local refused = chat.newest(a)
+    T.eq({refused.receipt, refused.rejection}, {'rejected', 'Cannot send to nick/channel'}, 'refused')
+
+    chat.say('test', 'nobody', 'unseen')
+    c:recv '@label=sc3;msgid=m3 :me!u@h PRIVMSG nobody :unseen'
+    T.eq(chat.buffer('test', 'nobody'), nil, 'an echo opens no buffer')
+
+    chat.say('test', '#a', 'three')
+    c:finish 'reset'
+    T.eq(chat.newest(a).receipt, 'unknown', 'never answered')
+    T.eq(chat.get('test').pending, {}, 'forgotten with the connection')
+end)
+
+T.case('each target of a line gets its own echo', function()
+    local c, chat = boot_echo()
+    chat.say('test', '#a,@#b', 'both')
+    c:recv '@label=sc1 :srv BATCH +r labeled-response'
+    c:recv '@batch=r;msgid=ma :me!u@h PRIVMSG #a :both'
+    c:recv '@batch=r;msgid=mb :me!u@h PRIVMSG @#b :both'
+    local a, b = chat.newest(chat.buffer('test', '#a')), chat.newest(chat.buffer('test', '#b'))
+    T.eq({a.receipt, b.receipt}, {'received', 'received'}, 'both received')
+    c:recv ':srv BATCH -r'
+    T.eq({a.tags.msgid, b.tags.msgid, b.statusmsg}, {'ma', 'mb', '@'}, 'each its own msgid')
+    T.eq(#texts(chat.buffer('test', '#b')), 2, 'no echo shown')
+    T.eq(chat.get('test').pending, {}, 'settled by the end of the batch')
 end)
 
 T.case('a nick change onto an existing buffer renames nothing', function()

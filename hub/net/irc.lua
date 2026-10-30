@@ -25,6 +25,7 @@ M.caps_supported = {
     'cap-notify',
     'chghost',
     'draft/chathistory',
+    'echo-message',
     'extended-join',
     'extended-monitor',
     'invite-notify',
@@ -40,6 +41,35 @@ M.caps_supported = {
     'solanum.chat/oper',
     'solanum.chat/realhost',
 }
+
+--- Capabilities used only with others: an echo of our own message is
+--- matched to it by its label (features/chat), so echo-message without
+--- labeled-response would show every message twice.
+M.caps_required = {
+    ['echo-message'] = {'labeled-response', 'batch'},
+}
+
+--- Whether a capability's requirements are enabled or in `request`, a set
+--- of names about to be requested.
+---@param irc hub.Irc
+---@param cap string
+---@param request table<string, true>|nil
+---@return boolean
+function M.cap_satisfied(irc, cap, request)
+    for _, need in ipairs(M.caps_required[cap] or {}) do
+        if not (irc.caps_enabled[need] or request and request[need]) then
+            return false
+        end
+    end
+    return true
+end
+
+--- Whether requests can carry labels that their replies repeat.
+---@param irc hub.Irc
+---@return boolean
+function M.has_labels(irc)
+    return irc.caps_enabled['labeled-response'] and irc.caps_enabled.batch or false
+end
 
 ---@return hub.Irc # a new model for a connection that hasn't registered
 function M.new()

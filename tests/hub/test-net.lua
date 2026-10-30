@@ -682,6 +682,31 @@ T.case('a CAP REQ sent by hand takes effect when acked', function()
     T.eq(rec().irc.caps_enabled['labeled-response'], nil, 'disabled')
 end)
 
+T.case('echo-message is requested only with labeled-response, and dropped without it', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :echo-message multi-prefix'
+    T.eq(c:take(), {'CAP LS 302', 'NICK me', 'USER me 0 * me', 'CAP REQ multi-prefix'}, 'not alone')
+    c:recv ':srv CAP me ACK :multi-prefix'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 376 me :End of MOTD'
+    c:take()
+
+    c:recv ':srv CAP me NEW :batch labeled-response echo-message'
+    T.eq(c:take(), {'CAP REQ :batch echo-message labeled-response'}, 'with what it needs')
+    c:recv ':srv CAP me ACK :batch echo-message labeled-response'
+
+    T.require 'hub.net.send'.send('test', 'PRIVMSG', '#c', 'hi')
+    T.eq(c:take(), {'@label=sc1 PRIVMSG #c hi'}, 'chat lines are labeled')
+
+    c:recv ':srv CAP me DEL :labeled-response'
+    T.eq(c:take(), {'CAP REQ -echo-message'}, 'turned off with labeled-response gone')
+    c:recv ':srv CAP me ACK :-echo-message'
+    T.eq(rec().irc.caps_enabled['echo-message'], nil, 'off')
+    T.eq(next(HUB.tasks), nil, 'no tasks left')
+end)
+
 -- Answer a CHALLENGE as the server would, with or without labels
 local function challenge_exchange(labeled)
     local fake = boot {network('test')}

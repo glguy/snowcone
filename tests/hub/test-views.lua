@@ -478,6 +478,76 @@ T.case("Esc resets the view's own filters too", function()
     T.ok(HUB.current.commands.prefilter, 'the connection views bring /prefilter')
 end)
 
+T.case('a click on a reply scrolls to the message it answers, until Esc', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv '@msgid=parent :alice!a@h PRIVMSG #chan :the question'
+    for i = 1, 60 do c:recv(':bob!b@h PRIVMSG #chan :filler ' .. i) end
+    c:recv '@+reply=parent :carol!c@h PRIVMSG #chan :the answer'
+    c:recv '@+reply=gone :carol!c@h PRIVMSG #chan :about something old'
+    control.set_talk_target('test', '#chan')
+    control.set_view 'buffer'
+    local vs = control.view_state 'buffer'
+
+    -- the main pad: as tall as the screen less the input line
+    local function screen()
+        HUB.current.routes['ui.draw']()
+        for i = #fake_ncurses.windows, 1, -1 do
+            local win = fake_ncurses.windows[i]
+            if win.kind == 'newpad' and win.h == tty_height - 1 and win.w ~= tty_width then
+                local rows = {}
+                for y = 0, win.h - 1 do rows[y] = fake_ncurses.row(win, y) end
+                return rows
+            end
+        end
+    end
+    local function click_reply(text)
+        local rows = screen()
+        for y = 0, #rows do
+            local at = rows[y]:find(text, 1, true)
+            if at then
+                local arrow = rows[y]:find('↩', 1, true)
+                HUB.current.routes['ui.entry']('on_mouse', y, utf8.len(rows[y]:sub(1, arrow - 1)), false)
+                return
+            end
+        end
+        error('not shown: ' .. text)
+    end
+    local function shown(text)
+        for _, row in pairs(screen()) do
+            if row:find(text, 1, true) then return true end
+        end
+        return false
+    end
+
+    T.ok(not shown 'the question', 'the parent is off the screen')
+    vs.filter = 'answer'
+    click_reply 'the answer'
+    T.eq(vs.filter, nil, 'the filter is cleared')
+    T.ok(vs.scroll > 0, 'scrolled')
+    T.eq(vs.highlight and vs.highlight[2], 'the question', 'highlighted')
+    T.ok(shown 'the question', 'the parent is on the screen')
+
+    key(0x1b)
+    T.eq({vs.scroll, vs.highlight}, {0}, 'Esc clears it')
+    T.eq(T.log_lines 'error', {}, 'no errors')
+    click_reply 'about something old'
+    T.eq(T.log_lines 'error', {'the message replied to is not in this buffer'}, 'reported')
+    T.eq(vs.scroll, 0, 'not scrolled')
+end)
+
+T.case('our messages show whether the server confirmed them', function()
+    boot()
+    local draw = T.require 'hub.ui.draw'
+    local function shown(msg) return (draw.outbound(msg)) end
+    T.eq({shown {}, shown {receipt = 'awaiting'}, shown {receipt = 'received'}},
+        {'>>>', '>>>', '>>>'}, 'plain while awaiting and once received')
+    T.eq({shown {receipt = 'rejected'}, shown {receipt = 'unknown'}},
+        {'refused >>>', 'unconfirmed >>>'}, 'marked otherwise')
+    T.eq(shown {delivery = {state = 'queued'}, receipt = 'awaiting'}, 'queued >>>', 'the queue comes first')
+end)
+
 T.case('pastes go to the editor up to a newline; an oversized one is reported', function()
     boot()
     local control = T.require 'hub.ui.control'

@@ -3,9 +3,11 @@
 -- t starts talk mode; Ctrl-N and Ctrl-P step through the network's
 -- buffers; Meta-H hides joins, parts, quits, nick changes, account
 -- changes and host changes. Click a sender to inspect the message in the
--- console. Viewing a buffer marks it seen and, with the terminal focused,
--- withdraws its notification.
--- View state: scroll, hscroll, hide_presence.
+-- console. A reply (the +reply tag) starts with ↩: click it to scroll to
+-- the message it answers, which is highlighted until Esc. Viewing a
+-- buffer marks it seen and, with the terminal focused, withdraws its
+-- notification.
+-- View state: scroll, hscroll, hide_presence, highlight (a message).
 
 local addircstr  <const> = require 'hub.ui.irc_formatting'
 local chat       <const> = require 'hub.features.chat'
@@ -15,7 +17,9 @@ local dispatch   <const> = require 'hub.runtime.dispatch'
 local draw       <const> = require 'hub.ui.draw'
 local editor     <const> = require 'hub.ui.editor'
 local irc_model  <const> = require 'hub.net.irc'
+local log        <const> = require 'hub.runtime.log'
 local matching   <const> = require 'hub.lib.matching'
+local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local scrub      <const> = require 'hub.lib.scrub'
 
 local function chat_renderer(win, msg)
@@ -110,7 +114,26 @@ function renderer.CHGHOST(win, msg)
     win:waddstr(scrub(msg[1] or ''), '@', scrub(msg[2] or ''))
 end
 
-local function render_msg(ctx, win, msg)
+-- Scroll to the message with msgid `id`, in the middle of the screen when
+-- it can be, and highlight it
+local function jump(ctx, buffer, id)
+    local k = OrderedMap.number(buffer.messages, id)
+    if not k then
+        log.add('error', 'the message replied to is not in this buffer')
+        return
+    end
+    local vs = ctx.vs
+    -- a filter could hide it
+    control.set_filter(ctx.id, nil)
+    -- scrolled by s, the newest shown is entry last - s, on the row above
+    -- the divider
+    local s = OrderedMap.last(buffer.messages) - k - (ctx.rows - 2) // 2
+    vs.scroll = math.max(0, math.min(s, vs.max_scroll or s))
+    vs.pin = nil
+    vs.highlight = OrderedMap.get(buffer.messages, k)
+end
+
+local function render_msg(ctx, win, buffer, msg)
     local command = msg.command
     local source = msg.nick or (msg.source or '?'):match '^[^.!]*'
     local action = command == 'PRIVMSG' and (msg[2] or ''):match '^\x01ACTION (.*)\x01$'
@@ -129,10 +152,11 @@ local function render_msg(ctx, win, msg)
         draw.magenta(win)
     end
 
+    -- the highlighted message shows its sender as a button would
     ctx.add_button(win, string.format(' %16.16s', scrub(source)), function()
         control.view_state('console').focus = msg
         control.set_view 'console'
-    end, true)
+    end, msg ~= ctx.vs.highlight)
 
     if msg.statusmsg then
         draw.red(win)
@@ -141,6 +165,12 @@ local function render_msg(ctx, win, msg)
         win:waddstr ' '
     end
     draw.normal(win)
+
+    local parent = msg.tags and msg.tags['+reply']
+    if parent then
+        ctx.add_button(win, '↩', function() jump(ctx, buffer, parent) end, true)
+        win:waddstr ' '
+    end
 
     local h = renderer[command]
     if h then h(win, msg) end
@@ -240,9 +270,12 @@ return {
             show = function(msg) return not presence_commands[msg.command] end
         end
         draw.draw_rotation(win, ctx.vs, 0, ctx.rows, buffer.messages, show, function(w, msg)
-            render_msg(ctx, w, msg)
+            render_msg(ctx, w, buffer, msg)
         end)
     end,
+
+    -- Esc clears the highlight; it also scrolls back to the newest
+    reset = function(vs) vs.highlight = nil end,
 
     modes = function(ctx)
         return {ctx.vs.hide_presence and 'hide' or nil}

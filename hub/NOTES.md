@@ -132,6 +132,10 @@ a decision is made, and change or remove it when the decision does.
   `/sheds` stays on `wait_irc`, since it asks every server at once. A
   labeled batch nested in another isn't flattened; no server sends one
   yet.
+- **echo-message only with labeled-response** (and batch): PRIVMSG and
+  NOTICE are labeled, so an echo is matched to the line already shown.
+  An unlabeled echo would show it twice, so echo-message is requested
+  only along with them, and turned off if they go (NAK, CAP DEL).
 - **A staged unkline is dropped when no K-Line matches.** TESTKLINE says
   so with NOTESTLINE. TESTLINE says so with the auth block that matches
   (215), or NOTESTLINE when none does. Without labels a hand-typed
@@ -182,9 +186,15 @@ a decision is made, and change or remove it when the decision does.
   timer's id is kept in state so a reload doesn't add another.
 - **oper:** staging sends only queries (TESTMASK); the ban goes out only
   from a confirming click.
-- **chat:** our own messages come back through `irc.sent`, since
+- **chat:** our own messages are shown from `irc.sent` at once, since
   echo-message isn't assumed; a line the rate limit holds back is shown
-  as `queued` until it goes. CTCP replies go only to staff, and VERSION
+  as `queued` until it goes. With labels, the reply settles it: the echo
+  (which isn't shown) replaces its text and tags with the server's, which
+  may have edited it and which give it a msgid and server time; ACK
+  confirms it, an error refuses it, and a connection that ends first
+  leaves it unconfirmed. A labeled line, or one with several targets or a
+  statusmsg one, is copied per buffer, so the console keeps the line as
+  sent and each echo updates only its own copy. CTCP replies go only to staff, and VERSION
   is a fixed string, so a reply never starts a process. A nick
   change onto a nick that already has a buffer renames nothing; the change
   is noted in the old buffer.

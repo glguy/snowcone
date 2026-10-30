@@ -1,9 +1,11 @@
 -- Sending IRC commands.
 --
 -- An argument is a string, or {content = string, secret = true} to keep it
--- out of logs. Requests (t:request) carry a label tag when the network has
--- labeled-response; tags don't count against the line length. The masked message goes to the network's console log and
--- the `irc.sent` event; chat echo is the chat feature's business.
+-- out of logs. Requests (t:request), PRIVMSG and NOTICE carry a label tag
+-- when the network has labeled-response, so the server's reply can be
+-- matched to them; tags don't count against the line length. The masked
+-- message goes to the network's console log and the `irc.sent` event;
+-- chat echo is the chat feature's business.
 --
 -- A network's `rate_limit` paces its lines (lib/ratelimit.lua). A line
 -- that can't go yet waits in rec.sendq = {t, lines, timer}: t is the
@@ -17,6 +19,7 @@
 local bus        <const> = require 'hub.runtime.bus'
 local clock      <const> = require 'hub.runtime.clock'
 local dispatch   <const> = require 'hub.runtime.dispatch'
+local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
 local resources  <const> = require 'hub.runtime.resources'
 local timer      <const> = require 'hub.runtime.timer'
@@ -229,11 +232,27 @@ local function connection(net)
     return rec, conn
 end
 
+-- A label unique on the connection, or nil when replies can't carry one
+local function new_label(irc)
+    if not (irc and irc_model.has_labels(irc)) then return end
+    local n = (irc.label_next or 0) + 1
+    irc.label_next = n
+    -- sc for snowcone, apart from labels typed by hand
+    return 'sc' .. n
+end
+
+-- Chat lines are labeled so their echo or error can be matched to them
+local labeled_commands <const> = {PRIVMSG = true, NOTICE = true}
+
 -- how: nil to wait in turn, 'first' to go ahead of the queue, 'last' to
 -- drop the queue and write at once. Tags don't count against the line
 -- length.
 local function send(how, net, tags, cmd, ...)
     local rec, conn = connection(net)
+    if tags == nil and labeled_commands[cmd] then
+        local label = new_label(rec.irc)
+        tags = label and {label = label}
+    end
 
     local raw, msg = M.build(cmd, ...)
     local linelen = rec.irc and rec.irc.linelen or 512
@@ -285,17 +304,10 @@ end
 ---@param ... hub.SendArg
 ---@return string|nil label nil when the network can't label replies
 function M.send_request(net, cmd, ...)
-    local rec = HUB.state.nets[net]
-    local irc = rec and rec.irc
-    if irc and irc.caps_enabled['labeled-response'] and irc.caps_enabled.batch then
-        local n = (irc.label_next or 0) + 1
-        -- sc for snowcone, apart from labels typed by hand
-        local label = 'sc' .. n
-        send(nil, net, {label = label}, cmd, ...)
-        irc.label_next = n
-        return label
-    end
-    send(nil, net, nil, cmd, ...)
+    local rec = connection(net)
+    local label = new_label(rec.irc)
+    send(nil, net, label and {label = label}, cmd, ...)
+    return label
 end
 
 --- Send text as a line exactly as given, without checking it as a

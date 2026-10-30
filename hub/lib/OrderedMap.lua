@@ -117,6 +117,17 @@ function M.lookup(om, key)
     return i and om.vals[i]
 end
 
+--- The number of the entry with a key, for get and scrolling.
+---@param om hub.OrderedMap
+---@param key any
+---@return integer|nil # nil when no entry has the key
+function M.number(om, key)
+    local i = getindex(om, key)
+    if i == nil then return end
+    -- the held numbers fill distinct slots, counting back from the newest
+    return om.n - (slot(om, om.n) - i) % om.max
+end
+
 --- Change the key of an entry, keeping its place in the order.
 ---@param om hub.OrderedMap
 ---@param old any
