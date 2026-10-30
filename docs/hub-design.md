@@ -260,7 +260,7 @@ dashboard are refused with a message to port them.
   for anything else the view keeps. A view with a `feature` belongs to
   that feature, so a network without it looks like a client without it:
   the view leaves the rotation (Profiles, below), its command is hidden and
-  refused like any feature command (`/cliconn @net` shows that network's),
+  refused like any feature command (`/cliconn@net` shows that network's),
   and switching to such a network, or a reload that removes the feature,
   moves to the first view. The first view is the first of the rotation for
   a feature the current network has, else the first that needs none. A `document` view is drawn whole into a
@@ -276,8 +276,8 @@ dashboard are refused with a message to port them.
   records the page size, so Page Up/Down and the arrows scroll every
   stream the same way.
 - **Networks:** one is current (`/net`, Meta-1..9, clicking the status bar);
-  net-scoped views and commands use it, and commands take `@network` first
-  to use another. The status bar lists every network by state, with `+` or
+  net-scoped views and commands use it, and a command names another
+  after its name, `/quote@network`. The status bar lists every network by state, with `+` or
   `!` for unseen chat.
 - **Three scopes of state, three pages:** `/stats` is the client (memory,
   tasks, resources, errors, and entry counts of every store: summary

@@ -106,8 +106,9 @@ Some things to know:
 - The status bar lists every network, colored by state, with `+` or `!`
   for unseen chat; click one, use Meta-1..9, or `/net <id>` to choose the
   current network. `/networks` shows them all.
-- Commands that act on a network take an optional `@network` first:
-  `/quote @oftc WHOIS someone`.
+- Commands that act on a network can name one after the command:
+  `/quote@oftc WHOIS someone`. `/quote` sends tags as typed:
+  `/quote @+draft/react=👍;+draft/reply=abc TAGMSG #chan`.
 - Every scrolling list is a rolling buffer: new lines replace the oldest
   above the divider, so nothing moves under the mouse.
 - The console's Meta-G shows all networks interleaved.

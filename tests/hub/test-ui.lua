@@ -45,7 +45,7 @@ T.case('scrub makes C0 and C1 controls visible', function()
     T.eq(scrub 'café\u{a0}ok', 'café\u{a0}ok', 'other text kept')
 end)
 
-T.case('net commands use the current network or @network', function()
+T.case('net commands use the current network or name@network', function()
     local fake, control, cmdline = boot {network('a'), network('b')}
     local ca, cb = fake.conns[1], fake.conns[2]
     register(ca)
@@ -55,7 +55,7 @@ T.case('net commands use the current network or @network', function()
     cmdline.execute 'quote PRIVMSG x :hello there'
     T.eq(ca:take(), {'PRIVMSG x :hello there'}, 'sent on a')
 
-    cmdline.execute 'quote @b PRIVMSG y :hi'
+    cmdline.execute 'quote@b PRIVMSG y :hi'
     T.eq(cb:take(), {'PRIVMSG y hi'}, 'sent on b')
     T.eq(ca:take(), {}, 'not on a')
 
@@ -64,12 +64,63 @@ T.case('net commands use the current network or @network', function()
     T.eq(cb:take(), {'PRIVMSG z :raw  spaces '}, 'raw sent unchanged on the current network')
 end)
 
+T.case('command completion offers networks after name@', function()
+    local _, _, cmdline = boot {network('libera'), network('oftc'), network('lan')}
+    T.eq(cmdline.complete 'quote@l', {'quote@lan', 'quote@libera'}, 'networks')
+    T.eq(cmdline.complete 'quote@', {'quote@lan', 'quote@libera', 'quote@oftc'}, 'all')
+    T.eq(cmdline.complete 'eval@', {}, 'not a net command')
+end)
+
+-- Register with message-tags, or without when caps is ''
+local function register_caps(c, caps)
+    c:con()
+    c:recv(':srv CAP * LS :' .. caps)
+    if caps ~= '' then c:recv(':srv CAP me ACK :' .. caps) end
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 376 me :End of MOTD'
+    c:take()
+end
+
+T.case('quote sends tags as typed', function()
+    local fake, _, cmdline = boot {network('a')}
+    local c = fake.last()
+    register_caps(c, 'batch labeled-response message-tags')
+
+    cmdline.execute [[quote @+draft/react=a\sb;+x TAGMSG #c]]
+    T.eq(c:take(), {[[@+draft/react=a\sb;+x TAGMSG #c]]}, 'escapes kept, bare key kept')
+
+    -- a chat line keeps its label, unless one is given
+    cmdline.execute 'quote @+draft/reply=m1 PRIVMSG #c :hi'
+    T.eq(c:take(), {'@+draft/reply=m1;label=sc1 PRIVMSG #c hi'}, 'label added')
+    cmdline.execute 'quote @label=mine PRIVMSG #c :hi'
+    T.eq(c:take(), {'@label=mine PRIVMSG #c hi'}, 'own label kept')
+
+    cmdline.execute('quote @+big=' .. string.rep('x', 4090) .. ' TAGMSG #c')
+    T.eq(last_error(), 'quote: tags too long: 4095', 'over the client limit')
+    T.eq(c:take(), {}, 'nothing sent')
+end)
+
+T.case('quote refuses client-only tags without message-tags', function()
+    local fake, _, cmdline = boot {network('a')}
+    local c = fake.last()
+    register_caps(c, '')
+
+    cmdline.execute 'quote @+typing=active TAGMSG #c'
+    T.eq(last_error(), 'quote: client-only tag without message-tags: +typing', 'refused')
+    T.eq(c:take(), {}, 'nothing sent')
+
+    cmdline.execute 'quote @label=x PING y'
+    T.eq(c:take(), {'@label=x PING y'}, 'other tags left to the server')
+end)
+
 T.case('command errors are reported briefly', function()
     local _, _, cmdline = boot {network('a')}
     cmdline.execute 'nosuch'
     T.eq(last_error(), 'unknown command: nosuch', 'unknown command')
-    cmdline.execute 'quote @zz PING x'
+    cmdline.execute 'quote@zz PING x'
     T.eq(last_error(), 'no such network: zz', 'unknown network')
+    cmdline.execute 'eval@a 1'
+    T.eq(last_error(), 'eval takes no network', 'not a net command')
     cmdline.execute 'quote'
     T.eq(last_error(), 'quote requires: $r', 'missing argument')
 

@@ -302,7 +302,7 @@ for _, m in ipairs(view_modules) do
     for _, view in ipairs(m.id and {m} or m) do
         table.insert(M.views, view)
         -- a view for a feature has a command for that feature, which
-        -- also takes @network to show that network's view
+        -- also takes a network (/name@network) to show that network's view
         if view.command ~= false then
             table.insert(M.commands, {
                 name = view.id,

@@ -138,7 +138,7 @@ T.case('a view the network lacks the feature for gives way to its first view', f
     T.eq(#T.log_lines 'error', 1, 'and says why')
     T.ok(not cmdline.available(HUB.current.commands.cliconn), 'nor offered')
 
-    cmdline.execute 'cliconn @full'
+    cmdline.execute 'cliconn@full'
     T.eq({control.current_net(), HUB.state.ui.view}, {'full', 'cliconn'}, 'shown with its network')
 
     control.set_view 'console'

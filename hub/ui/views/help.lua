@@ -27,7 +27,7 @@ return {
         draw.bold(win)
         win:waddstr 'Commands'
         draw.normal(win)
-        win:waddstr '   (net commands take an optional @network first; Meta-A: all features)\n'
+        win:waddstr '   (net commands take a network as /name@network; Meta-A: all features)\n'
 
         local width = 1
         for name, cmd in pairs(HUB.current.commands) do

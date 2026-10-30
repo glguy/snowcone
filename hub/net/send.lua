@@ -2,7 +2,7 @@
 --
 -- An argument is a string, or {content = string, secret = true} to keep it
 -- out of logs. Requests (t:request), PRIVMSG and NOTICE carry a label tag
--- when the network has labeled-response, so the server's reply can be
+-- (unless the caller gave one) when the network has labeled-response, so the server's reply can be
 -- matched to them; tags don't count against the line length. The masked
 -- message goes to the network's console log and the `irc.sent` event;
 -- chat echo is the chat feature's business.
@@ -244,14 +244,22 @@ end
 -- Chat lines are labeled so their echo or error can be matched to them
 local labeled_commands <const> = {PRIVMSG = true, NOTICE = true}
 
+-- Clients may send at most this many bytes of tags, not counting the
+-- leading @ and trailing space
+local max_tag_bytes <const> = 4094
+
 -- how: nil to wait in turn, 'first' to go ahead of the queue, 'last' to
 -- drop the queue and write at once. Tags don't count against the line
--- length.
+-- length; a chat line gets a label unless tags has one.
 local function send(how, net, tags, cmd, ...)
     local rec, conn = connection(net)
-    if tags == nil and labeled_commands[cmd] then
+    if labeled_commands[cmd] and not (tags and tags.label) then
         local label = new_label(rec.irc)
-        tags = label and {label = label}
+        if label then
+            local t = {label = label}
+            for k, v in pairs(tags or {}) do t[k] = v end
+            tags = t
+        end
     end
 
     local raw, msg = M.build(cmd, ...)
@@ -260,7 +268,11 @@ local function send(how, net, tags, cmd, ...)
         error('message too long: ' .. #raw, 0)
     end
     if tags then
-        raw = M.tag_prefix(tags) .. raw
+        local prefix = M.tag_prefix(tags)
+        if #prefix - 2 > max_tag_bytes then
+            error('tags too long: ' .. #prefix - 2, 0)
+        end
+        raw = prefix .. raw
         for k, v in pairs(tags) do msg.tags[k] = v end
     end
 
@@ -282,6 +294,25 @@ end
 ---@param ... hub.SendArg
 function M.send(net, cmd, ...)
     send(nil, net, nil, cmd, ...)
+end
+
+--- Send a command with message tags. Client-only tags (+name) need the
+--- message-tags capability; the server judges the others.
+---@param net string network id
+---@param tags table<string, string> values unescaped; '' for no value
+---@param cmd string|integer
+---@param ... hub.SendArg
+function M.send_tagged(net, tags, cmd, ...)
+    local rec = connection(net)
+    local caps = rec.irc and rec.irc.caps_enabled or {}
+    if not caps['message-tags'] then
+        for k in pairs(tags) do
+            if k:sub(1, 1) == '+' then
+                error('client-only tag without message-tags: ' .. k, 0)
+            end
+        end
+    end
+    send(nil, net, next(tags) and tags or nil, cmd, ...)
 end
 
 --- Send a command ahead of any queued lines, for replies that can't wait,

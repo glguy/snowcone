@@ -89,8 +89,7 @@ M.commands = {
             local msg = snowcone.parse_irc(text)
             if not msg then error('failed to parse IRC command', 0) end
             if msg.source then error('source not supported', 0) end
-            if next(msg.tags) then error('tags not supported', 0) end
-            send.send(ctx.net, msg.command, table.unpack(msg))
+            send.send_tagged(ctx.net, msg.tags, msg.command, table.unpack(msg))
         end,
     },
     {
