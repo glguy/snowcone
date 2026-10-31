@@ -1358,6 +1358,22 @@ T.case('channel information: topic, modes, members and lists, live', function()
     text = detail_text()
     T.ok(text:find('new.example', 1, true) < text:find('old.example', 1, true), 'newest first')
     T.ok(text:find('bans: 2 entries [-]', 1, true), 'open')
+
+    -- [x] removes an entry; the server's MODE takes it off the list
+    local y = 0
+    for row in detail_text():gmatch '[^\n]*' do
+        local x = row:find('[x] *!*@old.example', 1, true)
+        if x then
+            HUB.current.routes['ui.entry']('on_mouse', y, x, false)
+            break
+        end
+        y = y + 1
+    end
+    T.eq(c:take(), {'MODE #chan -b *!*@old.example'}, 'removed by [x]')
+    c:recv ':op!o@h MODE #chan -b *!*@old.example'
+    T.ok(not detail_text():find('old.example', 1, true), 'gone from the list')
+    c:recv ':op!o@h MODE #chan +b *!*@old.example'
+
     click_text '[-]'
     T.ok(not detail_text():find('new.example', 1, true), 'folded again')
 

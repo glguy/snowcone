@@ -488,6 +488,69 @@ T.case('talk, close and list', function()
     T.eq(chat.get('test').list.n, 2, 'two channels, nothing after the end')
 end)
 
+T.case('channel ban mask rules', function()
+    boot()
+    local masks = T.require 'hub.features.chat.masks'
+    T.eq(masks('~0a000001', '10.0.0.1', '10.0.0.1'), '*@10.0.0.1', 'simple')
+    T.eq(masks('user', '10.0.0.1', 'localhost.localdomain'), 'user@10.0.0.1', 'no cloak with rDNS')
+    T.eq(masks('user', '10.0.0.1', '10.0.0.1'), 'user@10.0.0.1', 'no cloak no rDNS')
+    T.eq(masks('~user', '10.0.0.1', 'localhost.localdomain'), '*@10.0.0.1', 'no identd')
+    T.eq(masks('~user', '10.0.0.1', 'unaffiliated/spammer'), '*@unaffiliated/spammer', 'cloak without identd')
+    T.eq(masks('user', '10.0.0.1', 'unaffiliated/spammer'), '*@unaffiliated/spammer', 'cloak with identd')
+    T.eq(masks('~user', '2001:470:7857:c::6667', '2001:470:7857:c::6667'), '*@2001:470:7857:c::6667', 'ipv6')
+    T.eq(masks('user', '192.0.2.1', 'gateway/tor-sasl/user'), '*@gateway/tor-sasl/user', 'gateway, like a cloak')
+    T.eq(masks('uid12345', '255.255.255.255', 'id-12345.ilkley.irccloud.com'), '?id12345@*.irccloud.com', 'IRCCloud')
+    T.eq(masks('~user', '255.255.255.255', 'host.example'), '*@host.example', 'address hidden')
+end)
+
+T.case('quiet, ban, kickban and their removal in the shown channel', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    control.init_state(HUB.state)
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':srv 353 me = #chan :@me bob'
+    c:take()
+    control.set_talk_target('test', '#chan')
+
+    cmdline.execute 'quiet Bob'
+    T.eq(c:take(), {'WHO Bob %tuihn,696'}, 'looked up')
+    c:recv ':srv 354 me 696 ~b 255.255.255.255 unaffiliated/bob bob'
+    T.eq(c:take(), {'MODE #chan +q *!*@unaffiliated/bob'}, 'quieted by cloak')
+
+    cmdline.execute 'kickban bob go away'
+    c:recv ':srv 354 me 696 b 192.0.2.5 host.example bob'
+    T.eq(c:take(), {'WHO bob %tuihn,696', 'MODE #chan +b *!b@192.0.2.5', 'KICK #chan bob :go away'}, 'kickban')
+
+    cmdline.execute 'kickban Gone'
+    c:recv ':srv 315 me Gone :End of WHO'
+    c:recv ':srv 314 me Gone g gone.example * :Gone'
+    c:recv ':srv 369 me Gone :End of WHOWAS'
+    T.eq(c:take(), {'WHO Gone %tuihn,696', 'WHOWAS Gone 1', 'MODE #chan +b *!*@gone.example', 'KICK #chan Gone'},
+        'someone who left, by WHOWAS')
+
+    cmdline.execute 'unban *!*@old.example'
+    T.eq(c:take(), {'MODE #chan -b *!*@old.example'}, 'a mask as given')
+    cmdline.execute 'unquiet bob'
+    c:recv ':srv 354 me 696 ~b 255.255.255.255 unaffiliated/bob bob'
+    T.eq(c:take(), {'WHO bob %tuihn,696', 'MODE #chan -q *!*@unaffiliated/bob'}, 'a nick by its mask')
+
+    cmdline.execute 'ban nobody'
+    c:recv ':srv 315 me nobody :End of WHO'
+    c:recv ':srv 406 me nobody :There was no such nickname'
+    T.eq(c:take(), {'WHO nobody %tuihn,696', 'WHOWAS nobody 1'}, 'WHO, then WHOWAS')
+    T.eq(T.log_lines 'chat', {'Failed to find nobody'}, 'not found')
+    T.eq(next(HUB.tasks), nil, 'finished')
+
+    c:recv ':srv MODE #chan -o me'
+    cmdline.execute 'ban bob'
+    T.ok(T.log_lines 'error'[1]:find 'not opped in #chan', 'refused unopped')
+    control.set_talk_target('test', 'bob')
+    cmdline.execute 'quiet bob'
+    T.ok(T.log_lines 'error'[2]:find 'not a channel: bob', 'refused outside a channel')
+    T.eq(c:take(), {}, 'nothing sent')
+end)
+
 T.case('mentions notify once until seen, and dismiss', function()
     local c, chat = boot(nil, {notifications = {module = 'test'}})
     -- a backend that records what it was asked

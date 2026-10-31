@@ -14,17 +14,21 @@
 --
 -- Sending: replies to CTCP requests from staff, CHATHISTORY (history.lua)
 -- and MONITOR for buffers, and what the commands ask for. PRIVMSG and
--- NOTICE go out only from commands and talk mode.
+-- NOTICE go out only from commands and talk mode. Bans, quiets and kicks
+-- go out at once, without staging: they reach one channel and are easily
+-- undone.
 --
 -- Our own PRIVMSG and NOTICE lines are shown from irc.sent, and with
 -- labeled-response await the server's reply (chat/receipt.lua).
 
+local ban_mask   <const> = require 'hub.features.chat.masks'
 local bus        <const> = require 'hub.runtime.bus'
 local common     <const> = require 'hub.features.common'
 local ctcp       <const> = require 'hub.features.chat.ctcp'
 local history    <const> = require 'hub.features.chat.history'
 local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
+local lookup     <const> = require 'hub.features.lookup'
 local N          <const> = require 'hub.lib.numerics'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local receipt    <const> = require 'hub.features.chat.receipt'
@@ -531,6 +535,11 @@ function M.fetch_list(net, name, mode)
     query(net, 'MODE', name, '+' .. mode)
 end
 
+--- Remove an entry from a list mode of a channel.
+function M.unset_list(net, name, mode, mask)
+    query(net, 'MODE', name, '-' .. mode, mask)
+end
+
 --- Fetch the channel list.
 function M.list(net, arg)
     local C = M.get(net)
@@ -546,6 +555,61 @@ end
 -- Commands ============================================================
 
 local chat_command <const> = common.net_command(M.name)
+
+-- The shown channel, for a command that needs us opped there
+local function opped_channel(ctx)
+    local irc = model(ctx.net)
+    local target = ctx.target
+    if not (target and irc and irc_model.is_channel_name(irc, target)) then
+        error('not a channel: ' .. tostring(target or 'no buffer'), 0)
+    end
+    local channel = irc_model.get_channel(irc, target)
+    local me = channel and irc.nick and irc_model.get_member(irc, channel, irc.nick)
+    if not (me and me.modes.o) then
+        error('not opped in ' .. target, 0)
+    end
+    ---@cast channel -nil we are a member
+    return channel.name
+end
+
+-- A mask given as one, or a nick to look up
+local function is_mask(text)
+    return text:find '[!@$]' ~= nil
+end
+
+-- Set or unset (change is +b, -q, ...) a list mode on the ban mask of a
+-- nick, looking it up first, and kick it when kick is a reason
+---@param t hub.Task
+local function ban_nick(t, channel, nick, change, kick)
+    local found, err = lookup(t, nick)
+    if not found then return t:log('chat', '%s', err) end
+    t:send('MODE', channel, change, '*!' .. ban_mask(found.user, found.ip, found.host))
+    if kick == '' then
+        t:send('KICK', channel, found.nick)
+    elseif kick then
+        t:send('KICK', channel, found.nick, kick)
+    end
+end
+
+-- Set a list mode on a nick's ban mask
+local function ban_command(name, mode, help)
+    return chat_command(name, '$g', 'nick', help, function(ctx, nick)
+        local channel = opped_channel(ctx)
+        task.spawn(name, {net = ctx.net, owner = M.name}, ban_nick, channel, nick, '+' .. mode)
+    end)
+end
+
+-- Unset a list mode: a mask as given, or a nick's ban mask
+local function unban_command(name, mode, help)
+    return chat_command(name, '$g', 'mask|nick', help, function(ctx, arg)
+        local channel = opped_channel(ctx)
+        if is_mask(arg) then
+            send.send(ctx.net, 'MODE', channel, '-' .. mode, arg)
+        else
+            task.spawn(name, {net = ctx.net, owner = M.name}, ban_nick, channel, arg, '-' .. mode)
+        end
+    end)
+end
 
 M.commands = {
     chat_command('talk', '$g', 'target', 'Talk to a channel or nick: opens a buffer, joins or monitors',
@@ -599,6 +663,15 @@ M.commands = {
         end
         task.spawn('whowas', {net = ctx.net, owner = M.name}, whowas, nick, n)
     end),
+    ban_command('quiet', 'q', 'Quiet a nick in the shown channel'),
+    ban_command('ban', 'b', 'Ban a nick from the shown channel'),
+    chat_command('kickban', '$g $R', 'nick [reason]', 'Ban a nick from the shown channel and kick it',
+    function(ctx, nick, reason)
+        local channel = opped_channel(ctx)
+        task.spawn('kickban', {net = ctx.net, owner = M.name}, ban_nick, channel, nick, '+b', reason)
+    end),
+    unban_command('unquiet', 'q', 'Unquiet a mask, or a nick by its ban mask, in the shown channel'),
+    unban_command('unban', 'b', 'Unban a mask, or a nick by its ban mask, from the shown channel'),
     chat_command('umode', '$r', 'modes', 'Change our user modes, e.g. +i-w', function(ctx, args)
         local irc = model(ctx.net)
         if not irc then error('not connected', 0) end

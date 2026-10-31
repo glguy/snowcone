@@ -1,18 +1,13 @@
 -- K-Line masks for Libera.Chat.
 -- The cases are tested in tests/hub/test-oper.lua.
 --
--- Gateway and NAT cloaks are banned by cloak; everyone else by IP, with
+-- Gateway cloaks are banned by cloak; everyone else by IP, with
 -- the username only when identd vouches for it (or trust_uname is set).
 
 local function compute_kline_mask(username, ipaddress, hostname, trust_uname)
 
-    if hostname:sub(1, 8) == 'gateway/' or hostname:sub(1, 4) == 'nat/' then
-
-        if hostname:sub(-8) == '/session' then
-            error('K-line failed: unresolved session', 0)
-        end
-
-        -- Cloaked gateway-account bans ignore ident
+    -- A gateway cloak (gateway/x/y/account) is banned whole, without ident
+    if hostname:sub(1, 8) == 'gateway/' then
         return '*@' .. hostname
     end
 

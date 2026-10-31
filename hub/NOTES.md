@@ -251,6 +251,12 @@ a decision is made, and change or remove it when the decision does.
 - **Status bar:** `modes` is only for what alters a view from its default;
   data such as loads and chat activity is `status`. A document's position
   shows only once it is scrolled, since the top is the default.
+- **Channel bans go out at once,** unlike K-Lines: a quiet or ban
+  reaches one channel and is easily undone. The commands need us opped
+  already; they never ask ChanServ. `/unban` and `/unquiet` take a mask
+  as given (anything with `!`, `@` or `$`) or a nick, whose mask is
+  computed as `/ban` would; that misses a ban set while the user had
+  another host, which the channel pane's `[x]` removes.
 - **The title turns red** while a K-Line is staged on the current network,
   so it is hard to miss; it doesn't share the quiet style of the modes.
 - **Closing the shown buffer** moves to one with a mention, else back to

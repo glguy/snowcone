@@ -9,8 +9,8 @@
 
 local challenge  <const> = require 'hub.net.challenge'
 local common     <const> = require 'hub.features.common'
-local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
+local lookup     <const> = require 'hub.features.lookup'
 local masks      <const> = require 'hub.features.oper.masks'
 local N          <const> = require 'hub.lib.numerics'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
@@ -350,52 +350,12 @@ end
 
 -- Commands ============================================================
 
--- Find a user that isn't in the connection store with WHO, then WHOWAS,
--- and stage a K-Line
+-- Find a user that isn't in the connection store and stage a K-Line;
+-- without an address the mask comes from a gateway cloak or fails
 local function kline_lookup(t, nick)
-    -- first, so a network without a connection fails with a message
-    local who = t:request({N.RPL_WHOSPCRPL, N.RPL_ENDOFWHO}, 30000, 'WHO', nick, '%tuihn,696')
-
-    local irc = HUB.state.nets[t.net].irc
-    ---@cast irc -nil the WHO went out, so the network is connected
-    local key = irc_model.fold(irc, nick)
-    local function same(n) return n and irc_model.fold(irc, n) == key end
-
-    local found_end
-    for msg in who do
-        if msg.command == N.RPL_WHOSPCRPL and msg[2] == '696' and same(msg[6]) then
-            return M.prepare_kline(t.net, msg[6], msg[3], msg[5], msg[4])
-        elseif msg.command == N.RPL_ENDOFWHO and same(msg[2]) then
-            found_end = true
-            break
-        end
-    end
-    if not found_end then return t:log('kline', 'no WHO reply for %s', nick) end
-
-    local user, host, gecos
-    for msg in t:request({N.RPL_WHOWASUSER, N.ERR_WASNOSUCHNICK, N.RPL_ENDOFWHOWAS, N.RPL_WHOISACTUALLY},
-        30000, 'WHOWAS', nick, '1')
-    do
-        local command = msg.command
-        if command == N.RPL_WHOWASUSER and same(msg[2]) then
-            -- "<client> <nick> <username> <host> * :<realname>"
-            user, host, gecos = msg[3], msg[4], msg[6]
-        elseif command == N.ERR_WASNOSUCHNICK and same(msg[2]) then
-            return t:log('kline', 'Failed to find %s', msg[2])
-        elseif command == N.RPL_ENDOFWHOWAS and same(msg[2]) then
-            if user and host and gecos then
-                -- no address: the mask comes from a gateway cloak or fails
-                return M.prepare_kline(t.net, msg[2], user, host, '255.255.255.255')
-            end
-            return t:log('kline', 'Failed to find %s', msg[2])
-        elseif command == N.RPL_WHOISACTUALLY and same(msg[2]) then
-            if user and host and gecos then
-                return M.prepare_kline(t.net, msg[2], user, host, msg[3])
-            end
-            return t:log('kline', 'Missing 314 response for %s', msg[2])
-        end
-    end
-    t:log('kline', 'no WHOWAS reply for %s', nick)
+    local found, err = lookup(t, nick)
+    if not found then return t:log('kline', '%s', err) end
+    M.prepare_kline(t.net, found.nick, found.user, found.host, found.ip)
 end
 
 local oper_command <const> = common.net_command(M.name)

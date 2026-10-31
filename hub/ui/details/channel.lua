@@ -3,9 +3,9 @@
 -- rank, and the list modes (bans, quiets, ...); [↻] asks the server for
 -- a list, or for the modes, again or for the first time.
 -- A fetched list shows its count and folds its entries behind [+]; the
--- detail keeps the open ones in open_lists. The data is {name}; the
--- filter (Ctrl-S, /filter) shows only the members and list entries that
--- match, folded or not.
+-- detail keeps the open ones in open_lists. [x] removes an entry. The
+-- data is {name}; the filter (Ctrl-S, /filter) shows only the members
+-- and list entries that match, folded or not.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
 local chat      <const> = require 'hub.features.chat'
@@ -135,6 +135,9 @@ local function list_mode(ctx, win, channel, mode, pattern)
     if not (open or pattern) then return end
     for _, entry in ipairs(sorted) do
         win:waddstr(string.rep(' ', fields.width + 2))
+        local mask = entry.mask
+        ctx.add_button(win, '[x]', function() chat.unset_list(ctx.net, name, mode, mask) end)
+        win:waddstr ' '
         draw.red(win)
         win:waddstr(scrub(entry.mask))
         draw.normal(win)
