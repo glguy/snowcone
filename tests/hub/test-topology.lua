@@ -15,7 +15,7 @@ local function boot(extra)
         id = 'test',
         server = {host = 'test.example', port = 6667},
         identity = {nick = 'me'},
-        servers_file = require 'pl.path'.abspath(here .. '/fixtures/servers.lua'),
+        servers_file = require 'pl.path'.abspath(here .. '/fixtures/servers.toml'),
     }
     for k, v in pairs(extra or {}) do net[k] = v end
     T.boot {transport = fake, config = {networks = {net}}}
@@ -40,7 +40,7 @@ T.case('the servers file is loaded and seeds the notice stores', function()
     boot()
     local servers = T.require 'hub.features.common'.servers 'test'
     T.eq(servers.primary_hub, 'hub.example', 'loaded')
-    T.eq(servers.kline_reasons[2][1], 'abuse', 'kline reasons')
+    T.eq(servers.kline_reasons[2].name, 'abuse', 'kline reasons')
     local S = snotice()
     T.eq(S.trackers.conn.events['alpha.example'], 0, 'known servers tracked from the start')
     T.ok(S.net_trackers.docs['192.0.2.0/24'], 'address ranges from the file')
@@ -49,7 +49,7 @@ end)
 T.case('a servers file that cannot be read fails the reload', function()
     boot()
     local before = HUB.current
-    local file = require 'pl.path'.abspath(here .. '/fixtures/servers.lua')
+    local file = require 'pl.path'.abspath(here .. '/fixtures/servers.toml')
     for _, bad in ipairs {file .. '.missing', here .. '/test-topology.lua'} do
         local ok, err = T.reload {config = {networks = {{
             id = 'test', server = {host = 'test.example', port = 6667},
@@ -59,6 +59,35 @@ T.case('a servers file that cannot be read fails the reload', function()
         T.ok(HUB.current == before, 'the old generation stays')
     end
     T.eq(T.require 'hub.features.common'.servers('test').primary_hub, 'hub.example', 'and its servers')
+end)
+
+T.case('a servers file is checked against its schema', function()
+    boot()
+    local before = HUB.current
+    local dir = os.tmpname()
+    os.remove(dir)
+    assert(require 'pl.path'.mkdir(dir))
+    local function reload_with(text)
+        local filename = dir .. '/servers.toml'
+        assert(require 'pl.file'.write(filename, text))
+        return T.reload {config = {networks = {{
+            id = 'test', server = {host = 'test.example', port = 6667},
+            identity = {nick = 'me'}, servers_file = filename,
+        }}}}
+    end
+
+    local ok, err = reload_with "primary_hub = 'unterminated"
+    T.ok(not ok and tostring(err):find('networks.test.servers_file', 1, true), 'a TOML error: ' .. tostring(err))
+
+    ok, err = reload_with "kline_reasons = [['plain', 'Banned']]"
+    T.ok(not ok and tostring(err):find('kline_reasons', 1, true), 'reasons need name and reason: ' .. tostring(err))
+    T.ok(HUB.current == before, 'the old generation stays')
+
+    T.ok(reload_with "primary_hub = 'hub.example'\nprimay = 1\n", 'an unknown field still loads')
+    T.ok(table.concat(HUB.state.config.warnings, '\n'):find('Unexpected field networks.test.servers_file.primay', 1, true),
+        'and is reported')
+
+    require 'pl.dir'.rmtree(dir)
 end)
 
 T.case('registration asks for the map and links', function()

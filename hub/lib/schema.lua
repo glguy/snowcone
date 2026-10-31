@@ -71,7 +71,7 @@ function M.check(schema, value, path, warnings)
             elseif schema.assocs then
                 for k, v in pairs(value) do
                     table.insert(path, k)
-                    M.check(v, value[k], path, warnings)
+                    M.check(schema.assocs, v, path, warnings)
                     table.remove(path)
                 end
                 -- all fields are implicitly validated, skip unexpected check

@@ -1,0 +1,30 @@
+# A synthetic servers file for the hub tests, using every key a real one
+# does (no real addresses: documentation ranges and .example names)
+primary_hub = 'hub.example'
+flags = ['+']
+kline_tags = ['tagged']
+
+kline_reasons = [
+  { name = 'spam',  reason = 'Spamming is not allowed' },
+  { name = 'abuse', reason = 'Abuse|ticket' },
+]
+
+[servers]
+'alpha.example' = { alias = 'al', region = 'EU', ipv4 = '127.0.0.1', ipv6 = '2001:db8::1', expect = ['+'] }
+'beta.example'  = {
+  alias = 'be',
+  region = 'US',
+  ipv4 = '192.0.2.2',
+  expect = ['+'],
+}
+'hub.example'   = { alias = 'hb' }
+
+[regions]
+MAIN = { hostname = 'localhost' }
+EU   = { hostname = 'eu.invalid', color = 'green' }
+US   = { color = 'red' }
+'+'  = { hostname = 'plus.invalid', color = 'cyan' }
+
+[net_tracks]
+docs         = ['192.0.2.0/24', '2001:db8::/32']
+'odd.prefix' = ['2001:db8:f::/62', '198.51.100.56/29', '203.0.113.7']

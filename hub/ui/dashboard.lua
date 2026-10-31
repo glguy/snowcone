@@ -143,7 +143,7 @@ function M.action_bar(ctx, win, y)
     draw.magenta(win)
     local reasons = oper.reasons(net)
     local reason = reasons[settings.reason] or reasons[1]
-    ctx.add_button(win, string.format('[ %-7s ]', reason[1]), function(shifted)
+    ctx.add_button(win, string.format('[ %-7s ]', reason.name), function(shifted)
         oper.cycle_reason(net, shifted)
     end)
     win:waddstr ' '

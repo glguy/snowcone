@@ -12,7 +12,6 @@ local app     <const> = require 'pl.app'
 local file    <const> = require 'pl.file'
 local lexer   <const> = require 'pl.lexer'
 local path    <const> = require 'pl.path'
-local pretty  <const> = require 'pl.pretty'
 local tablex  <const> = require 'pl.tablex'
 local schema  <const> = require 'hub.lib.schema'
 local cschema <const> = require 'hub.runtime.config_schema'
@@ -145,21 +144,27 @@ local function normalize_network(net, i, warnings)
     return net
 end
 
--- The servers file: {servers = {[name] = {alias,
--- region, ipv4, ipv6, expect}}, regions = {[label] = {hostname, color}},
--- kline_reasons, kline_tags, net_tracks, flags, primary_hub}
-local function read_servers(net, dir)
+-- The servers file, a TOML file checked against cschema.servers_file:
+-- {servers = {[name] = {alias, region, ipv4, ipv6, expect}},
+-- regions = {[label] = {hostname, color}}, kline_reasons = {{name, reason}},
+-- kline_tags, net_tracks, flags, primary_hub}
+local function read_servers(net, dir, warnings)
     local name = net.servers_file
     if not name then return end
     local filename = path.isabs(name) and name or path.join(dir, name)
+    if path.extension(filename) ~= '.toml' then
+        error(string.format('networks.%s.servers_file: servers files are TOML, named *.toml: %s',
+            net.id, filename), 0)
+    end
     local text, err = file.read(filename)
     if not text then
         error(string.format('networks.%s.servers_file: %s', net.id, err or filename), 0)
     end
-    local value, perr = pretty.read(text)
-    if type(value) ~= 'table' then
-        error(string.format('networks.%s.servers_file %s: %s', net.id, filename, perr or 'not a table'), 0)
+    local value, perr = mytoml.parse_toml(text)
+    if not value then
+        error(string.format('networks.%s.servers_file %s: %s', net.id, filename, perr), 0)
     end
+    schema.check(cschema.servers_file, value, {'networks', net.id, 'servers_file'}, warnings)
     for k, v in pairs(value) do
         net.servers[k] = v
     end
@@ -228,7 +233,7 @@ function M.load(args, override, chosen)
     cfg.file = filename
     cfg.dir = dir
     for _, net in ipairs(cfg.networks) do
-        read_servers(net, dir)
+        read_servers(net, dir, cfg.warnings)
     end
     return cfg
 end

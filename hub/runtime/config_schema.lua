@@ -15,6 +15,11 @@ local function array(elements)
     return {type = 'table', elements = elements}
 end
 
+-- A table of any keys whose values all match one schema
+local function assocs(values)
+    return {type = 'table', assocs = values}
+end
+
 -- No spaces, line breaks or NUL: a single IRC parameter
 local word <const> = '^[^\n\r\x00 ]+$'
 -- No line breaks or NUL: may be the last IRC parameter
@@ -182,6 +187,29 @@ M.network = table_ {
         flash   = {type = 'boolean'},
         active  = {type = 'boolean'},
     }),
+}
+
+--- A network's servers file (servers_file).
+M.servers_file = table_ {
+    primary_hub   = {type = 'string'},
+    flags         = array {type = 'string'},
+    servers       = assocs (table_ {
+        alias  = {type = 'string'},
+        region = {type = 'string'},
+        ipv4   = {type = 'string'},
+        ipv6   = {type = 'string'},
+        expect = array {type = 'string'},
+    }),
+    regions       = assocs (table_ {
+        hostname = {type = 'string'},
+        color    = {type = 'string', pattern = '^%l+$'},
+    }),
+    kline_reasons = array (table_ {
+        name   = {type = 'string', pattern = line, required = true},
+        reason = {type = 'string', pattern = line, required = true},
+    }),
+    kline_tags    = array {type = 'string', pattern = word},
+    net_tracks    = assocs (array {type = 'string'}),
 }
 
 --- The whole file.

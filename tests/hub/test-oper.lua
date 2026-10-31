@@ -13,7 +13,7 @@ local function boot(features, labeled)
         id = 'test',
         server = {host = 'test.example', port = 6667},
         identity = {nick = 'me'},
-        servers_file = path.abspath(here .. '/fixtures/servers.lua'),
+        servers_file = path.abspath(here .. '/fixtures/servers.toml'),
         features = features,
     }}}}
     local c = fake.last()
@@ -203,7 +203,7 @@ end)
 
 T.case('the servers file reaches oper without the topology feature', function()
     local _, oper = boot {'oper', 'snotice'}
-    T.eq(oper.reasons('test')[2][1], 'abuse', 'reasons from the file')
+    T.eq(oper.reasons('test')[2].name, 'abuse', 'reasons from the file')
 end)
 
 T.case('an empty reason list falls back to a default', function()

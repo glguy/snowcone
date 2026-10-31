@@ -18,7 +18,7 @@ local function boot()
         id = 'test',
         server = {host = 'test.example', port = 6667},
         identity = {nick = 'me'},
-        servers_file = path.abspath(here .. '/fixtures/servers.lua'),
+        servers_file = path.abspath(here .. '/fixtures/servers.toml'),
     }}}}
     local c = fake.last()
     c:con()

@@ -102,9 +102,9 @@ end
 -- Reasons and tags ====================================================
 
 -- Offered when the servers file gives no reasons
-local default_reasons <const> = {{'banned', 'You are banned.'}}
+local default_reasons <const> = {{name = 'banned', reason = 'You are banned.'}}
 
---- The reasons offered: {label, text} pairs from the servers file, or a
+--- The reasons offered: {name, reason} entries from the servers file, or a
 --- default when it gives none (an empty list would leave nothing to send).
 function M.reasons(net)
     local reasons = common.servers(net).kline_reasons
@@ -131,7 +131,7 @@ function M.reason_text(net)
     local settings = M.get(net).settings
     local reasons = M.reasons(net)
     local entry = reasons[settings.reason] or reasons[1]
-    local reason = entry[2]
+    local reason = entry.reason
     local tag = settings.tag
     if tag then
         if reason:find '|' then

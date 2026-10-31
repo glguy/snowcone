@@ -52,7 +52,7 @@ modules = ['hello']
 
 [[networks]]
 id = 'libera'
-servers_file = 'servers.lua'
+servers_file = 'servers.toml'
 snomask = '+BFZbcklnsx'
 
 [networks.server]
@@ -157,7 +157,7 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 | `reclaim_nick` | `true` | When the configured nick is taken at registration, watch it with MONITOR and take it back once it is free. |
 | `quit_message` | `'snowcone'` | The QUIT message for `/disconnect`, `/reconnect` and quitting. |
 | `snomask` | `'BFZbcklnsx'` | The server notice mask set after becoming an operator. Used only with the `snotice` feature. |
-| `servers_file` | none | A Lua file describing the network's servers. See [The servers file](#the-servers-file). |
+| `servers_file` | none | A TOML file describing the network's servers. See [The servers file](#the-servers-file). |
 | `server`, `layers` | | How to connect. See [Connecting](#connecting). `server` is required. |
 | `identity` | | Required. See [Registering](#registering). |
 | `sasl` | | See [SASL](#sasl). |
@@ -414,35 +414,36 @@ The netcount view lists watches with their hit counts. Watches added with `/addw
 
 ### The servers file
 
-`servers_file` names a Lua file, relative to the configuration directory, that returns one table describing the network's servers. It is read when the configuration loads, and a file that can't be read or doesn't return a table stops the load. All keys are optional:
+`servers_file` names a TOML file, relative to the configuration directory and named `*.toml`, describing the network's servers. It is read when the configuration loads. A file that can't be read or parsed, or has a field of the wrong type, stops the load; an unknown field is reported as `Unexpected field ...` in the status log. All keys are optional:
 
-```lua
-{
-    primary_hub = 'hub.example',          -- topology: the root of the link tree
-    flags = {'+'},                        -- rotation labels shown in the load views' Flags column
-    servers = {
-        ['alpha.example'] = {
-            alias = 'al',                 -- short name in the connection views
-            region = 'EU',                -- a label in `regions`
-            ipv4 = '192.0.2.1',           -- addresses checked against DNS rotations
-            ipv6 = '2001:db8::1',
-            expect = {'+'},               -- which of `flags` the server should be in
-        },
-    },
-    regions = {
-        EU = {hostname = 'eu.irc.example', color = 'green'},  -- rotation hostname, looked up every 30 s
-    },
-    kline_reasons = {                     -- oper: {label, reason text} pairs to choose from
-        {'spam', 'Spamming is not allowed'},
-    },
-    kline_tags = {'tagged'},              -- oper: tags to choose from
-    net_tracks = {                        -- snotice: address ranges counted in netcount
-        docs = {'192.0.2.0/24', '2001:db8::/32'},
-    },
+```toml
+primary_hub = 'hub.example'   # topology: the root of the link tree
+flags = ['+']                 # rotation labels shown in the load views' Flags column
+kline_tags = ['tagged']       # oper: tags to choose from
+
+kline_reasons = [             # oper: reasons to choose from
+  { name = 'spam', reason = 'Spamming is not allowed' },
+]
+
+[servers]
+'alpha.example' = {
+  alias = 'al',               # short name in the connection views
+  region = 'EU',              # a label in `regions`
+  ipv4 = '192.0.2.1',         # addresses checked against DNS rotations
+  ipv6 = '2001:db8::1',
+  expect = ['+'],             # which of `flags` the server should be in
 }
+
+[regions]                     # rotation hostnames, looked up every 30 s
+EU = { hostname = 'eu.irc.example', color = 'green' }
+
+[net_tracks]                  # snotice: address ranges counted in netcount
+docs = ['192.0.2.0/24', '2001:db8::/32']
 ```
 
-[tests/hub/fixtures/servers.lua](../tests/hub/fixtures/servers.lua) uses every key.
+Server names contain dots, so they are quoted keys. An inline table may span lines (TOML 1.1), as `alpha.example` does here, or sit on one.
+
+[tests/hub/fixtures/servers.toml](../tests/hub/fixtures/servers.toml) uses every key.
 
 ## Secrets
 

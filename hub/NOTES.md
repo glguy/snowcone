@@ -98,8 +98,9 @@ a decision is made, and change or remove it when the decision does.
   reject CR, LF and NUL. Other secrets may be PEM text.
 - `lib/schema.lua` keeps only the warnings of the oneOf alternative that
   matched, and raises errors without a source position.
-- **The servers file is network configuration**, read with it; a file that
-  can't be read fails the load. It isn't topology's, so oper's reasons and
+- **The servers file is network configuration**, TOML like the rest and
+  checked against `cschema.servers_file`, read with it; a file that can't
+  be read or checked fails the load. It isn't topology's, so oper's reasons and
   snotice's ranges don't depend on that feature.
 - **Watches from configuration** are replaced on every load, keeping hit
   counts by pattern; watches added with `/addwatch` stay.
