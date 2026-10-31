@@ -545,6 +545,11 @@ function M.say(net, target, text)
     send.send(net, 'PRIVMSG', target, text)
 end
 
+--- Send a notice to a target.
+function M.notice(net, target, text)
+    send.send(net, 'NOTICE', target, text)
+end
+
 --- Send an action (CTCP ACTION, /me in other clients) to a target.
 function M.action(net, target, text)
     send.send(net, 'PRIVMSG', target, '\x01ACTION ' .. text .. '\x01')
@@ -744,7 +749,7 @@ M.commands = {
         M.say(ctx.net, target, text)
     end),
     chat_command('notice', '$g $r', 'target text', 'Send a notice', function(ctx, target, text)
-        send.send(ctx.net, 'NOTICE', target, text)
+        M.notice(ctx.net, target, text)
     end),
     chat_command('ctcp', '$g $r', 'target request', 'Send a CTCP request', function(ctx, target, text)
         send.send(ctx.net, 'PRIVMSG', target, '\x01' .. text .. '\x01')

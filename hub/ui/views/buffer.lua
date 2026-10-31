@@ -240,6 +240,10 @@ local keys = {
         editor.reset(control.editor())
         control.set_input_mode 'action'
     end,
+    [string.byte 'T'] = function()
+        editor.reset(control.editor())
+        control.set_input_mode 'notice'
+    end,
 }
 
 local function current_buffer(ctx)

@@ -29,7 +29,7 @@ M.profiles = {
 ---@field net string|nil
 
 ---@class hub.InputState
----@field mode 'command'|'filter'|'talk'|'action'|'password'|nil
+---@field mode 'command'|'filter'|'talk'|'action'|'notice'|'password'|nil
 ---@field mode_before_prompt string|false|nil the mode to go back
 --- to after the prompts (false for none); nil when no prompt is shown
 ---@field editor hub.Editor

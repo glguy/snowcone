@@ -68,6 +68,7 @@ KEYS
   /            Type a command
   t            Talk in the shown chat buffer
   a            Send an action (/me) to the shown chat buffer
+  T            Send a notice to the shown chat buffer
   n, p         Next and previous chat buffer, in the buffer view
   C-s          Filter the current view, or the detail pane when it shows
                a /quote reply, a /whowas or a channel

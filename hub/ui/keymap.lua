@@ -73,6 +73,7 @@ end
 
 function execute.talk() talk_with(chat.say) end
 function execute.action() talk_with(chat.action) end
+function execute.notice() talk_with(chat.notice) end
 
 function execute.password()
     control.answer_prompt(editor.content(control.editor()))

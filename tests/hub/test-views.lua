@@ -183,6 +183,14 @@ T.case('keys reach input modes, views and commands', function()
     sent = c:take()
     T.eq(sent[#sent], 'PRIVMSG #chan :\x01ACTION waves\x01', 'sent as an action')
     T.eq(HUB.state.ui.input.mode, nil, 'one line, then back')
+
+    -- T sends a notice
+    key(string.byte 'T')
+    T.eq(HUB.state.ui.input.mode, 'notice', 'notice mode')
+    type_text 'heads up'
+    key(13)
+    sent = c:take()
+    T.eq(sent[#sent], 'NOTICE #chan :heads up', 'sent as a notice')
     key(string.byte 't')
     control.view_state 'buffer'.filter = 'kept'
     key(0x1f & string.byte 'G')

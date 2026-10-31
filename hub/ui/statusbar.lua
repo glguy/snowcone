@@ -121,6 +121,7 @@ local input_mode_palette <const> = {
     command = ncurses.COLOR_BLUE,
     talk = ncurses.COLOR_GREEN,
     action = ncurses.COLOR_MAGENTA,
+    notice = ncurses.COLOR_YELLOW,
     filter = ncurses.COLOR_CYAN,
     password = ncurses.COLOR_RED,
 }
