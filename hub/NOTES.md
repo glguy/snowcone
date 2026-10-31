@@ -252,11 +252,12 @@ a decision is made, and change or remove it when the decision does.
   data such as loads and chat activity is `status`. A document's position
   shows only once it is scrolled, since the top is the default.
 - **Channel bans go out at once,** unlike K-Lines: a quiet or ban
-  reaches one channel and is easily undone. The commands need us opped
-  already; they never ask ChanServ. `/unban` and `/unquiet` take a mask
-  as given (anything with `!`, `@` or `$`) or a nick, whose mask is
-  computed as `/ban` would; that misses a ban set while the user had
-  another host, which the channel pane's `[x]` removes.
+  reaches one channel and is easily undone. The commands don't check our
+  status: halfops, and opers with override, can set modes unopped, so
+  the server decides. They never ask ChanServ. `/unban` and `/unquiet`
+  take a mask as given (anything with `!`, `@` or `$`) or a nick, whose
+  mask is computed as `/ban` would; that misses a ban set while the user
+  had another host, which the channel pane's `[x]` removes.
 - **The title turns red** while a K-Line is staged on the current network,
   so it is hard to miss; it doesn't share the quiet style of the modes.
 - **Closing the shown buffer** moves to one with a mention, else back to
@@ -264,6 +265,11 @@ a decision is made, and change or remove it when the decision does.
   previous buffer beats plain activity so that closing a query visited
   with Meta-A returns to the channel you were in, rather than whichever
   busy channel comes first.
+- **Closing a channel's buffer parts it,** and there is no `/part`:
+  staying in a channel without its buffer would reopen the buffer at the
+  next message. Parting but keeping the buffer is rare enough to leave to
+  `/quote part`. Our PART coming back drops the buffer again, in case a
+  message reopened it first.
 - The `list` view has no `/list` of its own (`command = false`): the chat
   command shows it.
 - **`/stats`** is for working out what the client holds: counts only,

@@ -10,6 +10,8 @@
 --   pending  [label] = {[folded target] = {msg, buffer}}: our labeled
 --            PRIVMSG and NOTICE lines awaiting the server's reply
 --            (chat/receipt.lua)
+--   closing  [folded channel] = true: channels /close parted, whose buffer
+--            goes when our PART comes back
 -- }
 --
 -- Sending: replies to CTCP requests from staff, CHATHISTORY (history.lua)
@@ -65,10 +67,12 @@ M.wallops = '*wallops'
 ---@field listing true|nil while LIST replies arrive
 ---@field pending table<string, table<string, {msg: hub.Message, buffer: hub.ChatBuffer|nil}>>
 --- by label, then by folded target; for the current connection
+---@field closing table<string, true> channels /close parted, by folded name;
+--- for the current connection
 
 ---@return hub.ChatState
 local function new_state()
-    return {buffers = {}, list = OrderedMap.new(M.list_size), pending = {}}
+    return {buffers = {}, list = OrderedMap.new(M.list_size), pending = {}, closing = {}}
 end
 
 ---@param net string
@@ -77,6 +81,7 @@ function M.get(net)
     local C = common.net_state(M.name, net, new_state)
     -- added after state from earlier code
     C.pending = C.pending or {}
+    C.closing = C.closing or {}
     return C
 end
 
@@ -143,17 +148,28 @@ function M.open(net, target, before)
     return buffer
 end
 
---- Forget a buffer, and stop monitoring its nick.
+local function drop(net, key, target)
+    M.get(net).buffers[key] = nil
+    bus.emit('chat.buffer', {net = net, target = target, opened = false})
+end
+
+--- Forget a buffer: part its channel if we are in it, and stop
+--- monitoring its nick.
 function M.close(net, target)
     local C = M.get(net)
     local key = M.fold(net, target)
     local irc = model(net)
+    if irc and irc_model.get_channel(irc, target) then
+        -- our PART coming back would reopen the buffer, and so would a
+        -- message before it: H.PART drops the buffer again
+        query(net, 'PART', target)
+        C.closing[key] = true
+    end
     if irc and irc_model.get_monitor(irc, target) then
         query(net, 'MONITOR', '-', target)
         irc_model.del_monitor(irc, target)
     end
-    C.buffers[key] = nil
-    bus.emit('chat.buffer', {net = net, target = target, opened = false})
+    drop(net, key, target)
 end
 
 --- The buffer to move to from the one with folded name `from`: one with
@@ -349,9 +365,24 @@ function H.WALLOPS(net, _, msg)
 end
 H.OPERWALL = H.WALLOPS
 
-function H.JOIN(net, _, msg) add(net, msg[1], msg, false, false) end
+function H.JOIN(net, irc, msg)
+    if irc_model.is_me(irc, msg.nick) then
+        M.get(net).closing[M.fold(net, msg[1])] = nil
+    end
+    add(net, msg[1], msg, false, false)
+end
 
-function H.PART(net, _, msg) add(net, msg[1], msg, false, false) end
+function H.PART(net, irc, msg)
+    local C = M.get(net)
+    local key = M.fold(net, msg[1])
+    if irc_model.is_me(irc, msg.nick) and C.closing[key] then
+        C.closing[key] = nil
+        local buffer = C.buffers[key]
+        if buffer then drop(net, key, buffer.name) end
+        return
+    end
+    add(net, msg[1], msg, false, false)
+end
 
 function H.KICK(net, _, msg) add(net, msg[1], msg, false, false) end
 
@@ -487,6 +518,7 @@ function M.subscribe(sub)
         local C = M.get(ev.net)
         receipt.settle_all(C)
         typing.reset(C)
+        C.closing = {}
     end)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
 end
@@ -565,20 +597,15 @@ end
 
 local chat_command <const> = common.net_command(M.name)
 
--- The shown channel, for a command that needs us opped there
-local function opped_channel(ctx)
+-- The shown channel, for a command that acts on it. Whether we may is
+-- the server's to say: halfops and opers with override can, unopped.
+local function shown_channel(ctx)
     local irc = model(ctx.net)
     local target = ctx.target
     if not (target and irc and irc_model.is_channel_name(irc, target)) then
         error('not a channel: ' .. tostring(target or 'no buffer'), 0)
     end
-    local channel = irc_model.get_channel(irc, target)
-    local me = channel and irc.nick and irc_model.get_member(irc, channel, irc.nick)
-    if not (me and me.modes.o) then
-        error('not opped in ' .. target, 0)
-    end
-    ---@cast channel -nil we are a member
-    return channel.name
+    return target
 end
 
 -- A mask given as one, or a nick to look up
@@ -603,7 +630,7 @@ end
 -- Set a list mode on a nick's ban mask
 local function ban_command(name, mode, help)
     return chat_command(name, '$g', 'nick', help, function(ctx, nick)
-        local channel = opped_channel(ctx)
+        local channel = shown_channel(ctx)
         task.spawn(name, {net = ctx.net, owner = M.name}, ban_nick, channel, nick, '+' .. mode)
     end)
 end
@@ -611,7 +638,7 @@ end
 -- Unset a list mode: a mask as given, or a nick's ban mask
 local function unban_command(name, mode, help)
     return chat_command(name, '$g', 'mask|nick', help, function(ctx, arg)
-        local channel = opped_channel(ctx)
+        local channel = shown_channel(ctx)
         if is_mask(arg) then
             send.send(ctx.net, 'MODE', channel, '-' .. mode, arg)
         else
@@ -626,7 +653,8 @@ M.commands = {
         M.talk(ctx.net, target)
         bus.emit('chat.focus', {net = ctx.net, target = target})
     end),
-    chat_command('close', '$R', '[target]', 'Close a buffer, the shown one by default', function(ctx, target)
+    chat_command('close', '$R', '[target]', 'Close a buffer, the shown one by default, parting its channel',
+    function(ctx, target)
         if target == '' then
             target = ctx.target
         end
@@ -676,7 +704,7 @@ M.commands = {
     ban_command('ban', 'b', 'Ban a nick from the shown channel'),
     chat_command('kickban', '$g $R', 'nick [reason]', 'Ban a nick from the shown channel and kick it',
     function(ctx, nick, reason)
-        local channel = opped_channel(ctx)
+        local channel = shown_channel(ctx)
         task.spawn('kickban', {net = ctx.net, owner = M.name}, ban_nick, channel, nick, '+b', reason)
     end),
     unban_command('unquiet', 'q', 'Unquiet a mask, or a nick by its ban mask, in the shown channel'),

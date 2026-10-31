@@ -488,6 +488,39 @@ T.case('talk, close and list', function()
     T.eq(chat.get('test').list.n, 2, 'two channels, nothing after the end')
 end)
 
+T.case('closing a channel parts it, and its buffer stays closed', function()
+    local c, chat = boot()
+    T.require 'hub.ui.control'.init_state(HUB.state)
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:recv ':me!u@h JOIN #chan'
+    c:take()
+    cmdline.execute 'close #Chan'
+    T.eq(c:take(), {'PART #Chan'}, 'parted')
+    T.eq(chat.buffer('test', '#chan'), nil, 'closed at once')
+    c:recv ':bob!b@h PRIVMSG #chan :before the part'
+    T.ok(chat.buffer('test', '#chan'), 'reopened by a message in between')
+    c:recv ':me!u@h PART #chan'
+    T.eq(chat.buffer('test', '#chan'), nil, 'closed again by our PART')
+
+    -- a part that wasn't /close keeps the buffer
+    c:recv ':me!u@h JOIN #kept'
+    c:recv ':me!u@h PART #kept'
+    T.eq(texts(chat.buffer('test', '#kept')), {'JOIN #kept', 'PART #kept'}, 'kept, with the part')
+
+    -- a close whose PART never came back is forgotten when we join again
+    c:recv ':me!u@h JOIN #again'
+    chat.close('test', '#again')
+    c:recv ':me!u@h JOIN #again'
+    c:recv ':me!u@h PART #again'
+    T.ok(chat.buffer('test', '#again'), 'rejoined, then parted: kept')
+
+    -- a buffer for a channel we aren't in only closes
+    chat.open('test', '#gone')
+    c:take()
+    chat.close('test', '#gone')
+    T.eq(c:take(), {}, 'no PART')
+end)
+
 T.case('channel ban mask rules', function()
     boot()
     local masks = T.require 'hub.features.chat.masks'
@@ -542,12 +575,13 @@ T.case('quiet, ban, kickban and their removal in the shown channel', function()
     T.eq(T.log_lines 'chat', {'Failed to find nobody'}, 'not found')
     T.eq(next(HUB.tasks), nil, 'finished')
 
+    -- whether we may is the server's to say
     c:recv ':srv MODE #chan -o me'
-    cmdline.execute 'ban bob'
-    T.ok(T.log_lines 'error'[1]:find 'not opped in #chan', 'refused unopped')
+    cmdline.execute 'unban *!*@old.example'
+    T.eq(c:take(), {'MODE #chan -b *!*@old.example'}, 'sent unopped')
     control.set_talk_target('test', 'bob')
     cmdline.execute 'quiet bob'
-    T.ok(T.log_lines 'error'[2]:find 'not a channel: bob', 'refused outside a channel')
+    T.ok(T.log_lines 'error'[1]:find 'not a channel: bob', 'refused outside a channel')
     T.eq(c:take(), {}, 'nothing sent')
 end)
 
