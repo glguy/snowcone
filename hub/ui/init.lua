@@ -144,11 +144,13 @@ local typing_modes <const> = {talk = true, action = true}
 -- Tell chat what we are writing and where (chat/typing.lua), after each
 -- input event and each second: whatever ended the mode, or moved it to
 -- another buffer, ends our typing where it was. A line recalled from
--- history and left as it was is no typing.
+-- history and left as it was is no typing, and neither is a line behind
+-- a STATUSMSG prefix: the channel would see typing it never gets.
 local function compose()
     local input = HUB.state.ui.input
     local ed = input.editor
     local net = typing_modes[input.mode] and control.current_net() or nil
+    if net and control.statusmsg(net) then net = nil end
     local target = net and control.talk_target(net)
     chat.compose(net, target, target and editor.typed(ed) and editor.content(ed) or '')
 end

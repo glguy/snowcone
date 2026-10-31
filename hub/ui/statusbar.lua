@@ -127,6 +127,9 @@ local input_mode_palette <const> = {
     password = ncurses.COLOR_RED,
 }
 
+-- Input modes whose line goes to the shown buffer
+local talk_modes <const> = {talk = true, quiet = true, action = true, notice = true}
+
 --- Draw the active modes of the view, as one fragment of lower-case tags
 --- in yellow, each with its value (if any) in the normal color: the
 --- view's own (from view.modes) and then the scroll and filter every view
@@ -200,9 +203,12 @@ function M.draw(win, textbox, layout, view, ctx)
         local ed = control.editor()
         local input_mode_color = input_mode_palette[mode]
         transition(win, titlecolor, input_mode_color)
-        -- padded on either side, as M.fragment pads a fragment
+        -- padded on either side, as M.fragment pads a fragment; talking
+        -- behind a STATUSMSG prefix shows it
         ncurses.colorset(ncurses.COLOR_WHITE, input_mode_color, win)
-        win:waddstr(' ', mode, ' ')
+        local net = talk_modes[mode] and control.current_net()
+        local prefix = net and control.statusmsg(net)
+        win:waddstr(' ', mode, ' ', prefix and prefix .. ' ' or '')
         transition(win, input_mode_color, nil)
 
         if mode == 'password' then

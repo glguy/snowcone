@@ -555,6 +555,73 @@ T.case('talk and action modes tell the buffer we are typing; quiet talk mode doe
     T.eq(c:take(), {'PRIVMSG #chan shh', 'NOTICE #chan note'}, 'neither quiet talk nor notice mode')
 end)
 
+T.case('@ and + toggle sending to STATUSMSG, per buffer, until Esc', function()
+    local fake = FakeTransport.new()
+    T.boot {ui = true, transport = fake, config = {networks = {{
+        id = 'test',
+        server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'},
+    }}}}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :message-tags'
+    c:recv ':srv CAP me ACK :message-tags'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 005 me STATUSMSG=@ :are supported'
+    c:recv ':srv 376 me :End of MOTD'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':bob!b@h PRIVMSG me :hi'
+    c:take()
+    local control = T.require 'hub.ui.control'
+    local chat = T.require 'hub.features.chat'
+    control.set_talk_target('test', '#chan')
+    control.set_view 'buffer'
+
+    key(string.byte '@')
+    T.eq(control.statusmsg 'test', '@', 'on')
+    T.ok(status_bar():find(' @#chan ', 1, true), 'before the name')
+    key(string.byte 't')
+    type_text 'ops only'
+    T.ok(status_bar():find(' talk @ ', 1, true), 'in the input mode')
+    T.eq(c:take(), {}, 'no typing notice')
+    key(13)
+    T.eq(c:take(), {'PRIVMSG @#chan :ops only'}, 'sent behind the prefix')
+    local buffer = chat.buffer('test', '#chan')
+    ---@cast buffer -nil joined above
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    local echo = OrderedMap.get(buffer.messages, OrderedMap.last(buffer.messages))
+    T.eq(echo.statusmsg, '@', 'shown in the channel, marked')
+    T.eq(control.statusmsg 'test', '@', 'kept after a line')
+
+    key(string.byte '+')
+    T.eq(control.statusmsg 'test', '@', 'a prefix the server lacks is refused')
+    T.eq(#T.log_lines 'error', 1, 'with an error')
+
+    control.set_talk_target('test', 'bob')
+    T.eq(control.statusmsg 'test', nil, 'each buffer has its own')
+    key(string.byte '@')
+    T.eq(control.statusmsg 'test', nil, 'a query takes none')
+    control.set_talk_target('test', '#chan')
+    T.eq(control.statusmsg 'test', '@', 'back in the channel, still on')
+
+    key(string.byte '@')
+    T.eq(control.statusmsg 'test', nil, 'toggled off')
+    key(string.byte '@')
+    key(string.byte 't')
+    key(0x1f & string.byte 'G')
+    T.eq(control.statusmsg 'test', '@', 'C-g leaves the input mode but keeps it')
+    key(string.byte 't')
+    key(0x1b)
+    T.eq({HUB.state.ui.input.mode, control.statusmsg 'test'}, {nil, nil}, 'Esc leaves the mode and clears it')
+    T.ok(not status_bar():find('@#chan', 1, true), 'and the name is plain')
+
+    key(string.byte '@')
+    chat.close('test', '#chan')
+    chat.open('test', '#chan')
+    control.set_talk_target('test', '#chan')
+    T.eq(control.statusmsg 'test', nil, 'closing a buffer forgets it')
+end)
+
 T.case('the status bar shows the modes of the view as one fragment', function()
     boot()
     local control = T.require 'hub.ui.control'

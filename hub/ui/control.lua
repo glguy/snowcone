@@ -1,6 +1,7 @@
 -- View selection and input modes, shared by the key handlers, the command
 -- line and the renderer.
 
+local chat     <const> = require 'hub.features.chat'
 local common   <const> = require 'hub.features.common'
 local dispatch <const> = require 'hub.runtime.dispatch'
 local editor   <const> = require 'hub.ui.editor'
@@ -108,6 +109,33 @@ function M.set_talk_target(net, target)
         vs.targets[net] = target
         vs.scroll = 0
     end
+    dispatch.dirty()
+end
+
+--- The STATUSMSG prefix ('@' or '+') lines to a network's shown buffer
+--- go out with, or nil. Each buffer keeps its own, so leaving one and
+--- coming back doesn't drop its lines to the whole channel.
+---@param net string
+---@return string|nil
+function M.statusmsg(net)
+    local target = M.talk_target(net)
+    local vs = M.view_state 'buffer'
+    local prefixes = target and vs.statusmsg and vs.statusmsg[net]
+    return prefixes and prefixes[chat.fold(net, target)]
+end
+
+--- Set the STATUSMSG prefix of a network's buffer, by default the shown
+--- one; nil sends to the whole target again.
+---@param net string
+---@param prefix string|nil
+---@param target string|nil
+function M.set_statusmsg(net, prefix, target)
+    target = target or M.talk_target(net)
+    if not target then return end
+    local vs = M.view_state 'buffer'
+    vs.statusmsg = vs.statusmsg or {}
+    vs.statusmsg[net] = vs.statusmsg[net] or {}
+    vs.statusmsg[net][chat.fold(net, target)] = prefix
     dispatch.dirty()
 end
 

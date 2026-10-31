@@ -49,7 +49,8 @@ function execute.filter()
     control.set_input_mode()
 end
 
--- Send the line to the shown buffer with say(net, target, text)
+-- Send the line to the shown buffer, behind its STATUSMSG prefix, with
+-- say(net, target, text)
 local function talk_with(say)
     local ed = control.editor()
     local text = editor.content(ed)
@@ -65,7 +66,8 @@ local function talk_with(say)
         log.add('error', 'no buffer to talk in')
         return
     end
-    local ok, err = pcall(say, net, target, text)
+    ---@cast net -nil there is a target only with a network
+    local ok, err = pcall(say, net, (control.statusmsg(net) or '') .. target, text)
     if not ok then
         log.add('error', '%s', err)
     end

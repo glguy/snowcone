@@ -2,7 +2,10 @@
 --
 -- t starts talk mode and a action mode, which tell the buffer we are
 -- typing; Meta-T starts quiet talk mode, which doesn't; T starts notice
--- mode. n and p step through the network's buffers; Meta-H hides joins,
+-- mode. @ and + toggle sending to a channel's ops or voiced users
+-- (STATUSMSG), shown before the channel's name in the status bar and the
+-- input mode; each buffer keeps its own until Esc, and no typing notices
+-- go there. n and p step through the network's buffers; Meta-H hides joins,
 -- parts, quits, nick changes, account changes and host changes. Click a
 -- sender to inspect the message in the detail pane. A reply (the +reply
 -- tag) starts with ↩: click it to scroll to the message it answers, which
@@ -251,6 +254,26 @@ local keys = {
     end,
 }
 
+-- @ and + toggle sending to the channel's ops or voiced users (STATUSMSG)
+local function toggle_statusmsg(ctx, prefix)
+    local net = ctx.net
+    local irc = HUB.state.nets[net].irc
+    local target = control.talk_target(net)
+    if not (irc and target and irc_model.is_channel_name(irc, target)) then
+        log.add('error', 'only a channel takes %s', prefix)
+    elseif not irc.statusmsg:find(prefix, 1, true) then
+        log.add('error', '%s does not take %s (STATUSMSG)', net, prefix)
+    elseif control.statusmsg(net) == prefix then
+        control.set_statusmsg(net, nil)
+    else
+        control.set_statusmsg(net, prefix)
+    end
+end
+
+for prefix in ('@+'):gmatch '.' do
+    keys[string.byte(prefix)] = function(ctx) toggle_statusmsg(ctx, prefix) end
+end
+
 local function current_buffer(ctx)
     if not (ctx.net and common.enabled(ctx.net, 'chat')) then return nil end
     local target = control.talk_target(ctx.net)
@@ -295,8 +318,13 @@ return {
         end)
     end,
 
-    -- Esc clears the highlight; it also scrolls back to the newest
-    reset = function(vs) vs.highlight = nil end,
+    -- Esc clears the highlight and the STATUSMSG prefix; it also scrolls
+    -- back to the newest
+    reset = function(vs)
+        vs.highlight = nil
+        local net = control.current_net()
+        if net then control.set_statusmsg(net, nil) end
+    end,
 
     modes = function(ctx)
         return {ctx.vs.hide_presence and 'hide' or nil}
@@ -310,8 +338,9 @@ return {
         end
     end,
 
-    -- The target, colored by whether we can reach it, who is typing there,
-    -- then buffers with unseen messages (magenta for mentions)
+    -- The target behind its STATUSMSG prefix (red), colored by whether we
+    -- can reach it, who is typing there, then buffers with unseen messages
+    -- (magenta for mentions)
     status = function(ctx, win)
         local net = ctx.net
         if not (net and common.enabled(net, 'chat')) then return end
@@ -321,6 +350,11 @@ return {
 
         if target then
             ctx.fragment(win)
+            local prefix = control.statusmsg(net)
+            if prefix then
+                draw.red(win)
+                win:waddstr(prefix)
+            end
             if not irc or rec.phase ~= 'connected' then
                 draw.yellow(win)
             elseif irc_model.is_channel_name(irc, target) then
@@ -407,6 +441,8 @@ return {
                 previous = nil
                 vs.previous[net] = nil
             end
+            -- reopened, it sends to the whole channel
+            control.set_statusmsg(net, nil, ev.target)
             local current = control.talk_target(net)
             if current and chat.fold(net, current) == key then
                 local best = chat.next_buffer(net, key, true)
