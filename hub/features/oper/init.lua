@@ -398,9 +398,7 @@ local function kline_lookup(t, nick)
     t:log('kline', 'no WHOWAS reply for %s', nick)
 end
 
-local function oper_command(name, spec, usage, help, fn)
-    return {name = name, spec = spec, usage = usage, scope = 'net', feature = M.name, help = help, fn = fn}
-end
+local oper_command <const> = common.net_command(M.name)
 
 M.commands = {
     oper_command('oper', '', nil, 'Become an operator with OPER', function(ctx)

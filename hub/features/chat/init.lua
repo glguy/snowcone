@@ -545,9 +545,7 @@ end
 
 -- Commands ============================================================
 
-local function chat_command(name, spec, usage, help, fn)
-    return {name = name, spec = spec, usage = usage, scope = 'net', feature = M.name, help = help, fn = fn}
-end
+local chat_command <const> = common.net_command(M.name)
 
 M.commands = {
     chat_command('talk', '$g', 'target', 'Talk to a channel or nick: opens a buffer, joins or monitors',

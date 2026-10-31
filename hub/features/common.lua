@@ -51,6 +51,16 @@ function M.get_state(feature, net)
     return all and all[net]
 end
 
+--- A maker of the feature's commands, which act on a network that has
+--- it: make(name, spec, usage, help, fn) is the command record.
+---@param feature string
+---@return fun(name: string, spec: string, usage: string|nil, help: string, fn: function): table
+function M.net_command(feature)
+    return function(name, spec, usage, help, fn)
+        return {name = name, spec = spec, usage = usage, scope = 'net', feature = feature, help = help, fn = fn}
+    end
+end
+
 --- Forget a removed network's state of the feature.
 function M.drop_state(feature, net)
     local all = HUB.state.features[feature]
