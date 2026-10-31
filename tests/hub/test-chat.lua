@@ -612,6 +612,24 @@ T.case('Tab after unban offers the ban list, fetching it first', function()
     T.eq(c:take(), {}, 'fetched once')
 end)
 
+T.case('Tab after close offers buffers, and after sasl credentials', function()
+    local c = boot {sasl = {credentials = {
+        {mechanism = 'EXTERNAL'},
+        {name = 'main', mechanism = 'PLAIN', username = 'u', password = 'p'},
+    }}}
+    T.require 'hub.ui.control'.init_state(HUB.state)
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':me!u@h JOIN #other'
+    c:recv ':bob!b@h PRIVMSG me :hi'
+    local function sorted(t) table.sort(t) return t end
+    T.eq(sorted(cmdline.complete_args('close ', '#')), {'#chan', '#other'}, 'channels')
+    T.eq(cmdline.complete_args('close ', 'b'), {'bob'}, 'queries')
+    T.eq(cmdline.complete_args('close #chan ', ''), nil, 'one target')
+    T.eq(sorted(cmdline.complete_args('sasl ', '')), {'EXTERNAL', 'main'}, 'credentials by name')
+    T.eq(cmdline.complete_args('sasl ', 'm'), {'main'}, 'matching')
+end)
+
 T.case('channel ban mask rules', function()
     boot()
     local masks = T.require 'hub.features.chat.masks'

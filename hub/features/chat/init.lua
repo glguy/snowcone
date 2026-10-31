@@ -714,6 +714,28 @@ local function drop_own(change)
     end
 end
 
+local close_command = chat_command('close', '$R', '[target]',
+    'Close a buffer, the shown one by default, parting its channel',
+function(ctx, target)
+    if target == '' then
+        target = ctx.target
+    end
+    if not target then
+        error('no buffer to close', 0)
+    end
+    M.close(ctx.net, target)
+end)
+
+-- Tab offers the network's open buffers
+function close_command.complete(ctx, before, seed)
+    if before ~= '' then return nil end
+    local t = {}
+    for _, buffer in pairs(M.get(ctx.net).buffers) do
+        if buffer.name:sub(1, #seed) == seed then table.insert(t, buffer.name) end
+    end
+    return t
+end
+
 local topic_command = chat_command('topic', '$R', '[text]', "Set the shown channel's topic, or clear it",
 function(ctx, text)
     send.send(ctx.net, 'TOPIC', shown_channel(ctx), text)
@@ -735,16 +757,7 @@ M.commands = {
         M.talk(ctx.net, target)
         bus.emit('chat.focus', {net = ctx.net, target = target})
     end),
-    chat_command('close', '$R', '[target]', 'Close a buffer, the shown one by default, parting its channel',
-    function(ctx, target)
-        if target == '' then
-            target = ctx.target
-        end
-        if not target then
-            error('no buffer to close', 0)
-        end
-        M.close(ctx.net, target)
-    end),
+    close_command,
     chat_command('msg', '$g $r', 'target text', 'Send a message', function(ctx, target, text)
         M.say(ctx.net, target, text)
     end),

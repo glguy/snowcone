@@ -171,6 +171,17 @@ M.commands = {
             end
             task.spawn('sasl', {net = ctx.net, owner = 'commands'}, sasl.authenticate, credential)
         end,
+        -- the network's credentials, by name
+        complete = function(ctx, before, seed)
+            if before ~= '' then return nil end
+            local sasl_cfg = HUB.state.nets[ctx.net].cfg.sasl
+            local t = {}
+            for _, credential in ipairs(sasl_cfg and sasl_cfg.credentials or {}) do
+                local name = credential.name or credential.mechanism
+                if name:sub(1, #seed) == seed then table.insert(t, name) end
+            end
+            return t
+        end,
     },
     {
         name = 'dump',
