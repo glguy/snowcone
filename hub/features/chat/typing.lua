@@ -80,7 +80,7 @@ end
 -- Ours ================================================================
 
 --- Seconds between our active notices while the line keeps changing.
-M.refresh = 3
+M.refresh = 4
 
 --- Seconds without a change to the line before we say we paused.
 M.pause = 10

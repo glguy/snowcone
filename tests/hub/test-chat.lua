@@ -260,13 +260,13 @@ T.case('our typing goes out active, refreshed, paused and done', function()
     chat.compose('test', '#c', 'h')
     T.eq(c:take(), {'@+typing=active TAGMSG #c'}, 'active at once')
     chat.compose('test', '#c', 'hi')
-    now = now + 2
+    now = now + 3
     chat.compose('test', '#c', 'hi')
-    T.eq(c:take(), {}, 'not again within 3 seconds')
+    T.eq(c:take(), {}, 'not again within 4 seconds')
     now = now + 1
     chat.compose('test', '#c', 'hi')
     T.eq(c:take(), {'@+typing=active TAGMSG #c'}, 'refreshed while the last change is recent')
-    now = now + 7
+    now = now + 6
     chat.compose('test', '#c', 'hi')
     chat.compose('test', '#c', 'hi')
     T.eq(c:take(), {'@+typing=paused TAGMSG #c'}, 'paused once, 10 seconds after the last change')
@@ -317,14 +317,14 @@ T.case('our typing goes only where it can, and only at once', function()
     chat.compose('test', '#c', 'x')
     c:take()
     c:recv ':srv 404 me #C :Cannot send to channel'
-    now = now + 3
+    now = now + 4
     chat.compose('test', '#c', 'xy')
     chat.compose(nil, nil, '')
     T.eq(c:take(), {}, 'refused: no more there, nor done')
     chat.compose('test', '#c', 'x')
     T.eq(c:take(), {'@+typing=active TAGMSG #c'}, 'the next line tries again')
     c:recv 'FAIL TAGMSG INVALID_TARGET #c :no'
-    now = now + 3
+    now = now + 4
     chat.compose('test', '#c', 'xy')
     T.eq(c:take(), {}, 'FAIL TAGMSG refuses too')
     chat.compose(nil, nil, '')

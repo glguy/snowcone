@@ -498,18 +498,32 @@ T.case('talk and action modes tell the buffer we are typing; quiet talk mode doe
     clock.now = function() return now end
     control.set_talk_target('test', '#chan')
     control.set_view 'buffer'
+    -- What the second's tick sends, but for its lag check's PING
+    local function tick()
+        T.require 'hub.runtime.bus'.emit('clock.tick', {now = now})
+        local sent = {}
+        for _, line in ipairs(c:take()) do
+            if not line:find '^PING' then table.insert(sent, line) end
+        end
+        return sent
+    end
+
+    key(string.byte 't')
+    T.eq(tick(), {}, 'not on entering the mode')
+    key(0x1b)
+    T.eq(c:take(), {}, 'nor on leaving it before typing')
+    key(string.byte 't')
+    type_text 'x'
+    key(0x7f)
+    T.eq(c:take(), {'@+typing=active TAGMSG #chan', '@+typing=done TAGMSG #chan'}, 'a character typed and erased')
+    key(0x1b)
+    T.eq(c:take(), {}, 'and done only once')
 
     key(string.byte 't')
     type_text 'hi'
     T.eq(c:take(), {'@+typing=active TAGMSG #chan'}, 'talk mode')
     now = now + 10
-    T.require 'hub.runtime.bus'.emit('clock.tick', {now = now})
-    local sent = {}
-    for _, line in ipairs(c:take()) do
-        -- the tick checks the lag, too
-        if not line:find '^PING' then table.insert(sent, line) end
-    end
-    T.eq(sent, {'@+typing=paused TAGMSG #chan'}, 'paused, on the tick')
+    T.eq(tick(), {'@+typing=paused TAGMSG #chan'}, 'paused, on the tick')
     key(13)
     T.eq(c:take(), {'PRIVMSG #chan hi'}, 'the message ends it')
 
