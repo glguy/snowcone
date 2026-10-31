@@ -58,10 +58,11 @@ USING HUB
 
   The detail pane opens above the view to show one thing in full: a
   message, a /whois or /whowas reply, or a channel's topic, modes and
-  members (/chaninfo, or click its name in the status bar). A status
-  line that starts with ▸ opens what it summarizes. While the pane is
-  open it takes the scrolling keys; Esc or its [CLOSE] closes it, and
-  [DISCARD] also drops it from the status lines that would reopen it.
+  members (/chaninfo). Clicking a buffer's name in the status bar opens
+  a channel's information or a nick's /whois. A status line that starts
+  with ▸ opens what it summarizes. While the pane is open it takes the
+  scrolling keys; Esc or its [CLOSE] closes it, and [DISCARD] also drops
+  it from the status lines that would reopen it.
 
 KEYS
   /            Type a command

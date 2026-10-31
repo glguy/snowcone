@@ -812,6 +812,25 @@ T.case('a WHOIS opens in the detail pane, and from its status line', function()
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case("a query's nick in the status bar opens its WHOIS", function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    c:take()
+    control.set_talk_target('test', 'alice')
+    control.set_view 'buffer'
+    HUB.current.routes['ui.draw']()
+    for x = 0, tty_width - 1 do
+        HUB.current.routes['ui.entry']('on_mouse', tty_height - 1, x, false)
+        if #c.sent > 0 then break end
+    end
+    T.eq(c:take(), {'WHOIS alice'}, 'sent')
+    c:recv ':srv 311 me alice a h.example * :Alice A'
+    c:recv ':srv 318 me alice :End of /WHOIS list.'
+    local detail = control.detail()
+    T.eq({detail and detail.kind, detail and detail.data.nick}, {'whois', 'alice'}, 'shown')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.case('each event a detail kind names opens it, once, after a reload too', function()
     boot()
     T.ok(T.reload(), 'reloaded')

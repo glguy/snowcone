@@ -5,7 +5,8 @@
 -- changes and host changes. Click a sender to inspect the message in the
 -- detail pane. A reply (the +reply tag) starts with ↩: click it to scroll to
 -- the message it answers, which is highlighted until Esc. Click a
--- channel's name in the status bar for its information. After the name,
+-- channel's name in the status bar for its information, a nick's for its
+-- WHOIS. After the name,
 -- the two who most recently started typing there (not those who paused).
 -- Viewing a buffer marks it seen and, with the terminal focused,
 -- withdraws its notification.
@@ -328,13 +329,17 @@ return {
             draw.bold(win)
             win:waddstr(scrub(name))
             draw.normal(win)
-            -- a channel's name opens its information
-            if irc and irc_model.is_channel_name(irc, name) then
+            -- a channel's name opens its information, a nick's its WHOIS
+            if irc then
                 local _, x2 = ncurses.getyx(win)
-                ctx.add_click(tty_height - 1, x1, x2, function()
-                    chat.channel_info(net, name)
-                    control.open_detail('channel', net, {name = name})
-                end)
+                if irc_model.is_channel_name(irc, name) then
+                    ctx.add_click(tty_height - 1, x1, x2, function()
+                        chat.channel_info(net, name)
+                        control.open_detail('channel', net, {name = name})
+                    end)
+                else
+                    ctx.add_click(tty_height - 1, x1, x2, function() chat.whois(net, name) end)
+                end
             end
 
             local nicks = {}

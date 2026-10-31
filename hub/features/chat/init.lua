@@ -525,6 +525,15 @@ function M.channel_info(net, name)
     end
 end
 
+--- WHOIS a nick, on its server (with idle time) if `remote`; the reply
+--- opens in the detail pane.
+---@param net string
+---@param nick string
+---@param remote boolean|nil
+function M.whois(net, nick, remote)
+    task.spawn('whois', {net = net, owner = M.name}, whois, nick, remote or false)
+end
+
 --- Ask again for a channel's modes and creation time.
 function M.refresh_modes(net, name)
     query(net, 'MODE', name)
@@ -650,10 +659,10 @@ M.commands = {
         bus.emit('chat.show_list', {net = ctx.net})
     end),
     chat_command('whois', '$g', 'nick', 'WHOIS a nick, shown in the detail pane', function(ctx, nick)
-        task.spawn('whois', {net = ctx.net, owner = M.name}, whois, nick, false)
+        M.whois(ctx.net, nick)
     end),
     chat_command('wii', '$g', 'nick', 'WHOIS a nick on its server (with idle time)', function(ctx, nick)
-        task.spawn('whois', {net = ctx.net, owner = M.name}, whois, nick, true)
+        M.whois(ctx.net, nick, true)
     end),
     chat_command('whowas', '$g $R', 'nick [count]', 'WHOWAS a nick, at most count entries', function(ctx, nick, count)
         local n
