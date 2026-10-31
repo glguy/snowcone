@@ -23,7 +23,7 @@ Contents:
 
 hub reads the first file that exists of:
 
-1. the file named with `--config=PATH`,
+1. the file last given to `/reload` (see [Reloading](#reloading)), else the file named with `--config=PATH`,
 2. `$XDG_CONFIG_HOME/snowcone/hub.toml` (by default `~/.config/snowcone/hub.toml`),
 3. `$XDG_CONFIG_HOME/snowcone/hub.lua`, a Lua chunk that returns the same structure as a table.
 
@@ -477,6 +477,8 @@ password = { command = 'security', arguments = ['find-generic-password', '-s', '
 ## Reloading
 
 `/reload` (or SIGUSR1) reads the configuration file and the servers files again, and loads new code, without dropping connections.
+
+`/reload FILE` switches to another configuration file. A relative `FILE` is relative to the configuration directory, and `~` is expanded. Once it loads, every later `/reload` and SIGUSR1 reads it too, until another file is given. A file that fails to load isn't remembered. The configuration directory stays the same, and command-line overrides still apply. `/stats` shows the file in use under `code`.
 
 - **Networks:**
   - A network added to the file connects if `autoconnect` allows.

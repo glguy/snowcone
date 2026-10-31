@@ -101,7 +101,8 @@ COMMANDS
   /connect, /disconnect, /reconnect  
                    Control the current network's connection
   /quote command   Send an IRC command
-  /reload          Load new code and configuration, keeping connections
+  /reload [file]   Load new code and configuration, keeping connections.
+                   With a file, read that configuration from then on.
   /quit            Disconnect from every network and exit
 
 VIEWS

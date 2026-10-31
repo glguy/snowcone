@@ -130,6 +130,8 @@ return {
         label(win, 'code')
         key(win, 'generation')
         win:waddstr(tostring(HUB.current.id))
+        key(win, 'config')
+        win:waddstr(scrub(HUB.current.config.file or '?'))
         local last = HUB.last_reload
         if last then
             key(win, 'last load')

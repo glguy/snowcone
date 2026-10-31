@@ -250,6 +250,44 @@ T.case('reloads, errors and waits are tracked for /stats', function()
     task.cancel(t.id)
 end)
 
+-- Write a configuration file choosing ui.profile
+local function write_config(filename, profile)
+    local f = assert(io.open(filename, 'w'))
+    f:write(string.format("[ui]\nprofile = '%s'\n", profile))
+    f:close()
+end
+
+T.case('/reload with a file reads that file from then on', function()
+    local dir = os.tmpname()
+    os.remove(dir)
+    assert(require 'pl.path'.mkdir(dir))
+    local chosen = dir .. '/chosen.toml'
+    write_config(chosen, 'chat')
+
+    T.boot()
+    T.eq(HUB.current.config.file, '(provided)', 'the boot configuration')
+    T.require 'hub.ui.control'.init_state(HUB.state)
+    local cmdline = T.require 'hub.ui.cmdline'
+
+    cmdline.execute('reload ' .. chosen)
+    T.sleep(50)
+    T.eq({HUB.current.config.file, HUB.current.config.ui.profile}, {chosen, 'chat'}, 'the chosen file')
+    T.eq(HUB.config_file, chosen, 'remembered')
+
+    write_config(chosen, 'dashboard')
+    T.ok(T.reload(), 'a reload without a file')
+    T.eq(HUB.current.config.ui.profile, 'dashboard', 'reads the chosen file again')
+
+    cmdline.execute('reload ' .. dir .. '/missing.toml')
+    T.sleep(50)
+    T.eq(HUB.last_reload.ok, false, 'a missing file fails the reload')
+    T.eq(HUB.config_file, chosen, 'and is not remembered')
+    T.ok(T.reload(), 'a reload without a file')
+    T.eq(HUB.current.config.file, chosen, 'still reads the chosen file')
+
+    require 'pl.dir'.rmtree(dir)
+end)
+
 T.case('the tick runs only when asked for', function()
     T.boot()
     local resources = T.require 'hub.runtime.resources'

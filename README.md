@@ -116,7 +116,8 @@ Some things to know:
   also take a query with `/prefilter` (below).
 - `/reload` and SIGUSR1 load new code and configuration and keep
   connections, scrollback and the line being typed; changed connection
-  settings wait for `/reconnect`.
+  settings wait for `/reconnect`. `/reload FILE` switches to another
+  configuration file, which later reloads keep reading.
 
 Plugins are Lua files in `~/.config/snowcone/plugins/`, listed in
 `[plugins] modules`. A plugin returns a function that receives an api.

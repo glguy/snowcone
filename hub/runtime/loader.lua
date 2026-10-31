@@ -98,6 +98,7 @@ end
 ---@field echo boolean|nil true prints log lines to stdout
 ---@field args string[]|nil command line arguments for configuration (default: arg)
 ---@field config table|nil raw configuration table to use instead of reading a file
+---@field config_file string|nil configuration file to read from now on (/reload)
 ---@field transport {connect: fun(...): snowcone.Connection}|nil replaces snowcone.connect
 ---@field overrides table<string, string|function>|nil source or chunk by module
 --- name, replacing files on disk
@@ -129,6 +130,7 @@ end
 ---@field entry_installed boolean|nil
 ---@field errors {total: integer, by_origin: table<string, integer>}|nil
 ---@field last_reload {at: integer, ok: boolean, error: string|nil}|nil
+---@field config_file string|nil configuration file chosen by /reload
 ---@field plugins_started string[]|nil
 ---@field quitting boolean|nil
 ---@field shut_down boolean|nil

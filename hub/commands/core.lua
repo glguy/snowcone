@@ -5,7 +5,9 @@
 -- without a terminal.
 
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
+local path     <const> = require 'pl.path'
 local bus      <const> = require 'hub.runtime.bus'
+local config   <const> = require 'hub.runtime.config'
 local dispatch <const> = require 'hub.runtime.dispatch'
 local log      <const> = require 'hub.runtime.log'
 local manager  <const> = require 'hub.net.manager'
@@ -36,13 +38,17 @@ end
 M.commands = {
     {
         name = 'reload',
-        spec = '',
+        spec = '$R',
+        usage = '[file]',
         group = 'client',
-        help = 'Reload code and configuration, keeping connections and state',
-        fn = function()
+        help = 'Reload code and configuration, keeping connections and state; a file is read from then on',
+        fn = function(_, file)
+            file = file:match '^%s*(.-)%s*$'
+            -- relative to the configuration directory, like other paths
+            file = file ~= '' and config.resolve_path(path.expanduser(file)) or nil
             -- Not from inside the command's own frame: the reload replaces
             -- the code that is running it
-            timer.start('commands', 0, 'app.reload')
+            timer.start('commands', 0, 'app.reload', file)
         end,
     },
     {

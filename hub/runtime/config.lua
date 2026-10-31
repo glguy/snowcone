@@ -77,17 +77,19 @@ local function parse(filename, text)
     end
 end
 
---- Read the configuration file named by --config, or the first default
---- that exists.
+--- Read the configuration file chosen by /reload, else the one named by
+--- --config, else the first default that exists.
+---@param chosen string|nil
 ---@return table raw
 ---@return string filename
-local function read_file(dir, flags)
-    if flags.config then
-        local text = file.read(flags.config)
+local function read_file(dir, flags, chosen)
+    local named = chosen or flags.config
+    if named then
+        local text = file.read(named)
         if not text then
-            error('Failed to read configuration file: ' .. flags.config, 0)
+            error('Failed to read configuration file: ' .. named, 0)
         end
-        return parse(flags.config, text), flags.config
+        return parse(named, text), named
     end
 
     local candidates = {
@@ -215,7 +217,10 @@ end
 ---@param args string[] command line arguments
 ---@param override table|nil raw configuration to use instead of a file (tests)
 ---@return table
-function M.load(args, override)
+---@param args string[] command line: --config and key=value overrides
+---@param override table|nil raw configuration to use instead of a file
+---@param chosen string|nil a file to read in place of --config
+function M.load(args, override, chosen)
     local dir = M.config_dir()
     local raw, filename
     if override then
@@ -225,7 +230,7 @@ function M.load(args, override)
         if not flags then
             error('Failed to parse command line flags', 0)
         end
-        raw, filename = read_file(dir, flags)
+        raw, filename = read_file(dir, flags, chosen)
         for _, o in ipairs(overrides) do
             M.apply_override(raw, o)
         end

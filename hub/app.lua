@@ -97,8 +97,11 @@ end
 ---@param opts hub.ReloadOptions
 ---@return hub.Current # ready for HUB.current
 function M.build(gen, opts)
-    -- read and validate first: a bad file leaves everything as it was
-    local cfg = config.load(HUB.boot.args, opts.config or HUB.boot.config)
+    -- read and validate first: a bad file leaves everything as it was.
+    -- A file chosen by /reload replaces the configuration given at boot.
+    local file <const> = opts.config_file or HUB.config_file
+    local raw <const> = opts.config or (file == nil and HUB.boot.config or nil)
+    local cfg = config.load(HUB.boot.args, raw, file)
 
     local modules = {}
     for _, name in ipairs(module_names(opts)) do
@@ -117,6 +120,7 @@ function M.build(gen, opts)
     ---@field commands table<string, table> by name
     ---@field views table<string, table> by id
     ---@field config table normalized configuration (runtime/config.lua)
+    ---@field config_file string|nil the file chosen by /reload that it read
     ---@field task_methods hub.Task the methods of every task
     local current = {
         gen = gen,
@@ -127,6 +131,7 @@ function M.build(gen, opts)
         commands = {},
         views = {},
         config = cfg,
+        config_file = raw == nil and file or nil,
         task_methods = task.methods,
     }
 
@@ -181,6 +186,10 @@ local function activate(first)
     ---@cast current -nil the loader makes the generation current first
     HUB.last_reload = {at = os.time(), ok = true}
     HUB.state.config = current.config
+    if current.config_file then
+        -- remembered only once a load of it succeeds
+        HUB.config_file = current.config_file
+    end
     for _, warning in ipairs(current.config.warnings) do
         log.add('config', '%s', warning)
     end
@@ -232,10 +241,12 @@ local function activate(first)
     dispatch.dirty()
 end
 
-local function reload()
+--- Reload, reading `file` for configuration from now on when given.
+---@param file string|nil
+local function reload(file)
     local init = HUB.boot.init
     local chunk = assert(loadfile(init))
-    chunk {init = init}
+    chunk {init = init, config_file = file}
 end
 
 local function reload_failed(err)
