@@ -15,7 +15,9 @@ M.width = 550
 local document_limit <const> = 4096
 
 --- Draw everything, top to bottom, into a pad `width` columns wide that
---- doubles until it holds it all. Returns the rows used.
+--- doubles until it holds it all, or reaches the limit. Returns the rows
+--- used, never past the limit, so a pad made taller than the limit (the
+--- detail pane's rule goes below its content) doesn't grow with each draw.
 ---@param pad ncurses.Window
 ---@param width integer
 ---@param render_into fun(win: ncurses.Window)
@@ -37,7 +39,7 @@ function M.draw_grown(pad, width, render_into)
             pad:wresize(math.min(height * 2, document_limit), width)
         end
     until not full
-    return x > 0 and y + 1 or y
+    return math.min(x > 0 and y + 1 or y, document_limit)
 end
 
 --- Record the page size and scroll limit of a document for the paging keys

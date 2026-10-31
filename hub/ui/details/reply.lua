@@ -47,7 +47,6 @@ local function draw_message(ctx, win, msg)
         win:waddstr ' '
         addircstr(win, msg[i])
     end
-    win:waddstr '\n'
 end
 
 -- What the filter matches: the source, the command and its numeric
@@ -59,35 +58,43 @@ local function haystack(msg)
     return table.concat(parts, ' ')
 end
 
-function M.render(ctx, win)
+-- One row each: the line sent, the state while there is no reply, the
+-- messages the filter shows, and with a filter how many it shows
+function M.rows(ctx)
     ---@type hub.QuoteReply
     local reply = ctx.vs.data
-
-    draw.blue(win)
-    win:waddstr '>>> '
-    draw.normal(win)
-    win:waddstr(scrub(reply.line), '\n')
-
     local state = state_text[reply.state]
-    if state then
-        draw.yellow(win)
-        win:waddstr(state, '\n')
-        draw.normal(win)
-    end
-
     local pattern = control.filter(ctx.id)
-    local shown = 0
-    for _, msg in ipairs(reply.messages) do
-        if not pattern or matching.safematch(haystack(msg), pattern) then
-            draw_message(ctx, win, msg)
-            shown = shown + 1
+
+    local shown = reply.messages
+    if pattern then
+        shown = {}
+        for _, msg in ipairs(reply.messages) do
+            if matching.safematch(haystack(msg), pattern) then
+                table.insert(shown, msg)
+            end
         end
     end
-    if pattern then
-        draw.yellow(win)
-        win:waddstr(string.format('%d of %d %s match\n', shown, #reply.messages,
-            #reply.messages == 1 and 'message' or 'messages'))
-        draw.normal(win)
+
+    local head = state and 2 or 1
+    return head + #shown + (pattern and 1 or 0), function(win, i)
+        if i == 1 then
+            draw.blue(win)
+            win:waddstr '>>> '
+            draw.normal(win)
+            win:waddstr(scrub(reply.line))
+        elseif i <= head then
+            draw.yellow(win)
+            win:waddstr(state)
+            draw.normal(win)
+        elseif i <= head + #shown then
+            draw_message(ctx, win, shown[i - head])
+        else
+            draw.yellow(win)
+            win:waddstr(string.format('%d of %d %s match', #shown, #reply.messages,
+                #reply.messages == 1 and 'message' or 'messages'))
+            draw.normal(win)
+        end
     end
 end
 

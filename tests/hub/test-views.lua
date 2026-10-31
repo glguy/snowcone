@@ -1015,6 +1015,48 @@ T.case('a labeled /quote shows its reply batch in the detail pane', function()
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case('a long reply draws the rows shown, all the way to its end', function()
+    local c = boot_labeled()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    control.set_view 'status'
+
+    -- more rows than a pad that holds everything may grow to
+    cmdline.execute 'quote STATS i'
+    c:take()
+    c:recv('@label=sc1 :srv BATCH +s labeled-response', false)
+    for i = 1, 5000 do
+        c:recv(string.format('@batch=s :srv 215 me I * * u%d@h 0 c', i), false)
+    end
+    c:recv ':srv BATCH -s'
+    local detail = control.detail()
+    HUB.current.routes['ui.draw']()
+    local pad = detail_pad()
+    T.ok(pad.h < tty_height, 'a pad for the rows shown')
+    T.eq(detail.max_scroll, 5001 - detail.page - 1, 'every message in reach')
+
+    detail.scroll = detail.max_scroll
+    HUB.current.routes['ui.draw']()
+    local rows = rows_of(pad)
+    T.ok(rows[detail.page]:find 'u5000@h', 'the last message on the last row')
+    T.ok(rows[detail.page + 1]:find 'rows 4984%-5001 of 5001', 'the rule counts them')
+
+    -- a click on the last row opens the message drawn there
+    HUB.current.routes['ui.entry']('on_mouse', detail.page, 18, false)
+    T.eq(control.detail().kind, 'message', 'inspected')
+    T.eq(control.detail().data[5], 'u5000@h', 'the message on that row')
+
+    -- a filter counts what it shows below the messages
+    control.close_detail()
+    control.open_detail('reply', 'test', detail.data)
+    control.set_filter('detail', 'u4999@')
+    HUB.current.routes['ui.draw']()
+    rows = rows_of(pad)
+    T.ok(rows[1]:find 'u4999@h', 'the match')
+    T.eq(rows[2], '1 of 5000 messages match', 'counted')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.case('a labeled /quote takes a single reply, an ACK, or none', function()
     local c = boot_labeled()
     local control = T.require 'hub.ui.control'
