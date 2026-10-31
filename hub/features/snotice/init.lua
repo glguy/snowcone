@@ -111,18 +111,23 @@ local function track_servers(net, names)
     end
 end
 
--- The servers file's servers, and its address ranges to count
+-- The servers file's servers, and its address ranges to count. Ranges
+-- added while opered are counted now; otherwise opering counts them.
 local function apply_servers(net)
     local servers = common.servers(net)
     ---@cast servers -nil snotice is enabled, so the network exists
     track_servers(net, servers.servers)
     local S = stores.get(net)
+    local irc = HUB.state.nets[net].irc
+    local opered = irc and irc.oper
     for name, ranges in pairs(servers.net_tracks or {}) do
         if not S.net_trackers[name] then
             for _, range in ipairs(ranges) do
                 local ok, err = pcall(nettrack.add, S.net_trackers, name, range)
                 if not ok then
                     log.add_net(net, 'snotice', 'net_tracks %s: %s', name, err)
+                elseif opered then
+                    query(net, 'TESTMASK', '*@' .. range)
                 end
             end
         end
