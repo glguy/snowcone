@@ -11,9 +11,9 @@
 --            PRIVMSG and NOTICE lines awaiting the server's reply
 -- }
 --
--- Sending: replies to CTCP requests from staff, CHATHISTORY and MONITOR
--- for buffers, and what the commands ask for. PRIVMSG and NOTICE go out
--- only from commands and talk mode.
+-- Sending: replies to CTCP requests from staff, CHATHISTORY (history.lua)
+-- and MONITOR for buffers, and what the commands ask for. PRIVMSG and
+-- NOTICE go out only from commands and talk mode.
 --
 -- Receipt: with labeled-response (net/send.lua labels chat lines) our
 -- message in a buffer has msg.receipt: 'awaiting' until the reply, then
@@ -25,6 +25,7 @@ local bus        <const> = require 'hub.runtime.bus'
 local clock      <const> = require 'hub.runtime.clock'
 local common     <const> = require 'hub.features.common'
 local ctcp       <const> = require 'hub.features.chat.ctcp'
+local history    <const> = require 'hub.features.chat.history'
 local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
 local N          <const> = require 'hub.lib.numerics'
@@ -92,23 +93,6 @@ end
 
 -- Buffers =============================================================
 
---- Ask for the history of a buffer: what came before `before` (a server
---- time tag), or the latest.
-local function request_history(net, name, before)
-    local irc = model(net)
-    if not (irc and irc_model.has_chathistory(irc)) then return end
-    if HUB.state.nets[net].phase ~= 'connected' then return end
-    local amount = M.buffer_size
-    if irc.max_chat_history and irc.max_chat_history < amount then
-        amount = irc.max_chat_history
-    end
-    if before then
-        query(net, 'CHATHISTORY', 'BEFORE', name, 'timestamp=' .. before, amount)
-    else
-        query(net, 'CHATHISTORY', 'LATEST', name, '*', amount)
-    end
-end
-
 --- A buffer, if it exists.
 function M.buffer(net, target)
     return M.get(net).buffers[M.fold(net, target)]
@@ -138,7 +122,8 @@ function M.open(net, target, before)
     buffer = {name = target, messages = OrderedMap.new(M.buffer_size), activity = 0, mention = false}
     C.buffers[key] = buffer
     if target ~= M.wallops then
-        request_history(net, target, before)
+        -- what came before the message that opened it, or the latest
+        history.request(M, net, target, before and 'BEFORE' or 'LATEST', before)
     end
     bus.emit('chat.buffer', {net = net, target = target, opened = true})
     return buffer
@@ -203,6 +188,7 @@ local function insert(buffer, msg)
     if key == nil and msg.receipt == 'awaiting' then key = msg end
     OrderedMap.insert(buffer.messages, key, msg)
 end
+M.insert = insert -- for chat/history.lua
 
 --- The message with a msgid in a buffer, while the buffer holds it.
 ---@param buffer hub.ChatBuffer
@@ -659,58 +645,7 @@ local function on_batch(ev)
         settle(C, ev.label)
     end
     if ev.type ~= 'chathistory' then return end
-    local irc = model(ev.net)
-    local buffer = M.buffer(ev.net, ev.params[1] or '')
-    if not (irc and buffer) then return end
-    for _, msg in ipairs(ev.messages) do
-        if msg.command == 'PRIVMSG' or msg.command == 'NOTICE' then
-            msg.statusmsg = irc_model.split_statusmsg(irc, msg[1])
-        end
-    end
-    local rec = HUB.state.nets[ev.net]
-    M.merge(buffer, ev.messages, rec and rec.registered_at)
-end
-
--- Identity of a message, to spot one that history repeats. The server's
--- time is compared only as text.
-local function message_key(msg)
-    local id = msgid(msg)
-    if id then return 'id ' .. id end
-    local tags = msg.tags or {}
-    return table.concat({tags.time or '', tostring(msg.source), tostring(msg.command), table.concat(msg, ' ')}, '\0')
-end
-
---- Merge history into a buffer. Server times are never compared: the
---- history goes, in the server's order, before the messages that arrived
---- on the current connection (those received since `since`, its
---- registration), which puts it before everything when a buffer opens and
---- between the old and new messages after a reconnect. Messages already
---- there are skipped.
----@param buffer hub.ChatBuffer
----@param messages hub.Message[]
----@param since number|nil clock.now() at registration
-function M.merge(buffer, messages, since)
-    local older, newer, seen = {}, {}, {}
-    for msg in OrderedMap.reveach(buffer.messages) do
-        local ts = msg.timestamp
-        table.insert(since and ts and ts >= since and newer or older, msg)
-        seen[message_key(msg)] = true
-    end
-    for _, msg in ipairs(messages) do
-        local key = message_key(msg)
-        if not seen[key] then
-            seen[key] = true
-            -- drawn as old, not as just received
-            msg.timestamp = nil
-            table.insert(older, msg)
-        end
-    end
-    OrderedMap.reset(buffer.messages)
-    for _, list in ipairs {older, newer} do
-        for _, msg in ipairs(list) do
-            insert(buffer, msg)
-        end
-    end
+    history.on_batch(M, ev)
 end
 
 -- After registration: history for the open buffers, and MONITOR for the
@@ -721,20 +656,7 @@ local function on_registered(ev)
     local irc = model(net)
     ---@cast irc -nil registered, so connected
     local C = M.get(net)
-    for key, buffer in pairs(C.buffers) do
-        if key ~= M.fold(net, M.wallops) then
-            local last = M.newest(buffer)
-            local before = last and last.tags and last.tags.time
-            -- LATEST since the last message we have
-            if irc_model.has_chathistory(irc) then
-                local amount = M.buffer_size
-                if irc.max_chat_history and irc.max_chat_history < amount then
-                    amount = irc.max_chat_history
-                end
-                query(net, 'CHATHISTORY', 'LATEST', buffer.name, before and 'timestamp=' .. before or '*', amount)
-            end
-        end
-    end
+    history.after_registration(M, net)
 
     if irc_model.has_monitor(irc) then
         local nicks, size = {}, 0

@@ -235,6 +235,7 @@ end)
 T.case('history goes before the message that opened the buffer', function()
     local c, chat = boot()
     c:recv '@time=2026-01-01T00:00:10.000Z :bob!b@h PRIVMSG me :newest'
+    T.eq(c:take(), {'CHATHISTORY BEFORE bob timestamp=2026-01-01T00:00:10.000Z 50'}, 'asked for what came before')
     c:recv ':srv BATCH +h1 chathistory bob'
     c:recv '@batch=h1;time=2026-01-01T00:00:01.000Z :bob!b@h PRIVMSG me :older'
     c:recv '@batch=h1;time=2026-01-01T00:00:05.000Z :me!u@h PRIVMSG bob :reply'
@@ -408,6 +409,9 @@ T.case('history and MONITOR after registration', function()
     local chat = T.require 'hub.features.chat'
     chat.open('test', '#c')
     chat.open('test', 'Bob')
+    chat.open('test', '#t')
+    chat.insert(chat.buffer('test', '#t'),
+        {command = 'PRIVMSG', tags = {time = '2026-01-01T00:00:09.000Z'}, '#t', 'last seen'})
     local c = fake.last()
     c:con()
     c:recv ':srv CAP * LS :draft/chathistory'
@@ -419,6 +423,7 @@ T.case('history and MONITOR after registration', function()
     local tablex = T.require 'pl.tablex'
     T.ok(tablex.find(sent, 'CHATHISTORY LATEST #c * 1000'), 'channel history')
     T.ok(tablex.find(sent, 'CHATHISTORY LATEST Bob * 1000'), 'private history')
+    T.ok(tablex.find(sent, 'CHATHISTORY LATEST #t timestamp=2026-01-01T00:00:09.000Z 1000'), 'since the newest message')
     T.ok(tablex.find(sent, 'MONITOR + Bob'), 'monitor')
 end)
 
