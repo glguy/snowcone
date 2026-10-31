@@ -432,8 +432,6 @@ Work that the design leaves room for:
 
 - **Bouncer networks as hub networks:** soju BOUNCER BIND, with a network
   record pointing at its parent connection.
-- **Drains and user shedding,** designed together (drains aren't tracked
-  for now).
 - **A table-driven notice parser,** checked against the golden fixtures.
 - **Paging back through chat history** with CHATHISTORY BEFORE when a
   buffer is scrolled to its start.

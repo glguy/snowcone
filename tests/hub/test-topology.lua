@@ -153,14 +153,57 @@ T.case('TESTMASK replies set range counts', function()
     T.eq(snotice().net_trackers.docs['192.0.2.0/24'].count, 12, 'count')
 end)
 
-T.case('sheds from notices; drains are not tracked', function()
+T.case('sheds and drains from notices', function()
     local c = boot()
     c:recv ':alpha.example NOTICE * :*** Notice -- Module drain [0x1] loaded at 0x2'
+    c:recv ':alpha.example NOTICE * :*** Notice -- Module other [0x1] loaded at 0x2'
     c:recv ':beta.example NOTICE * :*** Notice -- o!o@staff/o{o} enabled user shedding (interval: 30 seconds, reason: x)'
-    T.eq(topo().drains, nil, 'no drain state')
+    T.eq(topo().drains, {['alpha.example'] = true}, 'drain')
     T.eq(topo().sheds, {['beta.example'] = 30}, 'shed')
+    c:recv ':alpha.example NOTICE * :*** Notice -- Module drain unloaded'
     c:recv ':beta.example NOTICE * :*** Notice -- o!o@staff/o{o} disabled user shedding'
-    T.eq(topo().sheds, {}, 'cleared')
+    T.eq(topo().drains, {}, 'drain cleared')
+    T.eq(topo().sheds, {}, 'shed cleared')
+end)
+
+T.case('/maintenance asks every server for sheds and drains', function()
+    local c = boot()
+    T.require 'hub.ui.control'.init_state(HUB.state)
+    c:recv ':srv 015 me :alpha.example[01A] ---- | Users:    10 (10%)'
+    c:recv ':srv 015 me :beta.example[01B] ----- | Users:    20 (20%)'
+    c:recv ':srv 017 me :End of /MAP'
+    topo().drains['beta.example'] = true
+    c:take()
+    T.require 'hub.ui.cmdline'.execute 'maintenance'
+    T.eq(c:take(), {
+        'STATS E alpha.example', 'MODLIST drain alpha.example',
+        'STATS E beta.example', 'MODLIST drain beta.example',
+    }, 'asked both')
+    c:recv ':alpha.example 249 me E :user shedding event   12 seconds (frequency=60)'
+    c:recv ':alpha.example 219 me E :End of /STATS report'
+    c:recv ':alpha.example 702 me drain 0x1 extension'
+    c:recv ':alpha.example 703 me :End of /MODLIST.'
+    c:recv ':beta.example 219 me E :End of /STATS report'
+    T.eq(topo().drains, {['alpha.example'] = true, ['beta.example'] = true}, 'beta not done yet')
+    c:recv ':beta.example 703 me :End of /MODLIST.'
+    T.eq(topo().sheds, {['alpha.example'] = 60}, 'sheds')
+    T.eq(topo().drains, {['alpha.example'] = true}, 'drains')
+    local lines = T.log_lines 'maintenance'
+    T.eq(lines[#lines], 'Shedding: alpha.example; draining: alpha.example', 'summary')
+    T.eq(next(HUB.tasks), nil, 'finished')
+end)
+
+T.case('a netjoin rechecks a flagged server', function()
+    local c = boot()
+    topo().drains['beta.example'] = true
+    c:take()
+    c:recv ':hub.example NOTICE * :*** Notice -- Netjoin hub.example <-> beta.example (00H 01B)'
+    local sent = c:take()
+    T.ok(table.concat(sent, '\n'):find('STATS E beta.example\nMODLIST drain beta.example', 1, true),
+        table.concat(sent, ' | '))
+    c:recv ':beta.example 219 me E :End of /STATS report'
+    c:recv ':beta.example 703 me :End of /MODLIST.'
+    T.eq(topo().drains, {}, 'no longer draining')
 end)
 
 T.case('rotations come from DNS', function()

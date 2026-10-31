@@ -13,9 +13,8 @@ a decision is made, and change or remove it when the decision does.
   hub api, not shimmed. A plugin that returns a table, or fails on a
   `utils.*`/`components.*` module, is refused with a message to port it.
 - **No filterdb** (ircc's `/upload_filterdb` with hyperscan) for now.
-- **Not ported from the dashboard:** `/shed_eta` and drain tracking (to be
-  designed together with user shedding), and Esc canceling a staged ban
-  (the CANCEL button does it).
+- **Not ported from the dashboard:** `/shed_eta`, and Esc canceling a
+  staged ban (the CANCEL button does it).
 - **Different from the dashboard on purpose:** `servers_file` must be
   configured; the connection query language is `/prefilter`, because
   `/filter` is every view's pattern filter (both names kept); CTCP replies
@@ -130,8 +129,8 @@ a decision is made, and change or remove it when the decision does.
   at its end. Solanum labels remote WHOIS and STATS replies and both
   CHALLENGE steps: the labeled batch closes after the remote server's end
   numeric. Labels are `sc` and a count, apart from any typed by hand.
-  `/sheds` stays on `wait_irc`, since it asks every server at once. A
-  labeled batch nested in another isn't flattened; no server sends one
+  The maintenance check (`/maintenance`, netjoins) stays on `wait_irc`,
+  since it asks every server at once. A labeled batch nested in another isn't flattened; no server sends one
   yet.
 - **`/quote` labels its line** with labeled-response and shows the reply
   in the detail pane at once, filled in when it comes (30 s, then "no

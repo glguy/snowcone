@@ -1,12 +1,11 @@
 -- Network topology: server populations from MAP, links from LINKS,
--- versions, startup times, user shedding, and the addresses in each DNS
+-- versions, startup times, the servers being emptied for maintenance
+-- (user shedding and the drain module), and the addresses in each DNS
 -- rotation.
 --
 -- Sending: MAP and LINKS at registration, on becoming an operator, and on
--- netsplits and netjoins; VERSION and STATS on request. All are queries.
---
--- Drains (the drain module) are not tracked for now; they and user
--- shedding are to be revisited together.
+-- netsplits and netjoins; VERSION, STATS and MODLIST on request. All are
+-- queries.
 
 local bus       <const> = require 'hub.runtime.bus'
 local clock     <const> = require 'hub.runtime.clock'
@@ -35,6 +34,7 @@ local shed_pattern <const> = 'user shedding event +[0-9]+ +seconds %(frequency=(
 ---@field versions table<string, string> version text by server
 ---@field uptimes table<string, string> startup time text by server
 ---@field sheds table<string, number> shedding interval in seconds, by server
+---@field drains table<string, true> servers with the drain module loaded
 ---@field rotations table<string, table<string, true>> addresses by region,
 --- refreshed every 30 s
 ---@field synced_at number|nil clock of the last MAP and LINKS request
@@ -51,6 +51,7 @@ local function new_state()
         versions = {},
         uptimes = {},
         sheds = {},
+        drains = {},
         rotations = {},
     }
 end
@@ -164,25 +165,6 @@ local function adjust_population(ev, delta)
     end
 end
 
--- Check that a joining server still sheds users, and at what rate
-local function check_shed(t, server)
-    for msg in t:request({N.RPL_STATSDEBUG, N.RPL_ENDOFSTATS}, 30000, 'STATS', 'E', server) do
-        if msg.source == server then
-            local T = M.get(t.net)
-            if msg.command == N.RPL_STATSDEBUG and msg[2] == 'E' then
-                local interval = (msg[3] or ''):match(shed_pattern)
-                if interval then
-                    T.sheds[server] = tonumber(interval)
-                    return
-                end
-            elseif msg.command == N.RPL_ENDOFSTATS then
-                T.sheds[server] = nil
-                return
-            end
-        end
-    end
-end
-
 local notices = {}
 
 function notices.connect(ev) adjust_population(ev, 1) end
@@ -197,8 +179,8 @@ function notices.netjoin(ev)
         T.versions[server] = nil
         query(net, 'VERSION', server)
     end
-    if T.sheds[server] ~= nil then
-        task.spawn('shed check', {net = net, owner = M.name}, check_shed, server)
+    if T.sheds[server] or T.drains[server] then
+        task.spawn('maintenance check', {net = net, owner = M.name}, M.check_maintenance, {server})
     end
 end
 
@@ -214,6 +196,56 @@ end
 
 function notices.shedding_off(ev)
     M.get(ev.net).sheds[ev.server] = nil
+end
+
+function notices.modload(ev)
+    if ev.module == 'drain' then M.get(ev.net).drains[ev.server] = true end
+end
+
+function notices.modunload(ev)
+    if ev.module == 'drain' then M.get(ev.net).drains[ev.server] = nil end
+end
+
+-- Maintenance ==========================================================
+
+local maintenance_replies <const> = {
+    N.RPL_STATSDEBUG, N.RPL_ENDOFSTATS, N.RPL_MODLIST, N.RPL_ENDOFMODLIST,
+}
+
+--- Ask each server whether it sheds users (STATS E) and whether it has
+--- the drain module loaded (MODLIST), from a task. Each answer is recorded
+--- when its list ends; a server that doesn't finish one within 30 s keeps
+--- what was known. Each server is asked by name: a `*` target reaches
+--- every server from one line, which doesn't fit labeled-response's one
+--- reply per line. On wait_irc rather than t:request, since the servers are
+--- asked all at once.
+---@param t hub.Task
+---@param servers string[]
+function M.check_maintenance(t, servers)
+    local stats, modlist = {}, {}
+    local sheds, drains = {}, {}
+    for _, server in ipairs(servers) do
+        stats[server], modlist[server] = true, true
+        t:send('STATS', 'E', server)
+        t:send('MODLIST', 'drain', server)
+    end
+    while next(stats) or next(modlist) do
+        local msg = t:wait_irc(maintenance_replies, 30000)
+        if not msg then break end
+        local server, command = msg.source, msg.command
+        if command == N.RPL_STATSDEBUG and msg[2] == 'E' then
+            local interval = (msg[3] or ''):match(shed_pattern)
+            if interval then sheds[server] = tonumber(interval) end
+        elseif command == N.RPL_MODLIST and msg[2] == 'drain' then
+            drains[server] = true
+        elseif command == N.RPL_ENDOFSTATS and stats[server] then
+            stats[server] = nil
+            M.get(t.net).sheds[server] = sheds[server]
+        elseif command == N.RPL_ENDOFMODLIST and modlist[server] then
+            modlist[server] = nil
+            M.get(t.net).drains[server] = drains[server]
+        end
+    end
 end
 
 -- DNS rotations =======================================================
@@ -337,32 +369,20 @@ M.commands = {
         end,
     },
     {
-        name = 'sheds', spec = '', scope = 'net', feature = 'topology',
-        help = 'Find the servers shedding users',
+        name = 'maintenance', spec = '', scope = 'net', feature = 'topology',
+        help = 'Find the servers being emptied by shedding or drain',
         fn = function(ctx)
             local servers = servers_known(ctx.net)
-            task.spawn('sheds', {net = ctx.net, owner = M.name}, function(t)
-                local outstanding, found = {}, {}
-                for _, server in ipairs(servers) do
-                    outstanding[server] = true
-                    t:send('STATS', 'E', server)
+            task.spawn('maintenance', {net = ctx.net, owner = M.name}, function(t)
+                M.check_maintenance(t, servers)
+                local T = M.get(t.net)
+                local function list(set)
+                    local names = {}
+                    for k in pairs(set) do table.insert(names, k) end
+                    table.sort(names)
+                    return next(names) and table.concat(names, ' ') or 'none'
                 end
-                while next(outstanding) do
-                    local msg = t:wait_irc({N.RPL_STATSDEBUG, N.RPL_ENDOFSTATS}, 30000)
-                    if not msg then break end
-                    if msg.command == N.RPL_STATSDEBUG and msg[2] == 'E' then
-                        local interval = (msg[3] or ''):match(shed_pattern)
-                        if interval then found[msg.source] = tonumber(interval) end
-                    elseif msg.command == N.RPL_ENDOFSTATS then
-                        outstanding[msg.source] = nil
-                    end
-                end
-                M.get(t.net).sheds = found
-                local names = {}
-                for k in pairs(found) do table.insert(names, k) end
-                table.sort(names)
-                t:log('sheds', '%s', next(names) and 'Sheds active: ' .. table.concat(names, ' ')
-                    or 'No sheds active')
+                t:log('maintenance', 'Shedding: %s; draining: %s', list(T.sheds), list(T.drains))
             end)
         end,
     },
