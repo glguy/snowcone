@@ -97,4 +97,26 @@ function M.complete(seed)
     return t
 end
 
+--- Tab's candidates for a command's argument, from the command's
+--- complete function; nil when it has none or offers none, for the
+--- caller's default.
+---@param prefix string the line before the word being completed
+---@param seed string the start of that word
+---@return string[]|nil
+function M.complete_args(prefix, seed)
+    local word, before = prefix:match '^ *(%g+) +(.*)$'
+    if not word then return nil end
+    local name, at = word:match '^([^@]*)@(.*)$'
+    local cmd = HUB.current.commands[name or word]
+    if not (cmd and cmd.complete) then return nil end
+    local net = control.current_net()
+    if cmd.scope == 'net' then
+        net = at or net
+        if not (net and HUB.state.nets[net]) then return nil end
+        if cmd.feature and not common.enabled(net, cmd.feature) then return nil end
+    end
+    local ctx = {net = net, target = net and control.talk_target(net)}
+    return cmd.complete(ctx, before, seed)
+end
+
 return M

@@ -6,6 +6,8 @@
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')
 local FakeTransport = dofile(here .. '/fake_transport.lua')
+-- for the keymap, which Tab completion goes through
+dofile(here .. '/fake_ncurses.lua').install()
 
 local function boot(extra, global)
     local fake = FakeTransport.new()
@@ -519,6 +521,39 @@ T.case('closing a channel parts it, and its buffer stays closed', function()
     c:take()
     chat.close('test', '#gone')
     T.eq(c:take(), {}, 'no PART')
+end)
+
+T.case('topic sets and clears, and Tab offers the current one to edit', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    control.init_state(HUB.state)
+    local cmdline = T.require 'hub.ui.cmdline'
+    local editor = T.require 'hub.ui.editor'
+    local keymap = T.require 'hub.ui.keymap'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':srv 332 me #chan :old topic'
+    c:recv ':srv 353 me = #chan :@me bob'
+    c:take()
+    control.set_talk_target('test', '#chan')
+
+    cmdline.execute 'topic new topic'
+    T.eq(c:take(), {'TOPIC #chan :new topic'}, 'set')
+    cmdline.execute 'topic'
+    T.eq(c:take(), {'TOPIC #chan :'}, 'cleared')
+
+    local input = HUB.state.ui.input
+    input.mode = 'command'
+    local function tab(typed)
+        editor.reset(input.editor)
+        for _, ch in utf8.codes(typed) do editor.add(input.editor, ch) end
+        keymap.input[keymap.ctrl 'I']()
+        return editor.content(input.editor)
+    end
+    T.eq(tab 'topic ', 'topic old topic', 'the current topic')
+    T.eq(tab 'topic b', 'topic bob', 'after that, nicks')
+    T.eq(tab 'topic@test ', 'topic@test old topic', 'naming the network')
+    c:recv ':srv TOPIC #chan :'
+    T.eq(tab 'topic ', 'topic #chan', 'no topic: channels and nicks')
 end)
 
 T.case('channel ban mask rules', function()

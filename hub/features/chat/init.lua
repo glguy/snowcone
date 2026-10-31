@@ -647,6 +647,21 @@ local function unban_command(name, mode, help)
     end)
 end
 
+local topic_command = chat_command('topic', '$R', '[text]', "Set the shown channel's topic, or clear it",
+function(ctx, text)
+    send.send(ctx.net, 'TOPIC', shown_channel(ctx), text)
+end)
+
+-- Tab with nothing typed yet offers the current topic, to edit
+function topic_command.complete(ctx, before, seed)
+    if before ~= '' or seed ~= '' then return nil end
+    local irc = model(ctx.net)
+    local channel = irc and ctx.target and irc_model.get_channel(irc, ctx.target)
+    if channel and channel.topic and channel.topic ~= '' then
+        return {channel.topic}
+    end
+end
+
 M.commands = {
     chat_command('talk', '$g', 'target', 'Talk to a channel or nick: opens a buffer, joins or monitors',
     function(ctx, target)
@@ -682,6 +697,7 @@ M.commands = {
         M.channel_info(ctx.net, target)
         bus.emit('chat.show_channel', {net = ctx.net, target = target})
     end),
+    topic_command,
     chat_command('list', '$R', '[pattern]', 'List channels, optionally matching a pattern', function(ctx, arg)
         M.list(ctx.net, arg)
         bus.emit('chat.show_list', {net = ctx.net})

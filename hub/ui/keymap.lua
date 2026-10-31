@@ -99,10 +99,11 @@ local function do_tab(dir)
     local ed = control.editor()
     editor.tab(ed, dir, function(prefix, seed)
         local t
-        if HUB.state.ui.input.mode == 'command' and prefix == '' then
+        local command = HUB.state.ui.input.mode == 'command'
+        if command and prefix == '' then
             t = cmdline.complete(seed)
         else
-            t = names_like(seed)
+            t = command and cmdline.complete_args(prefix, seed) or names_like(seed)
         end
         if next(t) then
             table.sort(t)
@@ -176,7 +177,7 @@ M.input = {
 local function scroll(pages, lines)
     return function()
         local view = control.current_view()
-        local vs = control.detail()
+        local vs = control.detail() --[[@as hub.ViewState|nil]]
         local document = true
         if not vs then
             vs = control.view_state(view.id)

@@ -78,6 +78,9 @@ local function add_command(current, name, cmd)
         usage = cmd.usage,
         pattern = mkcommand(cmd.spec),
         fn = cmd.fn,
+        -- complete(ctx, before, seed): Tab's candidates for an argument,
+        -- or nil for the default
+        complete = cmd.complete,
         help = cmd.help,
         scope = cmd.scope or 'global',
         feature = cmd.feature,

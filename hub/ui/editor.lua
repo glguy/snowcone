@@ -513,7 +513,11 @@ function M.tab(self, dir, mklist)
         self.tabix = (tabix + dir - 1) % #tablist + 1
         i = cur - #tablist[tabix]
     else
-        i = M.search_prev_word(self, function(c) return c ~= 32 end)
+        -- the spaceless run before the cursor: empty just after a space
+        i = cur
+        while 1 < i and self.buffer[i - 1] ~= 32 do
+            i = i - 1
+        end
         local prefix = utf8.char(table.unpack(self.buffer, 1, i - 1))
         local seed = utf8.char(table.unpack(self.buffer, i, cur - 1))
         self.tabix, self.tablist = mklist(prefix, seed)
