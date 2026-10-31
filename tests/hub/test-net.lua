@@ -890,6 +890,24 @@ T.case('an invalid configuration on reload leaves the old one active', function(
     ok, err = T.reload {config = {networks = {network('x', {features = {'nope'}})}}}
     T.eq(ok, false, 'unknown feature')
     T.ok(err:find('unknown feature nope', 1, true), err)
+
+    ok, err = T.reload {config = {networks = {network('x', {features = {'oper', 'chat'}})}}}
+    T.eq(ok, false, 'a feature without one it requires')
+    T.ok(err:find('networks.x.features: oper requires snotice', 1, true), err)
+    T.ok(T.reload {config = {networks = {network('x', {features = {'oper', 'snotice'}})}}}, 'with it')
+end)
+
+T.case('every feature requirement names known features', function()
+    T.boot()
+    local cschema = T.require 'hub.runtime.config_schema'
+    local known = {}
+    for _, name in ipairs(cschema.features) do known[name] = true end
+    for name, needs in pairs(cschema.feature_requires) do
+        T.ok(known[name], 'known: ' .. name)
+        for _, needed in ipairs(needs) do
+            T.ok(known[needed] and needed ~= name, name .. ' requires known ' .. needed)
+        end
+    end
 end)
 
 T.case('configuration constraints from the dashboard', function()

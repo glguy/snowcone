@@ -161,6 +161,14 @@ local rate_limit_schema <const> = table_ {
 --- The features a network may enable; config.lua checks names against it.
 M.features = {'snotice', 'oper', 'topology', 'chat'}
 
+--- The features each feature needs on the same network; config.lua
+--- refuses a network that enables one without them. Only combinations
+--- that work are allowed: oper stages K-Lines that only snotice's views
+--- show and send.
+M.feature_requires = {
+    oper = {'snotice'},
+}
+
 --- One entry of [[networks]].
 M.network = table_ {
     id           = {type = 'string', required = true, pattern = '^[%w_.%-]+$'},

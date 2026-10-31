@@ -227,6 +227,14 @@ default) and keeps per-network state in `state.features[name][net]`, created
 on first use and dropped on `net.removed`. Feature commands carry `feature`
 and only run, and only show, for networks that have it.
 
+A feature that needs another on the same network to do its job says so in
+`config_schema.feature_requires`, and configuration refuses a network that
+enables it alone, so every combination that loads is one that works. A
+feature that only does more with another (topology hears shedding notices
+when snotice is on) doesn't require it; it checks `common.enabled` and
+works either way. Add a requirement when a feature's results would be
+unreachable or wrong without the other, not to save a check.
+
 | Feature | What it does |
 | --- | --- |
 | snotice | Parses server notices (the dashboard's parser), keeps recent connections, exits, bans, new channels, per-second load trackers, address-range counts and watches; emits `snote` and `snote.<name>`. |

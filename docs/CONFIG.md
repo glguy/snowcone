@@ -168,14 +168,14 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 
 `features` lists what hub does on a network beyond keeping the connection. Leave it out to enable everything. Name only what you want, for example `features = ['chat']` for a network where you only chat.
 
-| Feature | What it does |
-|---|---|
-| `chat` | Chat buffers, talk mode, mentions, chat history, `/list` and the chat commands. |
-| `snotice` | Parses server notices into the connection, exit, ban, channel and address-range views (cliconn, cliexit, connload, exitload, bans, channels, netcount), sets the snomask after opering, and runs watches. |
-| `oper` | The K-Line workflow (stage, test and send K-Lines, unklines and undlines), plus `/oper`, `/challenge`, `/masktrace` and `/testline`. |
-| `topology` | Server populations from MAP, links from LINKS, versions, uptimes and DNS rotations, shown in the load views. |
+| Feature | Requires | What it does |
+|---|---|---|
+| `chat` | | Chat buffers, talk mode, mentions, chat history, `/list` and the chat commands. |
+| `snotice` | | Parses server notices into the connection, exit, ban, channel and address-range views (cliconn, cliexit, connload, exitload, bans, channels, netcount), sets the snomask after opering, and runs watches. |
+| `oper` | `snotice` | The K-Line workflow (stage, test and send K-Lines, unklines and undlines), plus `/oper`, `/challenge`, `/masktrace` and `/testline`. A staged K-Line is shown and sent from snotice's views. |
+| `topology` | | Server populations from MAP, links from LINKS, versions, uptimes and DNS rotations, shown in the load views. With `snotice`, shedding and drain notices also update `/maintenance` as they happen. |
 
-An unknown feature name is an error.
+An unknown feature name is an error, and so is a feature without the features it requires.
 
 ### Connecting
 

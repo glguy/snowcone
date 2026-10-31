@@ -122,6 +122,13 @@ local function normalize_network(net, i, warnings)
             end
             set[name] = true
         end
+        for name in pairs(set) do
+            for _, needed in ipairs(cschema.feature_requires[name] or {}) do
+                if not set[needed] then
+                    error(string.format('networks.%s.features: %s requires %s', net.id, name, needed), 0)
+                end
+            end
+        end
         net.features = set
     else
         net.features = tablex.copy(all_features)
