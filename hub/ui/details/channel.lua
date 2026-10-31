@@ -95,7 +95,7 @@ end
 local function list_mode(ctx, win, channel, mode, pattern)
     local name = channel.name
     local entries = channel.list_modes[mode]
-    label(win, list_names[mode] or '+' .. mode)
+    label(win, list_names[mode] or ('+' .. mode))
     if not entries then
         win:waddstr 'not fetched '
         ctx.add_button(win, '[↻]', function() chat.fetch_list(ctx.net, name, mode) end)
@@ -164,6 +164,7 @@ function M.render(ctx, win)
         win:waddstr(irc and 'Not in this channel: /talk to join it\n' or 'Not connected\n')
         return
     end
+    ---@cast irc -nil the channel came from it
     local pattern = control.filter(ctx.id)
 
     label(win, 'topic')

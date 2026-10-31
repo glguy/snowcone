@@ -564,6 +564,7 @@ T.case('mentions notify once until seen, and dismiss', function()
     }
     local notify = T.require 'hub.features.notify'
     notify.register_backend('test', 'hub.features.notify.test')
+    ---@diagnostic disable-next-line: missing-fields only what notify reads
     HUB.state.ui = {focus = false}
 
     c:recv ':bob!b@h PRIVMSG me :one'

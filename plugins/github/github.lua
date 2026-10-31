@@ -661,7 +661,7 @@ local function join_channels()
 end
 
 --- Why an event name can't be announced, or nil when it can
---- @param event string <event> or <event>:<action>
+--- @param event string # <event> or <event>:<action>
 --- @return string?
 local function event_problem(event)
     -- Check that the event is in the GitHub API

@@ -34,7 +34,7 @@ end)
 
 -- Checked once everything else has finished; an unfinished lookup would keep
 -- the script running, so the timer only needs to outlast them
-check_timer = snowcone.newtimer()
+local check_timer = snowcone.newtimer()
 check_timer:start(5000, function()
     assert(results.dropped, 'dropped handle canceled the lookup')
     assert(results.dropped.err == nil and results.dropped.n > 0, tostring(results.dropped.err))

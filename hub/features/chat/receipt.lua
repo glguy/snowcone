@@ -114,6 +114,7 @@ function M.on_sent(chat, net, irc, msg)
         -- the console keeps the line as sent, and each target's echo
         -- brings its own msgid and text
         if prefix or label or #targets > 1 then
+            ---@diagnostic disable-next-line: missing-fields filled in below
             copy = {} --[[@as hub.Message]]
             for k, v in pairs(msg) do copy[k] = v end
             copy.tags = {}

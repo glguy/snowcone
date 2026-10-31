@@ -432,7 +432,6 @@ T.case('the status bar names the two who last started typing', function()
     local clock = T.require 'hub.runtime.clock'
     local now = clock.now()
     clock.now = function() return now end
-    local sep = T.require 'hub.ui.statusbar'.thin_separator
     c:recv ':me!u@h JOIN #chan'
     control.set_talk_target('test', '#chan')
     control.set_view 'buffer'

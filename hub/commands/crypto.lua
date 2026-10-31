@@ -19,9 +19,9 @@ end
 ---@field made boolean made now, rather than read from a file
 ---@field file string|nil
 ---@field encrypted boolean|nil the file's private key has a password
----@field public string|nil base64
+---@field public public string|nil base64
 ---@field fingerprint string|nil hex SHA-512 of a certificate
----@field private string|nil base64, for a key that has no file
+---@field public private string|nil base64, for a key that has no file
 ---@field commands string[] to send to services
 
 -- Log each services command. A private key is more than a line can
