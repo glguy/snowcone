@@ -295,6 +295,31 @@ T.case('closing a query visited with Meta-A goes back to the channel', function(
     T.eq(control.talk_target 'test', '#chan', 'back where I was')
 end)
 
+T.case('views follow their events once, after a reload too', function()
+    local c = boot()
+    T.ok(T.reload(), 'reloaded')
+    local bus = T.require 'hub.runtime.bus'
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    for _, topic in ipairs {'chat.focus', 'chat.buffer', 'chat.show_list'} do
+        local n = 0
+        for _, s in ipairs(HUB.current.bus.topics[topic]) do
+            if s.owner == 'hub.ui' then n = n + 1 end
+        end
+        T.eq(n, 1, topic .. ': one subscription')
+    end
+
+    c:recv ':me!u@h JOIN #a'
+    c:recv ':me!u@h JOIN #b'
+    control.set_view 'console'
+    cmdline.execute 'talk #a'
+    T.eq({HUB.state.ui.view, control.talk_target 'test'}, {'buffer', '#a'}, '/talk shows the buffer')
+    bus.emit('chat.show_list', {net = 'test'})
+    T.eq(HUB.state.ui.view, 'list', 'the list')
+    cmdline.execute 'close'
+    T.eq(control.talk_target 'test', '#b', 'closing the shown buffer moves on')
+end)
+
 T.case('C-s leaves a prompt in place', function()
     local fake = FakeTransport.new()
     T.boot {ui = true, transport = fake, config = {networks = {{

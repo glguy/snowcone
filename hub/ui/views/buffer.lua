@@ -368,4 +368,40 @@ return {
         end
         draw.normal(win)
     end,
+
+    subscribe = function(sub)
+        sub.on('chat.focus', function(ev)
+            control.set_current_net(ev.net)
+            control.set_talk_target(ev.net, ev.target)
+            control.set_view 'buffer'
+        end)
+        -- closing the shown buffer moves to one with a mention, else back
+        -- to the previous one (as after Meta-A into a query), else one
+        -- with activity, else the next by name; Meta-S no longer goes
+        -- back to a closed buffer
+        sub.on('chat.buffer', function(ev)
+            if ev.opened then return end
+            local net = ev.net
+            local key = chat.fold(net, ev.target)
+            local vs = control.view_state 'buffer'
+            local previous = vs.previous and vs.previous[net]
+            if previous and chat.fold(net, previous) == key then
+                previous = nil
+                vs.previous[net] = nil
+            end
+            local current = control.talk_target(net)
+            if current and chat.fold(net, current) == key then
+                local best = chat.next_buffer(net, key, true)
+                if not (best and best.mention) then
+                    best = previous and chat.buffer(net, previous)
+                        or best or chat.next_buffer(net, key)
+                end
+                control.set_talk_target(net, best and best.name)
+                if best and previous and chat.fold(net, previous) == chat.fold(net, best.name) then
+                    previous = nil
+                end
+                vs.previous[net] = previous
+            end
+        end)
+    end,
 }

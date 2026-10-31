@@ -4,7 +4,6 @@
 -- Windows are handles, not data, so each generation makes its own when it
 -- becomes current and on every resize.
 
-local chat      <const> = require 'hub.features.chat'
 local clicks    <const> = require 'hub.ui.clicks'
 local control   <const> = require 'hub.ui.control'
 local details   <const> = require 'hub.ui.details'
@@ -222,8 +221,9 @@ end
 M.init_state = control.init_state
 
 -- A view module returns a view or a list of views, and may bring commands
--- of its own in `commands`. Each view also gets a command that shows it,
--- unless it sets command = false.
+-- of its own in `commands` and subscriptions in `subscribe(sub)`, which
+-- runs from M.subscribe on each generation's bus. Each view also gets a
+-- command that shows it, unless it sets command = false.
 local view_modules <const> = {
     require 'hub.ui.views.bans',
     require 'hub.ui.views.bouncer',
@@ -310,44 +310,10 @@ end
 
 function M.subscribe(sub)
     sub.on('task.prompt', control.add_prompt)
-    sub.on('chat.focus', function(ev)
-        control.set_current_net(ev.net)
-        control.set_talk_target(ev.net, ev.target)
-        control.set_view 'buffer'
-    end)
-    -- closing the shown buffer moves to one with a mention, else back to
-    -- the previous one (as after Meta-A into a query), else one with
-    -- activity, else the next by name; Meta-S no longer goes back to a
-    -- closed buffer
-    sub.on('chat.buffer', function(ev)
-        if ev.opened then return end
-        local net = ev.net
-        local key = chat.fold(net, ev.target)
-        local vs = control.view_state 'buffer'
-        local previous = vs.previous and vs.previous[net]
-        if previous and chat.fold(net, previous) == key then
-            previous = nil
-            vs.previous[net] = nil
-        end
-        local current = control.talk_target(net)
-        if current and chat.fold(net, current) == key then
-            local best = chat.next_buffer(net, key, true)
-            if not (best and best.mention) then
-                best = previous and chat.buffer(net, previous)
-                    or best or chat.next_buffer(net, key)
-            end
-            control.set_talk_target(net, best and best.name)
-            if best and previous and chat.fold(net, previous) == chat.fold(net, best.name) then
-                previous = nil
-            end
-            vs.previous[net] = previous
-        end
-    end)
     details.subscribe(sub)
-    sub.on('chat.show_list', function(ev)
-        control.set_current_net(ev.net)
-        control.set_view 'list'
-    end)
+    for _, m in ipairs(view_modules) do
+        if m.subscribe then m.subscribe(sub) end
+    end
     -- the UI decides how to get attention
     sub.on('notify.alert', function(ev)
         if ev.beep then ncurses.beep() end

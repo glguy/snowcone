@@ -267,7 +267,9 @@ dashboard are refused with a message to port them.
   a feature the current network has, else the first that needs none. A `document` view is drawn whole into a
   pad and paged; every view gets a command of its name unless `command`
   is false. A view module returns a view or a list of views, and may bring
-  `commands` of its own; `ui/init.lua` lists the modules once. `ctx` gives
+  `commands` of its own and a `subscribe(sub)` for the events it follows
+  (the buffer view's `chat.focus` and `chat.buffer`, the list's
+  `chat.show_list`); `ui/init.lua` lists the modules once. `ctx` gives
   the view's persistent
   state (`ctx.vs`), the current network (`ctx.net`), the size, and
   `add_button`/`add_click` for mouse regions rebuilt each frame

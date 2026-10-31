@@ -48,4 +48,11 @@ return {
         end
         draw.draw_rotation(win, ctx.vs, 1, math.max(0, ctx.rows - 1), C.list, show, draw_entry)
     end,
+
+    subscribe = function(sub)
+        sub.on('chat.show_list', function(ev)
+            control.set_current_net(ev.net)
+            control.set_view 'list'
+        end)
+    end,
 }
