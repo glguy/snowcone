@@ -270,7 +270,8 @@ dashboard are refused with a message to port them.
   `commands` of its own; `ui/init.lua` lists the modules once. `ctx` gives
   the view's persistent
   state (`ctx.vs`), the current network (`ctx.net`), the size, and
-  `add_button`/`add_click` for mouse regions rebuilt each frame. Views read
+  `add_button`/`add_click` for mouse regions rebuilt each frame
+  (`ui/clicks.lua`). Views read
   feature state and call feature functions; they don't send IRC or change
   stores themselves.
 - **The detail pane** shows one thing in full above the view, for the

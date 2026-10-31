@@ -5,6 +5,7 @@
 -- becomes current and on every resize.
 
 local chat      <const> = require 'hub.features.chat'
+local clicks    <const> = require 'hub.ui.clicks'
 local control   <const> = require 'hub.ui.control'
 local details   <const> = require 'hub.ui.details'
 local draw      <const> = require 'hub.ui.draw'
@@ -24,47 +25,6 @@ local pad_width <const> = keymap.pad_width
 local document_limit <const> = 4096
 
 local layout = {textbox_offset = 0, detail_rows = 0}
-
--- Click regions, rebuilt every frame: clicks[y] = {{lo, hi, action}, ...}.
--- Each part of the screen records its clicks in the rows of the window it
--- draws into, and place_clicks moves them to screen rows in shown.
-local clicks = {}
-local shown = {}
-
--- Move the clicks on rows [first, first + count) of the part just drawn
--- to screen rows from `at`, and left by the columns `hscroll` scrolls
--- past, and start the next part.
-local function place_clicks(first, count, at, hscroll)
-    hscroll = hscroll or 0
-    for row, list in pairs(clicks) do
-        if first <= row and row < first + count then
-            for _, entry in ipairs(list) do
-                entry.lo, entry.hi = entry.lo - hscroll, entry.hi - hscroll
-            end
-            shown[row - first + at] = list
-        end
-    end
-    clicks = {}
-end
-
-local function add_click(y, lo, hi, action)
-    local list = clicks[y]
-    local entry = {lo = lo, hi = hi, action = action}
-    if list then
-        table.insert(list, entry)
-    else
-        clicks[y] = {entry}
-    end
-end
-
-local function add_button(win, text, action, plain)
-    local y1, x1 = ncurses.getyx(win)
-    if not plain then draw.reversevideo(win) end
-    win:waddstr(text)
-    if not plain then draw.reversevideo_(win) end
-    local _, x2 = ncurses.getyx(win)
-    add_click(y1, x1, x2, action)
-end
 
 local function make_layout()
     if layout.main_pad then layout.main_pad:delwin() end
@@ -106,8 +66,8 @@ local function view_context(view)
         net = control.current_net(),
         rows = tty_height - 1 - layout.detail_rows,
         cols = tty_width,
-        add_click = add_click,
-        add_button = add_button,
+        add_click = clicks.add,
+        add_button = clicks.button,
     }
 end
 
@@ -121,8 +81,8 @@ local function detail_context(detail)
         net = detail.net,
         rows = layout.detail_rows,
         cols = tty_width,
-        add_click = add_click,
-        add_button = add_button,
+        add_click = clicks.add,
+        add_button = clicks.button,
     }
 end
 
@@ -133,7 +93,7 @@ local function draw_grown(pad, width, render_into)
     local h, w = ncurses.getmaxyx(pad)
     if w ~= width then pad:wresize(h, width) end
     repeat
-        clicks = {}
+        clicks.restart()
         pad:werase()
         draw.normal(pad)
         render_into(pad)
@@ -162,7 +122,7 @@ local function render_document(view, ctx, at)
     local pad, vs, rows = layout.document_pad, ctx.vs, ctx.rows
     set_paging(vs, draw_grown(pad, tty_width, function(win) view.render(ctx, win) end), rows)
     local top = vs.scroll
-    place_clicks(top, rows, at)
+    clicks.place(top, rows, at)
 
     return function()
         pad:pnoutrefresh(top, 0, at, 0, tty_height - 2, tty_width - 1)
@@ -190,7 +150,7 @@ local function render_detail(detail, kind)
     local top = detail.scroll
     local hscroll = kind.wide and math.max(0, math.min(detail.hscroll or 0, pad_width - tty_width)) or 0
     detail.hscroll = hscroll
-    place_clicks(top, rows, 0, hscroll)
+    clicks.place(top, rows, 0, hscroll)
 
     -- the rule goes on the row after the content, with a row to spare for
     -- the cursor after the last column; it doesn't scroll sideways
@@ -200,12 +160,12 @@ local function render_detail(detail, kind)
     pad:wmove(used, 0)
     draw.normal(pad)
     pad:waddstr '─'
-    add_button(pad, '[CLOSE]', control.close_detail)
+    clicks.button(pad, '[CLOSE]', control.close_detail)
     -- the log keeps what its lines open until they roll off; this lets it
     -- go now
     if log.holds_detail(detail.data) then
         pad:waddstr '─'
-        add_button(pad, '[DISCARD]', function()
+        clicks.button(pad, '[DISCARD]', function()
             log.forget_detail(detail.data)
             control.close_detail()
         end)
@@ -240,7 +200,7 @@ local function render_detail(detail, kind)
     pad:waddstr ' '
     local _, x = ncurses.getyx(pad)
     pad:waddstr(string.rep('─', math.max(0, tty_width - x)))
-    place_clicks(used, 1, rows)
+    clicks.place(used, 1, rows)
 
     return rows + 1, function()
         if rows > 0 then
@@ -253,7 +213,7 @@ end
 local function render()
     if tty.suspended() then return end
 
-    clicks, shown = {}, {}
+    clicks.reset()
     local main_pad, input_win, textbox_pad = layout.main_pad, layout.input_win, layout.textbox_pad
     ncurses.erase()
     main_pad:werase()
@@ -283,7 +243,7 @@ local function render()
         draw.normal(main_pad)
         view.render(ctx, main_pad)
         local hscroll = math.max(0, math.min(ctx.vs.hscroll or 0, pad_width - tty_width))
-        place_clicks(0, ctx.rows, at, hscroll)
+        clicks.place(0, ctx.rows, at, hscroll)
         refresh = function()
             main_pad:pnoutrefresh(0, hscroll, at, 0, tty_height - 2, tty_width - 1)
         end
@@ -291,7 +251,7 @@ local function render()
 
     -- the status bar's clicks are in screen rows already
     statusbar.draw(input_win, textbox_pad, layout, view, ctx)
-    place_clicks(tty_height - 1, 1, tty_height - 1)
+    clicks.place(tty_height - 1, 1, tty_height - 1)
 
     ncurses.noutrefresh()
     if refresh_detail then refresh_detail() end
@@ -365,11 +325,8 @@ function entry.on_paste(paste, size)
 end
 
 function entry.on_mouse(y, x, shifted)
-    for _, button in ipairs(shown[y] or {}) do
-        if button.lo <= x and x < button.hi then
-            button.action(shifted)
-            dispatch.dirty()
-        end
+    if clicks.hit(y, x, shifted) then
+        dispatch.dirty()
     end
 end
 

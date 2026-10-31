@@ -1166,6 +1166,34 @@ T.case('clicks follow a view scrolled sideways', function()
     T.eq(control.detail() and control.detail().kind, 'message', 'clicked where it is shown')
 end)
 
+T.case('clicks follow a wide detail scrolled sideways, and its rule stays put', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    T.require 'hub.ui.cmdline'.execute 'eval return {a = 1}'
+    local detail = control.detail()
+    T.eq(detail.kind, 'value', 'a wide kind')
+    local function shown_open() return detail.open['1'] end
+
+    -- the toggle of row 0 is at columns 5-7; scrolled 3 over, at 2-4
+    detail.hscroll = 3
+    HUB.current.routes['ui.draw']()
+    T.ok(shown_open(), 'results start open')
+    HUB.current.routes['ui.entry']('on_mouse', 0, 6, false)
+    T.ok(shown_open(), 'not where it was drawn')
+    HUB.current.routes['ui.entry']('on_mouse', 0, 3, false)
+    T.ok(not shown_open(), 'where it is shown')
+
+    -- the rule doesn't scroll sideways: [CLOSE] is still at column 1
+    HUB.current.routes['ui.draw']()
+    local rule
+    for y = 1, tty_height - 2 do
+        HUB.current.routes['ui.entry']('on_mouse', y, 1, false)
+        if not control.detail() then rule = y break end
+    end
+    T.eq(rule, 1, 'closed from the rule under the one row')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.case('channel information: topic, modes, members and lists, live', function()
     local c = boot()
     local control = T.require 'hub.ui.control'

@@ -39,7 +39,8 @@ a decision is made, and change or remove it when the decision does.
 - **Functions stay out of state.** An OrderedMap's ticker predicate lives
   in a weak-keyed table in the module (the renderer sets it every frame),
   and the scroll pin lives in the view state, since two views of one map
-  would fight over a pin kept in the map.
+  would fight over a pin kept in the map. Click regions hold their
+  actions, so they live in `ui/clicks.lua`, rebuilt every frame.
 - **One draw per burst.** The screen is not redrawn per inbound message:
   code that changes what is shown calls `dispatch.dirty()`, and the
   connection defers drawing until the line that ends a read.
