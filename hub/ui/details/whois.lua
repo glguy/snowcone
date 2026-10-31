@@ -86,19 +86,16 @@ function M.render(ctx, win)
         elseif prefix ~= '' then draw.yellow(win_) end
     end)
 
-    if w.idle then
-        label(win, 'idle')
-        win:waddstr(draw.duration(w.idle))
-        key(win, 'since')
-        win:waddstr(os.date('%c', w.at - w.idle))
-        win:waddstr '\n'
-    end
-    if w.signon then
-        label(win, 'signon')
-        win:waddstr(os.date('%c', w.signon))
+    -- the last activity and the signon, each a time and how long before
+    -- the reply it was
+    local function when(name, t)
+        label(win, name)
+        win:waddstr(os.date('%c', t))
         key(win, 'ago')
-        win:waddstr(draw.duration(w.at - w.signon), '\n')
+        win:waddstr(draw.duration(w.at - t), '\n')
     end
+    if w.idle then when('active', w.at - w.idle) end
+    if w.signon then when('signon', w.signon) end
 
     if w.away then
         label(win, 'away')
