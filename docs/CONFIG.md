@@ -21,13 +21,15 @@ Contents:
 
 ## The file
 
-hub reads the first file that exists of:
+The configuration is a TOML file. hub reads the first of these that applies:
 
-1. the file last given to `/reload` (see [Reloading](#reloading)), else the file named with `--config=PATH`,
-2. `$XDG_CONFIG_HOME/snowcone/hub.toml` (by default `~/.config/snowcone/hub.toml`),
-3. `$XDG_CONFIG_HOME/snowcone/hub.lua`, a Lua chunk that returns the same structure as a table.
+1. the file last given to `/reload` (see [Reloading](#reloading)),
+2. the file named with `--config=PATH`,
+3. `$XDG_CONFIG_HOME/snowcone/hub.toml` (by default `~/.config/snowcone/hub.toml`).
 
-This directory is the *configuration directory*. Relative paths in the configuration, such as `servers_file`, `plugins.directory` and `{file = ...}` secrets, are relative to it.
+A file given with `/reload` or `--config` must be named `*.toml`.
+
+`$XDG_CONFIG_HOME/snowcone` is the *configuration directory*. Relative paths in the configuration, such as `servers_file`, `plugins.directory` and `{file = ...}` secrets, are relative to it.
 
 Settings can be overridden on the command line with `key.path=value`, for example `ui.profile=chat`. Overrides are applied to the file's contents before checking.
 

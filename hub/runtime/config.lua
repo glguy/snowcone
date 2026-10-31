@@ -64,21 +64,14 @@ function M.apply_override(tab, src)
 end
 
 local function parse(filename, text)
-    local ext = path.extension(filename)
-    if ext == '.toml' then
-        return assert(mytoml.parse_toml(text))
-    elseif ext == '.lua' then
-        -- assignments in the file stay out of _G
-        local env = setmetatable({}, {__index = _G})
-        local chunk = assert(load(text, '@' .. filename, 't', env))
-        return chunk()
-    else
-        error('Unknown configuration file extension: ' .. ext, 0)
+    if path.extension(filename) ~= '.toml' then
+        error('Configuration files are TOML, named *.toml: ' .. filename, 0)
     end
+    return assert(mytoml.parse_toml(text))
 end
 
 --- Read the configuration file chosen by /reload, else the one named by
---- --config, else the first default that exists.
+--- --config, else hub.toml in the configuration directory.
 ---@param chosen string|nil
 ---@return table raw
 ---@return string filename
@@ -92,17 +85,12 @@ local function read_file(dir, flags, chosen)
         return parse(named, text), named
     end
 
-    local candidates = {
-        path.join(dir, 'hub.toml'),
-        path.join(dir, 'hub.lua'),
-    }
-    for _, filename in ipairs(candidates) do
-        local text = file.read(filename)
-        if text then
-            return parse(filename, text), filename
-        end
+    local filename = path.join(dir, 'hub.toml')
+    local text = file.read(filename)
+    if not text then
+        error('Failed to read configuration file: ' .. filename, 0)
     end
-    error('Failed to read configuration file, tried: ' .. table.concat(candidates, ', '), 0)
+    return parse(filename, text), filename
 end
 
 local all_features <const> = {}

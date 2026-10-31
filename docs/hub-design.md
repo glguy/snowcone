@@ -167,8 +167,8 @@ every topic, and a test checks that every literal topic emitted is listed.
   and `time`, the `HH:MM:SS` it shows: the server's time tag when there is
   one, otherwise ours. The server's time is only displayed and sent back
   to it; it is never ordered or compared.
-- Configuration: `--config=PATH`, else `hub.toml` or `hub.lua` in the
-  snowcone config directory, with `KEY.PATH=value` overrides; validated
+- Configuration: a TOML file — the one last given to `/reload`, else
+  `--config=PATH`, else `hub.toml` in the snowcone config directory — with `KEY.PATH=value` overrides; validated
   against `runtime/config_schema.lua`.
 - Secrets — a string, `{file}`, `{command, arguments}` or `{prompt}` — are
   resolved inside tasks when needed and never stored in state.

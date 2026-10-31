@@ -50,7 +50,7 @@ out/install/arm-mac/bin/snowcone hub
 
 `snowcone hub` is a server notice dashboard and chat client, and connects
 to any number of networks at once. It reads `~/.config/snowcone/hub.toml`
-(or `hub.lua`, or `--config=PATH`); every connection setting lives in a
+(or `--config=PATH`); every connection setting lives in a
 `[[networks]]` table. [docs/CONFIG.md](docs/CONFIG.md) describes every
 setting.
 

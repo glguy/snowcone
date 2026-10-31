@@ -285,6 +285,13 @@ T.case('/reload with a file reads that file from then on', function()
     T.ok(T.reload(), 'a reload without a file')
     T.eq(HUB.current.config.file, chosen, 'still reads the chosen file')
 
+    local lua = dir .. '/hub.lua'
+    assert(require 'pl.file'.write(lua, 'return {}'))
+    local ok, err = T.reload {config_file = lua}
+    T.eq(ok, false, 'a Lua file is refused')
+    T.ok(tostring(err):find('TOML', 1, true), err)
+    os.remove(lua)
+
     require 'pl.dir'.rmtree(dir)
 end)
 
