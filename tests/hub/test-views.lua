@@ -477,6 +477,57 @@ T.case('the status bar names the two who last started typing', function()
     T.ok(not status_bar():find('…', 1, true), 'gone once they lapse')
 end)
 
+T.case('talk and action modes tell the buffer we are typing; quiet talk mode does not', function()
+    local fake = FakeTransport.new()
+    T.boot {ui = true, transport = fake, config = {networks = {{
+        id = 'test',
+        server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'},
+    }}}}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :message-tags'
+    c:recv ':srv CAP me ACK :message-tags'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 376 me :End of MOTD'
+    c:recv ':me!u@h JOIN #chan'
+    c:take()
+    local control = T.require 'hub.ui.control'
+    local clock = T.require 'hub.runtime.clock'
+    local now = clock.now()
+    clock.now = function() return now end
+    control.set_talk_target('test', '#chan')
+    control.set_view 'buffer'
+
+    key(string.byte 't')
+    type_text 'hi'
+    T.eq(c:take(), {'@+typing=active TAGMSG #chan'}, 'talk mode')
+    now = now + 10
+    T.require 'hub.runtime.bus'.emit('clock.tick', {now = now})
+    local sent = {}
+    for _, line in ipairs(c:take()) do
+        -- the tick checks the lag, too
+        if not line:find '^PING' then table.insert(sent, line) end
+    end
+    T.eq(sent, {'@+typing=paused TAGMSG #chan'}, 'paused, on the tick')
+    key(13)
+    T.eq(c:take(), {'PRIVMSG #chan hi'}, 'the message ends it')
+
+    key(string.byte 'a')
+    type_text 'waves'
+    key(0x1b)
+    T.eq(c:take(), {'@+typing=active TAGMSG #chan', '@+typing=done TAGMSG #chan'}, 'action mode, ended by Esc')
+
+    key(-string.byte 't')
+    T.eq(HUB.state.ui.input.mode, 'quiet', 'Meta-T')
+    type_text 'shh'
+    key(13)
+    key(string.byte 'T')
+    type_text 'note'
+    key(13)
+    T.eq(c:take(), {'PRIVMSG #chan shh', 'NOTICE #chan note'}, 'neither quiet talk nor notice mode')
+end)
+
 T.case('the status bar shows the modes of the view as one fragment', function()
     boot()
     local control = T.require 'hub.ui.control'

@@ -4,6 +4,7 @@
 -- Windows are handles, not data, so each generation makes its own when it
 -- becomes current and on every resize.
 
+local chat      <const> = require 'hub.features.chat'
 local clicks    <const> = require 'hub.ui.clicks'
 local control   <const> = require 'hub.ui.control'
 local details   <const> = require 'hub.ui.details'
@@ -137,9 +138,22 @@ end
 
 -- Native entry points ================================================
 
+-- Input modes whose line tells its buffer we are typing
+local typing_modes <const> = {talk = true, action = true}
+
+-- Tell chat what we are writing and where (chat/typing.lua), after each
+-- input event and each second: whatever ended the mode, or moved it to
+-- another buffer, ends our typing where it was
+local function compose()
+    local input = HUB.state.ui.input
+    local net = typing_modes[input.mode] and control.current_net() or nil
+    local target = net and control.talk_target(net)
+    chat.compose(net, target, target and editor.content(input.editor) or '')
+end
+
 local entry = {}
 
-function entry.on_keyboard(key)
+local function keyboard(key)
     dispatch.dirty()
     local mode = HUB.state.ui.input.mode
 
@@ -174,6 +188,11 @@ function entry.on_keyboard(key)
     if f then f() end
 end
 
+function entry.on_keyboard(key)
+    keyboard(key)
+    compose()
+end
+
 -- A paste over the native limit arrives as nil and its size
 function entry.on_paste(paste, size)
     if paste == nil then
@@ -192,12 +211,14 @@ function entry.on_paste(paste, size)
         end
         dispatch.dirty()
     end
+    compose()
 end
 
 function entry.on_mouse(y, x, shifted)
     if clicks.hit(y, x, shifted) then
         dispatch.dirty()
     end
+    compose()
 end
 
 function entry.on_resize()
@@ -320,6 +341,7 @@ function M.subscribe(sub)
         if ev.flash then ncurses.flash() end
     end)
     sub.on('chat.message', function() dispatch.dirty() end)
+    sub.on('clock.tick', compose)
 end
 
 M.routes = {

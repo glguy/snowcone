@@ -4,13 +4,28 @@
 -- or until the nick sends a message there, leaves, or says done; a nick
 -- change carries it over.
 --
--- Entries live in buffer.typing (hub.ChatBuffer). Chat requires this
+-- Ours goes out as the UI reports what we are writing and where
+-- (M.compose): active at once and every few seconds while the line
+-- changes, paused after a while without a change, and done when the line
+-- is emptied or abandoned. A message sent there ends it without done, as
+-- it does for those who receive it. Notices go out only where the network
+-- takes the tag (message-tags, CLIENTTAGDENY), to a buffer we can reach,
+-- and only when they would be written at once: one held back by the rate
+-- limit would be stale when it went, and would delay real lines. A buffer
+-- whose notice the server refuses (a moderated channel, a nick gone) gets
+-- no more of them until we write another line there.
+--
+-- Entries live in buffer.typing (hub.ChatBuffer), and what we are writing
+-- in C.composing (hub.ChatState). Chat requires this
 -- module, so it passes itself in for folding and finding buffers, and
 -- calls handle on each message before its own handlers: a nick change
 -- is followed here before chat renames the private buffer.
 
 local clock     <const> = require 'hub.runtime.clock'
 local irc_model <const> = require 'hub.net.irc'
+local log       <const> = require 'hub.runtime.log'
+local N         <const> = require 'hub.lib.numerics'
+local send      <const> = require 'hub.net.send'
 
 local M = {}
 
@@ -55,13 +70,131 @@ function M.list(chat, net, buffer)
     return list
 end
 
---- Nobody's typing outlives the connection.
+--- Nobody's typing outlives the connection, ours included.
 ---@param C hub.ChatState
 function M.reset(C)
     for _, buffer in pairs(C.buffers) do buffer.typing = nil end
+    C.composing = nil
+end
+
+-- Ours ================================================================
+
+--- Seconds between our active notices while the line keeps changing.
+M.refresh = 3
+
+--- Seconds without a change to the line before we say we paused.
+M.pause = 10
+
+---@class hub.ChatComposing
+---@field target string the buffer's name
+---@field text string the line as last reported
+---@field state 'active'|'paused'|nil what the buffer last heard from us
+---@field sent number clock.now() of the last active notice
+---@field edited number clock.now() of the last change to the line
+---@field refused true|nil the server refused a notice there
+
+-- Tell a buffer how our typing goes; false when the notice couldn't go
+-- out at once
+local function tell(chat, net, target, state)
+    local rec = HUB.state.nets[net]
+    local irc = rec and rec.irc
+    if not (irc and rec.phase == 'connected' and send.ready(net)) then return false end
+    if not irc_model.client_tag_allowed(irc, 'typing') then return false end
+    if chat.fold(net, target) == chat.fold(net, chat.wallops) or not chat.buffer(net, target) then
+        return false
+    end
+    if irc_model.is_channel_name(irc, target) then
+        if not irc_model.get_channel(irc, target) then return false end
+    else
+        -- a monitored nick known to be offline would only answer with an
+        -- error
+        local monitor = irc_model.get_monitor(irc, target)
+        if monitor and not monitor.user then return false end
+    end
+    local ok, err = pcall(send.send_tagged, net, {['+typing'] = state}, 'TAGMSG', target)
+    if not ok then
+        log.add_net(net, 'chat', '%s', err)
+    end
+    return ok
+end
+
+--- What we are writing in a network's buffer, reported after each input
+--- event and each second; a nil target, or an empty line, when we are
+--- writing nothing there.
+---@param chat hub.ChatLookup
+---@param net string
+---@param target string|nil
+---@param text string
+function M.compose(chat, net, target, text)
+    local C = chat.get(net)
+    local entry = C.composing
+    if entry and not (target and text ~= '' and chat.fold(net, entry.target) == chat.fold(net, target)) then
+        if entry.state then tell(chat, net, entry.target, 'done') end
+        C.composing, entry = nil, nil
+    end
+    if not target or text == '' then return end
+
+    local now = clock.now()
+    if not entry then
+        entry = {target = target, text = '', sent = now, edited = now}
+        C.composing = entry
+    end
+    if text ~= entry.text then
+        entry.text = text
+        entry.edited = now
+    end
+    if entry.refused then return end
+    if now - entry.edited >= M.pause then
+        if entry.state == 'active' and tell(chat, net, target, 'paused') then
+            entry.state = 'paused'
+        end
+    elseif entry.state ~= 'active' or now - entry.sent >= M.refresh then
+        if tell(chat, net, target, 'active') then
+            entry.state = 'active'
+            entry.sent = now
+        end
+    end
+end
+
+--- Our message to the buffer we are writing in ends our typing there.
+---@param chat hub.ChatLookup
+---@param net string
+---@param msg hub.Message our PRIVMSG or NOTICE
+function M.on_sent(chat, net, msg)
+    local C = chat.get(net)
+    local entry = C.composing
+    if entry and msg[1] and chat.fold(net, msg[1]) == chat.fold(net, entry.target) then
+        C.composing = nil
+    end
 end
 
 local H = {}
+
+-- An error naming the buffer we are writing in: the buffer heard nothing,
+-- so it needs no done either
+local function refused(chat, net, target)
+    local entry = chat.get(net).composing
+    if entry and target and chat.fold(net, target) == chat.fold(net, entry.target) then
+        entry.refused = true
+        entry.state = nil
+    end
+end
+
+local function refusal(chat, net, _, msg)
+    refused(chat, net, msg[2])
+end
+
+H[N.ERR_NOSUCHNICK] = refusal
+H[N.ERR_NOSUCHCHANNEL] = refusal
+H[N.ERR_CANNOTSENDTOCHAN] = refusal
+H[N.ERR_CANNOTSENDTOUSER] = refusal
+
+-- A standard reply names no target in a fixed place, so FAIL TAGMSG
+-- counts against the buffer we are writing in
+function H.FAIL(chat, net, _, msg)
+    local entry = msg[1] == 'TAGMSG' and chat.get(net).composing
+    if entry then refused(chat, net, entry.target) end
+end
 
 -- A message ends the nick's typing in the buffer chat puts it in: the
 -- channel, the target of one of ours, or the sender of one to us

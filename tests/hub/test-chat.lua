@@ -219,6 +219,133 @@ T.case('typing is tracked in buffers until it lapses or ends', function()
     T.eq(typing 'robert', {}, 'disconnecting ends it')
 end)
 
+-- Boot as boot does, with message-tags and more ISUPPORT tokens
+local function boot_tags(isupport, extra)
+    local fake = FakeTransport.new()
+    local net = {id = 'test', server = {host = 'test.example', port = 6667}, identity = {nick = 'me'}}
+    for k, v in pairs(extra or {}) do net[k] = v end
+    T.boot {transport = fake, config = {networks = {net}}}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :message-tags'
+    c:recv ':srv CAP me ACK :message-tags'
+    c:recv ':srv 001 me :Welcome'
+    c:recv(':srv 005 me CHANTYPES=# MONITOR=100 ' .. (isupport or 'STATUSMSG=@+') .. ' :are supported')
+    c:recv ':srv 376 me :End of MOTD'
+    c:recv ':me!u@h JOIN #c'
+    c:recv ':me!u@h JOIN #d'
+    c:take()
+    return c, T.require 'hub.features.chat'
+end
+
+T.case('client-only tags follow message-tags and CLIENTTAGDENY', function()
+    boot()
+    local irc_model = T.require 'hub.net.irc'
+    local function allowed(deny, caps)
+        local irc = {caps_enabled = caps or {['message-tags'] = true}, isupport = {CLIENTTAGDENY = deny}}
+        return irc_model.client_tag_allowed(irc, 'typing')
+    end
+    T.eq(allowed(nil, {}), false, 'not without message-tags')
+    T.eq(allowed(nil), true, 'everything without a deny list')
+    T.eq({allowed 'typing', allowed 'react,typing', allowed 'react'}, {false, false, true}, 'by name')
+    T.eq({allowed '*', allowed '*,-typing', allowed '*,-react'}, {false, true, false}, 'all but exceptions')
+end)
+
+T.case('our typing goes out active, refreshed, paused and done', function()
+    local c, chat = boot_tags()
+    local clock = T.require 'hub.runtime.clock'
+    local now = clock.now()
+    clock.now = function() return now end
+
+    chat.compose('test', '#c', 'h')
+    T.eq(c:take(), {'@+typing=active TAGMSG #c'}, 'active at once')
+    chat.compose('test', '#c', 'hi')
+    now = now + 2
+    chat.compose('test', '#c', 'hi')
+    T.eq(c:take(), {}, 'not again within 3 seconds')
+    now = now + 1
+    chat.compose('test', '#c', 'hi')
+    T.eq(c:take(), {'@+typing=active TAGMSG #c'}, 'refreshed while the last change is recent')
+    now = now + 7
+    chat.compose('test', '#c', 'hi')
+    chat.compose('test', '#c', 'hi')
+    T.eq(c:take(), {'@+typing=paused TAGMSG #c'}, 'paused once, 10 seconds after the last change')
+    chat.compose('test', '#c', 'hi!')
+    T.eq(c:take(), {'@+typing=active TAGMSG #c'}, 'active again on a change')
+
+    chat.compose('test', '#D', 'x')
+    T.eq(c:take(), {'@+typing=done TAGMSG #c', '@+typing=active TAGMSG #D'}, 'moving ends it')
+    chat.compose('test', '#d', '')
+    chat.compose('test', '#d', '')
+    T.eq(c:take(), {'@+typing=done TAGMSG #D'}, 'emptying ends it, once')
+    chat.compose('test', '#d', 'x')
+    chat.compose(nil, nil, '')
+    T.eq(c:take(), {'@+typing=active TAGMSG #d', '@+typing=done TAGMSG #d'}, 'so does stopping')
+
+    chat.compose('test', '#d', 'hello')
+    chat.say('test', '#d', 'hello')
+    chat.compose(nil, nil, '')
+    T.eq(c:take(), {'@+typing=active TAGMSG #d', 'PRIVMSG #d hello'}, 'our message ends it without done')
+
+    chat.compose('test', '#c', 'x')
+    c:finish 'reset'
+    T.eq(chat.get('test').composing, nil, 'disconnecting forgets it')
+end)
+
+T.case('our typing goes only where it can, and only at once', function()
+    local c, chat = boot_tags()
+    local clock = T.require 'hub.runtime.clock'
+    local now = clock.now()
+    clock.now = function() return now end
+    for _, target in ipairs {'#elsewhere', 'nobody', chat.wallops} do
+        chat.compose('test', target, 'x')
+        chat.compose(nil, nil, '')
+    end
+    T.eq(c:take(), {}, 'not to a channel we are not in, a missing buffer or wallops')
+
+    c:recv ':bob!b@h PRIVMSG me :hi'
+    c:recv ':srv 731 me :bob'
+    chat.compose('test', 'bob', 'x')
+    T.eq(c:take(), {}, 'not to a nick known to be offline')
+    c:recv ':srv 730 me :bob!b@h'
+    chat.compose('test', 'bob', 'xy')
+    T.eq(c:take(), {'@+typing=active TAGMSG bob'}, 'once it is online')
+
+    c:recv ':srv 404 me #C :Cannot send to channel'
+    chat.compose('test', 'bob', 'xyz')
+    T.eq(c:take(), {}, 'an error about another buffer is no matter')
+    chat.compose('test', '#c', 'x')
+    c:take()
+    c:recv ':srv 404 me #C :Cannot send to channel'
+    now = now + 3
+    chat.compose('test', '#c', 'xy')
+    chat.compose(nil, nil, '')
+    T.eq(c:take(), {}, 'refused: no more there, nor done')
+    chat.compose('test', '#c', 'x')
+    T.eq(c:take(), {'@+typing=active TAGMSG #c'}, 'the next line tries again')
+    c:recv 'FAIL TAGMSG INVALID_TARGET #c :no'
+    now = now + 3
+    chat.compose('test', '#c', 'xy')
+    T.eq(c:take(), {}, 'FAIL TAGMSG refuses too')
+    chat.compose(nil, nil, '')
+
+    HUB.state.nets.test.cfg.rate_limit = {burst = 1, interval = 60}
+    T.require 'hub.net.send'.send('test', 'PRIVMSG', '#c', 'fill the burst')
+    c:take()
+    chat.compose('test', '#c', 'x')
+    T.eq(c:take(), {}, 'not held back by the rate limit')
+    T.eq(HUB.state.nets.test.sendq.lines, {}, 'nor queued')
+
+    for _, deny in ipairs {'typing', '*'} do
+        c, chat = boot_tags('CLIENTTAGDENY=' .. deny)
+        chat.compose('test', '#c', 'x')
+        T.eq(c:take(), {}, 'not when CLIENTTAGDENY=' .. deny)
+    end
+    c, chat = boot_tags 'CLIENTTAGDENY=*,-typing'
+    chat.compose('test', '#c', 'x')
+    T.eq(c:take(), {'@+typing=active TAGMSG #c'}, 'but when excepted')
+end)
+
 T.case('every buffer a queued line went to shows its delivery', function()
     local c, chat = boot {rate_limit = {burst = 1, interval = 60}}
     c:recv ':me!u@h JOIN #a'

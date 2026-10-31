@@ -12,11 +12,14 @@
 --            (chat/receipt.lua)
 --   closing  [folded channel] = true: channels /close parted, whose buffer
 --            goes when our PART comes back
+--   composing what we are writing and where, for our typing notices
+--            (chat/typing.lua)
 -- }
 --
 -- Sending: replies to CTCP requests from staff, CHATHISTORY (history.lua)
--- and MONITOR for buffers, and what the commands ask for. PRIVMSG and
--- NOTICE go out only from commands and talk mode. Bans, quiets and kicks
+-- and MONITOR for buffers, our typing (TAGMSG, chat/typing.lua), and what
+-- the commands ask for. PRIVMSG and NOTICE go out only from commands and
+-- talk mode. Bans, quiets and kicks
 -- go out at once, without staging: they reach one channel and are easily
 -- undone.
 --
@@ -69,6 +72,7 @@ M.wallops = '*wallops'
 --- by label, then by folded target; for the current connection
 ---@field closing table<string, true> channels /close parted, by folded name;
 --- for the current connection
+---@field composing hub.ChatComposing|nil what we are writing and where
 
 ---@return hub.ChatState
 local function new_state()
@@ -467,6 +471,7 @@ local function on_sent(ev)
     if msg.command ~= 'PRIVMSG' and msg.command ~= 'NOTICE' then return end
     local irc = model(ev.net)
     if not irc then return end
+    typing.on_sent(M, ev.net, msg)
     receipt.on_sent(M, ev.net, irc, msg)
 end
 
@@ -553,6 +558,23 @@ end
 --- Send an action (CTCP ACTION, /me in other clients) to a target.
 function M.action(net, target, text)
     send.send(net, 'PRIVMSG', target, '\x01ACTION ' .. text .. '\x01')
+end
+
+--- Report what we are writing and where, for our typing notices: net and
+--- target nil, or text empty, when we are writing nothing. Writing goes
+--- on in one place at a time, so it ends on every other network.
+---@param net string|nil
+---@param target string|nil
+---@param text string
+function M.compose(net, target, text)
+    for id in pairs(HUB.state.nets) do
+        if id ~= net and enabled(id) then
+            typing.compose(M, id, nil, '')
+        end
+    end
+    if net and enabled(net) then
+        typing.compose(M, net, target, text)
+    end
 end
 
 -- Channels ============================================================

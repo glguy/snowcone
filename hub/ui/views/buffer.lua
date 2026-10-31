@@ -1,13 +1,14 @@
 -- A chat buffer of the current network.
 --
--- t starts talk mode; Ctrl-N and Ctrl-P step through the network's
--- buffers; Meta-H hides joins, parts, quits, nick changes, account
--- changes and host changes. Click a sender to inspect the message in the
--- detail pane. A reply (the +reply tag) starts with ↩: click it to scroll to
--- the message it answers, which is highlighted until Esc. Click a
--- channel's name in the status bar for its information, a nick's for its
--- WHOIS. After the name,
--- the two who most recently started typing there (not those who paused).
+-- t starts talk mode and a action mode, which tell the buffer we are
+-- typing; Meta-T starts quiet talk mode, which doesn't; T starts notice
+-- mode. n and p step through the network's buffers; Meta-H hides joins,
+-- parts, quits, nick changes, account changes and host changes. Click a
+-- sender to inspect the message in the detail pane. A reply (the +reply
+-- tag) starts with ↩: click it to scroll to the message it answers, which
+-- is highlighted until Esc. Click a channel's name in the status bar for
+-- its information, a nick's for its WHOIS. After the name, the two who
+-- most recently started typing there (not those who paused).
 -- Viewing a buffer marks it seen and, with the terminal focused,
 -- withdraws its notification.
 -- View state: scroll, hscroll, hide_presence, highlight (a message).
@@ -235,6 +236,10 @@ local keys = {
     [string.byte 't'] = function()
         editor.reset(control.editor())
         control.set_input_mode 'talk'
+    end,
+    [-string.byte 't'] = function()
+        editor.reset(control.editor())
+        control.set_input_mode 'quiet'
     end,
     [string.byte 'a'] = function()
         editor.reset(control.editor())

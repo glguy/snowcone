@@ -71,6 +71,29 @@ function M.has_labels(irc)
     return irc.caps_enabled['labeled-response'] and irc.caps_enabled.batch or false
 end
 
+--- The network takes a client-only tag, named without its +: message-tags
+--- is enabled and ISUPPORT CLIENTTAGDENY doesn't block it. The deny list
+--- names tags, * for all of them, and -name for an exception to *.
+---@param irc hub.Irc
+---@param name string
+---@return boolean
+function M.client_tag_allowed(irc, name)
+    if not irc.caps_enabled['message-tags'] then return false end
+    local deny = irc.isupport.CLIENTTAGDENY
+    if type(deny) ~= 'string' then return true end
+    local all, denied, exempt = false, false, false
+    for item in deny:gmatch '[^,]+' do
+        if item == '*' then
+            all = true
+        elseif item == name then
+            denied = true
+        elseif item == '-' .. name then
+            exempt = true
+        end
+    end
+    return not (denied or all and not exempt)
+end
+
 ---@return hub.Irc # a new model for a connection that hasn't registered
 function M.new()
     ---@class hub.Irc
