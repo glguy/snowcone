@@ -159,6 +159,15 @@ function M.is_empty(self)
     return not self.buffer[1]
 end
 
+--- The line shown holds something typed: the line being typed, unless
+--- empty, or a recalled line changed from its history.
+---@param self hub.Editor
+function M.typed(self)
+    if not self.at then return self.buffer[1] ~= nil end
+    local line = OrderedMap.get(self.history, self.at)
+    return not (line and same_line(line, self.buffer))
+end
+
 ---@param self hub.Editor
 function M.backspace(self)
     local i = self.cursor

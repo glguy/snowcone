@@ -527,6 +527,19 @@ T.case('talk and action modes tell the buffer we are typing; quiet talk mode doe
     key(13)
     T.eq(c:take(), {'PRIVMSG #chan hi'}, 'the message ends it')
 
+    key(string.byte 't')
+    key(-ncurses.KEY_UP)
+    T.eq(tick(), {}, 'not for a line recalled from history')
+    type_text '!'
+    T.eq(c:take(), {'@+typing=active TAGMSG #chan'}, 'but once it is changed')
+    key(0x1f & string.byte '_')
+    T.eq(c:take(), {'@+typing=done TAGMSG #chan'}, 'done when undone back to the line recalled')
+    type_text '?'
+    key(-ncurses.KEY_DOWN)
+    T.eq(c:take(), {'@+typing=active TAGMSG #chan', '@+typing=done TAGMSG #chan'},
+        'and when browsing on to the empty line being typed')
+    key(0x1b)
+
     key(string.byte 'a')
     type_text 'waves'
     key(0x1b)
