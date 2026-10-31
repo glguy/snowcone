@@ -184,6 +184,58 @@ T.case('a server without CAP registers directly', function()
     T.eq(c:take(), {'MODE me'}, 'no CAP END')
 end)
 
+T.case('identity.bot sets the named bot mode before the registered event', function()
+    local fake = boot {network('test', {identity = {nick = 'me', bot = true}})}
+    local c = fake.last()
+    local bus = T.require 'hub.runtime.bus'
+    local sent_before
+    bus.on(HUB.current.bus, 'net.registered', 'test', function()
+        sent_before = c:take()
+    end)
+    register(c, 'me', 'CHANTYPES=# BOT=B')
+    T.eq(sent_before[#sent_before], 'MODE me +B', 'bot mode, before the event')
+    T.eq(c:take(), {'MODE me'}, 'then the mode query')
+end)
+
+T.case('identity.bot without ISUPPORT BOT sends no mode', function()
+    local fake = boot {network('test', {identity = {nick = 'me', bot = true}})}
+    local c = fake.last()
+    local logged = record 'log'
+    register(c)
+    local sent = c:take()
+    T.eq(sent[#sent], 'MODE me', 'only the mode query')
+    local found
+    for _, entry in ipairs(logged) do
+        found = found or entry.text:find 'names no bot mode'
+    end
+    T.ok(found, 'logged')
+end)
+
+T.case('channels are joined after registration, on every connection', function()
+    local long = {}
+    for i = 1, 40 do long[i] = ('#channel%02d'):format(i) end
+    local fake = boot {network('test', {channels = long})}
+    local c = fake.last()
+    register(c)
+    local joins = {}
+    for _, line in ipairs(c:take()) do
+        local names = line:match '^JOIN (.*)$'
+        if names then table.insert(joins, names) end
+    end
+    T.eq(#joins, 2, 'split over two lines')
+    T.eq(table.concat(joins, ','), table.concat(long, ','), 'every channel, in order')
+
+    c:finish 'gone'
+    fire_reconnect 'test'
+    c = fake.last()
+    register(c)
+    local again = 0
+    for _, line in ipairs(c:take()) do
+        if line:match '^JOIN ' then again = again + 1 end
+    end
+    T.eq(again, 2, 'joined again after reconnecting')
+end)
+
 T.case('nick in use during registration, then reclaimed with MONITOR', function()
     local fake = boot {network('test')}
     local c = fake.last()

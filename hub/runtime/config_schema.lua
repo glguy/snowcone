@@ -58,6 +58,7 @@ local identity_fields <const> = {
     nick  = {type = 'string', pattern = word, required = true},
     user  = {type = 'string', pattern = word},
     gecos = {type = 'string', pattern = '^[^\n\r\x00]+$'},
+    bot   = {type = 'boolean'},
 }
 
 -- host and port for TCP, or path for a local (unix-domain) socket;
@@ -163,6 +164,7 @@ M.network = table_ {
     reconnect    = table_ {min_delay = delay_schema, max_delay = delay_schema},
     rate_limit   = rate_limit_schema,
     reclaim_nick = {type = 'boolean'},
+    channels     = array {type = 'string', pattern = '^[^\n\r\x00 ,]+$'},
     snomask      = {type = 'string', pattern = word},
     quit_message = {type = 'string', pattern = line},
     servers_file = {type = 'string'},

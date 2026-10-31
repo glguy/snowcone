@@ -24,6 +24,32 @@ local function oper_up(t, cfg)
     end
 end
 
+-- IRCv3 bot mode: the server names its letter in ISUPPORT BOT
+local function bot_mode(t, irc)
+    local letter = irc.isupport.BOT
+    if type(letter) == 'string' and letter:match '^%a$' then
+        t:send('MODE', irc.nick, '+' .. letter)
+    else
+        t:log('irc', 'identity.bot: the server names no bot mode')
+    end
+end
+
+-- JOIN the configured channels, as many to a line as fit
+local function join_channels(t, channels)
+    local names, size = {}, 0
+    for _, name in ipairs(channels) do
+        if #names > 0 and size + #name > 400 then
+            t:send('JOIN', table.concat(names, ','))
+            names, size = {}, 0
+        end
+        table.insert(names, name)
+        size = size + #name + 1
+    end
+    if #names > 0 then
+        t:send('JOIN', table.concat(names, ','))
+    end
+end
+
 ---@param t hub.Task
 return function(t)
     local rec <const> = HUB.state.nets[t.net]
@@ -71,6 +97,11 @@ return function(t)
     -- "<client> :MOTD File is missing"
     t:wait_irc {N.RPL_ENDOFMOTD, N.ERR_NOMOTD}
 
+    -- before net.registered, so it precedes anything sent in reply to it
+    if cfg.identity.bot then
+        bot_mode(t, irc)
+    end
+
     t:api 'hub.net.manager'.set_phase(t.net, 'connected')
     rec.registered_at = clock.now()
     t:log('irc', 'registered as %s', irc.nick)
@@ -79,6 +110,11 @@ return function(t)
     -- start waiting for our nickname
     if irc.recover_nick and cfg.reclaim_nick and irc_model.has_monitor(irc) then
         t:send('MONITOR', '+', cfg.identity.nick)
+    end
+
+    -- before opering, which may wait on a CHALLENGE reply
+    if cfg.channels then
+        join_channels(t, cfg.channels)
     end
 
     oper_up(t, cfg)
