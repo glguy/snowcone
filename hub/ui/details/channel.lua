@@ -23,6 +23,10 @@ local words   <const> = fields.words
 
 local M = {kind = 'channel', filter = true}
 
+M.events = {
+    ['chat.show_channel'] = function(ev) return ev.net, {name = ev.target} end,
+}
+
 function M.title(detail)
     return 'channel ' .. scrub(detail.data.name)
 end

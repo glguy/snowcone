@@ -12,6 +12,10 @@ local scrub     <const> = require 'hub.lib.scrub'
 
 local M = {kind = 'reply', filter = true, wide = true}
 
+M.events = {
+    ['quote.sent'] = function(ev) return ev.net, ev.reply end,
+}
+
 function M.title(detail)
     return 'reply ' .. scrub(detail.data.line)
 end

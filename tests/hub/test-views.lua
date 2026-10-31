@@ -788,6 +788,35 @@ T.case('a WHOIS opens in the detail pane, and from its status line', function()
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case('each event a detail kind names opens it, once, after a reload too', function()
+    boot()
+    T.ok(T.reload(), 'reloaded')
+    local bus = T.require 'hub.runtime.bus'
+    local control = T.require 'hub.ui.control'
+    local reply, whois, whowas, value = {}, {}, {}, {}
+    for _, case in ipairs {
+        {'quote.sent', {net = 'test', reply = reply}, 'reply', 'test', reply},
+        {'chat.whois', {net = 'test', whois = whois}, 'whois', 'test', whois},
+        {'chat.whowas', {net = 'test', whowas = whowas}, 'whowas', 'test', whowas},
+        {'eval.result', {value = value}, 'value', nil, value},
+    } do
+        local topic, ev, kind, net, data = case[1], case[2], case[3], case[4], case[5]
+        local opened = 0
+        for _, s in ipairs(HUB.current.bus.topics[topic]) do
+            if s.owner == 'hub.ui' then opened = opened + 1 end
+        end
+        T.eq(opened, 1, topic .. ': one subscription')
+        control.close_detail()
+        bus.emit(topic, ev)
+        local detail = control.detail()
+        T.ok(detail and detail.kind == kind and detail.net == net and detail.data == data, topic)
+    end
+    control.close_detail()
+    bus.emit('chat.show_channel', {net = 'test', target = '#chan'})
+    local detail = control.detail()
+    T.eq({detail.kind, detail.net, detail.data}, {'channel', 'test', {name = '#chan'}}, 'chat.show_channel')
+end)
+
 T.case('an error from code logs one line that opens its traceback', function()
     boot()
     local control = T.require 'hub.ui.control'

@@ -12,6 +12,10 @@ local words   <const> = fields.words
 
 local M = {kind = 'whois'}
 
+M.events = {
+    ['chat.whois'] = function(ev) return ev.net, ev.whois end,
+}
+
 function M.title(detail)
     return 'whois ' .. scrub(detail.data.nick)
 end

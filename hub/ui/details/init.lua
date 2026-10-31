@@ -7,6 +7,10 @@
 -- reads it with control.filter(ctx.id), as a view does. A `wide` one draws
 -- rows that don't wrap, which Left and Right scroll; the rest wrap at the
 -- terminal's width (ctx.cols), as document views do.
+--
+-- A kind may also name the events that open it: `events` maps a topic to
+-- a function of the event that returns the detail's net and data. Private
+-- data doesn't come by event; it opens with the ui.open_detail route.
 
 local clicks  <const> = require 'hub.ui.clicks'
 local control <const> = require 'hub.ui.control'
@@ -143,6 +147,20 @@ function M.render(detail, kind, pad)
             pad:pnoutrefresh(top, hscroll, 0, 0, rows - 1, tty_width - 1)
         end
         pad:pnoutrefresh(used, 0, rows, 0, rows, tty_width - 1)
+    end
+end
+
+-- Events =============================================================
+
+--- Open each kind on the events it names.
+---@param sub {on: fun(topic: string, fn: fun(ev: table))}
+function M.subscribe(sub)
+    for kind, m in pairs(M.kinds) do
+        for topic, open in pairs(m.events or {}) do
+            sub.on(topic, function(ev)
+                control.open_detail(kind, open(ev))
+            end)
+        end
     end
 end
 

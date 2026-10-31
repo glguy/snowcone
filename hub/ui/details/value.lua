@@ -10,6 +10,10 @@ local scrub <const> = require 'hub.lib.scrub'
 
 local M = {kind = 'value', wide = true}
 
+M.events = {
+    ['eval.result'] = function(ev) return nil, ev.value end,
+}
+
 -- Entries a table shows before its [+N more]
 local shown_entries <const> = 50
 -- Bytes of a string shown

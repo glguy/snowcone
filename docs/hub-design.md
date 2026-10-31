@@ -295,7 +295,8 @@ dashboard are refused with a message to port them.
   they log one line with a `detail` (`log.add_detail`), which the status
   view makes clickable, and emit an event the UI answers by opening it
   when the user asked for the thing (`chat.whois`, `chat.whowas`,
-  `chat.show_channel`).
+  `chat.show_channel`); each kind names the events that open it in
+  `events`, and `ui/details/init.lua` subscribes to them all.
   Anything private (a new private key) opens with the `ui.open_detail`
   route instead, which no plugin hears.
 - **Streams** draw with `draw.draw_rotation` (principle 6), which also

@@ -15,6 +15,10 @@ local key     <const> = fields.key
 
 local M = {kind = 'whowas', filter = true}
 
+M.events = {
+    ['chat.whowas'] = function(ev) return ev.net, ev.whowas end,
+}
+
 function M.title(detail)
     local n = #detail.data.entries
     return string.format('whowas %s (%d %s)', scrub(detail.data.nick), n, n == 1 and 'entry' or 'entries')
