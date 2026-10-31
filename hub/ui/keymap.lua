@@ -10,13 +10,11 @@ local irc_model <const> = require 'hub.net.irc'
 local control   <const> = require 'hub.ui.control'
 local details   <const> = require 'hub.ui.details'
 local editor    <const> = require 'hub.ui.editor'
+local pads      <const> = require 'hub.ui.pads'
 local dispatch  <const> = require 'hub.runtime.dispatch'
 local log       <const> = require 'hub.runtime.log'
 
 local M = {}
-
--- Width of the main pad; views scroll horizontally across it
-M.pad_width = 550
 
 function M.ctrl(x)
     return 0x1f & string.byte(x)
@@ -173,8 +171,8 @@ M.input = {
 
 -- Scroll by pages and lines toward older entries of a rolling log, or
 -- toward the top of a document. The detail pane, while it is open, takes
--- the scrolling from the view. draw.draw_rotation and the document
--- renderer (ui/init.lua) record the page size and limit.
+-- the scrolling from the view. draw.draw_rotation and pads.set_paging
+-- (ui/pads.lua) record the page size and limit.
 local function scroll(pages, lines)
     return function()
         local view = control.current_view()
@@ -195,7 +193,8 @@ end
 
 -- Scroll sideways by most of a screen. The detail pane, while it is open,
 -- takes this from the view, though only a wide kind has anything to the
--- side; the renderer (ui/init.lua) keeps its scroll in range.
+-- side; the renderer (ui/init.lua, ui/details/init.lua) keeps its scroll
+-- in range.
 local function hscroll(direction)
     local vs
     local detail = control.detail()
@@ -207,7 +206,7 @@ local function hscroll(direction)
         vs = control.view_state(HUB.state.ui.view)
     end
     local unit = math.max(1, tty_width - 26)
-    vs.hscroll = math.max(0, math.min(M.pad_width - tty_width, (vs.hscroll or 0) + direction * unit))
+    vs.hscroll = math.max(0, math.min(pads.width - tty_width, (vs.hscroll or 0) + direction * unit))
 end
 
 -- Keys when neither an input mode nor the view handled them

@@ -11,18 +11,15 @@ local details   <const> = require 'hub.ui.details'
 local draw      <const> = require 'hub.ui.draw'
 local editor    <const> = require 'hub.ui.editor'
 local keymap    <const> = require 'hub.ui.keymap'
+local pads      <const> = require 'hub.ui.pads'
 local statusbar <const> = require 'hub.ui.statusbar'
 local dispatch  <const> = require 'hub.runtime.dispatch'
 local log       <const> = require 'hub.runtime.log'
-local scrub     <const> = require 'hub.lib.scrub'
 local tty       <const> = require 'hub.runtime.tty'
 
 local M = {}
 
-local pad_width <const> = keymap.pad_width
-
--- Rows a document view's pad may grow to
-local document_limit <const> = 4096
+local pad_width <const> = pads.width
 
 local layout = {textbox_offset = 0, detail_rows = 0}
 
@@ -71,142 +68,16 @@ local function view_context(view)
     }
 end
 
--- A detail renderer gets the detail as its view state
----@param detail hub.Detail
----@return hub.ViewContext
-local function detail_context(detail)
-    return {
-        id = 'detail',
-        vs = detail,
-        net = detail.net,
-        rows = layout.detail_rows,
-        cols = tty_width,
-        add_click = clicks.add,
-        add_button = clicks.button,
-    }
-end
-
--- Draw everything, top to bottom, into a pad `width` columns wide that
--- doubles until it holds it all. Returns the rows used.
-local function draw_grown(pad, width, render_into)
-    local height, y, x
-    local h, w = ncurses.getmaxyx(pad)
-    if w ~= width then pad:wresize(h, width) end
-    repeat
-        clicks.restart()
-        pad:werase()
-        draw.normal(pad)
-        render_into(pad)
-        height = ncurses.getmaxyx(pad)
-        y, x = ncurses.getyx(pad)
-        -- a cursor on the last row may mean rows were lost
-        local full = y >= height - 1 and height < document_limit
-        if full then
-            pad:wresize(math.min(height * 2, document_limit), width)
-        end
-    until not full
-    return x > 0 and y + 1 or y
-end
-
--- Record the page size and scroll limit of a document for the paging keys
--- (ui/keymap.lua), and keep its scroll in range.
-local function set_paging(vs, used, rows)
-    vs.page = math.max(1, rows - 1)
-    vs.max_scroll = math.max(0, used - rows)
-    vs.scroll = math.max(0, math.min(vs.scroll, vs.max_scroll))
-end
-
 -- Render a document view into its pad, shown from row vs.scroll on the
 -- screen rows from `at`. Returns the refresh to do.
 local function render_document(view, ctx, at)
     local pad, vs, rows = layout.document_pad, ctx.vs, ctx.rows
-    set_paging(vs, draw_grown(pad, tty_width, function(win) view.render(ctx, win) end), rows)
+    pads.set_paging(vs, pads.draw_grown(pad, tty_width, function(win) view.render(ctx, win) end), rows)
     local top = vs.scroll
     clicks.place(top, rows, at)
 
     return function()
         pad:pnoutrefresh(top, 0, at, 0, tty_height - 2, tty_width - 1)
-    end
-end
-
--- Render the detail pane at the top of the screen: its content, up to
--- half the screen and scrolled by the paging keys (sideways too, for a
--- `wide` kind, whose rows don't wrap), over a rule with
--- [CLOSE], [DISCARD] when a log line holds it, its title, its modes, its
--- filter and the rows shown. Returns the rows it
--- takes, and the refresh to do.
----@param detail hub.Detail
-local function render_detail(detail, kind)
-    local limit = (tty_height - 1) // 2 - 1
-    if limit < 1 then return 0 end -- no room
-
-    local pad = layout.detail_pad
-    local ctx = detail_context(detail)
-    ctx.rows = limit
-    local width = kind.wide and pad_width or tty_width
-    local used = draw_grown(pad, width, function(win) kind.render(ctx, win) end)
-    local rows = math.min(used, limit)
-    set_paging(detail, used, rows)
-    local top = detail.scroll
-    local hscroll = kind.wide and math.max(0, math.min(detail.hscroll or 0, pad_width - tty_width)) or 0
-    detail.hscroll = hscroll
-    clicks.place(top, rows, 0, hscroll)
-
-    -- the rule goes on the row after the content, with a row to spare for
-    -- the cursor after the last column; it doesn't scroll sideways
-    if ncurses.getmaxyx(pad) < used + 2 then
-        pad:wresize(used + 2, width)
-    end
-    pad:wmove(used, 0)
-    draw.normal(pad)
-    pad:waddstr '─'
-    clicks.button(pad, '[CLOSE]', control.close_detail)
-    -- the log keeps what its lines open until they roll off; this lets it
-    -- go now
-    if log.holds_detail(detail.data) then
-        pad:waddstr '─'
-        clicks.button(pad, '[DISCARD]', function()
-            log.forget_detail(detail.data)
-            control.close_detail()
-        end)
-    end
-    pad:waddstr '─ '
-    draw.bold(pad)
-    pad:waddstr(kind.title and kind.title(detail) or detail.kind)
-    draw.bold_(pad)
-    if detail.net then
-        draw.cyan(pad)
-        pad:waddstr(' ', detail.net)
-        draw.normal(pad)
-    end
-    for _, mode in ipairs(kind.modes and kind.modes(detail) or {}) do
-        draw.yellow(pad)
-        pad:waddstr(' ', mode)
-        draw.normal(pad)
-    end
-    local filter = kind.filter and control.filter 'detail'
-    if filter then
-        draw.yellow(pad)
-        pad:waddstr ' filter '
-        draw.normal(pad)
-        pad:waddstr(scrub(string.format('%q', filter)))
-    end
-    if detail.max_scroll > 0 then
-        pad:waddstr(string.format(' rows %d-%d of %d', top + 1, top + rows, used))
-    end
-    if hscroll > 0 then
-        pad:waddstr(string.format(' cols +%d', hscroll))
-    end
-    pad:waddstr ' '
-    local _, x = ncurses.getyx(pad)
-    pad:waddstr(string.rep('─', math.max(0, tty_width - x)))
-    clicks.place(used, 1, rows)
-
-    return rows + 1, function()
-        if rows > 0 then
-            pad:pnoutrefresh(top, hscroll, 0, 0, rows - 1, tty_width - 1)
-        end
-        pad:pnoutrefresh(used, 0, rows, 0, rows, tty_width - 1)
     end
 end
 
@@ -229,7 +100,7 @@ local function render()
     local refresh_detail
     layout.detail_rows = 0
     if kind then
-        layout.detail_rows, refresh_detail = render_detail(detail, kind)
+        layout.detail_rows, refresh_detail = details.render(detail, kind, layout.detail_pad)
     end
     local at = layout.detail_rows
 
@@ -291,7 +162,7 @@ function entry.on_keyboard(key)
     -- consumes the key
     local detail = control.detail()
     local kind = detail and details.kinds[detail.kind]
-    if kind and kind.keypress and kind.keypress(detail_context(detail), key) then
+    if kind and kind.keypress and kind.keypress(details.context(detail, layout.detail_rows), key) then
         return
     end
 

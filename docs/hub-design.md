@@ -287,7 +287,8 @@ dashboard are refused with a message to port them.
   it before anything else, outside input modes. A kind with `filter`
   (`channel`, `reply`, `whowas`) takes the filter too: Ctrl-S and `/filter` filter
   it, live, instead of the view, and it keeps its own (`control.filter
-  'detail'`); the renderers are listed in `ui/details/init.lua`. A
+  'detail'`); the renderers are listed in `ui/details/init.lua`, which
+  draws the pane's frame around them. A
   `wide` kind (`reply`, `value`) draws rows that don't wrap, and Left and
   Right scroll it; the others wrap like a document, and Left and Right
   do nothing while they are shown. Features don't open it:
