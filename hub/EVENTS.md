@@ -30,7 +30,7 @@ carry `net`, the network id.
 | `chat.focus` | `{net, target}` /talk asks the UI to show a buffer | features/chat |
 | `chat.show_list` | `{net}` /list asks the UI to show the list | features/chat |
 | `chat.show_channel` | `{net, target}` /chaninfo asks the UI to show a channel's information | features/chat |
-| `quote.sent` | `{net, reply}` /quote sent a labeled line; `reply` is a `hub.QuoteReply` filled in place when the reply comes; the UI shows it | commands/core |
+| `quote.sent` | `{net, reply}` /quote sent a labeled line; `reply` is a `hub.QuoteReply` filled in place when the reply comes; the UI shows it | commands/quote |
 | `chat.whois` | `{net, whois}` a WHOIS reply ended, as a `hub.Whois`; the UI shows it | features/chat |
 | `chat.whowas` | `{net, whowas}` a WHOWAS reply ended, as a `hub.Whowas`; the UI shows it | features/chat |
 | `eval.result` | `{value}` /eval returned values: `{code, n, ...}`, live; the UI shows them | commands/core |
