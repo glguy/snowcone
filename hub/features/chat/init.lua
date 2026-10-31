@@ -637,7 +637,7 @@ end
 
 -- Unset a list mode: a mask as given, or a nick's ban mask
 local function unban_command(name, mode, help)
-    return chat_command(name, '$g', 'mask|nick', help, function(ctx, arg)
+    local cmd = chat_command(name, '$g', 'mask|nick', help, function(ctx, arg)
         local channel = shown_channel(ctx)
         if is_mask(arg) then
             send.send(ctx.net, 'MODE', channel, '-' .. mode, arg)
@@ -645,6 +645,63 @@ local function unban_command(name, mode, help)
             task.spawn(name, {net = ctx.net, owner = M.name}, ban_nick, channel, arg, '-' .. mode)
         end
     end)
+    -- Tab offers the list's masks and the channel's nicks; a list not yet
+    -- fetched is asked for, for the next Tab
+    function cmd.complete(ctx, before, seed)
+        if before ~= '' then return nil end
+        local irc = model(ctx.net)
+        local channel = irc and ctx.target and irc_model.get_channel(irc, ctx.target)
+        if not channel then return nil end
+        local entries = channel.list_modes[mode]
+        if not entries then
+            M.fetch_list(ctx.net, channel.name, mode)
+            return nil
+        end
+        local t = {}
+        local function offer(s)
+            if s:sub(1, #seed) == seed then table.insert(t, s) end
+        end
+        for mask in pairs(entries) do offer(mask) end
+        for _, member in pairs(channel.members) do offer(member.user.nick) end
+        return t[1] and t or nil
+    end
+    return cmd
+end
+
+-- Give (+o) or take (-o) a prefix mode for nicks in the shown channel, in
+-- as few MODE lines as the server's MODES allows; with no nicks, bare()
+local function prefix_command(name, change, help, bare)
+    return chat_command(name, '$R', '[nick...]', help, function(ctx, args)
+        local channel = shown_channel(ctx)
+        local nicks = {}
+        for nick in args:gmatch '%g+' do table.insert(nicks, nick) end
+        if not nicks[1] then return bare(ctx.net, channel) end
+        local irc = model(ctx.net)
+        ---@cast irc -nil shown_channel needs it
+        -- MODES with no value sets no limit
+        local limit = irc.isupport.MODES
+        local per = limit == true and #nicks or math.tointeger(tonumber(limit)) or 3
+        per = math.max(per, 1)
+        local sign, mode = change:sub(1, 1), change:sub(2)
+        for i = 1, #nicks, per do
+            local chunk = table.move(nicks, i, math.min(i + per - 1, #nicks), 1, {})
+            send.send(ctx.net, 'MODE', channel, sign .. mode:rep(#chunk), table.unpack(chunk))
+        end
+    end)
+end
+
+-- Ask ChanServ (Atheme) for a prefix mode of our own
+local function from_chanserv(command)
+    return function(net, channel)
+        send.send(net, 'PRIVMSG', 'ChanServ', command .. ' ' .. channel)
+    end
+end
+
+-- Drop a prefix mode of our own, which needs no services
+local function drop_own(change)
+    return function(net, channel)
+        send.send(net, 'MODE', channel, change, model(net).nick)
+    end
 end
 
 local topic_command = chat_command('topic', '$R', '[text]', "Set the shown channel's topic, or clear it",
@@ -725,6 +782,12 @@ M.commands = {
     end),
     unban_command('unquiet', 'q', 'Unquiet a mask, or a nick by its ban mask, in the shown channel'),
     unban_command('unban', 'b', 'Unban a mask, or a nick by its ban mask, from the shown channel'),
+    prefix_command('op', '+o', 'Op nicks in the shown channel, or ourselves through ChanServ',
+        from_chanserv 'OP'),
+    prefix_command('deop', '-o', 'Deop nicks in the shown channel, or ourselves', drop_own '-o'),
+    prefix_command('voice', '+v', 'Voice nicks in the shown channel, or ourselves through ChanServ',
+        from_chanserv 'VOICE'),
+    prefix_command('devoice', '-v', 'Devoice nicks in the shown channel, or ourselves', drop_own '-v'),
     chat_command('umode', '$r', 'modes', 'Change our user modes, e.g. +i-w', function(ctx, args)
         local irc = model(ctx.net)
         if not irc then error('not connected', 0) end

@@ -556,6 +556,62 @@ T.case('topic sets and clears, and Tab offers the current one to edit', function
     T.eq(tab 'topic ', 'topic #chan', 'no topic: channels and nicks')
 end)
 
+T.case('op, deop, voice and devoice nicks, or ourselves', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    control.init_state(HUB.state)
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:recv ':me!u@h JOIN #chan'
+    c:take()
+    control.set_talk_target('test', '#chan')
+
+    cmdline.execute 'op a b c d'
+    T.eq(c:take(), {'MODE #chan +ooo a b c', 'MODE #chan +o d'}, 'three to a line by default')
+    c:recv ':srv 005 me MODES=4 :are supported'
+    cmdline.execute 'devoice a b c d e'
+    T.eq(c:take(), {'MODE #chan -vvvv a b c d', 'MODE #chan -v e'}, 'as many as MODES')
+    c:recv ':srv 005 me MODES :are supported'
+    cmdline.execute 'voice a b c d e'
+    T.eq(c:take(), {'MODE #chan +vvvvv a b c d e'}, 'MODES without a limit')
+
+    cmdline.execute 'op'
+    T.eq(c:take(), {'PRIVMSG ChanServ :OP #chan'}, 'op ourselves through ChanServ')
+    cmdline.execute 'voice'
+    T.eq(c:take(), {'PRIVMSG ChanServ :VOICE #chan'}, 'voice ourselves through ChanServ')
+    cmdline.execute 'deop'
+    T.eq(c:take(), {'MODE #chan -o me'}, 'deop ourselves directly')
+    cmdline.execute 'devoice'
+    T.eq(c:take(), {'MODE #chan -v me'}, 'devoice ourselves directly')
+end)
+
+T.case('Tab after unban offers the ban list, fetching it first', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    control.init_state(HUB.state)
+    local editor = T.require 'hub.ui.editor'
+    local keymap = T.require 'hub.ui.keymap'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':srv 353 me = #chan :@me bob'
+    c:take()
+    control.set_talk_target('test', '#chan')
+
+    local input = HUB.state.ui.input
+    input.mode = 'command'
+    local function tab(typed)
+        editor.reset(input.editor)
+        for _, ch in utf8.codes(typed) do editor.add(input.editor, ch) end
+        keymap.input[keymap.ctrl 'I']()
+        return editor.content(input.editor)
+    end
+    T.eq(tab 'unban *', 'unban *', 'nothing yet')
+    T.eq(c:take(), {'MODE #chan +b'}, 'the list asked for')
+    c:recv ':srv 367 me #chan *!*@bad.example op 1700000000'
+    c:recv ':srv 368 me #chan :End of Channel Ban List'
+    T.eq(tab 'unban *', 'unban *!*@bad.example', 'a mask')
+    T.eq(tab 'unban b', 'unban bob', 'a nick')
+    T.eq(c:take(), {}, 'fetched once')
+end)
+
 T.case('channel ban mask rules', function()
     boot()
     local masks = T.require 'hub.features.chat.masks'

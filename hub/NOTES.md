@@ -254,7 +254,9 @@ a decision is made, and change or remove it when the decision does.
 - **Channel bans go out at once,** unlike K-Lines: a quiet or ban
   reaches one channel and is easily undone. The commands don't check our
   status: halfops, and opers with override, can set modes unopped, so
-  the server decides. They never ask ChanServ. `/unban` and `/unquiet`
+  the server decides. They never ask ChanServ; only a bare `/op` or
+  `/voice` does, for ourselves (Atheme's OP and VOICE), while a bare
+  `/deop` or `/devoice` drops our own mode directly. `/unban` and `/unquiet`
   take a mask as given (anything with `!`, `@` or `$`) or a nick, whose
   mask is computed as `/ban` would; that misses a ban set while the user
   had another host, which the channel pane's `[x]` removes.
