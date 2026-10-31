@@ -49,9 +49,18 @@ function M.render(ctx, win)
         draw.normal(win)
         key(win, 'privset')
         text(win, w.privset)
+    elseif w.oper_text then
+        key(win, 'operator')
+        draw.red(win)
+        addircstr(win, w.oper_text)
+        draw.normal(win)
     end
     if w.helpop then
         key(win, 'helpop')
+        win:waddstr 'yes'
+    end
+    if w.bot then
+        key(win, 'bot')
         win:waddstr 'yes'
     end
     win:waddstr '\n'
@@ -70,6 +79,10 @@ function M.render(ctx, win)
 
     label(win, 'secure')
     win:waddstr(w.secure and 'yes' or 'no')
+    if w.cipher then
+        key(win, 'cipher')
+        text(win, w.cipher)
+    end
     if w.certfp then
         key(win, 'certfp')
         text(win, w.certfp)

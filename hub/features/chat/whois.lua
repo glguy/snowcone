@@ -19,9 +19,12 @@ local N         <const> = require 'hub.lib.numerics'
 ---@field account string|nil
 ---@field away string|nil
 ---@field operator string|nil the oper block's name
+---@field oper_text string|nil RPL_WHOISOPERATOR's text when it names no oper block, as for a service
 ---@field privset string|nil
 ---@field helpop boolean
+---@field bot boolean
 ---@field secure boolean
+---@field cipher string|nil the TLS cipher, when the server shows it
 ---@field certfp string|nil
 ---@field mask string|nil the real host, for an operator asking
 ---@field ip string|nil
@@ -35,7 +38,7 @@ local N         <const> = require 'hub.lib.numerics'
 
 return function(t, nick, remote)
     ---@type hub.Whois
-    local w = {nick = nick, channels = {}, specials = {}, helpop = false, secure = false, at = os.time()}
+    local w = {nick = nick, channels = {}, specials = {}, helpop = false, bot = false, secure = false, at = os.time()}
 
     local function fail(fmt, ...)
         t:log('whois', fmt, ...)
@@ -53,12 +56,19 @@ return function(t, nick, remote)
         [N.RPL_WHOISSERVER] = function(msg) w.server, w.server_info = msg[3], msg[4] end,
         [N.RPL_AWAY] = function(msg) w.away = msg[3] end,
         [N.RPL_WHOISOPERATOR] = function(msg)
-            w.operator, w.privset = (msg[3] or ''):match '^is opered as ([^ ]+), privset ([^ ]+)$'
+            local text = msg[3] or ''
+            w.operator, w.privset = text:match '^is opered as ([^ ]+), privset ([^ ]+)$'
             if not w.operator then
-                w.operator = (msg[3] or ''):match '^is opered as ([^ ]+)$'
+                w.operator = text:match '^is opered as ([^ ]+)$'
+            end
+            if not w.operator then
+                w.oper_text = text
             end
         end,
-        [N.RPL_WHOISSECURE] = function() w.secure = true end,
+        [N.RPL_WHOISSECURE] = function(msg)
+            w.secure = true
+            w.cipher = (msg[3] or ''):match '%[([^]]*)%]$'
+        end,
         [N.RPL_WHOISCERTFP] = function(msg)
             w.certfp = (msg[3] or ''):match '^has client certificate fingerprint ([^ ]+)$'
         end,
@@ -72,15 +82,18 @@ return function(t, nick, remote)
         end,
         [N.RPL_WHOISLOGGEDIN] = function(msg) w.account = msg[3] end,
         [N.RPL_WHOISHELPOP] = function() w.helpop = true end,
+        [N.RPL_WHOISBOT] = function() w.bot = true end,
         [N.RPL_ENDOFWHOIS] = function()
             if w.ip then
                 w.org, w.asn = ip_org.lookup(w.ip)
             end
             local notes = {}
             if w.account then table.insert(notes, 'account ' .. w.account) end
-            if w.operator then table.insert(notes, 'oper ' .. w.operator) end
+            if w.operator then table.insert(notes, 'oper ' .. w.operator)
+            elseif w.oper_text then table.insert(notes, w.oper_text) end
             table.insert(notes, #w.channels == 1 and '1 channel' or #w.channels .. ' channels')
             if w.away then table.insert(notes, 'away') end
+            if w.bot then table.insert(notes, 'bot') end
             log.add_detail(t.net, 'whois', {kind = 'whois', data = w}, '%s!%s@%s %s',
                 w.nick, w.user or '?', w.host or '?', table.concat(notes, ', '))
             bus.emit('chat.whois', {net = t.net, whois = w})
