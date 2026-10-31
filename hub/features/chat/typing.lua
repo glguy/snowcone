@@ -17,11 +17,6 @@ local M = {}
 --- Seconds an entry lasts without being refreshed, by state.
 M.timeout = {active = 6, paused = 30}
 
---- What typing needs of chat (hub.features.chat itself).
----@class hub.ChatLookup
----@field fold fun(net: string, target: string): string
----@field buffer fun(net: string, target: string): hub.ChatBuffer|nil
-
 ---@class hub.ChatTyping
 ---@field nick string as last seen
 ---@field state 'active'|'paused'

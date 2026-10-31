@@ -27,7 +27,7 @@ end
 --- Ask for a buffer's history, when the server has it and we are
 --- registered: the messages BEFORE or the LATEST since `time` (a server
 --- time tag), or without one the latest. At most a buffer's worth.
----@param chat table features/chat
+---@param chat hub.ChatLookup
 ---@param net string
 ---@param name string the buffer's target
 ---@param subcommand 'BEFORE'|'LATEST'
@@ -46,7 +46,7 @@ end
 
 --- After registration: the LATEST since the newest message of every
 --- buffer but the wallops one.
----@param chat table features/chat
+---@param chat hub.ChatLookup
 ---@param net string
 function M.after_registration(chat, net)
     for key, buffer in pairs(chat.get(net).buffers) do
@@ -68,7 +68,7 @@ end
 
 --- Merge history into a buffer: before the messages received since
 --- `since`, skipping those it has.
----@param chat table features/chat
+---@param chat hub.ChatLookup
 ---@param buffer hub.ChatBuffer
 ---@param messages hub.Message[]
 ---@param since number|nil clock.now() at registration
@@ -97,7 +97,7 @@ function M.merge(chat, buffer, messages, since)
 end
 
 --- A chathistory batch (irc.batch), merged into the buffer it is for.
----@param chat table features/chat
+---@param chat hub.ChatLookup
 ---@param ev table the irc.batch event
 function M.on_batch(chat, ev)
     local rec = HUB.state.nets[ev.net]

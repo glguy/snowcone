@@ -354,6 +354,27 @@ T.case('each target of a line gets its own echo', function()
     T.eq(chat.get('test').pending, {}, 'settled by the end of the batch')
 end)
 
+T.case('an error naming one target refuses only that one; the rest stay unknown', function()
+    local c, chat = boot_echo()
+    chat.say('test', '#a,#b', 'both')
+    c:recv '@label=sc1 :srv BATCH +r labeled-response'
+    c:recv '@batch=r :srv 404 me #b :Cannot send to nick/channel'
+    c:recv ':srv BATCH -r'
+    local a, b = chat.newest(chat.buffer('test', '#a')), chat.newest(chat.buffer('test', '#b'))
+    T.eq({a.receipt, b.receipt, b.rejection}, {'unknown', 'rejected', 'Cannot send to nick/channel'}, 'only #b refused')
+    T.eq(chat.get('test').pending, {}, 'settled')
+end)
+
+T.case('an error naming no target refuses them all', function()
+    local c, chat = boot_echo()
+    chat.say('test', '#a,#b', 'both')
+    c:recv '@label=sc1 :srv 417 me :Input line was too long'
+    local a, b = chat.newest(chat.buffer('test', '#a')), chat.newest(chat.buffer('test', '#b'))
+    T.eq({a.receipt, b.receipt}, {'rejected', 'rejected'}, 'both refused')
+    T.eq(a.rejection, 'Input line was too long', 'with its text')
+    T.eq(chat.get('test').pending, {}, 'settled')
+end)
+
 T.case('a nick change onto an existing buffer renames nothing', function()
     local c, chat = boot()
     c:recv ':alice!a@h PRIVMSG me :from alice'

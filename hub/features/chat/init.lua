@@ -9,17 +9,15 @@
 --   list     OrderedMap of /list results: {channel, users, topic}
 --   pending  [label] = {[folded target] = {msg, buffer}}: our labeled
 --            PRIVMSG and NOTICE lines awaiting the server's reply
+--            (chat/receipt.lua)
 -- }
 --
 -- Sending: replies to CTCP requests from staff, CHATHISTORY (history.lua)
 -- and MONITOR for buffers, and what the commands ask for. PRIVMSG and
 -- NOTICE go out only from commands and talk mode.
 --
--- Receipt: with labeled-response (net/send.lua labels chat lines) our
--- message in a buffer has msg.receipt: 'awaiting' until the reply, then
--- 'received' on its echo (whose msgid and time it takes) or ACK,
--- 'rejected' on an error (msg.rejection holds its text), or 'unknown' if
--- the reply never settled it. The echo itself isn't shown again.
+-- Our own PRIVMSG and NOTICE lines are shown from irc.sent, and with
+-- labeled-response await the server's reply (chat/receipt.lua).
 
 local bus        <const> = require 'hub.runtime.bus'
 local common     <const> = require 'hub.features.common'
@@ -29,6 +27,7 @@ local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
 local N          <const> = require 'hub.lib.numerics'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
+local receipt    <const> = require 'hub.features.chat.receipt'
 local send       <const> = require 'hub.net.send'
 local task       <const> = require 'hub.runtime.task'
 local typing     <const> = require 'hub.features.chat.typing'
@@ -43,6 +42,17 @@ M.list_size = 10000
 
 --- WALLOPS and OPERWALL collect in this buffer of each network
 M.wallops = '*wallops'
+
+--- What chat's parts (chat/typing.lua, history.lua, receipt.lua) use of
+--- chat, which they are passed since it requires them.
+---@class hub.ChatLookup
+---@field wallops string
+---@field buffer_size integer
+---@field get fun(net: string): hub.ChatState
+---@field fold fun(net: string, target: string): string
+---@field buffer fun(net: string, target: string): hub.ChatBuffer|nil
+---@field insert fun(buffer: hub.ChatBuffer, msg: hub.Message)
+---@field newest fun(buffer: hub.ChatBuffer): hub.Message|nil
 
 --- A network's chat, state.features.chat[net].
 ---@class hub.ChatState
@@ -188,7 +198,7 @@ local function insert(buffer, msg)
     if key == nil and msg.receipt == 'awaiting' then key = msg end
     OrderedMap.insert(buffer.messages, key, msg)
 end
-M.insert = insert -- for chat/history.lua
+M.insert = insert -- for chat/history.lua and receipt.lua
 
 --- The message with a msgid in a buffer, while the buffer holds it.
 ---@param buffer hub.ChatBuffer
@@ -402,87 +412,11 @@ H[N.RPL_LISTEND] = function(net)
     M.get(net).listing = nil
 end
 
--- Receipt ============================================================
-
--- An echo is the message as the server delivered it, perhaps edited
--- (colors stripped, say): our copy takes its parameters and tags, keeping
--- its own source so it is still drawn as ours
-local function received(entry, echo)
-    local msg = entry.msg
-    if msg.receipt ~= 'awaiting' then return end
-    msg.receipt = 'received'
-    if not echo then return end
-    for i = 1, math.max(#msg, #echo) do
-        msg[i] = echo[i]
-    end
-    msg.tags = echo.tags
-    local id = msgid(echo)
-    if id and entry.buffer then
-        OrderedMap.rekey(entry.buffer.messages, msg, id)
-    end
-end
-
-local function rejected(entry, reason)
-    local msg = entry.msg
-    if msg.receipt ~= 'awaiting' then return end
-    msg.receipt = 'rejected'
-    msg.rejection = reason
-end
-
--- The reply is over: what it didn't settle stays unknown
-local function settle(C, label)
-    for _, entry in pairs(C.pending[label]) do
-        if entry.msg.receipt == 'awaiting' then
-            entry.msg.receipt = 'unknown'
-        end
-    end
-    C.pending[label] = nil
-end
-
--- A message of the reply to one of our labeled lines: an echo, ACK or
--- error, alone or in a labeled batch. True for an echo, which is shown
--- already.
-local function on_reply(net, irc, msg)
-    local C = M.get(net)
-    local label, batched = msg.tags.label, false
-    if label == nil then
-        local batch = irc.batches[msg.tags.batch]
-        label, batched = batch and batch.label, true
-    end
-    local entries = label and C.pending[label]
-    if not entries then return false end
-
-    local command = msg.command
-    local echo = false
-    if command == 'BATCH' then
-        return false -- its end settles the reply (on_batch)
-    elseif (command == 'PRIVMSG' or command == 'NOTICE') and irc_model.is_me(irc, msg.nick) then
-        echo = true
-        local entry = msg[1] and entries[M.fold(net, msg[1])]
-        if entry then received(entry, msg) end
-    elseif command == 'ACK' then
-        for _, entry in pairs(entries) do received(entry) end
-    else
-        -- an error about one target (ERR_NOSUCHNICK), or about them all
-        local entry = msg[2] and entries[M.fold(net, msg[2])]
-        local reason = msg[#msg]
-        if entry then
-            rejected(entry, reason)
-        else
-            for _, each in pairs(entries) do rejected(each, reason) end
-        end
-    end
-    if not batched then
-        settle(C, label)
-    end
-    return echo
-end
-
 local function on_message(ev)
     if not enabled(ev.net) then return end
     local irc = model(ev.net)
     if not irc then return end
-    if on_reply(ev.net, irc, ev.msg) then return end
+    if receipt.on_reply(M, ev.net, irc, ev.msg) then return end
     -- first, while the buffers are as they were before the message
     typing.handle(M, ev.net, irc, ev.msg)
     local h = H[ev.msg.command]
@@ -497,46 +431,15 @@ local function on_sent(ev)
     local msg = ev.msg
     if msg.command ~= 'PRIVMSG' and msg.command ~= 'NOTICE' then return end
     local irc = model(ev.net)
-    if not irc or not msg[1] then return end
-    local label = msg.tags.label
-    local entries = {}
-    local targets = {}
-    for target in msg[1]:gmatch '[^,]+' do table.insert(targets, target) end
-    for _, target in ipairs(targets) do
-        local prefix, name = irc_model.split_statusmsg(irc, target)
-        local buffer = M.buffer(ev.net, name)
-        local copy = msg
-        -- the console keeps the line as sent, and each target's echo
-        -- brings its own msgid and text
-        if prefix or label or #targets > 1 then
-            copy = {}
-            for k, v in pairs(msg) do copy[k] = v end
-            copy.tags = {}
-            for k, v in pairs(msg.tags) do copy.tags[k] = v end
-            copy.statusmsg = prefix
-        end
-        if label then
-            copy.receipt = 'awaiting'
-            -- without a buffer it is still awaited, so its echo is known
-            entries[M.fold(ev.net, target)] = {msg = copy, buffer = buffer}
-        end
-        if buffer then
-            insert(buffer, copy)
-        end
-    end
-    if label then
-        M.get(ev.net).pending[label] = entries
-    end
+    if not irc then return end
+    receipt.on_sent(M, ev.net, irc, msg)
 end
 
 -- Chat history arrives in batches, and so does a reply to a line with
 -- several targets
 local function on_batch(ev)
     if not enabled(ev.net) then return end
-    local C = M.get(ev.net)
-    if ev.label and C.pending[ev.label] then
-        settle(C, ev.label)
-    end
+    receipt.on_batch_end(M, ev.net, ev.label)
     if ev.type ~= 'chathistory' then return end
     history.on_batch(M, ev)
 end
@@ -578,7 +481,7 @@ function M.subscribe(sub)
     sub.on('net.closed', function(ev)
         if not enabled(ev.net) then return end
         local C = M.get(ev.net)
-        for label in pairs(C.pending) do settle(C, label) end
+        receipt.settle_all(C)
         typing.reset(C)
     end)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
