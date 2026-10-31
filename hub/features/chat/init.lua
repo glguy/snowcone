@@ -545,6 +545,11 @@ function M.say(net, target, text)
     send.send(net, 'PRIVMSG', target, text)
 end
 
+--- Send an action (CTCP ACTION, /me in other clients) to a target.
+function M.action(net, target, text)
+    send.send(net, 'PRIVMSG', target, '\x01ACTION ' .. text .. '\x01')
+end
+
 -- Channels ============================================================
 
 --- Ask for what a channel's information needs and the server didn't send

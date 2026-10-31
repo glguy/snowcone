@@ -230,11 +230,15 @@ end
 
 local keys = {
     [-string.byte 'h'] = function(ctx) ctx.vs.hide_presence = not ctx.vs.hide_presence end,
-    [0x1f & string.byte 'N'] = function(ctx) step_buffer(ctx, true) end,
-    [0x1f & string.byte 'P'] = function(ctx) step_buffer(ctx, false) end,
+    [string.byte 'n'] = function(ctx) step_buffer(ctx, true) end,
+    [string.byte 'p'] = function(ctx) step_buffer(ctx, false) end,
     [string.byte 't'] = function()
         editor.reset(control.editor())
         control.set_input_mode 'talk'
+    end,
+    [string.byte 'a'] = function()
+        editor.reset(control.editor())
+        control.set_input_mode 'action'
     end,
 }
 

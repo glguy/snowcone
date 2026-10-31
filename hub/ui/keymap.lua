@@ -49,7 +49,8 @@ function execute.filter()
     control.set_input_mode()
 end
 
-function execute.talk()
+-- Send the line to the shown buffer with say(net, target, text)
+local function talk_with(say)
     local ed = control.editor()
     local text = editor.content(ed)
     local net = control.current_net()
@@ -64,11 +65,14 @@ function execute.talk()
         log.add('error', 'no buffer to talk in')
         return
     end
-    local ok, err = pcall(chat.say, net, target, text)
+    local ok, err = pcall(say, net, target, text)
     if not ok then
         log.add('error', '%s', err)
     end
 end
+
+function execute.talk() talk_with(chat.say) end
+function execute.action() talk_with(chat.action) end
 
 function execute.password()
     control.answer_prompt(editor.content(control.editor()))

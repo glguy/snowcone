@@ -173,6 +173,17 @@ T.case('keys reach input modes, views and commands', function()
     key(string.byte 't')
     key(-ncurses.KEY_UP)
     T.eq(T.require 'hub.ui.editor'.content(control.editor()), 'hi there', 'chat goes into history')
+    key(0x1b)
+
+    -- action mode sends an action to the shown buffer
+    key(string.byte 'a')
+    T.eq(HUB.state.ui.input.mode, 'action', 'action mode')
+    type_text 'waves'
+    key(13)
+    sent = c:take()
+    T.eq(sent[#sent], 'PRIVMSG #chan :\x01ACTION waves\x01', 'sent as an action')
+    T.eq(HUB.state.ui.input.mode, nil, 'one line, then back')
+    key(string.byte 't')
     control.view_state 'buffer'.filter = 'kept'
     key(0x1f & string.byte 'G')
     T.eq(HUB.state.ui.input.mode, nil, 'C-g leaves input mode')
@@ -214,9 +225,14 @@ T.case('keys reach input modes, views and commands', function()
     key(-string.byte 'a')
     T.eq({HUB.state.ui.view, control.talk_target 'test'}, {'buffer', 'bob'}, 'jumped')
 
-    -- Ctrl-N steps through buffers in the buffer view
-    key(0x1f & string.byte 'N')
+    -- n steps through buffers in the buffer view, and C-n still steps views
+    key(string.byte 'n')
     T.eq(control.talk_target 'test', '#chan', 'next buffer')
+    key(string.byte 'p')
+    T.eq(control.talk_target 'test', 'bob', 'previous buffer')
+    key(0x1f & string.byte 'N')
+    T.ok(HUB.state.ui.view ~= 'buffer', 'C-n leaves the buffer view')
+    control.set_view 'buffer'
 
     -- Meta-H hides joins and the like in the buffer view
     c:recv ':carol!c@h JOIN #chan'
