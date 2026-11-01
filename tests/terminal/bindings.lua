@@ -91,10 +91,34 @@ check('attributes and colors', function()
     equal(attrs & ncurses.WA_REVERSE, ncurses.WA_REVERSE)
     equal(pair, 0)
     equal(ncurses.COLORS, 256) -- TERM=xterm-256color
-    for fore = -1, 255 do
-        for back = -1, 7 do
-            ncurses.colorset(fore, back)
+    local function pair_of(fore, back)
+        ncurses.colorset(fore, back)
+        return select(2, ncurses.attrget())
+    end
+    -- more combinations than pairs, with one kept in use throughout; in
+    -- a scrambled order, as ncurses defines pairs in sorted order slowly
+    -- on macOS, whose tsearch doesn't balance its tree
+    local kept = pair_of(208, 17)
+    local n = 257 * 257
+    local recent = {}
+    for i = 0, n - 1 do
+        local k = i * 40503 % n -- a permutation, as 40503 is prime to 257
+        local fore, back = k // 257 - 1, k % 257 - 1
+        if (fore ~= 208 or back ~= 17) and (fore >= 0 or back >= 0) then
+            local pair = pair_of(fore, back)
+            if pair == 0 then
+                error(string.format('no pair for %d,%d', fore, back))
+            end
+            if i >= n - 256 then table.insert(recent, {fore, back, pair}) end
         end
+        if i % 257 == 0 then equal(pair_of(208, 17), kept) end
+    end
+    local seen = {[kept] = true}
+    for _, r in ipairs(recent) do
+        local fore, back, pair = table.unpack(r)
+        if seen[pair] then error('pair ' .. pair .. ' twice') end
+        seen[pair] = true
+        equal(pair_of(fore, back), pair) -- still theirs
     end
     ncurses.colorset()
     raises(ncurses.colorset, 256)

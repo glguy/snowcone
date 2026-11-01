@@ -59,5 +59,16 @@ snowcone.setmodule(function(event, ...)
 end)
 
 snowcone.start_ui()
+-- every pair in use first, so the colors drawn come from recycled pairs;
+-- in a scrambled order, as ncurses defines pairs in sorted order slowly on
+-- macOS, whose tsearch doesn't balance its tree
+for i = 0, 257 * 257 - 1 do
+    local k = i * 40503 % (257 * 257) -- a permutation, as 40503 is prime to 257
+    local fore, back = k // 257 - 1, k % 257 - 1
+    if (fore ~= 1 or back ~= -1) and (fore ~= 208 or back ~= 17) then
+        ncurses.colorset(fore, back)
+    end
+end
+ncurses.colorset()
 draw()
 emit 'ready'

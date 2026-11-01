@@ -1,6 +1,7 @@
 #define _XOPEN_SOURCE 600
 
 #include "myncurses.h"
+#include "colorpairs.h"
 #include "window.h"
 
 #include <lauxlib.h>
@@ -193,18 +194,7 @@ static int l_colorset(lua_State* const L)
 
     WINDOW* const win = optwindow(L, 3);
 
-    // alloc_pair reuses the pair for a combination already in use, and
-    // when all are taken recycles the least recently used; pair 0, the
-    // terminal's defaults, when it fails
-    int pair = 0;
-    if (fore >= 0 || back >= 0)
-    {
-        pair = alloc_pair(fore, back);
-        if (pair < 0)
-        {
-            pair = 0;
-        }
-    }
+    int pair = fore < 0 && back < 0 ? 0 : colorpairs_get(fore, back);
 
     // the pair through opts, as pairs above 32767 don't fit the short
     if (ERR == wcolor_set(win, 0, &pair))
