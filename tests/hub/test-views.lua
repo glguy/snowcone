@@ -1510,6 +1510,24 @@ T.case('a long reply draws the rows shown, all the way to its end', function()
     T.eq(control.detail().kind, 'message', 'inspected')
     T.eq(control.detail().data[5], 'u5000@h', 'the message on that row')
 
+    -- [BACK], on the rule beside [CLOSE], returns to the reply as it was
+    HUB.current.routes['ui.draw']()
+    local rule, back
+    for y, row in pairs(rows_of(detail_pad())) do
+        local at = row:find('[BACK]', 1, true)
+        if at then rule, back = y, utf8.len(row:sub(1, at - 1)) end
+    end
+    T.ok(rows_of(detail_pad())[rule]:find('[CLOSE]─[BACK]', 1, true), 'beside [CLOSE]')
+    HUB.current.routes['ui.entry']('on_mouse', rule, back + 1, false)
+    T.ok(control.detail() == detail, 'back to the reply')
+    T.eq(detail.scroll, detail.max_scroll, 'scrolled as it was')
+    T.eq(control.can_go_back(), false, 'nothing further back')
+    HUB.current.routes['ui.draw']()
+    T.ok(not rows_of(pad)[detail.page + 1]:find('[BACK]', 1, true), 'so no [BACK]')
+    control.follow_detail('message', 'test', snowcone.parse_irc ':srv PING :x')
+    control.open_detail('message', 'test', snowcone.parse_irc ':srv PING :y')
+    T.eq(control.can_go_back(), false, 'opening from elsewhere starts afresh')
+
     -- a filter counts what it shows below the messages
     control.close_detail()
     control.open_detail('reply', 'test', detail.data)

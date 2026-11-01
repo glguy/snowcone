@@ -1,7 +1,7 @@
 -- The labeled reply to a /quote (hub.QuoteReply, commands/core.lua) in
 -- the detail pane: the line sent, then one row per reply message. Click a
--- command to inspect that message. The filter (Ctrl-S, /filter) shows only
--- the messages that match.
+-- command to inspect that message; [BACK] returns here, scrolled as it
+-- was. The filter (Ctrl-S, /filter) shows only the messages that match.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
 local control   <const> = require 'hub.ui.control'
@@ -37,7 +37,7 @@ local function draw_message(ctx, win, msg)
     local name = message.numeric_names[msg.command]
     local label = scrub(tostring(msg.command)) .. (name and ' ' .. name or '')
     ctx.add_button(win, label, function()
-        control.open_detail('message', ctx.net, msg)
+        control.follow_detail('message', ctx.net, msg)
     end, true)
     draw.normal(win)
 

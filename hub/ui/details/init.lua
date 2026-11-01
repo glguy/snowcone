@@ -77,7 +77,8 @@ end
 --- Render the detail pane into `pad`, for the top of the screen: its
 --- content, up to half the screen and scrolled by the paging keys
 --- (sideways too, for a `wide` kind, whose rows don't wrap), over a rule
---- with [CLOSE], [DISCARD] when a log line holds it, its title, its modes,
+--- with [CLOSE], [BACK] when it followed a click from what it showed,
+--- [DISCARD] when a log line holds it, its title, its modes,
 --- its filter and the rows shown. Returns the rows it takes, and the
 --- refresh to do.
 ---@param detail hub.Detail
@@ -134,6 +135,10 @@ function M.render(detail, kind, pad)
     draw.normal(pad)
     pad:waddstr '─'
     clicks.button(pad, '[CLOSE]', control.close_detail)
+    if control.can_go_back() then
+        pad:waddstr '─'
+        clicks.button(pad, '[BACK]', control.back_detail)
+    end
     -- the log keeps what its lines open until they roll off; this lets it
     -- go now
     if log.holds_detail(detail.data) then

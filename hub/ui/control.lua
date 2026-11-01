@@ -48,6 +48,8 @@ M.profiles = {
 ---@field current_net string|nil the network chosen for net-scoped views
 ---@field profile_configured string|nil ui.profile from configuration, last applied
 ---@field detail hub.Detail|nil shown in the detail pane
+---@field detail_back hub.Detail[]|nil what the detail pane showed before it
+--- followed a click to what it shows, newest last, for [BACK]
 
 function M.init_state(S)
     local ui = S.ui or {}
@@ -324,17 +326,49 @@ end
 ---@field net string|nil the network it is about
 ---@field data any what the renderer shows
 
---- Show something in the detail pane, replacing what it showed.
+--- Show something in the detail pane, replacing what it showed, with
+--- nothing to go back to.
 ---@param kind string
 ---@param net string|nil
 ---@param data any
 function M.open_detail(kind, net, data)
     HUB.state.ui.detail = {kind = kind, net = net, data = data, scroll = 0, hscroll = 0}
+    HUB.state.ui.detail_back = nil
+    dispatch.dirty()
+end
+
+--- Show something a click in the detail pane leads to; [BACK] returns
+--- to what the pane showed, as it was left.
+---@param kind string
+---@param net string|nil
+---@param data any
+function M.follow_detail(kind, net, data)
+    local ui = HUB.state.ui
+    local back = ui.detail_back or {}
+    if ui.detail then table.insert(back, ui.detail) end
+    M.open_detail(kind, net, data)
+    ui.detail_back = back[1] and back or nil
+end
+
+--- Whether the detail pane has something to go back to.
+---@return boolean
+function M.can_go_back()
+    return HUB.state.ui.detail_back ~= nil
+end
+
+--- Show again what the detail pane showed before it followed a click.
+function M.back_detail()
+    local ui = HUB.state.ui
+    local back = ui.detail_back
+    if not back then return end
+    ui.detail = table.remove(back)
+    if not back[1] then ui.detail_back = nil end
     dispatch.dirty()
 end
 
 function M.close_detail()
     HUB.state.ui.detail = nil
+    HUB.state.ui.detail_back = nil
     dispatch.dirty()
 end
 
