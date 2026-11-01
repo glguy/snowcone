@@ -78,6 +78,8 @@ KEYS
   F1..F12      A view of the rotation
   Meta-1..9    Choose a network
   Meta-a       The next buffer with unseen messages, mentions first
+  Meta-p       The formatting palette: click styles and colors into the
+               line being typed
   PgUp, PgDn   Scroll by a page; Up and Down by a line (the detail pane
                while it is open)
   Tab          Complete commands, channels and nicks
@@ -85,6 +87,8 @@ KEYS
 
   While typing, the usual Emacs editing keys work: C-a, C-e, C-k, C-u,
   C-w, C-y, Meta-f, Meta-b. Up and Down step through command history.
+  The line shows its IRC formatting as it will be seen, with a glyph for
+  each formatting code; Meta-p's palette puts them in at the cursor.
 
 COMMANDS
   /help lists the commands you can use on the current network, grouped

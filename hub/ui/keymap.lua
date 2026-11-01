@@ -302,6 +302,16 @@ M.global = {
         end
     end,
 
+    -- the formatting palette, for the line being typed
+    [meta 'p'] = function()
+        local detail = control.detail()
+        if detail and detail.kind == 'format' then
+            control.close_detail()
+        else
+            control.open_detail('format', nil, {})
+        end
+    end,
+
     [-ncurses.KEY_RIGHT] = function() hscroll(1) end,
     [-ncurses.KEY_LEFT] = function() hscroll(-1) end,
 }

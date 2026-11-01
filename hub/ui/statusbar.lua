@@ -222,20 +222,24 @@ function M.draw(win, textbox, layout, view, ctx)
             return
         end
 
-        ncurses.colorset(input_mode_color, nil, textbox)
+        local _, x0 = ncurses.getyx(win)
+        textbox:wmove(0, 0)
+        local x1
         if mode == 'filter' then
+            -- a pattern, in green when it compiles
             if matching.compile(editor.content(ed)) then
                 draw.green(textbox)
             else
                 draw.red(textbox)
             end
+            textbox:waddstr(scrub(ed.before_cursor))
+            x1 = select(2, ncurses.getyx(textbox))
+            textbox:waddstr(scrub(ed.at_cursor))
+        else
+            -- formatted as it will be seen, codes and all
+            x1 = addircstr(textbox, ed.before_cursor .. ed.at_cursor,
+                {mark = #ed.before_cursor, color = input_mode_color})
         end
-
-        local _, x0 = ncurses.getyx(win)
-        textbox:wmove(0, 0)
-        textbox:waddstr(scrub(ed.before_cursor))
-        local _, x1 = ncurses.getyx(textbox)
-        textbox:waddstr(scrub(ed.at_cursor))
         textbox:wmove(0, x1)
         ncurses.cursset(1)
 

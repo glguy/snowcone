@@ -248,6 +248,17 @@ a decision is made, and change or remove it when the decision does.
   past the pad onto the rows below.
 - **The editor** accepts line breaks (it also takes Lua for `/eval`), and
   hex input checks its digits.
+- **Formatting is typed as IRC codes,** not a markup of our own: the line
+  holds what is sent, so history, undo and `/quote` need no translation,
+  and nothing a user types literally (`*`, `_`) changes meaning. The input
+  line draws the formatting with a glyph per code, so every code point
+  keeps one cell; the filter is a pattern and stays plain. The palette
+  (Meta-P, a detail kind) changes a color code right before the cursor
+  rather than adding another, so text and background make one code. It
+  writes colors with two digits and adds the other color before a comma,
+  so text typed after a code stays text. It
+  can't keep a hex text color under a new background: that becomes the
+  default.
 - **Status bar:** `modes` is only for what alters a view from its default;
   data such as loads and chat activity is `status`. A document's position
   shows only once it is scrolled, since the top is the default.

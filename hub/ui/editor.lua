@@ -245,6 +245,24 @@ function M.add(self, code)
     M.move(self, self.cursor + 1, 'insert')
 end
 
+-- Insert text at the cursor as one change, leaving the cursor after it;
+-- in place of the `replace` code points before the cursor, if given
+---@param self hub.Editor
+---@param text string
+---@param replace integer|nil
+function M.insert(self, text, replace)
+    if text == '' then return end
+    save(self)
+    if replace and replace > 0 then
+        replace = math.min(replace, self.cursor - 1)
+        tablex.removevalues(self.buffer, self.cursor - replace, self.cursor - 1)
+        self.cursor = self.cursor - replace
+    end
+    local at = self.cursor
+    tablex.insertvalues(self.buffer, at, table.pack(utf8.codepoint(text, 1, -1)))
+    M.move(self, at + utf8.len(text))
+end
+
 ---@param self hub.Editor
 function M.swap(self)
     local n = #self.buffer

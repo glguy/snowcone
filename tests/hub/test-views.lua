@@ -1689,4 +1689,100 @@ T.case('IRC formatting: colors, hex colors, and codes with nothing to draw', fun
     rawset(ncurses, 'colorset', nil)
 end)
 
+T.case('the line being typed shows its formatting, codes and all', function()
+    boot()
+    local addircstr = T.require 'hub.ui.irc_formatting'
+    local calls
+    rawset(ncurses, 'colorset', function(fore, back) table.insert(calls, fore .. ',' .. back) end)
+    local function drawn(str, mark)
+        calls = {}
+        local win = ncurses.newwin(1, 80)
+        local x = addircstr(win, str, {mark = mark, color = 7})
+        return fake_ncurses.row(win, 0), x, table.concat(calls, ' ')
+    end
+    local text, x, sets = drawn('a\x0304,12b\x02c', 1)
+    T.eq(text, 'a␃04,12b␂c', 'a glyph per code, its numbers as typed')
+    T.eq(x, 1, 'the cursor after the first byte')
+    T.eq(sets, '7,-1 9,12', 'the default is the mode color')
+    T.eq(select(3, drawn('\x0399,04x', 0)), '7,-1 7,9', 'and so is 99')
+    T.eq(select(2, drawn('a\x0304b', 3)), 3, 'the cursor among the digits')
+    T.eq(select(2, drawn('ab', 2)), 2, 'the cursor at the end')
+    T.eq(select(2, drawn('é\u{85}x', 4)), 2, 'C1 scrubbed, the cursor still by code point')
+    T.eq((drawn('\x04FFc', 0)), '␄FFc', 'a short hex color shows its text')
+    rawset(ncurses, 'colorset', nil)
+end)
+
+T.case('the formatting palette puts codes in at the cursor', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local editor = T.require 'hub.ui.editor'
+    c:recv ':me!u@h JOIN #chan'
+    control.set_talk_target('test', '#chan')
+    control.set_view 'buffer'
+
+    key(-string.byte 'p')
+    T.eq(control.detail() and control.detail().kind, 'format', 'Meta-P opens it')
+    local function click(label)
+        local y = 0
+        for row in detail_text():gmatch '[^\n]*' do
+            local x = row:find(label, 1, true)
+            if x then
+                HUB.current.routes['ui.entry']('on_mouse', y, x, false)
+                return
+            end
+            y = y + 1
+        end
+        error('no ' .. label)
+    end
+    local function line() return editor.content(control.editor()) end
+
+    T.ok(detail_text():find('at the cursor: plain', 1, true), 'plain to begin with')
+    click '[bold]'
+    T.eq(HUB.state.ui.input.mode, 'talk', 'a click starts talking')
+    click ' red '
+    type_text '5 apples'
+    T.eq(line(), '\x02\x03045 apples', 'two digits, so a typed digit stays text')
+    T.ok(detail_text():find('at the cursor: bold, red', 1, true), 'the cursor is in bold red')
+
+    click '[background: default]'
+    click ' blue '
+    T.eq(line(), '\x02\x03045 apples\x0304,02', 'the background keeps the text color')
+    T.ok(detail_text():find('[text: red] [background: blue]', 1, true), 'the switch shows both')
+    click ' green '
+    T.eq(line(), '\x02\x03045 apples\x0304,03', 'picking again changes the code before the cursor')
+    click '[text: red]'
+    click ' yellow '
+    T.eq(line(), '\x02\x03045 apples\x0308,03', 'and keeps its background')
+    key(0x1f) -- C-_
+    key(0x1f)
+    T.eq(line(), '\x02\x03045 apples\x0304,02', 'each pick undoes alone')
+    type_text ' x'
+    click ' white '
+    click '[background: blue]'
+    click ' black '
+    T.eq(line():sub(-14), '\x0304,02 x\x0300,01', 'text then background: one code')
+    click '[text: white]'
+    key(-ncurses.KEY_HOME)
+    key(-ncurses.KEY_RIGHT)
+    type_text ',x'
+    key(-ncurses.KEY_LEFT)
+    key(-ncurses.KEY_LEFT)
+    click ' green '
+    T.eq(line():sub(1, 9), '\x02\x0303,99,x', 'before a comma, the background goes in too')
+    key(0x1f) -- C-_: one click is one undo
+    T.eq(line():sub(1, 4), '\x02,x\x03', 'undone at once')
+
+    -- the input line draws it formatted
+    HUB.current.routes['ui.draw']()
+    local textbox
+    for _, win in ipairs(fake_ncurses.windows) do
+        if win.kind == 'newpad' and win.h == 1 then textbox = win end
+    end
+    T.ok(fake_ncurses.row(textbox, 0):find('␂,x␃045 apples', 1, true), 'shown with its glyphs')
+
+    key(-string.byte 'p')
+    T.eq(control.detail(), nil, 'Meta-P closes it')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.run()

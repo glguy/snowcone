@@ -126,6 +126,10 @@ Meta-a
 The next buffer with unseen messages, mentions first
 .TP
 .B
+Meta-p
+The formatting palette: click styles and colors into the line being typed
+.TP
+.B
 PgUp, PgDn
 Scroll by a page; Up and Down by a line (the detail pane while it is open)
 .TP
@@ -139,6 +143,8 @@ Quit; a second C-c exits at once
 .PP
 While typing, the usual Emacs editing keys work: C-a, C-e, C-k, C-u,
 C-w, C-y, Meta-f, Meta-b. Up and Down step through command history.
+The line shows its IRC formatting as it will be seen, with a glyph for
+each formatting code; Meta-p's palette puts them in at the cursor.
 .SH COMMANDS
 /help lists the commands you can use on the current network, grouped by
 what they are for, with the views as one row of names to click; C-s

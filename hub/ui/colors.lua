@@ -106,6 +106,19 @@ function M.rgb(rgb, colors)
     return nearest_ansi(rgb, 8)
 end
 
+-- IRC colors 0-15 that are light in the usual palette
+local light_16 <const> = {[0] = true, [7] = true, [8] = true, [9] = true, [10] = true, [11] = true, [15] = true}
+
+--- An IRC color, 0 to 98, is light: dark text reads on it.
+---@param n integer
+---@return boolean
+function M.light(n)
+    if n < 16 then return light_16[n] == true end
+    local rgb = irc_rgb[n - 15]
+    -- perceived brightness, from 0 to 255
+    return (299 * (rgb >> 16) + 587 * (rgb >> 8 & 0xff) + 114 * (rgb & 0xff)) // 1000 >= 128
+end
+
 --- The terminal color for an IRC color, 0 to 99.
 ---@param n integer
 ---@param colors integer
