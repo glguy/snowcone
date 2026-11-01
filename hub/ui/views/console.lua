@@ -1,7 +1,7 @@
 -- Raw IRC traffic of the current network.
 --
--- Click a command to inspect the message in the detail pane
--- (ui/details/message.lua). Meta-H hides server notices and
+-- Click a sender to inspect the message in the detail pane
+-- (ui/details/message.lua), as in a buffer. Meta-H hides server notices and
 -- PING/PONG/AWAY; Meta-G switches between the current network and all
 -- networks interleaved, with a network column.
 -- View state: scroll, hscroll, filter, hide_snow, all.
@@ -17,12 +17,15 @@ local meta <const> = function(x) return -string.byte(x) end
 
 local palette <const> = message.palette
 
-local function pretty_source(win, source, msg)
+-- The source column, a button that inspects the message; blank, but
+-- still a button, for a message without a source
+local function source_button(ctx, win, msg, inspect, plain)
+    local source = msg.source
     if source == '>>>' then
         local color
         source, color = draw.outbound(msg)
         color(win)
-    else
+    elseif source then
         local head, kind = string.match(source, '^(.-)([.!])')
         source = head or source
         if kind == '!' then
@@ -31,24 +34,26 @@ local function pretty_source(win, source, msg)
             draw.yellow(win)
         end
     end
-    win:waddstr(string.format(' %16.16s ', scrub(source)))
+    ctx.add_button(win, string.format(' %16.16s', scrub(source or '')), inspect, plain)
     draw.normal(win)
+    win:waddstr ' '
 end
 
 local function render_msg(ctx, win, net, msg)
     local function inspect()
         control.open_detail('message', net, msg)
     end
-    -- the inspected message shows its command as a button would
+    -- the inspected message shows its sender as a button would
     local detail = control.detail()
     local plain = not (detail and detail.data == msg)
 
+    source_button(ctx, win, msg, inspect, plain)
+
     local snote_text = message.snotice_text(msg)
     if snote_text ~= nil then
-        pretty_source(win, msg.source, msg)
         draw.magenta(win)
         draw.bold(win)
-        ctx.add_button(win, 'SNOW ', inspect, plain)
+        win:waddstr 'SNOW '
         draw.bold_(win)
         draw.cyan(win)
         win:waddstr ':'
@@ -57,16 +62,10 @@ local function render_msg(ctx, win, net, msg)
         return
     end
 
-    if msg.source then
-        pretty_source(win, msg.source, msg)
-    else
-        win:waddstr(string.rep(' ', 18))
-    end
-
     local color = palette[msg.command]
     if color then color(win) end
     draw.bold(win)
-    ctx.add_button(win, string.format('%4.4s', msg.command), inspect, plain)
+    win:waddstr(string.format('%4.4s', msg.command))
     draw.normal(win)
 
     local n = #msg

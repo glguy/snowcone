@@ -1,7 +1,7 @@
 -- The labeled reply to a /quote (hub.QuoteReply, commands/core.lua) in
 -- the detail pane: the line sent, then one row per reply message. Click a
--- command to inspect that message; [BACK] returns here, scrolled as it
--- was. The filter (Ctrl-S, /filter) shows only the messages that match.
+-- sender to inspect that message, as in a buffer or the console; [BACK]
+-- returns here, scrolled as it was. The filter (Ctrl-S, /filter) shows only the messages that match.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
 local control   <const> = require 'hub.ui.control'
@@ -26,19 +26,21 @@ local state_text <const> = {
 }
 
 local function draw_message(ctx, win, msg)
-    -- the source without its user and host
+    -- the source without its user and host, a button that inspects the
+    -- message
     draw.yellow(win)
     local source = msg.source and msg.source:match '^[^.!]*' or ''
-    win:waddstr(string.format('%-16.16s ', scrub(source)))
+    ctx.add_button(win, string.format('%-16.16s', scrub(source)), function()
+        control.follow_detail('message', ctx.net, msg)
+    end, true)
+    draw.normal(win)
+    win:waddstr ' '
 
     local color = message.palette[msg.command]
     if color then color(win) end
     draw.bold(win)
     local name = message.numeric_names[msg.command]
-    local label = scrub(tostring(msg.command)) .. (name and ' ' .. name or '')
-    ctx.add_button(win, label, function()
-        control.follow_detail('message', ctx.net, msg)
-    end, true)
+    win:waddstr(scrub(tostring(msg.command)) .. (name and ' ' .. name or ''))
     draw.normal(win)
 
     -- a numeric's first argument is our nick

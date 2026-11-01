@@ -1477,10 +1477,10 @@ T.case('a labeled /quote shows its reply batch in the detail pane', function()
     T.eq(T.log_lines 'quote', {'LUSERS: 2 replies'}, 'one line')
     HUB.current.routes['ui.draw']()
 
-    -- a reply's command opens that message
+    -- a reply's sender opens that message
     local opened
     for y = 0, tty_height - 2 do
-        HUB.current.routes['ui.entry']('on_mouse', y, 18, false)
+        HUB.current.routes['ui.entry']('on_mouse', y, 5, false)
         if control.detail().kind == 'message' then
             opened = control.detail().data
             break
@@ -1517,8 +1517,8 @@ T.case('a long reply draws the rows shown, all the way to its end', function()
     T.ok(rows[detail.page]:find 'u5000@h', 'the last message on the last row')
     T.ok(rows[detail.page + 1]:find 'rows 4984%-5001 of 5001', 'the rule counts them')
 
-    -- a click on the last row opens the message drawn there
-    HUB.current.routes['ui.entry']('on_mouse', detail.page, 18, false)
+    -- a click on the last row's sender opens the message drawn there
+    HUB.current.routes['ui.entry']('on_mouse', detail.page, 5, false)
     T.eq(control.detail().kind, 'message', 'inspected')
     T.eq(control.detail().data[5], 'u5000@h', 'the message on that row')
 
@@ -1746,11 +1746,11 @@ T.case('clicks follow a view scrolled sideways', function()
     boot()
     local control = T.require 'hub.ui.control'
     control.set_view 'console'
-    -- a command's button starts at column 26: time, then the source
+    -- a sender's button is columns 8-24, after the time
     control.view_state 'console'.hscroll = 10
     HUB.current.routes['ui.draw']()
     for y = 0, tty_height - 2 do
-        HUB.current.routes['ui.entry']('on_mouse', y, 17, false)
+        HUB.current.routes['ui.entry']('on_mouse', y, 5, false)
         if control.detail() then break end
     end
     T.eq(control.detail() and control.detail().kind, 'message', 'clicked where it is shown')
