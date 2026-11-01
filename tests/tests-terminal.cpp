@@ -732,13 +732,16 @@ TEST_F(Screen, Draws)
 {
     EXPECT_TRUE(term.altscreen());
     EXPECT_EQ("hello", term.row(0));
-    EXPECT_EQ("bold reverse red", term.row(1));
+    EXPECT_EQ("bold reverse red orange", term.row(1));
     EXPECT_TRUE(term.cell(1, 0).attrs.bold);
     EXPECT_FALSE(term.cell(1, 4).attrs.reverse);
     EXPECT_TRUE(term.cell(1, 5).attrs.reverse);
     EXPECT_FALSE(term.cell(1, 5).attrs.bold);
     auto const red = term.cell(1, 13).fg;
     EXPECT_TRUE(VTERM_COLOR_IS_INDEXED(&red) && red.indexed.idx == 1);
+    auto const orange = term.cell(1, 17);
+    EXPECT_TRUE(VTERM_COLOR_IS_INDEXED(&orange.fg) && orange.fg.indexed.idx == 208);
+    EXPECT_TRUE(VTERM_COLOR_IS_INDEXED(&orange.bg) && orange.bg.indexed.idx == 17);
     auto const plain = term.cell(0, 0).fg;
     EXPECT_TRUE(VTERM_COLOR_IS_DEFAULT_FG(&plain));
     finish(term);

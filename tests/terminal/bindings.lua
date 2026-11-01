@@ -90,15 +90,16 @@ check('attributes and colors', function()
     local attrs, pair = ncurses.attrget()
     equal(attrs & ncurses.WA_REVERSE, ncurses.WA_REVERSE)
     equal(pair, 0)
-    for fore = -1, 7 do
+    equal(ncurses.COLORS, 256) -- TERM=xterm-256color
+    for fore = -1, 255 do
         for back = -1, 7 do
             ncurses.colorset(fore, back)
         end
     end
     ncurses.colorset()
-    raises(ncurses.colorset, 8)
+    raises(ncurses.colorset, 256)
     raises(ncurses.colorset, -2)
-    raises(ncurses.colorset, 0, 8)
+    raises(ncurses.colorset, 0, 256)
     raises(ncurses.colorset, math.mininteger)
     raises(ncurses.attrset, 0, 1 << 16) -- a color pair is a short
     ncurses.attrset(ncurses.WA_NORMAL, 0)

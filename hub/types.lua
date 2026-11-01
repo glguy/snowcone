@@ -210,6 +210,7 @@ function Window:prefresh(pminrow, pmincol, sminrow, smincol, smaxrow, smaxcol) e
 ---@field COLOR_CYAN integer
 ---@field COLOR_WHITE integer
 ---@field COLOR_DEFAULT integer
+---@field COLORS integer 2^24 for direct color, where a color is 0xRRGGBB
 ---@field WA_NORMAL integer
 ---@field WA_BOLD integer
 ---@field WA_ITALIC integer
@@ -240,7 +241,7 @@ function ncurses.getyx(win) end
 ---@return integer columns
 function ncurses.getmaxyx(win) end
 
---- Colors run from -1 (the default) to 7.
+--- Colors run from -1 (the default) to COLORS - 1.
 ---@param fore integer|nil
 ---@param back integer|nil
 ---@param win ncurses.Window|nil

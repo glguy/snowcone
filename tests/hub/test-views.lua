@@ -1642,4 +1642,51 @@ T.case('/help lists views as a row, then commands by group, and searches', funct
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case('IRC and RGB colors become the nearest the terminal has', function()
+    boot()
+    local colors = T.require 'hub.ui.colors'
+    local DIRECT = 1 << 24
+    T.eq(colors.irc(99, 256), -1, '99 is the default')
+    T.eq(colors.irc(4, 256), 9, 'red on the palette')
+    T.eq(colors.irc(8, 16), 11, 'yellow, not white')
+    T.eq(colors.irc(9, 8), 2, 'light green as green on 8 colors')
+    T.eq(colors.irc(52, 256), 196, '16-98 by the xterm table')
+    T.eq(colors.irc(52, 16), 9, '16-98 the nearest of 16')
+    T.eq(colors.irc(52, 8), 1, '16-98 the nearest of 8')
+    T.eq(colors.irc(52, DIRECT), 0xff0000, '16-98 as RGB')
+    T.eq(colors.irc(2, DIRECT), 4, '0-7 of the palette with direct color')
+    T.eq(colors.irc(12, DIRECT), 0x5c5cff, 'the bright half as RGB')
+    T.eq(colors.rgb(0xff8700, 256), 208, 'the cube')
+    T.eq(colors.rgb(0x808080, 256), 244, 'the gray ramp')
+    T.eq(colors.rgb(0x0000ff, DIRECT), 0x0001ff, 'clear of palette indices')
+end)
+
+T.case('IRC formatting: colors, hex colors, and codes with nothing to draw', function()
+    boot()
+    local addircstr = T.require 'hub.ui.irc_formatting'
+    local calls
+    rawset(ncurses, 'colorset', function(fore, back) table.insert(calls, fore .. ',' .. back) end)
+    local function drawn(str)
+        calls = {}
+        local win = ncurses.newwin(1, 80)
+        addircstr(win, str)
+        return fake_ncurses.row(win, 0), table.concat(calls, ' ')
+    end
+    local function eq(str, text, sets, what)
+        local t, c = drawn(str)
+        T.eq(t, text, what .. ': text')
+        T.eq(c, sets, what .. ': colors')
+    end
+    eq('\x0304,12a\x0352b\x03c', 'abc', '9,12 196,12 -1,-1', 'the background stays until ^C')
+    eq('\x0304,x', ',x', '9,-1', 'a comma with no color after it')
+    eq('\x04FF8700a\x04ff0000,0000FFb', 'ab', '208,-1 196,21', 'hex colors')
+    eq('\x04FFc', 'FFc', '-1,-1', 'a short hex color resets')
+    eq('\x11m\x11\x1es\x1e', 'ms', '', 'monospace and strikethrough')
+    eq('\x0303,03s', 's', '2,2', 'a spoiler stays hidden')
+    rawset(ncurses, 'COLORS', 8)
+    eq('\x0309,03x', 'x', '2,-1', 'colors that merge show on the default')
+    rawset(ncurses, 'COLORS', nil)
+    rawset(ncurses, 'colorset', nil)
+end)
+
 T.run()

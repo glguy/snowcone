@@ -1,8 +1,8 @@
 -- A stand-in for the ncurses module, so the UI can load and draw without a
 -- terminal. It has the real module's names (tests-terminal checks that they
--- match) and raises an error for any other. Constants are distinct numbers;
--- functions do nothing unless defined below. Windows track the cursor
--- through wmove and waddstr, and keep their text.
+-- match) and raises an error for any other. Constants are distinct numbers,
+-- but for COLORS, which is 256; functions do nothing unless defined below.
+-- Windows track the cursor through wmove and waddstr, and keep their text.
 --
 --   local fake = dofile 'fake_ncurses.lua'
 --   fake.install()    -- sets the ncurses, tty_width and tty_height globals
@@ -20,7 +20,7 @@ M.methods = {
     'wmove', 'wresize',
 }
 M.constants = {
-    'COLOR_BLACK', 'COLOR_BLUE', 'COLOR_CYAN', 'COLOR_DEFAULT', 'COLOR_GREEN',
+    'COLORS', 'COLOR_BLACK', 'COLOR_BLUE', 'COLOR_CYAN', 'COLOR_DEFAULT', 'COLOR_GREEN',
     'COLOR_MAGENTA', 'COLOR_RED', 'COLOR_WHITE', 'COLOR_YELLOW',
     'KEY_BACKSPACE', 'KEY_BTAB', 'KEY_DC', 'KEY_DOWN', 'KEY_END', 'KEY_EXIT',
     'KEY_F1', 'KEY_F10', 'KEY_F11', 'KEY_F12', 'KEY_F2', 'KEY_F3', 'KEY_F4',
@@ -39,6 +39,7 @@ local is_function, is_method, is_constant = set(M.functions), set(M.methods), se
 
 local constant_values = {}
 for i, name in ipairs(M.constants) do constant_values[name] = 1000 + i end
+constant_values.COLORS = 256 -- as with TERM=xterm-256color
 
 -- Every window made, in order
 M.windows = {}

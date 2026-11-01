@@ -24,7 +24,7 @@ include(CTest)
 find_package(PkgConfig REQUIRED)
 
 pkg_search_module(LUA      REQUIRED IMPORTED_TARGET lua>=5.4 lua5.4 lua-5.4 lua54)
-pkg_check_modules(NCURSESW REQUIRED IMPORTED_TARGET ncursesw>=6)
+pkg_check_modules(NCURSESW REQUIRED IMPORTED_TARGET ncursesw>=6.1)
 pkg_check_modules(GEOIP             IMPORTED_TARGET geoip)
 pkg_check_modules(LIBIDN            IMPORTED_TARGET libidn)
 

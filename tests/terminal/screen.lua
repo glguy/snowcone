@@ -1,5 +1,5 @@
 -- A small full-screen program for tests-terminal's screen tests. It draws
--- text, attributes, a color and wide characters, and its size on the last
+-- text, attributes, colors and wide characters, and its size on the last
 -- row, and redraws on every resize. Keys:
 --
 --   s   stop input for 300 ms, as when a command has the terminal
@@ -26,6 +26,8 @@ local function draw()
     ncurses.attroff(ncurses.WA_REVERSE)
     ncurses.colorset(ncurses.COLOR_RED)
     ncurses.mvaddstr(1, 13, 'red')
+    ncurses.colorset(208, 17)
+    ncurses.mvaddstr(1, 17, 'orange')
     ncurses.colorset()
     ncurses.mvaddstr(2, 0, 'wide: é€😀漢字|')
     ncurses.mvaddstr(tty_height - 1, 0, string.format('bottom %dx%d', tty_width, tty_height))

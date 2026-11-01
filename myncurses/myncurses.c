@@ -83,8 +83,9 @@ static int l_attrget(lua_State* const L)
     WINDOW* const win = optwindow(L, 1);
 
     attr_t attrs;
-    short colorpair;
-    if (ERR == wattr_get(win, &attrs, &colorpair, NULL))
+    short short_pair;
+    int colorpair;
+    if (ERR == wattr_get(win, &attrs, &short_pair, &colorpair))
     {
         return luaL_error(L, "wattr_get: ncurses error");
     }
@@ -184,29 +185,29 @@ static int l_doupdate(lua_State* const L)
 
 static int l_colorset(lua_State* const L)
 {
-    // map [fore][back] to a pair number - zero for unassigned (except for [-1][-1])
-    static int color_map[9][9]; // colors range from -1 to 7
-    static int assigned = 1;
+    lua_Integer const fore = luaL_optinteger(L, 1, -1);
+    luaL_argcheck(L, -1 <= fore && fore < COLORS, 1, "out of range");
 
-    lua_Integer fore = luaL_optinteger(L, 1, -1);
-    luaL_argcheck(L, -1 <= fore && fore <= 7, 1, "out of range");
-
-    lua_Integer back = luaL_optinteger(L, 2, -1);
-    luaL_argcheck(L, -1 <= back && back <= 7, 2, "out of range");
+    lua_Integer const back = luaL_optinteger(L, 2, -1);
+    luaL_argcheck(L, -1 <= back && back < COLORS, 2, "out of range");
 
     WINDOW* const win = optwindow(L, 3);
 
-    int* pair = &color_map[fore + 1][back + 1];
-    if (0 == *pair && (fore >= 0 || back >= 0))
+    // alloc_pair reuses the pair for a combination already in use, and
+    // when all are taken recycles the least recently used; pair 0, the
+    // terminal's defaults, when it fails
+    int pair = 0;
+    if (fore >= 0 || back >= 0)
     {
-        if (assigned < COLOR_PAIRS)
+        pair = alloc_pair(fore, back);
+        if (pair < 0)
         {
-            *pair = assigned++;
-            init_pair(*pair, fore, back);
+            pair = 0;
         }
     }
 
-    if (ERR == wcolor_set(win, *pair, NULL))
+    // the pair through opts, as pairs above 32767 don't fit the short
+    if (ERR == wcolor_set(win, 0, &pair))
     {
         return luaL_error(L, "color_set: ncurses error");
     }
@@ -318,6 +319,7 @@ int luaopen_myncurses(lua_State* L)
     CC(COLOR_CYAN);
     CC(COLOR_WHITE);
     CCR("COLOR_DEFAULT", -1);
+    CC(COLORS); // 2^24 for direct color, where a color is 0xRRGGBB
 
     /* attributes */
     CC(WA_NORMAL);
