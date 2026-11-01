@@ -197,7 +197,7 @@ function M.draw_rotation(win, vs, start, rows, data, show_entry, draw_entry)
         local y = start + i - 1
         win:wmove(y, 0)
         if entry == 'divider' then
-            last_time = os.date '!%H:%M:%S'
+            last_time = os.date '!%H:%M:%S' --[[@as string]]
             M.yellow(win)
             win:waddstr(last_time, vs.scroll == 0 and divider_string or scrolled_divider_string)
         elseif entry then

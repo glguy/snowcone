@@ -61,6 +61,7 @@ end
 ---@return boolean
 function M.on_reply(chat, net, irc, msg)
     local C = chat.get(net)
+    ---@type string|nil, boolean
     local label, batched = msg.tags.label, false
     if label == nil then
         local batch = irc.batches[msg.tags.batch]

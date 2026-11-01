@@ -902,7 +902,7 @@ end)
 
 T.case('the message detail sums up a chat line', function()
     local c = boot()
-    local irc = HUB.state.nets.test.irc
+    local irc = HUB.state.nets.test.irc --[[@as hub.Irc]]
     irc.caps_enabled['account-tag'] = true
     irc.caps_enabled['solanum.chat/identify-msg'] = true
     c:recv ':me!u@h JOIN #c'
@@ -949,6 +949,55 @@ T.case('the message detail sums up a chat line', function()
     HUB.current.routes['ui.draw']()
     T.eq(message.level(control.detail()), 'message', 'no summary')
     T.eq(rows_of(detail_pad())[0]:match '^(.-)%s*$', '[message] [raw]', 'nor its button')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
+T.case('the message detail sums up a topic change with the topic it replaced', function()
+    local c = boot()
+    c:recv ':me!u@h JOIN #c'
+    c:recv ':srv 332 me #c :the old topic'
+    c:recv ':srv 333 me #c bob 1700000000'
+    c:recv ':srv 353 me = #c :me @alice'
+    c:recv ':srv 366 me #c :End of /NAMES list.'
+    c:recv ':alice!a@h TOPIC #c :the \x02new\x02 topic'
+    local chat = T.require 'hub.features.chat'
+    local buffer = chat.buffer('test', '#c')
+    local control = T.require 'hub.ui.control'
+    local message = T.require 'hub.ui.details.message'
+
+    control.set_view 'status'
+    control.open_detail('message', 'test', chat.newest(buffer))
+    HUB.current.routes['ui.draw']()
+    T.eq(message.level(control.detail()), 'summary', 'opens at the summary')
+    local rows = rows_of(detail_pad())
+    local set = (os.date('%Y-%m-%d %H:%M', 1700000000) --[[@as string]]):gsub('%-', '%%-')
+    for _, want in ipairs {
+        '^    from: alice a@h$',
+        '^    role: @ %+o$',
+        '^ changed: topic of #c, at ',
+        '^   topic: the new topic$',
+        '^  before: the old topic$',
+        '^ was set: by bob, ' .. set .. ', %d+d %d+h ago$',
+    } do
+        T.ok(has_row(rows, want), want)
+    end
+
+    c:recv ':bob!b@h TOPIC #c :'
+    control.open_detail('message', 'test', chat.newest(buffer))
+    HUB.current.routes['ui.draw']()
+    rows = rows_of(detail_pad())
+    T.ok(has_row(rows, '^   topic: cleared$'), 'cleared')
+    T.ok(has_row(rows, '^  before: the new topic$'), 'the one alice set')
+    T.ok(has_row(rows, '^ was set: by alice!a@h, '), 'by alice')
+
+    -- a channel whose topic we never learned
+    c:recv ':me!u@h JOIN #d'
+    c:recv ':carol!c@h TOPIC #d :first'
+    control.open_detail('message', 'test', chat.newest(chat.buffer('test', '#d')))
+    HUB.current.routes['ui.draw']()
+    rows = rows_of(detail_pad())
+    T.ok(has_row(rows, '^  before: not known$'), 'not known')
+    T.ok(not has_row(rows, 'was set'), 'nor who set it')
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 

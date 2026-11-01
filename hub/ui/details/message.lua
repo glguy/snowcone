@@ -287,6 +287,46 @@ end
 summaries.PRIVMSG = chat_summary
 summaries.NOTICE = chat_summary
 
+-- Topic text under a label, or what stands in for it
+local function topic_line(ctx, win, label, topic)
+    if topic == nil then
+        line(ctx, win, label, {{'not known', draw.yellow}})
+    elseif topic == '' then
+        line(ctx, win, label, {{'none', draw.yellow}})
+    else
+        field(win, label, chat_width)
+        addircstr(win, topic, nil, {cols = ctx.cols, indent = chat_width + 2})
+        win:waddstr '\n'
+    end
+end
+
+-- A topic change: the new topic and the one it replaced
+function summaries.TOPIC(ctx, win, msg)
+    sender(ctx, net_irc(ctx), win, msg, true)
+
+    local changed = {{'topic of ' .. scrub(msg[1] or '?')}, {'at ' .. scrub(msg.tags.time or msg.time or '?')}}
+    if msg.history then
+        table.insert(changed, {'from history', draw.yellow})
+    end
+    line(ctx, win, 'changed', changed)
+
+    if msg[2] == '' then
+        line(ctx, win, 'topic', {{'cleared', draw.yellow}})
+    else
+        topic_line(ctx, win, 'topic', msg[2])
+    end
+
+    local before = msg.topic_before or {}
+    topic_line(ctx, win, 'before', before.topic)
+    local set = {}
+    if before.who then table.insert(set, {'by ' .. scrub(before.who)}) end
+    if before.time then
+        local ago = math.max(0, os.time() - before.time)
+        table.insert(set, {os.date('%Y-%m-%d %H:%M', before.time) .. ', ' .. draw.duration(ago) .. ' ago'})
+    end
+    line(ctx, win, 'was set', set)
+end
+
 -- A server notice: what the parser made of it
 local function snotice_summary(_, win, msg)
     field(win, 'from')

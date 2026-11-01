@@ -63,12 +63,19 @@ local M = {}
 ---@field receipt 'awaiting'|'received'|'rejected'|'unknown'|nil of our labeled chat
 --- line in a buffer, by the server's reply (features/chat)
 ---@field rejection string|nil the error text when rejected
+---@field topic_before {topic: string|nil, who: string|nil, time: number|nil}|nil
+--- of a TOPIC, the channel's topic before it and who set it when, as far
+--- as we knew: nil fields when we never learned them (net/handlers.lua)
+---@field statusmsg string|nil of a PRIVMSG or NOTICE, the STATUSMSG prefix
+--- its target had, the members it went to (features/chat)
 ---@field history true|nil of a line in a chat buffer that came from chat
 --- history rather than live, so what it says of its sender then isn't known
 --- (features/chat)
----@field member_modes table<string, true>|nil of a live chat line in a
---- channel, the sender's prefix modes there when it arrived or was sent; nil
---- from a non-member (features/chat)
+---@field member_modes table<string, true>|nil of a message a user sent to a
+--- channel (PRIVMSG, NOTICE, TOPIC, KICK, MODE, PART), the sender's prefix
+--- modes there just before it took effect (net/handlers.lua); of our own
+--- chat line, ours when sent (features/chat). Nil from a non-member, and
+--- on history, which the model doesn't see
 
 M.console_size = 1000
 M.ping_after = 30          -- seconds of silence before PING

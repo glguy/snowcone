@@ -171,6 +171,26 @@ T.case('channel lines keep the modes their sender had then', function()
     T.eq(chat.newest(chat.buffer('test', '#c')).member_modes, {o = true}, 'ours when sent')
 end)
 
+T.case('what a user sends a channel keeps their modes from before it took effect', function()
+    local c, chat = boot()
+    c:recv ':me!u@h JOIN #c'
+    c:recv ':srv 353 me = #c :me @alice +bob carol'
+    c:recv ':srv 366 me #c :End of /NAMES list.'
+    local function newest() return chat.newest(chat.buffer('test', '#c')) end
+    c:recv ':alice!a@h TOPIC #c :hi'
+    T.eq(newest().member_modes, {o = true}, 'TOPIC')
+    c:recv ':alice!a@h MODE #c -o alice'
+    T.eq(newest().member_modes, {o = true}, 'MODE, as before the change')
+    c:recv ':bob!b@h KICK #c carol :bye'
+    T.eq(newest().member_modes, {v = true}, 'KICK')
+    c:recv ':bob!b@h PART #c :gone'
+    T.eq(newest().member_modes, {v = true}, 'PART, as before leaving')
+    c:recv ':alice!a@h NOTICE +#c :voiced only'
+    T.eq(newest().member_modes, {}, 'behind a STATUSMSG prefix')
+    c:recv ':dave!d@h JOIN #c'
+    T.eq(newest().member_modes, nil, 'not JOIN')
+end)
+
 T.case('typing is tracked in buffers until it lapses or ends', function()
     local c, chat = boot()
     local clock = T.require 'hub.runtime.clock'

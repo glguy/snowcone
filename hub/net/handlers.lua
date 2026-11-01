@@ -84,9 +84,12 @@ end
 -----------------------------------------------------------------------
 -- Channel metadata
 
+-- The topic it replaces goes with the message, which features see after
+-- the model has forgotten it
 function H.TOPIC(_, irc, msg)
     local channel = irc_model.get_channel(irc, msg[1])
     if channel then
+        msg.topic_before = {topic = channel.topic, who = channel.topic_who, time = channel.topic_time}
         channel.topic = msg[2]
         channel.topic_who = msg.source
         channel.topic_time = os.time()
@@ -503,6 +506,22 @@ function H.BOUNCER(_, irc, msg)
         else
             network[k] = v
         end
+    end
+end
+
+-- Commands a user sends to a channel take the sender's prefix modes there
+-- as they were before the command took effect (msg.member_modes): a PART
+-- or MODE changes them before features see the message.
+for _, command in ipairs {'PRIVMSG', 'NOTICE', 'TOPIC', 'KICK', 'MODE', 'PART'} do
+    local h = H[command]
+    H[command] = function(rec, irc, msg)
+        if msg.nick and msg[1] then
+            local _, target = irc_model.split_statusmsg(irc, msg[1])
+            if irc_model.is_channel_name(irc, target) then
+                msg.member_modes = irc_model.member_modes(irc, target, msg.nick)
+            end
+        end
+        if h then return h(rec, irc, msg) end
     end
 end
 
