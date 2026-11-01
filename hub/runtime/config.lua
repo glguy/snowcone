@@ -214,12 +214,10 @@ function M.normalize(raw)
 end
 
 --- Load configuration from the command line and files.
----@param args string[] command line arguments
----@param override table|nil raw configuration to use instead of a file (tests)
----@return table
 ---@param args string[] command line: --config and key=value overrides
 ---@param override table|nil raw configuration to use instead of a file
 ---@param chosen string|nil a file to read in place of --config
+---@return table
 function M.load(args, override, chosen)
     local dir = M.config_dir()
     local raw, filename

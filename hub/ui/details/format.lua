@@ -88,7 +88,7 @@ end
 -- A color in words
 local function color_name(color)
     if type(color) == 'string' then return '#' .. color end
-    return names[color] or 'color ' .. color
+    return names[color] or ('color ' .. color)
 end
 
 --- The formatting of a state in words, and the codes that make it.
