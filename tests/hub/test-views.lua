@@ -679,6 +679,13 @@ T.case('wrapped text continues under its column, breaking a word too long for a 
     addircstr(win, 'aaaa \x02bbbb\x02 cccc', nil, {cols = 20, indent = 7})
     T.eq({fake_ncurses.row(win, 0), fake_ncurses.row(win, 1)},
         {'label: aaaa bbbb', '       cccc'}, 'through the formatting')
+
+    -- a code inside a word at the end of a row doesn't break it there
+    win = ncurses.newpad(10, 20)
+    win:waddstr 'label: '
+    addircstr(win, 'aaaa bbbb cc\x02cc dd\x0304,05dd\x03 \x01', nil, {cols = 20, indent = 7})
+    T.eq({fake_ncurses.row(win, 0), fake_ncurses.row(win, 1)},
+        {'label: aaaa bbbb', '       cccc dddd ␁'}, 'the word moves whole, its codes taking no cells')
 end)
 
 T.case('session lists show one row and expand on a click', function()

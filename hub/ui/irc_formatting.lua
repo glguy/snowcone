@@ -15,6 +15,16 @@ end
 
 local hex6 <const> = string.rep('%x', 6)
 
+-- The text str draws without edit, by the rules the drawing below follows:
+-- color codes and their parameters, and the style codes, take no cells;
+-- any other control character shows as its glyph
+local function visible(str)
+    str = str:gsub('\x03%d%d?,%d%d?', ''):gsub('\x03%d?%d?', '')
+    str = str:gsub('\x04' .. hex6 .. ',' .. hex6, ''):gsub('\x04' .. hex6, ''):gsub('\x04', '')
+    str = str:gsub('[\x02\x0f\x11\x16\x1d\x1e\x1f]', '')
+    return scrub(str)
+end
+
 --- Draw text with its formatting at the cursor.
 ---
 --- With `edit`, for the line being typed: each control character shows
@@ -24,7 +34,8 @@ local hex6 <const> = string.rep('%x', 6)
 --- byte after the first edit.mark bytes, where the cursor goes.
 ---
 --- With `wrap` (and no edit), the text wraps at spaces to continue at
---- column wrap.indent, as draw.wrap_text does.
+--- column wrap.indent, as draw.wrap_text does, judging words by the text
+--- shown, so a code inside a word doesn't break it.
 ---@param win ncurses.Window
 ---@param str string
 ---@param edit {mark: integer, color: integer}|nil
@@ -36,6 +47,14 @@ return function(win, str, edit, wrap)
     local on_r, on_r_
     local on_i, on_i_
     local foreground, background
+
+    -- draws text shown, broken as the whole of it shown would be
+    local wrapped
+    if wrap and not edit then
+        local _, x = ncurses.getyx(win)
+        local breaks = draw.wrap_breaks(visible(str), x, wrap.cols, wrap.indent)
+        wrapped = draw.wrapper(win, breaks, wrap.indent)
+    end
 
     local default = edit and edit.color or -1
     local mark = edit and edit.mark
@@ -77,8 +96,8 @@ return function(win, str, edit, wrap)
             win:waddstr(scrub(text:sub(k + 1)))
         elseif edit then
             win:waddstr(scrub(text))
-        elseif wrap then
-            draw.wrap_text(win, text, wrap.cols, wrap.indent)
+        elseif wrapped then
+            wrapped(text)
         else
             win:waddstr(text)
         end
@@ -186,6 +205,8 @@ return function(win, str, edit, wrap)
         -- unsupported control character
         elseif edit then
             code(ctrl, '')
+        elseif wrapped then
+            wrapped(scrub(ctrl))
         else
             win:waddstr(scrub(ctrl))
         end

@@ -86,42 +86,105 @@ function M.duration(seconds)
     return string.format('%dd %dh', seconds // 86400, seconds % 86400 // 3600)
 end
 
+-- The characters of text, one string each: a byte and the continuation
+-- bytes after it, so pieces of a text split at ASCII count as the whole
+-- does, valid UTF-8 or not
+local function characters(text)
+    local list = {}
+    for c in text:gmatch '[%z\1-\x7f\xc0-\xff]?[\x80-\xbf]*' do
+        if c ~= '' then table.insert(list, c) end
+    end
+    return list
+end
+
+--- Where text drawn from column `x` wraps at spaces to continue at column
+--- `indent` of the next row, so each row ends before column `cols`: a
+--- list of breaks {from, to, newline} by character, in order. Characters
+--- from..to (spaces, maybe none) aren't drawn, and with newline the
+--- character after them starts the next row. A word too long for a row is
+--- broken where it must be.
+---@param text string
+---@param x integer
+---@param cols integer
+---@param indent integer
+---@return {from: integer, to: integer, newline: boolean}[]
+function M.wrap_breaks(text, x, cols, indent)
+    -- writing the last column moves the cursor to the next row, so a row
+    -- ends a column before it
+    local room = cols - 1
+    local breaks, pos = {}, 0
+    local chars = characters(text)
+    local i = 1
+    while i <= #chars do
+        local gap, len = 0, 0
+        while chars[i + gap] == ' ' do gap = gap + 1 end
+        while chars[i + gap + len] and chars[i + gap + len] ~= ' ' do len = len + 1 end
+        if len > 0 and x > indent and x + gap + len > room then
+            table.insert(breaks, {from = pos + 1, to = pos + gap, newline = true})
+            x = indent
+        else
+            -- spaces past the end of the row aren't drawn
+            local drawn = math.min(gap, math.max(0, room - x))
+            if drawn < gap then
+                table.insert(breaks, {from = pos + drawn + 1, to = pos + gap, newline = false})
+            end
+            x = x + drawn
+        end
+        pos = pos + gap
+        i = i + gap + len
+        -- a word longer than a whole row
+        while x + len > room and room > indent do
+            local fits = room - x
+            pos, len, x = pos + fits, len - fits, indent
+            table.insert(breaks, {from = pos + 1, to = pos, newline = true})
+        end
+        pos, x = pos + len, x + len
+    end
+    return breaks
+end
+
+--- A function that draws text at the cursor in pieces, as one text
+--- broken at `breaks` (wrap_breaks) would be, continuing rows at column
+--- `indent`.
+---@param win ncurses.Window
+---@param breaks {from: integer, to: integer, newline: boolean}[]
+---@param indent integer
+---@return fun(text: string)
+function M.wrapper(win, breaks, indent)
+    local seen, next_break = 0, 1
+    return function(text)
+        local run = {}
+        for _, c in ipairs(characters(text)) do
+            seen = seen + 1
+            local b = breaks[next_break]
+            if b and seen == b.to + 1 and b.newline then
+                win:waddstr(table.concat(run))
+                run = {}
+                win:waddstr '\n'
+                win:wmove(ncurses.getyx(win), indent)
+            end
+            while b and seen > b.to do
+                next_break = next_break + 1
+                b = breaks[next_break]
+            end
+            if not (b and seen >= b.from and seen <= b.to) then
+                table.insert(run, c)
+            end
+        end
+        win:waddstr(table.concat(run))
+    end
+end
+
 --- Draw text at the cursor, wrapping at spaces to continue at column
---- `indent` of the next row, so each row ends before column `cols`.
---- The space a row breaks at isn't drawn, and a word too long for a row
---- is broken where it must be. Text is already scrubbed.
+--- `indent` of the next row, so each row ends before column `cols`, as
+--- wrap_breaks has it. Text is already scrubbed.
 ---@param win ncurses.Window
 ---@param text string
 ---@param cols integer
 ---@param indent integer
 function M.wrap_text(win, text, cols, indent)
-    -- writing the last column moves the cursor to the next row, so a row
-    -- ends a column before it
-    local room = cols - 1
-    local function newline()
-        win:waddstr '\n'
-        win:wmove(ncurses.getyx(win), indent)
-    end
-    for gap, word in text:gmatch '( *)([^ ]*)' do
-        local _, x = ncurses.getyx(win)
-        local len = utf8.len(word) or #word
-        if word ~= '' and x > indent and x + #gap + len > room then
-            newline()
-        else
-            win:waddstr(string.sub(gap, 1, math.max(0, room - x)))
-        end
-        -- a word longer than a whole row
-        _, x = ncurses.getyx(win)
-        while x + len > room and room > indent do
-            local fits = room - x
-            local cut = utf8.offset(word, fits + 1) or (fits + 1)
-            win:waddstr(word:sub(1, cut - 1))
-            word, len = word:sub(cut), len - fits
-            newline()
-            _, x = ncurses.getyx(win)
-        end
-        win:waddstr(word)
-    end
+    local _, x = ncurses.getyx(win)
+    M.wrapper(win, M.wrap_breaks(text, x, cols, indent), indent)(text)
 end
 
 --- Draw an HH:MM:SS time whose digits brighten for the first seconds.
