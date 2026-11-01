@@ -245,6 +245,27 @@ end
 
 local summaries = {}
 
+-- Parts that say when a message was sent, after `parts`
+local function stamped(parts, msg)
+    table.insert(parts, {'at ' .. scrub(msg.tags.time or msg.time or '?')})
+    if msg.history then
+        table.insert(parts, {'from history', draw.yellow})
+    end
+    return parts
+end
+
+-- Text with its formatting under a label, wrapping under its column
+local function formatted(ctx, win, label, text)
+    field(win, label, chat_width)
+    addircstr(win, text, nil, {cols = ctx.cols, indent = chat_width + 2})
+    win:waddstr '\n'
+end
+
+-- Text a user gave, such as a reason, unless they gave none
+local function reason(ctx, win, label, text)
+    if text and text ~= '' then formatted(ctx, win, label, text) end
+end
+
 -- A PRIVMSG or NOTICE between users or to a channel: who sent it, how,
 -- and the text
 local function chat_summary(ctx, win, msg)
@@ -270,18 +291,12 @@ local function chat_summary(ctx, win, msg)
     if prefix then
         table.insert(sent, {scrub(prefix) .. ' and above only', draw.red})
     end
-    table.insert(sent, {'at ' .. scrub(msg.tags.time or msg.time or '?')})
-    if msg.history then
-        table.insert(sent, {'from history', draw.yellow})
-    end
-    line(ctx, win, 'sent', sent)
+    line(ctx, win, 'sent', stamped(sent, msg))
     local parent = tag_value(msg.tags, '+reply')
     if parent then line(ctx, win, 'reply to', {{scrub(parent)}}) end
     line(ctx, win, 'delivery', fate(msg))
 
-    field(win, 'text', chat_width)
-    addircstr(win, text, nil, {cols = ctx.cols, indent = chat_width + 2})
-    win:waddstr '\n'
+    formatted(ctx, win, 'text', text)
 end
 
 summaries.PRIVMSG = chat_summary
@@ -294,21 +309,14 @@ local function topic_line(ctx, win, label, topic)
     elseif topic == '' then
         line(ctx, win, label, {{'none', draw.yellow}})
     else
-        field(win, label, chat_width)
-        addircstr(win, topic, nil, {cols = ctx.cols, indent = chat_width + 2})
-        win:waddstr '\n'
+        formatted(ctx, win, label, topic)
     end
 end
 
 -- A topic change: the new topic and the one it replaced
 function summaries.TOPIC(ctx, win, msg)
     sender(ctx, net_irc(ctx), win, msg, true)
-
-    local changed = {{'topic of ' .. scrub(msg[1] or '?')}, {'at ' .. scrub(msg.tags.time or msg.time or '?')}}
-    if msg.history then
-        table.insert(changed, {'from history', draw.yellow})
-    end
-    line(ctx, win, 'changed', changed)
+    line(ctx, win, 'changed', stamped({{'topic of ' .. scrub(msg[1] or '?')}}, msg))
 
     if msg[2] == '' then
         line(ctx, win, 'topic', {{'cleared', draw.yellow}})
@@ -325,6 +333,152 @@ function summaries.TOPIC(ctx, win, msg)
         table.insert(set, {os.date('%Y-%m-%d %H:%M', before.time) .. ', ' .. draw.duration(ago) .. ' ago'})
     end
     line(ctx, win, 'was set', set)
+end
+
+-- Joining a channel: with extended-join, the account and realname too
+function summaries.JOIN(ctx, win, msg)
+    sender(ctx, net_irc(ctx), win, msg, false)
+    line(ctx, win, 'joined', stamped({{scrub(msg[1] or '?')}}, msg))
+    reason(ctx, win, 'realname', msg[3])
+end
+
+function summaries.PART(ctx, win, msg)
+    sender(ctx, net_irc(ctx), win, msg, true)
+    line(ctx, win, 'left', stamped({{scrub(msg[1] or '?')}}, msg))
+    reason(ctx, win, 'reason', msg[2])
+end
+
+function summaries.KICK(ctx, win, msg)
+    sender(ctx, net_irc(ctx), win, msg, true)
+    line(ctx, win, 'kicked', stamped({{scrub(msg[2] or '?') .. ' from ' .. scrub(msg[1] or '?')}}, msg))
+    reason(ctx, win, 'reason', msg[3])
+end
+
+-- A quit reason of two server names is how a netsplit reads
+local function netsplit(text)
+    return text and text:match '^[%w-]+%.[%w.-]+ [%w-]+%.[%w.-]+$' ~= nil
+end
+
+function summaries.QUIT(ctx, win, msg)
+    sender(ctx, net_irc(ctx), win, msg, false)
+    local quit = stamped({}, msg)
+    if netsplit(msg[1]) then table.insert(quit, 1, {'netsplit', draw.yellow}) end
+    line(ctx, win, 'quit', quit)
+    reason(ctx, win, 'reason', msg[1])
+    local channels = {}
+    for _, name in ipairs(msg.channels or {}) do table.insert(channels, {scrub(name)}) end
+    line(ctx, win, 'left', channels)
+end
+
+function summaries.NICK(ctx, win, msg)
+    sender(ctx, net_irc(ctx), win, msg, false)
+    line(ctx, win, 'renamed', stamped({{'to ' .. scrub(msg[1] or '?'), draw.bold}}, msg))
+end
+
+function summaries.ACCOUNT(ctx, win, msg)
+    sender(ctx, net_irc(ctx), win, msg, false)
+    local account = msg[1]
+    local change = account == '*' and {'logged out', draw.yellow}
+        or {'logged in as ' .. scrub(account or '?'), draw.green}
+    line(ctx, win, 'account', stamped({change}, msg))
+end
+
+-- The source holds the old user@host, which `from` shows
+function summaries.CHGHOST(ctx, win, msg)
+    sender(ctx, net_irc(ctx), win, msg, false)
+    line(ctx, win, 'host', stamped({{'now ' .. scrub(msg[1] or '?') .. '@' .. scrub(msg[2] or '?'), draw.bold}}, msg))
+end
+
+local function wallops_summary(ctx, win, msg)
+    sender(ctx, net_irc(ctx), win, msg, false)
+    line(ctx, win, 'sent', stamped({{msg.command == 'OPERWALL' and 'operwall' or 'wallops'}}, msg))
+    formatted(ctx, win, 'text', msg[1] or '')
+end
+
+summaries.WALLOPS = wallops_summary
+summaries.OPERWALL = wallops_summary
+
+-- Names of channel modes, by prefix for prefix modes, which networks
+-- spell with different letters, and by letter for the rest (as Solanum
+-- has them)
+local prefix_names <const> = {
+    ['~'] = 'owner', ['&'] = 'admin', ['@'] = 'op', ['%'] = 'halfop', ['+'] = 'voice',
+}
+local mode_names <const> = {
+    b = 'ban', e = 'ban exception', I = 'invite exception', q = 'quiet',
+    i = 'invite only', m = 'moderated', n = 'no outside messages', s = 'secret',
+    p = 'private', t = 'topic set by ops', k = 'key', l = 'limit',
+    r = 'registered users only', c = 'colors stripped', f = 'forward',
+    j = 'join throttle', z = 'ops see moderated', g = 'anyone invites',
+    P = 'permanent', S = 'TLS only', C = 'no CTCPs', T = 'no notices',
+    F = 'forward target', Q = 'no forwarding', L = 'large lists',
+}
+
+-- The changes of a channel MODE: {'+' or '-', letter, argument or nil},
+-- each taking its argument by the network's PREFIX and CHANMODES
+local function mode_changes(irc, msg)
+    local changes, sign, cursor = {}, '+', 3
+    for flag in (msg[2] or ''):gmatch '.' do
+        if flag == '+' or flag == '-' then
+            sign = flag
+        else
+            local takes = irc and (irc.mode_to_prefix[flag]
+                or irc.modes_A:find(flag, 1, true) or irc.modes_B:find(flag, 1, true)
+                or sign == '+' and irc.modes_C:find(flag, 1, true))
+            local arg
+            if takes then
+                arg = msg[cursor]
+                cursor = cursor + 1
+            end
+            table.insert(changes, {sign, flag, arg})
+        end
+    end
+    return changes
+end
+
+function summaries.MODE(ctx, win, msg)
+    local irc = net_irc(ctx)
+    local target = msg[1] or '?'
+    local channel = irc and irc_model.is_channel_name(irc, target)
+    sender(ctx, irc, win, msg, channel)
+    line(ctx, win, 'changed', stamped({{'modes of ' .. scrub(target)}}, msg))
+
+    for i, change in ipairs(mode_changes(channel and irc or nil, msg)) do
+        local sign, flag, arg = change[1], change[2], change[3]
+        if i == 1 then
+            field(win, 'modes', chat_width)
+        else
+            win:waddstr(string.rep(' ', chat_width + 2))
+        end
+        if sign == '+' then draw.green(win) else draw.red(win) end
+        win:waddstr(sign, scrub(flag))
+        draw.normal(win)
+        if arg then win:waddstr(' ', scrub(arg)) end
+        local prefix = channel and (irc --[[@as hub.Irc]]).mode_to_prefix[flag]
+        local name = channel and (prefix and prefix_names[prefix] or mode_names[flag])
+        if name then
+            draw.blue(win)
+            win:waddstr(' ', name)
+            draw.normal(win)
+        end
+        win:waddstr '\n'
+    end
+end
+
+-- A numeric reply: its name, whom it is to, its arguments and its text
+local function numeric_summary(ctx, win, msg)
+    sender(ctx, net_irc(ctx), win, msg, false)
+    local name = numeric_names[msg.command]
+    local failed = name and name:sub(1, 4) == 'ERR_'
+    local reply = {{(name or 'numeric') .. string.format(' (%03d)', msg.command), failed and draw.red or nil}}
+    if msg[1] then reply[1][1] = reply[1][1] .. ' to ' .. scrub(msg[1]) end
+    line(ctx, win, 'reply', stamped(reply, msg))
+    if #msg > 2 then
+        local args = {}
+        for i = 2, #msg - 1 do table.insert(args, scrub(msg[i])) end
+        line(ctx, win, 'args', {{table.concat(args, ' ')}})
+    end
+    if #msg > 1 then formatted(ctx, win, 'text', msg[#msg]) end
 end
 
 -- A server notice: what the parser made of it
@@ -351,6 +505,7 @@ end
 -- The summary of a message, or nil
 local function summary_of(msg)
     if M.snotice_text(msg) then return snotice_summary end
+    if math.type(msg.command) == 'integer' then return numeric_summary end
     return summaries[msg.command]
 end
 

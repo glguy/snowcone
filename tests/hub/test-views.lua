@@ -945,7 +945,7 @@ T.case('the message detail sums up a chat line', function()
     T.ok(not has_row(rows, 'bot'), 'a bot only says so')
 
     -- a command without a summary opens at the message level
-    control.open_detail('message', 'test', OrderedMap.get_oldest(buffer.messages))
+    control.open_detail('message', 'test', snowcone.parse_irc ':alice!a@h AWAY :gone')
     HUB.current.routes['ui.draw']()
     T.eq(message.level(control.detail()), 'message', 'no summary')
     T.eq(rows_of(detail_pad())[0]:match '^(.-)%s*$', '[message] [raw]', 'nor its button')
@@ -1001,6 +1001,82 @@ T.case('the message detail sums up a topic change with the topic it replaced', f
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case('the message detail sums up joins, parts, kicks, quits, nicks, modes and replies', function()
+    local c = boot()
+    c:recv ':srv 005 me PREFIX=(ov)@+ CHANMODES=eIbq,k,flj,imnpst :are supported'
+    c:recv ':me!u@h JOIN #c'
+    c:recv ':srv 353 me = #c :me @alice +bob carol'
+    c:recv ':srv 366 me #c :End of /NAMES list.'
+    local chat = T.require 'hub.features.chat'
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    local control = T.require 'hub.ui.control'
+    control.set_view 'status'
+
+    -- the summary of the newest line in #c, or of the newest console line
+    local function summary(line, console)
+        c:recv(line)
+        local msg
+        if console then
+            local log = HUB.state.nets.test.console
+            msg = OrderedMap.get(log, OrderedMap.last(log))
+        else
+            msg = chat.newest(chat.buffer('test', '#c'))
+        end
+        control.open_detail('message', 'test', msg)
+        HUB.current.routes['ui.draw']()
+        return rows_of(detail_pad())
+    end
+    local function expect(rows, wants)
+        for _, want in ipairs(wants) do T.ok(has_row(rows, want), want) end
+    end
+
+    expect(summary ':dave!d@h JOIN #c acct :Dave \x02D\x02', {
+        '^    from: dave d@h$',
+        '^  joined: #c, at ',
+        '^realname: Dave D$',
+    })
+    expect(summary ':alice!a@h MODE #c +o-v+bl dave bob *!*@x.example 10', {
+        '^    role: @ %+o$',
+        '^ changed: modes of #c, at ',
+        '^   modes: %+o dave op$',
+        '^          %-v bob voice$',
+        '^          %+b %*!%*@x.example ban$',
+        '^          %+l 10 limit$',
+    })
+    expect(summary ':alice!a@h KICK #c carol :be nice', {
+        '^  kicked: carol from #c, at ',
+        '^  reason: be nice$',
+    })
+    expect(summary ':dave!d@h PART #c :later', {
+        '^    role: @ %+o$',
+        '^    left: #c, at ',
+        '^  reason: later$',
+    })
+    expect(summary ':alice!a@h NICK alicia', {
+        '^    from: alice a@h$',
+        '^ renamed: to alicia, at ',
+    })
+    expect(summary ':alicia!a@h CHGHOST new new.example', {
+        '^    from: alicia a@h$',
+        '^    host: now new@new.example, at ',
+    })
+    expect(summary ':alicia!new@new.example ACCOUNT work', {
+        '^ account: logged in as work, at ',
+    })
+    expect(summary ':alicia!new@new.example QUIT :hub.example leaf.example', {
+        '^    quit: netsplit, at ',
+        '^  reason: hub.example leaf.example$',
+        '^    left: #c$',
+    })
+    expect(summary(':srv 401 me ghost :No such nick/channel', true), {
+        '^    from: srv, server$',
+        '^   reply: ERR_NOSUCHNICK %(401%) to me, at ',
+        '^    args: ghost$',
+        '^    text: No such nick/channel$',
+    })
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.case('the detail pane sits above the view, scrolls, and closes', function()
     boot()
     local control = T.require 'hub.ui.control'
@@ -1010,7 +1086,7 @@ T.case('the detail pane sits above the view, scrolls, and closes', function()
     -- a message with more rows than half the screen
     local tags = {}
     for i = 1, 40 do tags['t' .. i] = 'v' end
-    local msg = snowcone.parse_irc ':a!b@c JOIN #chan'
+    local msg = snowcone.parse_irc ':a!b@c AWAY :gone'
     msg.tags = tags
     control.open_detail('message', 'test', msg)
     HUB.current.routes['ui.draw']()
