@@ -86,6 +86,44 @@ function M.duration(seconds)
     return string.format('%dd %dh', seconds // 86400, seconds % 86400 // 3600)
 end
 
+--- Draw text at the cursor, wrapping at spaces to continue at column
+--- `indent` of the next row, so each row ends before column `cols`.
+--- The space a row breaks at isn't drawn, and a word too long for a row
+--- is broken where it must be. Text is already scrubbed.
+---@param win ncurses.Window
+---@param text string
+---@param cols integer
+---@param indent integer
+function M.wrap_text(win, text, cols, indent)
+    -- writing the last column moves the cursor to the next row, so a row
+    -- ends a column before it
+    local room = cols - 1
+    local function newline()
+        win:waddstr '\n'
+        win:wmove(ncurses.getyx(win), indent)
+    end
+    for gap, word in text:gmatch '( *)([^ ]*)' do
+        local _, x = ncurses.getyx(win)
+        local len = utf8.len(word) or #word
+        if word ~= '' and x > indent and x + #gap + len > room then
+            newline()
+        else
+            win:waddstr(string.sub(gap, 1, math.max(0, room - x)))
+        end
+        -- a word longer than a whole row
+        _, x = ncurses.getyx(win)
+        while x + len > room and room > indent do
+            local fits = room - x
+            local cut = utf8.offset(word, fits + 1) or (fits + 1)
+            win:waddstr(word:sub(1, cut - 1))
+            word, len = word:sub(cut), len - fits
+            newline()
+            _, x = ncurses.getyx(win)
+        end
+        win:waddstr(word)
+    end
+end
+
 --- Draw an HH:MM:SS time whose digits brighten for the first seconds.
 ---@param win ncurses.Window
 ---@param timestamp number clock.now() when the entry arrived

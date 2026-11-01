@@ -286,6 +286,7 @@ local function route_chat(net, irc, target, text, msg)
 
     if irc_model.is_channel_name(irc, target) then
         buffer_target = target
+        msg.member_modes = nick and irc_model.member_modes(irc, target, nick)
         for _, pattern in ipairs(mention_patterns(net)) do
             local ok, found = pcall(string.find, text, pattern)
             if ok and found then

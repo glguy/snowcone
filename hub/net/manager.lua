@@ -63,6 +63,12 @@ local M = {}
 ---@field receipt 'awaiting'|'received'|'rejected'|'unknown'|nil of our labeled chat
 --- line in a buffer, by the server's reply (features/chat)
 ---@field rejection string|nil the error text when rejected
+---@field history true|nil of a line in a chat buffer that came from chat
+--- history rather than live, so what it says of its sender then isn't known
+--- (features/chat)
+---@field member_modes table<string, true>|nil of a live chat line in a
+--- channel, the sender's prefix modes there when it arrived or was sent; nil
+--- from a non-member (features/chat)
 
 M.console_size = 1000
 M.ping_after = 30          -- seconds of silence before PING

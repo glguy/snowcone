@@ -150,6 +150,27 @@ T.case('statusmsg, echo and membership changes', function()
     T.eq(texts(renamed)[3], 'QUIT bye', 'and in the private buffer')
 end)
 
+T.case('channel lines keep the modes their sender had then', function()
+    local c, chat = boot()
+    c:recv ':me!u@h JOIN #c'
+    c:recv ':srv 353 me = #c :@me +alice bob'
+    c:recv ':srv 366 me #c :End of /NAMES list.'
+    c:recv ':alice!a@h PRIVMSG #c :voiced'
+    local before = chat.newest(chat.buffer('test', '#c'))
+    c:recv ':srv MODE #c -v+o alice alice'
+    c:recv ':alice!a@h PRIVMSG #c :opped'
+    local after = chat.newest(chat.buffer('test', '#c'))
+    T.eq({before.member_modes, after.member_modes}, {{v = true}, {o = true}}, 'as of each line')
+    c:recv ':bob!b@h PRIVMSG #c :plain'
+    T.eq(chat.newest(chat.buffer('test', '#c')).member_modes, {}, 'a member without modes')
+    c:recv ':eve!e@h PRIVMSG #c :from outside'
+    T.eq(chat.newest(chat.buffer('test', '#c')).member_modes, nil, 'not a member')
+    c:recv ':alice!a@h PRIVMSG me :private'
+    T.eq(chat.newest(chat.buffer('test', 'alice')).member_modes, nil, 'not in a channel')
+    chat.say('test', '#c', 'mine')
+    T.eq(chat.newest(chat.buffer('test', '#c')).member_modes, {o = true}, 'ours when sent')
+end)
+
 T.case('typing is tracked in buffers until it lapses or ends', function()
     local c, chat = boot()
     local clock = T.require 'hub.runtime.clock'
@@ -549,6 +570,7 @@ T.case('history after a reconnect goes between old and new messages', function()
         {'JOIN #c', 'PRIVMSG #c before', 'PRIVMSG #c missed', 'PRIVMSG #c after'}, 'in place')
     for msg in T.require 'hub.lib.OrderedMap'.reveach(chat.buffer('test', '#c').messages) do
         T.eq(msg.timestamp == nil, msg[2] == 'missed', 'only history is drawn as old: ' .. tostring(msg[2]))
+        T.eq(msg.history, msg[2] == 'missed' or nil, 'and marked as history: ' .. tostring(msg[2]))
     end
 end)
 

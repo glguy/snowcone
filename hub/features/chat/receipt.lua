@@ -121,6 +121,9 @@ function M.on_sent(chat, net, irc, msg)
             for k, v in pairs(msg.tags) do copy.tags[k] = v end
             copy.statusmsg = prefix
         end
+        if irc_model.is_channel_name(irc, name) and irc.nick then
+            copy.member_modes = irc_model.member_modes(irc, name, irc.nick)
+        end
         if label then
             copy.receipt = 'awaiting'
             -- without a buffer it is still awaited, so its echo is known

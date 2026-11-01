@@ -22,11 +22,15 @@ local hex6 <const> = string.rep('%x', 6)
 --- code point keeps a cell and the cursor moves over codes as over text.
 --- Colors left at the default are edit.color. Returns the column of the
 --- byte after the first edit.mark bytes, where the cursor goes.
+---
+--- With `wrap` (and no edit), the text wraps at spaces to continue at
+--- column wrap.indent, as draw.wrap_text does.
 ---@param win ncurses.Window
 ---@param str string
 ---@param edit {mark: integer, color: integer}|nil
+---@param wrap {cols: integer, indent: integer}|nil
 ---@return integer|nil
-return function(win, str, edit)
+return function(win, str, edit, wrap)
     local on_b, on_b_
     local on_u, on_u_
     local on_r, on_r_
@@ -73,6 +77,8 @@ return function(win, str, edit)
             win:waddstr(scrub(text:sub(k + 1)))
         elseif edit then
             win:waddstr(scrub(text))
+        elseif wrap then
+            draw.wrap_text(win, text, wrap.cols, wrap.indent)
         else
             win:waddstr(text)
         end

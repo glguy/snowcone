@@ -412,6 +412,14 @@ local function rows_of(win)
     return rows
 end
 
+-- Whether a row, its trailing spaces dropped, matches a pattern
+local function has_row(rows, pattern)
+    for y = 0, #rows do
+        if rows[y]:match '^(.-)%s*$':find(pattern) then return true end
+    end
+    return false
+end
+
 -- The text of the status bar as last drawn
 local function status_bar()
     HUB.current.routes['ui.draw']()
@@ -654,6 +662,25 @@ T.case('a list wraps under its value column, even when a word ends at the edge',
     end
 end)
 
+T.case('wrapped text continues under its column, breaking a word too long for a row', function()
+    boot()
+    local draw = T.require 'hub.ui.draw'
+    local addircstr = T.require 'hub.ui.irc_formatting'
+    local win = ncurses.newpad(10, 20)
+    win:waddstr 'label: '
+    -- 19 columns a row: "label: aaaa bbbb " is 17, so cccc goes on
+    draw.wrap_text(win, 'aaaa bbbb cccc dddddddddddddddddddd e', 20, 7)
+    T.eq({fake_ncurses.row(win, 0), fake_ncurses.row(win, 1), fake_ncurses.row(win, 2), fake_ncurses.row(win, 3)},
+        {'label: aaaa bbbb', '       cccc', '       dddddddddddd', '       dddddddd e'},
+        'under the values, the long word broken')
+
+    win = ncurses.newpad(10, 20)
+    win:waddstr 'label: '
+    addircstr(win, 'aaaa \x02bbbb\x02 cccc', nil, {cols = 20, indent = 7})
+    T.eq({fake_ncurses.row(win, 0), fake_ncurses.row(win, 1)},
+        {'label: aaaa bbbb', '       cccc'}, 'through the formatting')
+end)
+
 T.case('session lists show one row and expand on a click', function()
     local c = boot()
     local tokens = {}
@@ -854,9 +881,74 @@ T.case('the message detail decodes server notices', function()
     control.set_view 'console'
     control.open_detail('message', 'test', msg)
     HUB.current.routes['ui.draw']()
-    key(-string.byte 'r')
-    T.eq(control.detail().show_raw, true, 'Meta-R goes to the detail')
+    local detail = control.detail()
+    T.eq(message.level(detail), 'summary', 'opens at the summary')
+    local rows = rows_of(detail_pad())
+    T.eq(rows[0]:match '^(.-)%s*$', '[summary] [message] [raw]', 'the level buttons')
+    T.ok(has_row(rows, '^      name: connect'), 'the parsed fields')
+
+    -- the buttons are on the pane's top row
+    local entry = HUB.current.routes['ui.entry']
+    entry('on_mouse', 0, 12, false)
+    T.eq(message.level(detail), 'message', 'the message level')
     HUB.current.routes['ui.draw']()
+    T.ok(not has_row(rows_of(detail_pad()), 'name: connect'), 'without the parsed fields')
+    entry('on_mouse', 0, 21, false)
+    T.eq(message.level(detail), 'raw', 'the raw level')
+    HUB.current.routes['ui.draw']()
+    T.ok(has_row(rows_of(detail_pad()), '^         2: "%*%*%* Notice'), 'escaped')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
+T.case('the message detail sums up a chat line', function()
+    local c = boot()
+    local irc = HUB.state.nets.test.irc
+    irc.caps_enabled['account-tag'] = true
+    irc.caps_enabled['solanum.chat/identify-msg'] = true
+    c:recv ':me!u@h JOIN #c'
+    c:recv ':srv 353 me = #c :me @alice bob'
+    c:recv ':srv 366 me #c :End of /NAMES list.'
+    c:recv('@account=work;solanum.chat/identify-msg;bot;msgid=m1;solanum.chat/realhost=real.example'
+        .. ' :alice!a@h.example PRIVMSG @#c :\x01ACTION waves\x01')
+    c:recv ':bob!b@h PRIVMSG #c :plain'
+    local chat = T.require 'hub.features.chat'
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    local buffer = chat.buffer('test', '#c')
+    local control = T.require 'hub.ui.control'
+    local message = T.require 'hub.ui.details.message'
+
+    control.set_view 'status'
+    control.open_detail('message', 'test', OrderedMap.lookup(buffer.messages, 'm1'))
+    HUB.current.routes['ui.draw']()
+    local rows = rows_of(detail_pad())
+    for _, want in ipairs {
+        '^    from: alice a@h.example, real host real.example$',
+        '^identity: account work, not the nick, identified$',
+        '^    role: @ %+o, bot$',
+        '^    sent: action to #c, @ and above only, at %d%d:%d%d:%d%d$',
+        '^    text: waves$',
+    } do
+        T.ok(has_row(rows, want), want)
+    end
+    T.ok(not has_row(rows, 'msgid'), 'without its other tags')
+
+    control.open_detail('message', 'test', chat.newest(buffer))
+    HUB.current.routes['ui.draw']()
+    rows = rows_of(detail_pad())
+    for _, want in ipairs {
+        '^identity: not logged in, not identified$',
+        '^    role: no channel modes$',
+        '^    sent: message to #c, at ',
+    } do
+        T.ok(has_row(rows, want), want)
+    end
+    T.ok(not has_row(rows, 'bot'), 'a bot only says so')
+
+    -- a command without a summary opens at the message level
+    control.open_detail('message', 'test', OrderedMap.get_oldest(buffer.messages))
+    HUB.current.routes['ui.draw']()
+    T.eq(message.level(control.detail()), 'message', 'no summary')
+    T.eq(rows_of(detail_pad())[0]:match '^(.-)%s*$', '[message] [raw]', 'nor its button')
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
@@ -869,7 +961,7 @@ T.case('the detail pane sits above the view, scrolls, and closes', function()
     -- a message with more rows than half the screen
     local tags = {}
     for i = 1, 40 do tags['t' .. i] = 'v' end
-    local msg = snowcone.parse_irc ':a!b@c PRIVMSG #chan :hi'
+    local msg = snowcone.parse_irc ':a!b@c JOIN #chan'
     msg.tags = tags
     control.open_detail('message', 'test', msg)
     HUB.current.routes['ui.draw']()

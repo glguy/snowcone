@@ -326,6 +326,21 @@ function M.get_member(irc, channel, nick)
     return channel.members[M.fold(irc, nick)]
 end
 
+--- A copy of a nick's prefix modes in a channel, to keep with something
+--- it did; nil when we aren't in the channel or it isn't a member.
+---@param irc hub.Irc
+---@param name string channel name
+---@param nick string
+---@return table<string, true>|nil
+function M.member_modes(irc, name, nick)
+    local channel = M.get_channel(irc, name)
+    local member = channel and M.get_member(irc, channel, nick)
+    if not member then return nil end
+    local modes = {}
+    for mode in pairs(member.modes) do modes[mode] = true end
+    return modes
+end
+
 ---@param irc hub.Irc
 ---@param name string
 ---@return boolean

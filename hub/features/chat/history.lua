@@ -83,6 +83,7 @@ function M.merge(chat, buffer, messages, since)
         local key = message_key(msg)
         if not seen[key] then
             seen[key] = true
+            msg.history = true
             -- drawn as old, not as just received
             msg.timestamp = nil
             table.insert(older, msg)
