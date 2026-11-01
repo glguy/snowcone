@@ -10,6 +10,7 @@ local draw        <const> = require 'hub.ui.draw'
 local irc_model   <const> = require 'hub.net.irc'
 local numerics    <const> = require 'hub.lib.numerics'
 local parse_snote <const> = require 'hub.features.snotice.parse'
+local replies     <const> = require 'hub.ui.details.replies'
 local scrub       <const> = require 'hub.lib.scrub'
 local tablex      <const> = require 'pl.tablex'
 
@@ -302,6 +303,18 @@ end
 summaries.PRIVMSG = chat_summary
 summaries.NOTICE = chat_summary
 
+-- Parts that say who set something and when, as far as we know: `time`
+-- in epoch seconds
+local function set_by(who, time)
+    local parts = {}
+    if who then table.insert(parts, {'by ' .. scrub(who)}) end
+    if time then
+        local ago = math.max(0, os.time() - time)
+        table.insert(parts, {os.date('%Y-%m-%d %H:%M', time) .. ', ' .. draw.duration(ago) .. ' ago'})
+    end
+    return parts
+end
+
 -- Topic text under a label, or what stands in for it
 local function topic_line(ctx, win, label, topic)
     if topic == nil then
@@ -326,13 +339,7 @@ function summaries.TOPIC(ctx, win, msg)
 
     local before = msg.topic_before or {}
     topic_line(ctx, win, 'before', before.topic)
-    local set = {}
-    if before.who then table.insert(set, {'by ' .. scrub(before.who)}) end
-    if before.time then
-        local ago = math.max(0, os.time() - before.time)
-        table.insert(set, {os.date('%Y-%m-%d %H:%M', before.time) .. ', ' .. draw.duration(ago) .. ' ago'})
-    end
-    line(ctx, win, 'was set', set)
+    line(ctx, win, 'was set', set_by(before.who, before.time))
 end
 
 -- Joining a channel: with extended-join, the account and realname too
@@ -465,20 +472,111 @@ function summaries.MODE(ctx, win, msg)
     end
 end
 
--- A numeric reply: its name, whom it is to, its arguments and its text
-local function numeric_summary(ctx, win, msg)
-    sender(ctx, net_irc(ctx), win, msg, false)
+-- The first line of a numeric's summary: its name and number, whom it
+-- is to and when; red for an error
+local function reply_header(ctx, win, msg)
     local name = numeric_names[msg.command]
     local failed = name and name:sub(1, 4) == 'ERR_'
-    local reply = {{(name or 'numeric') .. string.format(' (%03d)', msg.command), failed and draw.red or nil}}
-    if msg[1] then reply[1][1] = reply[1][1] .. ' to ' .. scrub(msg[1]) end
-    line(ctx, win, 'reply', stamped(reply, msg))
+    local reply = (name or 'numeric') .. string.format(' (%03d)', msg.command)
+    if msg[1] then reply = reply .. ' to ' .. scrub(msg[1]) end
+    line(ctx, win, failed and 'error' or 'reply', stamped({{reply, failed and draw.red or nil}}, msg))
+end
+
+-- An error reply without fields of its own: its arguments, and the text
+-- that says what went wrong, which errors end with
+local function error_summary(ctx, win, msg)
+    sender(ctx, net_irc(ctx), win, msg, false)
+    reply_header(ctx, win, msg)
     if #msg > 2 then
         local args = {}
         for i = 2, #msg - 1 do table.insert(args, scrub(msg[i])) end
         line(ctx, win, 'args', {{table.concat(args, ' ')}})
     end
     if #msg > 1 then formatted(ctx, win, 'text', msg[#msg]) end
+end
+
+-- A reply's argument, by the kind its field gives it (ui/details/replies.lua)
+local function reply_field(ctx, win, label, kind, value)
+    local n = tonumber(value)
+    if kind == 'text' then
+        formatted(ctx, win, label, value)
+    elseif kind == 'time' and n then
+        line(ctx, win, label, set_by(nil, n))
+    elseif kind == 'secs' and n then
+        line(ctx, win, label, {{draw.duration(n)}})
+    elseif kind == 'mins' and n then
+        line(ctx, win, label, {n == 0 and {'permanent'} or {draw.duration(n * 60) .. ' left'}})
+    elseif kind == 'line' then
+        local name = replies.line_types[value]
+        line(ctx, win, label, {{name or scrub(value), draw.bold}})
+    elseif kind == 'reasons' then
+        local public, private = value:match '^(.-)|(.*)$'
+        formatted(ctx, win, label, public or value)
+        if private and private ~= '' then formatted(ctx, win, 'oper why', private) end
+    elseif kind == 'paren' then
+        line(ctx, win, label, {{scrub(value:match '^%((.*)%)$' or value)}})
+    else
+        line(ctx, win, label, {{scrub(value)}})
+    end
+end
+
+-- A reply with fields (ui/details/replies.lua): each argument after the
+-- target under its label, and any the fields don't name after them
+local function reply_summary(ctx, win, msg)
+    sender(ctx, net_irc(ctx), win, msg, false)
+    reply_header(ctx, win, msg)
+    local fields = replies.fields[msg.command]
+    local i = 2
+    for k, field_spec in ipairs(fields) do
+        local label, kind = field_spec:match '^(.-):(%a+)$'
+        label = label or field_spec
+        local value
+        if kind == 'rest' then
+            -- leave one argument for each field after this one
+            local last = #msg - (#fields - k)
+            value = last >= i and table.concat(msg, ' ', i, last) or nil
+            i = math.max(i, last + 1)
+        else
+            value = msg[i]
+            i = i + 1
+        end
+        if label ~= '-' and value and value ~= '' then
+            reply_field(ctx, win, label, kind, value)
+        end
+    end
+    if i <= #msg then
+        local args = {}
+        for j = i, #msg do table.insert(args, scrub(msg[j])) end
+        line(ctx, win, 'args', {{table.concat(args, ' ')}})
+    end
+end
+
+-- The list modes' replies: what each entry or end is of, and where the
+-- entry's mask is (who set it and when follow it)
+local list_replies <const> = {
+    [numerics.RPL_BANLIST] = {'ban', 3},
+    [numerics.RPL_QUIETLIST] = {'quiet', 4},
+    [numerics.RPL_EXCEPTLIST] = {'ban exception', 3},
+    [numerics.RPL_INVITELIST] = {'invite exception', 3},
+    [numerics.RPL_ENDOFBANLIST] = {'ban'},
+    [numerics.RPL_ENDOFQUIETLIST] = {'quiet'},
+    [numerics.RPL_ENDOFEXCEPTLIST] = {'ban exception'},
+    [numerics.RPL_ENDOFINVITELIST] = {'invite exception'},
+}
+
+-- An entry of a channel's ban, quiet or exception list, or its end
+local function list_summary(ctx, win, msg)
+    sender(ctx, net_irc(ctx), win, msg, false)
+    local list = list_replies[msg.command]
+    local name, at = list[1], list[2]
+    local channel = scrub(msg[2] or '?')
+    if not at then
+        line(ctx, win, 'list', stamped({{'end of the ' .. name .. ' list of ' .. channel}}, msg))
+        return
+    end
+    line(ctx, win, 'list', stamped({{name .. ' list of ' .. channel}}, msg))
+    line(ctx, win, 'mask', {{scrub(msg[at] or '?'), draw.bold}})
+    line(ctx, win, 'set', set_by(msg[at + 1], tonumber(msg[at + 2] or '')))
 end
 
 -- A server notice: what the parser made of it
@@ -502,11 +600,57 @@ local function snotice_summary(_, win, msg)
     end
 end
 
+-- The flags an auth block's user mask starts with in an I-line
+-- (RPL_STATSILINE), by sigil, as Solanum shows them; the last four only to
+-- opers
+local auth_flag <const> = {
+    ['-'] = 'no_tilde',
+    ['+'] = 'need_ident',
+    ['='] = 'spoof',
+    ['%'] = 'need_sasl',
+    ['|'] = 'flood_exempt',
+    ['$'] = 'dnsbl_exempt',
+    ['^'] = 'kline_exempt',
+    ['>'] = 'exceed_limit',
+}
+
+-- An auth block (STATS I, or TESTLINE matching no ban): I <name> <password>
+-- <sigils><user>@<host> <port> <class> :<description>
+summaries[numerics.RPL_STATSILINE] = function(ctx, win, msg)
+    sender(ctx, net_irc(ctx), win, msg, false)
+    local name, password, mask, port, class = msg[3], msg[4], msg[5] or '', msg[6], msg[7]
+
+    local sigils, user, host = mask:match '^([-+=%%|$^>]*)([^@]*)@(.*)$'
+    if not sigils then sigils, user, host = '', mask, nil end
+    local flags, spoof = {}, false
+    for sigil in sigils:gmatch '.' do
+        table.insert(flags, {auth_flag[sigil] .. ' (' .. sigil .. ')'})
+        if sigil == '=' then spoof = true end
+    end
+
+    local block = {{scrub(user) .. '@' .. (host == '255.255.255.255' and '(hidden)' or scrub(host or '?')), draw.bold}}
+    if class then table.insert(block, {'class ' .. scrub(class)}) end
+    line(ctx, win, 'auth', stamped(block, msg))
+    line(ctx, win, 'flags', flags)
+    if name and spoof then
+        line(ctx, win, 'spoof', {{scrub(name)}})
+    elseif name and name ~= 'NOMATCH' and name ~= '<NULL>' then
+        line(ctx, win, 'redirect', {{scrub(name) .. (port and port ~= '0' and ' port ' .. scrub(port) or '')}})
+    end
+    if password and password ~= '<NULL>' then
+        line(ctx, win, 'password', {{password == '*' and '(hidden)' or scrub(password)}})
+    end
+    if #msg > 7 then reason(ctx, win, 'desc', msg[#msg]) end
+end
+
 -- The summary of a message, or nil
 local function summary_of(msg)
     if M.snotice_text(msg) then return snotice_summary end
-    if math.type(msg.command) == 'integer' then return numeric_summary end
-    return summaries[msg.command]
+    if summaries[msg.command] then return summaries[msg.command] end
+    if list_replies[msg.command] then return list_summary end
+    if replies.fields[msg.command] then return reply_summary end
+    local name = numeric_names[msg.command]
+    if name and name:sub(1, 4) == 'ERR_' then return error_summary end
 end
 
 -- The message level ==================================================

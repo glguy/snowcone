@@ -1070,10 +1070,70 @@ T.case('the message detail sums up joins, parts, kicks, quits, nicks, modes and 
     })
     expect(summary(':srv 401 me ghost :No such nick/channel', true), {
         '^    from: srv, server$',
-        '^   reply: ERR_NOSUCHNICK %(401%) to me, at ',
-        '^    args: ghost$',
+        '^   error: ERR_NOSUCHNICK %(401%) to me, at ',
+        '^    nick: ghost$',
         '^    text: No such nick/channel$',
     })
+    local set = (os.date('%Y-%m-%d %H:%M', 1700000000) --[[@as string]]):gsub('%-', '%%-')
+    expect(summary(':srv 367 me #c *!*@bad.example alice!a@h 1700000000', true), {
+        '^    list: ban list of #c, at ',
+        '^    mask: %*!%*@bad.example$',
+        '^     set: by alice!a@h, ' .. set .. ', ',
+    })
+    expect(summary(':srv 728 me #c q *!*@loud.example', true), {
+        '^    list: quiet list of #c, at ',
+        '^    mask: %*!%*@loud.example$',
+    })
+    expect(summary(':srv 368 me #c :End of Channel Ban List', true), {
+        '^    list: end of the ban list of #c, at ',
+    })
+    expect(summary(':srv 215 me I staff.example <NULL> %=^*@*.example 0 opers :Staff', true), {
+        '^    auth: %*@%*.example, class opers, at ',
+        '^   flags: need_sasl %(%%%), spoof %(=%), kline_exempt %(%^%)$',
+        '^   spoof: staff.example$',
+        '^    desc: Staff$',
+    })
+    local rows = summary(':srv 215 me I irc.other.example secret *@255.255.255.255 6697 users :', true)
+    expect(rows, {
+        '^    auth: %*@%(hidden%), class users, at ',
+        '^redirect: irc.other.example port 6697$',
+        '^password: secret$',
+    })
+    T.ok(not has_row(rows, 'flags') and not has_row(rows, 'desc'), 'no flags, no description')
+    local message = T.require 'hub.ui.details.message'
+    expect(summary(':srv 216 me k *.example * ~bad :Spam (2026/11/01)|ticket 42', true), {
+        '^   reply: RPL_STATSKLINE %(216%) to me, at ',
+        '^    type: temporary K%-Line$',
+        '^    host: %*.example$',
+        '^    user: ~bad$',
+        '^  reason: Spam %(2026/11/01%)$',
+        '^oper why: ticket 42$',
+    })
+    expect(summary(':srv 205 me User users alice[a@h.example] (192.0.2.7) 12 300', true), {
+        '^   class: users$',
+        '^  client: alice%[a@h.example%]$',
+        '^      ip: 192.0.2.7$',
+        '^   heard: 12s$',
+        '^    idle: 5m$',
+    })
+    expect(summary(':srv 725 me K 0 *@bad.example :Spam', true), {
+        '^    type: K%-Line$',
+        '^    left: permanent$',
+        '^    mask: %*@bad.example$',
+    })
+    expect(summary(':srv 324 me #c +ntk secret', true), {
+        '^ channel: #c$',
+        '^   modes: %+ntk secret$',
+    })
+    expect(summary(':srv 005 me CHANTYPES=# NICKLEN=16 :are supported by this server', true), {
+        '^  tokens: CHANTYPES=# NICKLEN=16$',
+        '^    text: are supported by this server$',
+    })
+    local message = T.require 'hub.ui.details.message'
+    c:recv ':srv 999 me what :is this'
+    local log = HUB.state.nets.test.console
+    control.open_detail('message', 'test', OrderedMap.get(log, OrderedMap.last(log)))
+    T.eq(message.level(control.detail()), 'message', 'a reply not known has no summary')
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
