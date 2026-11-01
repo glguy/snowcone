@@ -1,8 +1,10 @@
--- What the arguments of Solanum's numeric replies mean, for their
--- summaries in the message detail (ui/details/message.lua). Each entry
--- names the arguments after the target in order, as 'label' or
--- 'label:kind'; '-' skips one that is always the same (a STATS letter, a
--- placeholder). The kinds:
+-- What Solanum's messages mean, for their summaries in the message detail
+-- (ui/details/message.lua): the arguments of its numeric replies, and the
+-- letters and sigils in them and in MODE.
+--
+-- Each entry of M.fields names a reply's arguments after the target in
+-- order, as 'label' or 'label:kind'; '-' skips one that is always the
+-- same (a STATS letter, a placeholder). The kinds:
 --
 --   text     formatted text, wrapped
 --   rest     the arguments up to those the fields after it name, as one
@@ -13,7 +15,9 @@
 --   reasons  a ban reason, and after a | the oper reason
 --   paren    a value in parentheses
 --
--- Replies not here, other than errors, have no summary.
+-- The auth block reply (RPL_STATSILINE), whose fields depend on its flags,
+-- has a summary of its own; other replies not here, but for errors, have
+-- none.
 
 local N <const> = require 'hub.lib.numerics'
 
@@ -26,6 +30,36 @@ M.line_types = {
     Q = 'RESV', q = 'temporary RESV',
     X = 'X-Line', x = 'temporary X-Line',
     ['!'] = 'rejected or throttled',
+}
+
+--- The flags an auth block's user mask starts with in an I-line
+--- (RPL_STATSILINE), by sigil; the last four are shown only to opers.
+M.auth_flags = {
+    ['-'] = 'no_tilde',
+    ['+'] = 'need_ident',
+    ['='] = 'spoof',
+    ['%'] = 'need_sasl',
+    ['|'] = 'flood_exempt',
+    ['$'] = 'dnsbl_exempt',
+    ['^'] = 'kline_exempt',
+    ['>'] = 'exceed_limit',
+}
+
+--- Names of prefix modes by their prefix, which networks spell with
+--- different letters.
+M.prefix_names = {
+    ['~'] = 'owner', ['&'] = 'admin', ['@'] = 'op', ['%'] = 'halfop', ['+'] = 'voice',
+}
+
+--- Names of the other channel modes, by letter.
+M.mode_names = {
+    b = 'ban', e = 'ban exception', I = 'invite exception', q = 'quiet',
+    i = 'invite only', m = 'moderated', n = 'no outside messages', s = 'secret',
+    p = 'private', t = 'topic set by ops', k = 'key', l = 'limit',
+    r = 'registered users only', c = 'colors stripped', f = 'forward',
+    j = 'join throttle', z = 'ops see moderated', g = 'anyone invites',
+    P = 'permanent', S = 'TLS only', C = 'no CTCPs', T = 'no notices',
+    F = 'forward target', Q = 'no forwarding', L = 'large lists',
 }
 
 local text <const> = {'text:text'}
@@ -126,6 +160,12 @@ M.fields = {
     [N.RPL_TOPIC] = {'channel', 'topic:text'},
     [N.RPL_TOPICWHOTIME] = {'channel', 'set by', 'set:time'},
     [N.RPL_INVITING] = {'nick', 'channel'},
+    [N.RPL_BANLIST] = {'channel', 'mask', 'by', 'set:time'},
+    [N.RPL_ENDOFBANLIST] = {'channel', 'text:text'},
+    [N.RPL_EXCEPTLIST] = {'channel', 'mask', 'by', 'set:time'},
+    [N.RPL_ENDOFEXCEPTLIST] = {'channel', 'text:text'},
+    [N.RPL_INVITELIST] = {'channel', 'mask', 'by', 'set:time'},
+    [N.RPL_ENDOFINVITELIST] = {'channel', 'text:text'},
     [N.RPL_NAMREPLY] = {'type', 'channel', 'names:text'},
     [N.RPL_ENDOFNAMES] = {'channel', 'text:text'},
 
@@ -231,6 +271,8 @@ M.fields = {
     [N.RPL_TESTLINE] = {'type:line', 'left:mins', 'mask', 'reason:reasons'},
     [N.RPL_NOTESTLINE] = {'mask', 'text:text'},
     [N.RPL_TESTMASKGECOS] = {'local', 'remote', 'mask', 'realname', 'text:text'},
+    [N.RPL_QUIETLIST] = {'channel', '-', 'mask', 'by', 'set:time'},
+    [N.RPL_ENDOFQUIETLIST] = {'channel', '-', 'text:text'},
     [N.RPL_MONONLINE] = {'online:text'},
     [N.RPL_MONOFFLINE] = {'offline:text'},
     [N.RPL_MONLIST] = {'monitors:text'},

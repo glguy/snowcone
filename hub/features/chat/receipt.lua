@@ -113,7 +113,8 @@ function M.on_sent(chat, net, irc, msg)
         local buffer = chat.buffer(net, name)
         local copy = msg
         -- the console keeps the line as sent, and each target's echo
-        -- brings its own msgid and text
+        -- brings its own msgid and text; each buffer's copy names only
+        -- its own target
         if prefix or label or #targets > 1 then
             ---@diagnostic disable-next-line: missing-fields filled in below
             copy = {} --[[@as hub.Message]]
@@ -121,6 +122,7 @@ function M.on_sent(chat, net, irc, msg)
             copy.tags = {}
             for k, v in pairs(msg.tags) do copy.tags[k] = v end
             copy.statusmsg = prefix
+            copy[1] = target
         end
         if irc_model.is_channel_name(irc, name) and irc.nick then
             copy.member_modes = irc_model.member_modes(irc, name, irc.nick)

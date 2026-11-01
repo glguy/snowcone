@@ -885,7 +885,9 @@ T.case('the message detail decodes server notices', function()
     T.eq(message.level(detail), 'summary', 'opens at the summary')
     local rows = rows_of(detail_pad())
     T.eq(rows[0]:match '^(.-)%s*$', '[summary] [message] [raw]', 'the level buttons')
-    T.ok(has_row(rows, '^      name: connect'), 'the parsed fields')
+    T.ok(has_row(rows, '^    sent: server notice, at '), 'a server notice')
+    T.ok(has_row(rows, '^    name: connect$'), 'the parsed fields')
+    T.ok(has_row(rows, '^    nick: n$'), 'in the summary column')
 
     -- the buttons are on the pane's top row
     local entry = HUB.current.routes['ui.entry']
@@ -1076,16 +1078,19 @@ T.case('the message detail sums up joins, parts, kicks, quits, nicks, modes and 
     })
     local set = (os.date('%Y-%m-%d %H:%M', 1700000000) --[[@as string]]):gsub('%-', '%%-')
     expect(summary(':srv 367 me #c *!*@bad.example alice!a@h 1700000000', true), {
-        '^    list: ban list of #c, at ',
+        '^   reply: RPL_BANLIST %(367%) to me, at ',
+        '^ channel: #c$',
         '^    mask: %*!%*@bad.example$',
-        '^     set: by alice!a@h, ' .. set .. ', ',
+        '^      by: alice!a@h$',
+        '^     set: ' .. set .. ', ',
     })
     expect(summary(':srv 728 me #c q *!*@loud.example', true), {
-        '^    list: quiet list of #c, at ',
+        '^   reply: RPL_QUIETLIST %(728%) to me, at ',
         '^    mask: %*!%*@loud.example$',
     })
     expect(summary(':srv 368 me #c :End of Channel Ban List', true), {
-        '^    list: end of the ban list of #c, at ',
+        '^ channel: #c$',
+        '^    text: End of Channel Ban List$',
     })
     expect(summary(':srv 215 me I staff.example <NULL> %=^*@*.example 0 opers :Staff', true), {
         '^    auth: %*@%*.example, class opers, at ',

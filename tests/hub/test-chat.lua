@@ -396,6 +396,7 @@ T.case('every buffer a queued line went to shows its delivery', function()
     local a = chat.newest(chat.buffer('test', '#a'))
     local b = chat.newest(chat.buffer('test', '#b'))
     T.eq({a[2], b[2], b.statusmsg}, {'both', 'both', '@'}, 'in both buffers')
+    T.eq({a[1], b[1]}, {'#a', '@#b'}, 'each naming its own target')
     T.eq(a.delivery, {state = 'queued'}, 'queued')
     T.ok(a.delivery == b.delivery, 'the statusmsg copy shares the delivery')
     c:finish 'reset'

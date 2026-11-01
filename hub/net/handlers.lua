@@ -512,14 +512,12 @@ end
 -- Commands a user sends to a channel take the sender's prefix modes there
 -- as they were before the command took effect (msg.member_modes): a PART
 -- or MODE changes them before features see the message.
-for _, command in ipairs {'PRIVMSG', 'NOTICE', 'TOPIC', 'KICK', 'MODE', 'PART'} do
+for command in pairs(irc_model.channel_commands) do
     local h = H[command]
     H[command] = function(rec, irc, msg)
-        if msg.nick and msg[1] then
-            local _, target = irc_model.split_statusmsg(irc, msg[1])
-            if irc_model.is_channel_name(irc, target) then
-                msg.member_modes = irc_model.member_modes(irc, target, msg.nick)
-            end
+        local channel = msg.nick and irc_model.sent_to_channel(irc, msg)
+        if channel then
+            msg.member_modes = irc_model.member_modes(irc, channel, msg.nick)
         end
         if h then return h(rec, irc, msg) end
     end

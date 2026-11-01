@@ -326,6 +326,24 @@ function M.get_member(irc, channel, nick)
     return channel.members[M.fold(irc, nick)]
 end
 
+--- Commands sent to a channel by their first argument (past a STATUSMSG
+--- prefix), whose messages keep the sender's prefix modes there
+--- (net/handlers.lua).
+M.channel_commands = {
+    PRIVMSG = true, NOTICE = true, TOPIC = true, KICK = true, MODE = true, PART = true,
+}
+
+--- The channel a message was sent to, when it is one of the
+--- channel_commands sent to a channel; nil otherwise.
+---@param irc hub.Irc
+---@param msg hub.Message
+---@return string|nil
+function M.sent_to_channel(irc, msg)
+    if not (M.channel_commands[msg.command] and msg[1]) then return nil end
+    local _, target = M.split_statusmsg(irc, msg[1])
+    if M.is_channel_name(irc, target) then return target end
+end
+
 --- A copy of a nick's prefix modes in a channel, to keep with something
 --- it did; nil when we aren't in the channel or it isn't a member.
 ---@param irc hub.Irc

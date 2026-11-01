@@ -10,8 +10,8 @@ local draw        <const> = require 'hub.ui.draw'
 local irc_model   <const> = require 'hub.net.irc'
 local numerics    <const> = require 'hub.lib.numerics'
 local parse_snote <const> = require 'hub.features.snotice.parse'
-local replies     <const> = require 'hub.ui.details.replies'
 local scrub       <const> = require 'hub.lib.scrub'
+local solanum     <const> = require 'hub.ui.details.solanum'
 local tablex      <const> = require 'pl.tablex'
 
 local M = {kind = 'message'}
@@ -84,52 +84,91 @@ local function net_irc(ctx)
     return rec and rec.irc
 end
 
--- A label in the label column, `width` wide (10 by default), leaving the
--- color normal for its value
+-- A label in the label column, `width` wide (10, the message level's, by
+-- default), leaving the color normal for its value
 local function field(win, label, width)
     draw.blue(win)
     win:waddstr(string.format('%' .. (width or 10) .. 's: ', label))
     draw.normal(win)
 end
 
-local function delivery_fields(win, msg)
+-- What the rate limit did with our line, and its color; nil when it never
+-- held it back
+local function delivery_text(msg)
     local delivery = msg.delivery
-    if delivery then
-        field(win, 'delivery')
-        if delivery.state == 'sent' then
-            win:waddstr(string.format('sent after %.1f s in the queue\n', delivery.delay))
-        else
-            win:waddstr(delivery.state, '\n')
-        end
+    if not delivery then return nil end
+    if delivery.state == 'sent' then
+        return string.format('sent after %.1f s in the queue', delivery.delay)
     end
-
-    local receipt = msg.receipt
-    if receipt then
-        field(win, 'receipt')
-        win:waddstr(receipt)
-        if msg.rejection then
-            win:waddstr(': ', scrub(msg.rejection))
-        end
-        win:waddstr '\n'
-    end
+    return delivery.state, draw.yellow
 end
 
--- Width of a chat summary's label column
-local chat_width <const> = 8
+-- The server's receipt of our labeled line, and its color; nil without one
+local function receipt_text(msg)
+    local receipt = msg.receipt
+    if not receipt then return nil end
+    local color = receipt == 'received' and draw.green or receipt == 'rejected' and draw.red or draw.yellow
+    if msg.rejection then return receipt .. ': ' .. scrub(msg.rejection), color end
+    return receipt, color
+end
 
--- A line of a chat summary: its label, then each part {text, color}, the
--- text scrubbed already, separated by commas, wrapping under the first.
+-- Width of a summary's label column
+local summary_width <const> = 8
+
+-- A line of a summary: its label, then each part {text, color}, the text
+-- scrubbed already, separated by commas, wrapping under the first.
 -- Nothing without a part.
 local function line(ctx, win, label, parts)
     if #parts == 0 then return end
-    field(win, label, chat_width)
+    field(win, label, summary_width)
     for i, part in ipairs(parts) do
         if part[2] then part[2](win) end
         draw.wrap_text(win, (i > 1 and ' ' or '') .. part[1] .. (i < #parts and ',' or ''),
-            ctx.cols, chat_width + 2)
+            ctx.cols, summary_width + 2)
         draw.normal(win)
     end
     win:waddstr '\n'
+end
+
+-- Text with its formatting under a label, wrapping under its column
+local function formatted(ctx, win, label, text)
+    field(win, label, summary_width)
+    addircstr(win, text, nil, {cols = ctx.cols, indent = summary_width + 2})
+    win:waddstr '\n'
+end
+
+-- Text a user gave, such as a reason, unless they gave none
+local function reason(ctx, win, label, text)
+    if text and text ~= '' then formatted(ctx, win, label, text) end
+end
+
+-- Arguments first to last, on one line, unless there are none
+local function args_line(ctx, win, msg, first, last)
+    if first > last then return end
+    local args = {}
+    for i = first, last do table.insert(args, scrub(msg[i])) end
+    line(ctx, win, 'args', {{table.concat(args, ' ')}})
+end
+
+-- Parts that say when a message was sent, after `parts`
+local function stamped(parts, msg)
+    table.insert(parts, {'at ' .. scrub(msg.tags.time or msg.time or '?')})
+    if msg.history then
+        table.insert(parts, {'from history', draw.yellow})
+    end
+    return parts
+end
+
+-- Parts that say who set something and when, as far as we know: `time`
+-- in epoch seconds
+local function set_by(who, time)
+    local parts = {}
+    if who then table.insert(parts, {'by ' .. scrub(who)}) end
+    if time then
+        local ago = math.max(0, os.time() - time)
+        table.insert(parts, {os.date('%Y-%m-%d %H:%M', time) .. ', ' .. draw.duration(ago) .. ' ago'})
+    end
+    return parts
 end
 
 -- The sender's prefix modes in a channel as of the message, read out
@@ -164,9 +203,11 @@ local function tag_value(tags, key)
     if v ~= nil and v ~= true and v ~= '' then return v end
 end
 
--- Who sent the message, on three lines: where it came from, the identity
--- behind it, and its role (rank in the channel, bot, oper)
-local function sender(ctx, irc, win, msg, channel)
+-- Who sent the message, on three lines, each left out with nothing to
+-- say: where it came from, the identity behind it, and its role (rank in
+-- the channel it was sent to, bot, oper). Every summary starts with it.
+local function sender(ctx, win, msg)
+    local irc = net_irc(ctx)
     local tags = msg.tags
     local ours = msg.source == '>>>'
 
@@ -211,7 +252,7 @@ local function sender(ctx, irc, win, msg, channel)
         table.insert(from, {scrub(msg.source), draw.bold})
         table.insert(from, {'server'})
     end
-    if channel and (msg.nick or ours) then
+    if (msg.nick or ours) and irc and irc_model.sent_to_channel(irc, msg) then
         table.insert(role, 1, {rank_text(irc, msg)})
     end
 
@@ -220,63 +261,15 @@ local function sender(ctx, irc, win, msg, channel)
     line(ctx, win, 'role', role)
 end
 
--- What became of our own line: the rate limit's delay, and the server's
--- receipt
-local function fate(msg)
-    local parts = {}
-    local delivery = msg.delivery
-    if delivery then
-        if delivery.state == 'sent' then
-            table.insert(parts, {string.format('sent after %.1f s in the queue', delivery.delay)})
-        else
-            table.insert(parts, {delivery.state, draw.yellow})
-        end
-    end
-    local receipt = msg.receipt
-    if receipt then
-        local color = receipt == 'received' and draw.green or receipt == 'rejected' and draw.red or draw.yellow
-        local text = receipt
-        if msg.rejection then text = text .. ': ' .. scrub(msg.rejection) end
-        table.insert(parts, {text, color})
-    end
-    return parts
-end
-
--- Summaries, by command ==============================================
+-- Summaries, by command, after the sender ============================
 
 local summaries = {}
 
--- Parts that say when a message was sent, after `parts`
-local function stamped(parts, msg)
-    table.insert(parts, {'at ' .. scrub(msg.tags.time or msg.time or '?')})
-    if msg.history then
-        table.insert(parts, {'from history', draw.yellow})
-    end
-    return parts
-end
-
--- Text with its formatting under a label, wrapping under its column
-local function formatted(ctx, win, label, text)
-    field(win, label, chat_width)
-    addircstr(win, text, nil, {cols = ctx.cols, indent = chat_width + 2})
-    win:waddstr '\n'
-end
-
--- Text a user gave, such as a reason, unless they gave none
-local function reason(ctx, win, label, text)
-    if text and text ~= '' then formatted(ctx, win, label, text) end
-end
-
--- A PRIVMSG or NOTICE between users or to a channel: who sent it, how,
--- and the text
+-- A PRIVMSG or NOTICE between users or to a channel: how it was sent,
+-- what became of our own, and the text
 local function chat_summary(ctx, win, msg)
-    local irc = net_irc(ctx)
     local prefix = msg.statusmsg
     local target = (msg[1] or ''):sub(#(prefix or '') + 1)
-    local channel = irc and irc_model.is_channel_name(irc, target)
-        or not irc and target:match '^[#&]' ~= nil
-
-    sender(ctx, irc, win, msg, channel)
 
     local text = msg[2] or ''
     local ctcp, args = text:match '^\x01([^\x01 ]+) ?([^\x01]*)\x01?$'
@@ -295,25 +288,18 @@ local function chat_summary(ctx, win, msg)
     line(ctx, win, 'sent', stamped(sent, msg))
     local parent = tag_value(msg.tags, '+reply')
     if parent then line(ctx, win, 'reply to', {{scrub(parent)}}) end
-    line(ctx, win, 'delivery', fate(msg))
+
+    local fate = {}
+    for _, part in ipairs {{delivery_text(msg)}, {receipt_text(msg)}} do
+        if part[1] then table.insert(fate, part) end
+    end
+    line(ctx, win, 'delivery', fate)
 
     formatted(ctx, win, 'text', text)
 end
 
 summaries.PRIVMSG = chat_summary
 summaries.NOTICE = chat_summary
-
--- Parts that say who set something and when, as far as we know: `time`
--- in epoch seconds
-local function set_by(who, time)
-    local parts = {}
-    if who then table.insert(parts, {'by ' .. scrub(who)}) end
-    if time then
-        local ago = math.max(0, os.time() - time)
-        table.insert(parts, {os.date('%Y-%m-%d %H:%M', time) .. ', ' .. draw.duration(ago) .. ' ago'})
-    end
-    return parts
-end
 
 -- Topic text under a label, or what stands in for it
 local function topic_line(ctx, win, label, topic)
@@ -328,7 +314,6 @@ end
 
 -- A topic change: the new topic and the one it replaced
 function summaries.TOPIC(ctx, win, msg)
-    sender(ctx, net_irc(ctx), win, msg, true)
     line(ctx, win, 'changed', stamped({{'topic of ' .. scrub(msg[1] or '?')}}, msg))
 
     if msg[2] == '' then
@@ -342,21 +327,18 @@ function summaries.TOPIC(ctx, win, msg)
     line(ctx, win, 'was set', set_by(before.who, before.time))
 end
 
--- Joining a channel: with extended-join, the account and realname too
+-- Joining a channel: with extended-join, the realname too
 function summaries.JOIN(ctx, win, msg)
-    sender(ctx, net_irc(ctx), win, msg, false)
     line(ctx, win, 'joined', stamped({{scrub(msg[1] or '?')}}, msg))
     reason(ctx, win, 'realname', msg[3])
 end
 
 function summaries.PART(ctx, win, msg)
-    sender(ctx, net_irc(ctx), win, msg, true)
     line(ctx, win, 'left', stamped({{scrub(msg[1] or '?')}}, msg))
     reason(ctx, win, 'reason', msg[2])
 end
 
 function summaries.KICK(ctx, win, msg)
-    sender(ctx, net_irc(ctx), win, msg, true)
     line(ctx, win, 'kicked', stamped({{scrub(msg[2] or '?') .. ' from ' .. scrub(msg[1] or '?')}}, msg))
     reason(ctx, win, 'reason', msg[3])
 end
@@ -367,7 +349,6 @@ local function netsplit(text)
 end
 
 function summaries.QUIT(ctx, win, msg)
-    sender(ctx, net_irc(ctx), win, msg, false)
     local quit = stamped({}, msg)
     if netsplit(msg[1]) then table.insert(quit, 1, {'netsplit', draw.yellow}) end
     line(ctx, win, 'quit', quit)
@@ -378,12 +359,10 @@ function summaries.QUIT(ctx, win, msg)
 end
 
 function summaries.NICK(ctx, win, msg)
-    sender(ctx, net_irc(ctx), win, msg, false)
     line(ctx, win, 'renamed', stamped({{'to ' .. scrub(msg[1] or '?'), draw.bold}}, msg))
 end
 
 function summaries.ACCOUNT(ctx, win, msg)
-    sender(ctx, net_irc(ctx), win, msg, false)
     local account = msg[1]
     local change = account == '*' and {'logged out', draw.yellow}
         or {'logged in as ' .. scrub(account or '?'), draw.green}
@@ -392,12 +371,10 @@ end
 
 -- The source holds the old user@host, which `from` shows
 function summaries.CHGHOST(ctx, win, msg)
-    sender(ctx, net_irc(ctx), win, msg, false)
     line(ctx, win, 'host', stamped({{'now ' .. scrub(msg[1] or '?') .. '@' .. scrub(msg[2] or '?'), draw.bold}}, msg))
 end
 
 local function wallops_summary(ctx, win, msg)
-    sender(ctx, net_irc(ctx), win, msg, false)
     line(ctx, win, 'sent', stamped({{msg.command == 'OPERWALL' and 'operwall' or 'wallops'}}, msg))
     formatted(ctx, win, 'text', msg[1] or '')
 end
@@ -405,24 +382,9 @@ end
 summaries.WALLOPS = wallops_summary
 summaries.OPERWALL = wallops_summary
 
--- Names of channel modes, by prefix for prefix modes, which networks
--- spell with different letters, and by letter for the rest (as Solanum
--- has them)
-local prefix_names <const> = {
-    ['~'] = 'owner', ['&'] = 'admin', ['@'] = 'op', ['%'] = 'halfop', ['+'] = 'voice',
-}
-local mode_names <const> = {
-    b = 'ban', e = 'ban exception', I = 'invite exception', q = 'quiet',
-    i = 'invite only', m = 'moderated', n = 'no outside messages', s = 'secret',
-    p = 'private', t = 'topic set by ops', k = 'key', l = 'limit',
-    r = 'registered users only', c = 'colors stripped', f = 'forward',
-    j = 'join throttle', z = 'ops see moderated', g = 'anyone invites',
-    P = 'permanent', S = 'TLS only', C = 'no CTCPs', T = 'no notices',
-    F = 'forward target', Q = 'no forwarding', L = 'large lists',
-}
-
--- The changes of a channel MODE: {'+' or '-', letter, argument or nil},
--- each taking its argument by the network's PREFIX and CHANMODES
+-- The changes of a MODE: {'+' or '-', letter, argument or nil}, each
+-- taking its argument by the network's PREFIX and CHANMODES; without
+-- `irc`, for user modes, none takes one
 local function mode_changes(irc, msg)
     local changes, sign, cursor = {}, '+', 3
     for flag in (msg[2] or ''):gmatch '.' do
@@ -446,29 +408,42 @@ end
 function summaries.MODE(ctx, win, msg)
     local irc = net_irc(ctx)
     local target = msg[1] or '?'
-    local channel = irc and irc_model.is_channel_name(irc, target)
-    sender(ctx, irc, win, msg, channel)
+    -- the network's model, for a channel's modes
+    local chan_irc = irc and irc_model.is_channel_name(irc, target) and irc or nil
     line(ctx, win, 'changed', stamped({{'modes of ' .. scrub(target)}}, msg))
 
-    for i, change in ipairs(mode_changes(channel and irc or nil, msg)) do
+    for i, change in ipairs(mode_changes(chan_irc, msg)) do
         local sign, flag, arg = change[1], change[2], change[3]
         if i == 1 then
-            field(win, 'modes', chat_width)
+            field(win, 'modes', summary_width)
         else
-            win:waddstr(string.rep(' ', chat_width + 2))
+            win:waddstr(string.rep(' ', summary_width + 2))
         end
         if sign == '+' then draw.green(win) else draw.red(win) end
         win:waddstr(sign, scrub(flag))
         draw.normal(win)
         if arg then win:waddstr(' ', scrub(arg)) end
-        local prefix = channel and (irc --[[@as hub.Irc]]).mode_to_prefix[flag]
-        local name = channel and (prefix and prefix_names[prefix] or mode_names[flag])
+        local name
+        if chan_irc then
+            local prefix = chan_irc.mode_to_prefix[flag]
+            name = prefix and solanum.prefix_names[prefix] or solanum.mode_names[flag]
+        end
         if name then
             draw.blue(win)
             win:waddstr(' ', name)
             draw.normal(win)
         end
         win:waddstr '\n'
+    end
+end
+
+-- A server notice: what the parser made of it
+local function snotice_summary(ctx, win, msg)
+    line(ctx, win, 'sent', stamped({{'server notice'}}, msg))
+    local note = M.decode(msg)
+    line(ctx, win, 'name', {{note and note.name or '?', draw.magenta}})
+    for k, v in tablex.sort(note or {}) do
+        if k ~= 'name' then line(ctx, win, k, {{scrub(tostring(v))}}) end
     end
 end
 
@@ -485,17 +460,12 @@ end
 -- An error reply without fields of its own: its arguments, and the text
 -- that says what went wrong, which errors end with
 local function error_summary(ctx, win, msg)
-    sender(ctx, net_irc(ctx), win, msg, false)
     reply_header(ctx, win, msg)
-    if #msg > 2 then
-        local args = {}
-        for i = 2, #msg - 1 do table.insert(args, scrub(msg[i])) end
-        line(ctx, win, 'args', {{table.concat(args, ' ')}})
-    end
+    args_line(ctx, win, msg, 2, #msg - 1)
     if #msg > 1 then formatted(ctx, win, 'text', msg[#msg]) end
 end
 
--- A reply's argument, by the kind its field gives it (ui/details/replies.lua)
+-- A reply's argument, by the kind its field gives it (ui/details/solanum.lua)
 local function reply_field(ctx, win, label, kind, value)
     local n = tonumber(value)
     if kind == 'text' then
@@ -507,7 +477,7 @@ local function reply_field(ctx, win, label, kind, value)
     elseif kind == 'mins' and n then
         line(ctx, win, label, {n == 0 and {'permanent'} or {draw.duration(n * 60) .. ' left'}})
     elseif kind == 'line' then
-        local name = replies.line_types[value]
+        local name = solanum.line_types[value]
         line(ctx, win, label, {{name or scrub(value), draw.bold}})
     elseif kind == 'reasons' then
         local public, private = value:match '^(.-)|(.*)$'
@@ -520,12 +490,11 @@ local function reply_field(ctx, win, label, kind, value)
     end
 end
 
--- A reply with fields (ui/details/replies.lua): each argument after the
+-- A reply with fields (ui/details/solanum.lua): each argument after the
 -- target under its label, and any the fields don't name after them
 local function reply_summary(ctx, win, msg)
-    sender(ctx, net_irc(ctx), win, msg, false)
     reply_header(ctx, win, msg)
-    local fields = replies.fields[msg.command]
+    local fields = solanum.fields[msg.command]
     local i = 2
     for k, field_spec in ipairs(fields) do
         local label, kind = field_spec:match '^(.-):(%a+)$'
@@ -544,87 +513,19 @@ local function reply_summary(ctx, win, msg)
             reply_field(ctx, win, label, kind, value)
         end
     end
-    if i <= #msg then
-        local args = {}
-        for j = i, #msg do table.insert(args, scrub(msg[j])) end
-        line(ctx, win, 'args', {{table.concat(args, ' ')}})
-    end
+    args_line(ctx, win, msg, i, #msg)
 end
-
--- The list modes' replies: what each entry or end is of, and where the
--- entry's mask is (who set it and when follow it)
-local list_replies <const> = {
-    [numerics.RPL_BANLIST] = {'ban', 3},
-    [numerics.RPL_QUIETLIST] = {'quiet', 4},
-    [numerics.RPL_EXCEPTLIST] = {'ban exception', 3},
-    [numerics.RPL_INVITELIST] = {'invite exception', 3},
-    [numerics.RPL_ENDOFBANLIST] = {'ban'},
-    [numerics.RPL_ENDOFQUIETLIST] = {'quiet'},
-    [numerics.RPL_ENDOFEXCEPTLIST] = {'ban exception'},
-    [numerics.RPL_ENDOFINVITELIST] = {'invite exception'},
-}
-
--- An entry of a channel's ban, quiet or exception list, or its end
-local function list_summary(ctx, win, msg)
-    sender(ctx, net_irc(ctx), win, msg, false)
-    local list = list_replies[msg.command]
-    local name, at = list[1], list[2]
-    local channel = scrub(msg[2] or '?')
-    if not at then
-        line(ctx, win, 'list', stamped({{'end of the ' .. name .. ' list of ' .. channel}}, msg))
-        return
-    end
-    line(ctx, win, 'list', stamped({{name .. ' list of ' .. channel}}, msg))
-    line(ctx, win, 'mask', {{scrub(msg[at] or '?'), draw.bold}})
-    line(ctx, win, 'set', set_by(msg[at + 1], tonumber(msg[at + 2] or '')))
-end
-
--- A server notice: what the parser made of it
-local function snotice_summary(_, win, msg)
-    field(win, 'from')
-    draw.bold(win)
-    win:waddstr(scrub(msg.source))
-    draw.normal(win)
-    win:waddstr(' at ', scrub(msg.tags.time or msg.time or '?'), '\n\n')
-
-    local note = M.decode(msg)
-    field(win, 'name')
-    draw.magenta(win)
-    win:waddstr(note and note.name or '?', '\n')
-    draw.normal(win)
-    for k, v in tablex.sort(note or {}) do
-        if k ~= 'name' then
-            field(win, k)
-            win:waddstr(scrub(tostring(v)), '\n')
-        end
-    end
-end
-
--- The flags an auth block's user mask starts with in an I-line
--- (RPL_STATSILINE), by sigil, as Solanum shows them; the last four only to
--- opers
-local auth_flag <const> = {
-    ['-'] = 'no_tilde',
-    ['+'] = 'need_ident',
-    ['='] = 'spoof',
-    ['%'] = 'need_sasl',
-    ['|'] = 'flood_exempt',
-    ['$'] = 'dnsbl_exempt',
-    ['^'] = 'kline_exempt',
-    ['>'] = 'exceed_limit',
-}
 
 -- An auth block (STATS I, or TESTLINE matching no ban): I <name> <password>
 -- <sigils><user>@<host> <port> <class> :<description>
 summaries[numerics.RPL_STATSILINE] = function(ctx, win, msg)
-    sender(ctx, net_irc(ctx), win, msg, false)
     local name, password, mask, port, class = msg[3], msg[4], msg[5] or '', msg[6], msg[7]
 
     local sigils, user, host = mask:match '^([-+=%%|$^>]*)([^@]*)@(.*)$'
     if not sigils then sigils, user, host = '', mask, nil end
     local flags, spoof = {}, false
     for sigil in sigils:gmatch '.' do
-        table.insert(flags, {auth_flag[sigil] .. ' (' .. sigil .. ')'})
+        table.insert(flags, {solanum.auth_flags[sigil] .. ' (' .. sigil .. ')'})
         if sigil == '=' then spoof = true end
     end
 
@@ -647,8 +548,7 @@ end
 local function summary_of(msg)
     if M.snotice_text(msg) then return snotice_summary end
     if summaries[msg.command] then return summaries[msg.command] end
-    if list_replies[msg.command] then return list_summary end
-    if replies.fields[msg.command] then return reply_summary end
+    if solanum.fields[msg.command] then return reply_summary end
     local name = numeric_names[msg.command]
     if name and name:sub(1, 4) == 'ERR_' then return error_summary end
 end
@@ -678,7 +578,14 @@ local function message_level(win, msg, show_raw)
         win:waddstr(scrub(msg.source), '\n')
     end
 
-    delivery_fields(win, msg)
+    for _, row in ipairs {{'delivery', delivery_text(msg)}, {'receipt', receipt_text(msg)}} do
+        if row[2] then
+            field(win, row[1])
+            if row[3] then row[3](win) end
+            win:waddstr(row[2], '\n')
+            draw.normal(win)
+        end
+    end
 
     field(win, 'command')
     local cmd_color = M.palette[msg.command]
@@ -734,6 +641,7 @@ function M.render(ctx, win)
     win:waddstr '\n\n'
 
     if shown == 'summary' and summary then
+        sender(ctx, win, msg)
         summary(ctx, win, msg)
     else
         message_level(win, msg, shown == 'raw')
