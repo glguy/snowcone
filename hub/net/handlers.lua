@@ -173,11 +173,21 @@ H[N.ERR_MONLISTFULL] = function(rec)
 end
 
 -- During registration a rejected nick gets a random replacement, and the
--- configured one is reclaimed later
-local function new_nickname(rec, irc)
+-- configured one is reclaimed later. NICKLEN isn't known before
+-- RPL_WELCOME, so a nick refused as erroneous is taken to be too long,
+-- and the replacement is shorter than it.
+local function new_nickname(rec, irc, msg)
     if rec.phase == 'registering' then
         local wanted = rec.cfg.identity.nick
-        local nick = string.format('%.10s-%05d', wanted, math.random(0, 99999))
+        local keep = 10
+        if msg.command == N.ERR_ERRONEUSNICKNAME then
+            keep = math.min(keep, #msg[2] - 7) -- room for -NNNNN
+        end
+        if keep < 1 then
+            log.add_net(rec.id, 'irc', 'no replacement nick short enough for %s', msg[2])
+            return
+        end
+        local nick = string.format('%s-%05d', wanted:sub(1, keep), math.random(0, 99999))
         send.send(rec.id, 'NICK', nick)
         irc.recover_nick = irc_model.fold(irc, wanted)
         irc.nick = nick -- optimistic

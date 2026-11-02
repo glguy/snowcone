@@ -302,6 +302,33 @@ T.case('nick in use during registration, then reclaimed with MONITOR', function(
     T.eq(nicks, {{net = 'test', old = temp, new = 'me', self = true}}, 'nick event')
 end)
 
+T.case('an erroneous nick during registration is replaced by a shorter one', function()
+    local fake = boot {network('test', {identity = {nick = 'averylongnick'}})}
+    local c = fake.last()
+    c:con()
+    c:take()
+    c:recv ':srv CAP * LS :'
+    c:take()
+
+    -- in use: the usual ten characters
+    c:recv ':srv 433 * averylongnick :Nickname is already in use'
+    local sent = c:take()
+    local temp = T.ok(sent[1]:match '^NICK (averylongn%-%d%d%d%d%d)$', 'in use: ' .. sent[1])
+
+    -- erroneous: shorter than the nick refused, each time
+    for _ = 1, 3 do
+        c:recv(':srv 432 * ' .. temp .. ' :Erroneous Nickname')
+        sent = c:take()
+        local shorter = T.ok(sent[1] and sent[1]:match '^NICK (avery%w*%-%d%d%d%d%d)$', 'erroneous: ' .. tostring(sent[1]))
+        T.ok(#shorter < #temp, 'shorter: ' .. shorter)
+        temp = shorter
+    end
+
+    -- nothing short enough is left
+    c:recv ':srv 432 * a-12345 :Erroneous Nickname'
+    T.eq(c:take(), {}, 'gives up')
+end)
+
 T.case('events from an earlier attempt are dropped', function()
     local fake = boot {network('test')}
     local first = fake.last()
