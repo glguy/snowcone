@@ -1055,6 +1055,13 @@ T.case('crypto commands write keys and print the services commands', function()
     lines = T.log_lines 'crypto'
     T.eq(lines[#lines], added, 'same fingerprint from the file')
 
+    T.eq(require 'lfs'.attributes(dir .. '/cert.pem', 'permissions'), 'rw-------', 'only we can read the key')
+    local before = require 'pl.file'.read(dir .. '/cert.pem')
+    T.command('cert_new ' .. dir .. '/cert.pem')
+    local ok, err = pcall(T.require 'hub.runtime.task'.answer, prompts[2].task, '')
+    T.ok(not ok and tostring(err):find 'File exists', 'an existing file is refused')
+    T.eq(require 'pl.file'.read(dir .. '/cert.pem'), before, 'and left alone')
+
     os.remove(dir .. '/cert.pem')
     path.rmdir(dir)
 end)

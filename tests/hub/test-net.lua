@@ -478,6 +478,24 @@ T.case('channel membership and modes', function()
     T.eq(chan.members.OTHER, nil, 'parted')
 end)
 
+T.case('a lopsided PREFIX and a NAMES word of only prefixes add no one', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c, 'me', 'PREFIX=(ov)@ CHANMODES=b,k,l,imnt')
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':srv 353 me = #chan :@ me'
+
+    local irc_model = T.require 'hub.net.irc'
+    local irc = rec().irc
+    T.eq(irc.prefixes, '', 'PREFIX ignored')
+    T.eq(irc_model.get_channel(irc, '#chan').members, {ME = irc_model.get_channel(irc, '#chan').members.ME},
+        'only me')
+
+    c:recv ':srv 005 me PREFIX=(ov)@+ :are supported'
+    c:recv ':srv 353 me = #chan :@ +'
+    T.eq(irc_model.get_channel(irc, '#chan').members[''], nil, 'no member without a nick')
+end)
+
 T.case('liveness: PING once when quiet, close when silent', function()
     local fake = boot {network('test')}
     local c = fake.last()

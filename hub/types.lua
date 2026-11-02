@@ -139,6 +139,14 @@ function snowcone.parse_irc_tags(tags) end
 ---@return string|nil error
 function snowcone.pton(address) end
 
+--- Create a file only its owner can read, holding content; an existing
+--- file is an error.
+---@param path string
+---@param content string
+---@return true|nil
+---@return string|nil error
+function snowcone.write_private(path, content) end
+
 --- Seconds, with fractions, on a monotonic clock.
 ---@return number
 function snowcone.monotime() end

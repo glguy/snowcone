@@ -21,15 +21,74 @@ local M = {}
 -- How long a /quote waits for its labeled reply
 local quote_timeout <const> = 30000
 
+-- Services commands whose arguments hold a password
+local services_secret <const> = {
+    IDENTIFY = true, ID = true, REGISTER = true, GHOST = true, RECOVER = true,
+    REGAIN = true, RELEASE = true, LOGIN = true, SETPASS = true, SET = true,
+}
+
+-- NickServ, nickserv@services.example, ...
+local function is_services(target)
+    return (target:match '^[^@]*'):lower():find 'serv$' ~= nil
+end
+
+local function services_command(text)
+    local word = text:match '^:?(%S+)'
+    return word and services_secret[word:upper()]
+end
+
+-- Which arguments of a typed command are secrets, by index
+local function secret_indexes(msg)
+    local command = tostring(msg.command):upper()
+    local n = #msg
+    if command == 'OPER' then
+        return {[2] = true}
+    elseif command == 'PASS' then
+        return {[1] = true}
+    elseif command == 'AUTHENTICATE' then
+        -- everything but a continuation or an abort
+        return {[1] = msg[1] ~= '+' and msg[1] ~= '*'}
+    elseif (command == 'PRIVMSG' or command == 'NOTICE') and n == 2
+        and is_services(msg[1]) and services_command(msg[2]) then
+        return {[2] = true}
+    elseif (command == 'NS' or command == 'NICKSERV') and n >= 1 and services_command(msg[1]) then
+        local all = {}
+        for i = 1, n do all[i] = true end
+        return all
+    end
+    return {}
+end
+
+--- The arguments of a typed command, with any password among them marked
+--- secret so it stays out of the console, the log and events.
+---@param msg snowcone.Message
+---@return hub.SendArg[] args
+---@return string[] shown the arguments as shown, secrets as *
+function M.arguments(msg)
+    local secret = secret_indexes(msg)
+    local args, shown = {}, {}
+    for i, arg in ipairs(msg) do
+        if secret[i] then
+            args[i] = {content = arg, secret = true}
+            shown[i] = '*'
+        else
+            args[i] = arg
+            shown[i] = arg
+        end
+    end
+    return args, shown
+end
+
 --- Send a /quote line labeled, and fill in its reply.
 ---@param net string
 ---@param msg snowcone.Message parsed from the command line, without a label
 function M.labeled(net, msg)
-    local label = send.send_labeled(net, msg.tags, msg.command, table.unpack(msg))
+    local args, shown = M.arguments(msg)
+    local label = send.send_labeled(net, msg.tags, msg.command, table.unpack(args))
     if not label then return end
     local parts = {tostring(msg.command)}
-    for i, arg in ipairs(msg) do
-        parts[i + 1] = (i == #msg and (arg == '' or arg:find '^:' or arg:find ' ')) and ':' .. arg or arg
+    for i, arg in ipairs(shown) do
+        parts[i + 1] = (i == #shown and (arg == '' or arg:find '^:' or arg:find ' ')) and ':' .. arg or arg
     end
     ---@type hub.QuoteReply
     local reply = {line = table.concat(parts, ' '), state = 'waiting', messages = {}}

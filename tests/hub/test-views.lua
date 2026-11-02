@@ -877,9 +877,25 @@ T.case('pastes go to the editor up to a newline; an oversized one is reported', 
     key(string.byte '/')
     HUB.current.routes['ui.entry']('on_paste', 'say hi\nsecond line')
     T.eq(editor.content(control.editor()), 'say hi', 'pasted up to the newline')
+    T.eq(T.log_lines 'error', {'paste cut at its first line break'}, 'and says so')
+    HUB.current.routes['ui.entry']('on_paste', ' more\r\n')
+    T.eq(editor.content(control.editor()), 'say hi more', 'a closing line break is no cut')
+    T.eq(#T.log_lines 'error', 1, 'so not reported')
     HUB.current.routes['ui.entry']('on_paste', nil, 70000)
-    T.eq(T.log_lines 'error', {'paste: a paste of 70000 bytes was discarded (limit 64 KiB)'}, 'reported')
-    T.eq(editor.content(control.editor()), 'say hi', 'editor unchanged')
+    T.eq(T.log_lines('error')[2], 'paste: a paste of 70000 bytes was discarded (limit 64 KiB)', 'reported')
+    T.eq(editor.content(control.editor()), 'say hi more', 'editor unchanged')
+
+    editor.reset(control.editor())
+    HUB.current.routes['ui.entry']('on_paste', 'a\xffb\xe2\x82')
+    T.eq(editor.content(control.editor()), 'a\u{FFFD}b\u{FFFD}\u{FFFD}', 'invalid UTF-8 replaced')
+
+    editor.reset(control.editor())
+    local start = os.clock()
+    HUB.current.routes['ui.entry']('on_paste', string.rep('é', 16000))
+    T.eq(editor.size(control.editor()), 16000, 'a big paste whole')
+    T.ok(os.clock() - start < 2, 'and quickly: ' .. (os.clock() - start))
+    editor.undo(control.editor())
+    T.eq(editor.content(control.editor()), '', 'undone at once')
 end)
 
 T.case('^C and signals quit, then shut down; nothing draws after', function()
@@ -1493,6 +1509,7 @@ T.case('a new X25519 key shows its private key in the pane and nowhere else', fu
     -- a result of one line stays a log line
     control.close_detail()
     local dir = os.tmpname()
+    os.remove(dir) -- cert_new won't overwrite a file
     T.require 'hub.ui.cmdline'.execute('cert_new ' .. dir)
     T.require 'hub.runtime.task'.answer(HUB.state.ui.input.prompts[1].task, '')
     T.require 'hub.ui.cmdline'.execute('cert_fp ' .. dir)

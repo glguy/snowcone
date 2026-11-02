@@ -5,6 +5,7 @@
 @time=2026-01-02T10:00:00.000Z :alpha.example NOTICE * :*** Notice -- Client connecting: alice (~al@host1.example.net) [192.0.2.10] {users} <account1> [Alice Example]
 @time=2026-01-02T10:00:01.000Z :alpha.example NOTICE * :*** Notice -- Client connecting: bob (bob@user/bob) [0] {users} <*> [Bob]
 @time=2026-01-02T10:00:02.000Z :beta.example NOTICE * :*** Notice -- Client connecting: carol (~c@2001:db8::c) [2001:db8::c] {?} <*> [carol [the] third]
+@time=2026-01-02T10:00:03.000Z :beta.example NOTICE * :*** Notice -- Client connecting: dave (~d@host4.example.net) [192.0.2.40] {users} <*> [x] {staff} <account1> [y]
 @time=2026-01-02T10:00:04.000Z :alpha.example NOTICE * :*** Notice -- Nick change: From alice to alice_ [~al@host1.example.net]
 @time=2026-01-02T10:00:05.000Z :alpha.example NOTICE * :*** Notice -- FILTER: alice_!~al@host1.example.net [192.0.2.10]
 @time=2026-01-02T10:00:06.000Z :alpha.example NOTICE * :*** Notice -- Client exiting: alice_ (~al@host1.example.net) [Quit: bye] [192.0.2.10]

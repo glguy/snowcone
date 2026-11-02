@@ -101,6 +101,33 @@ T.case('quote sends tags as typed', function()
     T.eq(c:take(), {}, 'nothing sent')
 end)
 
+T.case('quote keeps passwords out of the log and events', function()
+    local fake, _, cmdline = boot {network('a')}
+    local c = fake.last()
+    register_caps(c, 'batch labeled-response message-tags')
+    local sent = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'quote.sent', 'test', function(ev)
+        table.insert(sent, ev.reply.line)
+    end)
+
+    cmdline.execute 'quote OPER me hunter2'
+    cmdline.execute 'quote PRIVMSG NickServ :IDENTIFY me hunter2'
+    cmdline.execute 'quote NS IDENTIFY hunter2'
+    cmdline.execute 'quote PRIVMSG #c :identify yourself'
+    T.eq(c:take(), {'@label=sc1 OPER me hunter2', '@label=sc2 PRIVMSG NickServ :IDENTIFY me hunter2',
+        '@label=sc3 NS IDENTIFY hunter2', '@label=sc4 PRIVMSG #c :identify yourself'}, 'sent as typed')
+    T.eq(sent, {'OPER me *', 'PRIVMSG NickServ *', 'NS * *', 'PRIVMSG #c :identify yourself'},
+        'shown without them')
+    c:recv '@label=sc1 :srv 381 me :You are now an IRC operator'
+    T.ok(not table.concat(T.log_lines 'quote', '\n'):find 'hunter2', 'not logged')
+
+    -- without labeled-response too
+    local fake2, _, cmdline2 = boot {network('b')}
+    register_caps(fake2.last(), '')
+    cmdline2.execute 'quote PASS hunter2'
+    T.eq(fake2.last():take(), {'PASS hunter2'}, 'sent')
+end)
+
 T.case('quote refuses client-only tags without message-tags', function()
     local fake, _, cmdline = boot {network('a')}
     local c = fake.last()
@@ -153,8 +180,11 @@ T.case('a prompt takes over input and keeps the typed command', function()
     T.eq(control.current_prompt().label, 'server password', 'label')
     T.ok(control.editor() == input.secret, 'secret editor in use')
 
+    for _, ch in utf8.codes 'typo' do editor.add(control.editor(), ch) end
+    editor.kill_to_beg(control.editor())
     for _, ch in utf8.codes 'hunter2' do editor.add(control.editor(), ch) end
     control.answer_prompt(editor.content(control.editor()))
+    T.eq(T.require 'hub.lib.OrderedMap'.size(input.secret.kills), 0, 'nothing killed is kept')
 
     T.eq(input.mode, 'command', 'back to the command line')
     T.eq(editor.content(input.editor), 'quote PI', 'typed command kept')
@@ -191,6 +221,27 @@ T.case('a prompt whose task ended is skipped', function()
     T.eq(HUB.state.ui.input.prompts, {}, 'queue empty')
 end)
 
+T.case('text typed for a prompt whose task ended is not the next one\'s', function()
+    local secret = {prompt = 'server password'}
+    local fake, control = boot {
+        network('a', {server = {host = 'a.test', port = 6667}, registration = {password = secret}}),
+        network('b', {server = {host = 'b.test', port = 6667}, registration = {password = secret}}),
+    }
+    local editor = T.require 'hub.ui.editor'
+    fake.conns[1]:con()
+    fake.conns[2]:con()
+    T.eq(control.current_prompt().net, 'a', 'a asks first')
+    for _, ch in utf8.codes 'half' do editor.add(control.editor(), ch) end
+    editor.kill_to_beg(control.editor())
+    for _, ch in utf8.codes 'typed' do editor.add(control.editor(), ch) end
+
+    fake.conns[1]:finish 'reset'
+    control.check_prompts()
+    T.eq(control.current_prompt().net, 'b', 'b asks next')
+    T.eq(editor.content(control.editor()), '', 'starting empty')
+    T.eq(T.require 'hub.lib.OrderedMap'.size(HUB.state.ui.input.secret.kills), 0, 'with nothing to yank')
+end)
+
 T.case('filters follow the filter input while typing', function()
     local _, control = boot {}
     local editor = T.require 'hub.ui.editor'
@@ -208,6 +259,28 @@ T.case('filters follow the filter input while typing', function()
     T.ok(not matching.safematch('Hello World', 'Hello world'), 'capitals make it case sensitive')
     T.ok(matching.safematch('anything', '('), 'invalid pattern matches everything')
     T.eq(matching.compile '(', nil, 'invalid pattern does not compile')
+end)
+
+T.case('patterns that would run away do not hang', function()
+    boot {}
+    local matching = T.require 'hub.lib.matching'
+    if matching.kind == 'pcre2' then
+        local m = matching.compile '(a+)+$'
+        T.eq(m(string.rep('a', 40) .. 'b'), false, 'the match limit is no match')
+    end
+
+    -- the Lua pattern fallback, without rex_pcre2
+    local loaded, preload = package.loaded.rex_pcre2, package.preload.rex_pcre2
+    package.loaded.rex_pcre2 = nil
+    package.preload.rex_pcre2 = function() error 'hidden' end
+    local ok, lua_matching = pcall(dofile, T.root .. '/lib/matching.lua')
+    package.loaded.rex_pcre2, package.preload.rex_pcre2 = loaded, preload
+    assert(ok, lua_matching)
+    T.eq(lua_matching.kind, 'lua', 'Lua patterns')
+    T.ok(lua_matching.compile 'foo.*bar.-baz', 'two repeats')
+    T.ok(lua_matching.compile '[*+-]+%d*x%-', 'quantifier characters in sets and escapes')
+    T.eq(lua_matching.compile '.-.-.-x', nil, 'three refused')
+    T.eq(lua_matching.compile '%a+%s*%d+', nil, 'of any item')
 end)
 
 T.case('editor: line breaks, hex input and history', function()

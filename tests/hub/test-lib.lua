@@ -55,6 +55,39 @@ T.case('OrderedMap pops the newest, even after wrapping', function()
     T.eq({OrderedMap.first(om), OrderedMap.last(om), OrderedMap.size(om)}, {1, 0, 0}, 'reset')
 end)
 
+T.case('command specs fit the whole line, word by word', function()
+    T.boot {}
+    local mkcommand = T.require 'hub.lib.mkcommand'
+    local function parse(spec, args)
+        local params = {}
+        if mkcommand(spec)(args, params) then return params end
+        return false
+    end
+    T.eq(parse('$g $r', 'alice'), false, 'a word with no text is a usage error')
+    T.eq(parse('$g $r', '#chan'), false, 'and never splits the word')
+    T.eq(parse('$g $r', 'alice hi there '), {'alice', 'hi there '}, 'the rest as typed')
+    T.eq(parse('$g $R', 'alice'), {'alice', ''}, 'an empty rest')
+    T.eq(parse('$g', 'a b'), false, 'a word left over')
+    T.eq(parse('$g', ' a  '), {'a'}, 'spaces around')
+    T.eq(parse('$g $r', '#voilà hi'), {'#voilà', 'hi'}, 'UTF-8 whole')
+    T.eq(parse('$g $g', 'a  b'), {'a', 'b'}, 'more than one space between')
+    T.eq(parse('$i', '42'), {42}, 'an integer')
+    T.eq(parse('$i', '-3'), {-3}, 'signed')
+    T.eq(parse('$i', '0x10'), false, 'not hex')
+    T.eq(parse('$i', '99999999999999999999'), false, 'not too big')
+    T.eq(parse('$f', '1.5e3'), {1500.0}, 'a number')
+    T.eq(parse('$v', 'a_1'), {'a_1'}, 'an identifier')
+    T.eq(parse('$v', '1a'), false, 'not starting with a digit')
+    T.eq(parse('$q $g', '"two words" x'), {'two words', 'x'}, 'a quoted string')
+    T.eq(parse('$q', [['mixed"]]), false, 'the same quote closes it')
+    T.eq(parse('add $g', 'add x'), {'x'}, 'a literal word')
+    T.eq(parse('add $g', 'del x'), false, 'that must match')
+    T.eq(parse('', ''), {}, 'no arguments')
+    T.eq(parse('', 'x'), false, 'none given')
+    T.ok(not pcall(mkcommand, '$r $g'), 'rest before the end refused')
+    T.ok(not pcall(mkcommand, '$z'), 'an unknown type refused')
+end)
+
 T.case('ratelimit allows a burst, then one line per interval', function()
     T.boot {}
     local ratelimit = T.require 'hub.lib.ratelimit'

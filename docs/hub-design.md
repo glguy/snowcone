@@ -65,8 +65,8 @@ These hold everywhere. A change that breaks one needs a decision recorded in
 - `lib` requires nothing else from hub and doesn't touch `HUB`.
 - Only `ui` touches `ncurses`. Only `net` calls `snowcone.connect`. Only
   `runtime` calls `newtimer`, `dnslookup`, `execute`, `setmodule`,
-  `catch_signals`, `stop_input` and `start_input`; other layers use its wrappers, so every
-  handle is tracked.
+  `catch_signals`, `stop_input`, `start_input` and `write_private`; other
+  layers use its wrappers, so every handle is tracked.
 - A lower layer reaches upward only through a route name
   (`dispatch.route 'app.quit'`) or an event.
 - A layer's part of `HUB.state` is its own: only `ui` reads `state.ui`.
@@ -186,7 +186,10 @@ every topic, and a test checks that every literal topic emitted is listed.
   `--config=PATH`, else `hub.toml` in the snowcone config directory — with `KEY.PATH=value` overrides; validated
   against `runtime/config_schema.lua`.
 - Secrets — a string, `{file}`, `{command, arguments}` or `{prompt}` — are
-  resolved inside tasks when needed and never stored in state.
+  resolved inside tasks when needed and never stored in state. Files
+  hub writes for them, such as new private keys, are created with
+  `files.write_private`: readable only by the user, never over an
+  existing file.
 - `log.add(category, ...)` and `log.add_net(net, category, ...)` feed the
   status view and the status bar.
 

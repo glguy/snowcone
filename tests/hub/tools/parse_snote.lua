@@ -14,7 +14,7 @@ local simple = {
 return function(time, server, str)
     do
         local nick, user, host, ip, class, account, gecos =
-            string.match(str, '^Client connecting: (%S+) %(([^@ ]+)@([^) ]+)%) %[(.*)%] {(%S*)} <(%S*)> %[(.*)%]$')
+            string.match(str, '^Client connecting: (%S+) %(([^@ ]+)@([^) ]+)%) %[([^%] ]*)%] {([^} ]*)} <([^> ]*)> %[(.*)%]$')
         if nick then
             if ip == '0' then ip = nil end
             return {

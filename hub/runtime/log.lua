@@ -29,6 +29,11 @@ function M.init_state(S)
     if S.log_last == nil then S.log_last = false end
 end
 
+-- A line added while the log event is being delivered, such as the error
+-- of a raising subscriber, is kept but not announced: announcing it would
+-- emit again and never end.
+local emitting = false
+
 local function add(net, category, detail, fmt, ...)
     local text = select('#', ...) == 0 and fmt or string.format(fmt, ...)
     local S = HUB.state
@@ -57,7 +62,12 @@ local function add(net, category, detail, fmt, ...)
         end
     end
 
-    bus.emit('log', entry)
+    if not emitting then
+        emitting = true
+        local ok, err = pcall(bus.emit, 'log', entry)
+        emitting = false
+        if not ok then error(err, 0) end
+    end
     dispatch.dirty()
 end
 

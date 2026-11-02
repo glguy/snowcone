@@ -117,7 +117,9 @@ return function(s)
                     local r = lexeme
                     next_token()
                     return function(x)
-                        return r:exec(tostring(x[field] or '')) ~= nil
+                        -- PCRE2's match limit raises; it counts as no match
+                        local done, found = pcall(r.exec, r, tostring(x[field] or ''))
+                        return done and found ~= nil
                     end
                 elseif token == 'string' then
                     local str = lexeme

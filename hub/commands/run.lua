@@ -34,7 +34,7 @@ end
 ---@param text string
 ---@param origin hub.CommandOrigin|nil
 function M.execute(text, origin)
-    local word, args = text:match '^ *(%g*) *(.*)$'
+    local word, args = text:match '^ *([^ ]*) *(.*)$'
     -- a net command may name its network: /quote@libera ...
     local name, at = word:match '^([^@]*)@(.*)$'
     name = name or word

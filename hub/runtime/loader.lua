@@ -136,6 +136,15 @@ end
 ---@field quitting boolean|nil
 ---@field shut_down boolean|nil
 
+-- Tell a generation a reload failed. If reporting fails too, stderr is
+-- what's left.
+local function report_failure(gen, traceback, err)
+    local ok, err2 = xpcall(gen.routes['app.reload_failed'], traceback, err)
+    if not ok then
+        io.stderr:write('reload failed: ', tostring(err), '\nreporting it failed: ', tostring(err2), '\n')
+    end
+end
+
 --- Load a new generation and make it current, or leave the old one running.
 ---@param root string the hub directory
 ---@param init string path of init.lua
@@ -185,7 +194,7 @@ function M.reload(root, init, app, opts)
         local old = HUB.current
         if old then
             -- the old generation keeps running and reports the failure
-            old.routes['app.reload_failed'](new)
+            report_failure(old, traceback, new)
             return false, new
         end
         -- Nothing is running to show the error; let the client report it
@@ -198,7 +207,7 @@ function M.reload(root, init, app, opts)
     HUB.current = new
     local activated, err = xpcall(new.routes['app.activate'], traceback, first)
     if not activated then
-        new.routes['app.reload_failed'](err)
+        report_failure(new, traceback, err)
         return false, err
     end
     return true

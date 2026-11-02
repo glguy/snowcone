@@ -130,7 +130,7 @@ M.commands = {
             -- console, as is everything without labeled-response
             local irc = HUB.state.nets[ctx.net].irc
             if msg.tags.label or not (irc and irc_model.has_labels(irc)) then
-                send.send_tagged(ctx.net, msg.tags, msg.command, table.unpack(msg))
+                send.send_tagged(ctx.net, msg.tags, msg.command, table.unpack((quote.arguments(msg))))
                 return
             end
             quote.labeled(ctx.net, msg)

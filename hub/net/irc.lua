@@ -233,6 +233,10 @@ end
 function isupport_logic.PREFIX(irc, arg)
     local prefix_to_mode, mode_to_prefix = {}, {}
     local modes, prefixes = (arg or ''):match '^%((.*)%)(.*)$'
+    -- each mode needs its prefix; a lopsided PREFIX is taken as none
+    if modes and #modes ~= #prefixes then
+        modes, prefixes = nil, nil
+    end
     if modes then
         for i = 1, #modes do
             local prefix, mode = prefixes:sub(i, i), modes:sub(i, i)

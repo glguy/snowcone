@@ -278,13 +278,15 @@ H[N.RPL_NAMREPLY] = function(_, irc, msg)
     for word in msg[4]:gmatch '[^ ]+' do
         local entry = word
         local modes = {}
-        while irc.prefix_to_mode[entry:sub(1, 1)] do
+        while entry ~= '' and irc.prefix_to_mode[entry:sub(1, 1)] do
             modes[irc.prefix_to_mode[entry:sub(1, 1)]] = true
             entry = entry:sub(2)
         end
         entry = entry:match '^[^!@]*'
-        channel.members[irc_model.fold(irc, entry)] =
-            irc_model.new_member(irc_model.get_user(irc, entry), modes)
+        if entry ~= '' then
+            channel.members[irc_model.fold(irc, entry)] =
+                irc_model.new_member(irc_model.get_user(irc, entry), modes)
+        end
     end
 end
 

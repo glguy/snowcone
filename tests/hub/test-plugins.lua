@@ -164,6 +164,25 @@ end
     if not ok then error(err, 0) end
 end)
 
+T.case('a log subscriber that raises is reported once per line, not again and again', function()
+    assert(file.write(path.join(dir, 'logboom.lua'), [[
+return function(api)
+    api.on('log', function() error 'log handler fails' end)
+end
+]]))
+    local ok, err = pcall(function()
+        HUB = nil
+        T.boot {strict = false, config = {plugins = {directory = dir, modules = {'logboom'}}, networks = {}}}
+        local before = #T.log_lines 'plugin'
+        T.require 'hub.runtime.log'.add('test', 'one line')
+        local errors = T.log_lines 'plugin'
+        T.eq(#errors - before, 1, 'one error for one line')
+        T.ok(errors[#errors]:find('log handler fails', 1, true), errors[#errors])
+    end)
+    os.remove(path.join(dir, 'logboom.lua'))
+    if not ok then error(err, 0) end
+end)
+
 -- a case of its own: T.run returns at the first sleep, before later cases
 T.case('remove the plugin directory', function()
     for name in pairs(sources) do os.remove(path.join(dir, name .. '.lua')) end

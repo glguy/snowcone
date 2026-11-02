@@ -36,6 +36,7 @@ M.profiles = {
 ---@field editor hub.Editor
 ---@field secret hub.Editor for prompts
 ---@field prompts hub.Prompt[] from tasks, oldest first
+---@field prompt_shown any|false the task of the prompt shown, false for none
 ---@field filter_target string|nil what filter mode filters: a view id, or
 --- 'detail' for the detail pane
 
@@ -377,7 +378,8 @@ end
 
 -- Prompts ============================================================
 
--- Drop prompts whose task is gone, then show the oldest
+-- Drop prompts whose task is gone, then show the oldest. What was typed
+-- for one prompt, kills included, never reaches another.
 local function next_prompt()
     local input = HUB.state.ui.input
     local prompts = input.prompts
@@ -388,10 +390,14 @@ local function next_prompt()
     if prompt and input.mode ~= 'password' then
         input.mode_before_prompt = input.mode or false
         input.mode = 'password'
-        editor.reset(input.secret)
     elseif not prompt and input.mode == 'password' then
         input.mode = input.mode_before_prompt or nil
         input.mode_before_prompt = nil
+    end
+    local shown = prompt and prompt.task or false
+    if input.prompt_shown ~= shown then
+        input.prompt_shown = shown
+        editor.forget(input.secret)
     end
     dispatch.dirty()
 end
@@ -414,7 +420,7 @@ end
 function M.answer_prompt(text)
     local input = HUB.state.ui.input
     local prompt = table.remove(input.prompts, 1)
-    editor.reset(input.secret)
+    editor.forget(input.secret)
     input.mode = input.mode_before_prompt or nil
     input.mode_before_prompt = nil
     if prompt then

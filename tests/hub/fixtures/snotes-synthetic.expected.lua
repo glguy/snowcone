@@ -37,6 +37,18 @@ return {
     user = "~c"
   },
   {
+    account = "*",
+    class = "users",
+    gecos = "x] {staff} <account1> [y",
+    host = "host4.example.net",
+    ip = "192.0.2.40",
+    name = "connect",
+    nick = "dave",
+    server = "beta.example",
+    time = "10:00:03",
+    user = "~d"
+  },
+  {
     host = "host1.example.net",
     name = "nick",
     new = "alice_",

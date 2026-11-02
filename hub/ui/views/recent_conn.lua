@@ -121,7 +121,7 @@ local function make_view(id, title, store, tracker)
         elseif shown ~= 'ip' and entry.org then
             win:waddstr(scrub(entry.org):sub(1, 39))
         elseif entry.ip then
-            win:waddstr(entry.ip)
+            win:waddstr(scrub(entry.ip))
         else
             win:waddstr '·'
         end

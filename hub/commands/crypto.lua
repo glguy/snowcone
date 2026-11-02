@@ -4,6 +4,7 @@
 -- (ui/details/keys.lua) with its private key, which is never logged.
 
 local file <const> = require 'pl.file'
+local files <const> = require 'hub.runtime.files'
 local log  <const> = require 'hub.runtime.log'
 local task <const> = require 'hub.runtime.task'
 
@@ -77,7 +78,7 @@ M.commands = {
                 local cipher, password = pem_password(t)
                 local k = myopenssl.gen_pkey('EC', 'P-256')
                 k:set_param('point-format', 'compressed')
-                assert(file.write(filename, k:to_private_pem(cipher, password) .. '\n' .. k:to_public_pem()))
+                assert(files.write_private(filename, k:to_private_pem(cipher, password) .. '\n' .. k:to_public_pem()))
                 local public = pub64(k)
                 report {what = 'ECDSA P-256 key', made = true, file = filename, encrypted = cipher ~= nil,
                         public = public, commands = {'/msg NickServ SET PUBKEY ' .. public}}
@@ -129,7 +130,7 @@ M.commands = {
                 x509:add_caConstraint(true)
                 x509:sign(pkey) -- must be last
 
-                assert(file.write(filename, x509:export() .. '\n' .. pkey:to_private_pem(cipher, password)))
+                assert(files.write_private(filename, x509:export() .. '\n' .. pkey:to_private_pem(cipher, password)))
                 local fp = cert_fingerprint(x509)
                 report {what = 'Ed25519 certificate', made = true, file = filename, encrypted = cipher ~= nil,
                         fingerprint = fp, commands = {'/msg NickServ CERT ADD ' .. fp}}

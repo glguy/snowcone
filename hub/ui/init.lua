@@ -208,14 +208,12 @@ function entry.on_paste(paste, size)
         return
     end
     if HUB.state.ui.input.mode then
-        local ed = control.editor()
-        for _, c in utf8.codes(paste) do
-            -- paste up to the first newline or nul
-            if c == 0 or c == 10 or c == 13 then
-                break
-            end
-            editor.add(ed, c)
+        -- a line can't hold a line break or NUL: the first line goes in
+        local first, rest = paste:match '^([^%z\r\n]*)(.*)$'
+        if rest:find '[^%z\r\n]' then
+            log.add('error', 'paste cut at its first line break')
         end
+        editor.insert(control.editor(), first)
         dispatch.dirty()
     end
     compose()

@@ -66,6 +66,7 @@ local native_owner = {
     ['snowcone.stop_input'] = 'runtime',
     ['snowcone.start_input'] = 'runtime',
     ['snowcone.catch_signals'] = 'runtime',
+    ['snowcone.write_private'] = 'runtime',
 }
 
 local function strip_comments(src)

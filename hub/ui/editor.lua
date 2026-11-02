@@ -16,6 +16,22 @@ local kill_limit    <const> = 60
 
 local render
 
+-- The code points of text; a byte that isn't valid UTF-8 becomes U+FFFD
+local function codepoints(text)
+    local t, i = {}, 1
+    while i <= #text do
+        local n, bad = utf8.len(text, i)
+        local stop = n and #text or bad - 1
+        for _, c in utf8.codes(text:sub(i, stop)) do
+            table.insert(t, c)
+        end
+        if n then break end
+        table.insert(t, 0xFFFD)
+        i = bad + 1
+    end
+    return t
+end
+
 ---@return hub.Editor # a new, empty editor record
 function M.new()
     ---@class hub.Editor
@@ -95,6 +111,13 @@ function M.reset(self)
     self.edits = {}
     self.at = nil
     M.move(self, 1)
+end
+
+--- Reset, and empty the kill ring too: nothing typed is kept.
+---@param self hub.Editor
+function M.forget(self)
+    M.reset(self)
+    OrderedMap.reset(self.kills)
 end
 
 -- Two lines hold the same characters in the same order. Order matters:
@@ -259,8 +282,9 @@ function M.insert(self, text, replace)
         self.cursor = self.cursor - replace
     end
     local at = self.cursor
-    tablex.insertvalues(self.buffer, at, table.pack(utf8.codepoint(text, 1, -1)))
-    M.move(self, at + utf8.len(text))
+    local codes = codepoints(text)
+    tablex.insertvalues(self.buffer, at, codes)
+    M.move(self, at + #codes)
 end
 
 ---@param self hub.Editor
@@ -552,7 +576,7 @@ function M.tab(self, dir, mklist)
             return
         end
         for ix, str in ipairs(self.tablist) do
-            self.tablist[ix] = table.pack(utf8.codepoint(str, 1, -1))
+            self.tablist[ix] = codepoints(str)
         end
     end
 

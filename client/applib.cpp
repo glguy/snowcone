@@ -35,6 +35,8 @@ extern "C" {
 #include <csignal>
 #include <cstring>
 #include <ctime>
+#include <fcntl.h>
+#include <unistd.h>
 #include <iterator>
 
 namespace { // lua support for app
@@ -382,6 +384,55 @@ auto l_catch_signals(lua_State* const L) -> int
     return 0;
 }
 
+/// write_private(path, content): create a file only its owner can read
+/// and write it. An existing file is left alone and is an error.
+///
+/// return[1]: true on success
+/// return[1]: nil on failure, with return[2] the error message
+auto l_write_private(lua_State* const L) -> int
+{
+    auto const path = luaL_checkstring(L, 1);
+    std::size_t len;
+    auto const content = luaL_checklstring(L, 2, &len);
+
+    auto const fail = [L, path](int const e) -> int {
+        luaL_pushfail(L);
+        lua_pushfstring(L, "%s: %s", path, strerror(e));
+        return 2;
+    };
+
+    auto const fd = open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+    if (fd < 0)
+    {
+        return fail(errno);
+    }
+    std::size_t done = 0;
+    while (done < len)
+    {
+        auto const n = write(fd, content + done, len - done);
+        if (n < 0)
+        {
+            if (errno == EINTR)
+            {
+                continue;
+            }
+            auto const e = errno;
+            close(fd);
+            unlink(path);
+            return fail(e);
+        }
+        done += static_cast<std::size_t>(n);
+    }
+    if (0 != close(fd))
+    {
+        auto const e = errno;
+        unlink(path);
+        return fail(e);
+    }
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
 luaL_Reg const applib_module[] = {
     {"connect", boundary<l_start_irc>},
     {"dnslookup", boundary<l_dnslookup>},
@@ -402,6 +453,7 @@ luaL_Reg const applib_module[] = {
     {"catch_signals", boundary<l_catch_signals>},
     {"start_ui", boundary<l_start_ui>},
     {"start_httpd", boundary<start_httpd>},
+    {"write_private", boundary<l_write_private>},
     {}
 };
 
