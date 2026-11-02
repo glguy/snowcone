@@ -1,6 +1,6 @@
--- Chat's commands: talking, buffers, channel information, WHOIS and
--- WHOWAS, and our user modes; the channel operator commands are in
--- chat/modes.lua. Chat requires this module, so it passes itself in.
+-- Chat's commands: talking (/cmsg a private message shown in a channel),
+-- buffers, channel information, WHOIS and WHOWAS, and our user modes; the
+-- channel operator commands are in chat/modes.lua. Chat requires this module, so it passes itself in.
 
 local bus       <const> = require 'hub.runtime.bus'
 local irc_model <const> = require 'hub.net.irc'
@@ -88,6 +88,26 @@ function M.commands(chat)
         chat.command('notice', '$g $r', 'target text', 'Send a notice', function(ctx, target, text)
             open_targets(chat, ctx.net, target)
             chat.notice(ctx.net, target, text)
+        end),
+        chat.command('cmsg', '$g $r', 'nick text',
+            "Send a message to a nick, shown to them in the shown channel (channel-context)",
+        function(ctx, nick, text)
+            local channel = modes.shown_channel(ctx)
+            local irc = model(ctx.net) --[[@as hub.Irc]]
+            if irc_model.is_channel_name(irc, nick) then
+                error('not a nick: ' .. nick, 0)
+            end
+            if not irc_model.get_channel(irc, channel) then
+                error('not in ' .. channel, 0)
+            end
+            local tag = irc_model.channel_context_tag:sub(2)
+            if not irc.caps_enabled['message-tags'] then
+                error(ctx.net .. ' has not enabled message-tags, which client tags need', 0)
+            elseif not irc_model.client_tag_allowed(irc, tag) then
+                error(string.format('%s refuses the %s tag (CLIENTTAGDENY=%s)',
+                    ctx.net, tag, tostring(irc.isupport.CLIENTTAGDENY)), 0)
+            end
+            send.send_tagged(ctx.net, {[irc_model.channel_context_tag] = channel}, 'PRIVMSG', nick, text)
         end),
         chat.command('ctcp', '$g $r', 'target request', 'Send a CTCP request', function(ctx, target, text)
             send.send(ctx.net, 'PRIVMSG', target, '\x01' .. text .. '\x01')

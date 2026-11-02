@@ -305,6 +305,11 @@ local function chat_summary(ctx, win, msg)
     if prefix then
         table.insert(sent, {scrub(prefix) .. ' and above only', draw.red})
     end
+    if msg.context then
+        local channel = tag_value(msg.tags, irc_model.channel_context_tag)
+            or tag_value(msg.tags, '+draft/channel-context') or '?'
+        table.insert(sent, {'privately, in ' .. scrub(channel), draw.red})
+    end
     line(ctx, win, 'sent', stamped(sent, msg))
     local parent = tag_value(msg.tags, '+reply')
     if parent then line(ctx, win, 'reply to', {{scrub(parent)}}) end

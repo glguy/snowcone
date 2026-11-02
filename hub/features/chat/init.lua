@@ -25,6 +25,10 @@
 --
 -- Our own PRIVMSG and NOTICE lines are shown from irc.sent, and with
 -- labeled-response await the server's reply (chat/receipt.lua).
+--
+-- A private message with the channel-context tag naming a channel we are
+-- in is shown in that channel's buffer, marked msg.context: '>' from the
+-- sender to us, '<' from us to the recipient. /cmsg sends one.
 
 local bus        <const> = require 'hub.runtime.bus'
 local casemap    <const> = require 'hub.lib.casemap'
@@ -380,13 +384,20 @@ local function mention_patterns(net)
 end
 
 -- Where a message belongs: channel messages in the channel, private ones
--- in a buffer named for the other side
+-- in a buffer named for the other side, unless they are meant to be
+-- shown in a channel we are in (channel-context)
 local function route_chat(net, irc, target, text, msg)
     local nick = msg.nick
+    local context = not msg.statusmsg and irc_model.channel_context(irc, target, msg.tags)
     -- ours, relayed by a bouncer from another client, echoed or replayed:
     -- never a mention, never unseen
     if nick and irc_model.is_me(irc, nick) then
-        add(net, target, msg, false, false)
+        if context then
+            msg.context = '<'
+            add(net, context, msg, false, false)
+        else
+            add(net, target, msg, false, false)
+        end
         return
     end
 
@@ -404,12 +415,19 @@ local function route_chat(net, irc, target, text, msg)
     end
 
     -- to us, to a broadcast mask ($$*.net), or to a nick we just left: in
-    -- the sender's buffer; only one to us is a mention, and not a CTCP
-    -- request (VERSION, PING) other than an action
+    -- the sender's buffer, or the channel it is meant for; only one to us
+    -- is a mention, and not a CTCP request (VERSION, PING) other than an
+    -- action
     local sender = nick or msg.source
     if sender then
         local ctcp_request = text:find '^\x01' and not text:find '^\x01ACTION'
-        add(net, sender, msg, irc_model.is_me(irc, target) and not ctcp_request, true)
+        local mention = irc_model.is_me(irc, target) and not ctcp_request
+        if context and nick then
+            msg.context = '>'
+            add(net, context, msg, mention, true)
+        else
+            add(net, sender, msg, mention, true)
+        end
     end
 end
 

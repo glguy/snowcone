@@ -597,6 +597,65 @@ local function boot_echo()
     return c, T.require 'hub.features.chat'
 end
 
+T.case('a private message with channel-context shows in the channel', function()
+    local c, chat = boot_echo()
+    local a = chat.buffer('test', '#a')
+    c:recv '@+draft/channel-context=#a :alice!a@h PRIVMSG me :psst'
+    local msg = chat.newest(a)
+    T.eq({msg[2], msg.context, msg.statusmsg}, {'psst', '>', nil}, 'in #a, marked')
+    T.eq(chat.buffer('test', 'alice'), nil, 'no private buffer')
+    T.eq({a.mention, a.activity}, {true, 1}, 'a mention, as a private message is')
+
+    c:recv '@+channel-context=#a :alice!a@h PRIVMSG me :undrafted'
+    T.eq(chat.newest(a).context, '>', 'the name without draft/ too')
+    c:recv '@+draft/channel-context=#elsewhere :alice!a@h PRIVMSG me :away'
+    T.eq(texts(chat.buffer('test', 'alice')), {'PRIVMSG me away'}, 'a channel we are not in: privately')
+    c:recv '@+draft/channel-context=#a :alice!a@h PRIVMSG #b :odd'
+    local odd = chat.newest(chat.buffer('test', '#b'))
+    T.eq({odd[2], odd.context}, {'odd', nil}, 'to a channel: in that channel')
+
+    -- ours, from /cmsg in the shown channel
+    T.command('cmsg bob hello', 'test', '#a')
+    T.eq(c:take(), {'@+channel-context=#a;label=sc1 PRIVMSG bob hello'}, 'tagged')
+    local mine = chat.newest(a)
+    T.eq({mine[1], mine[2], mine.context, mine.receipt}, {'bob', 'hello', '<', 'awaiting'}, 'in #a, marked')
+    T.eq(chat.buffer('test', 'bob'), nil, 'no private buffer')
+    c:recv '@label=sc1;msgid=m1;+channel-context=#a :me!u@h PRIVMSG bob :hello'
+    T.eq({mine.receipt, mine.tags.msgid}, {'received', 'm1'}, 'its echo confirms it')
+    T.ok(chat.find(a, 'm1') == mine, 'found by its msgid')
+
+    -- ours from another client, relayed
+    c:recv '@msgid=m2;+draft/channel-context=#a :me!u@h PRIVMSG bob :relayed'
+    T.eq({chat.newest(a)[2], chat.newest(a).context}, {'relayed', '<'}, 'in #a, marked')
+
+    T.command('cmsg bob hi', 'test', 'bob')
+    T.command('cmsg #b hi', 'test', '#a')
+    T.eq(c:take(), {}, 'only from a channel, only to a nick')
+    local errors = T.log_lines 'error'
+    T.ok(errors[#errors - 1]:find 'not a channel', 'not from a private buffer')
+    T.ok(errors[#errors]:find 'not a nick', 'not to a channel')
+end)
+
+T.case('/cmsg needs client tags, and the channel-context tag', function()
+    local c = boot()
+    c:recv ':me!u@h JOIN #c'
+    c:take()
+    T.command('cmsg bob hi', 'test', '#c')
+    T.eq(c:take(), {}, 'nothing sent')
+    local errors = T.log_lines 'error'
+    T.ok(errors[#errors]:find('has not enabled message-tags', 1, true), 'and says why')
+
+    -- as Solanum announces it
+    c = boot_tags 'CLIENTTAGDENY=*,-draft/react,-draft/reply,-channel-context'
+    T.command('cmsg bob hi', 'test', '#c')
+    T.eq(c:take(), {'@+channel-context=#c PRIVMSG bob hi'}, 'sent where excepted')
+    c = boot_tags 'CLIENTTAGDENY=*'
+    T.command('cmsg bob hi', 'test', '#c')
+    T.eq(c:take(), {}, 'not where denied')
+    errors = T.log_lines 'error'
+    T.ok(errors[#errors]:find('refuses the channel-context tag (CLIENTTAGDENY=*)', 1, true), 'and says why')
+end)
+
 T.case('an echo confirms our message and gives it its msgid', function()
     local c, chat = boot_echo()
     local a = chat.buffer('test', '#a')

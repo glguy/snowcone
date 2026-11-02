@@ -989,6 +989,29 @@ T.case("Esc resets the view's own filters too", function()
     T.ok(HUB.current.commands.prefilter, 'the connection views bring /prefilter')
 end)
 
+T.case('a private message shown in a channel is marked > after its sender, ours < after its recipient', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv '@+draft/channel-context=#chan :alice!a@h PRIVMSG me :psst'
+    c:recv '@+draft/channel-context=#chan :me!u@h PRIVMSG bob :back'
+    control.set_talk_target('test', '#chan')
+    control.set_view 'buffer'
+    HUB.current.routes['ui.draw']()
+    local rows = {}
+    for i = #fake_ncurses.windows, 1, -1 do
+        local win = fake_ncurses.windows[i]
+        if win.kind == 'newpad' and win.h == tty_height - 1 and win.w ~= tty_width then
+            for y = 0, win.h - 1 do table.insert(rows, fake_ncurses.row(win, y)) end
+            break
+        end
+    end
+    local text = table.concat(rows, '\n')
+    T.ok(text:find('alice>psst', 1, true), 'theirs: ' .. text)
+    T.ok(text:find('bob<back', 1, true), 'ours: ' .. text)
+    T.eq(T.log_lines 'error', {}, 'no errors')
+end)
+
 T.case('a click on a reply scrolls to the message it answers, until Esc', function()
     local c = boot()
     local control = T.require 'hub.ui.control'

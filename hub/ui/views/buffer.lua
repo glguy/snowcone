@@ -7,11 +7,13 @@
 -- input mode; each buffer keeps its own until Esc, and no typing notices
 -- go there. n and p step through the network's buffers; Meta-H hides joins,
 -- parts, quits, nick changes, account changes and host changes. Click a
--- sender to inspect the message in the detail pane. A reply (the +reply
--- tag) starts with ↩: click it to scroll to the message it answers, which
--- is highlighted until Esc. Click a channel's name in the status bar for
--- its information, a nick's for its WHOIS. After the name, the two who
--- most recently started typing there (not those who paused).
+-- sender to inspect the message in the detail pane. A private message
+-- meant for a channel (channel-context, sent with /cmsg) is shown there
+-- marked >, after its sender; ours marked <, after its recipient. A reply
+-- (the +reply tag) starts with ↩: click it to scroll to the message it
+-- answers, which is highlighted until Esc. Click a channel's name in the
+-- status bar for its information, a nick's for its WHOIS. After the name,
+-- the two who most recently started typing there (not those who paused).
 -- With no buffer chosen, the view shows one with a mention, else one with
 -- activity, else the first by name. A channel's buffer shows why the
 -- server refused our JOIN; when it forwards the JOIN elsewhere, both
@@ -189,6 +191,11 @@ local function render_msg(ctx, win, buffer, msg)
     else
         draw.magenta(win)
     end
+    -- ours, shown in a channel (channel-context), names whom it went to
+    -- in place of >>> or our nick
+    if msg.context == '<' then
+        source = (source:match '^(.-)>>>$' or '') .. (msg[1] or '?')
+    end
 
     -- the highlighted or inspected message shows its sender as a button
     -- would
@@ -198,9 +205,10 @@ local function render_msg(ctx, win, buffer, msg)
         control.open_detail('message', ctx.net, msg)
     end, not marked)
 
-    if msg.statusmsg then
+    local label = msg.statusmsg or msg.context
+    if label then
         draw.red(win)
-        win:waddstr(scrub(msg.statusmsg))
+        win:waddstr(scrub(label))
     else
         win:waddstr ' '
     end

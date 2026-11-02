@@ -152,18 +152,22 @@ function M.on_sent(chat, net, irc, msg)
     for target in msg[1]:gmatch '[^,]+' do table.insert(targets, target) end
     for _, target in ipairs(targets) do
         local prefix, name = irc_model.split_statusmsg(irc, target)
-        local buffer = chat.buffer(net, name)
+        -- a private message meant for a channel (channel-context) is
+        -- shown there
+        local context = not prefix and irc_model.channel_context(irc, name, msg.tags)
+        local buffer = chat.buffer(net, context or name)
         local copy = msg
         -- the console keeps the line as sent, and each target's echo
         -- brings its own msgid and text; each buffer's copy names only
         -- its own target
-        if prefix or label or #targets > 1 then
+        if prefix or context or label or #targets > 1 then
             ---@diagnostic disable-next-line: missing-fields filled in below
             copy = {} --[[@as hub.Message]]
             for k, v in pairs(msg) do copy[k] = v end
             copy.tags = {}
             for k, v in pairs(msg.tags) do copy.tags[k] = v end
             copy.statusmsg = prefix
+            copy.context = context and '<' or nil
             copy[1] = target
         end
         if irc_model.is_channel_name(irc, name) and irc.nick then

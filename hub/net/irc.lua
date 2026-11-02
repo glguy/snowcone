@@ -448,6 +448,28 @@ function M.split_statusmsg(irc, target)
     return prefix, target
 end
 
+--- The client-only tag that shows a private message in a channel, as
+--- Solanum takes it; the draft name, +draft/channel-context, is read too
+M.channel_context_tag = '+channel-context'
+local channel_context_tags <const> = {M.channel_context_tag, '+draft/channel-context'}
+
+--- The channel a private message to a nick is meant to be shown in (the
+--- channel-context tag): one we are in. Nil for a message to a channel.
+---@param irc hub.Irc
+---@param target string the message's target
+---@param tags table<string, string|true>|nil
+---@return string|nil
+function M.channel_context(irc, target, tags)
+    if not tags or M.is_channel_name(irc, target) then return nil end
+    for _, key in ipairs(channel_context_tags) do
+        local name = tags[key]
+        if type(name) == 'string' and M.is_channel_name(irc, name) then
+            local channel = M.get_channel(irc, name)
+            return channel and channel.name
+        end
+    end
+end
+
 -- Capabilities =======================================================
 
 --- Record the server's SASL mechanisms: a comma-separated list, or nil

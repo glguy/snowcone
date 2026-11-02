@@ -73,6 +73,9 @@ local M = {}
 --- (features/snotice/notice.lua)
 ---@field statusmsg string|nil of a PRIVMSG or NOTICE, the STATUSMSG prefix
 --- its target had, the members it went to (features/chat)
+---@field context '>'|'<'|nil of a private PRIVMSG or NOTICE shown in the
+--- channel its channel-context tag names: '>' to us, '<' from us
+--- (features/chat)
 ---@field history true|nil of a line in a chat buffer that came from chat
 --- history rather than live, so what it says of its sender then isn't known
 --- (features/chat)
