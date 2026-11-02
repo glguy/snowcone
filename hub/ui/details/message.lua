@@ -7,9 +7,11 @@
 
 local addircstr   <const> = require 'hub.ui.irc_formatting'
 local draw        <const> = require 'hub.ui.draw'
+local hybrid      <const> = require 'hub.ui.details.hybrid'
 local irc_model   <const> = require 'hub.net.irc'
+local ircd        <const> = require 'hub.net.ircd'
+local notice      <const> = require 'hub.features.snotice.notice'
 local numerics    <const> = require 'hub.lib.numerics'
-local parse_snote <const> = require 'hub.features.snotice.parse'
 local scrub       <const> = require 'hub.lib.scrub'
 local solanum     <const> = require 'hub.ui.details.solanum'
 local tablex      <const> = require 'pl.tablex'
@@ -25,30 +27,46 @@ M.palette = {
     QUIT = draw.magenta,
 }
 
---- Names of numerics, by number.
-local numeric_names = {}
-M.numeric_names = numeric_names
-for name, numeric in pairs(numerics) do
-    numeric_names[numeric] = name
-    if name:sub(1, 4) == 'ERR_' then
-        M.palette[numeric] = draw.red
-    end
+--- The name of a numeric on a network, or nil.
+---@param net string|nil
+---@param command string|integer
+---@return string|nil
+function M.numeric_name(net, command)
+    return ircd.numeric_names(net)[command]
 end
 
---- The body of a server notice, without its header, or nil.
-function M.snotice_text(msg)
-    if msg.source and msg.command == 'NOTICE'
-    and msg[1] == '*' and #msg == 2
-    and msg[2]:sub(1, 14) == '*** Notice -- ' then
-        return msg[2]:sub(15)
-    end
+--- The color of a command on a network, or nil.
+---@param net string|nil
+---@param command string|integer
+function M.color(net, command)
+    local name = M.numeric_name(net, command)
+    if name and name:sub(1, 4) == 'ERR_' then return draw.red end
+    return M.palette[command]
 end
 
---- The parsed form of a server notice (without the time, which the
---- message shows), or nil for any other message.
-function M.decode(msg)
-    local text = M.snotice_text(msg)
-    return text and parse_snote(msg.source, text)
+-- What a network's replies mean: ui/details/solanum.lua or hybrid.lua
+local meanings <const> = {
+    [ircd.SOLANUM] = solanum,
+    [ircd.HYBRID] = hybrid,
+}
+
+local function meaning(net)
+    return meanings[ircd.of(net)]
+end
+
+--- The body of a server notice on a network, without its header, or nil.
+---@param net string|nil
+---@param msg hub.Message
+function M.snotice_text(net, msg)
+    return notice.text(net, msg)
+end
+
+--- The parsed form of a server notice on a network (without the time,
+--- which the message shows), or nil for any other message.
+---@param net string|nil
+---@param msg hub.Message
+function M.decode(net, msg)
+    return notice.parse(net, msg)
 end
 
 local escapes <const> = {
@@ -72,7 +90,7 @@ end
 
 function M.title(detail)
     local msg = detail.data
-    local name = numeric_names[msg.command]
+    local name = M.numeric_name(detail.net, msg.command)
     return string.format('message %s%s', scrub(tostring(msg.command)), name and ' ' .. name or '')
 end
 
@@ -440,7 +458,7 @@ end
 -- A server notice: what the parser made of it
 local function snotice_summary(ctx, win, msg)
     line(ctx, win, 'sent', stamped({{'server notice'}}, msg))
-    local note = M.decode(msg)
+    local note = M.decode(ctx.net, msg)
     line(ctx, win, 'name', {{note and note.name or '?', draw.magenta}})
     for k, v in tablex.sort(note or {}) do
         if k ~= 'name' then line(ctx, win, k, {{scrub(tostring(v))}}) end
@@ -450,7 +468,7 @@ end
 -- The first line of a numeric's summary: its name and number, whom it
 -- is to and when; red for an error
 local function reply_header(ctx, win, msg)
-    local name = numeric_names[msg.command]
+    local name = M.numeric_name(ctx.net, msg.command)
     local failed = name and name:sub(1, 4) == 'ERR_'
     local reply = (name or 'numeric') .. string.format(' (%03d)', msg.command)
     if msg[1] then reply = reply .. ' to ' .. scrub(msg[1]) end
@@ -477,7 +495,7 @@ local function reply_field(ctx, win, label, kind, value)
     elseif kind == 'mins' and n then
         line(ctx, win, label, {n == 0 and {'permanent'} or {draw.duration(n * 60) .. ' left'}})
     elseif kind == 'line' then
-        local name = solanum.line_types[value]
+        local name = meaning(ctx.net).line_types[value]
         line(ctx, win, label, {{name or scrub(value), draw.bold}})
     elseif kind == 'reasons' then
         local public, private = value:match '^(.-)|(.*)$'
@@ -494,7 +512,7 @@ end
 -- target under its label, and any the fields don't name after them
 local function reply_summary(ctx, win, msg)
     reply_header(ctx, win, msg)
-    local fields = solanum.fields[msg.command]
+    local fields = meaning(ctx.net).fields[msg.command]
     local i = 2
     for k, field_spec in ipairs(fields) do
         local label, kind = field_spec:match '^(.-):(%a+)$'
@@ -520,12 +538,17 @@ end
 -- <sigils><user>@<host> <port> <class> :<description>
 summaries[numerics.RPL_STATSILINE] = function(ctx, win, msg)
     local name, password, mask, port, class = msg[3], msg[4], msg[5] or '', msg[6], msg[7]
+    local meant = meaning(ctx.net)
 
-    local sigils, user, host = mask:match '^([-+=%%|$^>]*)([^@]*)@(.*)$'
-    if not sigils then sigils, user, host = '', mask, nil end
+    -- the flags are the sigils before the user, which the network's
+    -- auth_flags name
+    local sigils = {}
+    for sigil in pairs(meant.auth_flags) do table.insert(sigils, '%' .. sigil) end
+    local prefix, user, host = mask:match('^([' .. table.concat(sigils) .. ']*)([^@]*)@(.*)$')
+    if not prefix then prefix, user, host = '', mask, nil end
     local flags, spoof = {}, false
-    for sigil in sigils:gmatch '.' do
-        table.insert(flags, {solanum.auth_flags[sigil] .. ' (' .. sigil .. ')'})
+    for sigil in prefix:gmatch '.' do
+        table.insert(flags, {meant.auth_flags[sigil] .. ' (' .. sigil .. ')'})
         if sigil == '=' then spoof = true end
     end
 
@@ -534,28 +557,29 @@ summaries[numerics.RPL_STATSILINE] = function(ctx, win, msg)
     line(ctx, win, 'auth', stamped(block, msg))
     line(ctx, win, 'flags', flags)
     if name and spoof then
-        line(ctx, win, 'spoof', {{scrub(name)}})
-    elseif name and name ~= 'NOMATCH' and name ~= '<NULL>' then
+        -- hybrid gives * for a block without a spoof name
+        if name ~= '*' then line(ctx, win, 'spoof', {{scrub(name)}}) end
+    elseif meant.auth_redirects and name and name ~= 'NOMATCH' and name ~= '<NULL>' then
         line(ctx, win, 'redirect', {{scrub(name) .. (port and port ~= '0' and ' port ' .. scrub(port) or '')}})
     end
-    if password and password ~= '<NULL>' then
+    if meant.auth_passwords and password and password ~= '<NULL>' then
         line(ctx, win, 'password', {{password == '*' and '(hidden)' or scrub(password)}})
     end
     if #msg > 7 then reason(ctx, win, 'desc', msg[#msg]) end
 end
 
 -- The summary of a message, or nil
-local function summary_of(msg)
-    if M.snotice_text(msg) then return snotice_summary end
+local function summary_of(net, msg)
+    if M.snotice_text(net, msg) then return snotice_summary end
     if summaries[msg.command] then return summaries[msg.command] end
-    if solanum.fields[msg.command] then return reply_summary end
-    local name = numeric_names[msg.command]
+    if meaning(net).fields[msg.command] then return reply_summary end
+    local name = M.numeric_name(net, msg.command)
     if name and name:sub(1, 4) == 'ERR_' then return error_summary end
 end
 
 -- The message level ==================================================
 
-local function message_level(win, msg, show_raw)
+local function message_level(net, win, msg, show_raw)
     if next(msg.tags) then
         draw.blue(win)
         win:waddstr '      tags:'
@@ -588,13 +612,13 @@ local function message_level(win, msg, show_raw)
     end
 
     field(win, 'command')
-    local cmd_color = M.palette[msg.command]
+    local cmd_color = M.color(net, msg.command)
     if cmd_color then cmd_color(win) end
     draw.bold(win)
     win:waddstr(scrub(tostring(msg.command)))
     draw.bold_(win)
     if not show_raw then
-        local name = numeric_names[msg.command]
+        local name = M.numeric_name(net, msg.command)
         if name then
             win:waddstr(' - ', name)
         end
@@ -623,14 +647,14 @@ local levels <const> = {'summary', 'message', 'raw'}
 ---@param detail hub.Detail
 ---@return 'summary'|'message'|'raw'
 function M.level(detail)
-    return detail.level or (summary_of(detail.data) and 'summary' or 'message')
+    return detail.level or (summary_of(detail.net, detail.data) and 'summary' or 'message')
 end
 
 function M.render(ctx, win)
     local detail = ctx.vs
     local msg = detail.data
     local shown = M.level(detail)
-    local summary = summary_of(msg)
+    local summary = summary_of(ctx.net, msg)
 
     for _, level in ipairs(levels) do
         if level ~= 'summary' or summary then
@@ -644,7 +668,7 @@ function M.render(ctx, win)
         sender(ctx, win, msg)
         summary(ctx, win, msg)
     else
-        message_level(win, msg, shown == 'raw')
+        message_level(ctx.net, win, msg, shown == 'raw')
     end
 end
 

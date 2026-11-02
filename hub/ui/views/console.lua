@@ -15,8 +15,6 @@ local scrub         <const> = require 'hub.lib.scrub'
 
 local meta <const> = function(x) return -string.byte(x) end
 
-local palette <const> = message.palette
-
 -- The source column, a button that inspects the message; blank, but
 -- still a button, for a message without a source
 local function source_button(ctx, win, msg, inspect, plain)
@@ -49,7 +47,7 @@ local function render_msg(ctx, win, net, msg)
 
     source_button(ctx, win, msg, inspect, plain)
 
-    local snote_text = message.snotice_text(msg)
+    local snote_text = message.snotice_text(net, msg)
     if snote_text ~= nil then
         draw.magenta(win)
         draw.bold(win)
@@ -62,7 +60,7 @@ local function render_msg(ctx, win, net, msg)
         return
     end
 
-    local color = palette[msg.command]
+    local color = message.color(net, msg.command)
     if color then color(win) end
     draw.bold(win)
     win:waddstr(string.format('%4.4s', msg.command))

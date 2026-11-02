@@ -66,6 +66,9 @@ local M = {}
 ---@field topic_before {topic: string|nil, who: string|nil, time: number|nil}|nil
 --- of a TOPIC, the channel's topic before it and who set it when, as far
 --- as we knew: nil fields when we never learned them (net/handlers.lua)
+---@field snote string|false|nil the text of a server notice without its
+--- header, or false for another message; nil until recorded on arrival
+--- (features/snotice/notice.lua)
 ---@field statusmsg string|nil of a PRIVMSG or NOTICE, the STATUSMSG prefix
 --- its target had, the members it went to (features/chat)
 ---@field history true|nil of a line in a chat buffer that came from chat
@@ -163,8 +166,11 @@ local function build_layers(t, configured)
     for _, layer in ipairs(configured) do
         if layer.type == 'tls' then
             local password = secrets.resolve(t, layer.client_password)
+            -- PEM text, replaced by what it parses to
+            ---@type string|myopenssl.X509|nil
             local cert = secrets.resolve(t, layer.client_cert)
-            local key = secrets.resolve(t, layer.client_key) or cert
+            ---@type string|myopenssl.Pkey|nil
+            local key = secrets.resolve(t, layer.client_key) or cert --[[@as string|nil]]
 
             if cert then
                 local ok, x509 = pcall(myopenssl.read_x509, cert)
@@ -439,7 +445,7 @@ function events.MSG(rec, msg, flush)
     elseif open and open.replay then
         return
     else
-        local h = handlers.commands[msg.command]
+        local h = handlers.for_ircd(id)[msg.command]
         if h then
             local ok, err = xpcall(h, traceback, rec, irc, msg)
             if not ok then

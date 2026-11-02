@@ -1,11 +1,11 @@
 -- Golden replay of server notices.
 --
 -- Each fixtures/*.log is replayed through a fake network with the snotice
--- feature; the snote events must equal fixtures/*.expected.lua, which
--- tests/hub/tools/expect-snotes.lua wrote with the reference parser.
+-- feature; the snote events must equal fixtures/*.expected.lua.
 -- snotes-live.log comes from a live network through
--- tests/hub/tools/anonymize-snotes.lua; snotes-synthetic.log is written by
--- hand for notices that didn't occur.
+-- tests/hub/tools/anonymize-snotes.lua, and tests/hub/tools/expect-snotes.lua
+-- wrote its expectation with the reference parser; snotes-synthetic.log
+-- and its expectation are written by hand for notices that didn't occur.
 --
 -- Run with:  snowcone tests/hub/test-snotice.lua
 
@@ -321,6 +321,177 @@ T.case('the live replay builds consistent stores', function()
     end
     T.eq(klines, count.kline, 'every K-Line recorded')
     T.ok(hits > 0, 'rejections matched to their K-Lines')
+end)
+
+-- OFTC hybrid ========================================================
+
+local function boot_hybrid(features)
+    local fake = FakeTransport.new()
+    T.boot {transport = fake, config = {networks = {{
+        id = 'test',
+        ircd = 'oftc-hybrid',
+        server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'},
+        features = features or {'snotice'},
+    }}}}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 376 me :End of MOTD'
+    c:take()
+    return c
+end
+
+-- Each OFTC hybrid notice as its server sends it, and its record: the
+-- network's notices (gnotices) come without the header, a server's own
+-- to its opers with it
+local O <const> = 'op!o@staff.example{op}'
+local function by_oper(t)
+    t.nick, t.user, t.host, t.oper = 'op', 'o', 'staff.example', 'op'
+    return t
+end
+local function headed(text) return ':a.example NOTICE me :*** Notice -- ' .. text end
+local function bare(text) return ':a.example NOTICE me :' .. text end
+local hybrid_notices = {
+    {bare 'Client connecting: n (~u@h.example) [192.0.2.1] {users} [Real Name]',
+     {name = 'connect', server = 'a.example', nick = 'n', user = '~u', host = 'h.example',
+      ip = '192.0.2.1', class = 'users', gecos = 'Real Name'}},
+    {bare 'Client connecting: s (~u@spoof/x) [255.255.255.255] {users} [S]',
+     {name = 'connect', server = 'a.example', nick = 's', user = '~u', host = 'spoof/x',
+      class = 'users', gecos = 'S'}},
+    {bare 'Client exiting: n (~u@h.example) [Quit: bye] [192.0.2.1]',
+     {name = 'disconnect', server = 'a.example', nick = 'n', user = '~u', host = 'h.example',
+      reason = 'Quit: bye', ip = '192.0.2.1'}},
+    {bare 'Nick change: From n to m [~u@h.example]',
+     {name = 'nick', server = 'a.example', old = 'n', new = 'm', user = '~u', host = 'h.example'}},
+    {headed(O .. ' added temporary 60 min. K-Line for [*@192.0.2.9] [spam]'),
+     by_oper {name = 'kline', server = 'a.example', mask = '*@192.0.2.9', duration = 60, reason = 'spam'}},
+    {headed(O .. ' added K-Line for [*@bad.example] [forever]'),
+     by_oper {name = 'kline', server = 'a.example', mask = '*@bad.example', reason = 'forever'}},
+    {headed(O .. ' added temporary 30 min. D-Line for [198.51.100.0/24] [x]'),
+     by_oper {name = 'dline', server = 'a.example', mask = '198.51.100.0/24', duration = 30, reason = 'x'}},
+    {headed(O .. ' added X-Line for [*bot*] [bots]'),
+     by_oper {name = 'xline', server = 'a.example', mask = '*bot*', reason = 'bots'}},
+    {headed(O .. ' has placed a 10 minute local RESV on channel: #bad [no]'),
+     by_oper {name = 'resv', server = 'a.example', mask = '#bad', duration = 10, reason = 'no'}},
+    {headed(O .. ' has placed a local RESV on nick badnick : [no]'),
+     by_oper {name = 'resv', server = 'a.example', mask = 'badnick', reason = 'no'}},
+    {headed(O .. ' has removed the temporary K-Line for: [*@192.0.2.9]'),
+     by_oper {name = 'removed', server = 'a.example', kind = 'k-line', mask = '*@192.0.2.9'}},
+    {headed(O .. ' has removed the D-Line for: [198.51.100.0/24]'),
+     by_oper {name = 'removed', server = 'a.example', kind = 'd-line', mask = '198.51.100.0/24'}},
+    {headed 'Temporary K-line for [*@192.0.2.8] expired',
+     {name = 'expired', server = 'a.example', kind = 'k-line', mask = '*@192.0.2.8'}},
+    {bare 'KLINE *@192.0.2.9 (spam) active for n[~u@192.0.2.9]',
+     {name = 'kline_active', server = 'a.example', nick = 'n', user = '~u', host = '192.0.2.9', mask = '*@192.0.2.9'}},
+    {bare 'DLINE *@198.51.100.7 (x) active for n[~u@198.51.100.7]',
+     {name = 'dline_active', server = 'a.example', nick = 'n', user = '~u', host = '198.51.100.7', mask = '198.51.100.7'}},
+    {bare 'X-line Rejecting [botnet] [bots], user b[~b@h.example] [192.0.2.3]',
+     {name = 'rejected', server = 'a.example', nick = 'b', user = '~b', host = 'h.example', mask = 'botnet',
+      ip = '192.0.2.3', kind = 'x-line'}},
+    {bare 'Received KILL message for n. From op Path: a.example (go away)',
+     {name = 'kill', server = 'a.example', nick = 'n', from = 'op', reason = 'go away'}},
+    {headed 'Received KILL message for n. From op Path: a.example!staff.example!o!op (go away)',
+     {name = 'kill', server = 'a.example', nick = 'n', from = 'op', reason = 'go away'}},
+    {headed 'Received KILL message for n. From NickServ Ghost command used by m',
+     {name = 'kill', server = 'a.example', nick = 'n', from = 'NickServ', reason = 'Ghost command used by m'}},
+    {bare 'b.example was connected for 3600 seconds.  12/34 sendK/recvK.',
+     {name = 'netsplit', server = 'a.example', server1 = 'a.example', server2 = 'b.example'}},
+    {bare 'Link with b.example[unknown@255.255.255.255] established: (TS EX) link',
+     {name = 'netjoin', server = 'a.example', server1 = 'a.example', server2 = 'b.example'}},
+    {bare 'New Max Local Clients: 1234',
+     {name = 'newmaxlocal', server = 'a.example', clients = 1234}},
+    {headed 'Possible Flooder f[~f@h.example] on a.example target: #c',
+     {name = 'flooder', server = 'a.example', nick = 'f', user = '~f', host = 'h.example', target = '#c'}},
+    {bare 'User s (~s@h.example) trying to join #c is a possible spambot',
+     {name = 'spambot', server = 'a.example', nick = 's', user = '~s', host = 'h.example', target = '#c'}},
+    {bare 'op (o@staff.example) is now an operator (op)',
+     by_oper {name = 'oper', server = 'a.example'}},
+    {headed('OPERSPY ' .. O .. ' WHOIS victim'),
+     by_oper {name = 'operspy', server = 'a.example', token = 'WHOIS', arg = 'victim'}},
+    {bare 'Too many on IP for n[~u@192.0.2.4] (192.0.2.4). (generic too_many)',
+     {name = 'toomany', server = 'a.example', nick = 'n', user = '~u', host = '192.0.2.4', kind = 'too_many',
+      ip = '192.0.2.4'}},
+    {bare 'Too many connections from IP (number_per_ip) n[~u@192.0.2.4] [192.0.2.4] {users}',
+     {name = 'toomany', server = 'a.example', nick = 'n', user = '~u', host = '192.0.2.4', kind = 'number_per_ip',
+      ip = '192.0.2.4', class = 'users'}},
+    {bare 'Module m_foo.so [version: 1] loaded at 0x1234',
+     {name = 'modload', server = 'a.example', module = 'm_foo.so'}},
+    {bare 'Module m_foo.so unloaded',
+     {name = 'modunload', server = 'a.example', module = 'm_foo.so'}},
+    {bare 'User shedding ENABLED by op (o@staff.example); interval: 30 seconds, opers: no, reason: "maintenance"',
+     by_oper {name = 'shedding_on', server = 'a.example', interval = 30, reason = 'maintenance'}},
+    {bare 'User shedding DISABLED by op (o@staff.example)',
+     by_oper {name = 'shedding_off', server = 'a.example'}},
+}
+
+T.case('OFTC hybrid notices', function()
+    local c = boot_hybrid()
+    local events = record 'snote'
+    for i, case in ipairs(hybrid_notices) do
+        local before = #events
+        c:recv(case[1])
+        T.eq(#events, before + 1, 'event for notice ' .. i .. ': ' .. case[1])
+        local got = events[#events]
+        if got then
+            got.net, got.timestamp, got.time = nil, nil, nil
+            T.eq(got, case[2], case[1])
+        end
+    end
+
+    local n = #events
+    -- the server's other notices to us aren't server notices, nor
+    -- notices to someone else or to *
+    c:recv ':a.example NOTICE me :Added K-Line [*@192.0.2.9]'
+    c:recv ':a.example NOTICE other :Client connecting: n (~u@h.example) [192.0.2.1] {users} [Real Name]'
+    c:recv ':x!y@z NOTICE me :Client connecting: n (~u@h.example) [192.0.2.1] {users} [Real Name]'
+    c:recv ':a.example NOTICE * :*** Notice -- Client connecting: n (u@h.example) [192.0.2.1] {users} <*> [Real]'
+    c:recv ':a.example NOTICE * :Client connecting: n (~u@h.example) [192.0.2.1] {users} [Real Name]'
+    c:recv ':a.example NOTICE * :*** Notice -- Possible Flooder f[~f@h.example] on a.example target: #c'
+    T.eq(#events, n, 'nothing else')
+end)
+
+T.case('OFTC hybrid notices fill the stores', function()
+    local c = boot_hybrid()
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    c:recv ':a.example NOTICE me :Client connecting: n (~u@h.example) [192.0.2.1] {users} [Real Name]'
+    c:recv ':a.example NOTICE me :Nick change: From n to m [~u@h.example]'
+    c:recv ':a.example NOTICE me :Client exiting: m (~u@h.example) [Quit: bye] [192.0.2.1]'
+    local S = stores()
+    local user = OrderedMap.lookup(S.users, 'm')
+    T.eq({user.nick, user.reason, user.ip, user.account}, {'m', 'Quit: bye', '192.0.2.1', nil}, 'connection')
+
+    c:recv ':a.example NOTICE me :*** Notice -- op!o@staff.example{op} added temporary 60 min. K-Line for [*@192.0.2.9] [spam]'
+    c:recv ':a.example NOTICE me :KLINE *@192.0.2.9 (spam) active for n1[~u@192.0.2.9]'
+    local kline = OrderedMap.lookup(S.klines, 'kline *@192.0.2.9')
+    T.eq({kline.oper, kline.duration, kline.nicks}, {'op', 60, {n1 = 1}}, 'K-Line and its hit')
+    c:recv ':a.example NOTICE me :*** Notice -- op!o@staff.example{op} has removed the temporary K-Line for: [*@192.0.2.9]'
+    T.eq(kline.kind, 'inactive', 'removed')
+end)
+
+T.case('OFTC hybrid sets user modes after opering, and counts with TESTMASK', function()
+    local c = boot_hybrid()
+    c:recv ':a.example 381 me :You have entered... the Twilight Zone!'
+    T.eq(c:take()[1], 'MODE me +bcfknrs', 'user modes, not a snomask')
+
+    local S = stores()
+    T.require 'hub.features.snotice.nettrack'.add(S.net_trackers, 'doc', '192.0.2.0/24')
+    c:recv ':a.example 724 me *@192.0.2.0/24 3 4 :Local/remote clients match.'
+    T.eq(S.net_trackers.doc['192.0.2.0/24'].count, 7, 'counted')
+    -- Solanum's count means something else here
+    c:recv ':a.example 727 me 5 5 *!*@192.0.2.0/24 * :Is Captured.'
+    T.eq(S.net_trackers.doc['192.0.2.0/24'].count, 7, 'not a count')
+end)
+
+T.case('an unknown ircd is refused', function()
+    local ok, err = pcall(T.boot, {transport = FakeTransport.new(), config = {networks = {{
+        id = 'test', ircd = 'unreal',
+        server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'},
+    }}}})
+    T.eq(ok, false, 'refused')
+    T.ok(tostring(err):find('networks.test.ircd: unknown ircd unreal', 1, true), tostring(err))
 end)
 
 T.run()

@@ -46,6 +46,25 @@ T.case('whois reports a refused remote whois', function()
     T.eq(next(HUB.tasks), nil, 'finished')
 end)
 
+T.case('whois reads OFTC hybrid replies', function()
+    local c = boot {ircd = 'oftc-hybrid'}
+    local task = T.require 'hub.runtime.task'
+    local whois = T.require 'hub.features.chat.whois'
+    local seen = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'chat.whois', 'test', function(ev) seen[#seen + 1] = ev.whois end)
+    task.spawn('whois', {net = 'test'}, whois, 'Nick')
+    T.eq(c:take(), {'WHOIS Nick'}, 'asked')
+    c:recv ':srv 311 me Nick ~n cloak.example * :Real'
+    c:recv ':srv 307 me Nick :user has identified and verified with services'
+    c:recv ':srv 320 me Nick :is really (~n@real.example)'
+    c:recv ':srv 338 me Nick 192.0.2.5 :actually using host'
+    c:recv ':srv 275 me Nick :is connected via SSL (secure link)'
+    c:recv ':srv 318 me Nick :End of /WHOIS list.'
+    local w = seen[1]
+    T.eq({w.mask, w.ip, w.secure, w.specials}, {'~n@real.example', '192.0.2.5', true,
+        {'user has identified and verified with services'}}, 'read')
+end)
+
 T.case('whowas gathers every past entry, and reports failures', function()
     local c = boot()
     local task = T.require 'hub.runtime.task'

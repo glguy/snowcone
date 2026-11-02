@@ -113,6 +113,13 @@ local function normalize_network(net, i, warnings)
         error(string.format('networks.%s.server: port is required with host', net.id), 0)
     end
 
+    if net.ircd == nil then
+        net.ircd = 'solanum'
+    elseif not tablex.find(cschema.ircds, net.ircd) then
+        error(string.format('networks.%s.ircd: unknown ircd %s (known: %s)',
+            net.id, net.ircd, table.concat(cschema.ircds, ', ')), 0)
+    end
+
     if net.features then
         local set = {}
         for _, name in ipairs(net.features) do

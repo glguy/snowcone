@@ -116,7 +116,9 @@ a decision is made, and change or remove it when the decision does.
 - `sasl` without a value in CAP LS means the mechanisms are unknown, so
   all are tried.
 - Handlers live in `handlers.commands`, apart from module exports, so a
-  server command can't name a non-handler.
+  server command can't name a non-handler. `handlers.for_ircd` gives a
+  network's table: OFTC hybrid's is a copy of it, taken at load, with its
+  own quiet list numerics.
 - **`draft/event-playback` is not requested by default:** playback should
   bring chat, not joins and parts. Add it per network with
   `server.capabilities`.

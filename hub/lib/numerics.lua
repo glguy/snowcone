@@ -1,3 +1,8 @@
+-- Numeric replies by name: Solanum's, and the names the hub's logic
+-- checks replies against on every network. OFTC hybrid sends most at the
+-- same numbers; lib/numerics_hybrid.lua holds its own names, for display
+-- and for the replies whose numbers differ.
+
 return {
     RPL_WELCOME = 1,
     RPL_YOURHOST = 2,

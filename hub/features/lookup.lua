@@ -1,11 +1,14 @@
 -- Find a user's username, host and address for a ban: lookup(t, nick)
 -- from a network task, with WHO, then WHOWAS for someone who has left.
+-- OFTC hybrid has no WHOX, so there WHOIS stands in for WHO: its
+-- RPL_WHOISACTUALLY gives operators the address.
 --
 -- The address is 255.255.255.255 when the server won't say: WHO hides it
 -- from all but operators, and WHOWAS gives it only with RPL_WHOISACTUALLY.
 -- Raises when the network can't send the WHO.
 
 local irc_model <const> = require 'hub.net.irc'
+local ircd      <const> = require 'hub.net.ircd'
 local N         <const> = require 'hub.lib.numerics'
 
 ---@class hub.Lookup
@@ -14,29 +17,59 @@ local N         <const> = require 'hub.lib.numerics'
 ---@field host string
 ---@field ip string
 
+-- The user while connected: true when the server says they aren't, nil
+-- when it doesn't answer
+---@param t hub.Task
+---@param nick string
+---@param same fun(n: string|nil): boolean|nil
+---@return hub.Lookup|true|nil
+local function who(t, nick, same)
+    for msg in t:request({N.RPL_WHOSPCRPL, N.RPL_ENDOFWHO}, 30000, 'WHO', nick, '%tuihn,696') do
+        if msg.command == N.RPL_WHOSPCRPL and msg[2] == '696' and same(msg[6]) then
+            return {nick = msg[6], user = msg[3], host = msg[5], ip = msg[4]}
+        elseif msg.command == N.RPL_ENDOFWHO and same(msg[2]) then
+            return true
+        end
+    end
+end
+
+---@param t hub.Task
+---@param nick string
+---@param same fun(n: string|nil): boolean|nil
+---@return hub.Lookup|true|nil
+local function whois(t, nick, same)
+    local found
+    for msg in t:request({N.RPL_WHOISUSER, N.RPL_WHOISACTUALLY, N.ERR_NOSUCHNICK, N.RPL_ENDOFWHOIS},
+        30000, 'WHOIS', nick)
+    do
+        local command = msg.command
+        if command == N.RPL_WHOISUSER and same(msg[2]) then
+            -- "<client> <nick> <username> <host> * :<realname>"
+            found = {nick = msg[2], user = msg[3], host = msg[4], ip = '255.255.255.255'}
+        elseif command == N.RPL_WHOISACTUALLY and found and same(msg[2]) then
+            -- "<client> <nick> <address> :actually using host"
+            found.ip = msg[3]
+        elseif command == N.ERR_NOSUCHNICK and same(msg[2]) then
+            return true
+        elseif command == N.RPL_ENDOFWHOIS and same(msg[2]) then
+            return found or true
+        end
+    end
+end
+
 ---@param t hub.Task
 ---@param nick string
 ---@return hub.Lookup|nil
 ---@return string|nil # why there is no answer
 return function(t, nick)
-    -- first, so a network without a connection fails with a message
-    local who = t:request({N.RPL_WHOSPCRPL, N.RPL_ENDOFWHO}, 30000, 'WHO', nick, '%tuihn,696')
+    local irc = HUB.state.nets[t.net] and HUB.state.nets[t.net].irc
+    -- a network without a connection fails with a message from the send
+    local key = irc and irc_model.fold(irc, nick)
+    local function same(n) return n and irc and irc_model.fold(irc, n) == key end
 
-    local irc = HUB.state.nets[t.net].irc
-    ---@cast irc -nil the WHO went out, so the network is connected
-    local key = irc_model.fold(irc, nick)
-    local function same(n) return n and irc_model.fold(irc, n) == key end
-
-    local found_end
-    for msg in who do
-        if msg.command == N.RPL_WHOSPCRPL and msg[2] == '696' and same(msg[6]) then
-            return {nick = msg[6], user = msg[3], host = msg[5], ip = msg[4]}
-        elseif msg.command == N.RPL_ENDOFWHO and same(msg[2]) then
-            found_end = true
-            break
-        end
-    end
-    if not found_end then return nil, 'no WHO reply for ' .. nick end
+    local online = (ircd.hybrid(t.net) and whois or who)(t, nick, same)
+    if type(online) == 'table' then return online end
+    if not online then return nil, 'no WHO reply for ' .. nick end
 
     local user, host, gecos
     for msg in t:request({N.RPL_WHOWASUSER, N.ERR_WASNOSUCHNICK, N.RPL_ENDOFWHOWAS, N.RPL_WHOISACTUALLY},

@@ -45,6 +45,10 @@ M.auth_flags = {
     ['>'] = 'exceed_limit',
 }
 
+--- An I-line names a redirect server and shows the block's password.
+M.auth_redirects = true
+M.auth_passwords = true
+
 --- Names of prefix modes by their prefix, which networks spell with
 --- different letters.
 M.prefix_names = {

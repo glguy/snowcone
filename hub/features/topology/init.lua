@@ -10,6 +10,7 @@
 local bus       <const> = require 'hub.runtime.bus'
 local clock     <const> = require 'hub.runtime.clock'
 local common    <const> = require 'hub.features.common'
+local ircd      <const> = require 'hub.net.ircd'
 local log       <const> = require 'hub.runtime.log'
 local N         <const> = require 'hub.lib.numerics'
 local resources <const> = require 'hub.runtime.resources'
@@ -88,13 +89,21 @@ M.resync_after = 10
 
 local H = {}
 
+-- A server and its users in a map line, by ircd. Solanum's:
+-- "<tree>name[SID] ----- | Users:   123 (4.5%)"; OFTC hybrid's, with
+-- dashes or spaces: "<tree>name[SID] -------   123 [ 4.5%]"
+local map_patterns <const> = {
+    [ircd.SOLANUM] = '(%g*)%[...%] %-* | Users: +(%d+)',
+    [ircd.HYBRID] = '(%w[%w.%-]*)%[%w*%][ %-]+(%d+) %[',
+}
+
 -- "<client> :<map line>" ... until RPL_MAPEND
-H[N.RPL_MAP] = function(T, msg)
+H[N.RPL_MAP] = function(T, msg, net)
     if not T.in_map then
         T.population = {}
         T.in_map = true
     end
-    local server, count = (msg[2] or ''):match '(%g*)%[...%] %-* | Users: +(%d+)'
+    local server, count = (msg[2] or ''):match(map_patterns[ircd.of(net)])
     if server then
         T.population[server] = math.tointeger(count)
     end

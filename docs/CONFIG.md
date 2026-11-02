@@ -87,6 +87,7 @@ beep = true
 
 [[networks]]
 id = 'oftc'
+ircd = 'oftc-hybrid'
 features = ['chat']
 
 [networks.server]
@@ -147,6 +148,7 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 | Field | Default | Meaning |
 |---|---|---|
 | `id` | | Required. The network's name in the status bar, in `/net <id>` and in `@id` before a command, so keep it short. Letters, digits, `_`, `.` and `-`. Ids must be unique. |
+| `ircd` | `'solanum'` | The server software the network runs: `'solanum'` or `'oftc-hybrid'`. It decides how server notices are recognized and parsed, what numerics mean, how `snomask` is set, how CHALLENGE works and how MAP, TESTMASK and TESTLINE replies read. OFTC hybrid has no MASKTRACE or TESTKLINE, and its connection notices carry no account, so a K-Line can't freeze one. |
 | `features` | all features | Which [features](#features) run on this network. |
 | `autoconnect` | `true` | Connect at startup, and after a reload that adds the network. With `false`, the network waits for `/connect`. |
 | `reconnect.min_delay` | `1` | Seconds before the first reconnect attempt. |
@@ -156,7 +158,7 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 | `channels` | none | Channels to JOIN after every registration, so also after each reconnect, as many to a line as fit. Names only, without keys. A change takes effect at the next connection. |
 | `reclaim_nick` | `true` | When the configured nick is taken at registration, watch it with MONITOR and take it back once it is free. |
 | `quit_message` | `'snowcone'` | The QUIT message for `/disconnect`, `/reconnect` and quitting. |
-| `snomask` | `'BFZbcklnsx'` | The server notice mask set after becoming an operator. Used only with the `snotice` feature. |
+| `snomask` | `'BFZbcklnsx'`, or `'bcfknrs'` on OFTC hybrid | What chooses the server notices to see, set after becoming an operator: on Solanum the server notice mask (`MODE nick +s mask`), on OFTC hybrid the user modes that select notices (`MODE nick +modes`). Used only with the `snotice` feature. |
 | `servers_file` | none | A TOML file describing the network's servers. See [The servers file](#the-servers-file). |
 | `server`, `layers` | | How to connect. See [Connecting](#connecting). `server` is required. |
 | `identity` | | Required. See [Registering](#registering). |
@@ -375,7 +377,7 @@ username = 'opername'
 password = { command = 'pass', arguments = ['show', 'oper'] }
 ```
 
-`[networks.challenge]` logs in with Solanum's CHALLENGE, using an RSA key:
+`[networks.challenge]` logs in with CHALLENGE, using an RSA key, in the form the network's [`ircd`](#network-settings) uses:
 
 ```toml
 [networks.challenge]
@@ -486,7 +488,7 @@ password = { command = 'security', arguments = ['find-generic-password', '-s', '
 - **Networks:**
   - A network added to the file connects if `autoconnect` allows.
   - A network removed from the file disconnects.
-- **Settings that apply at once:** `features`, `reconnect`, `reclaim_nick`, `quit_message`, `snomask`, `oper`, `challenge`, `mention`, `watches`, the servers file and the top-level tables.
+- **Settings that apply at once:** `ircd` (except for the `snomask` modes, which are set when you become an operator), `features`, `reconnect`, `reclaim_nick`, `quit_message`, `snomask`, `oper`, `challenge`, `mention`, `watches`, the servers file and the top-level tables.
 - **Settings that wait for a new connection:** a change to `server`, `layers`, `identity` or `sasl` marks the network `restart pending: /reconnect` in `/networks` and `/session` until you reconnect.
 
 A configuration that fails to load leaves the running one in place. The error is logged, hub switches to `/status` to show it, and `/stats` shows `last load failed` under `code`.

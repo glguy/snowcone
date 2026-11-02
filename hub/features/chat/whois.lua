@@ -1,12 +1,16 @@
 -- A WHOIS run as a network task: whois(t, nick, remote). The reply is
 -- gathered into a hub.Whois, logged as one line that opens it, and
--- emitted as chat.whois for the UI to show.
+-- emitted as chat.whois for the UI to show. OFTC hybrid's replies differ
+-- in places: 275 for TLS, 320 for the real host, 307, 308 and 309 for
+-- identified, admin and service, and no account.
 
 local bus       <const> = require 'hub.runtime.bus'
 local ip_org    <const> = require 'hub.features.snotice.ip_org'
 local irc_model <const> = require 'hub.net.irc'
+local ircd      <const> = require 'hub.net.ircd'
 local log       <const> = require 'hub.runtime.log'
 local N         <const> = require 'hub.lib.numerics'
+local NH        <const> = require 'hub.lib.numerics_hybrid'
 
 --- A WHOIS reply. Text is as the server sent it.
 ---@class hub.Whois
@@ -103,6 +107,27 @@ return function(t, nick, remote)
         [N.ERR_NONICKNAMEGIVEN] = function() fail 'whois failed: no nickname given' return true end,
         [N.ERR_NOSUCHNICK] = function() fail 'whois failed: no such nickname' return true end,
     }
+
+    if ircd.hybrid(t.net) then
+        local function special(msg) table.insert(w.specials, msg[3]) end
+        handlers[N.RPL_WHOISSPECIAL] = nil
+        handlers[N.RPL_WHOISSECURE] = nil
+        handlers[NH.RPL_WHOISSSL] = function() w.secure = true end
+        handlers[NH.RPL_WHOISNICKSERVREG] = special
+        handlers[NH.RPL_WHOISADMIN] = special
+        handlers[NH.RPL_WHOISSERVICE] = special
+        -- "<client> <nick> :is really (<user>@<host>)", to operators
+        handlers[NH.RPL_WHOISREAL] = function(msg)
+            w.mask = (msg[3] or ''):match '^is really %((.*)%)$'
+        end
+        -- "<client> <nick> <address> :actually using host", where
+        -- 255.255.255.255 hides it
+        handlers[N.RPL_WHOISACTUALLY] = function(msg)
+            if msg[3] ~= '255.255.255.255' then
+                w.mask, w.ip = w.mask or '*', msg[3]
+            end
+        end
+    end
 
     local commands = {}
     for k in pairs(handlers) do commands[k] = true end

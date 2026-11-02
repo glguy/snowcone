@@ -5,14 +5,16 @@
 local bus      <const> = require 'hub.runtime.bus'
 local clock    <const> = require 'hub.runtime.clock'
 local common   <const> = require 'hub.features.common'
+local ircd     <const> = require 'hub.net.ircd'
 local lexer    <const> = require 'pl.lexer'
 local loadavg  <const> = require 'hub.lib.loadavg'
 local log      <const> = require 'hub.runtime.log'
 local manager  <const> = require 'hub.net.manager'
 local matching <const> = require 'hub.lib.matching'
 local N        <const> = require 'hub.lib.numerics'
+local NH       <const> = require 'hub.lib.numerics_hybrid'
 local nettrack <const> = require 'hub.features.snotice.nettrack'
-local parse    <const> = require 'hub.features.snotice.parse'
+local notice   <const> = require 'hub.features.snotice.notice'
 local send     <const> = require 'hub.net.send'
 local stores   <const> = require 'hub.features.snotice.stores'
 
@@ -20,30 +22,17 @@ local M = {}
 
 M.name = 'snotice'
 
---- Server notice mask set after opering, unless the network configures
---- `snomask`
-M.default_snomask = 'BFZbcklnsx'
-
-local header <const> = '*** Notice -- '
-
---- The text of a server notice, without its header, or nil. A server
---- notice is a NOTICE to * from a server (no ! or @ in the source).
----@param msg hub.Message
----@return string|nil
-function M.notice_text(msg)
-    local source = msg.source
-    if msg.command == 'NOTICE' and msg[1] == '*' and #msg == 2
-    and source and not source:find '[!@]'
-    and msg[2]:sub(1, #header) == header then
-        return msg[2]:sub(#header + 1)
-    end
-end
+--- What chooses the notices we see after opering, by ircd, unless the
+--- network configures `snomask`: Solanum's server notice mask, and the
+--- user modes OFTC hybrid sends notices by.
+M.default_snomask = {
+    [ircd.SOLANUM] = 'BFZbcklnsx',
+    [ircd.HYBRID] = 'bcfknrs',
+}
 
 --- Parse a message into a notice event for a network, or nil.
 function M.parse(net, msg)
-    local text = M.notice_text(msg)
-    if not text then return nil end
-    local ev = parse(msg.source, text)
+    local ev = notice.parse(net, msg)
     if ev then
         ev.net = net
         ev.time = msg.time
@@ -74,19 +63,55 @@ local replies = {}
 -- After opering, ask for the notices we show
 replies[N.RPL_YOUREOPER] = function(net)
     local rec = HUB.state.nets[net]
-    query(net, 'MODE', rec.irc.nick, '+s', rec.cfg.snomask or M.default_snomask)
-end
-
--- "<client> <local> <remote> <mask> <gecos> :Local/remote clients match"
-replies[N.RPL_TESTMASKGECOS] = function(net, msg)
-    local loc, rem, mask, gecos = msg[2], msg[3], msg[4], msg[5]
-    local total = (math.tointeger(loc) or 0) + (math.tointeger(rem) or 0)
-    if gecos == '*' and mask and mask:sub(1, 4) == '*!*@' then
-        nettrack.set(stores.get(net).net_trackers, mask:sub(5), total)
+    local ircd_name = ircd.of(net)
+    local modes = rec.cfg.snomask or M.default_snomask[ircd_name]
+    if ircd_name == ircd.HYBRID then
+        query(net, 'MODE', rec.irc.nick, '+' .. modes:gsub('^%+', ''))
+    else
+        query(net, 'MODE', rec.irc.nick, '+s', modes)
     end
 end
 
+--- The users a TESTMASK reply counts, and the user@host mask it counted,
+--- or nil for another reply. Solanum's has a nick and a realname too:
+--- "<client> <local> <remote> <nick>!<user@host> <realname> :..." where
+--- hybrid's is "<client> <user@host> <local> <remote> :...".
+---@param net string
+---@param msg hub.Message
+---@return integer|nil, string|nil
+function M.testmask_count(net, msg)
+    local loc, rem, mask
+    if ircd.hybrid(net) then
+        if msg.command ~= NH.RPL_TESTMASK then return nil end
+        mask, loc, rem = msg[2], msg[3], msg[4]
+    else
+        if msg.command ~= N.RPL_TESTMASKGECOS or msg[5] ~= '*' then return nil end
+        loc, rem = msg[2], msg[3]
+        mask = msg[4] and msg[4]:match '^%*!(.*)$'
+    end
+    if not mask then return nil end
+    return (math.tointeger(loc) or 0) + (math.tointeger(rem) or 0), mask
+end
+
+--- The numeric of a network's TESTMASK count.
+function M.testmask_numeric(net)
+    return ircd.hybrid(net) and NH.RPL_TESTMASK or N.RPL_TESTMASKGECOS
+end
+
+local function testmask_reply(net, msg)
+    local total, mask = M.testmask_count(net, msg)
+    if not total then return end
+    ---@cast mask -nil a count comes with the mask it counted
+    if mask:sub(1, 2) == '*@' then
+        nettrack.set(stores.get(net).net_trackers, mask:sub(3), total)
+    end
+end
+replies[N.RPL_TESTMASKGECOS] = testmask_reply
+replies[NH.RPL_TESTMASK] = testmask_reply
+
 local function on_message(ev)
+    -- every network's, so the console shows its notices as notices
+    notice.record(ev.net, ev.msg)
     if not common.enabled(ev.net, M.name) then return end
     local note = M.parse(ev.net, ev.msg)
     if note then
@@ -286,7 +311,7 @@ M.commands = {
         name = 'inject', spec = '$r', usage = 'notice', scope = 'net', feature = 'snotice',
         help = 'Handle a server notice as if a server sent it (for testing)',
         fn = function(ctx, text)
-            local note = parse('INJECT.', text)
+            local note = notice.parser(ctx.net)('INJECT.', text)
             if not note then
                 error('no notice format matches', 0)
             end

@@ -36,10 +36,10 @@ local function draw_message(ctx, win, msg)
     draw.normal(win)
     win:waddstr ' '
 
-    local color = message.palette[msg.command]
+    local color = message.color(ctx.net, msg.command)
     if color then color(win) end
     draw.bold(win)
-    local name = message.numeric_names[msg.command]
+    local name = message.numeric_name(ctx.net, msg.command)
     win:waddstr(scrub(tostring(msg.command)) .. (name and ' ' .. name or ''))
     draw.normal(win)
 
@@ -53,8 +53,8 @@ end
 
 -- What the filter matches: the source, the command and its numeric
 -- name, and the arguments
-local function haystack(msg)
-    local name = message.numeric_names[msg.command]
+local function haystack(net, msg)
+    local name = message.numeric_name(net, msg.command)
     local parts = {msg.source or '', tostring(msg.command), name or ''}
     for _, arg in ipairs(msg) do table.insert(parts, arg) end
     return table.concat(parts, ' ')
@@ -72,7 +72,7 @@ function M.rows(ctx)
     if pattern then
         shown = {}
         for _, msg in ipairs(reply.messages) do
-            if matching.safematch(haystack(msg), pattern) then
+            if matching.safematch(haystack(ctx.net, msg), pattern) then
                 table.insert(shown, msg)
             end
         end

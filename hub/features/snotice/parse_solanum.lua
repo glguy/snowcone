@@ -1,8 +1,9 @@
--- Server notice parser. The caller stamps the time.
+-- Solanum's server notice parser. The caller stamps the time.
 --
 -- parse(server, text) returns a flat record with `name` and the
--- notice's fields, or nil. tests/hub/test-snotice.lua replays recorded
--- notices against their expected parses.
+-- notice's fields, or nil. Each pattern is a notice Solanum, its
+-- extensions or services through it send. tests/hub/test-snotice.lua
+-- replays recorded notices against their expected parses.
 
 local simple = {
     ['Filtering enabled.'] = 'filtering_enabled',
@@ -50,19 +51,28 @@ return function(server, str)
         end
     end
 
+    -- "<oper> added global|temporary <n> min. K-Line for [<mask>] [<reason>]",
+    -- and without "global|temporary <n> min." when permanent
     do
-        local nick, user, host, oper, duration, kind, mask, reason =
-            string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} added %S+ (%d+) min%. (%S+) for %[(%S*)%] %[(.*)%]$')
+        local nick, user, host, oper, rest =
+            string.match(str, '^([^!]+)!([^@]+)@([^{]+){([^}]*)} added (.*)$')
+        local duration, kind, mask, reason
         if nick then
-            local names = {
-                ['K-Line'] = 'kline',
-                ['X-Line'] = 'xline',
-                ['D-Line'] = 'dline',
-                ['RESV'] = 'resv',
-            }
-
+            duration, kind, mask, reason =
+                string.match(rest, '^%a+ (%d+) min%. (%S+) for %[(%S*)%] %[(.*)%]$')
+            if not duration then
+                kind, mask, reason = string.match(rest, '^(%S+) for %[(%S*)%] %[(.*)%]$')
+            end
+        end
+        local names = {
+            ['K-Line'] = 'kline',
+            ['X-Line'] = 'xline',
+            ['D-Line'] = 'dline',
+            ['RESV'] = 'resv',
+        }
+        if names[kind] then
             return {
-                name = assert(names[kind]),
+                name = names[kind],
                 server = server,
                 nick = nick,
                 user = user,
@@ -107,21 +117,6 @@ return function(server, str)
     end
 
     do
-        local nick, user, host, mask =
-            string.match(str, '^KLINE active for (%S+)%[([^@ ]+)@(%S+)%] %((.*)%)$')
-            if nick then
-                return {
-                    name = 'kline_active',
-                    server = server,
-                    nick = nick,
-                    user = user,
-                    host = host,
-                    mask = mask,
-                }
-            end
-    end
-
-    do -- new format added in 430833dca2fc08ae6f423ff6bded4bffeb5d345a
         local nick, user, host, mask =
             string.match(str, '^Disconnecting K%-Lined user (%S+)%[([^@ ]+)@(%S+)%] %((.*)%)$')
         if nick then
@@ -177,9 +172,14 @@ return function(server, str)
         end
     end
 
+    -- "<oper> has removed the [global |temporary ]K-Line for: [<mask>]"
     do
         local nick, user, host, oper, kind, mask =
-            string.match(str, '^([^! ]+)!([^@ ]+)@([^{ ]+){(%S*)} has removed the %S+ (%S+) for: %[(.*)%]$')
+            string.match(str, '^([^! ]+)!([^@ ]+)@([^{ ]+){(%S*)} has removed the (%S+) for: %[(.*)%]$')
+        if not nick then
+            nick, user, host, oper, kind, mask =
+                string.match(str, '^([^! ]+)!([^@ ]+)@([^{ ]+){(%S*)} has removed the %a+ (%S+) for: %[(.*)%]$')
+        end
         if nick then
             return {
                 name = 'removed',
@@ -194,23 +194,7 @@ return function(server, str)
         end
     end
 
-    do -- old format
-        local kind, nick, user, host, mask =
-            string.match(str, '^Rejecting (%S+)d user (%S+)%[([^@ ]+)@(%S+)%] %[(.*)%]$')
-        if nick then
-            return {
-                name = 'rejected',
-                server = server,
-                nick = nick,
-                user = user,
-                host = host,
-                mask = mask,
-                kind = string.lower(kind),
-            }
-        end
-    end
-
-    do -- new format
+    do
         local kind, nick, user, host, ip, mask =
             string.match(str, '^Rejecting (%S+)d user (%S+)%[([^@ ]+)@(%S+)%] %[(%S*)%] %((.*)%)$')
         if nick then
@@ -228,33 +212,39 @@ return function(server, str)
         end
     end
 
+    -- server1 is server2's uplink; the counts are the servers and users
+    -- behind server2, which a split during its burst doesn't have
     do
-        local server1, server2, sid1, sid2, reason =
-            string.match(str, '^Netsplit (%S+) <%-> (%S+) %((%S+) (%S+)%) %((.*)%)$')
+        local server1, server2, servers, users, reason =
+            string.match(str, '^Netsplit (%S+) <%-> (%S+) %((%d+)S (%d+)C%) %((.*)%)$')
+        if not server1 then
+            server1, server2, reason =
+                string.match(str, '^Netsplit (%S+) <%-> (%S+) %(during burst%) %((.*)%)$')
+        end
         if server1 then
             return {
                 name = 'netsplit',
                 server = server,
                 server1 = server1,
                 server2 = server2,
-                sid1 = sid1,
-                sid2 = sid2,
+                servers = math.tointeger(servers),
+                users = math.tointeger(users),
                 reason = reason,
             }
         end
     end
 
     do
-        local server1, server2, sid1, sid2 =
-            string.match(str, '^Netjoin (%S+) <%-> (%S+) %((%S+) (%S+)%)$')
+        local server1, server2, servers, users =
+            string.match(str, '^Netjoin (%S+) <%-> (%S+) %((%d+)S (%d+)C%)$')
         if server1 then
             return {
                 name = 'netjoin',
                 server = server,
                 server1 = server1,
                 server2 = server2,
-                sid1 = sid1,
-                sid2 = sid2,
+                servers = math.tointeger(servers),
+                users = math.tointeger(users),
             }
         end
     end
@@ -393,22 +383,7 @@ return function(server, str)
         end
     end
 
-    do -- old format
-        local kind, nick, user, host =
-            string.match(str, '^Too many (%S+) connections for ([^! ]+)!([^@ ]+)@(%S+)$')
-        if kind then
-            return {
-                name = 'toomany',
-                server = server,
-                nick = nick,
-                user = user,
-                host = host,
-                kind = kind,
-            }
-        end
-    end
-
-    do -- new format bd38559fedcdfded4d9acbcbf988e4a8f5057eeb
+    do
         local kind, nick, user, host, ip =
         string.match(str, '^Too many (%S+) connections for (%S+)%[([^@ ]+)@(%S+)%] %[(.*)%]$')
         if ip == '0' then ip = nil end
@@ -455,9 +430,14 @@ return function(server, str)
         end
     end
 
+    -- "<oper> (<nick>!<user>@<host>) is now an operator" from the server,
+    -- "<nick> (<user>@<host>) ..." for one on another server
     do
-        local nick, user, host =
-            string.match(str, '^(%S+) %(([^@ ]*)@(%S*)%) is now an operator$')
+        local oper, nick, user, host =
+            string.match(str, '^(%S+) %(([^! ]+)!([^@ ]*)@(%S*)%) is now an operator$')
+        if not oper then
+            nick, user, host = string.match(str, '^(%S+) %(([^@ ]*)@(%S*)%) is now an operator$')
+        end
         if nick then
             return {
                 name = 'oper',
@@ -465,6 +445,7 @@ return function(server, str)
                 host = host,
                 nick = nick,
                 user = user,
+                oper = oper,
             }
         end
     end
@@ -515,25 +496,6 @@ return function(server, str)
                 host = host,
                 oper = oper,
                 target = target,
-            }
-        end
-    end
-
-    -- Previous implementation, useful for oftc-hybrid
-    do
-        local nick, user, host, ip, class, gecos =
-            string.match(str, '^Client connecting: (%S+) %(([^@ ]+)@(%S+)%) %[(%S*)%] {(%S*)} %[(.*)%]$')
-        if nick then
-            if ip == '0' then ip = nil end
-            return {
-                name = 'connect',
-                server = server,
-                nick = nick,
-                user = user,
-                host = host,
-                ip = ip,
-                gecos = gecos,
-                class = class,
             }
         end
     end

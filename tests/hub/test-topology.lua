@@ -126,6 +126,16 @@ T.case('opering sets the snomask', function()
     T.ok(T.require 'pl.tablex'.find(sent, 'MODE me +s +cF'), 'configured snomask')
 end)
 
+T.case('OFTC hybrid MAP lines', function()
+    local c = boot {ircd = 'oftc-hybrid'}
+    c:recv ':srv 015 me :alpha.example[1AA] ---------------------  100 [ 10.0%]'
+    c:recv ':srv 015 me :|-beta.example[2BB]                   2000 [ 89.8%]'
+    c:recv ':srv 015 me :`-gamma.example[3CC] ---------------------5 [  0.2%]'
+    c:recv ':srv 015 me :** delta.example (Not Connected)'
+    c:recv ':srv 017 me :End of /MAP.'
+    T.eq(topo().population, {['alpha.example'] = 100, ['beta.example'] = 2000, ['gamma.example'] = 5}, 'population')
+end)
+
 T.case('MAP, LINKS, VERSION and STATS u', function()
     local c = boot()
     c:recv ':srv 015 me :alpha.example[01A] ---- | Users:   100 (10%)'
@@ -162,7 +172,7 @@ T.case('netsplit and netjoin resync', function()
     local c = boot()
     topo().versions['beta.example'] = 'old'
     topo().uptimes['beta.example'] = 'old'
-    c:recv ':alpha.example NOTICE * :*** Notice -- Netsplit hub.example <-> beta.example (00H 01B) (Ping timeout: 120 seconds)'
+    c:recv ':alpha.example NOTICE * :*** Notice -- Netsplit hub.example <-> beta.example (1S 20C) (Ping timeout: 120 seconds)'
     T.eq(topo().uptimes['beta.example'], nil, 'uptime forgotten')
     local sent = c:take()
     table.sort(sent)
@@ -171,7 +181,7 @@ T.case('netsplit and netjoin resync', function()
         'TESTMASK *@2001:db8::/32', 'TESTMASK *@2001:db8:f::/62', 'TESTMASK *@203.0.113.7',
     }, 'resync')
 
-    c:recv ':alpha.example NOTICE * :*** Notice -- Netjoin hub.example <-> beta.example (00H 01B)'
+    c:recv ':alpha.example NOTICE * :*** Notice -- Netjoin hub.example <-> beta.example (1S 20C)'
     sent = c:take()
     T.ok(T.require 'pl.tablex'.find(sent, 'VERSION beta.example'), 'version asked again')
 end)
@@ -226,7 +236,7 @@ T.case('a netjoin rechecks a flagged server', function()
     local c = boot()
     topo().drains['beta.example'] = true
     c:take()
-    c:recv ':hub.example NOTICE * :*** Notice -- Netjoin hub.example <-> beta.example (00H 01B)'
+    c:recv ':hub.example NOTICE * :*** Notice -- Netjoin hub.example <-> beta.example (1S 20C)'
     local sent = c:take()
     T.ok(table.concat(sent, '\n'):find('STATS E beta.example\nMODLIST drain beta.example', 1, true),
         table.concat(sent, ' | '))

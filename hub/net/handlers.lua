@@ -6,16 +6,20 @@
 -- `irc.message` and the events emitted here.
 --
 -- Each handler in M.commands is called as h(rec, irc, msg) with the network record, its
--- model and the message.
+-- model and the message. M.for_ircd gives a network's handlers, by its
+-- ircd (net/ircd.lua): Solanum's are M.commands.
 
 local bus       <const> = require 'hub.runtime.bus'
 local cap       <const> = require 'hub.net.cap'
 local check     <const> = require 'hub.lib.check'
 local clock     <const> = require 'hub.runtime.clock'
 local irc_model <const> = require 'hub.net.irc'
+local ircd      <const> = require 'hub.net.ircd'
 local log       <const> = require 'hub.runtime.log'
 local N         <const> = require 'hub.lib.numerics'
+local NH        <const> = require 'hub.lib.numerics_hybrid'
 local send      <const> = require 'hub.net.send'
+local tablex    <const> = require 'pl.tablex'
 local task      <const> = require 'hub.runtime.task'
 
 local M = {}
@@ -521,6 +525,28 @@ for command in pairs(irc_model.channel_commands) do
         end
         if h then return h(rec, irc, msg) end
     end
+end
+
+-- OFTC hybrid's quiet list is 344 and 345, without the mode; its 728 is
+-- capture, and 8 and 729 are unused
+local hybrid = tablex.copy(H)
+hybrid[N.RPL_SNOMASK] = nil
+hybrid[N.RPL_QUIETLIST] = nil
+hybrid[N.RPL_ENDOFQUIETLIST] = nil
+-- "<client> <channel> <mask> <who> <set-ts>"
+hybrid[NH.RPL_QUIETLIST] = list_entry(3)
+hybrid[NH.RPL_ENDOFQUIETLIST] = list_end 'q'
+
+local by_ircd <const> = {
+    [ircd.SOLANUM] = H,
+    [ircd.HYBRID] = hybrid,
+}
+
+--- A network's handlers, by command.
+---@param net string
+---@return table<string|integer, function>
+function M.for_ircd(net)
+    return by_ircd[ircd.of(net)]
 end
 
 M.routes = {

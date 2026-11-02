@@ -806,6 +806,60 @@ end
 T.case('CHALLENGE with labeled-response', function() challenge_exchange(true) end)
 T.case('CHALLENGE without labeled-response', function() challenge_exchange(false) end)
 
+T.case('CHALLENGE on OFTC hybrid', function()
+    local fake = boot {network('test', {ircd = 'oftc-hybrid'})}
+    local c = fake.last()
+    register(c)
+    c:take()
+
+    local pem = assert(io.open(here .. '/../../myopenssl/test/rsa.pem')):read 'a'
+    local task = T.require 'hub.runtime.task'
+    local challenge = T.require 'hub.net.challenge'
+    task.spawn('challenge', {net = 'test'}, challenge, {username = 'oper', key = pem})
+    T.eq(c:take(), {'CHALLENGE oper'}, 'asked')
+
+    local secret = string.rep('\x01\xfe', 16)
+    local key = myopenssl.read_pem(pem, true)
+    local hex = key:encrypt(secret):gsub('.', function(ch) return string.format('%02x', string.byte(ch)) end)
+    c:recv(':srv 386 me :' .. hex)
+    T.eq(c:take(), {'CHALLENGE +' .. string.rep('01FE', 16)}, 'the secret in hex')
+    c:recv ':srv 381 me :You have entered... the Twilight Zone!'
+    T.eq(T.log_lines 'challenge', {'oper up'}, 'opered')
+    T.eq(next(HUB.tasks), nil, 'finished')
+end)
+
+T.case('CHALLENGE on OFTC hybrid stops at a failure notice', function()
+    local fake = boot {network('test', {ircd = 'oftc-hybrid'})}
+    local c = fake.last()
+    register(c)
+    c:take()
+    local pem = assert(io.open(here .. '/../../myopenssl/test/rsa.pem')):read 'a'
+    local task = T.require 'hub.runtime.task'
+    task.spawn('challenge', {net = 'test'}, T.require 'hub.net.challenge', {username = 'oper', key = pem})
+    c:take()
+    c:recv ':bob!b@h NOTICE me :hello'
+    T.ok(next(HUB.tasks), 'a user notice is not an answer')
+    c:recv ":srv NOTICE me :I'm sorry, PK authentication is not enabled for your oper{} block."
+    T.eq(T.log_lines 'challenge', {'no key in the oper block'}, 'said why')
+    T.eq(next(HUB.tasks), nil, 'finished at once')
+end)
+
+T.case('OFTC hybrid quiet lists are 344 and 345', function()
+    local fake = boot {network('test', {ircd = 'oftc-hybrid'})}
+    local c = fake.last()
+    register(c)
+    c:recv ':me!u@h JOIN #c'
+    c:recv ':srv 344 me #c *!*@loud.example op!o@h 1700000000'
+    c:recv ':srv 345 me #c :End of Channel Quiet List'
+    local irc_model = T.require 'hub.net.irc'
+    local channel = irc_model.get_channel(rec().irc, '#c')
+    T.eq(channel.list_modes.q, {['*!*@loud.example'] = {who = 'op!o@h', ts = '1700000000'}}, 'quiets')
+    -- capture, not a quiet list
+    c:recv ':srv 728 me victim :Is UnCaptured.'
+    c:recv ':srv 729 me #c q :End of Channel Quiet List'
+    T.eq(channel.list_modes.q, {['*!*@loud.example'] = {who = 'op!o@h', ts = '1700000000'}}, 'unchanged')
+end)
+
 T.case('tags are escaped and not counted in the line length', function()
     local fake = boot {network('test')}
     local send = T.require 'hub.net.send'

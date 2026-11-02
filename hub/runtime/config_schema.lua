@@ -169,9 +169,14 @@ M.feature_requires = {
     oper = {'snotice'},
 }
 
+--- The server software a network may run; config.lua checks `ircd`
+--- against it.
+M.ircds = {'solanum', 'oftc-hybrid'}
+
 --- One entry of [[networks]].
 M.network = table_ {
     id           = {type = 'string', required = true, pattern = '^[%w_.%-]+$'},
+    ircd         = {type = 'string'},
     features     = array {type = 'string'},
     autoconnect  = {type = 'boolean'},
     reconnect    = table_ {min_delay = delay_schema, max_delay = delay_schema},

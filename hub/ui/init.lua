@@ -100,6 +100,7 @@ local function render()
     local refresh_detail
     layout.detail_rows = 0
     if kind then
+        ---@cast detail -nil a kind comes from the detail
         layout.detail_rows, refresh_detail = details.render(detail, kind, layout.detail_pad)
     end
     local at = layout.detail_rows
@@ -179,6 +180,8 @@ local function keyboard(key)
     -- consumes the key
     local detail = control.detail()
     local kind = detail and details.kinds[detail.kind]
+    -- a kind comes from the detail, so detail is set when kind is
+    ---@diagnostic disable-next-line: param-type-mismatch
     if kind and kind.keypress and kind.keypress(details.context(detail, layout.detail_rows), key) then
         return
     end

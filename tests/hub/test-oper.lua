@@ -7,10 +7,11 @@ local T = dofile(here .. '/lib.lua')
 local FakeTransport = dofile(here .. '/fake_transport.lua')
 local path = require 'pl.path'
 
-local function boot(features, labeled)
+local function boot(features, labeled, ircd)
     local fake = FakeTransport.new()
     T.boot {transport = fake, config = {networks = {{
         id = 'test',
+        ircd = ircd,
         server = {host = 'test.example', port = 6667},
         identity = {nick = 'me'},
         servers_file = path.abspath(here .. '/fixtures/servers.toml'),
@@ -166,6 +167,69 @@ T.case('unkline lookups read what Solanum answers', function()
     c:recv '@batch=b :srv 726 me *@192.0.2.23 :No matches'
     c:recv ':srv BATCH -b'
     T.eq(oper.get('test').staged, nil, 'a throttle line is not a match')
+end)
+
+T.case('on OFTC hybrid, TESTMASK counts and TESTLINE finds K-Lines', function()
+    local c, oper = boot(nil, true, 'oftc-hybrid')
+    c:recv ':srv NOTICE me :Client connecting: bad (~b@host.example) [192.0.2.5] {users} [Bad]'
+    local stores = T.require 'hub.features.snotice.stores'
+    local entry = T.require 'hub.lib.OrderedMap'.lookup(stores.get('test').users, 'bad')
+    oper.entry_to_kline('test', entry)
+    T.eq(c:take(), {'@label=sc1 TESTMASK *@192.0.2.5'}, 'TESTMASK')
+    c:recv '@label=sc1 :srv 724 me *@192.0.2.5 2 3 :Local/remote clients match.'
+    T.eq(oper.get('test').staged.count, 5, 'counted')
+    oper.get('test').settings.add_freeze = true
+    T.eq(oper.freeze_account('test'), nil, 'no account to freeze')
+
+    oper.entry_to_unkline('test', {nick = 'n', user = '~u', ip = '192.0.2.20'})
+    T.eq(c:take(), {'@label=sc2 TESTLINE ~u@192.0.2.20'}, 'TESTLINE, not TESTKLINE')
+    c:recv '@label=sc2 :srv BATCH +b labeled-response'
+    c:recv '@batch=b :srv 725 me D 0 192.0.2.20 :dlined | '
+    c:recv '@batch=b :srv 725 me k 60 *@192.0.2.20 :reason | why'
+    c:recv '@batch=b :srv 725 me I 0 *@* :users | '
+    c:recv ':srv BATCH -b'
+    T.eq(oper.get('test').staged.mask, '*@192.0.2.20', 'the K-Line after a D-Line')
+
+    oper.stage_unkline('test', '*@192.0.2.22')
+    c:recv '@label=sc3 :srv 725 me I 0 *@* :users | '
+    T.eq(oper.get('test').staged, nil, 'only an auth block matches')
+    T.eq(T.log_lines 'unkline', {'no K-Line matches *@192.0.2.22'}, 'said so')
+
+    oper.prepare_kline('test', 'n', '~u', 'h.example', '192.0.2.9')
+    c:take()
+    oper.trace('test')
+    T.eq(c:take(), {}, 'no MASKTRACE')
+    T.eq(T.log_lines 'oper', {'OFTC hybrid has no MASKTRACE'}, 'said so')
+end)
+
+T.case('on OFTC hybrid, unlabeled TESTLINE ends at the auth block', function()
+    local c, oper = boot(nil, false, 'oftc-hybrid')
+    oper.entry_to_unkline('test', {nick = 'n', user = '~u', ip = '192.0.2.30'})
+    T.eq(c:take(), {'TESTLINE ~u@192.0.2.30'}, 'TESTLINE')
+    c:recv ':srv 725 me D 0 192.0.2.30 :dlined | '
+    c:recv ':srv 725 me I 0 *@* :users | '
+    T.eq(oper.get('test').staged, nil, 'no K-Line, at once')
+    T.eq(T.log_lines 'unkline', {'no K-Line found for ~u@192.0.2.30'}, 'said so')
+    T.eq(next(HUB.tasks), nil, 'finished')
+
+    -- a D-Line is not the K-Line an unkline checks for
+    oper.stage_unkline('test', '*@192.0.2.31')
+    c:take()
+    c:recv ':srv 725 me D 0 192.0.2.31 :dlined | '
+    T.ok(oper.get('test').staged, 'still checking')
+    c:recv ':srv 725 me I 0 *@* :users | '
+    T.eq(oper.get('test').staged, nil, 'no K-Line matches')
+end)
+
+T.case('on OFTC hybrid, kline_nick looks up with WHOIS', function()
+    local c = boot(nil, false, 'oftc-hybrid')
+    T.require 'hub.ui.control'.init_state(HUB.state)
+    T.require 'hub.ui.cmdline'.execute 'kline_nick Someone'
+    T.eq(c:take(), {'WHOIS Someone'}, 'WHOIS, not WHOX')
+    c:recv ':srv 311 me Someone ~s host.example * :Real'
+    c:recv ':srv 338 me Someone 192.0.2.10 :actually using host'
+    c:recv ':srv 318 me Someone :End of /WHOIS list.'
+    T.eq(c:take(), {'TESTMASK *@192.0.2.10'}, 'staged from WHOIS')
 end)
 
 T.case('staging without a connection logs instead of raising', function()

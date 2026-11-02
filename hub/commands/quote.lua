@@ -23,7 +23,7 @@ local quote_timeout <const> = 30000
 
 --- Send a /quote line labeled, and fill in its reply.
 ---@param net string
----@param msg hub.Message parsed from the command line, without a label
+---@param msg snowcone.Message parsed from the command line, without a label
 function M.labeled(net, msg)
     local label = send.send_labeled(net, msg.tags, msg.command, table.unpack(msg))
     if not label then return end

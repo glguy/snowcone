@@ -874,15 +874,82 @@ T.case('a staged K-Line turns the title red', function()
     T.eq(statusbar.title_color(), ncurses.COLOR_WHITE, 'only K-Lines')
 end)
 
+T.case('the message detail reads OFTC hybrid replies and notices', function()
+    local fake = FakeTransport.new()
+    T.boot {ui = true, transport = fake, config = {networks = {{
+        id = 'test', ircd = 'oftc-hybrid',
+        server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'},
+    }}}}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 376 me :End of MOTD'
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    local control = T.require 'hub.ui.control'
+    local message = T.require 'hub.ui.details.message'
+    control.set_view 'status'
+
+    local function summary(line)
+        c:recv(line)
+        local log = HUB.state.nets.test.console
+        local msg = OrderedMap.get(log, OrderedMap.last(log))
+        control.open_detail('message', 'test', msg)
+        HUB.current.routes['ui.draw']()
+        return rows_of(detail_pad()), msg
+    end
+    local function expect(rows, wants)
+        for _, want in ipairs(wants) do T.ok(has_row(rows, want), want) end
+    end
+
+    expect(summary ':srv 344 me #c *!*@loud.example op!o@h 1700000000', {
+        '^   reply: RPL_QUIETLIST %(344%) to me, at ',
+        '^ channel: #c$',
+        '^    mask: %*!%*@loud.example$',
+    })
+    expect(summary ':srv 724 me *@192.0.2.0/24 3 4 :Local/remote clients match.', {
+        '^   reply: RPL_TESTMASK %(724%) to me, at ',
+        '^    mask: %*@192.0.2.0/24$',
+        '^  remote: 4$',
+    })
+    expect(summary ':srv 480 me #c :You must connect via SSL to join this channel (+S)', {
+        '^   error: ERR_SSLONLYCHAN %(480%) to me, at ',
+    })
+    local auth = summary ':srv 215 me I * * -&=~u@spoofed.example 0 users'
+    expect(auth, {
+        '^    auth: ~u@spoofed.example, class users, at ',
+        '^   flags: no_tilde %(%-%), no_password %(&%), spoof %(=%)$',
+    })
+    for _, row in ipairs(auth) do
+        T.ok(not row:find '^ *password:' and not row:find '^ *spoof:', 'no password or spoof name: ' .. row)
+    end
+    local rows, msg = summary ':srv 728 me victim :Is UnCaptured.'
+    expect(rows, {'^   reply: RPL_ISUNCAPTURED %(728%) to me, at '})
+    T.eq(message.color('test', msg.command), nil, 'not an error')
+
+    local _, snote = summary ':a.example NOTICE me :Client connecting: n (~u@h.example) [192.0.2.1] {users} [Real]'
+    local note = message.decode('test', snote)
+    T.eq({note.name, note.nick, note.ip, note.server}, {'connect', 'n', '192.0.2.1', 'a.example'}, 'decoded')
+    T.eq(message.snotice_text('test', snote), 'Client connecting: n (~u@h.example) [192.0.2.1] {users} [Real]', 'no header')
+
+    -- recorded as it arrived: still a notice after our nick changes
+    c:recv ':me!u@h NICK newme'
+    T.eq(message.snotice_text('test', snote), 'Client connecting: n (~u@h.example) [192.0.2.1] {users} [Real]', 'kept')
+    T.eq(message.decode('test', snote).nick, 'n', 'still decoded')
+    local _, later = summary ':a.example NOTICE me :Client connecting: x (~u@h.example) [192.0.2.1] {users} [X]'
+    T.eq(later.snote, false, 'to the old nick: not ours')
+end)
+
 T.case('the message detail decodes server notices', function()
     local c = boot()
     local line = ':gold.example NOTICE * :*** Notice -- Client connecting: n (u@h.example) [192.0.2.1] {users} <*> [Real]'
     c:recv(line)
     local msg = T.require 'hub.lib.OrderedMap'.lookup(HUB.state.nets.test.console, true)
     local message = T.require 'hub.ui.details.message'
-    local note = message.decode(msg)
+    local note = message.decode('test', msg)
     T.eq({note.name, note.nick, note.ip, note.server}, {'connect', 'n', '192.0.2.1', 'gold.example'}, 'decoded')
-    T.eq(message.decode(snowcone.parse_irc ':srv 001 me :Welcome'), nil, 'not a notice')
+    T.eq(message.decode('test', snowcone.parse_irc ':srv 001 me :Welcome'), nil, 'not a notice')
 
     local control = T.require 'hub.ui.control'
     control.set_view 'console'

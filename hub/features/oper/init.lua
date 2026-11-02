@@ -3,12 +3,15 @@
 --
 -- K-Line reasons and tags come from the network's servers file
 -- (runtime/config.lua). Staging sends only queries (TESTMASK, TESTKLINE,
--- TESTLINE, WHO, WHOWAS), each from a task that waits for its reply.
+-- TESTLINE, WHO, WHOWAS), each from a task that waits for its reply. OFTC
+-- hybrid has no TESTKLINE or MASKTRACE: TESTLINE finds the K-Line that hit
+-- a user, and there is no trace by mask.
 -- KLINE, UNKLINE, UNDLINE and NickServ FREEZE go out only from commit,
 -- which the UI calls when the operator confirms.
 
 local challenge  <const> = require 'hub.net.challenge'
 local common     <const> = require 'hub.features.common'
+local ircd       <const> = require 'hub.net.ircd'
 local log        <const> = require 'hub.runtime.log'
 local lookup     <const> = require 'hub.features.lookup'
 local masks      <const> = require 'hub.features.oper.masks'
@@ -16,6 +19,7 @@ local N          <const> = require 'hub.lib.numerics'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local secrets    <const> = require 'hub.runtime.secrets'
 local send       <const> = require 'hub.net.send'
+local snotice    <const> = require 'hub.features.snotice'
 local stores     <const> = require 'hub.features.snotice.stores'
 local task       <const> = require 'hub.runtime.task'
 
@@ -150,12 +154,12 @@ end
 ---@param staged hub.Staged
 local function count_matches(t, staged)
     local mask = staged.mask
-    local replies = try_request(t, {N.RPL_TESTMASKGECOS}, 'TESTMASK', mask)
+    local replies = try_request(t, {snotice.testmask_numeric(t.net)}, 'TESTMASK', mask)
     if not replies then return end
     for msg in replies do
-        -- "<client> <local> <remote> <mask> <gecos> :Local/remote clients match"
-        if msg[4] == '*!' .. mask and msg[5] == '*' then
-            staged.count = (math.tointeger(msg[2]) or 0) + (math.tointeger(msg[3]) or 0)
+        local count, counted = snotice.testmask_count(t.net, msg)
+        if count and counted == mask then
+            staged.count = count
             return
         end
     end
@@ -181,7 +185,8 @@ function M.entry_to_kline(net, entry)
     M.prepare_kline(net, entry.nick, entry.user, entry.host, entry.ip)
 end
 
---- Stage removing the K-Line that hit a user; TESTKLINE finds its mask.
+--- Stage removing the K-Line that hit a user; TESTKLINE (TESTLINE on
+--- OFTC hybrid) finds its mask.
 function M.entry_to_unkline(net, entry)
     local O = M.get(net)
     if not entry.ip then
@@ -200,14 +205,18 @@ function M.entry_to_unkline(net, entry)
             end
         end
 
-        local replies = try_request(t, {N.RPL_NOTESTLINE, N.RPL_TESTLINE}, 'TESTKLINE', probe)
+        local command = ircd.hybrid(t.net) and 'TESTLINE' or 'TESTKLINE'
+        local replies = try_request(t, {N.RPL_NOTESTLINE, N.RPL_TESTLINE}, command, probe)
         if not replies then return drop() end -- try_request logged why
         for msg in replies do
             if M.get(t.net).staged ~= staged then return end
             -- "<client> <type> <duration> <mask> :<reason>", type k (temporary)
-            -- or K; ! lines about throttling come first
+            -- or K; ! lines about throttling come first. Hybrid's TESTLINE
+            -- also sends D-Lines before and the auth block (I) after.
             if msg.command == N.RPL_NOTESTLINE and msg[2] == probe then
                 return drop('no K-Line matches %s')
+            elseif msg.command == N.RPL_TESTLINE and msg[2] == 'I' then
+                return drop('no K-Line found for %s')
             elseif msg.command == N.RPL_TESTLINE and (msg[2] == 'k' or msg[2] == 'K') then
                 staged.mask = msg[4]
                 return
@@ -227,16 +236,19 @@ function M.stage_unkline(net, mask)
             'TESTLINE', mask)
         if not replies then return end
         for msg in replies do
-            -- Solanum answers with the auth block when no ban matches, and
-            -- with NOTESTLINE only when nothing does
+            -- Solanum answers with the auth block when no K-Line matches, and
+            -- with NOTESTLINE only when nothing does; hybrid sends the auth
+            -- block as a TESTLINE of type I, after any K-Line. D-Lines,
+            -- RESVs and throttles (!) may come first.
             if msg.command == N.RPL_NOTESTLINE and msg[2] == mask
-            or msg.command == N.RPL_STATSILINE then
+            or msg.command == N.RPL_STATSILINE
+            or msg.command == N.RPL_TESTLINE and msg[2] == 'I' then
                 t:log('unkline', 'no K-Line matches %s', mask)
                 if M.get(t.net).staged == staged then
                     M.get(t.net).staged = nil
                 end
                 return
-            elseif msg.command == N.RPL_TESTLINE and msg[2] ~= '!' then
+            elseif msg.command == N.RPL_TESTLINE and (msg[2] == 'k' or msg[2] == 'K') then
                 return
             end
         end
@@ -277,7 +289,11 @@ end
 function M.trace(net)
     local staged = M.get(net).staged
     if staged and staged.mask then
-        send.send(net, 'MASKTRACE', staged.mask)
+        if ircd.hybrid(net) then
+            log.add_net(net, 'oper', 'OFTC hybrid has no MASKTRACE')
+        else
+            send.send(net, 'MASKTRACE', staged.mask)
+        end
     end
 end
 
@@ -417,6 +433,7 @@ M.commands = {
         settings.tag = nil
     end),
     oper_command('masktrace', '$g', 'mask', 'MASKTRACE a mask', function(ctx, mask)
+        if ircd.hybrid(ctx.net) then error('OFTC hybrid has no MASKTRACE', 0) end
         send.send(ctx.net, 'MASKTRACE', mask)
     end),
     oper_command('testline', '$g', 'mask', 'TESTLINE a mask', function(ctx, mask)
