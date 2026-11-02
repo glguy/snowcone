@@ -9,6 +9,7 @@
 local clock  <const> = require 'hub.runtime.clock'
 local draw   <const> = require 'hub.ui.draw'
 local fields <const> = require 'hub.ui.fields'
+local handlers <const> = require 'hub.net.handlers'
 local scrub  <const> = require 'hub.lib.scrub'
 local tablex <const> = require 'pl.tablex'
 
@@ -118,7 +119,7 @@ local function render_connection(ctx, win, rec, now)
         draw.bold(win)
         win:waddstr(scrub(irc.nick))
         draw.normal(win)
-        local wanted = rec.cfg.identity.nick
+        local wanted = handlers.wanted_nick(rec)
         if irc.nick ~= wanted then
             key(win, 'wanted')
             win:waddstr(scrub(wanted))

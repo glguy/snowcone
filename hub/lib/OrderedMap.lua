@@ -141,6 +141,23 @@ function M.rekey(om, old, new)
     end
 end
 
+--- Fold keys with another casemapping from now on, rebuilding the index.
+--- Keys that come to fold alike look up the newest of their entries.
+---@param om hub.OrderedMap
+---@param casemapping string|nil
+function M.set_casemapping(om, casemapping)
+    if om.casemapping == casemapping then return end
+    om.casemapping = casemapping
+    om.index = {}
+    for k = om.lo, om.n do
+        local i = slot(om, k)
+        local key = om.keys[i]
+        if key ~= nil then
+            setindex(om, key, i)
+        end
+    end
+end
+
 --- Number of entries currently held.
 ---@param om hub.OrderedMap
 ---@return integer

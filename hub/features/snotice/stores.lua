@@ -61,6 +61,17 @@ function M.new(rec)
     }
 end
 
+--- Fold nicks and channel names with the network's casemapping, once the
+--- server says what it is.
+---@param net string
+---@param casemapping string
+function M.set_casemapping(net, casemapping)
+    local S = M.get(net)
+    OrderedMap.set_casemapping(S.users, casemapping)
+    OrderedMap.set_casemapping(S.exits, casemapping)
+    OrderedMap.set_casemapping(S.new_channels, casemapping)
+end
+
 --- The stores of a network, created on first use.
 ---@param net string
 ---@return hub.Stores
@@ -72,7 +83,7 @@ end
 local function maybe_reclaim(net, nick)
     local rec = HUB.state.nets[net]
     local irc = rec and rec.irc
-    if irc and irc.recover_nick and irc_model.fold(irc, nick) == irc.recover_nick then
+    if irc and irc.recover_nick and irc_model.fold(irc, nick) == irc_model.fold(irc, irc.recover_nick) then
         handlers.reclaim_nick(net)
     end
 end

@@ -8,6 +8,7 @@ local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local path     <const> = require 'pl.path'
 local bus      <const> = require 'hub.runtime.bus'
 local config   <const> = require 'hub.runtime.config'
+local handlers <const> = require 'hub.net.handlers'
 local dispatch <const> = require 'hub.runtime.dispatch'
 local log      <const> = require 'hub.runtime.log'
 local manager  <const> = require 'hub.net.manager'
@@ -155,7 +156,7 @@ M.commands = {
         scope = 'net',
         help = 'Change nickname',
         fn = function(ctx, nick)
-            send.send(ctx.net, 'NICK', nick)
+            handlers.declare_nick(ctx.net, nick)
         end,
     },
     {

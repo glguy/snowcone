@@ -27,6 +27,7 @@
 -- labeled-response await the server's reply (chat/receipt.lua).
 
 local bus        <const> = require 'hub.runtime.bus'
+local casemap    <const> = require 'hub.lib.casemap'
 local commands   <const> = require 'hub.features.chat.commands'
 local common     <const> = require 'hub.features.common'
 local ctcp       <const> = require 'hub.features.chat.ctcp'
@@ -85,6 +86,8 @@ M.wallops = '*wallops'
 ---@field closing table<string, true> channels /close parted, by folded name;
 --- for the current connection
 ---@field composing hub.ChatComposing|nil what we are writing and where
+---@field casemapping string|nil what the keys are folded with: the
+--- network's, as last announced; rfc1459 before any
 
 ---@return hub.ChatState
 local function new_state()
@@ -117,13 +120,54 @@ local function model(net)
     return rec and rec.irc
 end
 
---- Fold a target with the network's casemapping.
+--- Fold a target with the network's casemapping: the one the server
+--- announced, or the one last announced while it hasn't (between
+--- connections, and while registering), so keys stay the same.
 function M.fold(net, target)
     local irc = model(net)
-    if irc then
+    if irc and irc.isupport.CASEMAPPING ~= nil then
         return irc_model.fold(irc, target)
     end
-    return snowcone.irccase(target)
+    local C = common.get_state(M.name, net)
+    return casemap.fold(C and C.casemapping or 'rfc1459', target)
+end
+
+-- Fold the keys again after the server announces its casemapping. Buffers
+-- that come to fold alike merge into the one with more messages.
+local function refold(net)
+    local C = M.get(net)
+    local irc = model(net)
+    local casemapping = irc and irc.casemapping or 'rfc1459'
+    if (C.casemapping or 'rfc1459') == casemapping then return end
+    C.casemapping = casemapping
+    local fold = function(s) return casemap.fold(casemapping, s) end
+
+    local buffers = {}
+    for _, buffer in pairs(C.buffers) do
+        local key = fold(buffer.name)
+        local other = buffers[key]
+        if other then
+            local keep, gone = other, buffer
+            if OrderedMap.size(buffer.messages) > OrderedMap.size(other.messages) then
+                keep, gone = buffer, other
+            end
+            keep.activity = keep.activity + gone.activity
+            keep.mention = keep.mention or gone.mention
+            buffers[key] = keep
+            log.add_net(net, 'chat', '%s and %s are one buffer now; %s keeps its messages',
+                keep.name, gone.name, keep.name)
+        else
+            buffers[key] = buffer
+        end
+        if buffer.typing then
+            local typing_ = {}
+            for _, entry in pairs(buffer.typing) do typing_[fold(entry.nick)] = entry end
+            buffer.typing = typing_
+        end
+    end
+    C.buffers = buffers
+    -- pending and closing belong to the connection, and the server names
+    -- its casemapping before anything goes into them
 end
 
 -- Buffers =============================================================
@@ -589,6 +633,9 @@ function M.subscribe(sub)
         C.closing = {}
     end)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
+    sub.on('irc.isupport', function(ev)
+        if ev.key == 'CASEMAPPING' and enabled(ev.net) then refold(ev.net) end
+    end)
 end
 
 -- Talking =============================================================

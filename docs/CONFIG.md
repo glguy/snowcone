@@ -159,7 +159,7 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 | `rate_limit.burst` | none | Lines that may go to the server at once. Without a `rate_limit` table, lines are never held back. With one, `burst` and `interval` are both required. |
 | `rate_limit.interval` | none | Seconds to earn back one line of the burst, above 0. A line that has to wait shows as `queued` in chat and the console until it goes, or `unsent` if the connection ends first. A PONG goes ahead of waiting lines, and QUIT drops them and goes at once. `burst = 5` and `interval = 2` match RFC 1459's message timer. |
 | `channels` | none | Channels to JOIN after every registration, so also after each reconnect, as many to a line as fit. Names only, without keys. A change takes effect at the next connection. |
-| `reclaim_nick` | `true` | When the configured nick is taken at registration, watch it with MONITOR and take it back once it is free. |
+| `reclaim_nick` | `true` | When the wanted nick is taken, watch it with MONITOR and take it back once it is free. The wanted nick is the configured one, or the last given to `/nick`, which later connections register with too until the configured nick changes. |
 | `quit_message` | `'snowcone'` | The QUIT message for `/disconnect`, `/reconnect` and quitting. |
 | `snomask` | `'BFZbcklnsx'`, or `'bcfknrs'` on OFTC hybrid | What chooses the server notices to see, set after becoming an operator: on Solanum the server notice mask (`MODE nick +s mask`), on OFTC hybrid the user modes that select notices (`MODE nick +modes`). Used only with the `snotice` feature. |
 | `servers_file` | none | A TOML file describing the network's servers. See [The servers file](#the-servers-file). |

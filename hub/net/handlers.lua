@@ -129,19 +129,54 @@ end
 -----------------------------------------------------------------------
 -- Monitor and nick recovery
 
-local function want_nick(rec, irc, nick)
-    return irc.recover_nick and rec.cfg.reclaim_nick
-       and irc_model.fold(irc, nick) == irc.recover_nick
+--- The nick we want: the last one given to /nick, or else the configured
+--- one. A configured nick that changes replaces a /nick.
+---@param rec hub.Network
+---@return string
+function M.wanted_nick(rec)
+    return rec.wanted_nick or rec.cfg.identity.nick
 end
 
---- Try to take the configured nick back. Also a route, so that features
+local function want_nick(rec, irc, nick)
+    return irc.recover_nick and rec.cfg.reclaim_nick
+       and irc_model.fold(irc, nick) == irc_model.fold(irc, irc.recover_nick)
+end
+
+-- Stop waiting for a nick to free up
+local function stop_reclaim(rec, irc)
+    local nick = irc.recover_nick
+    if nick == nil then return end
+    irc.recover_nick = nil
+    -- monitored once registered, when reclaiming is on
+    if irc.monitor and rec.cfg.reclaim_nick and rec.phase == 'connected' then
+        send.send(rec.id, 'MONITOR', '-', nick)
+        irc_model.del_monitor(irc, nick)
+    end
+end
+
+--- Try to take the wanted nick back. Also a route, so that features
 --- that see the nick become free (server notices) can trigger it.
 function M.reclaim_nick(net)
     local rec = HUB.state.nets[net]
     local irc = rec and rec.irc
     if irc and irc.recover_nick and rec.cfg.reclaim_nick and rec.phase == 'connected' then
-        send.send(net, 'NICK', rec.cfg.identity.nick)
+        send.send(net, 'NICK', irc.recover_nick)
     end
+end
+
+--- Change our nick at the user's word: the nick given becomes the wanted
+--- one, here and on later connections, and is what reclaiming waits for
+--- if it is taken.
+---@param net string
+---@param nick string
+function M.declare_nick(net, nick)
+    local rec = HUB.state.nets[net]
+    rec.wanted_nick = nick ~= rec.cfg.identity.nick and nick or nil
+    local irc = rec.irc
+    if irc then
+        stop_reclaim(rec, irc)
+    end
+    send.send(net, 'NICK', nick)
 end
 
 -- :<server> 730 <nick> :target[!user@host][,target[!user@host]]*
@@ -174,23 +209,35 @@ H[N.ERR_MONLISTFULL] = function(rec)
 end
 
 -- During registration a nick that is taken or held gets a random
--- replacement, and the configured one is reclaimed later.
-local function new_nickname(rec, irc)
+-- replacement, and the wanted one is reclaimed later. Once registered,
+-- the wanted nick refused so is waited for.
+local function new_nickname(rec, irc, msg)
+    local wanted = M.wanted_nick(rec)
     if rec.phase == 'registering' then
-        local wanted = rec.cfg.identity.nick
         local nick = string.format('%s-%05d', wanted:sub(1, 10), math.random(0, 99999))
         send.send(rec.id, 'NICK', nick)
-        irc.recover_nick = irc_model.fold(irc, wanted)
+        irc.recover_nick = wanted
         irc.nick = nick -- optimistic
+    elseif rec.phase == 'connected' and msg[2]
+    and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, wanted) and not irc.recover_nick then
+        irc.recover_nick = wanted
+        if rec.cfg.reclaim_nick and irc_model.has_monitor(irc) then
+            send.send(rec.id, 'MONITOR', '+', wanted)
+        end
     end
 end
 
 -- A nick the server finds unacceptable during registration is a problem
 -- in the configuration: a replacement can't know what the server wants
-H[N.ERR_ERRONEUSNICKNAME] = function(rec, _, msg)
+H[N.ERR_ERRONEUSNICKNAME] = function(rec, irc, msg)
     if rec.phase == 'registering' then
+        local field = rec.wanted_nick and '/nick' or 'identity.nick'
+        rec.wanted_nick = nil -- the next connection tries the configured one
         dispatch.route 'net.give_up'(rec.id, string.format(
-            'identity.nick: the server refuses %s: %s', msg[2] or '?', msg[3] or 'erroneous nickname'))
+            '%s: the server refuses %s: %s', field, msg[2] or '?', msg[3] or 'erroneous nickname'))
+    elseif rec.wanted_nick and msg[2] and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, rec.wanted_nick) then
+        -- a /nick the server won't take is no longer wanted
+        rec.wanted_nick = nil
     end
 end
 H[N.ERR_NICKNAMEINUSE] = new_nickname
@@ -224,12 +271,8 @@ function H.NICK(rec, irc, msg)
 
     if self then
         irc.nick = newnick
-        if newkey == irc.recover_nick then
-            irc.recover_nick = nil
-            if irc.monitor then
-                send.send(rec.id, 'MONITOR', '-', newnick)
-                irc_model.del_monitor(irc, newnick)
-            end
+        if irc.recover_nick and newkey == irc_model.fold(irc, irc.recover_nick) then
+            stop_reclaim(rec, irc)
         end
     end
 

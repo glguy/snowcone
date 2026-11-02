@@ -288,9 +288,19 @@ T.case('network trackers count connections by range', function()
     T.raises('bad address range', nettrack.new_range, 'nonsense')
 end)
 
+T.case('the stores fold nicks with the casemapping the server announces', function()
+    local c = boot {'snotice'}
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    notice(c, 'a.example', 'Client connecting: a[b] (u@h) [192.0.2.1] {users} <*> [g]')
+    c:recv ':srv 005 me CASEMAPPING=ascii :are supported'
+    notice(c, 'a.example', 'Client connecting: a{b} (u@h) [192.0.2.2] {users} <*> [g]')
+    T.eq(OrderedMap.lookup(stores().users, 'A[B]').ip, '192.0.2.1', 'a[b] its own')
+    T.eq(OrderedMap.lookup(stores().users, 'a{b}').ip, '192.0.2.2', 'a{b} its own')
+end)
+
 T.case('the wanted nick is reclaimed when its holder leaves', function()
     local c = boot {'snotice'}
-    HUB.state.nets.test.irc.recover_nick = 'ME'
+    HUB.state.nets.test.irc.recover_nick = 'me'
     c:take()
     notice(c, 'a.example', 'Client exiting: Me (u@h) [Client Quit] [192.0.2.1]')
     T.eq(c:take(), {'NICK me'}, 'reclaimed')

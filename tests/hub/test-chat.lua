@@ -24,7 +24,7 @@ local function boot(extra, global)
     c:recv ':srv 005 me CHANTYPES=# MONITOR=100 CHATHISTORY=50 STATUSMSG=@+ :are supported'
     c:recv ':srv 376 me :End of MOTD'
     c:take()
-    return c, T.require 'hub.features.chat'
+    return c, T.require 'hub.features.chat', fake
 end
 
 local function texts(buffer)
@@ -34,6 +34,41 @@ local function texts(buffer)
     end
     return list
 end
+
+T.case('buffers fold with the casemapping the server announces, before and after', function()
+    local c, chat, fake = boot()
+    local function keys()
+        local list = {}
+        for key in pairs(chat.get('test').buffers) do table.insert(list, key) end
+        table.sort(list)
+        return list
+    end
+    chat.open('test', '#a{b}')
+    c:recv ':srv 005 me CASEMAPPING=ascii :are supported'
+    c:recv ':me!u@h JOIN #a{b}'
+    T.eq(keys(), {'#A{B}'}, 'one buffer for the channel')
+    T.ok(chat.buffer('test', '#A{B}'), 'found in either case')
+    T.eq(chat.buffer('test', '#a[b]'), nil, 'not a different channel')
+
+    -- between connections the last casemapping still holds
+    local manager = T.require 'hub.net.manager'
+    manager.disconnect 'test'
+    c:finish()
+    chat.open('test', '#c{d}')
+    T.ok(chat.buffer('test', '#C{D}'), 'ascii while disconnected')
+    T.eq(chat.buffer('test', '#c[d]'), nil, 'not rfc1459')
+
+    -- a coarser casemapping merges what now folds alike
+    chat.open('test', '#a[b]')
+    T.eq(#keys(), 3, 'apart under ascii')
+    manager.connect 'test'
+    c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 005 me CASEMAPPING=rfc1459 :are supported'
+    T.eq(keys(), {'#A[B]', '#C[D]'}, 'merged')
+end)
 
 T.case('whois reports a refused remote whois', function()
     local c = boot()

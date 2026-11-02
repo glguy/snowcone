@@ -8,6 +8,7 @@
 local cap       <const> = require 'hub.net.cap'
 local clock     <const> = require 'hub.runtime.clock'
 local config    <const> = require 'hub.runtime.config'
+local handlers  <const> = require 'hub.net.handlers'
 local irc_model <const> = require 'hub.net.irc'
 local N         <const> = require 'hub.lib.numerics'
 local oper      <const> = require 'hub.net.oper'
@@ -68,9 +69,9 @@ return function(t)
         return
     end
 
-    local nick  = cfg.identity.nick
-    local user  = cfg.identity.user  or nick
-    local realname = cfg.identity.realname or nick
+    local nick  = handlers.wanted_nick(rec)
+    local user  = cfg.identity.user  or cfg.identity.nick
+    local realname = cfg.identity.realname or cfg.identity.nick
 
     t:send('CAP', 'LS', '302')
     if password then
@@ -100,7 +101,7 @@ return function(t)
 
     -- start waiting for our nickname
     if irc.recover_nick and cfg.reclaim_nick and irc_model.has_monitor(irc) then
-        t:send('MONITOR', '+', cfg.identity.nick)
+        t:send('MONITOR', '+', irc.recover_nick)
     end
 
     -- before opering, which may wait on a CHALLENGE reply

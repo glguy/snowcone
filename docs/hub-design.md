@@ -214,13 +214,18 @@ connected at once.
   the C++ side has none.
 - **Registration:** `CAP LS 302`, PASS, NICK and USER go out together; SASL
   runs over the configured credentials in order until one succeeds; the
-  welcome and the end of MOTD finish it. A nick that is taken or held
-  gets a temporary one, and the wanted nick is reclaimed through MONITOR
-  or server notices; a nick refused as erroneous is a configuration error.
+  welcome and the end of MOTD finish it. The wanted nick is the
+  configured one, or the last given to `/nick` (`rec.wanted_nick`, until
+  the configured nick changes). A nick that is taken or held gets a
+  temporary one, and the wanted nick is reclaimed through MONITOR or
+  server notices; a nick refused as erroneous is a configuration error.
 - **Protocol model** (`rec.irc`): nick, modes, capabilities, ISUPPORT,
   channels and members, monitor list, batches, soju bouncer networks.
   Keys fold with the network's
-  CASEMAPPING, and so does "is this our nick".
+  CASEMAPPING, and so does "is this our nick". Names kept to compare
+  later, like the nick to reclaim, are kept as given and folded when
+  compared; features' stores keyed by name refold when the server
+  announces its CASEMAPPING (chat keeps the last one between connections).
 - **Batches** are handled line by line as they arrive and emitted whole
   when they close. Replays (chat history) are the exception: they never
   change the connection's state and reach only the chat buffers, placed

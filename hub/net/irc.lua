@@ -110,7 +110,7 @@ function M.new()
     ---@field account string|nil ours, once logged in
     ---@field oper boolean|nil
     ---@field snomask string|nil
-    ---@field recover_nick string|nil folded nick to take back when it frees up
+    ---@field recover_nick string|nil nick to take back when it frees up, as given
     ---@field sasl_credentials table|nil the credentials registration chose
     ---@field partial_mode_list table<string, hub.ListEntry>|nil a list mode
     --- being received

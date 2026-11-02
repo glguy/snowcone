@@ -300,6 +300,59 @@ T.case('nick in use during registration, then reclaimed with MONITOR', function(
     T.eq(nicks, {{net = 'test', old = temp, new = 'me', self = true}}, 'nick event')
 end)
 
+T.case('the wanted nick is reclaimed in the casemapping the server announces', function()
+    local fake = boot {network('test', {identity = {nick = 'me{x}'}})}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 433 * me{x} :Nickname is already in use'
+    local temp = c:take()[2]:match '^NICK (.*)$'
+    c:recv(':srv 001 ' .. temp .. ' :Welcome')
+    c:recv(':srv 005 ' .. temp .. ' CASEMAPPING=ascii MONITOR=100 :are supported')
+    c:recv(':srv 376 ' .. temp .. ' :End of MOTD')
+    c:take()
+    c:recv(':srv 731 ' .. temp .. ' :ME{X}')
+    T.eq(c:take(), {'NICK me{x}'}, 'reclaimed')
+end)
+
+T.case('/nick declares the wanted nick, here and on later connections', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 433 * me :Nickname is already in use'
+    local temp = c:take()[2]:match '^NICK (.*)$'
+    c:recv(':srv 001 ' .. temp .. ' :Welcome')
+    c:recv(':srv 005 ' .. temp .. ' MONITOR=100 :are supported')
+    c:recv(':srv 376 ' .. temp .. ' :End of MOTD')
+    T.eq(c:take(), {'MONITOR + me', 'MODE ' .. temp}, 'waiting for me')
+
+    T.command 'nick other'
+    T.eq(c:take(), {'MONITOR - me', 'NICK other'}, 'me no longer wanted')
+    c:recv(':' .. temp .. '!u@h NICK other')
+    c:recv ':srv 731 other :me'
+    T.eq(c:take(), {}, 'me not reclaimed')
+
+    -- taken: waited for
+    T.command 'nick third'
+    c:recv ':srv 433 other third :Nickname is already in use'
+    T.eq(c:take(), {'NICK third', 'MONITOR + third'}, 'third wanted')
+    c:recv ':srv 731 other :third'
+    T.eq(c:take(), {'NICK third'}, 'and reclaimed')
+    c:recv ':other!u@h NICK third'
+    T.eq(c:take(), {'MONITOR - third'}, 'done waiting')
+
+    -- the next connection registers with it
+    T.require 'hub.net.manager'.reconnect 'test'
+    c = fake.last()
+    c:con()
+    T.eq(c:take(), {'CAP LS 302', 'NICK third', 'USER me 0 * me'}, 'registering as third')
+
+    -- until the configured nick changes
+    T.ok(T.reload {config = {networks = {network('test', {identity = {nick = 'fourth'}})}}}, 'reload')
+    T.eq(rec().wanted_nick, nil, 'the configured nick wanted again')
+end)
+
 T.case('an erroneous nick during registration is a configuration error', function()
     local fake = boot {network('test', {identity = {nick = 'averylongnick'}})}
     local c = fake.last()

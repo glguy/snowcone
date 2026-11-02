@@ -167,6 +167,11 @@ function M.subscribe(sub)
     sub.on('irc.oper', function(ev)
         if common.enabled(ev.net, M.name) then M.sync(ev.net) end
     end)
+    sub.on('irc.isupport', function(ev)
+        if ev.key == 'CASEMAPPING' and common.enabled(ev.net, M.name) then
+            stores.set_casemapping(ev.net, HUB.state.nets[ev.net].irc.casemapping)
+        end
+    end)
     sub.on('clock.tick', stores.tick)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
 end

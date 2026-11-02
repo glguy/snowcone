@@ -46,6 +46,7 @@ local M = {}
 ---@field irc hub.Irc|nil protocol model (net/irc.lua), nil when idle
 ---@field fingerprint string|nil of the current connection
 ---@field registered_at number|nil clock when registration finished
+---@field wanted_nick string|nil the nick last given to /nick, until the configured nick changes
 ---@field close_timer integer|nil resource id while waiting for the server to
 --- close after QUIT
 ---@field console hub.OrderedMap recent raw messages, both directions
@@ -631,6 +632,9 @@ local function update_record(rec, net)
                 rec.restart_pending = true
             end
         end
+    end
+    if old.identity.nick ~= net.identity.nick then
+        rec.wanted_nick = nil -- the configured nick replaces a /nick
     end
     rec.cfg = net
     rec.backoff = math.max(net.reconnect.min_delay, math.min(rec.backoff, net.reconnect.max_delay))
