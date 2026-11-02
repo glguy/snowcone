@@ -125,6 +125,7 @@ end
 ---@field boot hub.Boot
 ---@field task_next_id integer|nil
 ---@field tty_suspended integer|nil children holding the terminal
+---@field tty_unfocused true|nil the terminal said it lost focus
 ---@field dirty boolean|nil the screen needs drawing
 ---@field defer_draw boolean|nil
 ---@field entry_installed boolean|nil

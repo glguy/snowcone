@@ -241,9 +241,7 @@ local function addwatch(ctx, args)
         elseif kind == 'iden' and colors[token] then
             watch.color = token
         elseif kind == 'iden' and token == 'filter' then
-            -- the cliconn view's filter
-            local vs = HUB.state.ui and HUB.state.ui.views.cliconn
-            local pattern = vs and vs.filter
+            local pattern = ctx.filter
             if not pattern or not matching.compile(pattern) then
                 error('the cliconn filter is not a valid pattern', 0)
             end

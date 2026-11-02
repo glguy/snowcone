@@ -44,7 +44,6 @@ M.profiles = {
 ---@field view string the shown view's id
 ---@field views table<string, hub.ViewState> by view id
 ---@field input hub.InputState
----@field focus boolean the terminal has focus
 ---@field current_net string|nil the network chosen for net-scoped views
 ---@field profile_configured string|nil ui.profile from configuration, last applied
 ---@field detail hub.Detail|nil shown in the detail pane
@@ -63,7 +62,6 @@ function M.init_state(S)
     -- and nothing typed here reaches the history
     ui.input.secret = ui.input.secret or editor.new()
     ui.input.prompts = ui.input.prompts or {}
-    if ui.focus == nil then ui.focus = true end
 end
 
 -- Networks ===========================================================

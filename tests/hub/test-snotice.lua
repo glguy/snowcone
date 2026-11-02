@@ -132,7 +132,7 @@ end
 
 T.case('connections, nick changes and exits', function()
     local c = boot {'snotice'}
-    T.require 'hub.features.snotice.ip_org'.set_impl(function(ip)
+    T.require 'hub.features.ip_org'.set_impl(function(ip)
         if ip == '192.0.2.1' then return 'Example Org', 64496 end
     end)
     local OrderedMap = T.require 'hub.lib.OrderedMap'
@@ -154,7 +154,7 @@ T.case('connections, nick changes and exits', function()
 
     notice(c, 'a.example', 'Client connecting: Alice_ (~al@h.example) [192.0.2.1] {users} <*> [Alice A]')
     T.eq(OrderedMap.lookup(S.users, 'alice_').count, 2, 'reconnects counted')
-    T.require 'hub.features.snotice.ip_org'.set_impl(nil)
+    T.require 'hub.features.ip_org'.set_impl(nil)
 end)
 
 T.case('the life of a K-Line', function()

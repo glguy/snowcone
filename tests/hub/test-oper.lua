@@ -49,14 +49,12 @@ T.case('/oper logs in with a named credential, or the automatic ones', function(
     c:recv ':srv 001 me :Welcome'
     c:recv ':srv 376 me :End of MOTD'
     c:take()
-    T.require 'hub.ui.control'.init_state(HUB.state)
-    local cmdline = T.require 'hub.ui.cmdline'
 
-    cmdline.execute 'oper other'
+    T.command 'oper other'
     T.eq(c:take(), {'OPER second p2'}, 'by name')
     c:recv ':srv 464 me :Password incorrect'
 
-    cmdline.execute 'oper'
+    T.command 'oper'
     T.eq(c:take(), {'OPER first p1'}, 'without automatic, the first credential')
     c:recv ':srv 491 me :No appropriate operator blocks were found for your host'
     T.eq(T.log_lines 'oper', {'password mismatch', 'host mismatch'}, 'outcomes logged')
@@ -254,8 +252,7 @@ end)
 
 T.case('on OFTC hybrid, kline_nick looks up with WHOIS', function()
     local c = boot(nil, false, 'oftc-hybrid')
-    T.require 'hub.ui.control'.init_state(HUB.state)
-    T.require 'hub.ui.cmdline'.execute 'kline_nick Someone'
+    T.command 'kline_nick Someone'
     T.eq(c:take(), {'WHOIS Someone'}, 'WHOIS, not WHOX')
     c:recv ':srv 311 me Someone ~s host.example * :Real'
     c:recv ':srv 338 me Someone 192.0.2.10 :actually using host'
@@ -275,9 +272,7 @@ end)
 
 T.case('kline_nick looks up unknown users with WHO', function()
     local c = boot()
-    T.require 'hub.ui.control'.init_state(HUB.state)
-    local cmdline = T.require 'hub.ui.cmdline'
-    cmdline.execute 'kline_nick Someone'
+    T.command 'kline_nick Someone'
     T.eq(c:take(), {'WHO Someone %tuihn,696'}, 'WHO')
     c:recv ':srv 354 me 696 ~s 192.0.2.10 host.example Someone'
     T.eq(c:take(), {'TESTMASK *@192.0.2.10'}, 'staged from WHO')
@@ -285,9 +280,8 @@ end)
 
 T.case('kline_nick without a connection says so', function()
     local c = boot()
-    T.require 'hub.ui.control'.init_state(HUB.state)
     c:finish 'reset'
-    T.require 'hub.ui.cmdline'.execute 'kline_nick Someone'
+    T.command 'kline_nick Someone'
     local found
     for _, line in ipairs(T.log_lines()) do
         T.ok(not line:find 'attempt to index', 'no crash: ' .. line)
@@ -314,8 +308,7 @@ T.case('durations', function()
     T.eq(oper.parse_duration '1w 2h', 10200, '1w 2h')
     T.eq(oper.parse_duration 'soon', nil, 'nonsense')
     T.eq(oper.pretty_duration(90), '1.5 h', 'pretty')
-    T.require 'hub.ui.control'.init_state(HUB.state)
-    T.require 'hub.ui.cmdline'.execute 'duration 2 d'
+    T.command 'duration 2 d'
     T.eq(oper.get('test').settings.duration, '2d', '/duration')
 end)
 

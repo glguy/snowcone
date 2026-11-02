@@ -1,7 +1,7 @@
--- Lending the terminal to a child process.
+-- The terminal: lending it to a child process, and whether it has focus.
 --
--- The count lives in HUB so a reload while a child holds the terminal
--- doesn't lose track of it.
+-- Both live in HUB so a reload doesn't lose track of them: the count of
+-- children holding the terminal, and focus as the UI last heard it.
 
 local dispatch <const> = require 'hub.runtime.dispatch'
 
@@ -27,6 +27,18 @@ end
 ---@return boolean # true while a child process has the terminal
 function M.suspended()
     return (HUB.tty_suspended or 0) > 0
+end
+
+--- Record the terminal gaining or losing focus, as the UI hears it.
+---@param on boolean
+function M.set_focus(on)
+    HUB.tty_unfocused = not on or nil
+end
+
+---@return boolean # true unless the terminal has said it lost focus;
+--- always true without a UI
+function M.focused()
+    return not HUB.tty_unfocused
 end
 
 return M

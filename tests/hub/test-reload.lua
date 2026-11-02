@@ -266,10 +266,8 @@ T.case('/reload with a file reads that file from then on', function()
 
     T.boot()
     T.eq(HUB.current.config.file, '(provided)', 'the boot configuration')
-    T.require 'hub.ui.control'.init_state(HUB.state)
-    local cmdline = T.require 'hub.ui.cmdline'
 
-    cmdline.execute('reload ' .. chosen)
+    T.command('reload ' .. chosen)
     T.sleep(50)
     T.eq({HUB.current.config.file, HUB.current.config.ui.profile}, {chosen, 'chat'}, 'the chosen file')
     T.eq(HUB.config_file, chosen, 'remembered')
@@ -278,7 +276,7 @@ T.case('/reload with a file reads that file from then on', function()
     T.ok(T.reload(), 'a reload without a file')
     T.eq(HUB.current.config.ui.profile, 'dashboard', 'reads the chosen file again')
 
-    cmdline.execute('reload ' .. dir .. '/missing.toml')
+    T.command('reload ' .. dir .. '/missing.toml')
     T.sleep(50)
     T.eq(HUB.last_reload.ok, false, 'a missing file fails the reload')
     T.eq(HUB.config_file, chosen, 'and is not remembered')

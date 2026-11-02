@@ -49,26 +49,40 @@ These hold everywhere. A change that breaks one needs a decision recorded in
 ## 2. Layers
 
 ```
-  6  app        init.lua, app.lua: generations, activation, quitting
-  5  ui         terminal, views, input, key maps, command line
-     commands   built-in commands (beside ui; bodies use lower layers only)
-  4  features   snotice, topology, oper, chat, notify, plugins
-  3  net        connection manager, protocol model, registration, CAP,
-                SASL, send, batches
-  2  runtime    loader, state, bus, dispatch, tasks, timers, resources,
-                clock, config, secrets, log, tty
-  1  lib        pure helpers: OrderedMap, casemap, schema, matching,
-                matchdsl, loadavg, numerics, mkcommand, scrub
+  7  app        generations, activation, quitting
+  6  ui         terminal, views, the detail pane, input, key maps
+  5  commands   running a command line; the client's own commands
+  4  features   per-network features (snotice, topology, oper, chat),
+                notify, and the plugin host
+  3  net        connections, the protocol model and its handlers,
+                registration, sending, server software differences
+  2  runtime    generations' machinery: loader, state, events, routes,
+                tasks, native handles, configuration, secrets, log, terminal
+  1  lib        pure helpers with no state and no hub dependencies
      native     snowcone.*, ncurses, myopenssl, mybase64, mytoml, ...
 ```
 
-- `lib` requires nothing else from hub.
+- `lib` requires nothing else from hub and doesn't touch `HUB`.
 - Only `ui` touches `ncurses`. Only `net` calls `snowcone.connect`. Only
   `runtime` calls `newtimer`, `dnslookup`, `execute`, `setmodule`,
   `catch_signals`, `stop_input` and `start_input`; other layers use its wrappers, so every
   handle is tracked.
 - A lower layer reaches upward only through a route name
   (`dispatch.route 'app.quit'`) or an event.
+- A layer's part of `HUB.state` is its own: only `ui` reads `state.ui`.
+  What a lower layer needs from the UI arrives as an argument, such as a
+  command's `ctx`, or lives in the lower layer, such as terminal focus in
+  `runtime/tty.lua`.
+- A feature's directory is private to it. A feature requires another's
+  modules only when it needs that feature (`feature_requires`, section 5);
+  notify, which follows chat's buffers, is the one other use. Helpers any
+  feature may use sit at `features/*.lua`.
+- `ui` has tiers, each requiring only its own or lower: drawing primitives
+  and the editor; `control` (view selection, input modes, talk targets);
+  views, detail kinds, the status bar and the command line; the key map;
+  `ui/init.lua`.
+
+`tests/hub/test-structure.lua` checks every rule in this section.
 
 ## 3. Runtime
 
@@ -93,7 +107,7 @@ A module may export:
 | `init_state(S)` | Create its part of `HUB.state` if missing. Runs on every load, so it is idempotent and only adds. |
 | `routes` | `[name] = function`, targets for trampolines and late calls. |
 | `subscribe(sub)` | `sub.on(topic, fn)` on the generation's bus. |
-| `commands` | `{name, spec, usage, fn, help, scope, feature, group, complete}` entries: `spec` is for the parser, `usage` (`nick [count]`) for people; `group` (default: the feature) places it in `/help`; `complete(ctx, before, seed)`, optional, gives Tab's candidates for an argument, or nil for channels and nicks. |
+| `commands` | `{name, spec, usage, fn, help, scope, feature, group, complete}` entries: `spec` is for the parser, `usage` (`nick [count]`) for people; `fn(ctx, ...)` gets a `hub.CommandContext`, `net` plus what whoever ran the line adds (from the UI: `target`, the shown buffer, and `filter`, the cliconn view's); `group` (default: the feature) places it in `/help`; `complete(ctx, before, seed)`, optional, gives Tab's candidates for an argument, or nil for channels and nicks. `commands/run.lua` runs a line for a given origin, so commands run headless. |
 | `views` | View records (section 7). |
 | `activate(first)` | Runs once the generation is current. |
 
@@ -114,6 +128,7 @@ Duplicate routes, commands or views fail the build.
 | `dirty`, `defer_draw` | yes | A draw is due; the current callback holds it back. |
 | `entry_installed` | yes | The `setmodule` entry is in place. |
 | `tty_suspended` | yes | How many children hold the terminal. |
+| `tty_unfocused` | yes | The terminal said it lost focus (`runtime/tty.lua`). |
 | `task_next_id` | yes | Last task id given out. |
 | `plugins_started` | yes | Plugin names to stop before the next generation starts its own. |
 | `quitting`, `shut_down` | yes | Quitting has begun; shutdown has run. |
@@ -206,6 +221,11 @@ connected at once.
   before what arrived on the current connection, in the server's order.
   Handlers update only the model and emit events; everything user-facing
   is a feature.
+- **Server software:** a network's `ircd` (Solanum or OFTC hybrid) is read
+  with `net/ircd.lua`. Each difference — numerics, notice formats, snomasks,
+  MAP lines, WHOIS replies, CHALLENGE — is a table keyed by
+  `ircd.of(net)`, or a branch, next to the code that uses it, in whichever
+  layer that is; a new ircd is a new key in those tables.
 - **Operator status** fires `irc.oper` once per connection, from
   RPL_YOUREOPER or a user mode `o` (a bouncer session that is already
   opered).
@@ -242,7 +262,7 @@ unreachable or wrong without the other, not to save a check.
 | oper | Libera ban masks; staging a K-Line, unkline or undline with a TESTMASK count; sending it only on confirmation; operator commands. |
 | chat | Buffers per network and target, routing, mentions, chat history, MONITOR, WALLOPS, CTCP replies to staff, `/list`, quiets, bans and kicks with Libera channel ban masks. |
 | notify | Desktop or terminal notifications of mentions while the terminal is unfocused (always loaded; not per network). |
-| plugins | Loads plugins into each generation (section 6). |
+| plugins | Not a feature but the plugin host, at this layer so that plugins see what features see: loads plugins into each generation (section 6). Always loaded. |
 
 Features send only queries on their own (MAP, LINKS, TESTMASK, CHATHISTORY,
 MONITOR, WHOIS, CTCP replies to staff). Anything with an effect — bans, joins,
@@ -415,6 +435,8 @@ All tests run in snowcone without a UI, from CTest, with `luacheck` over
 - `tests/hub/lib.lua`: assertions, `T.boot`/`T.reload` (headless, strict,
   with an empty configuration unless given one), asynchronous cases with
   `T.sleep`, and a watchdog that fails a case that never finishes.
+- `T.command(text, net, target)` runs a command line headless, through
+  `commands/run.lua`, on a named network and buffer.
 - `fake_transport.lua` stands in for `snowcone.connect`; tests play the
   server line by line.
 - `fake_ncurses.lua` lets the whole UI load and draw, so `test-views.lua`

@@ -6,7 +6,7 @@
 local bus        <const> = require 'hub.runtime.bus'
 local common     <const> = require 'hub.features.common'
 local handlers   <const> = require 'hub.net.handlers'
-local ip_org     <const> = require 'hub.features.snotice.ip_org'
+local ip_org     <const> = require 'hub.features.ip_org'
 local irc_model  <const> = require 'hub.net.irc'
 local loadavg    <const> = require 'hub.lib.loadavg'
 local matching   <const> = require 'hub.lib.matching'

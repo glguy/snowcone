@@ -10,6 +10,7 @@
 
 local chat   <const> = require 'hub.features.chat'
 local common <const> = require 'hub.features.common'
+local tty    <const> = require 'hub.runtime.tty'
 
 local M = {}
 
@@ -57,15 +58,10 @@ local function muted(net)
     return m
 end
 
-local function focused()
-    local ui = HUB.state.ui
-    return ui == nil or ui.focus ~= false
-end
-
 --- Notify about a message in a buffer, unless the terminal has focus.
 function M.notify(net, target, nick, text)
     local impl = backend()
-    if not impl or focused() then return end
+    if not impl or tty.focused() then return end
     local key = chat.fold(net, target)
     local m = muted(net)
     m[key] = impl.notify(m[key], target, nick or '?', text)

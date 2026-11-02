@@ -99,8 +99,7 @@ T.case('handlers, commands, state and timers', function()
     local errors = T.log_lines 'plugin'
     T.ok(errors[#errors]:find('handler fails', 1, true), 'boom logged')
 
-    T.require 'hub.ui.control'.init_state(HUB.state)
-    T.require 'hub.ui.cmdline'.execute 'greet friend'
+    T.command 'greet friend'
     T.eq(c:take(), {'PRIVMSG friend :hello from good'}, 'command')
 
     T.sleep(50)

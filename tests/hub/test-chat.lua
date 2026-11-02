@@ -105,15 +105,13 @@ T.case('whowas gathers every past entry, and reports failures', function()
     T.eq(next(HUB.tasks), nil, 'finished')
 
     -- the command takes a count of entries
-    T.require 'hub.ui.control'.init_state(HUB.state)
-    local cmdline = T.require 'hub.ui.cmdline'
-    cmdline.execute 'whowas Old 3'
+    T.command 'whowas Old 3'
     T.eq(c:take(), {'WHOWAS Old 3'}, 'with a count')
     c:recv ':srv 369 me Old :End of WHOWAS'
-    cmdline.execute 'whowas Old'
+    T.command 'whowas Old'
     T.eq(c:take(), {'WHOWAS Old'}, 'without')
     c:recv ':srv 369 me Old :End of WHOWAS'
-    cmdline.execute 'whowas Old x'
+    T.command 'whowas Old x'
     T.eq(c:take(), {}, 'a bad count sends nothing')
     T.ok(T.log_lines 'error'[1]:find 'count must be a positive number', 'and says why')
 end)
@@ -720,12 +718,10 @@ end)
 
 T.case('talk, close and list', function()
     local c, chat = boot()
-    T.require 'hub.ui.control'.init_state(HUB.state)
-    local cmdline = T.require 'hub.ui.cmdline'
-    cmdline.execute 'talk #new'
+    T.command 'talk #new'
     local sent = c:take()
     T.eq(sent, {'CHATHISTORY LATEST #new * 50', 'JOIN #new'}, 'history before join')
-    cmdline.execute 'talk Carol'
+    T.command 'talk Carol'
     T.eq(c:take(), {'CHATHISTORY LATEST Carol * 50', 'MONITOR + Carol'}, 'monitor a nick')
 
     c:recv ':srv 730 me :Carol!c@h'
@@ -733,7 +729,7 @@ T.case('talk, close and list', function()
     T.eq(c:take(), {'MONITOR - carol'}, 'unmonitored')
     T.eq(chat.buffer('test', 'Carol'), nil, 'closed')
 
-    cmdline.execute 'list'
+    T.command 'list'
     T.eq(c:take(), {'LIST'}, 'LIST')
     c:recv ':srv 321 me Channel :Users  Name'
     c:recv ':srv 322 me #a 12 :topic a'
@@ -745,11 +741,9 @@ end)
 
 T.case('closing a channel parts it, and its buffer stays closed', function()
     local c, chat = boot()
-    T.require 'hub.ui.control'.init_state(HUB.state)
-    local cmdline = T.require 'hub.ui.cmdline'
     c:recv ':me!u@h JOIN #chan'
     c:take()
-    cmdline.execute 'close #Chan'
+    T.command 'close #Chan'
     T.eq(c:take(), {'PART #Chan'}, 'parted')
     T.eq(chat.buffer('test', '#chan'), nil, 'closed at once')
     c:recv ':bob!b@h PRIVMSG #chan :before the part'
@@ -811,54 +805,46 @@ end)
 
 T.case('op, deop, voice and devoice nicks, or ourselves', function()
     local c = boot()
-    local control = T.require 'hub.ui.control'
-    control.init_state(HUB.state)
-    local cmdline = T.require 'hub.ui.cmdline'
     c:recv ':me!u@h JOIN #chan'
     c:take()
-    control.set_talk_target('test', '#chan')
 
-    cmdline.execute 'op a b c d'
+    T.command('op a b c d', nil, '#chan')
     T.eq(c:take(), {'MODE #chan +ooo a b c', 'MODE #chan +o d'}, 'three to a line by default')
     c:recv ':srv 005 me MODES=4 :are supported'
-    cmdline.execute 'devoice a b c d e'
+    T.command('devoice a b c d e', nil, '#chan')
     T.eq(c:take(), {'MODE #chan -vvvv a b c d', 'MODE #chan -v e'}, 'as many as MODES')
     c:recv ':srv 005 me MODES :are supported'
-    cmdline.execute 'voice a b c d e'
+    T.command('voice a b c d e', nil, '#chan')
     T.eq(c:take(), {'MODE #chan +vvvvv a b c d e'}, 'MODES without a limit')
 
-    cmdline.execute 'op'
+    T.command('op', nil, '#chan')
     T.eq(c:take(), {'PRIVMSG ChanServ :OP #chan'}, 'op ourselves through ChanServ')
-    cmdline.execute 'voice'
+    T.command('voice', nil, '#chan')
     T.eq(c:take(), {'PRIVMSG ChanServ :VOICE #chan'}, 'voice ourselves through ChanServ')
-    cmdline.execute 'deop'
+    T.command('deop', nil, '#chan')
     T.eq(c:take(), {'MODE #chan -o me'}, 'deop ourselves directly')
-    cmdline.execute 'devoice'
+    T.command('devoice', nil, '#chan')
     T.eq(c:take(), {'MODE #chan -v me'}, 'devoice ourselves directly')
 end)
 
 T.case('mode changes the shown channel, checked against CHANMODES, or shows it', function()
     local c = boot()
-    local control = T.require 'hub.ui.control'
-    control.init_state(HUB.state)
-    local cmdline = T.require 'hub.ui.cmdline'
     local bus = T.require 'hub.runtime.bus'
     c:recv ':srv 005 me PREFIX=(ov)@+ CHANMODES=bq,k,l,imnst MODES=2 :are supported'
     c:recv ':me!u@h JOIN #chan'
     c:take()
-    control.set_talk_target('test', '#chan')
     local shown = {}
     bus.on(HUB.current.bus, 'chat.show_channel', 'test', function(ev) table.insert(shown, ev.target) end)
 
-    cmdline.execute 'mode +nt-s'
+    T.command('mode +nt-s', nil, '#chan')
     T.eq(c:take(), {'MODE #chan +nt-s'}, 'flags')
-    cmdline.execute 'mode +kl key 50'
+    T.command('mode +kl key 50', nil, '#chan')
     T.eq(c:take(), {'MODE #chan +kl key 50'}, 'arguments in order')
-    cmdline.execute 'mode -l+o-k bob key'
+    T.command('mode -l+o-k bob key', nil, '#chan')
     T.eq(c:take(), {'MODE #chan -l+o-k bob key'}, 'unset l takes none; k does')
-    cmdline.execute 'mode +ooo-v a b c d'
+    T.command('mode +ooo-v a b c d', nil, '#chan')
     T.eq(c:take(), {'MODE #chan +oo a b', 'MODE #chan +o-v c d'}, 'as many arguments a line as MODES')
-    cmdline.execute 'mode i'
+    T.command('mode i', nil, '#chan')
     T.eq(c:take(), {'MODE #chan +i'}, 'no sign: sets, as the server reads it')
 
     for bad, why in pairs {
@@ -867,40 +853,36 @@ T.case('mode changes the shown channel, checked against CHANMODES, or shows it',
         ['mode +n extra'] = 'more arguments than the modes take: extra',
         ['mode +'] = 'no modes: +',
     } do
-        cmdline.execute(bad)
+        T.command(bad, nil, '#chan')
         T.eq(c:take(), {}, 'unsent: ' .. bad)
         local errors = T.log_lines 'error'
         T.eq(errors[#errors], 'mode: ' .. why, 'refused')
     end
 
-    cmdline.execute 'mode'
+    T.command('mode', nil, '#chan')
     T.eq(c:take(), {'MODE #chan'}, 'none: modes asked for again')
-    cmdline.execute 'mode +bq'
+    T.command('mode +bq', nil, '#chan')
     T.eq(c:take(), {'MODE #chan +b', 'MODE #chan +q'}, 'only lists: fetched')
     T.eq(shown, {'#chan', '#chan'}, 'and shown')
 end)
 
 T.case('Tab after mode offers what fits the argument', function()
     local c = boot()
-    local control = T.require 'hub.ui.control'
-    control.init_state(HUB.state)
-    local cmdline = T.require 'hub.ui.cmdline'
     c:recv ':srv 005 me PREFIX=(ov)@+ CHANMODES=bq,k,l,imnst :are supported'
     c:recv ':me!u@h JOIN #chan'
     c:recv ':srv 353 me = #chan :@me bob'
     c:recv ':srv 324 me #chan +k sekrit'
     c:take()
-    control.set_talk_target('test', '#chan')
 
-    T.eq(cmdline.complete_args('mode +o ', 'b'), {'bob'}, 'nicks for a prefix mode')
-    T.eq(cmdline.complete_args('mode +lo 5 ', 'b'), {'bob'}, 'past earlier arguments')
-    T.eq(cmdline.complete_args('mode -k ', ''), {'sekrit'}, 'the key to unset')
-    T.eq(cmdline.complete_args('mode +b ', ''), nil, 'nothing for a mask to set')
-    T.eq(cmdline.complete_args('mode -b ', ''), nil, 'a list not fetched')
+    T.eq(T.complete_args('mode +o ', 'b', nil, '#chan'), {'bob'}, 'nicks for a prefix mode')
+    T.eq(T.complete_args('mode +lo 5 ', 'b', nil, '#chan'), {'bob'}, 'past earlier arguments')
+    T.eq(T.complete_args('mode -k ', '', nil, '#chan'), {'sekrit'}, 'the key to unset')
+    T.eq(T.complete_args('mode +b ', '', nil, '#chan'), nil, 'nothing for a mask to set')
+    T.eq(T.complete_args('mode -b ', '', nil, '#chan'), nil, 'a list not fetched')
     T.eq(c:take(), {'MODE #chan +b'}, 'is asked for')
     c:recv ':srv 367 me #chan *!*@bad.example op 1700000000'
     c:recv ':srv 368 me #chan :End of Channel Ban List'
-    T.eq(cmdline.complete_args('mode -b ', ''), {'*!*@bad.example'}, 'its masks')
+    T.eq(T.complete_args('mode -b ', '', nil, '#chan'), {'*!*@bad.example'}, 'its masks')
 end)
 
 T.case('Tab after unban offers the ban list, fetching it first', function()
@@ -936,17 +918,15 @@ T.case('Tab after close offers buffers, and after sasl credentials', function()
         {mechanism = 'EXTERNAL'},
         {name = 'main', mechanism = 'PLAIN', username = 'u', password = 'p'},
     }}}
-    T.require 'hub.ui.control'.init_state(HUB.state)
-    local cmdline = T.require 'hub.ui.cmdline'
     c:recv ':me!u@h JOIN #chan'
     c:recv ':me!u@h JOIN #other'
     c:recv ':bob!b@h PRIVMSG me :hi'
     local function sorted(t) table.sort(t) return t end
-    T.eq(sorted(cmdline.complete_args('close ', '#')), {'#chan', '#other'}, 'channels')
-    T.eq(cmdline.complete_args('close ', 'b'), {'bob'}, 'queries')
-    T.eq(cmdline.complete_args('close #chan ', ''), nil, 'one target')
-    T.eq(sorted(cmdline.complete_args('sasl ', '')), {'EXTERNAL', 'main'}, 'credentials by name')
-    T.eq(cmdline.complete_args('sasl ', 'm'), {'main'}, 'matching')
+    T.eq(sorted(T.complete_args('close ', '#')), {'#chan', '#other'}, 'channels')
+    T.eq(T.complete_args('close ', 'b'), {'bob'}, 'queries')
+    T.eq(T.complete_args('close #chan ', ''), nil, 'one target')
+    T.eq(sorted(T.complete_args('sasl ', '')), {'EXTERNAL', 'main'}, 'credentials by name')
+    T.eq(T.complete_args('sasl ', 'm'), {'main'}, 'matching')
 end)
 
 T.case('channel ban mask rules', function()
@@ -966,37 +946,33 @@ end)
 
 T.case('quiet, ban, kickban and their removal in the shown channel', function()
     local c = boot()
-    local control = T.require 'hub.ui.control'
-    control.init_state(HUB.state)
-    local cmdline = T.require 'hub.ui.cmdline'
     c:recv ':me!u@h JOIN #chan'
     c:recv ':srv 353 me = #chan :@me bob'
     c:take()
-    control.set_talk_target('test', '#chan')
 
-    cmdline.execute 'quiet Bob'
+    T.command('quiet Bob', nil, '#chan')
     T.eq(c:take(), {'WHO Bob %tuihn,696'}, 'looked up')
     c:recv ':srv 354 me 696 ~b 255.255.255.255 unaffiliated/bob bob'
     T.eq(c:take(), {'MODE #chan +q *!*@unaffiliated/bob'}, 'quieted by cloak')
 
-    cmdline.execute 'kickban bob go away'
+    T.command('kickban bob go away', nil, '#chan')
     c:recv ':srv 354 me 696 b 192.0.2.5 host.example bob'
     T.eq(c:take(), {'WHO bob %tuihn,696', 'MODE #chan +b *!b@192.0.2.5', 'KICK #chan bob :go away'}, 'kickban')
 
-    cmdline.execute 'kickban Gone'
+    T.command('kickban Gone', nil, '#chan')
     c:recv ':srv 315 me Gone :End of WHO'
     c:recv ':srv 314 me Gone g gone.example * :Gone'
     c:recv ':srv 369 me Gone :End of WHOWAS'
     T.eq(c:take(), {'WHO Gone %tuihn,696', 'WHOWAS Gone 1', 'MODE #chan +b *!*@gone.example', 'KICK #chan Gone'},
         'someone who left, by WHOWAS')
 
-    cmdline.execute 'unban *!*@old.example'
+    T.command('unban *!*@old.example', nil, '#chan')
     T.eq(c:take(), {'MODE #chan -b *!*@old.example'}, 'a mask as given')
-    cmdline.execute 'unquiet bob'
+    T.command('unquiet bob', nil, '#chan')
     c:recv ':srv 354 me 696 ~b 255.255.255.255 unaffiliated/bob bob'
     T.eq(c:take(), {'WHO bob %tuihn,696', 'MODE #chan -q *!*@unaffiliated/bob'}, 'a nick by its mask')
 
-    cmdline.execute 'ban nobody'
+    T.command('ban nobody', nil, '#chan')
     c:recv ':srv 315 me nobody :End of WHO'
     c:recv ':srv 406 me nobody :There was no such nickname'
     T.eq(c:take(), {'WHO nobody %tuihn,696', 'WHOWAS nobody 1'}, 'WHO, then WHOWAS')
@@ -1005,10 +981,9 @@ T.case('quiet, ban, kickban and their removal in the shown channel', function()
 
     -- whether we may is the server's to say
     c:recv ':srv MODE #chan -o me'
-    cmdline.execute 'unban *!*@old.example'
+    T.command('unban *!*@old.example', nil, '#chan')
     T.eq(c:take(), {'MODE #chan -b *!*@old.example'}, 'sent unopped')
-    control.set_talk_target('test', 'bob')
-    cmdline.execute 'quiet bob'
+    T.command('quiet bob', nil, 'bob')
     T.ok(T.log_lines 'error'[1]:find 'not a channel: bob', 'refused outside a channel')
     T.eq(c:take(), {}, 'nothing sent')
 end)
@@ -1026,8 +1001,8 @@ T.case('mentions notify once until seen, and dismiss', function()
     }
     local notify = T.require 'hub.features.notify'
     notify.register_backend('test', 'hub.features.notify.test')
-    ---@diagnostic disable-next-line: missing-fields only what notify reads
-    HUB.state.ui = {focus = false}
+    local tty = T.require 'hub.runtime.tty'
+    tty.set_focus(false)
 
     c:recv ':bob!b@h PRIVMSG me :one'
     c:recv ':bob!b@h PRIVMSG me :two'
@@ -1036,7 +1011,7 @@ T.case('mentions notify once until seen, and dismiss', function()
         {'notify', 'handle', 'bob', 'bob', 'two'},
     }, 'second notification knows the first')
 
-    HUB.state.ui.focus = true
+    tty.set_focus(true)
     c:recv ':bob!b@h PRIVMSG me :three'
     T.eq(#calls, 2, 'no notifications while focused')
 
@@ -1053,10 +1028,8 @@ T.case('crypto commands write keys and print the services commands', function()
     os.remove(dir)
     local path = require 'pl.path'
     path.mkdir(dir)
-    T.require 'hub.ui.control'.init_state(HUB.state)
-    local cmdline = T.require 'hub.ui.cmdline'
 
-    cmdline.execute 'x25519_new'
+    T.command 'x25519_new'
     local lines = T.log_lines 'crypto'
     T.eq(T.log_lines 'error', {}, 'no errors')
     T.ok(lines[#lines]:match '^/msg NickServ SET X25519%-PUBKEY %S+$', lines[#lines])
@@ -1071,14 +1044,14 @@ T.case('crypto commands write keys and print the services commands', function()
     T.require 'hub.runtime.bus'.on(HUB.current.bus, 'task.prompt', 'test', function(ev)
         table.insert(prompts, ev)
     end)
-    cmdline.execute('cert_new ' .. dir .. '/cert.pem')
+    T.command('cert_new ' .. dir .. '/cert.pem')
     T.eq(#prompts, 1, 'asked for a password')
     T.require 'hub.runtime.task'.answer(prompts[1].task, '')
     lines = T.log_lines 'crypto'
     local added = lines[#lines]
     T.ok(added:match '^/msg NickServ CERT ADD %x+$', added)
 
-    cmdline.execute('cert_fp ' .. dir .. '/cert.pem')
+    T.command('cert_fp ' .. dir .. '/cert.pem')
     lines = T.log_lines 'crypto'
     T.eq(lines[#lines], added, 'same fingerprint from the file')
 

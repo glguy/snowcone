@@ -1,4 +1,5 @@
--- Structural rules of hub's source: layering,
+-- Structural rules of hub's source: layering, the tiers within ui,
+-- which features may use each other, who reads which part of HUB,
 -- which layer may use which native API, and the event catalog.
 --
 -- Run with:  snowcone tests/hub/test-structure.lua
@@ -11,7 +12,33 @@ local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')
 local root = path.normpath(path.abspath(T.root))
 
-local layer_rank = {lib = 1, runtime = 2, net = 3, features = 4, ui = 5, commands = 5, app = 6}
+local layer_rank = {lib = 1, runtime = 2, net = 3, features = 4, commands = 5, ui = 6, app = 7}
+
+-- Tiers within ui, lowest first; a ui module requires only its own tier
+-- or lower. Modules not named are in tier 3 (views, details and the like).
+local ui_tier = {
+    ['ui/draw.lua'] = 1, ['ui/pads.lua'] = 1, ['ui/clicks.lua'] = 1,
+    ['ui/colors.lua'] = 1, ['ui/fields.lua'] = 1, ['ui/irc_formatting.lua'] = 1,
+    ['ui/editor.lua'] = 1,
+    ['ui/control.lua'] = 2,
+    ['ui/keymap.lua'] = 4,
+    ['ui/init.lua'] = 5,
+}
+local function tier_of(rel)
+    return ui_tier[rel] or 3
+end
+
+-- A feature may require another feature's modules only when it needs that
+-- feature (config_schema.feature_requires), or as listed here
+local feature_uses <const> = {
+    -- notify follows chat's buffers; it isn't a per-network feature
+    notify = {chat = true},
+}
+
+-- Parts of HUB that only one layer reads or writes
+local hub_owner <const> = {
+    ['HUB%.state%.ui'] = 'ui',
+}
 
 -- Layer of a path relative to the hub root, like 'ui/views/status.lua'
 local function layer_of_path(rel)
@@ -87,6 +114,81 @@ T.case('modules only require their own layer or below', function()
         end
     end
     T.eq(problems, {}, 'layering problems')
+end)
+
+-- The path of a module inside hub, like 'ui/views/status.lua'
+local function module_path(name)
+    local rel = name:gsub('^hub%.', ''):gsub('%.', '/')
+    if path.isfile(path.join(root, rel .. '.lua')) then
+        return rel .. '.lua'
+    end
+    return rel .. '/init.lua'
+end
+
+T.case('ui modules only require their own tier or below', function()
+    local problems = {}
+    for _, f in ipairs(sources()) do
+        if layer_of_path(f.rel) == 'ui' then
+            for name in f.src:gmatch 'require%s*%(?%s*[\'"](hub%.ui[%w_.]*)[\'"]' do
+                local theirs = module_path(name)
+                if tier_of(theirs) > tier_of(f.rel) then
+                    table.insert(problems, string.format('%s (tier %d) requires %s (tier %d)',
+                        f.rel, tier_of(f.rel), name, tier_of(theirs)))
+                end
+            end
+        end
+    end
+    T.eq(problems, {}, 'ui tier problems')
+end)
+
+T.case('features use each other only as they require', function()
+    local requires = dofile(path.join(root, 'runtime/config_schema.lua')).feature_requires
+    local function allowed(mine, theirs)
+        if feature_uses[mine] and feature_uses[mine][theirs] then return true end
+        for _, needed in ipairs(requires[mine] or {}) do
+            if needed == theirs then return true end
+        end
+        return false
+    end
+
+    local problems = {}
+    for _, f in ipairs(sources()) do
+        -- a feature's own directory, or nil for a shared helper (features/*.lua)
+        local mine = f.rel:match '^features/([^/]+)/'
+        if layer_of_path(f.rel) == 'features' then
+            for name in f.src:gmatch 'require%s*%(?%s*[\'"]hub%.features%.([%w_.]+)[\'"]' do
+                local theirs = name:match '^[^.]+'
+                -- a shared helper is anyone's; a feature's directory is its own
+                if path.isdir(path.join(root, 'features', theirs)) and theirs ~= mine then
+                    if mine == nil then
+                        table.insert(problems, f.rel .. ': a shared helper requires feature ' .. theirs)
+                    elseif not allowed(mine, theirs) then
+                        table.insert(problems, string.format('%s: %s uses %s, which it does not require',
+                            f.rel, mine, theirs))
+                    end
+                end
+            end
+        end
+    end
+    T.eq(problems, {}, 'feature dependency problems')
+end)
+
+T.case('each part of HUB is used only by its layer', function()
+    local problems = {}
+    for _, f in ipairs(sources()) do
+        local mine = layer_of_path(f.rel)
+        if mine == 'lib' and f.src:find 'HUB[^%w_]' then
+            table.insert(problems, f.rel .. ': lib uses HUB')
+        end
+        for pattern, owner in pairs(hub_owner) do
+            if mine ~= owner and f.src:find(pattern .. '[^%w_]') then
+                table.insert(problems, string.format('%s: uses %s outside %s',
+                    f.rel, pattern:gsub('%%', ''), owner))
+            end
+        end
+    end
+    table.sort(problems)
+    T.eq(problems, {}, 'HUB ownership problems')
 end)
 
 T.case('native APIs are used only from their layer', function()

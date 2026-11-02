@@ -43,6 +43,14 @@ a decision is made, and change or remove it when the decision does.
 - **One draw per burst.** The screen is not redrawn per inbound message:
   code that changes what is shown calls `dispatch.dirty()`, and the
   connection defers drawing until the line that ends a read.
+- **Commands run below the UI.** `commands/run.lua` parses and runs a
+  line for a `hub.CommandOrigin`: the default network, and a function
+  that adds to the context what only the caller knows. The UI adds the
+  shown buffer and the cliconn filter; tests name the network and buffer
+  outright, so a feature's commands are tested headless.
+- **Terminal focus belongs to `runtime/tty.lua`,** not UI state: the key
+  map records focus changes there and notify reads them, so no feature
+  reads `HUB.state.ui`. Without a terminal it is always focused.
 - **Strict mode** (tests) re-raises route and subscriber errors after
   logging them; a failed reload still returns `false, err` so tests can
   check it.
@@ -104,6 +112,8 @@ a decision is made, and change or remove it when the decision does.
   snotice's ranges don't depend on that feature.
 - **Watches from configuration** are replaced on every load, keeping hit
   counts by pattern; watches added with `/addwatch` stay.
+  `/addwatch filter` takes the cliconn view's filter from `ctx.filter`,
+  which only the UI supplies.
 
 ## Networks and protocol
 

@@ -150,6 +150,23 @@ T.case('a view the network lacks the feature for gives way to its first view', f
     T.eq(HUB.state.ui.view, 'console', 'a reload that drops the feature moves on')
 end)
 
+T.case('/addwatch filter takes the filter of the cliconn view', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    local watches = T.require 'hub.features.snotice.stores'.get('test').watches
+    local before = #watches
+
+    cmdline.execute 'addwatch filter'
+    T.eq(#watches, before, 'nothing without a filter')
+    local errors = T.log_lines 'error'
+    T.ok(errors[#errors]:find 'cliconn filter', 'and says why')
+
+    control.set_filter('cliconn', 'badguy')
+    cmdline.execute 'addwatch filter red'
+    T.eq({watches[#watches].pattern, watches[#watches].color}, {'badguy', 'red'}, 'added')
+end)
+
 T.case('keys reach input modes, views and commands', function()
     local c = boot()
     local control = T.require 'hub.ui.control'

@@ -13,6 +13,7 @@ local editor    <const> = require 'hub.ui.editor'
 local pads      <const> = require 'hub.ui.pads'
 local dispatch  <const> = require 'hub.runtime.dispatch'
 local log       <const> = require 'hub.runtime.log'
+local tty       <const> = require 'hub.runtime.tty'
 
 local M = {}
 
@@ -260,8 +261,8 @@ M.global = {
     [-ncurses.KEY_UP] = scroll(0, 1),
     [-ncurses.KEY_DOWN] = scroll(0, -1),
 
-    [-ncurses.KEY_RESUME] = function() HUB.state.ui.focus = true end,
-    [-ncurses.KEY_EXIT] = function() HUB.state.ui.focus = false end,
+    [-ncurses.KEY_RESUME] = function() tty.set_focus(true) end,
+    [-ncurses.KEY_EXIT] = function() tty.set_focus(false) end,
 
     [ctrl 'L'] = function() ncurses.clear() end,
     [ctrl 'N'] = control.next_view,

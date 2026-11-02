@@ -207,13 +207,12 @@ end)
 
 T.case('/maintenance asks every server for sheds and drains', function()
     local c = boot()
-    T.require 'hub.ui.control'.init_state(HUB.state)
     c:recv ':srv 015 me :alpha.example[01A] ---- | Users:    10 (10%)'
     c:recv ':srv 015 me :beta.example[01B] ----- | Users:    20 (20%)'
     c:recv ':srv 017 me :End of /MAP'
     topo().drains['beta.example'] = true
     c:take()
-    T.require 'hub.ui.cmdline'.execute 'maintenance'
+    T.command 'maintenance'
     T.eq(c:take(), {
         'STATS E alpha.example', 'MODLIST drain alpha.example',
         'STATS E beta.example', 'MODLIST drain beta.example',
@@ -255,9 +254,7 @@ end)
 
 T.case('feature commands need the feature', function()
     boot {features = {'snotice'}}
-    local cmdline = T.require 'hub.ui.cmdline'
-    T.require 'hub.ui.control'.init_state(HUB.state)
-    cmdline.execute 'sync'
+    T.command 'sync'
     local errors = T.log_lines 'error'
     T.eq(errors[#errors], 'sync needs the topology feature on test', 'refused')
 end)

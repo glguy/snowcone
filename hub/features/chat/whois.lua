@@ -5,7 +5,7 @@
 -- identified, admin and service, and no account.
 
 local bus       <const> = require 'hub.runtime.bus'
-local ip_org    <const> = require 'hub.features.snotice.ip_org'
+local ip_org    <const> = require 'hub.features.ip_org'
 local irc_model <const> = require 'hub.net.irc'
 local ircd      <const> = require 'hub.net.ircd'
 local log       <const> = require 'hub.runtime.log'

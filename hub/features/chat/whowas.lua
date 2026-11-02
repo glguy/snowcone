@@ -3,7 +3,7 @@
 -- opens it, and emitted as chat.whowas for the UI to show.
 
 local bus       <const> = require 'hub.runtime.bus'
-local ip_org    <const> = require 'hub.features.snotice.ip_org'
+local ip_org    <const> = require 'hub.features.ip_org'
 local irc_model <const> = require 'hub.net.irc'
 local log       <const> = require 'hub.runtime.log'
 local N         <const> = require 'hub.lib.numerics'

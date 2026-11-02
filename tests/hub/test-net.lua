@@ -184,23 +184,21 @@ T.case('/sasl uses the named credential, or the automatic ones, or the first', f
     c:recv ':srv 001 me :Welcome'
     c:recv ':srv 376 me :End of MOTD'
     c:take()
-    T.require 'hub.ui.control'.init_state(HUB.state)
-    local cmdline = T.require 'hub.ui.cmdline'
 
-    cmdline.execute 'sasl other'
+    T.command 'sasl other'
     T.eq(c:take(), {'AUTHENTICATE PLAIN'}, 'by name')
     c:recv 'AUTHENTICATE +'
     T.eq(c:take(), {'AUTHENTICATE ' .. mybase64.to_base64 '\0b\0pb'}, 'the named credential')
     c:recv ':srv 903 me :SASL authentication successful'
 
-    cmdline.execute 'sasl'
+    T.command 'sasl'
     c:recv 'AUTHENTICATE +'
     T.eq(c:take(), {'AUTHENTICATE PLAIN', 'AUTHENTICATE ' .. mybase64.to_base64 '\0a\0pa'},
         'without automatic, the first credential')
     c:recv ':srv 903 me :SASL authentication successful'
 
     rec().cfg.sasl.automatic = {'other', 'first'}
-    cmdline.execute 'sasl'
+    T.command 'sasl'
     c:recv 'AUTHENTICATE +'
     T.eq(c:take(), {'AUTHENTICATE PLAIN', 'AUTHENTICATE ' .. mybase64.to_base64 '\0b\0pb'}, 'the automatic list')
     c:recv ':srv 904 me :SASL authentication failed'

@@ -93,6 +93,29 @@ function T.require(name)
     return HUB.current.gen.require(name)
 end
 
+-- Where a test's command line comes from: a network, by default the first
+-- configured, and the buffer it shows there
+local function origin(net, target)
+    net = net or T.require 'hub.net.manager'.ids()[1]
+    return {net = net, context = function(ctx)
+        if ctx.net == net then ctx.target = target end
+    end}
+end
+
+--- Run a command line without the UI, on a network (default: the first
+--- configured) with an optional target, as if its buffer were shown.
+---@param text string
+---@param net string|nil
+---@param target string|nil
+function T.command(text, net, target)
+    T.require 'hub.commands.run'.execute(text, origin(net, target))
+end
+
+--- Tab's candidates for a command's argument, as T.command would run it.
+function T.complete_args(prefix, seed, net, target)
+    return T.require 'hub.commands.run'.complete_args(prefix, seed, origin(net, target))
+end
+
 --- Close everything the previous case left behind and forget HUB.
 function T.shutdown()
     if HUB and HUB.current then

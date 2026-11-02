@@ -32,6 +32,7 @@ local matching   <const> = require 'hub.lib.matching'
 local N          <const> = require 'hub.lib.numerics'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local scrub      <const> = require 'hub.lib.scrub'
+local tty        <const> = require 'hub.runtime.tty'
 
 -- How many of those typing the status bar names
 local typing_shown <const> = 2
@@ -332,7 +333,7 @@ return {
         end
 
         chat.look(buffer)
-        if HUB.state.ui.focus then
+        if tty.focused() then
             dispatch.route 'notify.dismiss' (ctx.net, target)
         end
 

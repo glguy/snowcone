@@ -155,7 +155,7 @@ local function staff(c, text, target)
 end
 
 local function command(text)
-    T.require 'hub.ui.cmdline'.execute(text)
+    T.command(text)
 end
 
 T.case('starts on the saved port and joins the project channels', function()
