@@ -190,10 +190,6 @@ local function activate(first)
         -- remembered only once a load of it succeeds
         HUB.config_file = current.config_file
     end
-    for _, warning in ipairs(current.config.warnings) do
-        log.add('config', '%s', warning)
-    end
-
     -- networks first, so modules activate with every record in place
     if not HUB.quitting then
         manager.apply_config(HUB.state.config)

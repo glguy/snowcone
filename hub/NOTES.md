@@ -88,16 +88,16 @@ a decision is made, and change or remove it when the decision does.
 
 ## Configuration
 
-- **Clean break from ircc and dashboard files:** no single-server shape,
-  no `settings.toml`. Old top-level keys are reported as unexpected. A
+- **One shape:** no single-server form and no `settings.toml`. A
   `.lua` configuration runs in its own environment.
 - **Loaded inside the guarded build**, so a bad file on reload leaves the
-  old code and configuration running; it is committed, and its warnings
-  logged, at activation.
-- **Only values sent on an IRC line** (`server.password`, `oper.password`)
+  old code and configuration running; it is committed at activation.
+- **Only values sent on an IRC line** (`registration.password`, `oper.password`)
   reject CR, LF and NUL. Other secrets may be PEM text.
-- `lib/schema.lua` keeps only the warnings of the oneOf alternative that
-  matched, and raises errors without a source position.
+- **A field the schema doesn't name fails the load**, so a misspelled or
+  outdated key can't be ignored in silence. `lib/schema.lua` takes the
+  first oneOf alternative that matches, and raises errors without a
+  source position.
 - **The servers file is network configuration**, TOML like the rest and
   checked against `cschema.servers_file`, read with it; a file that can't
   be read or checked fails the load. It isn't topology's, so oper's reasons and
@@ -121,7 +121,7 @@ a decision is made, and change or remove it when the decision does.
   own quiet list numerics.
 - **`draft/event-playback` is not requested by default:** playback should
   bring chat, not joins and parts. Add it per network with
-  `server.capabilities`.
+  `registration.capabilities`.
 - **Batches** are handled as lines arrive, so a netsplit's QUITs update the
   model at once, and are still emitted whole. A replay batch
   (`chathistory`, `draft/chathistory-targets` and anything nested in one)

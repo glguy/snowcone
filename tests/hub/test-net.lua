@@ -172,6 +172,44 @@ T.case('SASL failure falls back to the next credential', function()
     T.eq(c:take(), {'CAP END'}, 'end')
 end)
 
+T.case('/sasl uses the named credential, or the automatic ones, or the first', function()
+    local fake = boot {network('test', {sasl = {credentials = {
+        {name = 'first', mechanism = 'PLAIN', username = 'a', password = 'pa'},
+        {name = 'other', mechanism = 'PLAIN', username = 'b', password = 'pb'},
+    }}})}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :sasl'
+    c:recv ':srv CAP me ACK :sasl'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 376 me :End of MOTD'
+    c:take()
+    T.require 'hub.ui.control'.init_state(HUB.state)
+    local cmdline = T.require 'hub.ui.cmdline'
+
+    cmdline.execute 'sasl other'
+    T.eq(c:take(), {'AUTHENTICATE PLAIN'}, 'by name')
+    c:recv 'AUTHENTICATE +'
+    T.eq(c:take(), {'AUTHENTICATE ' .. mybase64.to_base64 '\0b\0pb'}, 'the named credential')
+    c:recv ':srv 903 me :SASL authentication successful'
+
+    cmdline.execute 'sasl'
+    c:recv 'AUTHENTICATE +'
+    T.eq(c:take(), {'AUTHENTICATE PLAIN', 'AUTHENTICATE ' .. mybase64.to_base64 '\0a\0pa'},
+        'without automatic, the first credential')
+    c:recv ':srv 903 me :SASL authentication successful'
+
+    rec().cfg.sasl.automatic = {'other', 'first'}
+    cmdline.execute 'sasl'
+    c:recv 'AUTHENTICATE +'
+    T.eq(c:take(), {'AUTHENTICATE PLAIN', 'AUTHENTICATE ' .. mybase64.to_base64 '\0b\0pb'}, 'the automatic list')
+    c:recv ':srv 904 me :SASL authentication failed'
+    c:recv 'AUTHENTICATE +'
+    T.eq(c:take(), {'AUTHENTICATE PLAIN', 'AUTHENTICATE ' .. mybase64.to_base64 '\0a\0pa'}, 'in order')
+    c:recv ':srv 903 me :SASL authentication successful'
+    T.eq(next(HUB.tasks), nil, 'finished')
+end)
+
 T.case('a server without CAP registers directly', function()
     local fake = boot {network('test')}
     local c = fake.last()
@@ -351,13 +389,32 @@ T.case('a socks password that resolves empty stops the connect', function()
     T.ok(table.concat(T.log_lines 'irc', '\n'):find('socks password must not be empty', 1, true), 'reason logged')
 end)
 
-T.case('a server key that fails the fingerprint is not retried', function()
-    local fake = boot {network('test', {server = {host = 'test.test', port = 6667, fingerprint = 'tls=abc$'}})}
-    fake.last():con 'tcp=192.0.2.1:6667 tls=def'
+local pin_a <const> = string.rep('a', 64)
+local pin_b <const> = string.rep('b', 64)
+
+T.case('a TLS key that fails its pin is not retried', function()
+    local fake = boot {network('test', {layers = {{type = 'tls', pin = pin_a}}})}
+    fake.last():con('tcp=192.0.2.1:6697 tls=' .. pin_b)
     T.eq(rec().phase, 'idle', 'dropped')
     T.eq(rec().target, 'idle', 'target dropped to idle')
     T.ok(not rec().reconnect_timer, 'no retry')
-    T.eq(T.log_lines('irc')[#T.log_lines 'irc'], 'disconnected: bad fingerprint', 'logged')
+    T.eq(T.log_lines('irc')[#T.log_lines 'irc'], 'disconnected: layers[1]: TLS key does not match pin', 'logged')
+end)
+
+T.case('each pin is checked against its own TLS layer', function()
+    local layers = {
+        {type = 'tls', pin = pin_a},
+        {type = 'socks', host = 'p', port = 1080},
+        {type = 'tls', pin = string.upper(pin_b)},
+    }
+    local fake = boot {network('test', {layers = layers})}
+    fake.last():con('tcp=192.0.2.1:443 tls=' .. pin_a .. ' socks=p:1080 tls=' .. pin_b)
+    T.eq(rec().phase, 'registering', 'both pins match, in any case')
+
+    fake = boot {network('test', {layers = layers})}
+    fake.last():con('tcp=192.0.2.1:443 tls=' .. pin_b .. ' socks=p:1080 tls=' .. pin_a)
+    T.eq(T.log_lines('irc')[#T.log_lines 'irc'], 'disconnected: layers[1]: TLS key does not match pin',
+        'the keys in the wrong order fail')
 end)
 
 T.case('server.path connects to a local socket', function()
@@ -529,8 +586,9 @@ end)
 T.case('secrets come from a command or a prompt', function()
     local prompts = {}
     local fake = boot {network('test', {
-        server = {host = 'test.test', port = 6667, password = {command = 'printf', arguments = {'s3cret\nignored'}}},
-        oper = {automatic = true, username = 'op', password = {prompt = 'oper password'}},
+        registration = {password = {command = 'printf', arguments = {'s3cret\nignored'}}},
+        oper = {automatic = {'password'},
+            credentials = {{mechanism = 'password', username = 'op', password = {prompt = 'oper password'}}}},
     })}
     local c = fake.last()
     c:con()
@@ -549,6 +607,24 @@ T.case('secrets come from a command or a prompt', function()
     T.require 'hub.runtime.task'.answer(prompts[1].task, 'opw')
     T.eq(c:take(), {'OPER op opw'}, 'OPER with the answer')
 end)
+
+T.case('oper.automatic tries its credentials in order until one works', function()
+    local fake = boot {network('test', {oper = {automatic = {'first', 'second'}, credentials = {
+        {name = 'first', mechanism = 'password', username = 'one', password = 'p1'},
+        {name = 'second', mechanism = 'password', username = 'two', password = 'p2'},
+        {name = 'unused', mechanism = 'password', username = 'three', password = 'p3'},
+    }}})}
+    local c = fake.last()
+    register(c)
+    local sent = c:take()
+    T.eq(sent[#sent], 'OPER one p1', 'the first credential')
+    c:recv ':srv 464 me :Password incorrect'
+    T.eq(c:take(), {'OPER two p2'}, 'then the next')
+    c:recv ':srv 381 me :You are now an IRC operator'
+    T.eq(c:take(), {}, 'nothing after success')
+    T.eq(T.log_lines 'oper', {'password mismatch', 'oper up'}, 'each outcome logged')
+end)
+
 
 T.case('quit sends QUIT and exits when the server closes', function()
     local fake = boot {network('a'), network('b')}
@@ -964,13 +1040,14 @@ T.case('every feature requirement names known features', function()
     end
 end)
 
-T.case('a websocket layer reaches the transport', function()
-    local fake = boot {network('test', {layers = {
-        {type = 'tls'},
-        {type = 'websocket', path = '/irc', origin = 'https://irc.example', subprotocols = {}},
-    }})}
-    T.eq(fake.last().layers[2], {type = 'websocket', path = '/irc', origin = 'https://irc.example', subprotocols = {}},
-        'fields passed')
+T.case('the websocket reaches the transport after the layers', function()
+    local fake = boot {network('test', {
+        layers = {{type = 'tls'}, {type = 'socks', host = 'p', port = 1080}},
+        websocket = {path = '/irc', origin = 'https://irc.example', subprotocols = {}},
+    })}
+    T.eq(#fake.last().layers, 3, 'one more layer')
+    T.eq(fake.last().layers[3], {type = 'websocket', path = '/irc', origin = 'https://irc.example', subprotocols = {}},
+        'fields passed, last')
 end)
 
 T.case('configuration constraints from the dashboard', function()
@@ -985,24 +1062,51 @@ T.case('configuration constraints from the dashboard', function()
     local ok, err = pcall(config.normalize, {networks = {{id = 'x', server = {host = 'h', port = 1},
         identity = {nick = 'n'}, layers = {{type = 'http', host = 'p', port = 8080, username = 'a:b'}}}}})
     T.ok(not ok and err:find('expected no colon', 1, true), 'the reason is given: ' .. tostring(err))
-    for _, layer in ipairs {
-        {type = 'http', host = 'p', port = 8080, username = 'u', password = ''},
-        {type = 'socks', host = 'p', port = 1080, username = 'u', password = 'p'},
-        {type = 'websocket'},
-        {type = 'websocket', host = 'irc.example:443', path = '/irc?a=b', origin = 'https://irc.example'},
-        {type = 'websocket', subprotocols = {}},
-        {type = 'websocket', subprotocols = {'text.ircv3.net', 'binary.ircv3.net'}},
+    for _, good in ipairs {
+        {layers = {{type = 'http', host = 'p', port = 8080, username = 'u', password = ''}}},
+        {layers = {{type = 'socks', host = 'p', port = 1080, username = 'u', password = 'p'}}},
+        {layers = {{type = 'tls', pin = string.rep('0123456789ABCDEF', 4)}}},
+        {websocket = {}},
+        {websocket = {host = 'irc.example:443', path = '/irc?a=b', origin = 'https://irc.example'}},
+        {websocket = {subprotocols = {}}},
+        {websocket = {subprotocols = {'text.ircv3.net', 'binary.ircv3.net'}}},
+        {registration = {username = 'me/libera', password = 'p', capabilities = {'-batch'}}},
+        {identity = {nick = 'n', realname = 'Real Name'}},
+        {layers = {{type = 'tls', client_cert = {file = 'c.pem'}, client_key = {store = 'pkcs11:id=%01'}}}},
+        {sasl = {credentials = {{mechanism = 'ECDSA-NIST256P-CHALLENGE', username = 'u', key = {store = 'pkcs11:x'}}}}},
+        {sasl = {automatic = {'EXTERNAL', 'main'},
+            credentials = {{mechanism = 'EXTERNAL'}, {name = 'main', mechanism = 'PLAIN'}}}},
+        {oper = {automatic = {'main', 'challenge'}, credentials = {
+            {name = 'main', mechanism = 'password', username = 'o', password = {prompt = 'oper'}},
+            {mechanism = 'challenge', username = 'o', key = {store = 'pkcs11:x'}, password = 'pw'},
+        }}},
     } do
-        T.ok(pcall(config.normalize, {networks = {{id = 'x', server = {host = 'h', port = 1},
-            identity = {nick = 'n'}, layers = {layer}}}}), 'accepted: ' .. layer.type)
+        local net = {id = 'x', server = {host = 'h', port = 1}, identity = {nick = 'n'}}
+        for k, v in pairs(good) do net[k] = v end
+        T.ok(pcall(config.normalize, {networks = {net}}), 'accepted: ' .. require 'pl.pretty'.write(good, ''))
     end
     for _, bad in ipairs {
         {identity = {nick = 'has space'}},
         {identity = {nick = 'n', user = 'a\nb'}},
-        {identity = {nick = 'n', gecos = 'a\rb'}},
-        {server = {host = 'h', password = 'line\nbreak'}},
-        {oper = {username = 'o p', password = 'x'}},
-        {challenge = {username = 'o\r', key = 'k'}},
+        {identity = {nick = 'n', realname = 'a\rb'}},
+        {registration = {password = 'line\nbreak'}},
+        {registration = {username = 'a:b', password = 'x'}},
+        {registration = {capabilities = {'a b'}}},
+        {oper = {credentials = {{mechanism = 'password', username = 'o p', password = 'x'}}}},
+        {oper = {credentials = {{mechanism = 'challenge', username = 'o\r', key = 'k'}}}},
+        {oper = {credentials = {{mechanism = 'password', username = 'o', key = 'k'}}}},
+        {oper = {credentials = {{mechanism = 'challenge', username = 'o'}}}},
+        {oper = {credentials = {{mechanism = 'OPER', username = 'o', password = 'x'}}}},
+        {oper = {automatic = true}},
+        {challenge = {username = 'o', key = 'k'}},
+        {identity = {nick = 'n', gecos = 'g'}},
+        {server = {host = 'h', port = 1, fingerprint = 'x'}},
+        {layers = {{type = 'tls', use_store = true}}},
+        {layers = {{type = 'tls', client_key = {store = ''}}}},
+        {registration = {password = {store = 'pkcs11:x'}}},
+        {sasl = {credentials = {{mechanism = 'EXTERNAL', use_store = true}}}},
+        {sasl = {automatic = {'PLAIN'}, credentials = {{name = 'main', mechanism = 'PLAIN'}}}},
+        {oper = {automatic = {'missing'}, credentials = {{mechanism = 'password', username = 'o', password = 'x'}}}},
         {server = {}},
         {server = {host = 'h'}},
         {server = {host = 'h', port = 0}},
@@ -1012,13 +1116,16 @@ T.case('configuration constraints from the dashboard', function()
         {layers = {{type = 'socks', host = 'p', port = 1080, username = '', password = 'x'}}},
         {layers = {{type = 'socks', host = 'p', port = 1080, username = 'u', password = ''}}},
         {layers = {{type = 'http', host = 'p', port = 8080, username = 'a:b', password = 'x'}}},
-        {layers = {{type = 'websocket', path = 'irc'}}},
-        {layers = {{type = 'websocket', path = '/a b'}}},
-        {layers = {{type = 'websocket', host = 'h\r\nX: y'}}},
-        {layers = {{type = 'websocket', host = ''}}},
-        {layers = {{type = 'websocket', origin = 'a b'}}},
-        {layers = {{type = 'websocket', subprotocols = {'irc'}}}},
-        {layers = {{type = 'websocket', subprotocols = 'text.ircv3.net'}}},
+        {layers = {{type = 'tls', pin = string.rep('a', 63)}}},
+        {layers = {{type = 'tls', pin = 'tls=' .. string.rep('a', 64)}}},
+        {layers = {{type = 'websocket'}}},
+        {websocket = {path = 'irc'}},
+        {websocket = {path = '/a b'}},
+        {websocket = {host = 'h\r\nX: y'}},
+        {websocket = {host = ''}},
+        {websocket = {origin = 'a b'}},
+        {websocket = {subprotocols = {'irc'}}},
+        {websocket = {subprotocols = 'text.ircv3.net'}},
         {rate_limit = {burst = 5}},
         {rate_limit = {interval = 2}},
         {rate_limit = {burst = 0, interval = 2}},

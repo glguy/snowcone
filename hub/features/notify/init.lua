@@ -1,6 +1,6 @@
 -- Notifications of mentions while the terminal is unfocused.
 --
--- `[notifications] module` picks a backend: bell, mac (terminal-notifier)
+-- `[notifications] backend` picks one of: bell, mac (terminal-notifier)
 -- or iterm2. A buffer gets one notification until it is seen; viewing it
 -- with the terminal focused dismisses it.
 --
@@ -39,7 +39,7 @@ end
 -- The configured backend module, or nil
 local function backend()
     local cfg = HUB.state.config and HUB.state.config.notifications
-    local name = cfg and cfg.module
+    local name = cfg and cfg.backend
     if not name then return nil end
     local module = backends[name]
     if module then

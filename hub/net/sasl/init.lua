@@ -4,9 +4,10 @@
 -- The mechanisms in this directory are coroutine factories. The driver and
 -- mechanisms are tested by tests/test-sasl.lua and tests/test-scram.lua.
 
-local check   <const> = require 'hub.lib.check'
-local N       <const> = require 'hub.lib.numerics'
-local secrets <const> = require 'hub.runtime.secrets'
+local check     <const> = require 'hub.lib.check'
+local irc_model <const> = require 'hub.net.irc'
+local N         <const> = require 'hub.lib.numerics'
+local secrets   <const> = require 'hub.runtime.secrets'
 
 local M = {}
 
@@ -106,6 +107,23 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid, use
     end
 end
 
+--- Try credentials in order until one succeeds, skipping those whose
+--- mechanism the server doesn't offer.
+---@param t hub.Task
+---@param credentials table[] `sasl.credentials` entries
+---@return boolean # success
+function M.first(t, credentials)
+    local irc <const> = HUB.state.nets[t.net].irc
+    for _, credential in ipairs(credentials) do
+        if irc_model.has_sasl_mech(irc, credential.mechanism)
+        and M.authenticate(t, credential)
+        then
+            return true
+        end
+    end
+    return false
+end
+
 --- Authenticate with one credential.
 ---@param t hub.Task
 ---@param credentials table a `sasl.credentials` entry
@@ -119,7 +137,11 @@ function M.authenticate(t, credentials)
         return false
     end
 
-    local key_success, key = pcall(secrets.resolve, t, credentials.key)
+    local store = secrets.key_store(credentials.key)
+    local key_success, key = true, store
+    if not store then
+        key_success, key = pcall(secrets.resolve, t, credentials.key)
+    end
     if not key_success then
         t:log('sasl', 'Key resolution failed: %s', key)
         return false
@@ -131,7 +153,7 @@ function M.authenticate(t, credentials)
         password,
         key,
         credentials.authzid,
-        credentials.use_store
+        store ~= nil
     )
     if not mech_success then
         t:log('sasl', 'Startup failed: %s %s', mechanism, impl)

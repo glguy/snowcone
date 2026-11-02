@@ -68,7 +68,7 @@ local function solanum_response(t, user, key)
             break
         elseif command == N.RPL_YOUREOPER then
             t:log('challenge', 'already oper')
-            return
+            return nil, true
         elseif command == N.ERR_NOOPERHOST then
             t:log('challenge', 'host mismatch')
             return
@@ -102,7 +102,7 @@ local function hybrid_response(t, user, key)
     local command <const> = msg and msg.command
     if command == N.RPL_YOUREOPER then
         t:log('challenge', 'already oper')
-        return
+        return nil, true
     elseif command == N.ERR_NOOPERHOST then
         t:log('challenge', 'host mismatch')
         return
@@ -119,26 +119,28 @@ local function hybrid_response(t, user, key)
 end
 
 ---@param t hub.Task
----@param cfg table the network's `challenge` section
+---@param cfg table an `oper.credentials` entry with mechanism 'challenge'
+---@return boolean # we are an operator
 return function(t, cfg)
     -- make sure we have a username and a key before bothering the server
-    local user <const> = assert(cfg.username, 'missing challenge.username')
-    local rsa_pem <const> = assert(secrets.resolve(t, cfg.key), 'missing challenge.key')
+    local user <const> = assert(cfg.username, 'missing username')
+    local store <const> = secrets.key_store(cfg.key)
     local password <const> = secrets.resolve(t, cfg.password)
     local key
-    if cfg.use_store then
-        key = myopenssl.pkey_from_store(rsa_pem, true, password)
+    if store then
+        key = myopenssl.pkey_from_store(store, true, password)
     else
+        local rsa_pem <const> = assert(secrets.resolve(t, cfg.key), 'missing key')
         key = myopenssl.read_pem(rsa_pem, true, password)
     end
 
-    local response
+    local response, already
     if ircd.hybrid(t.net) then
-        response = hybrid_response(t, user, key)
+        response, already = hybrid_response(t, user, key)
     else
-        response = solanum_response(t, user, key)
+        response, already = solanum_response(t, user, key)
     end
-    if not response then return end
+    if not response then return already == true end
 
     -- the first reply that matters is the answer
     local hybrid <const> = ircd.hybrid(t.net)
@@ -149,7 +151,7 @@ return function(t, cfg)
         local failure = hybrid and hybrid_failure(reply)
         if failure then
             t:log('challenge', '%s', failure)
-            return
+            return false
         elseif reply.command ~= 'NOTICE' then
             msg = reply
             break
@@ -160,9 +162,11 @@ return function(t, cfg)
         t:log('challenge', 'no answer to the challenge response')
     elseif command == N.RPL_YOUREOPER then
         t:log('challenge', 'oper up')
+        return true
     elseif command == N.ERR_PASSWDMISMATCH then
         t:log('challenge', 'key mismatch')
     elseif command == N.ERR_NOOPERHOST then
         t:log('challenge', 'host mismatch')
     end
+    return false
 end

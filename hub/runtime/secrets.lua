@@ -4,6 +4,8 @@
 --   {command = c, arguments = {...},
 --    multiline = bool, use_tty = bool}         a program's output
 --   {prompt = label}                           asked for in the UI
+-- A private key may instead be {store = name}, a key in an OpenSSL store,
+-- which key_store gives and resolve refuses.
 -- Resolution runs inside a task, since commands and prompts suspend it.
 -- Resolved values are never stored in HUB.state.
 
@@ -18,6 +20,14 @@ local M = {}
 ---| {command: string, arguments: string[]|nil, use_tty: boolean|nil, multiline: boolean|nil}
 ---| {prompt: string}
 ---| {file: string}
+
+--- The store name of a private key given as {store = name}, or nil for
+--- a key that is a secret holding its text.
+---@param entry hub.Secret|{store: string}|nil
+---@return string|nil
+function M.key_store(entry)
+    return type(entry) == 'table' and entry.store or nil
+end
 
 --- Resolve one secret; nil stays nil.
 ---@param t hub.Task
@@ -67,25 +77,15 @@ function M.resolve(t, entry)
     error('Bad secret entry: ' .. tostring(entry), 0)
 end
 
---- The first credential with a given name; a credential's name defaults to
---- its mechanism.
-function M.get_credential(credentials, name)
-    for _, credential in ipairs(credentials or {}) do
-        if (credential.name or credential.mechanism) == name then
-            return credential
-        end
-    end
-end
-
---- The PASS password for a server section, with `username:` prepended
+--- The PASS password for a registration section, with `username:` prepended
 --- when a username is configured.
 ---@param t hub.Task
----@param server {password: hub.Secret|nil, username: string|nil}
+---@param registration {password: hub.Secret|nil, username: string|nil}
 ---@return string|nil
-function M.server_password(t, server)
-    local password = M.resolve(t, server.password)
-    if password and server.username then
-        password = server.username .. ':' .. password
+function M.server_password(t, registration)
+    local password = M.resolve(t, registration.password)
+    if password and registration.username then
+        password = registration.username .. ':' .. password
     end
     return password
 end

@@ -6,19 +6,15 @@
 -- used directly.
 
 local cap       <const> = require 'hub.net.cap'
-local challenge <const> = require 'hub.net.challenge'
 local clock     <const> = require 'hub.runtime.clock'
+local config    <const> = require 'hub.runtime.config'
 local irc_model <const> = require 'hub.net.irc'
 local N         <const> = require 'hub.lib.numerics'
+local oper      <const> = require 'hub.net.oper'
 local secrets   <const> = require 'hub.runtime.secrets'
 
 local function oper_up(t, cfg)
-    if cfg.challenge and cfg.challenge.automatic then
-        challenge(t, cfg.challenge)
-    elseif cfg.oper and cfg.oper.automatic then
-        local password <const> = secrets.resolve(t, cfg.oper.password)
-        t:send('OPER', cfg.oper.username, {content = password, secret = true})
-    else
+    if not oper.first(t, config.automatic_credentials(cfg.oper)) then
         -- learn our modes; also tells whether we're already oper
         t:send('MODE', HUB.state.nets[t.net].irc.nick)
     end
@@ -56,22 +52,14 @@ return function(t)
     local cfg <const> = rec.cfg
     local irc <const> = rec.irc
 
-    irc_model.configure_caps(irc, cfg.server.capabilities)
+    irc_model.configure_caps(irc, cfg.registration.capabilities)
 
     if cfg.sasl and cfg.sasl.automatic then
-        local credentials = {}
-        for _, name in ipairs(cfg.sasl.automatic) do
-            local credential = secrets.get_credential(cfg.sasl.credentials, name)
-            if not credential then
-                error('Unknown credential in sasl.automatic: ' .. name, 0)
-            end
-            table.insert(credentials, credential)
-        end
-        irc.sasl_credentials = credentials
+        irc.sasl_credentials = config.automatic_credentials(cfg.sasl)
     end
 
     -- resolved before anything is sent, since it may prompt
-    local ok, password = pcall(secrets.server_password, t, cfg.server)
+    local ok, password = pcall(secrets.server_password, t, cfg.registration)
     if not ok then
         t:log('irc', 'Password resolution failed: %s', password)
         password = nil
@@ -79,7 +67,7 @@ return function(t)
 
     local nick  = cfg.identity.nick
     local user  = cfg.identity.user  or nick
-    local gecos = cfg.identity.gecos or nick
+    local realname = cfg.identity.realname or nick
 
     t:send('CAP', 'LS', '302')
     if password then
@@ -87,7 +75,7 @@ return function(t)
     end
     t:send('NICK', nick)
     irc.nick = nick -- optimistic
-    t:send('USER', user, '0', '*', gecos)
+    t:send('USER', user, '0', '*', realname)
 
     -- "<client> :Welcome to the <networkname> Network, <nick>[!<user>@<host>]"
     local welcome = cap.LS(t) or t:wait_irc {N.RPL_WELCOME}

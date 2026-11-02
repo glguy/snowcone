@@ -31,6 +31,37 @@ local function boot(features, labeled, ircd)
     return c, T.require 'hub.features.oper'
 end
 
+T.case('/oper logs in with a named credential, or the automatic ones', function()
+    local fake = FakeTransport.new()
+    T.boot {transport = fake, config = {networks = {{
+        id = 'test',
+        server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'},
+        features = {'snotice', 'oper'},
+        oper = {credentials = {
+            {mechanism = 'password', username = 'first', password = 'p1'},
+            {name = 'other', mechanism = 'password', username = 'second', password = 'p2'},
+        }},
+    }}}}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 376 me :End of MOTD'
+    c:take()
+    T.require 'hub.ui.control'.init_state(HUB.state)
+    local cmdline = T.require 'hub.ui.cmdline'
+
+    cmdline.execute 'oper other'
+    T.eq(c:take(), {'OPER second p2'}, 'by name')
+    c:recv ':srv 464 me :Password incorrect'
+
+    cmdline.execute 'oper'
+    T.eq(c:take(), {'OPER first p1'}, 'without automatic, the first credential')
+    c:recv ':srv 491 me :No appropriate operator blocks were found for your host'
+    T.eq(T.log_lines 'oper', {'password mismatch', 'host mismatch'}, 'outcomes logged')
+end)
+
 T.case('mask rules (the dashboard asserts)', function()
     boot()
     local masks = T.require 'hub.features.oper.masks'

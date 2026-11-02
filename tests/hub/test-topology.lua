@@ -83,9 +83,9 @@ T.case('a servers file is checked against its schema', function()
     T.ok(not ok and tostring(err):find('kline_reasons', 1, true), 'reasons need name and reason: ' .. tostring(err))
     T.ok(HUB.current == before, 'the old generation stays')
 
-    T.ok(reload_with "primary_hub = 'hub.example'\nprimay = 1\n", 'an unknown field still loads')
-    T.ok(table.concat(HUB.state.config.warnings, '\n'):find('Unexpected field networks.test.servers_file.primay', 1, true),
-        'and is reported')
+    ok, err = reload_with "primary_hub = 'hub.example'\nprimay = 1\n"
+    T.ok(not ok and tostring(err):find('Unexpected field networks.test.servers_file.primay', 1, true),
+        'an unknown field fails the load: ' .. tostring(err))
 
     require 'pl.dir'.rmtree(dir)
 end)

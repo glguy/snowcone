@@ -137,7 +137,8 @@ end)
 
 T.case('a prompt takes over input and keeps the typed command', function()
     local fake, control, cmdline = boot {network('a', {
-        server = {host = 'a.test', port = 6667, password = {prompt = 'server password'}},
+        server = {host = 'a.test', port = 6667},
+        registration = {password = {prompt = 'server password'}},
     })}
     local editor = T.require 'hub.ui.editor'
     local input = HUB.state.ui.input
@@ -165,7 +166,8 @@ end)
 
 T.case('aborting a prompt fails only that secret', function()
     local fake, control = boot {network('a', {
-        server = {host = 'a.test', port = 6667, password = {prompt = 'server password'}},
+        server = {host = 'a.test', port = 6667},
+        registration = {password = {prompt = 'server password'}},
     })}
     local c = fake.last()
     c:con()
@@ -178,7 +180,8 @@ end)
 
 T.case('a prompt whose task ended is skipped', function()
     local fake, control = boot {network('a', {
-        server = {host = 'a.test', port = 6667, password = {prompt = 'server password'}},
+        server = {host = 'a.test', port = 6667},
+        registration = {password = {prompt = 'server password'}},
     })}
     fake.last():con()
     T.eq(HUB.state.ui.input.mode, 'password', 'prompting')

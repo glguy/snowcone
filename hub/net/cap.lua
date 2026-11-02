@@ -106,13 +106,7 @@ function M.REQ(t, request)
     local credentials = irc.sasl_credentials
     if irc_model.has_sasl(irc) and credentials then
         irc.sasl_credentials = nil
-        for _, credential in ipairs(credentials) do
-            if irc_model.has_sasl_mech(irc, credential.mechanism)
-            and sasl.authenticate(t, credential)
-            then
-                break
-            end
-        end
+        sasl.first(t, credentials)
     end
 end
 

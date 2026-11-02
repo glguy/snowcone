@@ -348,7 +348,8 @@ T.case('C-s leaves a prompt in place', function()
     local fake = FakeTransport.new()
     T.boot {ui = true, transport = fake, config = {networks = {{
         id = 'test',
-        server = {host = 'test.example', port = 6667, password = {prompt = 'server password'}},
+        server = {host = 'test.example', port = 6667},
+        registration = {password = {prompt = 'server password'}},
         identity = {nick = 'me'},
     }}}}
     fake.last():con()

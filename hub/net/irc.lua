@@ -14,9 +14,10 @@ local casemap <const> = require 'hub.lib.casemap'
 
 local M = {}
 
--- Capabilities requested by default; a network's `server.capabilities`
--- adds names, or removes them with a leading -. draft/event-playback is
--- left out on purpose: it replays joins and parts along with chat.
+-- Capabilities requested by default; a network's
+-- `registration.capabilities` adds names, or removes them with a leading
+-- -. draft/event-playback is left out on purpose: it replays joins and
+-- parts along with chat.
 M.caps_supported = {
     'account-notify',
     'account-tag',
@@ -475,7 +476,7 @@ function M.ack_caps(irc, capsarg)
     end
 end
 
---- Apply `server.capabilities` from configuration: names to add, or remove
+--- Apply `registration.capabilities` from configuration: names to add, or remove
 --- with a leading -
 ---@param irc hub.Irc
 ---@param list string[]|nil

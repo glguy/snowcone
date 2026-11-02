@@ -10,10 +10,10 @@ Contents:
 - [Networks](#networks)
   - [Network settings](#network-settings)
   - [Features](#features)
-  - [Connecting](#connecting): `server`, `layers` (TLS, SOCKS5, HTTP CONNECT, WebSocket)
-  - [Registering](#registering): `identity`, server password, capabilities
+  - [Connecting](#connecting): `server`, `layers` (TLS, SOCKS5, HTTP CONNECT), `websocket`
+  - [Registering](#registering): `identity`, `registration` (server password, capabilities)
   - [SASL](#sasl)
-  - [Becoming an operator](#becoming-an-operator): `oper`, `challenge`
+  - [Becoming an operator](#becoming-an-operator): `oper`
   - [Mentions and watches](#mentions-and-watches)
   - [The servers file](#the-servers-file)
 - [Secrets](#secrets)
@@ -33,7 +33,7 @@ A file given with `/reload` or `--config` must be named `*.toml`.
 
 Settings can be overridden on the command line with `key.path=value`, for example `ui.profile=chat`. Overrides are applied to the file's contents before checking.
 
-A field of the wrong type, a missing required field or an unknown feature name stops the load with an error naming the field. A field the schema doesn't know is reported as `Unexpected field ...` in the status log and otherwise ignored, so check the log after editing.
+A field of the wrong type, a missing required field or an unknown feature name stops the load with an error naming the field. So does a field the schema doesn't know, reported as `Unexpected field ...`, so a misspelled or outdated key is never ignored.
 
 ## A complete example
 
@@ -45,7 +45,7 @@ profile = 'all'
 patterns = ['%f[%w]mynick%f[^%w]']
 
 [notifications]
-module = 'mac'
+backend = 'mac'
 
 [plugins]
 modules = ['hello']
@@ -64,7 +64,7 @@ type = 'tls'
 
 [networks.identity]
 nick = 'mynick'
-gecos = 'My Name'
+realname = 'My Name'
 
 [networks.sasl]
 automatic = ['PLAIN']
@@ -74,8 +74,11 @@ mechanism = 'PLAIN'
 username = 'mynick'
 password = { command = 'pass', arguments = ['show', 'libera'] }
 
-[networks.challenge]
-automatic = true
+[networks.oper]
+automatic = ['challenge']
+
+[[networks.oper.credentials]]
+mechanism = 'challenge'
 username = 'mynick'
 key.file = 'libera-challenge.pem'
 password.prompt = 'challenge key password'
@@ -101,7 +104,7 @@ type = 'tls'
 nick = 'mynick'
 ```
 
-In TOML, `[networks.server]` and `[[networks.layers]]` belong to the most recent `[[networks]]` entry above them.
+In TOML, tables such as `[networks.server]` and `[[networks.layers]]` belong to the most recent `[[networks]]` entry above them.
 
 ## Top-level tables
 
@@ -125,7 +128,7 @@ Notifications are sent for mentions while the terminal doesn't have focus. A buf
 
 | Field | Meaning |
 |---|---|
-| `module` | Required when the table is present. `'bell'` rings the terminal bell. `'mac'` uses `terminal-notifier`. `'iterm2'` uses iTerm2's notification escape. |
+| `backend` | Required when the table is present. `'bell'` rings the terminal bell. `'mac'` uses `terminal-notifier`. `'iterm2'` uses iTerm2's notification escape. |
 
 Without this table, no notifications are sent.
 
@@ -160,10 +163,10 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 | `quit_message` | `'snowcone'` | The QUIT message for `/disconnect`, `/reconnect` and quitting. |
 | `snomask` | `'BFZbcklnsx'`, or `'bcfknrs'` on OFTC hybrid | What chooses the server notices to see, set after becoming an operator: on Solanum the server notice mask (`MODE nick +s mask`), on OFTC hybrid the user modes that select notices (`MODE nick +modes`). Used only with the `snotice` feature. |
 | `servers_file` | none | A TOML file describing the network's servers. See [The servers file](#the-servers-file). |
-| `server`, `layers` | | How to connect. See [Connecting](#connecting). `server` is required. |
-| `identity` | | Required. See [Registering](#registering). |
+| `server`, `layers`, `websocket` | | How to connect. See [Connecting](#connecting). `server` is required. |
+| `identity`, `registration` | | What to register with. See [Registering](#registering). `identity` is required. |
 | `sasl` | | See [SASL](#sasl). |
-| `oper`, `challenge` | | See [Becoming an operator](#becoming-an-operator). |
+| `oper` | | See [Becoming an operator](#becoming-an-operator). |
 | `mention`, `watches` | | See [Mentions and watches](#mentions-and-watches). |
 
 ### Features
@@ -174,14 +177,14 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 |---|---|---|
 | `chat` | | Chat buffers, talk mode, mentions, chat history, `/list` and the chat commands. |
 | `snotice` | | Parses server notices into the connection, exit, ban, channel and address-range views (cliconn, cliexit, connload, exitload, bans, channels, netcount), sets the snomask after opering, and runs watches. |
-| `oper` | `snotice` | The K-Line workflow (stage, test and send K-Lines, unklines and undlines), plus `/oper`, `/challenge`, `/masktrace` and `/testline`. A staged K-Line is shown and sent from snotice's views. |
+| `oper` | `snotice` | The K-Line workflow (stage, test and send K-Lines, unklines and undlines), plus `/oper`, `/masktrace` and `/testline`. A staged K-Line is shown and sent from snotice's views. |
 | `topology` | | Server populations from MAP, links from LINKS, versions, uptimes and DNS rotations, shown in the load views. With `snotice`, shedding and drain notices also update `/maintenance` as they happen. |
 
 An unknown feature name is an error, and so is a feature without the features it requires.
 
 ### Connecting
 
-A connection is a socket, then any `layers` in order, then IRC.
+A connection is a socket to `server`, then any `layers` in order, then IRC, carried over a `websocket` if there is one.
 
 #### `[networks.server]`
 
@@ -190,9 +193,6 @@ A connection is a socket, then any `layers` in order, then IRC.
 | `host` | The hostname or address to connect to over TCP. |
 | `port` | The TCP port. Required with `host`. |
 | `path` | The path of a UNIX domain socket to connect to instead of `host` and `port`. |
-| `fingerprint` | Pins the server's key; see below. |
-| `capabilities` | Changes to the requested capabilities; see [Registering](#registering). |
-| `username`, `password` | The server password; see [Registering](#registering). |
 
 Give either `host` and `port`, or `path`:
 
@@ -201,17 +201,7 @@ Give either `host` and `port`, or `path`:
 path = '/var/run/ircd.sock'
 ```
 
-`fingerprint` is a Lua pattern matched against the whole connection description, for example `tcp=192.0.2.7:6697 tls=3f…`. If it doesn't match, the connection is dropped as `bad fingerprint` and not retried: the network stays idle until you fix the configuration and `/connect`. Write `tls=3f…$` to require the last TLS layer's key exactly, or a looser pattern if that suits you.
-
-A WebSocket layer adds `ws=` and the subprotocol the server chose, so with one after TLS, write `tls=3f… ws=` instead of `tls=3f…$`.
-
-Each TLS layer reports `tls=` followed by the hex SHA-256 of the server's DER-encoded public key (SubjectPublicKeyInfo). This is the same value as:
-
-```sh
-openssl s_client -connect irc.example.net:6697 </dev/null | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | sha256sum
-```
-
-`/session` shows the description of the current connection under `transport`.
+`/session` shows the description of the current connection under `transport`, for example `tcp=192.0.2.7:6697 tls=3f…`. Each TLS layer adds `tls=` and the key its server presented (see `pin` below), and a WebSocket adds `ws=` and the subprotocol the server chose.
 
 #### `[[networks.layers]]`
 
@@ -241,12 +231,12 @@ verify_host = 'irc.example.net'
 | Field | Meaning |
 |---|---|
 | `client_cert` | The client certificate, as PEM text. It is a [secret](#secrets), so write `client_cert.file = 'path'` to read it from a file. |
-| `client_key` | The private key, as PEM text (also a secret). Defaults to `client_cert`, so one file holding both works. It must match the certificate. |
-| `client_password` | A secret that decrypts an encrypted `client_key`. |
-| `use_store` | With `true`, `client_key` names a key in an OpenSSL store (such as a `pkcs11:` URI) instead of holding PEM text. |
+| `client_key` | The [private key](#private-keys): PEM text, or a key in an OpenSSL store. Defaults to `client_cert`, so one file holding both works. It must match the certificate. |
+| `client_password` | A secret that decrypts an encrypted `client_key`, or unlocks a stored one. |
 | `verify_host` | The name the server's certificate must match; see below. |
 | `sni_host` | The server name sent in the handshake; see below. |
 | `alpn` | Protocol names to offer with ALPN, in order. |
+| `pin` | The server's key, as the SHA-256 of its public key; see below. |
 
 Notes:
 
@@ -254,10 +244,15 @@ Notes:
 - `verify_host` defaults to `sni_host` when that is set and non-empty. Otherwise it defaults to the host this layer runs over: `server.host`, or the `host` of the nearest `socks` or `http` layer before it.
   - An IP address is matched against the certificate's IP address entries.
   - Setting `verify_host` alone covers connecting by IP address, or to an onion service whose certificate names a public hostname.
-- `verify_host = ''` disables certificate verification, so any certificate is accepted. Use it only when something else establishes trust, such as `server.fingerprint`.
+- `verify_host = ''` disables certificate verification, so any certificate is accepted. Use it only when something else establishes trust, such as `pin`.
 - Over `server.path`, with no proxy layer before the TLS layer, there is no host to default to. `verify_host` is then required (a hostname, or `''`), and connecting without it fails.
 - `sni_host` defaults to `verify_host` when that is set and non-empty, and otherwise to the same host. Set both only when they must differ. IP addresses are never sent as a server name, and `sni_host = ''` sends none.
 - `alpn`: each name is 1 to 255 bytes, for example `alpn = ['irc']`. By default no ALPN is sent, because some servers and proxies refuse a handshake that offers only protocols they don't speak. Set it for a front end that routes by ALPN. Use `['http/1.1']` on a TLS layer that wraps an HTTPS proxy.
+- `pin` is 64 hex digits, in either case: the SHA-256 of the server's DER-encoded public key (SubjectPublicKeyInfo). If the server presents a different key, the connection is dropped with a message naming the layer, and not retried: the network stays idle until you fix the configuration and `/connect`. The pin is checked as well as `verify_host`, not instead of it. The value is the same as the layer's `tls=` in `/session`, and as:
+
+  ```sh
+  openssl s_client -connect irc.example.net:6697 </dev/null | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | sha256sum
+  ```
 
 ##### SOCKS5 layer
 
@@ -283,9 +278,9 @@ port = 8080
 
 This takes the same fields as SOCKS5. With `username` and `password`, the CONNECT request carries Basic authentication. Here the password may be empty, but the username can't contain `:`. For an HTTPS proxy, put a TLS layer (with `alpn = ['http/1.1']`) before this one.
 
-##### WebSocket layer
+#### `[networks.websocket]`
 
-This speaks IRC over a WebSocket, as the IRCv3 WebSocket specification describes. For a `wss://irc.example.net/webirc` address, put a TLS layer first:
+With this table, IRC is carried over a WebSocket, as the IRCv3 WebSocket specification describes. It runs over the last of the `layers`, or the socket when there are none. For a `wss://irc.example.net/webirc` address, add a TLS layer:
 
 ```toml
 [networks.server]
@@ -296,21 +291,20 @@ port = 443
 type = 'tls'
 alpn = ['http/1.1']
 
-[[networks.layers]]
-type = 'websocket'
+[networks.websocket]
 path = '/webirc'
 ```
 
 | Field | Meaning |
 |---|---|
-| `host` | The `Host` header. Defaults to the host and port this layer runs over: `server.host` and `server.port`, or the `host` and `port` of the nearest `socks` or `http` layer before it. |
+| `host` | The `Host` header. Defaults to the host and port the WebSocket runs over: `server.host` and `server.port`, or the `host` and `port` of the last `socks` or `http` layer. |
 | `path` | The path to request. Defaults to `/`. Must start with `/`. |
 | `origin` | The `Origin` header. Set it for a server that only accepts listed origins; by default none is sent. |
 | `subprotocols` | The IRCv3 subprotocols to offer, in order of preference: `binary.ircv3.net` and `text.ircv3.net`. Defaults to both, binary first. `[]` offers none; see below. |
 
-None of these may contain spaces or control characters. Over `server.path`, with no proxy layer before this one, there is no host to default to, so `host` is required.
+None of these may contain spaces or control characters. Over `server.path`, with no proxy layer, there is no host to default to, so `host` is required.
 
-The WebSocket layer must be the last layer, because it carries IRC lines rather than the bytes another layer would send. Each line goes in its own message, and a carriage return ends a line just as a line feed does. When the server closes the WebSocket, the disconnect reason includes its close code and any reason it gave.
+Each line goes in its own message, and a carriage return ends a line just as a line feed does. When the server closes the WebSocket, the disconnect reason includes its close code and any reason it gave.
 
 The server must choose one of the subprotocols offered, or the connection fails. Over `text.ircv3.net`, everything sent must be UTF-8.
 
@@ -324,17 +318,28 @@ A gateway that predates the IRCv3 subprotocols may refuse an offer of more than 
 |---|---|---|
 | `nick` | | Required. The nick to register with, and the one `reclaim_nick` takes back. No spaces or control characters. |
 | `user` | `nick` | The username sent in USER. |
-| `gecos` | `nick` | The real name sent in USER. |
+| `realname` | `nick` | The real name sent in USER. |
 | `bot` | `false` | Mark the connection as a bot: after registration, set the user mode the server names in ISUPPORT `BOT` (IRCv3 bot mode). A server that names none gets no mode, and the log says so. |
 
-#### Server password
+#### `[networks.registration]`
 
-`server.password` is sent with PASS before registration. It is a [secret](#secrets). With `server.username`, PASS sends `username:password`, which is the form bouncers such as soju and ZNC use:
+| Field | Meaning |
+|---|---|
+| `password` | The server password, sent with PASS before registration. It is a [secret](#secrets). |
+| `username` | With `password`, PASS sends `username:password`. No `:`. |
+| `capabilities` | Changes to the requested capabilities; see below. |
+
+`username:password` is the form bouncers such as soju and ZNC use:
 
 ```toml
 [networks.server]
 host = 'bouncer.example.net'
 port = 6697
+
+[[networks.layers]]
+type = 'tls'
+
+[networks.registration]
 username = 'me/libera'
 password.prompt = 'bouncer password'
 ```
@@ -347,10 +352,10 @@ By default hub requests these capabilities when the server offers them:
 
 `echo-message` is requested only together with `labeled-response` and `batch`, which hub uses to match each echo to the message it already shows.
 
-`server.capabilities` adds names to that list, or removes them with a leading `-`:
+`registration.capabilities` adds names to that list, or removes them with a leading `-`:
 
 ```toml
-[networks.server]
+[networks.registration]
 capabilities = ['draft/event-playback', '-draft/chathistory']
 ```
 
@@ -375,16 +380,17 @@ mechanism = 'EXTERNAL'
 
 `credentials` is a list of named credentials. A credential's `name` defaults to its `mechanism`.
 
-`automatic` lists credential **names** to use at registration. They are tried in order, skipping any whose mechanism the server doesn't advertise, and the first that succeeds ends the list. A name that matches no credential stops registration with an error. Without `automatic`, SASL happens only when you run `/sasl <name>` with a credential's name.
+`automatic` lists credential **names** to use at registration. They are tried in order, skipping any whose mechanism the server doesn't advertise, and the first that succeeds ends the list. A name that matches no credential fails the load. Without `automatic`, SASL happens only when you run `/sasl`.
+
+`/sasl <name>` authenticates with one credential. `/sasl` alone tries the `automatic` list, or the first credential when there is none.
 
 | Field | Meaning |
 |---|---|
 | `name` | The name used in `automatic` and `/sasl`. Defaults to `mechanism`. |
 | `mechanism` | Required; see the list below. |
 | `username` | The authentication identity. |
-| `password` | A [secret](#secrets): the password, or the passphrase of an encrypted `key`. |
-| `key` | A secret: the private key for the challenge mechanisms. |
-| `use_store` | With `true`, `key` names a key in an OpenSSL store instead of holding PEM text. |
+| `password` | A [secret](#secrets): the password, or the passphrase of `key`. |
+| `key` | The [private key](#private-keys) for the challenge mechanisms. |
 | `authzid` | The authorization identity, to log in as someone else when the server allows it. |
 
 Mechanisms and what each needs:
@@ -403,35 +409,36 @@ Mechanisms and what each needs:
 
 ### Becoming an operator
 
-`[networks.oper]` logs in with OPER:
+`[networks.oper]` works like [SASL](#sasl): a list of named credentials, and the names to log in with at registration.
 
 ```toml
 [networks.oper]
-automatic = true
+automatic = ['challenge']
+
+[[networks.oper.credentials]]
+mechanism = 'challenge'
+username = 'opername'
+key.file = 'challenge.pem'
+password.prompt = 'challenge key password'
+
+[[networks.oper.credentials]]
+name = 'backup'
+mechanism = 'password'
 username = 'opername'
 password = { command = 'pass', arguments = ['show', 'oper'] }
 ```
 
-`[networks.challenge]` logs in with CHALLENGE, using an RSA key, in the form the network's [`ircd`](#network-settings) uses:
+`automatic` lists credential names, tried in order right after registration until one makes you an operator. A name that matches no credential fails the load. Without `automatic`, nothing is tried until you run `/oper`.
 
-```toml
-[networks.challenge]
-automatic = true
-username = 'opername'
-key.file = 'challenge.pem'
-password.prompt = 'challenge key password'
-```
+| Field | Meaning |
+|---|---|
+| `name` | The name used in `automatic` and `/oper`. Defaults to `mechanism`. |
+| `mechanism` | Required. `'password'` logs in with OPER; `'challenge'` with CHALLENGE, using an RSA key, in the form the network's [`ircd`](#network-settings) uses. |
+| `username` | Required. The operator name. |
+| `password` | With `'password'`, required: a [secret](#secrets) sent with OPER. With `'challenge'`, a secret that decrypts `key`. |
+| `key` | With `'challenge'`, required: the [private key](#private-keys), usually `key.file`. |
 
-| Field | Table | Meaning |
-|---|---|---|
-| `username` | both | Required. The operator name. |
-| `password` | `oper` | Required. A [secret](#secrets). |
-| `key` | `challenge` | Required. A secret holding the private key as PEM text, so usually `key.file`. With `use_store`, a store name instead. |
-| `password` | `challenge` | A secret that decrypts an encrypted `key`. |
-| `use_store` | `challenge` | With `true`, `key` names a key in an OpenSSL store. |
-| `automatic` | both | Log in right after registration. If both tables set it, CHALLENGE is used. |
-
-Without `automatic`, use `/oper` or `/challenge` (these need the `oper` feature). After you become an operator, the `snotice` feature sets the [snomask](#network-settings).
+`/oper <name>` logs in with one credential. `/oper` alone tries the `automatic` list, or the first credential when there is none. It needs the `oper` feature. After you become an operator, the `snotice` feature sets the [snomask](#network-settings).
 
 ### Mentions and watches
 
@@ -451,7 +458,7 @@ The netcount view lists watches with their hit counts. Watches added with `/addw
 
 ### The servers file
 
-`servers_file` names a TOML file, relative to the configuration directory and named `*.toml`, describing the network's servers. It is read when the configuration loads. A file that can't be read or parsed, or has a field of the wrong type, stops the load; an unknown field is reported as `Unexpected field ...` in the status log. All keys are optional:
+`servers_file` names a TOML file, relative to the configuration directory and named `*.toml`, describing the network's servers. It is read when the configuration loads. A file that can't be read or parsed, or has a field of the wrong type or one the schema doesn't know, stops the load. All keys are optional:
 
 ```toml
 primary_hub = 'hub.example'   # topology: the root of the link tree
@@ -514,6 +521,16 @@ password.prompt = 'Operator password'
 password = { command = 'security', arguments = ['find-generic-password', '-s', 'irc', '-w'] }
 ```
 
+### Private keys
+
+A field that holds a private key (`client_key`, and `key` in SASL and `oper` credentials) takes a secret holding its PEM text, or a key in an OpenSSL store:
+
+```toml
+key.store = 'pkcs11:token=mytoken;object=oper'
+```
+
+The store is opened with the credential's `password`, or the layer's `client_password`, when one is given.
+
 ## Reloading
 
 `/reload` (or SIGUSR1) reads the configuration file and the servers files again, and loads new code, without dropping connections.
@@ -523,7 +540,7 @@ password = { command = 'security', arguments = ['find-generic-password', '-s', '
 - **Networks:**
   - A network added to the file connects if `autoconnect` allows.
   - A network removed from the file disconnects.
-- **Settings that apply at once:** `ircd` (except for the `snomask` modes, which are set when you become an operator), `features`, `reconnect`, `reclaim_nick`, `quit_message`, `snomask`, `oper`, `challenge`, `mention`, `watches`, the servers file and the top-level tables.
-- **Settings that wait for a new connection:** a change to `server`, `layers`, `identity` or `sasl` marks the network `restart pending: /reconnect` in `/networks` and `/session` until you reconnect.
+- **Settings that apply at once:** `ircd` (except for the `snomask` modes, which are set when you become an operator), `features`, `reconnect`, `reclaim_nick`, `quit_message`, `snomask`, `oper`, `mention`, `watches`, the servers file and the top-level tables.
+- **Settings that wait for a new connection:** a change to `server`, `layers`, `websocket`, `identity`, `registration` or `sasl` marks the network `restart pending: /reconnect` in `/networks` and `/session` until you reconnect.
 
 A configuration that fails to load leaves the running one in place. The error is logged, hub switches to `/status` to show it, and `/stats` shows `last load failed` under `code`.

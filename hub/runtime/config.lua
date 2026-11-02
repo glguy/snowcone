@@ -1,7 +1,7 @@
 -- Reading and validating configuration.
 --
 -- The result is plain data:
---   {file, dir, warnings, ui, plugins, notifications, mention,
+--   {file, dir, ui, plugins, notifications, mention,
 --    networks = {{id, features = {[name] = true}, ...}, ...}}
 -- Secrets stay as configured (strings, {command=}, {file=}, {prompt=});
 -- they are resolved at connect time by runtime/secrets.lua. A network's
@@ -92,15 +92,65 @@ local function read_file(dir, flags, chosen)
     return parse(filename, text), filename
 end
 
+--- The first `sasl` or `oper` credential with a given name; a
+--- credential's name defaults to its mechanism.
+---@param credentials table[]|nil
+---@param name string
+---@return table|nil
+function M.get_credential(credentials, name)
+    for _, credential in ipairs(credentials or {}) do
+        if (credential.name or credential.mechanism) == name then
+            return credential
+        end
+    end
+end
+
+--- The credentials a `sasl` or `oper` table's `automatic` names, in
+--- order. The load checks that each name is found.
+---@param cfg table|nil the `sasl` or `oper` table
+---@return table[]
+function M.automatic_credentials(cfg)
+    local credentials = {}
+    for _, name in ipairs(cfg and cfg.automatic or {}) do
+        table.insert(credentials, M.get_credential(cfg.credentials, name))
+    end
+    return credentials
+end
+
+--- The `sasl` or `oper` credentials a command uses: the one named, or
+--- without a name the `automatic` ones, or else the first. Raises when
+--- there is none, or none by that name.
+---@param cfg table|nil the `sasl` or `oper` table
+---@param name string the command's argument, '' for none
+---@return table[]
+function M.pick_credentials(cfg, name)
+    local credentials = cfg and cfg.credentials or {}
+    if name ~= '' then
+        local credential = M.get_credential(credentials, name)
+        if not credential then
+            error('unknown credential: ' .. name, 0)
+        end
+        return {credential}
+    end
+    local picked = M.automatic_credentials(cfg)
+    if not picked[1] then
+        picked[1] = credentials[1]
+    end
+    if not picked[1] then
+        error('no credentials', 0)
+    end
+    return picked
+end
+
 local all_features <const> = {}
 for _, name in ipairs(cschema.features) do
     all_features[name] = true
 end
 
 -- `i` names the network in errors until its id is known to be valid
-local function normalize_network(net, i, warnings)
+local function normalize_network(net, i)
     local label = type(net.id) == 'string' and net.id or tostring(i)
-    schema.check(cschema.network, net, {'networks', label}, warnings)
+    schema.check(cschema.network, net, {'networks', label})
 
     local server = net.server
     if server.path then
@@ -111,6 +161,15 @@ local function normalize_network(net, i, warnings)
         error(string.format('networks.%s.server: host and port, or path, is required', net.id), 0)
     elseif not server.port then
         error(string.format('networks.%s.server: port is required with host', net.id), 0)
+    end
+
+    for _, section in ipairs {'sasl', 'oper'} do
+        local cfg = net[section]
+        for _, name in ipairs(cfg and cfg.automatic or {}) do
+            if not M.get_credential(cfg.credentials, name) then
+                error(string.format('networks.%s.%s.automatic: no credential named %s', net.id, section, name), 0)
+            end
+        end
     end
 
     if net.ircd == nil then
@@ -153,6 +212,7 @@ local function normalize_network(net, i, warnings)
         error(string.format('networks.%s.rate_limit: interval must be above 0', net.id), 0)
     end
     net.layers = net.layers or {}
+    net.registration = net.registration or {}
     -- the servers file's contents, or these defaults without one
     net.servers = {servers = {}, regions = {}, kline_reasons = {}, kline_tags = {}}
     return net
@@ -162,7 +222,7 @@ end
 -- {servers = {[name] = {alias, region, ipv4, ipv6, expect}},
 -- regions = {[label] = {hostname, color}}, kline_reasons = {{name, reason}},
 -- kline_tags, net_tracks, flags, primary_hub}
-local function read_servers(net, dir, warnings)
+local function read_servers(net, dir)
     local name = net.servers_file
     if not name then return end
     local filename = path.isabs(name) and name or path.join(dir, name)
@@ -178,7 +238,7 @@ local function read_servers(net, dir, warnings)
     if not value then
         error(string.format('networks.%s.servers_file %s: %s', net.id, filename, perr), 0)
     end
-    schema.check(cschema.servers_file, value, {'networks', net.id, 'servers_file'}, warnings)
+    schema.check(cschema.servers_file, value, {'networks', net.id, 'servers_file'})
     for k, v in pairs(value) do
         net.servers[k] = v
     end
@@ -190,8 +250,7 @@ end
 ---@return table
 function M.normalize(raw)
     raw = tablex.deepcopy(raw)
-    local warnings = {}
-    schema.check(cschema.file, raw, {}, warnings)
+    schema.check(cschema.file, raw, {})
 
     local networks = {}
     local seen = {}
@@ -199,7 +258,7 @@ function M.normalize(raw)
         if type(net) ~= 'table' then
             error('networks.' .. i .. ' is not a table', 0)
         end
-        normalize_network(net, i, warnings)
+        normalize_network(net, i)
         if seen[net.id] then
             error('Duplicate network id: ' .. net.id, 0)
         end
@@ -211,7 +270,6 @@ function M.normalize(raw)
     ui.profile = ui.profile or 'all'
 
     return {
-        warnings = warnings,
         ui = ui,
         plugins = raw.plugins,
         notifications = raw.notifications,
@@ -245,7 +303,7 @@ function M.load(args, override, chosen)
     cfg.file = filename
     cfg.dir = dir
     for _, net in ipairs(cfg.networks) do
-        read_servers(net, dir, cfg.warnings)
+        read_servers(net, dir)
     end
     return cfg
 end

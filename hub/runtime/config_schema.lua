@@ -54,25 +54,41 @@ end
 
 -- Secrets that may hold anything, such as PEM text
 local password_schema <const> = password {type = 'string'}
-local required_password_schema <const> = password({type = 'string'}, true)
 -- Secrets sent as part of an IRC line
 local line_password_schema <const> = password {type = 'string', pattern = line}
 local required_line_password_schema <const> = password({type = 'string', pattern = line}, true)
 
+-- A private key: a secret holding its text, or the name of a key in an
+-- OpenSSL store, such as a pkcs11: URI
+local function private_key(required)
+    return {
+        required = required,
+        oneOf = {
+            {type = 'string'}, command_schema, prompt_schema, file_schema,
+            table_ {store = {type = 'string', pattern = '.', expected = 'a store name', required = true}},
+        },
+    }
+end
+local key_schema <const> = private_key()
+local required_key_schema <const> = private_key(true)
+
 local identity_fields <const> = {
-    nick  = {type = 'string', pattern = word, required = true},
-    user  = {type = 'string', pattern = word},
-    gecos = {type = 'string', pattern = '^[^\n\r\x00]+$'},
-    bot   = {type = 'boolean'},
+    nick     = {type = 'string', pattern = word, required = true},
+    user     = {type = 'string', pattern = word},
+    realname = {type = 'string', pattern = '^[^\n\r\x00]+$'},
+    bot      = {type = 'boolean'},
 }
 
 -- host and port for TCP, or path for a local (unix-domain) socket;
 -- config.lua checks that exactly one is given
 local server_fields <const> = {
-    host         = {type = 'string'},
-    port         = {type = 'number', integer = true, minimum = 1, maximum = 65535},
-    path         = {type = 'string'},
-    fingerprint  = {type = 'string'},
+    host = {type = 'string'},
+    port = {type = 'number', integer = true, minimum = 1, maximum = 65535},
+    path = {type = 'string'},
+}
+
+-- What is sent before registering: PASS and the capabilities to request
+local registration_schema <const> = table_ {
     capabilities = array {type = 'string', pattern = word},
     username     = {type = 'string', pattern = '^[^\n\r\x00:]*$'},
     password     = line_password_schema,
@@ -101,10 +117,9 @@ local http_layer <const> = table_ {
     password = password_schema,
 }
 
--- Sent in the HTTP request that opens the WebSocket, so no spaces or
--- control characters
-local websocket_layer <const> = table_ {
-    type   = {type = 'string', pattern = '^websocket$', required = true},
+-- IRC over a WebSocket, on top of every layer. Sent in the HTTP request
+-- that opens it, so no spaces or control characters
+local websocket_schema <const> = table_ {
     host   = {type = 'string', pattern = '^[^%c ]+$', expected = 'no spaces or control characters'},
     path   = {type = 'string', pattern = '^/[^%c ]*$',
               expected = "a path starting with '/', without spaces or control characters"},
@@ -119,32 +134,39 @@ local layers_schema <const> = array {
     oneOf = {
         socks_layer,
         http_layer,
-        websocket_layer,
         table_ {
             type            = {type = 'string', pattern = '^tls$', required = true},
             client_cert     = password_schema,
-            client_key      = password_schema,
+            client_key      = key_schema,
             client_password = password_schema,
-            use_store       = {type = 'boolean'},
             verify_host     = {type = 'string'},
             sni_host        = {type = 'string'},
             alpn            = array {type = 'string'},
+            pin             = {type = 'string', pattern = '^' .. string.rep('%x', 64) .. '$',
+                               expected = 'a SHA-256 in 64 hex digits'},
         },
     },
 }
 
+-- Operator logins, named like SASL credentials: OPER with a password,
+-- or CHALLENGE with an RSA key
 local oper_schema <const> = table_ {
-    automatic = {type = 'boolean'},
-    username  = {type = 'string', required = true, pattern = word},
-    password  = required_line_password_schema,
-}
-
-local challenge_schema <const> = table_ {
-    automatic = {type = 'boolean'},
-    username  = {type = 'string', required = true, pattern = word},
-    key       = required_password_schema,
-    password  = password_schema,
-    use_store = {type = 'boolean'},
+    automatic = array {type = 'string'},
+    credentials = array {oneOf = {
+        table_ {
+            name      = {type = 'string'},
+            mechanism = {type = 'string', pattern = '^password$', required = true},
+            username  = {type = 'string', required = true, pattern = word},
+            password  = required_line_password_schema,
+        },
+        table_ {
+            name      = {type = 'string'},
+            mechanism = {type = 'string', pattern = '^challenge$', required = true},
+            username  = {type = 'string', required = true, pattern = word},
+            key       = required_key_schema,
+            password  = password_schema,
+        },
+    }},
 }
 
 local sasl_schema <const> = table_ {
@@ -154,8 +176,7 @@ local sasl_schema <const> = table_ {
         mechanism = {type = 'string', required = true},
         username  = {type = 'string'},
         password  = password_schema,
-        key       = password_schema,
-        use_store = {type = 'boolean'},
+        key       = key_schema,
         authzid   = {type = 'string'},
     }),
 }
@@ -203,10 +224,11 @@ M.network = table_ {
     servers_file = {type = 'string'},
     server       = required_table(server_fields),
     layers       = layers_schema,
+    websocket    = websocket_schema,
     identity     = required_table(identity_fields),
+    registration = registration_schema,
     sasl         = sasl_schema,
     oper         = oper_schema,
-    challenge    = challenge_schema,
     mention      = mention_schema,
     watches      = array (table_ {
         pattern = {type = 'string', required = true},
@@ -252,8 +274,8 @@ M.file = table_ {
         custom    = {type = 'table'},
     },
     notifications = table_ {
-        module = {type = 'string', required = true, pattern = '^%w+$',
-                  expected = 'a backend name: bell, mac or iterm2'},
+        backend = {type = 'string', required = true, pattern = '^%w+$',
+                   expected = 'a backend name: bell, mac or iterm2'},
     },
     mention = mention_schema,
 }

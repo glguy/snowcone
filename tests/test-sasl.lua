@@ -22,7 +22,10 @@ local sent, statuses
 
 -- hub resolves secrets in a task; these tests pass them as plain strings
 package.preload['hub.runtime.secrets'] = function()
-    return { resolve = function(_, v) return v end }
+    return {
+        resolve = function(_, v) return v end,
+        key_store = function(v) return type(v) == 'table' and v.store or nil end,
+    }
 end
 
 package.path = here .. '/../?.lua;' .. here .. '/../?/init.lua;' .. package.path
@@ -237,7 +240,7 @@ do
         expect(calls[1][1] == 'pem' and calls[1][2] == pem and calls[1][4] == 'pw', 'PEM decrypted with password')
 
         calls = {}
-        run({mechanism = 'ECDH-X25519-CHALLENGE', username = 'u', key = 'store:x', password = 'pw', use_store = true}, {numeric(N.ERR_SASLFAIL)})
+        run({mechanism = 'ECDH-X25519-CHALLENGE', username = 'u', key = {store = 'store:x'}, password = 'pw'}, {numeric(N.ERR_SASLFAIL)})
         expect(calls[1][1] == 'store' and calls[1][2] == 'store:x' and calls[1][4] == 'pw', 'store key with password')
 
         calls = {}
@@ -261,7 +264,7 @@ do
             pkey_from_store = function(...) calls[#calls + 1] = {'store', ...}; return key end,
         }
 
-        run({mechanism = 'ECDSA-NIST256P-CHALLENGE', username = 'u', key = 'pkcs11:token=x', password = 'pw', use_store = true},
+        run({mechanism = 'ECDSA-NIST256P-CHALLENGE', username = 'u', key = {store = 'pkcs11:token=x'}, password = 'pw'},
             {numeric(N.ERR_SASLFAIL)})
         expect(calls[1] and calls[1][1] == 'store' and calls[1][2] == 'pkcs11:token=x' and calls[1][4] == 'pw',
             'ECDSA use_store loads from the store with the password')

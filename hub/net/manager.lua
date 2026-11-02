@@ -160,8 +160,9 @@ end
 -- Layers =============================================================
 
 -- Resolve the secrets in the configured layers and build the list that
--- snowcone.connect takes. Raises on failure.
-local function build_layers(t, configured)
+-- snowcone.connect takes, ending with the WebSocket if there is one.
+-- Raises on failure.
+local function build_layers(t, configured, websocket)
     local layers = {}
     for _, layer in ipairs(configured) do
         if layer.type == 'tls' then
@@ -169,8 +170,9 @@ local function build_layers(t, configured)
             -- PEM text, replaced by what it parses to
             ---@type string|myopenssl.X509|nil
             local cert = secrets.resolve(t, layer.client_cert)
+            local store = secrets.key_store(layer.client_key)
             ---@type string|myopenssl.Pkey|nil
-            local key = secrets.resolve(t, layer.client_key) or cert --[[@as string|nil]]
+            local key = store or secrets.resolve(t, layer.client_key) or cert --[[@as string|nil]]
 
             if cert then
                 local ok, x509 = pcall(myopenssl.read_x509, cert)
@@ -180,7 +182,7 @@ local function build_layers(t, configured)
 
             if key then
                 local ok, pkey
-                if layer.use_store then
+                if store then
                     ok, pkey = pcall(myopenssl.pkey_from_store, key, true, password)
                 else
                     ok, pkey = pcall(myopenssl.read_pem, key, true, password)
@@ -210,17 +212,18 @@ local function build_layers(t, configured)
                 username = layer.username,
                 password = password,
             })
-        elseif layer.type == 'websocket' then
-            table.insert(layers, {
-                type = 'websocket',
-                host = layer.host,
-                path = layer.path,
-                origin = layer.origin,
-                subprotocols = layer.subprotocols,
-            })
         else
             error('bad layer type: ' .. tostring(layer.type), 0)
         end
+    end
+    if websocket then
+        table.insert(layers, {
+            type = 'websocket',
+            host = websocket.host,
+            path = websocket.path,
+            origin = websocket.origin,
+            subprotocols = websocket.subprotocols,
+        })
     end
     return layers
 end
@@ -291,7 +294,7 @@ local function connect_body(t, attempt)
     local rec = nets()[id]
     local cfg = rec.cfg
 
-    local ok, layers = pcall(build_layers, t, cfg.layers)
+    local ok, layers = pcall(build_layers, t, cfg.layers, cfg.websocket)
     if not ok then
         return failed(id, attempt, layers, false)
     end
@@ -404,15 +407,33 @@ end
 
 local events = {}
 
+-- The index in `layers` of the first TLS layer whose pin doesn't match
+-- the key it got. The description has a tls= entry per TLS layer, in order.
+local function unpinned(layers, description)
+    local keys = {}
+    for key in description:gmatch ' tls=(%x+)' do
+        table.insert(keys, key)
+    end
+    local n = 0
+    for i, layer in ipairs(layers) do
+        if layer.type == 'tls' then
+            n = n + 1
+            if layer.pin and layer.pin:lower() ~= keys[n] then
+                return i
+            end
+        end
+    end
+end
+
 function events.CON(rec, fingerprint)
     rec.fingerprint = fingerprint
     log.add_net(rec.id, 'irc', 'connected: %s', fingerprint)
 
-    local want = rec.cfg.server.fingerprint
-    if want and not string.match(fingerprint, want) then
+    local i = unpinned(rec.cfg.layers, fingerprint)
+    if i then
         -- like any configuration problem, retrying won't fix it
         rec.target = 'idle'
-        M.finish(rec.id, 'bad fingerprint', false)
+        M.finish(rec.id, string.format('layers[%d]: TLS key does not match pin', i), false)
         return
     end
 
@@ -557,7 +578,7 @@ local function new_record(net)
 end
 
 -- Settings that only take effect on a new connection
-local restart_keys <const> = {'server', 'layers', 'identity', 'sasl'}
+local restart_keys <const> = {'server', 'layers', 'websocket', 'identity', 'registration', 'sasl'}
 
 -- Apply a network's new configuration. Everything is read from rec.cfg
 -- when used, so features, mention, reconnect and oper settings apply at

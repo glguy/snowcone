@@ -9,15 +9,15 @@
 -- KLINE, UNKLINE, UNDLINE and NickServ FREEZE go out only from commit,
 -- which the UI calls when the operator confirms.
 
-local challenge  <const> = require 'hub.net.challenge'
 local common     <const> = require 'hub.features.common'
+local config     <const> = require 'hub.runtime.config'
 local ircd       <const> = require 'hub.net.ircd'
 local log        <const> = require 'hub.runtime.log'
 local lookup     <const> = require 'hub.features.lookup'
 local masks      <const> = require 'hub.features.oper.masks'
 local N          <const> = require 'hub.lib.numerics'
+local oper       <const> = require 'hub.net.oper'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
-local secrets    <const> = require 'hub.runtime.secrets'
 local send       <const> = require 'hub.net.send'
 local snotice    <const> = require 'hub.features.snotice'
 local stores     <const> = require 'hub.features.snotice.stores'
@@ -377,23 +377,26 @@ end
 local oper_command <const> = common.net_command(M.name)
 
 M.commands = {
-    oper_command('oper', '', nil, 'Become an operator with OPER', function(ctx)
-        local cfg = HUB.state.nets[ctx.net].cfg.oper
-        if not cfg then
-            error('no oper configuration', 0)
-        end
-        task.spawn('oper', {net = ctx.net, owner = M.name}, function(t)
-            local password = secrets.resolve(t, cfg.password)
-            t:send('OPER', cfg.username, {content = password, secret = true})
-        end)
-    end),
-    oper_command('challenge', '', nil, 'Become an operator with CHALLENGE', function(ctx)
-        local cfg = HUB.state.nets[ctx.net].cfg.challenge
-        if not cfg then
-            error('no challenge configuration', 0)
-        end
-        task.spawn('challenge', {net = ctx.net, owner = M.name}, challenge, cfg)
-    end),
+    {
+        name = 'oper', spec = '$R', usage = '[credential]', scope = 'net', feature = M.name,
+        help = 'Become an operator with a configured credential; without one, the automatic ones',
+        fn = function(ctx, name)
+            name = name:match '^%s*(.-)%s*$'
+            local credentials = config.pick_credentials(HUB.state.nets[ctx.net].cfg.oper, name)
+            task.spawn('oper', {net = ctx.net, owner = M.name}, oper.first, credentials)
+        end,
+        -- the network's credentials, by name
+        complete = function(ctx, before, seed)
+            if before ~= '' then return nil end
+            local cfg = HUB.state.nets[ctx.net].cfg.oper
+            local t = {}
+            for _, credential in ipairs(cfg and cfg.credentials or {}) do
+                local name = credential.name or credential.mechanism
+                if name:sub(1, #seed) == seed then table.insert(t, name) end
+            end
+            return t
+        end,
+    },
     oper_command('kline_nick', '$g', 'nick', 'Stage a K-Line for a nick, looking it up if needed', function(ctx, nick)
         local entry = common.enabled(ctx.net, 'snotice')
             and OrderedMap.lookup(stores.get(ctx.net).users, nick)

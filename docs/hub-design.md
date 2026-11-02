@@ -352,7 +352,7 @@ profile = 'all'
 patterns = ['%f[%w]mynick%f[^%w]']
 
 [notifications]
-module = 'mac'                 # bell, mac or iterm2
+backend = 'mac'                # bell, mac or iterm2
 
 [plugins]
 directory = 'plugins'          # default; relative to the config directory
@@ -368,11 +368,13 @@ reclaim_nick = true
 snomask = '+BFZbcklnsx'
 servers_file = 'servers.toml'  # read with the configuration; a bad one fails the load
 quit_message = 'bye'
-[networks.server]              # host and port, or path; fingerprint, capabilities, username, password
-[[networks.layers]]            # tls, socks, http or websocket
-[networks.identity]            # nick, user, gecos
+[networks.server]              # host and port, or path
+[[networks.layers]]            # tls (with an optional key pin), socks or http
+[networks.websocket]           # optional: IRC over a WebSocket, on top of the layers
+[networks.identity]            # nick, user, realname
+[networks.registration]        # password, username, capabilities
 [networks.sasl]                # automatic, credentials
-[networks.oper]                # or [networks.challenge]
+[networks.oper]                # automatic, credentials (password or challenge)
 [[networks.watches]]           # pattern, color, beep, flash, active
 ```
 
@@ -383,7 +385,7 @@ applied per network:
 | --- | --- |
 | New network | Added, and connected if `autoconnect`. |
 | Removed network | QUIT, closed, record and feature state dropped. |
-| `server`, `layers`, `identity`, `sasl` | Kept for the live connection, marked `restart_pending`; `/reconnect` applies them. |
+| `server`, `layers`, `websocket`, `identity`, `registration`, `sasl` | Kept for the live connection, marked `restart_pending`; `/reconnect` applies them. |
 | Anything else | Applies at once. |
 
 ## 9. Native API

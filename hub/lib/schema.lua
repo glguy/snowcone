@@ -1,6 +1,5 @@
--- Validation of configuration tables against a schema. Errors are
--- raised; unexpected fields are
--- collected as warnings instead of logged, so this stays pure.
+-- Validation of configuration tables against a schema. Any mismatch,
+-- including a field the schema doesn't name, raises an error.
 
 local tablex <const> = require 'pl.tablex'
 
@@ -13,10 +12,8 @@ end
 ---@param schema table
 ---@param value any
 ---@param path string[]|nil field names leading to value
----@param warnings string[]|nil receives a message per unexpected field
-function M.check(schema, value, path, warnings)
+function M.check(schema, value, path)
     path = path or {}
-    warnings = warnings or {}
 
     if value == nil then
         if schema.required then
@@ -30,12 +27,9 @@ function M.check(schema, value, path, warnings)
         local msg = "No alternatives available: " .. table.concat(path, '.')
         for i, subschema in ipairs(schema.oneOf) do
             local save_path = tablex.copy(path)
-            -- only the alternative that matches may report unexpected fields
-            local sub_warnings = {}
-            local success, submsg = pcall(M.check, subschema, value, path, sub_warnings)
+            local success, submsg = pcall(M.check, subschema, value, path)
             path = save_path
             if success then
-                table.move(sub_warnings, 1, #sub_warnings, #warnings + 1, warnings)
                 return
             end
             if i > 1 then
@@ -58,20 +52,20 @@ function M.check(schema, value, path, warnings)
                 for i, elt in ipairs(value) do
                     validated[i] = true
                     table.insert(path, i)
-                    M.check(schema.elements, elt, path, warnings)
+                    M.check(schema.elements, elt, path)
                     table.remove(path)
                 end
             elseif schema.fields then
                 for k, v in pairs(schema.fields) do
                     validated[k] = true
                     table.insert(path, k)
-                    M.check(v, value[k], path, warnings)
+                    M.check(v, value[k], path)
                     table.remove(path)
                 end
             elseif schema.assocs then
                 for k, v in pairs(value) do
                     table.insert(path, k)
-                    M.check(schema.assocs, v, path, warnings)
+                    M.check(schema.assocs, v, path)
                     table.remove(path)
                 end
                 -- all fields are implicitly validated, skip unexpected check
@@ -84,8 +78,7 @@ function M.check(schema, value, path, warnings)
             for k, _ in pairs(value) do
                 if not validated[k] then
                     table.insert(path, k)
-                    table.insert(warnings, 'Unexpected field ' .. table.concat(path, '.'))
-                    table.remove(path)
+                    fail('Unexpected field %s', table.concat(path, '.'))
                 end
             end
 

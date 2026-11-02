@@ -14,7 +14,6 @@ local manager  <const> = require 'hub.net.manager'
 local quote    <const> = require 'hub.commands.quote'
 local irc_model <const> = require 'hub.net.irc'
 local sasl     <const> = require 'hub.net.sasl'
-local secrets  <const> = require 'hub.runtime.secrets'
 local send     <const> = require 'hub.net.send'
 local task     <const> = require 'hub.runtime.task'
 local timer    <const> = require 'hub.runtime.timer'
@@ -161,21 +160,24 @@ M.commands = {
     },
     {
         name = 'sasl',
-        spec = '$g',
-        usage = 'credential',
+        spec = '$R',
+        usage = '[credential]',
         group = 'connection',
         scope = 'net',
-        help = 'Authenticate now with a configured SASL credential',
+        help = 'Authenticate now with a configured SASL credential; without one, the automatic ones',
         fn = function(ctx, name)
             local rec = HUB.state.nets[ctx.net]
-            local credential = secrets.get_credential(rec.cfg.sasl and rec.cfg.sasl.credentials, name)
-            if not credential then
-                error('unknown credential: ' .. name, 0)
-            end
+            name = name:match '^%s*(.-)%s*$'
+            local credentials = config.pick_credentials(rec.cfg.sasl, name)
             if not (rec.irc and irc_model.has_sasl(rec.irc)) then
                 error('SASL is not available', 0)
             end
-            task.spawn('sasl', {net = ctx.net, owner = 'commands'}, sasl.authenticate, credential)
+            local opts <const> = {net = ctx.net, owner = 'commands'}
+            if name ~= '' then
+                task.spawn('sasl', opts, sasl.authenticate, credentials[1])
+            else
+                task.spawn('sasl', opts, sasl.first, credentials)
+            end
         end,
         -- the network's credentials, by name
         complete = function(ctx, before, seed)
