@@ -631,6 +631,27 @@ T.case('@ and + toggle sending to STATUSMSG, per buffer, until Esc', function()
     T.eq(control.statusmsg 'test', nil, 'closing a buffer forgets it')
 end)
 
+T.case('the buffer view with none chosen shows one with activity, else the first', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    c:recv ':me!u@h JOIN #a'
+    c:recv ':me!u@h JOIN #b'
+    c:recv ':me!u@h JOIN #c'
+    c:recv ':alice!a@h PRIVMSG #b :hello'
+    T.eq(control.talk_target 'test', nil, 'joining chooses none')
+    control.set_view 'buffer'
+    HUB.current.routes['ui.draw']()
+    T.eq(control.talk_target 'test', '#b', 'the one with activity')
+
+    control.set_talk_target('test', nil)
+    HUB.current.routes['ui.draw']()
+    T.eq(control.talk_target 'test', '#a', 'with none active, the first by name')
+
+    control.set_talk_target('test', '#gone')
+    HUB.current.routes['ui.draw']()
+    T.eq(control.talk_target 'test', '#gone', 'one chosen is kept, open or not')
+end)
+
 T.case('the status bar shows the modes of the view as one fragment', function()
     boot()
     local control = T.require 'hub.ui.control'

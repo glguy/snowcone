@@ -12,10 +12,11 @@
 -- is highlighted until Esc. Click a channel's name in the status bar for
 -- its information, a nick's for its WHOIS. After the name, the two who
 -- most recently started typing there (not those who paused).
--- A channel's buffer shows why the server refused our JOIN; when it
--- forwards the JOIN elsewhere, both buffers say so and the view follows.
--- Viewing a buffer marks it seen and, with the terminal focused,
--- withdraws its notification.
+-- With no buffer chosen, the view shows one with a mention, else one with
+-- activity, else the first by name. A channel's buffer shows why the
+-- server refused our JOIN; when it forwards the JOIN elsewhere, both
+-- buffers say so and the view follows. Viewing a buffer marks it seen and,
+-- with the terminal focused, withdraws its notification.
 -- View state: scroll, hscroll, hide_presence, highlight (a message).
 
 local addircstr  <const> = require 'hub.ui.irc_formatting'
@@ -317,6 +318,11 @@ return {
         if not common.enabled(ctx.net, 'chat') then
             win:waddstr(ctx.net .. ' does not have the chat feature\n')
             return
+        end
+        -- with none chosen, show the one Meta-A would, else the first
+        if not control.talk_target(ctx.net) then
+            local best = chat.next_buffer(ctx.net, '')
+            if best then control.set_talk_target(ctx.net, best.name) end
         end
         local buffer, target = current_buffer(ctx)
         if not buffer then
