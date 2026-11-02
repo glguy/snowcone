@@ -73,6 +73,41 @@ function M.set_casemapping(net, casemapping)
     OrderedMap.set_casemapping(S.new_channels, casemapping)
 end
 
+--- Remove a watch, found by identity, so a list changed since it was
+--- drawn removes the right one.
+---@param net string
+---@param watch hub.Watch
+function M.remove_watch(net, watch)
+    local watches = M.get(net).watches
+    for i, w in ipairs(watches) do
+        if w == watch then
+            table.remove(watches, i)
+            return
+        end
+    end
+end
+
+--- Turn a watch's flag (active, beep, flash) on or off.
+---@param watch hub.Watch
+---@param field 'active'|'beep'|'flash'
+---@param on boolean
+function M.set_watch_flag(watch, field, on)
+    watch[field] = on or nil
+end
+
+--- Stop counting a tracker, or one range of it.
+---@param net string
+---@param name string
+---@param label string|nil a range of the tracker; nil for all of it
+function M.remove_tracker(net, name, label)
+    local trackers = M.get(net).net_trackers
+    if label == nil then
+        trackers[name] = nil
+    elseif trackers[name] then
+        trackers[name][label] = nil
+    end
+end
+
 --- The stores of a network, created on first use.
 ---@param net string
 ---@return hub.Stores
@@ -89,17 +124,30 @@ local function maybe_reclaim(net, nick)
     end
 end
 
-local function check_watches(S, ev, entry)
+--- A connection entry matches a pattern: its mask (nick!user@host#gecos)
+--- or the same with its IP, account, gecos, IP, organization, AS or exit
+--- reason. Watches and the cliconn and cliexit filters match alike.
+---@param entry table
+---@param pattern string
+---@return boolean
+function M.matches(entry, pattern)
     local safematch = matching.safematch
+    return safematch(entry.mask, pattern)
+        or entry.ip and entry.nick and entry.user and entry.gecos
+            and safematch(entry.nick .. '!' .. entry.user .. '@' .. entry.ip .. '#' .. entry.gecos, pattern)
+        or entry.account and safematch(entry.account, pattern)
+        or entry.gecos and safematch(entry.gecos, pattern)
+        or entry.ip and safematch(entry.ip, pattern)
+        or entry.org and safematch(entry.org, pattern)
+        or entry.asn and safematch('AS' .. entry.asn, pattern)
+        or entry.reason and safematch(entry.reason, pattern)
+        or false
+end
+
+local function check_watches(S, ev, entry)
     for _, watch in ipairs(S.watches) do
         if watch.active then
-            local p = watch.pattern
-            if safematch(entry.mask, p)
-            or entry.org and safematch(entry.org, p)
-            or entry.asn and safematch('AS' .. entry.asn, p)
-            or entry.account and safematch(entry.account, p)
-            or entry.ip and safematch(ev.nick .. '!' .. ev.user .. '@' .. ev.ip .. '#' .. ev.gecos, p)
-            then
+            if M.matches(entry, watch.pattern) then
                 watch.hits = watch.hits + 1
                 entry.mark = watch.color or 'red'
                 bus.emit('notify.alert', {

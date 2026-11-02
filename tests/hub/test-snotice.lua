@@ -288,6 +288,38 @@ T.case('network trackers count connections by range', function()
     T.raises('bad address range', nettrack.new_range, 'nonsense')
 end)
 
+T.case('/nettrack refuses a prefix out of range without a traceback', function()
+    boot {'snotice'}
+    local nettrack = T.require 'hub.features.snotice.nettrack'
+    local ok, err = pcall(nettrack.new_range, '192.0.2.0/99999999999999999999')
+    T.ok(not ok and err == 'bad address range: 192.0.2.0/99999999999999999999', tostring(err))
+end)
+
+T.case('a watch matches what the cliconn filter matches', function()
+    local c = boot {'snotice'}
+    T.command "addwatch '^Real' red"
+    T.command "addwatch '^192\\.0\\.2\\.' blue"
+    notice(c, 'a.example', 'Client connecting: n (u@h.example) [192.0.2.1] {users} <*> [Real Name]')
+    local hits = {}
+    for _, watch in ipairs(stores().watches) do hits[watch.pattern] = watch.hits end
+    T.eq({hits['^Real'], hits['^192\\.0\\.2\\.']}, {1, 1}, 'gecos and IP alone')
+end)
+
+T.case('a watch is removed by identity, whatever its place now', function()
+    boot {'snotice'}
+    local S = stores()
+    local stores_m = T.require 'hub.features.snotice.stores'
+    T.command "addwatch 'one'"
+    T.command "addwatch 'two'"
+    local two = S.watches[#S.watches]
+    table.insert(S.watches, 1, {pattern = 'new', hits = 0, active = true})
+    stores_m.remove_watch('test', two)
+    local patterns = {}
+    for _, w in ipairs(S.watches) do patterns[#patterns + 1] = w.pattern end
+    T.ok(not table.concat(patterns, ' '):find 'two', 'two gone: ' .. table.concat(patterns, ' '))
+    T.ok(table.concat(patterns, ' '):find 'one', 'one kept')
+end)
+
 T.case('an address the database rejects is unknown', function()
     local c = boot {'snotice'}
     local ip_org = T.require 'hub.features.ip_org'

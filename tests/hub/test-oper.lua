@@ -345,11 +345,24 @@ T.case('an empty reason list falls back to a default', function()
     T.eq(oper.reason_text 'test', 'You are banned.', 'default reason')
 end)
 
+T.case('an unkline lookup cut off by the connection is dropped, and says so', function()
+    local c, oper = boot()
+    oper.entry_to_unkline('test', {nick = 'n', user = '~u', ip = '192.0.2.5'})
+    T.ok(oper.get('test').staged, 'staged while looking up')
+    c:finish 'reset'
+    T.eq(oper.get('test').staged, nil, 'dropped')
+    local lines = T.log_lines 'unkline'
+    T.ok(lines[#lines]:find('ended with the connection', 1, true), lines[#lines])
+end)
+
 T.case('durations', function()
     local _, oper = boot()
     T.eq(oper.parse_duration '1d', 1440, '1d')
     T.eq(oper.parse_duration '1w 2h', 10200, '1w 2h')
     T.eq(oper.parse_duration 'soon', nil, 'nonsense')
+    T.eq(oper.parse_duration '99999999999999999999d', nil, 'too large')
+    T.eq(oper.parse_duration '9999999999999999Y', nil, 'past a hundred years')
+    T.eq(oper.parse_duration '-1d 2d', nil, 'no negatives')
     T.eq(oper.pretty_duration(90), '1.5 h', 'pretty')
     T.command 'duration 2 d'
     T.eq(oper.get('test').settings.duration, '2d', '/duration')

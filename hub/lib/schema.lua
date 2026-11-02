@@ -83,6 +83,10 @@ function M.check(schema, value, path)
 
         elseif schema.type == 'number' then
             local where = table.concat(path, '.')
+            -- TOML has nan and inf, which pass every comparison
+            if value ~= value or value == math.huge or value == -math.huge then
+                fail('Expected a finite number in %s got: %s', where, tostring(value))
+            end
             if schema.integer and math.tointeger(value) == nil then
                 fail('Expected an integer in %s got: %s', where, tostring(value))
             end

@@ -46,11 +46,15 @@ local function ban_nick(t, channel, nick, change, kick)
     end
 end
 
--- Set a list mode on a nick's ban mask
+-- Set a list mode: a mask as given (an extban too), or a nick's ban mask
 local function ban_command(chat, name, mode, help)
-    return chat.command(name, '$g', 'nick', help, function(ctx, nick)
+    return chat.command(name, '$g', 'mask|nick', help, function(ctx, arg)
         local channel = M.shown_channel(ctx)
-        task.spawn(name, {net = ctx.net, owner = chat.name}, ban_nick, channel, nick, '+' .. mode)
+        if is_mask(arg) then
+            send.send(ctx.net, 'MODE', channel, '+' .. mode, arg)
+        else
+            task.spawn(name, {net = ctx.net, owner = chat.name}, ban_nick, channel, arg, '+' .. mode)
+        end
     end)
 end
 
@@ -269,8 +273,8 @@ end
 function M.commands(chat)
     return {
         mode_command(chat),
-        ban_command(chat, 'quiet', 'q', 'Quiet a nick in the shown channel'),
-        ban_command(chat, 'ban', 'b', 'Ban a nick from the shown channel'),
+        ban_command(chat, 'quiet', 'q', 'Quiet a mask, or a nick by its ban mask, in the shown channel'),
+        ban_command(chat, 'ban', 'b', 'Ban a mask, or a nick by its ban mask, from the shown channel'),
         chat.command('kickban', '$g $R', 'nick [reason]', 'Ban a nick from the shown channel and kick it',
         function(ctx, nick, reason)
             local channel = M.shown_channel(ctx)

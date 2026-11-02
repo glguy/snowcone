@@ -134,6 +134,21 @@ T.case('quote keeps passwords out of the log and events', function()
     T.eq(fake2.last():take(), {'PASS hunter2'}, 'sent')
 end)
 
+T.case('a quote reply cut off by the connection is dropped', function()
+    local fake, _, cmdline = boot {network('a')}
+    local c = fake.last()
+    register_caps(c, 'batch labeled-response message-tags')
+    local replies = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'quote.sent', 'test', function(ev)
+        table.insert(replies, ev.reply)
+    end)
+    cmdline.execute 'quote PING x'
+    c:finish 'reset'
+    T.eq(replies[1].state, 'dropped', 'dropped')
+    local lines = T.log_lines 'quote'
+    T.ok(lines[#lines]:find('dropped with the connection', 1, true), lines[#lines])
+end)
+
 T.case('quote refuses client-only tags without message-tags', function()
     local fake, _, cmdline = boot {network('a')}
     local c = fake.last()
@@ -315,6 +330,9 @@ T.case('editor: line breaks, hex input and history', function()
     typed 'x0'
     editor.hexinput(ed)
     T.eq(editor.content(ed), 'x0', 'NUL refused')
+    typed 'xd800'
+    editor.hexinput(ed)
+    T.eq(editor.content(ed), 'xd800', 'a surrogate refused')
     typed 'x10000000000000041'
     editor.hexinput(ed)
     T.eq(editor.content(ed), 'x10000000000000041', 'too large, however many digits')

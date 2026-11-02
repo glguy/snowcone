@@ -906,6 +906,14 @@ T.case('wrapped text continues under its column, breaking a word too long for a 
     addircstr(win, 'aaaa bbbb cc\x02cc dd\x0304,05dd\x03 \x01', nil, {cols = 20, indent = 7})
     T.eq({fake_ncurses.row(win, 0), fake_ncurses.row(win, 1)},
         {'label: aaaa bbbb', '       cccc dddd ␁'}, 'the word moves whole, its codes taking no cells')
+
+    -- ^D not followed by a color takes nothing, so ^C after it is a code
+    -- and what follows is text
+    win = ncurses.newpad(10, 20)
+    win:waddstr 'label: '
+    addircstr(win, 'aaaa \x04\x03abcdef gggggggg', nil, {cols = 20, indent = 7})
+    T.eq({fake_ncurses.row(win, 0), fake_ncurses.row(win, 1)},
+        {'label: aaaa abcdef', '       gggggggg'}, 'measured as drawn')
 end)
 
 T.case('session lists show one row and expand on a click', function()
@@ -1479,6 +1487,19 @@ T.case('the message detail sums up joins, parts, kicks, quits, nicks, modes and 
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case('/stats counts the stores and what their entries hold', function()
+    local c = boot()
+    c:recv ':bob!b@h PRIVMSG me :hi'
+    c:recv ':a.example NOTICE * :*** Notice -- op!o@staff.example{op} added global 60 min. K-Line for [*@192.0.2.9] [spam]'
+    c:recv ':a.example NOTICE * :*** Notice -- Disconnecting K-Lined user n[~u@192.0.2.9] (*@192.0.2.9)'
+    T.require 'hub.ui.control'.set_view 'stats'
+    HUB.current.routes['ui.draw']()
+    local text = table.concat(rows_of(document_pad()), '\n', 0, document_pad().y)
+    T.ok(text:find('ban nicks', 1, true), 'ban nicks counted')
+    T.ok(text:find('awaiting replies', 1, true), 'chat replies counted')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.case('the detail pane sits above the view, scrolls, and closes', function()
     boot()
     local control = T.require 'hub.ui.control'
@@ -1981,6 +2002,24 @@ local function detail_text()
     for y = 0, pad.y do table.insert(rows, fake_ncurses.row(pad, y)) end
     return table.concat(rows, '\n')
 end
+
+T.case('a long /quote line leaves room on the rule for the filter', function()
+    local c = boot_labeled()
+    local control = T.require 'hub.ui.control'
+    T.require 'hub.ui.cmdline'.execute('quote PRIVMSG #c :' .. string.rep('long ', 80))
+    c:take()
+    c:recv '@label=sc1 :srv ACK'
+    control.detail().filter = 'x'
+    HUB.current.routes['ui.draw']()
+    local visible
+    for y = 0, detail_pad().h - 1 do
+        local row = fake_ncurses.row(detail_pad(), y)
+        if row:find('[CLOSE]', 1, true) then
+            visible = row:sub(1, (utf8.offset(row, tty_width + 1) or #row + 1) - 1)
+        end
+    end
+    T.ok(visible and visible:find('filter "x"', 1, true), 'on screen: ' .. tostring(visible))
+end)
 
 T.case('the filter searches a /quote reply live, and leaves the view alone', function()
     local c = boot_labeled()

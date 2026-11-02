@@ -259,13 +259,15 @@ end
 
 -- DNS rotations =======================================================
 
--- A lookup answers err_or_nil, addr...; keep every address
+-- A lookup answers err_or_nil, addr...; keep every address. A failed
+-- lookup keeps the last set it had, rather than taking every server out
+-- of rotation until the next refresh.
 local function lookup_region(t, label, hostname)
     local results = table.pack(t:dnslookup(hostname))
     local T = M.get(t.net)
     if results[1] then
         log.add_net(t.net, 'dns', '%s: %s', hostname, results[1])
-        T.rotations[label] = {}
+        T.rotations[label] = T.rotations[label] or {}
         return
     end
     local set = {}

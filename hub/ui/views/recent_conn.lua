@@ -10,10 +10,10 @@ local common    <const> = require 'hub.features.common'
 local control   <const> = require 'hub.ui.control'
 local dashboard <const> = require 'hub.ui.dashboard'
 local draw      <const> = require 'hub.ui.draw'
-local matching  <const> = require 'hub.lib.matching'
 local matchdsl  <const> = require 'hub.lib.matchdsl'
 local oper      <const> = require 'hub.features.oper'
 local scrub     <const> = require 'hub.lib.scrub'
+local stores    <const> = require 'hub.features.snotice.stores'
 
 -- Compiled /prefilter queries, by source; rebuilt after a reload
 local compiled = {}
@@ -32,7 +32,6 @@ end
 
 local function make_view(id, title, store, tracker)
     local function show_entry(vs, pattern, prefilter)
-        local safematch = matching.safematch
         return function(entry)
             if prefilter and not prefilter(entry) then
                 return false
@@ -40,14 +39,7 @@ local function make_view(id, title, store, tracker)
             return (vs.server_filter == nil or vs.server_filter == entry.server)
                and (vs.conn_filter == nil or vs.conn_filter == not entry.reason)
                and (vs.mark_filter == nil or vs.mark_filter == entry.mark)
-               and (pattern == nil
-                    or safematch(entry.mask, pattern)
-                    or entry.account and safematch(entry.account, pattern)
-                    or entry.gecos and safematch(entry.gecos, pattern)
-                    or entry.ip and safematch(entry.ip, pattern)
-                    or entry.org and safematch(entry.org, pattern)
-                    or entry.asn and safematch('AS' .. entry.asn, pattern)
-                    or entry.reason and safematch(entry.reason, pattern))
+               and (pattern == nil or stores.matches(entry, pattern))
         end
     end
 
@@ -133,7 +125,7 @@ local function make_view(id, title, store, tracker)
         if info.alias then
             win:waddstr(string.format('%-2.2s ', info.alias))
         else
-            win:waddstr(string.format('%-3.3s ', entry.server))
+            win:waddstr(string.format('%-3.3s ', scrub(entry.server)))
         end
         ctx.add_click(y, 120, 122, function() vs.server_filter = entry.server end)
 
@@ -224,6 +216,8 @@ return {
             spec = '$R',
             usage = '[query]',
             group = 'snotice',
+            scope = 'net',
+            feature = 'snotice',
             help = "Query for cliconn/cliexit: nick |re| and not (account '*' or server 'x'); empty clears",
             fn = function(_, query)
                 local view = HUB.state.ui.view

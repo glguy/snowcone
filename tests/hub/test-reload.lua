@@ -344,6 +344,12 @@ T.case('/reload with a file reads that file from then on', function()
     T.ok(T.reload(), 'a reload without a file')
     T.eq(HUB.current.config.file, chosen, 'still reads the chosen file')
 
+    local broken = dir .. '/broken.toml'
+    assert(require 'pl.file'.write(broken, "[ui\nprofile = 'x'\n"))
+    local ok_broken, err_broken = T.reload {config_file = broken}
+    T.ok(not ok_broken and tostring(err_broken):find(broken, 1, true)
+        and not tostring(err_broken):find('traceback', 1, true), 'a TOML error names the file: ' .. tostring(err_broken))
+
     local lua = dir .. '/hub.lua'
     assert(require 'pl.file'.write(lua, 'return {}'))
     local ok, err = T.reload {config_file = lua}

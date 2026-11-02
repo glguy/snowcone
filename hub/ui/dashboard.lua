@@ -137,7 +137,7 @@ function M.action_bar(ctx, win, y)
         if settings.tag then draw.red(win) else draw.yellow(win) end
     end
     ctx.add_button(win, settings.add_freeze and '[FR]' or '[  ]', function()
-        settings.add_freeze = not settings.add_freeze
+        oper.toggle_freeze(net)
     end)
     win:waddstr ' '
 

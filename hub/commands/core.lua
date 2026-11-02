@@ -5,7 +5,6 @@
 -- without a terminal.
 
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
-local path     <const> = require 'pl.path'
 local bus      <const> = require 'hub.runtime.bus'
 local config   <const> = require 'hub.runtime.config'
 local handlers <const> = require 'hub.net.handlers'
@@ -45,8 +44,7 @@ M.commands = {
         help = 'Reload code and configuration, keeping connections and state; a file is read from then on',
         fn = function(_, file)
             file = file:match '^%s*(.-)%s*$'
-            -- relative to the configuration directory
-            file = file ~= '' and path.join(config.config_dir(), path.expanduser(file)) or nil
+            file = file ~= '' and config.user_path(file) or nil
             -- Not from inside the command's own frame: the reload replaces
             -- the code that is running it
             timer.start('commands', 0, 'app.reload', file)
@@ -225,7 +223,8 @@ M.commands = {
         scope = 'net',
         help = "Write the network's console to a file, as client and server lines",
         fn = function(ctx, filename)
-            local out = assert(io.open(filename, 'w'))
+            local out, err = io.open(config.user_path(filename), 'w')
+            if not out then error(err, 0) end
             for msg in OrderedMap.reveach(HUB.state.nets[ctx.net].console) do
                 out:write(msg.source == '>>>' and 'C: ' or 'S: ')
                 if next(msg.tags) then

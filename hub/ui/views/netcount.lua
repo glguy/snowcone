@@ -5,6 +5,7 @@ local dashboard <const> = require 'hub.ui.dashboard'
 local draw      <const> = require 'hub.ui.draw'
 local nettrack  <const> = require 'hub.features.snotice.nettrack'
 local scrub     <const> = require 'hub.lib.scrub'
+local stores    <const> = require 'hub.features.snotice.stores'
 
 local function sorted_keys(t, less)
     local keys = {}
@@ -40,10 +41,10 @@ local function toggle(ctx, win, watch, field, on, off)
     win:waddstr ' '
     if watch[field] then
         draw.green(win)
-        ctx.add_button(win, on, function() watch[field] = nil end)
+        ctx.add_button(win, on, function() stores.set_watch_flag(watch, field, false) end)
     else
         draw.yellow(win)
-        ctx.add_button(win, off, function() watch[field] = true end)
+        ctx.add_button(win, off, function() stores.set_watch_flag(watch, field, true) end)
     end
 end
 
@@ -72,7 +73,7 @@ return {
             draw.cyan(win)
             render_entry(win, y, name, nettrack.total(tracker))
             draw.red(win)
-            ctx.add_button(win, '(x)', function() S.net_trackers[name] = nil end)
+            ctx.add_button(win, '(x)', function() stores.remove_tracker(ctx.net, name) end)
             win:waddstr ' '
             if vs.expanded[name] then
                 draw.yellow(win)
@@ -83,7 +84,7 @@ return {
                     draw.blue(win)
                     render_entry(win, y, label, tracker[label].count, true)
                     draw.red(win)
-                    ctx.add_button(win, '(x)', function() tracker[label] = nil end)
+                    ctx.add_button(win, '(x)', function() stores.remove_tracker(ctx.net, name, label) end)
                 end
             else
                 draw.green(win)
@@ -104,7 +105,7 @@ return {
             if y + 1 >= ctx.rows then break end
             win:wmove(y, 0)
             draw.red(win)
-            ctx.add_button(win, '(x)', function() table.remove(S.watches, i) end)
+            ctx.add_button(win, '(x)', function() stores.remove_watch(ctx.net, watch) end)
             toggle(ctx, win, watch, 'active', '(A)', '(a)')
             toggle(ctx, win, watch, 'beep', '(B)', '(b)')
             toggle(ctx, win, watch, 'flash', '(F)', '(f)')

@@ -23,6 +23,7 @@ end
 local state_text <const> = {
     waiting = 'waiting for the reply',
     timeout = 'no reply',
+    dropped = 'the connection ended first',
 }
 
 local function draw_message(ctx, win, msg)
@@ -70,12 +71,21 @@ function M.rows(ctx)
 
     local shown = reply.messages
     if pattern then
-        shown = {}
-        for _, msg in ipairs(reply.messages) do
+        -- the matches are kept with the detail, for this pattern and these
+        -- messages, and only new messages are tested on later frames
+        local cache = ctx.vs.matches
+        if not (cache and cache.pattern == pattern and cache.messages == reply.messages) then
+            cache = {pattern = pattern, messages = reply.messages, tested = 0, shown = {}}
+            ctx.vs.matches = cache
+        end
+        for i = cache.tested + 1, #reply.messages do
+            local msg = reply.messages[i]
             if matching.safematch(haystack(ctx.net, msg), pattern) then
-                table.insert(shown, msg)
+                table.insert(cache.shown, msg)
             end
         end
+        cache.tested = #reply.messages
+        shown = cache.shown
     end
 
     local head = state and 2 or 1

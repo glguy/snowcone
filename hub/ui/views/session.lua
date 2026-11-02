@@ -142,7 +142,7 @@ local function render_connection(ctx, win, rec, now)
     local modes = tablex.keys(irc.mode)
     table.sort(modes)
     label(win, 'modes')
-    win:waddstr(next(modes) and '+' .. table.concat(modes) or '-')
+    win:waddstr(next(modes) and scrub('+' .. table.concat(modes)) or '-')
     if irc.snomask then
         key(win, 'snomask')
         win:waddstr(scrub(irc.snomask))

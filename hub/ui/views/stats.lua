@@ -71,8 +71,10 @@ local function store_rows()
     local function row(...) table.insert(rows, {...}) end
 
     local S = HUB.state
+    local muted = 0
+    for _, m in pairs(S.features.notify and S.features.notify.muted or {}) do muted = muted + count(m) end
     row('-', 'client', 'status log', ring(S.log), 'all consoles', ring(S.console_all),
-        'plugins', count(S.features.plugins))
+        'plugins', count(S.features.plugins), 'notified buffers', muted)
 
     for _, id in ipairs(control.net_ids()) do
         local rec = S.nets[id]
@@ -87,8 +89,13 @@ local function store_rows()
         if sn then
             local ranges = 0
             for _, tracker in pairs(sn.net_trackers) do ranges = ranges + count(tracker) end
+            -- what the rings' entries hold
+            local ban_nicks, flagged = 0, 0
+            for entry in OrderedMap.each(sn.klines) do ban_nicks = ban_nicks + count(entry.nicks or {}) end
+            for entry in OrderedMap.each(sn.new_channels) do flagged = flagged + #(entry.channels or {}) end
             row(id, 'snotice', 'users', ring(sn.users), 'exits', ring(sn.exits), 'bans', ring(sn.klines),
                 'channels', ring(sn.new_channels), 'watches', #sn.watches, 'ranges', ranges)
+            row(id, 'snotice', 'ban nicks', ban_nicks, 'flagged channels', flagged)
         end
 
         local topo = common.get_state('topology', id)
@@ -101,8 +108,10 @@ local function store_rows()
         if chat then
             local messages = 0
             for _, buffer in pairs(chat.buffers) do messages = messages + OrderedMap.size(buffer.messages) end
+            local pending = 0
+            for _, entries in pairs(chat.pending) do pending = pending + count(entries) end
             row(id, 'chat', 'buffers', count(chat.buffers), 'messages', messages,
-                'list', OrderedMap.size(chat.list))
+                'list', OrderedMap.size(chat.list), 'awaiting replies', pending, 'closing', count(chat.closing))
         end
     end
     return rows

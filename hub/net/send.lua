@@ -68,13 +68,20 @@ function M.build(cmd, ...)
         time = os.date '!%H:%M:%S',
     }
 
+    -- a command is a word or a numeric: nothing that could end the line
+    if not tostring(cmd):find '^%w+$' then
+        error('bad command: ' .. tostring(cmd), 0)
+    end
+
     local parts = {cmd}
     local n = select('#', ...)
 
     for i = 1, n do
         local v = select(i, ...)
         local part
-        if type(v) == 'table' then
+        if v == nil then
+            error('missing argument ' .. i .. ' to ' .. tostring(cmd), 3)
+        elseif type(v) == 'table' then
             part = tostring(v.content)
             if v.secret then
                 msg[i] = '\x0304*'
@@ -91,7 +98,9 @@ function M.build(cmd, ...)
             error('prohibited character in command argument', 0)
         elseif not string.find(part, '^[^ :][^ ]*$') then
             if i ~= n then
-                error('malformed internal command argument', 3)
+                -- often a word the user typed
+                error(string.format(
+                    "an argument before the last can't be empty, start with ':' or hold a space: %q", part), 0)
             end
             parts[i + 1] = ':' .. part
         else

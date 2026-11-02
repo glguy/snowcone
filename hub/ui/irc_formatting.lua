@@ -18,11 +18,26 @@ local hex6 <const> = string.rep('%x', 6)
 -- The text str draws without edit, by the rules the drawing below follows:
 -- color codes and their parameters, and the style codes, take no cells;
 -- any other control character shows as its glyph
+-- read left to right as the drawing reads it, so what a code consumes
+-- is the same in both
 local function visible(str)
-    str = str:gsub('\x03%d%d?,%d%d?', ''):gsub('\x03%d?%d?', '')
-    str = str:gsub('\x04' .. hex6 .. ',' .. hex6, ''):gsub('\x04' .. hex6, ''):gsub('\x04', '')
-    str = str:gsub('[\x02\x0f\x11\x16\x1d\x1e\x1f]', '')
-    return scrub(str)
+    local out, i = {}, 1
+    while i <= #str do
+        local at = str:find('[\x02\x03\x04\x0f\x11\x16\x1d\x1e\x1f]', i)
+        if at == nil then
+            table.insert(out, str:sub(i))
+            break
+        end
+        table.insert(out, str:sub(i, at - 1))
+        local ctrl = str:sub(at, at)
+        i = at + 1
+        if ctrl == '\x03' then
+            i = str:match('^%d%d?,%d%d?()', i) or str:match('^%d?%d?()', i)
+        elseif ctrl == '\x04' then
+            i = str:match('^' .. hex6 .. ',' .. hex6 .. '()', i) or str:match('^' .. hex6 .. '()', i) or i
+        end
+    end
+    return scrub(table.concat(out))
 end
 
 --- Draw text with its formatting at the cursor.

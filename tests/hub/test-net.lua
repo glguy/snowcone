@@ -615,6 +615,19 @@ T.case('lines missing parameters change nothing and raise nothing', function()
     T.eq(rec().phase, 'connected', 'still connected')
 end)
 
+T.case('a bare PING gets a PONG, and a command must be a word', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    c:take()
+    c:recv ':srv PING'
+    T.eq(c:take(), {'PONG :'}, 'answered')
+    local send = T.require 'hub.net.send'
+    T.ok(not pcall(send.send, 'test', 'PRIVMSG x\r\nQUIT', 'y'), 'a command with a line break refused')
+    T.ok(not pcall(send.send, 'test', 'PRIVMSG', nil, 'x'), 'a missing argument refused')
+    T.eq(c:take(), {}, 'nothing sent')
+end)
+
 T.case('liveness: PING once when quiet, close when silent', function()
     local fake = boot {network('test')}
     local c = fake.last()
@@ -1294,6 +1307,8 @@ T.case('configuration constraints from the dashboard', function()
         {rate_limit = {burst = 1.5, interval = 2}},
         {rate_limit = {burst = 5, interval = 0}},
         {reconnect = {min_delay = 0, max_delay = 1}},
+        {rate_limit = {burst = 5, interval = 0/0}},
+        {reconnect = {min_delay = 1, max_delay = math.huge}},
         {watches = {{pattern = 'x', color = 'duration'}}},
         {watches = {{pattern = 'x', color = 'orange'}}},
         {identity = {nick = 'n', user = ':x'}},

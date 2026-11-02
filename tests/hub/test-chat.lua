@@ -729,6 +729,16 @@ T.case('a flood of new senders makes a few history requests, and CTCP requests a
     T.eq(chat.buffer('test', 'carol').mention, true, 'an action is')
 end)
 
+T.case('/list counts the channels it could not keep', function()
+    local c, chat = boot()
+    T.command 'list'
+    local C = chat.get('test')
+    C.list = T.require 'hub.lib.OrderedMap'.new(3)
+    for i = 1, 5 do c:recv(':srv 322 me #c' .. i .. ' 1 :topic') end
+    c:recv ':srv 323 me :End of /LIST'
+    T.eq({T.require 'hub.lib.OrderedMap'.size(C.list), C.list_count}, {3, 5}, 'kept 3 of 5')
+end)
+
 T.case('/msg opens the target\'s buffer', function()
     local c, chat = boot()
     T.command('msg carol hello')
@@ -1084,6 +1094,13 @@ T.case('quiet, ban, kickban and their removal in the shown channel', function()
     c:recv ':srv 353 me = #chan :@me bob'
     c:take()
 
+    T.command('ban $a:spammer', nil, '#chan')
+    T.command('quiet *!*@bad.example', nil, '#chan')
+    T.eq(c:take(), {'MODE #chan +b $a:spammer', 'MODE #chan +q *!*@bad.example'}, 'masks and extbans as given')
+    T.command('mode +bb :x y', nil, '#chan')
+    T.eq(c:take(), {}, 'a typed argument starting with : is refused')
+    T.eq(T.tracebacks(), {}, 'as a user error')
+
     T.command('quiet Bob', nil, '#chan')
     T.eq(c:take(), {'WHO Bob %tuihn,696'}, 'looked up')
     c:recv ':srv 354 me 696 ~b 255.255.255.255 unaffiliated/bob bob'
@@ -1118,7 +1135,8 @@ T.case('quiet, ban, kickban and their removal in the shown channel', function()
     T.command('unban *!*@old.example', nil, '#chan')
     T.eq(c:take(), {'MODE #chan -b *!*@old.example'}, 'sent unopped')
     T.command('quiet bob', nil, 'bob')
-    T.ok(T.log_lines 'error'[1]:find 'not a channel: bob', 'refused outside a channel')
+    local errors = T.log_lines 'error'
+    T.ok(errors[#errors]:find 'not a channel: bob', 'refused outside a channel')
     T.eq(c:take(), {}, 'nothing sent')
 end)
 

@@ -15,12 +15,21 @@
 -- api:
 --   api.name, api.state (persistent: state.features.plugins[name])
 --   api.on(topic, fn)                subscribe to an event
---   api.command(name, spec, fn, help, usage)  fn(ctx, ...) as for built-in
---                                    commands; usage such as 'nick [count]'
---   api.view(id, {title, render, keypress, status})
---   api.send(net, cmd, ...)  api.log(fmt, ...)  api.task(name, fn, ...)
+--   api.command(name, spec, fn, help, usage, opts)  fn(ctx, ...) as for
+--                                    built-in commands; usage such as
+--                                    'nick [count]'; opts {net = true} makes
+--                                    it act on a network (ctx.net, /x@net)
+--   api.view(id, {title, render, keypress, status, modes})
+--   api.send(net, cmd, ...)  api.log(fmt, ...)
+--   api.task(name, fn, ...)          a task, fn(t, ...)
+--   api.net_task(net, name, fn, ...) a task on a network: t:send, t:request
+--                                    and t:wait_irc use it, and it ends
+--                                    with the connection
 --   api.timer(ms, fn) -> id, api.cancel_timer(id)
---   api.httpd(host, service, handler) -> resource id
+--   api.httpd(host, service, handler) -> resource id; handler(method,
+--             target, body, headers) returns status, body, headers (no
+--             status is a 500); on a failure it is called (nil, what,
+--             message)
 --   api.networks() -> ids, api.config (the plugin's [plugins.custom.<name>])
 --   api.path(ext) -> <directory>/<name>.<ext>, for the plugin's own files
 --   api.load() -> the value last saved, or nil; api.save(value) writes it
@@ -153,12 +162,13 @@ local function make_api(name, entry, current)
         end)
     end
 
-    function api.command(command, spec, fn, help, usage)
+    function api.command(command, spec, fn, help, usage, opts)
         guard(name, 'command ' .. command, current.add_command, owner(name), {
             name = command, spec = spec, fn = guarded(name, 'command ' .. command, fn),
             help = help or ('from plugin ' .. name),
             usage = usage or spec_usage(spec),
             group = 'plugin ' .. name,
+            scope = opts and opts.net and 'net' or nil,
         })
     end
 
@@ -177,6 +187,9 @@ local function make_api(name, entry, current)
     function api.task(task_name, fn, ...)
         return task.spawn(task_name, {owner = owner(name)}, guarded(name, 'task ' .. task_name, fn), ...)
     end
+    function api.net_task(net, task_name, fn, ...)
+        return task.spawn(task_name, {owner = owner(name), net = net}, guarded(name, 'task ' .. task_name, fn), ...)
+    end
     function api.networks() return manager.ids() end
 
     function api.path(ext) return path.join(directory(), name .. '.' .. ext) end
@@ -187,9 +200,30 @@ local function make_api(name, entry, current)
         if value == nil then error(api.path 'dat' .. ': ' .. tostring(err), 0) end
         return value
     end
+    -- a table of strings, booleans, finite numbers and such tables, written
+    -- whole: to a new file renamed over the old, so a crash leaves one or
+    -- the other
     function api.save(value)
-        local ok, err = file.write(api.path 'dat', pretty.write(value))
-        if not ok then error(api.path 'dat' .. ': ' .. tostring(err), 0) end
+        local function check(v, where)
+            local kind = type(v)
+            if kind == 'number' and (v ~= v or v == math.huge or v == -math.huge) then
+                error('api.save: a number that is not finite at ' .. where, 2)
+            elseif kind == 'table' then
+                for k, x in pairs(v) do
+                    check(k, where .. ' (key)')
+                    check(x, where .. '.' .. tostring(k))
+                end
+            elseif kind ~= 'string' and kind ~= 'boolean' and kind ~= 'number' then
+                error('api.save: a ' .. kind .. ' at ' .. where, 2)
+            end
+        end
+        if type(value) ~= 'table' then error('api.save takes a table', 2) end
+        check(value, 'value')
+        local target = api.path 'dat'
+        local temp = target .. '.tmp'
+        local ok, err = file.write(temp, pretty.write(value))
+        if ok then ok, err = os.rename(temp, target) end
+        if not ok then error(target .. ': ' .. tostring(err), 0) end
     end
 
     function api.timer(ms, fn)

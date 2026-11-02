@@ -39,7 +39,7 @@ function M.new_range(label)
         b = snowcone.pton(label)
         prefix = b and 8 * #b
     end
-    if not b then
+    if not b or not prefix then
         error('bad address range: ' .. label, 0)
     end
     if prefix > 8 * #b then

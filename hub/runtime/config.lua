@@ -74,7 +74,11 @@ local function parse(filename, text)
     if path.extension(filename) ~= '.toml' then
         error('Configuration files are TOML, named *.toml: ' .. filename, 0)
     end
-    return assert(mytoml.parse_toml(text))
+    local raw, err = mytoml.parse_toml(text)
+    if raw == nil then
+        error(filename .. ': ' .. tostring(err), 0)
+    end
+    return raw
 end
 
 --- Read the configuration file chosen by /reload, else the one named by
@@ -328,6 +332,14 @@ function M.network(id)
             if net.id == id then return net end
         end
     end
+end
+
+--- A path typed in a command: ~ expanded, and relative to the
+--- configuration directory.
+---@param text string
+---@return string
+function M.user_path(text)
+    return path.join(M.config_dir(), path.expanduser(text))
 end
 
 --- Resolve a path from the configuration: absolute paths are kept,

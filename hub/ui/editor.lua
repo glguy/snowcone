@@ -355,13 +355,14 @@ function M.hexinput(self)
         if b[first - 1] == 120 then -- check for 'x'
 
             -- Compute new value
-            -- the value must be a code point other than NUL
+            -- the value must be a character other than NUL
             local acc = 0
             for j = first, last do
                 acc = 16 * acc + hexdigits[b[j]]
                 if acc > 0x10ffff then return end
             end
-            if acc == 0 then return end
+            -- surrogates aren't characters, and make the line invalid UTF-8
+            if acc == 0 or 0xD800 <= acc and acc <= 0xDFFF then return end
 
             -- replace escape sequence with value
             save(self)

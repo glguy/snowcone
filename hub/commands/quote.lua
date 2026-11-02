@@ -14,12 +14,17 @@ local M = {}
 --- when the line goes, waiting, and filled in place when the reply comes.
 ---@class hub.QuoteReply
 ---@field line string the command as sent, without tags
----@field state 'waiting'|'done'|'timeout'
+---@field state 'waiting'|'done'|'timeout'|'dropped' dropped when the
+--- connection ended first
 ---@field messages hub.Message[] the labeled reply: a batch's messages, one
 --- message, or an ACK
 
 -- How long a /quote waits for its labeled reply
 local quote_timeout <const> = 30000
+
+-- Replies still waiting, by task id; a reload forgets them, leaving them
+-- waiting
+local waiting = {}
 
 -- Services commands whose arguments hold a password
 local services_secret <const> = {
@@ -94,8 +99,9 @@ function M.labeled(net, msg)
     local reply = {line = table.concat(parts, ' '), state = 'waiting', messages = {}}
     bus.emit('quote.sent', {net = net, reply = reply})
 
-    task.spawn('quote', {net = net, owner = 'commands'}, function(t)
+    local t = task.spawn('quote', {net = net, owner = 'commands'}, function(t)
         local messages = t:wait_reply(label, quote_timeout)
+        waiting[t.id] = nil
         local detail = {kind = 'reply', data = reply}
         if messages == nil then
             reply.state = 'timeout'
@@ -114,6 +120,21 @@ function M.labeled(net, msg)
             log.add_detail(t.net, 'quote', detail, '%s: %s', reply.line, summary)
         end
         dispatch.dirty()
+    end)
+    if HUB.tasks[t.id] then
+        waiting[t.id] = reply
+    end
+end
+
+M.subscribe = function(sub)
+    -- the connection ended before the reply came
+    sub.on('task.canceled', function(ev)
+        local reply = waiting[ev.task]
+        if not reply then return end
+        waiting[ev.task] = nil
+        reply.state = 'dropped'
+        log.add_detail(ev.net, 'quote', {kind = 'reply', data = reply}, '%s: dropped with the connection',
+            reply.line)
     end)
 end
 

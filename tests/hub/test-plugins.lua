@@ -24,6 +24,9 @@ return function(api)
     api.command('greet', '$g', function(ctx, who)
         api.send(ctx.net, 'PRIVMSG', who, 'hello from ' .. api.name)
     end, 'say hello')
+    api.command('netgreet', '', function(ctx)
+        api.net_task(ctx.net, 'greeter', function(t) t:send('PRIVMSG', 'x', 'hi from a net task') end)
+    end, 'say hello on a network', nil, {net = true})
     api.view('goodview', {render = function() end})
     HUB.test_timer = api.timer(60000, function() end)
     HUB.test_task = api.task('waiter', function(t) t:sleep(60000) end).id
@@ -102,6 +105,8 @@ T.case('handlers, commands, state and timers', function()
 
     T.command 'greet friend'
     T.eq(c:take(), {'PRIVMSG friend :hello from good'}, 'command')
+    T.command 'netgreet@test'
+    T.eq(c:take(), {'PRIVMSG x :hi from a net task'}, 'a net command and a net task')
 
     T.sleep(50)
     T.ok(HUB.test_fired, 'timer fired')
@@ -130,6 +135,7 @@ return function(api)
     saved.count = saved.count + 1
     api.save(saved)
     HUB.test_saved = saved.count
+    HUB.test_bad_saves = {(pcall(api.save, 5)), (pcall(api.save, {x = 0/0})), (pcall(api.save, {f = print}))}
     HUB.test_path = api.path 'txt'
     api.httpd('::1', 0, function(method, target)
         if target == '/fail' then error 'handler fails' end
@@ -151,6 +157,8 @@ end
         end
         start()
         T.eq(HUB.test_saved, 1, 'nothing saved yet')
+        T.eq(HUB.test_bad_saves, {false, false, false},
+            'only tables of plain values save')
         T.eq(HUB.test_path, path.join(dir, 'saver.txt'), 'path')
         start()
         T.eq(HUB.test_saved, 2, 'loaded what the last start saved')

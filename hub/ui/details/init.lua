@@ -149,31 +149,41 @@ function M.render(detail, kind, pad)
         end)
     end
     pad:waddstr '─ '
-    draw.bold(pad)
-    pad:waddstr(kind.title and kind.title(detail) or detail.kind)
-    draw.bold_(pad)
-    if detail.net then
-        draw.cyan(pad)
-        pad:waddstr(' ', detail.net)
-        draw.normal(pad)
-    end
+
+    -- the tags after the title, each text and its color: the title is cut
+    -- to leave them room on the screen
+    local tags = {}
+    if detail.net then table.insert(tags, {' ' .. detail.net, draw.cyan}) end
     for _, mode in ipairs(kind.modes and kind.modes(detail) or {}) do
-        draw.yellow(pad)
-        pad:waddstr(' ', mode)
-        draw.normal(pad)
+        table.insert(tags, {' ' .. mode, draw.yellow})
     end
     local filter = kind.filter and control.filter 'detail'
     if filter then
-        draw.yellow(pad)
-        pad:waddstr ' filter '
-        draw.normal(pad)
-        pad:waddstr(scrub(string.format('%q', filter)))
+        table.insert(tags, {' filter ', draw.yellow})
+        table.insert(tags, {scrub(string.format('%q', filter)), draw.normal})
     end
     if detail.max_scroll > 0 then
-        pad:waddstr(string.format(' rows %d-%d of %d', top + 1, top + rows, used))
+        table.insert(tags, {string.format(' rows %d-%d of %d', top + 1, top + rows, used), draw.normal})
     end
     if hscroll > 0 then
-        pad:waddstr(string.format(' cols +%d', hscroll))
+        table.insert(tags, {string.format(' cols +%d', hscroll), draw.normal})
+    end
+    local tags_width = 1
+    for _, tag in ipairs(tags) do tags_width = tags_width + (utf8.len(tag[1]) or #tag[1]) end
+
+    local title = kind.title and kind.title(detail) or detail.kind
+    local _, title_x = ncurses.getyx(pad)
+    local room = math.max(1, tty_width - title_x - tags_width)
+    if (utf8.len(title) or #title) > room then
+        title = title:sub(1, (utf8.offset(title, room) or #title + 1) - 1) .. '…'
+    end
+    draw.bold(pad)
+    pad:waddstr(title)
+    draw.bold_(pad)
+    for _, tag in ipairs(tags) do
+        tag[2](pad)
+        pad:waddstr(tag[1])
+        draw.normal(pad)
     end
     pad:waddstr ' '
     local _, x = ncurses.getyx(pad)

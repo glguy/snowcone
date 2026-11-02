@@ -162,8 +162,15 @@ return function(api)
 end
 ```
 
-The api also has `api.log`, `api.task`, `api.timer`, `api.httpd`,
-`api.networks()` and `api.config` (the `[plugins.custom.<name>]` table).
+The api also has `api.name`, `api.log`, `api.task`, `api.net_task(net, ...)`
+(a task that sends on a network and ends with its connection),
+`api.timer` and `api.cancel_timer`, `api.httpd`, `api.networks()` and
+`api.config` (the `[plugins.custom.<name>]` table). `api.save(table)` and
+`api.load()` keep a table of plain values in `<name>.dat`, and
+`api.path(ext)` names the plugin's own files. `api.command` takes
+`{net = true}` last for a command that acts on a network. The comment at
+the top of `hub/features/plugins/init.lua` gives every call, including
+the HTTP handler's. A plugin's errors are logged under its name;
 `/plugins` lists loaded plugins and their errors.
 
 ## Pre-filter
@@ -196,9 +203,9 @@ field    := 'account'                   # e.g. "acct", unknown is "*"
           | 'server'                    # e.g. "gold.libera.chat"
           | 'user'                      # e.g. "user", unknown is "?"
 
-pattern  := '|' regular-expression '|'  # pcre regexp
+pattern  := '|' regular-expression '|'  # pcre regexp, without |; use or
           | '|' regular-expression '|I' # caseless pcre regexp
-          | '"' literal string '"'      # exact match
-          | "'" literal string "'"      # exact match
+          | '"' literal string '"'      # exact match; \ escapes the next
+          | "'" literal string "'"      # exact match; \ escapes the next
 
 ```

@@ -5,7 +5,9 @@ local scrub <const> = require 'hub.lib.scrub'
 
 local M = {}
 
-function M.notify(_, buffer, nick, msg)
+function M.notify(previous, buffer, nick, msg)
+    -- one until the buffer is seen
+    if previous then return previous end
     io.stdout:write('\x1b]9;' .. scrub(buffer) .. ' <' .. scrub(nick) .. '> ' .. scrub(msg) .. '\x07')
     io.stdout:flush()
     return true

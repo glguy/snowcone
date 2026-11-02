@@ -6,8 +6,10 @@
 --           | field 'string'
 --
 -- A field is one of the connection entry fields below. |regex| is PCRE2
--- extended syntax (|...|I ignores case) and needs rex_pcre2; 'string'
--- matches exactly.
+-- extended syntax (|...|I ignores case) and needs rex_pcre2; it can't
+-- hold a |, so alternatives are written with `or`. 'string' matches
+-- exactly; a backslash in it takes the next character as it is (\' or
+-- \\).
 
 local lexer <const> = require 'pl.lexer'
 local has_rex, rex = pcall(require, 'rex_pcre2')
@@ -17,7 +19,7 @@ local STRING2 <const> = [[^(['"])(\*)%2%1]]
 local STRING3 <const> = [[^(['"]).-[^\](\*)%2%1]]
 
 local function stringlit(x)
-    return 'string', x:sub(2, -2)
+    return 'string', (x:sub(2, -2):gsub('\\(.)', '%1'))
 end
 
 local matches <const> = {

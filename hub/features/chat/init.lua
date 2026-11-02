@@ -99,6 +99,7 @@ end
 ---@field buffers table<string, hub.ChatBuffer> by folded target
 ---@field list hub.OrderedMap the last LIST reply
 ---@field listing true|nil while LIST replies arrive
+---@field list_count integer|nil channels the last LIST replied with, kept or not
 ---@field pending table<string, table<string, {msg: hub.Message, buffer: hub.ChatBuffer|nil}>>
 --- by label, then by folded target; for the current connection
 ---@field closing table<string, true> channels /close parted, by folded name;
@@ -602,6 +603,8 @@ end
 H[N.RPL_LIST] = function(net, _, msg)
     local C = M.get(net)
     if C.listing then
+        -- the list keeps the newest list_size; how many came is shown
+        C.list_count = (C.list_count or 0) + 1
         OrderedMap.insert(C.list, msg[2], {
             time = msg.time,
             timestamp = msg.timestamp,
@@ -791,6 +794,7 @@ end
 function M.list(net, arg)
     local C = M.get(net)
     OrderedMap.reset(C.list)
+    C.list_count = 0
     C.listing = true
     if arg and arg ~= '' then
         send.send(net, 'LIST', arg)

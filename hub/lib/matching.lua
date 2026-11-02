@@ -78,7 +78,10 @@ function M.compile(pat)
     end
 end
 
-local cached_pat, cached_matcher
+-- Compiled patterns, false for invalid ones; emptied when it fills, so
+-- it holds the patterns in use (watches, filters)
+local cache, cached = {}, 0
+local cache_limit <const> = 256
 
 --- Match str against pat. A nil or invalid pattern matches everything.
 ---@param str string
@@ -86,12 +89,17 @@ local cached_pat, cached_matcher
 ---@return boolean
 function M.safematch(str, pat)
     if pat == nil then return true end
-    if pat ~= cached_pat then
-        cached_pat = pat
-        cached_matcher = M.compile(pat)
+    local matcher = cache[pat]
+    if matcher == nil then
+        if cached >= cache_limit then
+            cache, cached = {}, 0
+        end
+        matcher = M.compile(pat) or false
+        cache[pat] = matcher
+        cached = cached + 1
     end
-    if not cached_matcher then return true end
-    return cached_matcher(str)
+    if not matcher then return true end
+    return matcher(str)
 end
 
 return M

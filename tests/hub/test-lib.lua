@@ -118,6 +118,14 @@ T.case('overrides reach any setting, with TOML values', function()
     end
 end)
 
+T.case('prefilter strings take backslash escapes', function()
+    T.boot {}
+    local matchdsl = T.require 'hub.lib.matchdsl'
+    T.ok(matchdsl [[gecos 'it\'s']] {gecos = "it's"}, 'an escaped quote')
+    T.ok(matchdsl [[gecos 'a\\']] {gecos = 'a\\'}, 'a value ending in a backslash')
+    T.ok(not matchdsl [[gecos 'it\'s']] {gecos = "it\\'s"}, 'not the backslash itself')
+end)
+
 T.case('ratelimit allows a burst, then one line per interval', function()
     T.boot {}
     local ratelimit = T.require 'hub.lib.ratelimit'

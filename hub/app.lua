@@ -45,6 +45,7 @@ local function module_names(opts)
     if HUB.boot.ui then
         table.insert(names, 'hub.ui')
     end
+    table.insert(names, 'hub.commands.quote')
     table.insert(names, 'hub.commands.core')
     table.insert(names, 'hub.commands.crypto')
     for _, name in ipairs(opts.modules or {}) do

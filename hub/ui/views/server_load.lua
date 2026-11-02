@@ -168,13 +168,13 @@ local function make_view(id, title, tracker_name, header_color)
                 local link = topo.upstream[name]
                 ;(uplink_color[link or ''] or draw.normal)(win)
                 local linktext = (servers.servers[link] or {}).alias or link or '?'
-                win:waddstr(string.format('  %-2.2s', linktext))
+                win:waddstr(string.format('  %-2.2s', scrub(linktext)))
                 draw.normal(win)
 
                 if has_versions then
                     local version = topo.versions[name]
                     ;(version_color[version or ''] or draw.normal)(win)
-                    win:waddstr(string.format('  %-17.17s', version or '?'))
+                    win:waddstr(string.format('  %-17.17s', scrub(version or '?')))
                     draw.normal(win)
                 end
 

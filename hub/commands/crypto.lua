@@ -5,10 +5,17 @@
 
 local file <const> = require 'pl.file'
 local files <const> = require 'hub.runtime.files'
+local config <const> = require 'hub.runtime.config'
 local log  <const> = require 'hub.runtime.log'
 local task <const> = require 'hub.runtime.task'
 
 local M = {}
+
+-- A value, or the error that came with nil, raised for the user
+local function check_ok(value, err)
+    if value == nil then error(tostring(err), 0) end
+    return value
+end
 
 local function pub64(k)
     return mybase64.to_base64(k:export().pub)
@@ -78,7 +85,8 @@ M.commands = {
                 local cipher, password = pem_password(t)
                 local k = myopenssl.gen_pkey('EC', 'P-256')
                 k:set_param('point-format', 'compressed')
-                assert(files.write_private(filename, k:to_private_pem(cipher, password) .. '\n' .. k:to_public_pem()))
+                local pem = k:to_private_pem(cipher, password) .. '\n' .. k:to_public_pem()
+                check_ok(files.write_private(config.user_path(filename), pem))
                 local public = pub64(k)
                 report {what = 'ECDSA P-256 key', made = true, file = filename, encrypted = cipher ~= nil,
                         public = public, commands = {'/msg NickServ SET PUBKEY ' .. public}}
@@ -89,7 +97,7 @@ M.commands = {
         name = 'ecdsa_fp', spec = '$g', usage = 'file', group = 'keys',
         help = "Show the NickServ SET PUBKEY command for an ECDSA key file",
         fn = function(_, filename)
-            local pem = assert(file.read(filename))
+            local pem = check_ok(file.read(config.user_path(filename)))
             local public = pub64(myopenssl.read_pem(pem, true))
             report {what = 'ECDSA key', made = false, file = filename,
                     public = public, commands = {'/msg NickServ SET PUBKEY ' .. public}}
@@ -130,7 +138,8 @@ M.commands = {
                 x509:add_caConstraint(true)
                 x509:sign(pkey) -- must be last
 
-                assert(files.write_private(filename, x509:export() .. '\n' .. pkey:to_private_pem(cipher, password)))
+                local pem = x509:export() .. '\n' .. pkey:to_private_pem(cipher, password)
+                check_ok(files.write_private(config.user_path(filename), pem))
                 local fp = cert_fingerprint(x509)
                 report {what = 'Ed25519 certificate', made = true, file = filename, encrypted = cipher ~= nil,
                         fingerprint = fp, commands = {'/msg NickServ CERT ADD ' .. fp}}
@@ -141,7 +150,7 @@ M.commands = {
         name = 'cert_fp', spec = '$g', usage = 'file', group = 'keys',
         help = 'Show the NickServ CERT ADD command for a certificate file',
         fn = function(_, filename)
-            local pem <const> = assert(file.read(filename))
+            local pem <const> = check_ok(file.read(config.user_path(filename)))
             local x509 <close> = myopenssl.read_x509(pem)
             local fp = cert_fingerprint(x509)
             report {what = 'certificate', made = false, file = filename,

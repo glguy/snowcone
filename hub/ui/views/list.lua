@@ -33,7 +33,14 @@ return {
         local C = chat.get(ctx.net)
         draw.magenta(win)
         draw.bold(win)
-        win:waddstr('         channels: ', tostring(OrderedMap.size(C.list)), ' ')
+        local kept, count = OrderedMap.size(C.list), C.list_count or 0
+        if count > kept then
+            -- the oldest were dropped: a pattern finds fewer
+            win:waddstr('         channels: ', tostring(kept), ' of ', tostring(count),
+                ' (narrow with /list <pattern>) ')
+        else
+            win:waddstr('         channels: ', tostring(kept), ' ')
+        end
         ctx.add_button(win, '[↻]', function() chat.list(ctx.net) end)
         draw.bold_(win)
 

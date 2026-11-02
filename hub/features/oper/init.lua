@@ -79,15 +79,23 @@ end
 
 local units <const> = {m = 1, h = 60, d = 1440, w = 10080, M = 43200, Y = 525600}
 
+-- No ban lasts longer than this many minutes (a hundred years)
+local max_minutes <const> = 100 * units.Y
+
 --- Minutes in a duration like '1d', '4h', '1w 2d', or nil if it doesn't
---- parse.
+--- parse or is past a hundred years.
 function M.parse_duration(str)
     local acc = 0
-    local leftover = str:gsub(' *(%-?%d+) *([mhdwMY]) *', function(n, u)
-        acc = acc + math.tointeger(n) * units[u]
+    local leftover = str:gsub(' *(%d+) *([mhdwMY]) *', function(n, u)
+        local count = math.tointeger(tonumber(n))
+        if acc and count and count <= max_minutes then
+            acc = acc + count * units[u]
+        else
+            acc = nil
+        end
         return ''
     end)
-    if leftover == '' then
+    if leftover == '' and acc and acc <= max_minutes then
         return acc
     end
 end
@@ -347,6 +355,12 @@ function M.cycle_tag(net, back)
 end
 
 --- Toggle trusting unidented usernames, restaging a staged K-Line.
+--- Turn adding a NickServ FREEZE to K-Lines on or off.
+function M.toggle_freeze(net)
+    local settings = M.get(net).settings
+    settings.add_freeze = not settings.add_freeze
+end
+
 function M.toggle_trust(net)
     local O = M.get(net)
     O.settings.trust_uname = not O.settings.trust_uname
@@ -360,6 +374,24 @@ end
 
 function M.subscribe(sub)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
+    -- a lookup the connection cut off leaves an unkline with no mask, which
+    -- can't be shown or sent: drop it
+    sub.on('net.closed', function(ev)
+        local O = common.get_state(M.name, ev.net)
+        local staged = O and O.staged
+        if staged and staged.action == 'unkline' and not staged.mask then
+            O.staged = nil
+            log.add_net(ev.net, 'unkline', 'lookup for %s ended with the connection', staged.nick or '?')
+        end
+    end)
+    -- a K-Line staged without its count is counted once we can ask again
+    sub.on('irc.oper', function(ev)
+        local O = common.get_state(M.name, ev.net)
+        local staged = O and O.staged
+        if staged and staged.action == 'kline' and staged.count == nil then
+            task.spawn('kline count', {net = ev.net, owner = M.name}, count_matches, staged)
+        end
+    end)
 end
 
 -- Commands ============================================================

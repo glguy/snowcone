@@ -38,7 +38,7 @@ end
 -- Ahead of anything the rate limit holds back, so a backlog can't time
 -- us out
 function H.PING(rec, _, msg)
-    send.send_first(rec.id, 'PONG', msg[1])
+    send.send_first(rec.id, 'PONG', msg[1] or '')
 end
 
 -- The answer to the lag PING (net/manager.lua)
