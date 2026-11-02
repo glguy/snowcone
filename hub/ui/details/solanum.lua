@@ -64,6 +64,7 @@ M.mode_names = {
     j = 'join throttle', z = 'ops see moderated', g = 'anyone invites',
     P = 'permanent', S = 'TLS only', C = 'no CTCPs', T = 'no notices',
     F = 'forward target', Q = 'no forwarding', L = 'large lists',
+    B = 'restrict bots',
 }
 
 local text <const> = {'text:text'}
