@@ -1902,6 +1902,12 @@ T.case('channel information: topic, modes, members and lists, live', function()
     T.ok(text:find 'modes: not known', 'modes not yet known')
     T.ok(text:find 'members: 4  @ 1  %+ 1', 'counted by rank')
     T.ok(text:find('nicks: @me +bob alice carol', 1, true), 'ranked, then by name')
+    T.ok(text:find('you: @me  as op', 1, true), 'our own status')
+    c:recv ':srv MODE #chan +v me'
+    T.ok(detail_text():find('you: @+me  as op, voice', 1, true), 'live')
+    c:recv ':srv MODE #chan -ov me me'
+    T.ok(detail_text():find('you: me  as member', 1, true), 'none')
+    c:recv ':srv MODE #chan +o me'
     T.ok(text:find('bans: not fetched [↻]', 1, true), 'lists to fetch')
 
     -- replies fill it in as they come

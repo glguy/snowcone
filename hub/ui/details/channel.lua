@@ -1,6 +1,6 @@
 -- A channel's information in the detail pane, read live from the model
--- (net/irc.lua): topic and who set it, creation time, modes, members by
--- rank, and the list modes (bans, quiets, ...); [↻] asks the server for
+-- (net/irc.lua): topic and who set it, creation time, modes, our own
+-- prefix modes (op, voice, ...), members by rank, and the list modes (bans, quiets, ...); [↻] asks the server for
 -- a list, or for the modes, again or for the first time.
 -- A fetched list shows its count and folds its entries behind [+]; the
 -- detail keeps the open ones in open_lists. [x] removes an entry. The
@@ -44,6 +44,35 @@ end
 -- The nick of a source, or the source
 local function nick_of(source)
     return source:match '^[^!]*'
+end
+
+-- Names of the usual prefix modes
+local prefix_names <const> = {q = 'owner', a = 'admin', o = 'op', h = 'halfop', v = 'voice'}
+
+-- Our nick with its prefixes, colored as in the nick list, and what they are
+local function ours(win, irc, channel)
+    local member = irc.nick and irc_model.get_member(irc, channel, irc.nick)
+    if not member then return end
+    local prefixes, names = '', {}
+    for i = 1, #irc.prefixes do
+        local p = irc.prefixes:sub(i, i)
+        local mode = irc.prefix_to_mode[p]
+        if member.modes[mode] then
+            prefixes = prefixes .. p
+            table.insert(names, prefix_names[mode] or ('+' .. mode))
+        end
+    end
+    label(win, 'you')
+    if prefixes ~= '' and prefixes:sub(1, 1) == irc.prefixes:sub(1, 1) then
+        draw.green(win)
+    elseif prefixes ~= '' then
+        draw.yellow(win)
+    end
+    win:waddstr(prefixes, scrub(member.user.nick))
+    draw.normal(win)
+    key(win, 'as')
+    win:waddstr(#names > 0 and table.concat(names, ', ') or 'member')
+    win:waddstr '\n'
 end
 
 local function members(ctx, win, irc, channel, pattern)
@@ -227,6 +256,7 @@ function M.render(ctx, win)
     ctx.add_button(win, '[↻]', function() chat.refresh_modes(ctx.net, name) end)
     win:waddstr '\n'
 
+    ours(win, irc, channel)
     members(ctx, win, irc, channel, pattern)
 
     for mode in irc.modes_A:gmatch '.' do
