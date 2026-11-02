@@ -100,7 +100,7 @@ local function tell(chat, net, target, state)
     local irc = rec and rec.irc
     if not (irc and rec.phase == 'connected' and send.ready(net)) then return false end
     if not irc_model.client_tag_allowed(irc, 'typing') then return false end
-    if chat.fold(net, target) == chat.fold(net, chat.wallops) or not chat.buffer(net, target) then
+    if chat.is_server(net, target) or not chat.buffer(net, target) then
         return false
     end
     if irc_model.is_channel_name(irc, target) then

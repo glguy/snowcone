@@ -13,6 +13,7 @@
 -- else.
 
 local irc_model  <const> = require 'hub.net.irc'
+local N          <const> = require 'hub.lib.numerics'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 
 local M = {}
@@ -40,6 +41,19 @@ local function rejected(entry, reason)
     if msg.receipt ~= 'awaiting' then return end
     msg.receipt = 'rejected'
     msg.rejection = reason
+end
+
+-- A reply refusing the line: an error numeric (4xx, 5xx, or one of the
+-- 7xx errors that block a message), or FAIL. Others, such as an away
+-- reply (301) or a notice that the target was told (717), only inform.
+local refusing_7xx <const> = {
+    [N.ERR_TARGCHANGE] = true,
+    [N.ERR_TARGUMODEG] = true,
+}
+local function refuses(command)
+    if command == 'FAIL' then return true end
+    local n = math.tointeger(tonumber(command))
+    return n ~= nil and (n >= 400 and n < 600 or refusing_7xx[n] ~= nil)
 end
 
 -- The reply is over: what it didn't settle stays unknown
@@ -81,7 +95,7 @@ function M.on_reply(chat, net, irc, msg)
         if entry then received(entry, msg) end
     elseif command == 'ACK' then
         for _, entry in pairs(entries) do received(entry) end
-    else
+    elseif refuses(command) then
         -- an error about one target (ERR_NOSUCHNICK), or about them all
         local entry = msg[2] and entries[chat.fold(net, msg[2])]
         local reason = msg[#msg]

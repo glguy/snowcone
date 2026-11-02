@@ -15,8 +15,8 @@
 -- With no buffer chosen, the view shows one with a mention, else one with
 -- activity, else the first by name. A channel's buffer shows why the
 -- server refused our JOIN; when it forwards the JOIN elsewhere, both
--- buffers say so and the view follows. Viewing a buffer marks it seen and,
--- with the terminal focused, withdraws its notification.
+-- buffers say so and the view follows. Viewing a buffer while the terminal
+-- is focused marks it seen and withdraws its notification.
 -- View state: scroll, hscroll, hide_presence, highlight (a message).
 
 local addircstr  <const> = require 'hub.ui.irc_formatting'
@@ -334,8 +334,9 @@ return {
             return
         end
 
-        chat.look(buffer)
+        -- seen only while someone can see it
         if tty.focused() then
+            chat.look(buffer)
             dispatch.route 'notify.dismiss' (ctx.net, target)
         end
 

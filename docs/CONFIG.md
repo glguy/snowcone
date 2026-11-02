@@ -177,7 +177,7 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 |---|---|---|
 | `chat` | | Chat buffers, talk mode, mentions, chat history, `/list` and the chat commands. |
 | `snotice` | | Parses server notices into the connection, exit, ban, channel and address-range views (cliconn, cliexit, connload, exitload, bans, channels, netcount), sets the snomask after opering, and runs watches. |
-| `oper` | `snotice` | The K-Line workflow (stage, test and send K-Lines, unklines and undlines), plus `/oper`, `/masktrace` and `/testline`. A staged K-Line is shown and sent from snotice's views. |
+| `oper` | `snotice` | The K-Line workflow (stage, test and send K-Lines, unklines and undlines), plus `/masktrace` and `/testline`. A staged K-Line is shown and sent from snotice's views. `/oper` doesn't need it. |
 | `topology` | | Server populations from MAP, links from LINKS, versions, uptimes and DNS rotations, shown in the load views. With `snotice`, shedding and drain notices also update `/maintenance` as they happen. |
 
 An unknown feature name is an error, and so is a feature without the features it requires.
@@ -438,7 +438,7 @@ password = { command = 'pass', arguments = ['show', 'oper'] }
 | `password` | With `'password'`, required: a [secret](#secrets) sent with OPER. With `'challenge'`, a secret that decrypts `key`. |
 | `key` | With `'challenge'`, required: the [private key](#private-keys), usually `key.file`. |
 
-`/oper <name>` logs in with one credential. `/oper` alone tries the `automatic` list, or the first credential when there is none. It needs the `oper` feature. After you become an operator, the `snotice` feature sets the [snomask](#network-settings).
+`/oper <name>` logs in with one credential. `/oper` alone tries the `automatic` list, or the first credential when there is none. It works on any network, with or without the `oper` feature. After you become an operator, the `snotice` feature sets the [snomask](#network-settings).
 
 ### Mentions and watches
 

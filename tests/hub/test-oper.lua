@@ -83,6 +83,26 @@ T.case('a credential that fails goes on to the next, and to MODE', function()
     T.eq(c:take(), {'MODE me'}, 'then MODE')
 end)
 
+T.case('/oper works on a network without the oper feature', function()
+    local fake = FakeTransport.new()
+    T.boot {transport = fake, config = {networks = {{
+        id = 'test',
+        server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'},
+        features = {'chat'},
+        oper = {credentials = {{mechanism = 'password', username = 'o', password = 'p'}}},
+    }}}}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 376 me :End of MOTD'
+    c:take()
+    T.command 'oper'
+    local sent = c:take()
+    T.eq(sent[#sent], 'OPER o p', 'sent')
+end)
+
 T.case('mask rules (the dashboard asserts)', function()
     boot()
     local masks = T.require 'hub.features.oper.masks'

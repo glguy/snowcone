@@ -147,7 +147,10 @@ local function stop_reclaim(rec, irc)
     local nick = irc.recover_nick
     if nick == nil then return end
     irc.recover_nick = nil
-    -- monitored once registered, when reclaiming is on
+    -- monitored once registered, when reclaiming is on; a chat buffer
+    -- for the nick may still want it watched
+    local chat_monitors = HUB.current.routes['chat.monitors']
+    if chat_monitors and chat_monitors(rec.id, nick) then return end
     if irc.monitor and rec.cfg.reclaim_nick and rec.phase == 'connected' then
         send.send(rec.id, 'MONITOR', '-', nick)
         irc_model.del_monitor(irc, nick)

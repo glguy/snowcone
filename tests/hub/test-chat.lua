@@ -454,13 +454,15 @@ T.case('our typing goes only where it can, and only at once', function()
     local clock = T.require 'hub.runtime.clock'
     local now = clock.now()
     clock.now = function() return now end
-    for _, target in ipairs {'#elsewhere', 'nobody', chat.wallops} do
+    c:recv ':irc.example WALLOPS :hello'
+    for _, target in ipairs {'#elsewhere', 'nobody', 'irc.example'} do
         chat.compose('test', target, 'x')
         chat.compose(nil, nil, '')
     end
-    T.eq(c:take(), {}, 'not to a channel we are not in, a missing buffer or wallops')
+    T.eq(c:take(), {}, 'not to a channel we are not in, a missing buffer or a server')
 
     c:recv ':bob!b@h PRIVMSG me :hi'
+    T.eq(c:take(), {'MONITOR + bob'}, 'a private buffer watches its nick')
     c:recv ':srv 731 me :bob'
     chat.compose('test', 'bob', 'x')
     T.eq(c:take(), {}, 'not to a nick known to be offline')
@@ -522,7 +524,8 @@ end)
 T.case('history goes before the message that opened the buffer', function()
     local c, chat = boot()
     c:recv '@time=2026-01-01T00:00:10.000Z :bob!b@h PRIVMSG me :newest'
-    T.eq(c:take(), {'CHATHISTORY BEFORE bob timestamp=2026-01-01T00:00:10.000Z 50'}, 'asked for what came before')
+    T.eq(c:take(), {'CHATHISTORY BEFORE bob timestamp=2026-01-01T00:00:10.000Z 50', 'MONITOR + bob'},
+        'asked for what came before, and watching bob')
     c:recv ':srv BATCH +h1 chathistory bob'
     c:recv '@batch=h1;time=2026-01-01T00:00:01.000Z :bob!b@h PRIVMSG me :older'
     c:recv '@batch=h1;time=2026-01-01T00:00:05.000Z :me!u@h PRIVMSG bob :reply'
@@ -627,6 +630,18 @@ T.case('ACK confirms, an error refuses, and a lost connection leaves it unknown'
     T.eq(chat.get('test').pending, {}, 'forgotten with the connection')
 end)
 
+T.case('an away reply in a labeled reply only informs', function()
+    local c, chat = boot_echo()
+    chat.open('test', 'bob')
+    chat.say('test', 'bob', 'hi')
+    c:recv '@label=sc1 :srv BATCH +r labeled-response'
+    c:recv '@batch=r :srv 301 me bob :gone fishing'
+    c:recv '@batch=r;msgid=m1 :me!u@h PRIVMSG bob :hi'
+    c:recv ':srv BATCH -r'
+    local mine = chat.newest(chat.buffer('test', 'bob'))
+    T.eq({mine.receipt, mine.tags.msgid}, {'received', 'm1'}, 'received, with its msgid')
+end)
+
 T.case('each target of a line gets its own echo', function()
     local c, chat = boot_echo()
     chat.say('test', '#a,@#b', 'both')
@@ -671,11 +686,81 @@ T.case('a nick change onto an existing buffer renames nothing', function()
     T.eq(texts(chat.buffer('test', 'alice_')), {'PRIVMSG me from alice_', 'NICK alice'}, 'alice_ kept, with the change')
 end)
 
-T.case('wallops collect in one buffer', function()
+T.case('wallops and broadcasts go to the sender\'s buffer', function()
     local c, chat = boot()
     c:recv ':oper!o@h WALLOPS :maintenance soon'
     c:recv ':oper!o@h OPERWALL :opers only'
-    T.eq(#texts(chat.buffer('test', chat.wallops)), 2, 'both')
+    T.eq(#texts(chat.buffer('test', 'oper')), 2, 'both from oper')
+    c:recv ':irc.example WALLOPS :from a server'
+    c:recv ':NickServ!s@services.example NOTICE $$*.example :services restart'
+    c:recv ':alice!a@h PRIVMSG $$*.example :hello all'
+    T.eq(#texts(chat.buffer('test', 'irc.example')), 1, 'a server its own')
+    T.eq(#texts(chat.buffer('test', 'NickServ')), 1, 'a global notice from NickServ')
+    local alice = chat.buffer('test', 'alice')
+    T.eq({#texts(alice), alice.mention, alice.activity}, {1, false, 1}, 'unseen, not a mention')
+    local sent = c:take()
+    T.ok(not table.concat(sent, '\n'):find 'irc.example', 'a server is not monitored: ' .. table.concat(sent, ' '))
+end)
+
+T.case('our own messages are never mentions or unseen', function()
+    local c, chat = boot({}, {mention = {patterns = {'me'}}})
+    c:recv ':me!u@h JOIN #c'
+    c:recv ':me!u@h PRIVMSG #c :me too, from another client'
+    c:recv ':me!u@h PRIVMSG bob :and to bob'
+    local channel = chat.buffer('test', '#c')
+    T.eq({channel.mention, channel.activity}, {false, 0}, 'the channel')
+    local bob = chat.buffer('test', 'bob')
+    T.eq({bob.mention, bob.activity}, {false, 0}, 'the private buffer')
+    local sent = c:take()
+    T.eq(sent[#sent], 'MONITOR + bob', 'still watched')
+end)
+
+T.case('/msg opens the target\'s buffer', function()
+    local c, chat = boot()
+    T.command('msg carol hello')
+    T.ok(chat.buffer('test', 'carol'), 'opened')
+    T.eq(texts(chat.buffer('test', 'carol')), {'PRIVMSG carol hello'}, 'with the line')
+    c:take()
+end)
+
+T.case('a private buffer\'s MONITOR follows its nick, and spares the nick being reclaimed', function()
+    local c, chat = boot()
+    T.command 'talk Carol'
+    T.eq(c:take(), {'CHATHISTORY LATEST Carol * 50', 'MONITOR + Carol'}, 'watched')
+    c:recv ':srv 730 me :Carol!c@h'
+    c:recv ':Carol!c@h NICK Caroline'
+    T.eq(c:take(), {'MONITOR - Carol', 'MONITOR + Caroline'}, 'renamed')
+
+    HUB.state.nets.test.irc.recover_nick = 'wanted'
+    T.command 'talk wanted'
+    c:recv ':srv 731 me :wanted'
+    c:take()
+    T.command 'close wanted'
+    T.eq(c:take(), {}, 'the reclaim keeps its MONITOR')
+end)
+
+T.case('history absorbs our unconfirmed lines instead of repeating them', function()
+    local c, chat = boot()
+    c:recv ':me!u@h JOIN #c'
+    c:recv '@time=2026-01-01T00:00:01.000Z;msgid=a1 :alice!a@h PRIVMSG #c :before'
+    chat.say('test', '#c', 'hi')
+    chat.say('test', '#c', 'hi')
+    c:take()
+    local history = T.require 'hub.features.chat.history'
+    history.after_registration(chat, 'test')
+    T.eq(c:take(), {'CHATHISTORY LATEST #c timestamp=2026-01-01T00:00:01.000Z 50'},
+        'LATEST from the newest server time, not from our lines')
+
+    c:recv ':srv BATCH +h1 chathistory #c'
+    c:recv '@batch=h1;time=2026-01-01T00:00:02.000Z;msgid=m1 :me!u@h PRIVMSG #c :hi'
+    c:recv '@batch=h1;time=2026-01-01T00:00:03.000Z;msgid=m2 :me!u@h PRIVMSG #c :hi'
+    c:recv '@batch=h1;time=2026-01-01T00:00:04.000Z;msgid=m3 :me!u@h PRIVMSG #c :hi'
+    c:recv ':srv BATCH -h1'
+    local lines = {}
+    for msg in T.require 'hub.lib.OrderedMap'.reveach(chat.buffer('test', '#c').messages) do
+        if msg.command == 'PRIVMSG' then table.insert(lines, (msg.tags.msgid or '-') .. ' ' .. msg[2]) end
+    end
+    T.eq(lines, {'m3 hi', 'a1 before', 'm1 hi', 'm2 hi'}, 'each of ours once, the third from history')
 end)
 
 T.case('chat history fills its buffer', function()

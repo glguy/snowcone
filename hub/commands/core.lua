@@ -12,6 +12,7 @@ local handlers <const> = require 'hub.net.handlers'
 local dispatch <const> = require 'hub.runtime.dispatch'
 local log      <const> = require 'hub.runtime.log'
 local manager  <const> = require 'hub.net.manager'
+local oper     <const> = require 'hub.net.oper'
 local quote    <const> = require 'hub.commands.quote'
 local irc_model <const> = require 'hub.net.irc'
 local sasl     <const> = require 'hub.net.sasl'
@@ -157,6 +158,30 @@ M.commands = {
         help = 'Change nickname',
         fn = function(ctx, nick)
             handlers.declare_nick(ctx.net, nick)
+        end,
+    },
+    {
+        name = 'oper',
+        spec = '$R',
+        usage = '[credential]',
+        group = 'connection',
+        scope = 'net',
+        help = 'Become an operator with a configured credential; without one, the automatic ones',
+        fn = function(ctx, name)
+            name = name:match '^%s*(.-)%s*$'
+            local credentials = config.pick_credentials(HUB.state.nets[ctx.net].cfg.oper, name)
+            task.spawn('oper', {net = ctx.net, owner = 'commands'}, oper.first, credentials)
+        end,
+        -- the network's credentials, by name
+        complete = function(ctx, before, seed)
+            if before ~= '' then return nil end
+            local oper_cfg = HUB.state.nets[ctx.net].cfg.oper
+            local t = {}
+            for _, credential in ipairs(oper_cfg and oper_cfg.credentials or {}) do
+                local name = credential.name or credential.mechanism
+                if name:sub(1, #seed) == seed then table.insert(t, name) end
+            end
+            return t
         end,
     },
     {

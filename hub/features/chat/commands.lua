@@ -59,6 +59,17 @@ local function topic_command(chat)
     return cmd
 end
 
+-- Open the buffer of each of a line's targets (a,b), without its
+-- STATUSMSG prefix (@#chan)
+local function open_targets(chat, net, targets)
+    local irc = model(net)
+    for target in targets:gmatch '[^,]+' do
+        local _, name = target, target
+        if irc then _, name = irc_model.split_statusmsg(irc, target) end
+        chat.open(net, name)
+    end
+end
+
 --- Chat's commands, made for chat.
 ---@param chat hub.Chat
 function M.commands(chat)
@@ -69,10 +80,13 @@ function M.commands(chat)
             bus.emit('chat.focus', {net = ctx.net, target = target})
         end),
         close_command(chat),
+        -- each opens its targets' buffers, so the line shows there
         chat.command('msg', '$g $r', 'target text', 'Send a message', function(ctx, target, text)
+            open_targets(chat, ctx.net, target)
             chat.say(ctx.net, target, text)
         end),
         chat.command('notice', '$g $r', 'target text', 'Send a notice', function(ctx, target, text)
+            open_targets(chat, ctx.net, target)
             chat.notice(ctx.net, target, text)
         end),
         chat.command('ctcp', '$g $r', 'target request', 'Send a CTCP request', function(ctx, target, text)

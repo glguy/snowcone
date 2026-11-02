@@ -273,7 +273,7 @@ unreachable or wrong without the other, not to save a check.
 | snotice | Parses server notices (the dashboard's parser), keeps recent connections, exits, bans, new channels, per-second load trackers, address-range counts and watches; emits `snote` and `snote.<name>`. |
 | topology | Populations from MAP, links and upstream from LINKS, versions, uptimes, user shedding, DNS rotations. Asks for MAP and LINKS at registration, on becoming an operator and on netsplits and netjoins. |
 | oper | Libera ban masks; staging a K-Line, unkline or undline with a TESTMASK count; sending it only on confirmation; operator commands. |
-| chat | Buffers per network and target, routing, mentions, chat history, MONITOR, WALLOPS, CTCP replies to staff, `/list`, quiets, bans and kicks with Libera channel ban masks. |
+| chat | Buffers per network and target, routing (WALLOPS and broadcasts to the sender's buffer; our own lines never mentions or unseen), mentions, chat history, MONITOR for private buffers, CTCP replies to staff, `/list`, quiets, bans and kicks with Libera channel ban masks. |
 | notify | Desktop or terminal notifications of mentions while the terminal is unfocused (always loaded; not per network). |
 | plugins | Not a feature but the plugin host, at this layer so that plugins see what features see: loads plugins into each generation (section 6). Always loaded. |
 

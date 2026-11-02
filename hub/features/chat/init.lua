@@ -48,13 +48,24 @@ M.name = 'chat'
 M.buffer_size = 1000
 M.list_size = 10000
 
---- WALLOPS and OPERWALL collect in this buffer of each network
-M.wallops = '*wallops'
+--- A buffer named for a server, which sends WALLOPS and messages to
+--- broadcast masks; such a buffer has no history, typing or MONITOR. A
+--- buffer from before, named *wallops, is one too.
+---@param net string
+---@param name string
+---@return boolean
+function M.is_server(net, name)
+    if name:sub(1, 1) == '*' then return true end
+    local rec = HUB.state.nets[net]
+    local irc = rec and rec.irc
+    local channel = irc and irc_model.is_channel_name(irc, name) or not irc and name:find '^[#&]'
+    return not channel and name:find('.', 1, true) ~= nil
+end
 
 --- What chat's parts (chat/typing.lua, history.lua, receipt.lua) use of
 --- chat, which they are passed since it requires them.
 ---@class hub.ChatLookup
----@field wallops string
+---@field is_server fun(net: string, name: string): boolean
 ---@field buffer_size integer
 ---@field get fun(net: string): hub.ChatState
 ---@field fold fun(net: string, target: string): string
@@ -67,6 +78,7 @@ M.wallops = '*wallops'
 ---@field name string
 ---@field command fun(name: string, spec: string, usage: string, help: string, fn: function): table
 ---@field talk fun(net: string, target: string)
+---@field open fun(net: string, target: string): hub.ChatBuffer
 ---@field say fun(net: string, target: string, text: string)
 ---@field notice fun(net: string, target: string, text: string)
 ---@field close fun(net: string, target: string)
@@ -185,6 +197,27 @@ end
 ---@field typing table<string, hub.ChatTyping>|nil by folded nick; nil in
 --- buffers from before typing was tracked (chat/typing.lua)
 
+-- Watch a nick's presence with MONITOR, for a private buffer
+local function monitor(net, target)
+    local rec = HUB.state.nets[net]
+    local irc = rec and rec.irc
+    if irc and rec.phase == 'connected' and irc_model.has_monitor(irc)
+    and not irc_model.is_channel_name(irc, target) and not M.is_server(net, target)
+    and not irc_model.get_monitor(irc, target) then
+        query(net, 'MONITOR', '+', target)
+    end
+end
+
+-- Stop watching a nick, unless it is the nick the network is waiting to
+-- reclaim, which needs its MONITOR
+local function unmonitor(net, irc, target)
+    if not irc_model.get_monitor(irc, target) then return end
+    local wanted = irc.recover_nick
+    if wanted and irc_model.fold(irc, wanted) == irc_model.fold(irc, target) then return end
+    query(net, 'MONITOR', '-', target)
+    irc_model.del_monitor(irc, target)
+end
+
 --- A buffer, created (and its history requested) when missing.
 ---@param net string
 ---@param target string
@@ -200,11 +233,12 @@ function M.open(net, target, before)
     end
     buffer = {name = target, messages = OrderedMap.new(M.buffer_size), activity = 0, mention = false}
     C.buffers[key] = buffer
-    if target ~= M.wallops then
+    if not M.is_server(net, target) then
         -- what came before the message that opened it, or the latest
         history.request(M, net, target, before and 'BEFORE' or 'LATEST', before)
     end
     bus.emit('chat.buffer', {net = net, target = target, opened = true})
+    monitor(net, target)
     return buffer
 end
 
@@ -225,9 +259,8 @@ function M.close(net, target)
         query(net, 'PART', target)
         C.closing[key] = true
     end
-    if irc and irc_model.get_monitor(irc, target) then
-        query(net, 'MONITOR', '-', target)
-        irc_model.del_monitor(irc, target)
+    if irc then
+        unmonitor(net, irc, target)
     end
     drop(net, key, target)
 end
@@ -337,11 +370,16 @@ end
 -- Where a message belongs: channel messages in the channel, private ones
 -- in a buffer named for the other side
 local function route_chat(net, irc, target, text, msg)
-    local buffer_target, mention
     local nick = msg.nick
+    -- ours, relayed by a bouncer from another client, echoed or replayed:
+    -- never a mention, never unseen
+    if nick and irc_model.is_me(irc, nick) then
+        add(net, target, msg, false, false)
+        return
+    end
 
     if irc_model.is_channel_name(irc, target) then
-        buffer_target = target
+        local mention = false
         for _, pattern in ipairs(mention_patterns(net)) do
             local ok, found = pcall(string.find, text, pattern)
             if ok and found then
@@ -349,17 +387,15 @@ local function route_chat(net, irc, target, text, msg)
                 break
             end
         end
-    elseif irc_model.is_me(irc, nick) then
-        -- something I sent, relayed by a bouncer or to myself
-        buffer_target = target
-    elseif irc_model.is_me(irc, target) then
-        buffer_target = nick
-        mention = true
+        add(net, target, msg, mention, true)
+        return
     end
 
-    -- nil for a message from a server
-    if buffer_target then
-        add(net, buffer_target, msg, mention or false, true)
+    -- to us, to a broadcast mask ($$*.net), or to a nick we just left: in
+    -- the sender's buffer; only one to us is a mention
+    local sender = nick or msg.source
+    if sender then
+        add(net, sender, msg, irc_model.is_me(irc, target), true)
     end
 end
 
@@ -421,7 +457,10 @@ function H.NOTICE(net, irc, msg)
 end
 
 function H.WALLOPS(net, _, msg)
-    add(net, M.wallops, msg, false, true)
+    local sender = msg.nick or msg.source
+    if sender then
+        add(net, sender, msg, false, true)
+    end
 end
 H.OPERWALL = H.WALLOPS
 
@@ -476,6 +515,12 @@ function H.NICK(net, _, msg)
         if new ~= old then
             C.buffers[old] = nil
             C.buffers[new] = buffer
+            -- the buffer watches its nick by its new name
+            local irc = model(net)
+            if irc then
+                unmonitor(net, irc, msg.nick)
+                monitor(net, msg[1])
+            end
         end
         add(net, msg[1], msg, false, false)
     end
@@ -603,8 +648,8 @@ local function on_registered(ev)
 
     if irc_model.has_monitor(irc) then
         local nicks, size = {}, 0
-        for key, buffer in pairs(C.buffers) do
-            if key ~= M.fold(net, M.wallops) and not irc_model.is_channel_name(irc, buffer.name) then
+        for _, buffer in pairs(C.buffers) do
+            if not M.is_server(net, buffer.name) and not irc_model.is_channel_name(irc, buffer.name) then
                 table.insert(nicks, buffer.name)
                 size = size + #buffer.name + 1
                 if size > 400 then
@@ -618,6 +663,14 @@ local function on_registered(ev)
         end
     end
 end
+
+M.routes = {
+    -- a private buffer watches this nick, so MONITOR must keep it
+    ['chat.monitors'] = function(net, nick)
+        local C = common.get_state(M.name, net)
+        return C ~= nil and C.buffers[M.fold(net, nick)] ~= nil
+    end,
+}
 
 function M.subscribe(sub)
     sub.on('irc.message', on_message)
@@ -649,8 +702,6 @@ function M.talk(net, target)
             if not irc_model.get_channel(irc, target) then
                 query(net, 'JOIN', target)
             end
-        elseif irc_model.has_monitor(irc) and not irc_model.get_monitor(irc, target) then
-            query(net, 'MONITOR', '+', target)
         end
     end
 end

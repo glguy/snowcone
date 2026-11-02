@@ -361,6 +361,27 @@ T.case('views follow their events once, after a reload too', function()
     T.eq(control.talk_target 'test', '#b', 'closing the shown buffer moves on')
 end)
 
+T.case('the shown buffer is marked seen only while the terminal has focus', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local chat = T.require 'hub.features.chat'
+    local tty = T.require 'hub.runtime.tty'
+    c:recv ':bob!b@h PRIVMSG me :first'
+    control.set_talk_target('test', 'bob')
+    control.set_view 'buffer'
+    HUB.current.routes['ui.draw']()
+    local buffer = chat.buffer('test', 'bob')
+    T.eq(buffer.activity, 0, 'seen when shown with focus')
+
+    tty.set_focus(false)
+    c:recv ':bob!b@h PRIVMSG me :while away'
+    HUB.current.routes['ui.draw']()
+    T.eq({buffer.activity, buffer.mention}, {1, true}, 'unseen while unfocused')
+    tty.set_focus(true)
+    HUB.current.routes['ui.draw']()
+    T.eq({buffer.activity, buffer.mention}, {0, false}, 'seen on return')
+end)
+
 T.case('a prompt goes when its task is canceled', function()
     local fake = FakeTransport.new()
     T.boot {ui = true, transport = fake, config = {networks = {{
@@ -2135,7 +2156,7 @@ T.case('/help lists views as a row, then commands by group, and searches', funct
     T.ok(t:find('/whowas nick [count]', 1, true), 'usage, not the parser spec')
     T.ok(not t:find('$g', 1, true), 'no specs')
     T.ok(t:find('/addwatch', 1, true) < t:find('/delwatch', 1, true)
-        and t:find('/delwatch', 1, true) < t:find('/oper', 1, true), 'related commands together')
+        and t:find('/delwatch', 1, true) < t:find('/kline_nick', 1, true), 'related commands together')
 
     -- a view's name shows it
     local rows = rows_of(document_pad())
