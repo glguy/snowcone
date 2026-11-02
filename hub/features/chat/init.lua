@@ -477,6 +477,11 @@ H[N.ERR_LINKCHANNEL] = function(net, irc, msg)
     bus.emit('chat.forward', {net = net, from = from, to = to})
 end
 
+-- "<client> <channel> :<reason>": our line there was refused
+H[N.ERR_CANNOTSENDTOCHAN] = function(net, irc, msg)
+    receipt.on_refusal(M, net, irc, msg)
+end
+
 -- "<client> <channel> <client count> :<topic>" (from /list)
 H[N.RPL_LIST] = function(net, _, msg)
     local C = M.get(net)

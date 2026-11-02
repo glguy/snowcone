@@ -136,6 +136,30 @@ T.case("an error about a change in a channel shows in its buffer", function()
     T.eq(#texts(chat.buffer('test', 'bob')), 1, 'a nick named where a channel can be is not one')
 end)
 
+T.case('without labeled-response, a refusal marks our newest line there', function()
+    local c, chat = boot()
+    c:recv ':me!u@h JOIN #m'
+    chat.say('test', '#m', 'first')
+    chat.say('test', '#m', 'second')
+    chat.say('test', '#m', 'third')
+    c:take()
+    local buffer = chat.buffer('test', '#m')
+    local function receipts()
+        local list = {}
+        for msg in T.require 'hub.lib.OrderedMap'.reveach(buffer.messages) do
+            if msg.source == '>>>' then table.insert(list, msg.receipt or '-') end
+        end
+        return list
+    end
+    c:recv ':srv 404 me #m :Cannot send to nick/channel'
+    T.eq(receipts(), {'-', '-', 'rejected'}, 'the newest')
+    T.eq(chat.newest(buffer).rejection, 'Cannot send to nick/channel', 'with the reason')
+    c:recv ':srv 404 me #m :Cannot send to nick/channel'
+    T.eq(receipts(), {'-', 'rejected', 'rejected'}, 'a second error reaches the line before')
+    c:recv ':srv 404 me #other :Cannot send to nick/channel'
+    T.eq(receipts(), {'-', 'rejected', 'rejected'}, 'another target marks nothing here')
+end)
+
 T.case('a refused or forwarded JOIN shows in the buffer', function()
     local c, chat = boot()
     chat.talk('test', '#ban')

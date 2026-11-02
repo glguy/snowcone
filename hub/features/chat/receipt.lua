@@ -4,7 +4,8 @@
 -- buffer has msg.receipt: 'awaiting' until the reply, then 'received' on
 -- its echo (whose msgid and time it takes) or ACK, 'rejected' on an error
 -- (msg.rejection holds its text), or 'unknown' if the reply never settled
--- it. The echo itself isn't shown again.
+-- it. The echo itself isn't shown again. Without labeled-response, an
+-- error refusing a line (ERR_CANNOTSENDTOCHAN) still marks it 'rejected'.
 --
 -- Lines awaiting their reply live in C.pending (hub.ChatState). Chat
 -- requires this module, so it passes itself in for folding, finding and
@@ -94,6 +95,33 @@ function M.on_reply(chat, net, irc, msg)
         settle(C, label)
     end
     return echo
+end
+
+--- An error refusing our line to a target, when it has no label. The
+--- server refuses a line as it reads it, so the error is about the newest
+--- of ours in the target's buffer that it hasn't answered; one already
+--- refused is passed over, so a second error reaches the line before.
+---@param chat hub.ChatLookup
+---@param net string
+---@param irc hub.Irc
+---@param msg hub.Message
+function M.on_refusal(chat, net, irc, msg)
+    local batch = irc.batches[msg.tags.batch]
+    if msg.tags.label or batch and batch.label then return end -- on_reply's
+    local buffer = msg[2] and chat.buffer(net, msg[2])
+    if not buffer then return end
+    local messages = buffer.messages
+    for k = OrderedMap.last(messages), OrderedMap.first(messages), -1 do
+        local line = OrderedMap.get(messages, k)
+        local state = line.delivery and line.delivery.state
+        if line.source == '>>>' and (line.command == 'PRIVMSG' or line.command == 'NOTICE')
+        and line.receipt == nil and state ~= 'queued' and state ~= 'dropped'
+        then
+            line.receipt = 'rejected'
+            line.rejection = msg[#msg]
+            return
+        end
+    end
 end
 
 --- Our own PRIVMSG or NOTICE (irc.sent), shown where it went; a labeled
