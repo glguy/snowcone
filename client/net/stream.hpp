@@ -5,7 +5,10 @@
 
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <vector>
+
+namespace websocket { class LineStream; }
 
 class StreamBase
 {
@@ -15,6 +18,9 @@ public:
     virtual auto async_read_some(std::vector<boost::asio::mutable_buffer> buffers, boost::asio::any_completion_handler<Sig> handler) -> void = 0;
     virtual auto async_write_some(std::vector<boost::asio::const_buffer> buffers, boost::asio::any_completion_handler<Sig> handler) -> void = 0;
     virtual auto close() -> void = 0;
+
+    /// Why the peer ended the stream, when the protocol says; otherwise empty
+    virtual auto close_reason() const -> std::string { return {}; }
 };
 
 class Stream
@@ -48,6 +54,10 @@ public:
     /// @param ctx TLS context used for handshake
     /// @return Reference to internal stream object
     auto upgrade(boost::asio::ssl::context& ctx) -> boost::asio::ssl::stream<Stream>&;
+
+    /// @brief Upgrade the stream into a WebSocket carrying IRC lines.
+    /// @return Reference to internal stream object, before its handshake
+    auto upgrade_websocket() -> websocket::LineStream&;
 
     /// @brief Get underlying basic socket
     /// @return Reference to underlying socket
@@ -139,5 +149,12 @@ public:
         {
             self->close();
         }
+    }
+
+    /// @brief Why the peer ended the stream, when the protocol says
+    /// @return Description, or empty when there is none
+    auto close_reason() const -> std::string
+    {
+        return self ? self->close_reason() : std::string{};
     }
 };

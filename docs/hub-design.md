@@ -369,7 +369,7 @@ snomask = '+BFZbcklnsx'
 servers_file = 'servers.toml'  # read with the configuration; a bad one fails the load
 quit_message = 'bye'
 [networks.server]              # host and port, or path; fingerprint, capabilities, username, password
-[[networks.layers]]            # tls, socks or http
+[[networks.layers]]            # tls, socks, http or websocket
 [networks.identity]            # nick, user, gecos
 [networks.sasl]                # automatic, credentials
 [networks.oper]                # or [networks.challenge]

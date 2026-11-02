@@ -964,6 +964,15 @@ T.case('every feature requirement names known features', function()
     end
 end)
 
+T.case('a websocket layer reaches the transport', function()
+    local fake = boot {network('test', {layers = {
+        {type = 'tls'},
+        {type = 'websocket', path = '/irc', origin = 'https://irc.example', subprotocols = {}},
+    }})}
+    T.eq(fake.last().layers[2], {type = 'websocket', path = '/irc', origin = 'https://irc.example', subprotocols = {}},
+        'fields passed')
+end)
+
 T.case('configuration constraints from the dashboard', function()
     T.boot()
     local config = T.require 'hub.runtime.config'
@@ -979,6 +988,10 @@ T.case('configuration constraints from the dashboard', function()
     for _, layer in ipairs {
         {type = 'http', host = 'p', port = 8080, username = 'u', password = ''},
         {type = 'socks', host = 'p', port = 1080, username = 'u', password = 'p'},
+        {type = 'websocket'},
+        {type = 'websocket', host = 'irc.example:443', path = '/irc?a=b', origin = 'https://irc.example'},
+        {type = 'websocket', subprotocols = {}},
+        {type = 'websocket', subprotocols = {'text.ircv3.net', 'binary.ircv3.net'}},
     } do
         T.ok(pcall(config.normalize, {networks = {{id = 'x', server = {host = 'h', port = 1},
             identity = {nick = 'n'}, layers = {layer}}}}), 'accepted: ' .. layer.type)
@@ -999,6 +1012,13 @@ T.case('configuration constraints from the dashboard', function()
         {layers = {{type = 'socks', host = 'p', port = 1080, username = '', password = 'x'}}},
         {layers = {{type = 'socks', host = 'p', port = 1080, username = 'u', password = ''}}},
         {layers = {{type = 'http', host = 'p', port = 8080, username = 'a:b', password = 'x'}}},
+        {layers = {{type = 'websocket', path = 'irc'}}},
+        {layers = {{type = 'websocket', path = '/a b'}}},
+        {layers = {{type = 'websocket', host = 'h\r\nX: y'}}},
+        {layers = {{type = 'websocket', host = ''}}},
+        {layers = {{type = 'websocket', origin = 'a b'}}},
+        {layers = {{type = 'websocket', subprotocols = {'irc'}}}},
+        {layers = {{type = 'websocket', subprotocols = 'text.ircv3.net'}}},
         {rate_limit = {burst = 5}},
         {rate_limit = {interval = 2}},
         {rate_limit = {burst = 0, interval = 2}},

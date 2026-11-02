@@ -60,7 +60,14 @@ function Listener:close() end
 ---@field username string|nil
 ---@field password string|nil
 
----@alias snowcone.Layer snowcone.TlsLayer|snowcone.ProxyLayer
+---@class snowcone.WebSocketLayer
+---@field type 'websocket'
+---@field host string|nil Host header; defaults to the host and port it runs over
+---@field path string|nil defaults to '/'
+---@field origin string|nil
+---@field subprotocols string[]|nil offered in order; {} offers none and uses text
+
+---@alias snowcone.Layer snowcone.TlsLayer|snowcone.ProxyLayer|snowcone.WebSocketLayer
 
 ---@class snowcone.ExecuteOptions
 ---@field input string|nil written to stdin; without it the child gets the terminal

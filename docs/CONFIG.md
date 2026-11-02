@@ -10,7 +10,7 @@ Contents:
 - [Networks](#networks)
   - [Network settings](#network-settings)
   - [Features](#features)
-  - [Connecting](#connecting): `server`, `layers` (TLS, SOCKS5, HTTP CONNECT)
+  - [Connecting](#connecting): `server`, `layers` (TLS, SOCKS5, HTTP CONNECT, WebSocket)
   - [Registering](#registering): `identity`, server password, capabilities
   - [SASL](#sasl)
   - [Becoming an operator](#becoming-an-operator): `oper`, `challenge`
@@ -203,6 +203,8 @@ path = '/var/run/ircd.sock'
 
 `fingerprint` is a Lua pattern matched against the whole connection description, for example `tcp=192.0.2.7:6697 tls=3f…`. If it doesn't match, the connection is dropped as `bad fingerprint` and not retried: the network stays idle until you fix the configuration and `/connect`. Write `tls=3f…$` to require the last TLS layer's key exactly, or a looser pattern if that suits you.
 
+A WebSocket layer adds `ws=` and the subprotocol the server chose, so with one after TLS, write `tls=3f… ws=` instead of `tls=3f…$`.
+
 Each TLS layer reports `tls=` followed by the hex SHA-256 of the server's DER-encoded public key (SubjectPublicKeyInfo). This is the same value as:
 
 ```sh
@@ -280,6 +282,39 @@ port = 8080
 ```
 
 This takes the same fields as SOCKS5. With `username` and `password`, the CONNECT request carries Basic authentication. Here the password may be empty, but the username can't contain `:`. For an HTTPS proxy, put a TLS layer (with `alpn = ['http/1.1']`) before this one.
+
+##### WebSocket layer
+
+This speaks IRC over a WebSocket, as the IRCv3 WebSocket specification describes. For a `wss://irc.example.net/webirc` address, put a TLS layer first:
+
+```toml
+[networks.server]
+host = 'irc.example.net'
+port = 443
+
+[[networks.layers]]
+type = 'tls'
+alpn = ['http/1.1']
+
+[[networks.layers]]
+type = 'websocket'
+path = '/webirc'
+```
+
+| Field | Meaning |
+|---|---|
+| `host` | The `Host` header. Defaults to the host and port this layer runs over: `server.host` and `server.port`, or the `host` and `port` of the nearest `socks` or `http` layer before it. |
+| `path` | The path to request. Defaults to `/`. Must start with `/`. |
+| `origin` | The `Origin` header. Set it for a server that only accepts listed origins; by default none is sent. |
+| `subprotocols` | The IRCv3 subprotocols to offer, in order of preference: `binary.ircv3.net` and `text.ircv3.net`. Defaults to both, binary first. `[]` offers none; see below. |
+
+None of these may contain spaces or control characters. Over `server.path`, with no proxy layer before this one, there is no host to default to, so `host` is required.
+
+The WebSocket layer must be the last layer, because it carries IRC lines rather than the bytes another layer would send. Each line goes in its own message, and a carriage return ends a line just as a line feed does. When the server closes the WebSocket, the disconnect reason includes its close code and any reason it gave.
+
+The server must choose one of the subprotocols offered, or the connection fails. Over `text.ircv3.net`, everything sent must be UTF-8.
+
+A gateway that predates the IRCv3 subprotocols may refuse an offer of more than one (with HTTP 400) or ignore the offer. For one of those, set `subprotocols = []`: none is offered, the server must choose none, and messages are sent as text. The connection description then reads `ws=none`.
 
 ### Registering
 

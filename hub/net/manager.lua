@@ -210,6 +210,14 @@ local function build_layers(t, configured)
                 username = layer.username,
                 password = password,
             })
+        elseif layer.type == 'websocket' then
+            table.insert(layers, {
+                type = 'websocket',
+                host = layer.host,
+                path = layer.path,
+                origin = layer.origin,
+                subprotocols = layer.subprotocols,
+            })
         else
             error('bad layer type: ' .. tostring(layer.type), 0)
         end

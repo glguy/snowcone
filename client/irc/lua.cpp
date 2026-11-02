@@ -2,6 +2,7 @@
 #include "../app.hpp"
 #include "../boundary.hpp"
 #include "../net/connection.hpp"
+#include "../net/httpconnect.hpp"
 #include "../net/linebuffer.hpp"
 #include "../safecall.hpp"
 #include "../strings.hpp"
@@ -19,7 +20,9 @@ extern "C" {
 #include <lua.h>
 }
 
+#include <algorithm>
 #include <charconv> // from_chars
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -177,11 +180,22 @@ auto run_session(
             throw std::runtime_error{"line buffer full"};
         }
 
-        buff.commit(co_await irc->get_stream().async_read_some(target, boost::asio::use_awaitable));
+        auto const [read_error, n] = co_await irc->get_stream().async_read_some(
+            target, boost::asio::as_tuple(boost::asio::use_awaitable));
         if (irc->closed())
         {
             co_return;
         }
+        if (read_error)
+        {
+            auto const reason = irc->get_stream().close_reason();
+            if (reason.empty())
+            {
+                throw boost::system::system_error{read_error};
+            }
+            throw boost::system::system_error{read_error, reason};
+        }
+        buff.commit(n);
         for (auto line = get_nonempty_line(buff); nullptr != line; /* empty */)
         {
             auto const msg = parse_irc_message(line); // might throw
@@ -333,6 +347,77 @@ auto check_layer_port(lua_State* const L, lua_Integer const n) -> void
     luaL_error(L, "layer %d: 'port' must be an integer from 1 to 65535", static_cast<int>(n));
 }
 
+/// Raise a Lua error unless the value at the top of the stack is nil/absent
+/// or a string with no spaces or control characters, so it can't break out
+/// of the HTTP header or request line it is sent in. A `path` must also
+/// start with '/'. Pops the value. Returns whether a string was given.
+auto check_layer_http_string(lua_State* const L, lua_Integer const n, char const* const field, bool const path) -> bool
+{
+    auto const absent = lua_type(L, -1) <= LUA_TNIL;
+    auto const str = to_string_view(L, -1);
+    lua_pop(L, 1);
+    if (absent)
+    {
+        return false;
+    }
+
+    auto const ok = str && not str->empty() && (not path || str->front() == '/')
+        && str->end() == std::find_if(str->begin(), str->end(), [](char const c) {
+            auto const u = static_cast<unsigned char>(c);
+            return u <= 0x20 || u == 0x7f;
+        });
+    if (not ok)
+    {
+        luaL_error(L, path
+            ? "layer %d: '%s' must be a string starting with '/' without spaces or control characters"
+            : "layer %d: '%s' must be a non-empty string without spaces or control characters",
+            static_cast<int>(n), field);
+    }
+    return true;
+}
+
+/// Raise a Lua error unless the value at the top of the stack is nil/absent
+/// or a list of IRCv3 WebSocket subprotocol names. Pops the value. Raw
+/// access only.
+auto check_layer_subprotocols(lua_State* const L, lua_Integer const n) -> void
+{
+    if (lua_type(L, -1) <= LUA_TNIL)
+    {
+        lua_pop(L, 1);
+        return;
+    }
+
+    bool ok = lua_type(L, -1) == LUA_TTABLE;
+    if (ok)
+    {
+        auto const len = static_cast<lua_Integer>(lua_rawlen(L, -1));
+
+        // Every key must be part of the sequence
+        lua_Integer keys = 0;
+        lua_pushnil(L);
+        while (0 != lua_next(L, -2))
+        {
+            lua_pop(L, 1);
+            keys++;
+        }
+        ok = keys == len;
+
+        for (lua_Integer i = 1; ok && i <= len; i++)
+        {
+            lua_rawgeti(L, -1, i);
+            auto const name = to_string_view(L, -1);
+            ok = name && (*name == websocket::binary_subprotocol || *name == websocket::text_subprotocol);
+            lua_pop(L, 1);
+        }
+    }
+    lua_pop(L, 1);
+    if (not ok)
+    {
+        luaL_error(L, "layer %d: 'subprotocols' must be a list of \"%s\" and \"%s\"",
+            static_cast<int>(n), websocket::binary_subprotocol, websocket::text_subprotocol);
+    }
+}
+
 /// Validate the layers table at stack index `layers` before any C++ objects
 /// are built from it. Raising a Lua error longjmps past C++ destructors, so
 /// every check that can fail happens here, while only integers are live.
@@ -342,16 +427,25 @@ auto check_layer_port(lua_State* const L, lua_Integer const n) -> void
 ///
 /// A TLS layer verifies against the host it runs over unless told otherwise.
 /// Over a local socket, with no proxy in between, there is no such host, so
-/// `verify` must be given: a hostname, or "" to disable verification.
+/// `verify` must be given: a hostname, or "" to disable verification. A
+/// websocket layer's `host` likewise defaults to that host and port. A
+/// websocket layer must be the last.
 auto validate_layers(lua_State* const L, int const layers, lua_Integer const layers_n, bool const local_base) -> void
 {
     luaL_checktype(L, layers, LUA_TTABLE);
 
     bool have_host = not local_base;
+    bool after_websocket = false;
 
     for (lua_Integer i = 1; i <= layers_n; ++i)
     {
         auto const n = static_cast<int>(i);
+
+        // A websocket carries IRC lines, not the bytes another layer sends
+        if (after_websocket)
+        {
+            luaL_error(L, "layer %d: no layer can follow a websocket layer", n);
+        }
 
         if (lua_rawgeti(L, layers, i) != LUA_TTABLE)
         {
@@ -433,6 +527,27 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
 
             have_host = true;
         }
+        else if (type == "websocket"sv)
+        {
+            raw_field(L, layer, "host");
+            auto const host_given = check_layer_http_string(L, i, "host", false);
+
+            raw_field(L, layer, "path");
+            check_layer_http_string(L, i, "path", true);
+
+            raw_field(L, layer, "origin");
+            check_layer_http_string(L, i, "origin", false);
+
+            raw_field(L, layer, "subprotocols");
+            check_layer_subprotocols(L, i);
+
+            if (not have_host && not host_given)
+            {
+                luaL_error(L, "layer %d: websocket over a local socket requires 'host'", n);
+            }
+
+            after_websocket = true;
+        }
         else
         {
             luaL_error(L, "layer %d: unknown type '%s'", n, lua_tostring(L, layer + 1));
@@ -449,7 +564,8 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
  *
  * param:       string      IRC server hostname (socket path when port is 0)
  * param:       integer     IRC server port number, 0..65535; 0 means a local socket
- * param:       table       Array of layers; each has a `type` of "tls", "socks" or "http"
+ * param:       table       Array of layers; each has a `type` of "tls", "socks", "http"
+ *                          or "websocket"
  * param:       function    Callback function for events on IRC session
  *
  * Layers are applied in order on top of the base connection:
@@ -459,12 +575,24 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
  *     password = string? }
  * - { type = "http", host = string, port = integer, username = string?,
  *     password = string? }
+ * - { type = "websocket", host = string?, path = string?, origin = string?,
+ *     subprotocols = {string}? }
  * A tls layer's `verify` is the name the certificate must match ("" disables
  * verification) and `sni` the server name sent. Either one, when given and
  * non-empty, is the default for the other; otherwise both default to the
  * host the layer runs over (the base host, or the host of the nearest socks
  * or http layer before it). Over a local socket with no proxy in between,
  * `verify` is required.
+ *
+ * A websocket layer carries one IRC line per message, with the IRCv3
+ * subprotocol binary.ircv3.net or text.ircv3.net, so it must be the last
+ * layer. CR as well as LF ends a line sent over it. `host` is the Host header
+ * and defaults to the host and port the layer runs over; over a local socket
+ * with no proxy in between it is required. `path` defaults to "/", and an
+ * Origin header is sent only when `origin` is given. None of them may hold
+ * spaces or control characters. `subprotocols` lists those offered, by
+ * default both with binary first; an empty list offers none, for servers
+ * that predate IRCv3, and uses text.
  *
  * A missing or unknown `type`, or a bad field, raises a Lua error before any
  * connection is started.
@@ -521,8 +649,9 @@ auto l_start_irc(lua_State* const L) -> int
     std::vector<AnyLayer> layers;
     layers.reserve(layers_n);
 
-    // The host the next layer runs over; empty over a local socket
+    // The host and port the next layer runs over; empty over a local socket
     std::string hop_host = port == 0 ? "" : std::string{host};
+    auto hop_port = static_cast<std::uint16_t>(port);
 
     for (lua_Integer i{0}; i < layers_n; ++i)
     {
@@ -576,6 +705,7 @@ auto l_start_irc(lua_State* const L) -> int
 
             raw_field(L, 5, "port"); // 7
             layer.port = lua_tointeger(L, 7);
+            hop_port = layer.port;
             lua_pop(L, 1);
 
             raw_field(L, 5, "username"); // 7
@@ -610,6 +740,7 @@ auto l_start_irc(lua_State* const L) -> int
 
             raw_field(L, 5, "port"); // 7
             layer.port = lua_tointeger(L, 7);
+            hop_port = layer.port;
             lua_pop(L, 1);
 
             raw_field(L, 5, "username"); // 7
@@ -630,6 +761,38 @@ auto l_start_irc(lua_State* const L) -> int
             }
 
             lua_pop(L, 2);
+
+            layers.emplace_back(std::move(layer));
+        }
+        else if (layer_type == "websocket"sv)
+        {
+            WebSocketLayer layer;
+
+            raw_field(L, 5, "host"); // 7
+            auto const ws_host = to_string_view(L, 7);
+            layer.host = ws_host ? std::string{*ws_host} : httpconnect::detail::authority(hop_host, hop_port);
+            lua_pop(L, 1);
+
+            raw_field(L, 5, "path"); // 7
+            layer.path = to_string_view(L, 7).value_or("/"sv);
+            lua_pop(L, 1);
+
+            raw_field(L, 5, "origin"); // 7
+            layer.origin = to_string_view(L, 7).value_or(""sv);
+            lua_pop(L, 1);
+
+            if (raw_field(L, 5, "subprotocols") == LUA_TTABLE) // 7
+            {
+                layer.subprotocols.clear();
+                auto const len = static_cast<lua_Integer>(lua_rawlen(L, 7));
+                for (lua_Integer j = 1; j <= len; j++)
+                {
+                    lua_rawgeti(L, 7, j);
+                    layer.subprotocols.emplace_back(*to_string_view(L, -1));
+                    lua_pop(L, 1);
+                }
+            }
+            lua_pop(L, 1);
 
             layers.emplace_back(std::move(layer));
         }

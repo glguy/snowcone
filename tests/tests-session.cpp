@@ -21,6 +21,9 @@ extern "C" {
 }
 
 #include <boost/asio.hpp>
+#include <boost/beast/core.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/beast/websocket.hpp>
 
 #include <functional>
 #include <iostream>
@@ -479,6 +482,46 @@ end)
         any,
     });
 
+    // A websocket layer's Host defaults to the host and port it runs over.
+    // The server records the Host and target, then the client's reply.
+    ok &= run({
+        "websocket carries lines as messages",
+        R"lua(
+conn = connect('127.0.0.1', port, {{type = 'websocket', path = '/irc'}}, function(ev, a)
+  if ev == 'CON' then log('CON:' .. a:match('ws=.*'))
+  elseif ev == 'MSG' then log('MSG:' .. a.command .. ':' .. a[1]); conn:send('PONG :' .. a[1] .. '\r\n')
+  else log('END:' .. a:match('code %d+')) end
+end)
+)lua",
+        [](Sock sock, auto seen) {
+            namespace beast = boost::beast;
+            namespace ws = beast::websocket;
+            asio::co_spawn(sock->get_executor(), [sock, seen]() -> asio::awaitable<void> {
+                beast::flat_buffer buffer;
+                beast::http::request<beast::http::empty_body> request;
+                co_await beast::http::async_read(*sock, buffer, request, asio::use_awaitable);
+                seen->received = std::string{request[beast::http::field::host]} + " " + std::string{request.target()};
+
+                ws::stream<tcp::socket> stream{std::move(*sock)};
+                stream.set_option(ws::stream_base::decorator([](ws::response_type& response) {
+                    response.set(beast::http::field::sec_websocket_protocol, "binary.ircv3.net");
+                }));
+                co_await stream.async_accept(request, asio::use_awaitable);
+                stream.binary(true);
+                co_await stream.async_write(asio::buffer("PING :a", 7), asio::use_awaitable);
+
+                beast::flat_buffer message;
+                co_await stream.async_read(message, asio::use_awaitable);
+                seen->received += " " + beast::buffers_to_string(message.data());
+                co_await stream.async_close(ws::close_code::normal, asio::use_awaitable);
+            }, asio::detached);
+        },
+        "CON:ws=binary.ircv3.net,MSG:PING:a,END:code 1000",
+        [](Observed const& o) {
+            return o.received.starts_with("127.0.0.1:") && o.received.ends_with(" /irc PONG :a");
+        },
+    });
+
     auto const cb = "function() end";
     auto const args = [&](std::string layers, std::string port = "6667") {
         return "'host', " + port + ", " + layers + ", " + cb;
@@ -533,6 +576,24 @@ end)
     ok &= check_accepted(args("{ {type = 'tls', verify = 'irc.example'} }", "0").c_str());
     ok &= check_accepted(args("{ {type = 'socks', host = 'h', port = 1}, {type = 'tls'} }", "0").c_str());
     ok &= check_accepted(args("{ {type = 'socks', host = 'h', port = 1, username = 'u', password = 'p'} }").c_str());
+    // WebSocket fields go into the HTTP request, so they can't break out of it
+    ok &= check_accepted(args("{ {type = 'tls'}, {type = 'websocket'} }").c_str());
+    ok &= check_accepted(args("{ {type = 'websocket', host = 'h:80', path = '/irc?x=1', origin = 'https://h'} }").c_str());
+    ok &= check_arguments(args("{ {type = 'websocket', path = 'irc'} }").c_str(), "'path' must be a string starting with '/'");
+    ok &= check_arguments(args("{ {type = 'websocket', path = '/a b'} }").c_str(), "'path' must be a string starting with '/'");
+    ok &= check_arguments(args("{ {type = 'websocket', host = 'h\\r\\nX: y'} }").c_str(), "'host' must be a non-empty string");
+    ok &= check_arguments(args("{ {type = 'websocket', host = ''} }").c_str(), "'host' must be a non-empty string");
+    ok &= check_arguments(args("{ {type = 'websocket', origin = {}} }").c_str(), "'origin' must be a non-empty string");
+    ok &= check_arguments(args("{ {type = 'websocket'} }", "0").c_str(), "requires 'host'");
+    ok &= check_arguments(args("{ {type = 'websocket'}, {type = 'tls'} }").c_str(), "layer 2: no layer can follow a websocket layer");
+    ok &= check_accepted(args("{ {type = 'websocket', subprotocols = {}} }").c_str());
+    ok &= check_accepted(args("{ {type = 'websocket', subprotocols = {'text.ircv3.net', 'binary.ircv3.net'}} }").c_str());
+    ok &= check_arguments(args("{ {type = 'websocket', subprotocols = {'irc'}} }").c_str(), "'subprotocols' must be a list");
+    ok &= check_arguments(args("{ {type = 'websocket', subprotocols = 'text.ircv3.net'} }").c_str(), "'subprotocols' must be a list");
+    ok &= check_arguments(args("{ {type = 'websocket', subprotocols = {x = 'text.ircv3.net'}} }").c_str(), "'subprotocols' must be a list");
+    ok &= check_arguments(args("{ {type = 'websocket'}, {type = 'websocket'} }").c_str(), "layer 2: no layer can follow a websocket layer");
+    ok &= check_accepted(args("{ {type = 'websocket', host = 'localhost'} }", "0").c_str());
+    ok &= check_accepted(args("{ {type = 'socks', host = 'h', port = 1}, {type = 'websocket'} }", "0").c_str());
 
     // snowcone.execute
     ok &= run({

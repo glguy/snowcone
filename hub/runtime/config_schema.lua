@@ -101,10 +101,25 @@ local http_layer <const> = table_ {
     password = password_schema,
 }
 
+-- Sent in the HTTP request that opens the WebSocket, so no spaces or
+-- control characters
+local websocket_layer <const> = table_ {
+    type   = {type = 'string', pattern = '^websocket$', required = true},
+    host   = {type = 'string', pattern = '^[^%c ]+$', expected = 'no spaces or control characters'},
+    path   = {type = 'string', pattern = '^/[^%c ]*$',
+              expected = "a path starting with '/', without spaces or control characters"},
+    origin = {type = 'string', pattern = '^[^%c ]+$', expected = 'no spaces or control characters'},
+    subprotocols = array {oneOf = {
+        {type = 'string', pattern = '^binary%.ircv3%.net$'},
+        {type = 'string', pattern = '^text%.ircv3%.net$'},
+    }},
+}
+
 local layers_schema <const> = array {
     oneOf = {
         socks_layer,
         http_layer,
+        websocket_layer,
         table_ {
             type            = {type = 'string', pattern = '^tls$', required = true},
             client_cert     = password_schema,

@@ -1,8 +1,8 @@
 # set(CMAKE_CXX_CLANG_TIDY /usr/local/opt/llvm/bin/clang-tidy -checks=-*,readability-*)
-# Connections: TCP with happy eyeballs, TLS, SOCKS5 and HTTP CONNECT
+# Connections: TCP with happy eyeballs, TLS, SOCKS5, HTTP CONNECT and WebSocket
 add_library(snowcone_net STATIC
     net/connection.cpp net/happy_eyeballs.cpp net/httpconnect.cpp
-    net/linebuffer.cpp net/socks5.cpp net/stream.cpp)
+    net/linebuffer.cpp net/socks5.cpp net/stream.cpp net/websocket.cpp)
 target_include_directories(snowcone_net PUBLIC net)
 target_link_libraries(snowcone_net PUBLIC ${BOOST_TARGETS} OpenSSL::SSL base64)
 

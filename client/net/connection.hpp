@@ -2,6 +2,7 @@
 
 #include "happy_eyeballs.hpp"
 #include "stream.hpp"
+#include "websocket.hpp"
 
 #include "socks5.hpp"
 
@@ -66,6 +67,18 @@ struct HttpLayer {
     socks5::Auth auth;
 };
 
+struct WebSocketLayer {
+    /// Host header value, an authority such as irc.example.net:443
+    std::string host;
+    /// Request target, starting with '/'
+    std::string path;
+    /// Origin header value; empty sends none
+    std::string origin;
+    /// IRCv3 subprotocols offered in order, each binary.ircv3.net or
+    /// text.ircv3.net; empty offers none and expects none, using text
+    std::vector<std::string> subprotocols{websocket::binary_subprotocol, websocket::text_subprotocol};
+};
+
 struct IpLayer {
     std::string host;
     std::uint16_t port;
@@ -75,7 +88,7 @@ struct LocalLayer {
     std::string path;
 };
 
-using AnyLayer = std::variant<TlsLayer, SocksLayer, HttpLayer>;
+using AnyLayer = std::variant<TlsLayer, SocksLayer, HttpLayer, WebSocketLayer>;
 
 struct Settings
 {

@@ -1,5 +1,7 @@
 #include "stream.hpp"
 
+#include "websocket.hpp"
+
 namespace {
 
 /// @brief Tear down a socket
@@ -14,6 +16,11 @@ auto close_it(boost::asio::basic_socket<Protocol, Executor> & socket) -> void
 auto close_it(boost::asio::ssl::stream<Stream> & socket) -> void
 {
     socket.next_layer().close();
+}
+
+auto close_it(websocket::LineStream & socket) -> void
+{
+    socket.close();
 }
 
 template <typename T>
@@ -45,6 +52,18 @@ struct StreamImpl final : public StreamBase
     auto close() -> void override {
         close_it(impl);
     }
+
+    auto close_reason() const -> std::string override
+    {
+        if constexpr (requires { impl.close_reason(); })
+        {
+            return impl.close_reason();
+        }
+        else
+        {
+            return {};
+        }
+    }
 };
 
 }
@@ -68,6 +87,14 @@ auto Stream::reset_local() -> boost::asio::local::stream_protocol::socket&
 auto Stream::upgrade(boost::asio::ssl::context& ctx) -> boost::asio::ssl::stream<Stream>&
 {
     auto impl = std::make_shared<StreamImpl<boost::asio::ssl::stream<Stream>>>(*this, ctx);
+    auto& result = impl->impl;
+    self = std::move(impl);
+    return result;
+}
+
+auto Stream::upgrade_websocket() -> websocket::LineStream&
+{
+    auto impl = std::make_shared<StreamImpl<websocket::LineStream>>(*this);
     auto& result = impl->impl;
     self = std::move(impl);
     return result;

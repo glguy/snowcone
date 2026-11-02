@@ -3,9 +3,15 @@
 #include "cloexec.hpp"
 #include "httpconnect.hpp"
 #include "socks5.hpp"
+#include "websocket.hpp"
 
+#include <boost/beast/http/field.hpp>
+#include <boost/beast/websocket/error.hpp>
+#include <boost/beast/websocket/rfc6455.hpp>
+#include <boost/beast/websocket/stream_base.hpp>
 #include <boost/io/ios_state.hpp>
 
+#include <algorithm>
 #include <iomanip>
 #include <memory>
 #include <stdexcept>
@@ -345,6 +351,87 @@ auto connect_layer(ConnectContext& ctx, HttpLayer& http_layer) -> boost::asio::a
         std::move(http_layer.auth),
         boost::asio::use_awaitable
     );
+}
+
+auto connect_layer(ConnectContext& ctx, WebSocketLayer& layer) -> boost::asio::awaitable<void>
+{
+    namespace http = boost::beast::http;
+    namespace ws = boost::beast::websocket;
+
+    auto& ws_stream = ctx.stream.upgrade_websocket().ws();
+
+    // A message and the "\n" added to it fill at most the line buffer
+    ws_stream.read_message_max(connection::irc_buffer_size - 1);
+
+    std::string offered;
+    for (auto const& subprotocol : layer.subprotocols)
+    {
+        if (not offered.empty())
+        {
+            offered += ", ";
+        }
+        offered += subprotocol;
+    }
+
+    ws_stream.set_option(ws::stream_base::decorator(
+        [origin = layer.origin, offered](ws::request_type& req) {
+            req.set(http::field::user_agent, "snowcone");
+            if (not offered.empty())
+            {
+                req.set(http::field::sec_websocket_protocol, offered);
+            }
+            if (not origin.empty())
+            {
+                req.set(http::field::origin, origin);
+            }
+        }
+    ));
+
+    ws::response_type response;
+    boost::system::error_code handshake_error;
+    co_await ws_stream.async_handshake(
+        response, layer.host, layer.path,
+        boost::asio::redirect_error(boost::asio::use_awaitable, handshake_error)
+    );
+    if (handshake_error)
+    {
+        // Only a refusal has a response to report the status of
+        if (handshake_error == ws::error::upgrade_declined)
+        {
+            throw boost::system::system_error{handshake_error, "HTTP " + std::to_string(response.result_int())};
+        }
+        throw boost::system::system_error{handshake_error};
+    }
+
+    // IRCv3 leaves a connection without either subprotocol to fallbacks
+    // for legacy servers. Text is the fallback, and only when asked for by
+    // offering none: a server that ignores an offer isn't guessed at.
+    auto const subprotocol = response[http::field::sec_websocket_protocol];
+    auto const was_offered = std::ranges::find(layer.subprotocols, subprotocol) != layer.subprotocols.end();
+    if (subprotocol.empty() && layer.subprotocols.empty())
+    {
+        ws_stream.text(true);
+        ctx.os << " ws=none";
+        co_return;
+    }
+    if (subprotocol.empty())
+    {
+        throw std::runtime_error{"WebSocket server chose no IRC subprotocol"};
+    }
+    if (not was_offered)
+    {
+        throw std::runtime_error{"WebSocket server chose unrequested subprotocol " + std::string{subprotocol}};
+    }
+
+    if (subprotocol == websocket::binary_subprotocol)
+    {
+        ws_stream.binary(true);
+    }
+    else
+    {
+        ws_stream.text(true);
+    }
+    ctx.os << " ws=" << subprotocol;
 }
 
 } // namespace

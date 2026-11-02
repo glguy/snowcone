@@ -5,6 +5,9 @@
 #include <gtest/gtest.h>
 
 #include <boost/asio/ssl.hpp>
+#include <boost/beast/core.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/beast/websocket.hpp>
 
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -15,8 +18,10 @@
 #include <unistd.h>
 
 #include <array>
+#include <chrono>
 #include <cstdio>
 #include <cstdint>
+#include <functional>
 #include <future>
 #include <memory>
 #include <optional>
@@ -677,6 +682,431 @@ TEST(Connection, ClosingCancelsPendingRead)
 
     ASSERT_FALSE(accept_error);
     EXPECT_EQ(result.get(), asio::error::operation_aborted);
+}
+
+namespace ws = boost::beast::websocket;
+namespace http = boost::beast::http;
+
+/// What a WebSocket server saw of the client
+struct WsSeen
+{
+    std::string host;
+    std::string target;
+    std::string origin;
+    std::string protocols;
+    std::vector<std::string> messages;
+    bool binary = false;
+};
+
+/// Accepts one WebSocket, choosing `subprotocol` ("" sends none), pings,
+/// reads `expected` messages, sends `replies` in the message type chosen,
+/// then closes with `close`
+auto websocket_server(
+    tcp::acceptor& acceptor,
+    std::string subprotocol,
+    std::size_t const expected,
+    std::vector<std::string> replies,
+    ws::close_reason const close = ws::close_code::normal
+) -> asio::awaitable<WsSeen>
+{
+    tcp::socket socket{co_await asio::this_coro::executor};
+    co_await acceptor.async_accept(socket, asio::use_awaitable);
+
+    boost::beast::flat_buffer buffer;
+    http::request<http::empty_body> request;
+    co_await http::async_read(socket, buffer, request, asio::use_awaitable);
+
+    WsSeen seen{
+        .host = std::string{request[http::field::host]},
+        .target = std::string{request.target()},
+        .origin = std::string{request[http::field::origin]},
+        .protocols = std::string{request[http::field::sec_websocket_protocol]},
+    };
+
+    ws::stream<tcp::socket> stream{std::move(socket)};
+    stream.set_option(ws::stream_base::decorator([subprotocol](ws::response_type& response) {
+        if (not subprotocol.empty())
+        {
+            response.set(http::field::sec_websocket_protocol, subprotocol);
+        }
+    }));
+    co_await stream.async_accept(request, asio::use_awaitable);
+
+    // Answered by the client's read while its writes are under way
+    co_await stream.async_ping({}, asio::use_awaitable);
+
+    for (std::size_t i = 0; i < expected; i++)
+    {
+        boost::beast::flat_buffer message;
+        co_await stream.async_read(message, asio::use_awaitable);
+        seen.messages.push_back(boost::beast::buffers_to_string(message.data()));
+        seen.binary = stream.got_binary();
+    }
+
+    stream.binary(subprotocol == "binary.ircv3.net");
+    for (auto const& reply : replies)
+    {
+        co_await stream.async_write(asio::buffer(reply), asio::use_awaitable);
+    }
+    co_await stream.async_close(close, asio::use_awaitable);
+    co_return seen;
+}
+
+auto websocket_settings(tcp::acceptor const& acceptor, WebSocketLayer layer) -> Settings
+{
+    auto settings = settings_for(acceptor);
+    settings.layers.emplace_back(std::move(layer));
+    return settings;
+}
+
+/// What the client got: the connection description, every byte read, the
+/// error that ended reading, and the stream's account of why
+struct WsGot
+{
+    std::string description;
+    std::string received;
+    boost::system::error_code end;
+    std::string close_reason;
+};
+
+/// Run until every operation finishes, or report a hang
+auto run_briefly(asio::io_context& io) -> bool
+{
+    io.run_for(std::chrono::seconds{10});
+    return io.stopped();
+}
+
+/// Connects, writes `lines` one write at a time, and reads three bytes at a
+/// time until the stream ends
+auto websocket_client(
+    std::shared_ptr<connection> const conn,
+    Settings settings,
+    std::vector<std::string> const lines
+) -> asio::awaitable<WsGot>
+{
+    WsGot got;
+    got.description = co_await conn->connect(std::move(settings));
+    for (auto const& line : lines)
+    {
+        conn->write(line);
+    }
+
+    for (;;)
+    {
+        std::array<char, 3> chunk{};
+        auto const [error, n] = co_await conn->get_stream().async_read_some(
+            asio::buffer(chunk), asio::as_tuple(asio::use_awaitable));
+        got.received.append(chunk.data(), n);
+        if (error)
+        {
+            got.end = error;
+            got.close_reason = conn->get_stream().close_reason();
+            break;
+        }
+    }
+    co_return got;
+}
+
+TEST(WebSocket, SendsLinesAsMessagesAndReadsMessagesAsLines)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    auto server_result = asio::co_spawn(
+        io,
+        websocket_server(acceptor, "binary.ircv3.net", 5, {":s 001 n :welcome", "PONG \xff"}),
+        asio::use_future
+    );
+    // Written before the connection is up, then as one line in two pieces,
+    // with an empty line that isn't sent, then two lines ended by CR
+    conn->write("NICK n\r\nUSER u 0 * :U\r\n");
+    auto client_result = asio::co_spawn(
+        io,
+        websocket_client(conn,
+            websocket_settings(acceptor, {.host = "irc.example:443", .path = "/irc", .origin = "https://irc.example"}),
+            {"\r\nPI", "NG\n", "JOIN #a\rJOIN #b\r\n"}),
+        asio::use_future
+    );
+    ASSERT_TRUE(run_briefly(io)) << "timed out";
+
+    auto const got = client_result.get();
+    auto const seen = server_result.get();
+    EXPECT_TRUE(got.description.ends_with(" ws=binary.ircv3.net")) << got.description;
+    EXPECT_EQ(got.received, ":s 001 n :welcome\nPONG \xff\n");
+    EXPECT_EQ(got.end, ws::error::closed);
+    EXPECT_EQ(got.close_reason, "WebSocket closed by the server with code 1000");
+    EXPECT_EQ(seen.host, "irc.example:443");
+    EXPECT_EQ(seen.target, "/irc");
+    EXPECT_EQ(seen.origin, "https://irc.example");
+    EXPECT_EQ(seen.protocols, "binary.ircv3.net, text.ircv3.net");
+    EXPECT_EQ(seen.messages, (std::vector<std::string>{"NICK n", "USER u 0 * :U", "PING", "JOIN #a", "JOIN #b"}));
+    EXPECT_TRUE(seen.binary);
+}
+
+TEST(WebSocket, TextSubprotocolSendsTextMessages)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    auto server_result = asio::co_spawn(
+        io, websocket_server(acceptor, "text.ircv3.net", 1, {"PONG"}), asio::use_future);
+    auto client_result = asio::co_spawn(
+        io,
+        websocket_client(conn, websocket_settings(acceptor, {.host = "h", .path = "/"}), {"PING\r\n"}),
+        asio::use_future
+    );
+    ASSERT_TRUE(run_briefly(io)) << "timed out";
+
+    auto const got = client_result.get();
+    auto const seen = server_result.get();
+    EXPECT_TRUE(got.description.ends_with(" ws=text.ircv3.net")) << got.description;
+    EXPECT_EQ(got.received, "PONG\n");
+    EXPECT_EQ(seen.origin, "");
+    EXPECT_EQ(seen.messages, (std::vector<std::string>{"PING"}));
+    EXPECT_FALSE(seen.binary);
+}
+
+/// Connects, expecting failure, then closes so the server sees the end.
+/// Returns the failure's message.
+auto connect_expecting_failure(
+    std::shared_ptr<connection> const conn,
+    Settings settings
+) -> asio::awaitable<std::string>
+{
+    std::string message = "connected";
+    try
+    {
+        co_await conn->connect(std::move(settings));
+    }
+    catch (std::exception const& error)
+    {
+        message = error.what();
+    }
+    conn->close();
+    co_return message;
+}
+
+TEST(WebSocket, NoSubprotocolFailsTheConnection)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    // The server's close fails when the client hangs up instead of replying
+    asio::co_spawn(io, websocket_server(acceptor, "", 0, {}), asio::detached);
+    auto client_result = asio::co_spawn(
+        io,
+        connect_expecting_failure(conn, websocket_settings(acceptor, {.host = "h", .path = "/"})),
+        asio::use_future
+    );
+    ASSERT_TRUE(run_briefly(io)) << "timed out";
+
+    EXPECT_EQ(client_result.get(), "WebSocket server chose no IRC subprotocol");
+}
+
+TEST(WebSocket, UnrequestedSubprotocolFailsTheConnection)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    asio::co_spawn(io, websocket_server(acceptor, "chat", 0, {}), asio::detached);
+    auto client_result = asio::co_spawn(
+        io,
+        connect_expecting_failure(conn, websocket_settings(acceptor, {.host = "h", .path = "/"})),
+        asio::use_future
+    );
+    ASSERT_TRUE(run_briefly(io)) << "timed out";
+
+    EXPECT_EQ(client_result.get(), "WebSocket server chose unrequested subprotocol chat");
+}
+
+TEST(WebSocket, ClosingCancelsPendingRead)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    // The server's read fails when the client hangs up
+    asio::co_spawn(io, websocket_server(acceptor, "binary.ircv3.net", 1, {}), asio::detached);
+    auto result = asio::co_spawn(
+        io,
+        connect_then_close_during_read(io, conn, websocket_settings(acceptor, {.host = "h", .path = "/"})),
+        asio::use_future
+    );
+    ASSERT_TRUE(run_briefly(io)) << "timed out";
+
+    // Beast may reach the socket only after the close, which gives EBADF
+    // rather than a canceled read
+    auto const error = result.get();
+    EXPECT_TRUE(error == asio::error::operation_aborted || error == asio::error::bad_descriptor) << error.message();
+}
+
+TEST(WebSocket, ServerCloseReasonIsReported)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    auto server_result = asio::co_spawn(
+        io,
+        websocket_server(acceptor, "binary.ircv3.net", 0, {}, {ws::close_code::policy_error, "go away"}),
+        asio::use_future
+    );
+    auto client_result = asio::co_spawn(
+        io,
+        websocket_client(conn, websocket_settings(acceptor, {.host = "h", .path = "/"}), {}),
+        asio::use_future
+    );
+    ASSERT_TRUE(run_briefly(io)) << "timed out";
+
+    auto const got = client_result.get();
+    server_result.get();
+    EXPECT_EQ(got.end, ws::error::closed);
+    EXPECT_EQ(got.close_reason, "WebSocket closed by the server with code 1008 (go away)");
+}
+
+/// Reads the upgrade request, runs `then`, and waits for the client to go
+auto upgrade_request_then(tcp::acceptor& acceptor, std::function<void(tcp::socket&)> then) -> asio::awaitable<void>
+{
+    tcp::socket socket{co_await asio::this_coro::executor};
+    co_await acceptor.async_accept(socket, asio::use_awaitable);
+    std::string request;
+    co_await asio::async_read_until(socket, asio::dynamic_buffer(request), "\r\n\r\n", asio::use_awaitable);
+    then(socket);
+    std::array<char, 1> byte{};
+    static_cast<void>(co_await socket.async_read_some(asio::buffer(byte), asio::as_tuple(asio::use_awaitable)));
+}
+
+TEST(WebSocket, HangupDuringHandshakeHasNoHttpStatus)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    asio::co_spawn(
+        io, upgrade_request_then(acceptor, [](tcp::socket& socket) { socket.close(); }), asio::detached);
+    auto client_result = asio::co_spawn(
+        io,
+        connect_expecting_failure(conn, websocket_settings(acceptor, {.host = "h", .path = "/"})),
+        asio::use_future
+    );
+    ASSERT_TRUE(run_briefly(io)) << "timed out";
+
+    auto const message = client_result.get();
+    EXPECT_NE(message, "connected");
+    EXPECT_FALSE(message.starts_with("HTTP")) << message;
+}
+
+TEST(WebSocket, ClosingDuringHandshakeAbortsConnect)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    asio::co_spawn(
+        io, upgrade_request_then(acceptor, [conn](tcp::socket&) { conn->close(); }), asio::detached);
+    auto client_result = asio::co_spawn(
+        io,
+        connect_expecting_failure(conn, websocket_settings(acceptor, {.host = "h", .path = "/"})),
+        asio::use_future
+    );
+    ASSERT_TRUE(run_briefly(io)) << "timed out";
+
+    auto const message = client_result.get();
+    EXPECT_NE(message, "connected");
+    EXPECT_FALSE(message.starts_with("HTTP")) << message;
+}
+
+TEST(WebSocket, OfferingNoSubprotocolUsesText)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    auto server_result = asio::co_spawn(io, websocket_server(acceptor, "", 1, {"PONG"}), asio::use_future);
+    auto client_result = asio::co_spawn(
+        io,
+        websocket_client(conn, websocket_settings(acceptor, {.host = "h", .path = "/", .subprotocols = {}}), {"PING\r\n"}),
+        asio::use_future
+    );
+    ASSERT_TRUE(run_briefly(io)) << "timed out";
+
+    auto const got = client_result.get();
+    auto const seen = server_result.get();
+    EXPECT_TRUE(got.description.ends_with(" ws=none")) << got.description;
+    EXPECT_EQ(got.received, "PONG\n");
+    EXPECT_EQ(seen.protocols, "");
+    EXPECT_EQ(seen.messages, (std::vector<std::string>{"PING"}));
+    EXPECT_FALSE(seen.binary);
+}
+
+TEST(WebSocket, OffersOnlyTheGivenSubprotocols)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    auto server_result = asio::co_spawn(io, websocket_server(acceptor, "text.ircv3.net", 0, {}), asio::use_future);
+    auto client_result = asio::co_spawn(
+        io,
+        websocket_client(conn,
+            websocket_settings(acceptor, {.host = "h", .path = "/", .subprotocols = {"text.ircv3.net"}}), {}),
+        asio::use_future
+    );
+    ASSERT_TRUE(run_briefly(io)) << "timed out";
+
+    EXPECT_TRUE(client_result.get().description.ends_with(" ws=text.ircv3.net"));
+    EXPECT_EQ(server_result.get().protocols, "text.ircv3.net");
+}
+
+TEST(WebSocket, SubprotocolNotOfferedFailsTheConnection)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    asio::co_spawn(io, websocket_server(acceptor, "binary.ircv3.net", 0, {}), asio::detached);
+    auto client_result = asio::co_spawn(
+        io,
+        connect_expecting_failure(conn,
+            websocket_settings(acceptor, {.host = "h", .path = "/", .subprotocols = {"text.ircv3.net"}})),
+        asio::use_future
+    );
+    ASSERT_TRUE(run_briefly(io)) << "timed out";
+
+    EXPECT_EQ(client_result.get(), "WebSocket server chose unrequested subprotocol binary.ircv3.net");
+}
+
+auto refusing_http_server(tcp::acceptor& acceptor) -> asio::awaitable<void>
+{
+    tcp::socket socket{co_await asio::this_coro::executor};
+    co_await acceptor.async_accept(socket, asio::use_awaitable);
+    std::string request;
+    co_await asio::async_read_until(socket, asio::dynamic_buffer(request), "\r\n\r\n", asio::use_awaitable);
+    std::string const response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+    co_await asio::async_write(socket, asio::buffer(response), asio::use_awaitable);
+}
+
+TEST(WebSocket, RefusalReportsHttpStatus)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    auto server_result = asio::co_spawn(io, refusing_http_server(acceptor), asio::use_future);
+    auto client_result = asio::co_spawn(
+        io,
+        connect_expecting_failure(conn, websocket_settings(acceptor, {.host = "h", .path = "/"})),
+        asio::use_future
+    );
+    ASSERT_TRUE(run_briefly(io)) << "timed out";
+
+    auto const message = client_result.get();
+    EXPECT_TRUE(message.starts_with("HTTP 404")) << message;
+    server_result.get();
 }
 
 auto happy_connect(
