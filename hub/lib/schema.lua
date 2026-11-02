@@ -26,9 +26,8 @@ function M.check(schema, value, path)
     if schema.oneOf then
         local msg = "No alternatives available: " .. table.concat(path, '.')
         for i, subschema in ipairs(schema.oneOf) do
-            local save_path = tablex.copy(path)
-            local success, submsg = pcall(M.check, subschema, value, path)
-            path = save_path
+            -- a copy: a failed alternative leaves its own fields on it
+            local success, submsg = pcall(M.check, subschema, value, tablex.copy(path))
             if success then
                 return
             end
@@ -97,6 +96,12 @@ function M.check(schema, value, path)
             end
 
         elseif schema.type == 'string' then
+            if schema.values and not schema.values[value] then
+                local names = {}
+                for name in pairs(schema.values) do table.insert(names, name) end
+                table.sort(names)
+                fail('%s must be one of %s, not %s', table.concat(path, '.'), table.concat(names, ', '), value)
+            end
             if schema.pattern and not value:find(schema.pattern) then
                 -- `expected` says in words what the pattern requires
                 if schema.expected then

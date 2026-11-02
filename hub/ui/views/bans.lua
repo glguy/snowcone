@@ -3,6 +3,7 @@
 -- Click an active K-Line's mask to stage removing it (TESTLINE shows its
 -- details), or a D-Line's to stage an undline.
 
+local common     <const> = require 'hub.features.common'
 local control    <const> = require 'hub.ui.control'
 local dashboard  <const> = require 'hub.ui.dashboard'
 local draw       <const> = require 'hub.ui.draw'
@@ -45,9 +46,11 @@ local function draw_entry(ctx, win, entry)
     end
 
     local y, x = ncurses.getyx(win)
-    if entry.kind == 'kline' then
+    -- staging belongs to the oper feature, which shows what it stages
+    local can_stage = common.enabled(ctx.net, 'oper')
+    if can_stage and entry.kind == 'kline' then
         ctx.add_click(y, x, x + #entry.mask, function() oper.stage_unkline(ctx.net, entry.mask) end)
-    elseif entry.kind == 'dline' then
+    elseif can_stage and entry.kind == 'dline' then
         ctx.add_click(y, x, x + #entry.mask, function() oper.stage_undline(ctx.net, entry.mask) end)
     end
 
@@ -63,7 +66,11 @@ local function draw_entry(ctx, win, entry)
             xs[i] = v > 1 and string.format('%s:%d', k, v) or k
             if i == 50 then break end
         end
-        if i < 8 then
+        if entry.more_hits then
+            -- more nicks than the entry keeps by name
+            draw.magenta(win)
+            win:waddstr 'many affected '
+        elseif i < 8 then
             draw.normal(win)
             table.sort(xs)
             win:waddstr(scrub(table.concat(xs, ' ')) .. ' ')

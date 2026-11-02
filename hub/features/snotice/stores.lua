@@ -38,6 +38,7 @@ M.sizes = {users = 1000, exits = 1000, klines = 1000, new_channels = 100}
 ---@field trackers {conn: hub.LoadTracker, exit: hub.LoadTracker, kline: hub.LoadTracker, filter: hub.LoadTracker}
 ---@field net_trackers table<string, table<string, hub.Range>> ranges by
 --- label, in trackers by name (nettrack.lua)
+---@field file_tracks table<string, true>|nil the trackers the servers file made
 ---@field watches hub.Watch[]
 
 --- Fresh stores for a network record.
@@ -224,15 +225,22 @@ function H.kill(S, ev)
 end
 
 -- Count a nick against the ban that matched it
+-- How many nicks a ban, or a flooder's entry, keeps by name; the rest are
+-- only counted, so a botnet against one ban can't grow it without end
+M.max_names = 50
+
 local function ban_hit(S, key, nick)
     local entry = OrderedMap.lookup(S.klines, key)
-    if entry then
-        local nicks = entry.nicks
-        if nicks then
-            nicks[nick] = (nicks[nick] or 0) + 1
-        else
-            entry.nicks = {[nick] = 1}
-        end
+    if not entry then return end
+    local nicks = entry.nicks or {}
+    entry.nicks = nicks
+    if nicks[nick] then
+        nicks[nick] = nicks[nick] + 1
+    elseif (entry.nick_count or 0) < M.max_names then
+        nicks[nick] = 1
+        entry.nick_count = (entry.nick_count or 0) + 1
+    else
+        entry.more_hits = (entry.more_hits or 0) + 1
     end
 end
 
@@ -318,8 +326,10 @@ local function channel_flag(S, ev, channel, flag)
                 return
             end
         end
-        table.insert(entry.channels, channel)
-        table.insert(entry.flags, flag)
+        if #entry.channels < M.max_names then
+            table.insert(entry.channels, channel)
+            table.insert(entry.flags, flag)
+        end
     end
 end
 

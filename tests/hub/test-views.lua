@@ -167,6 +167,91 @@ T.case('/addwatch filter takes the filter of the cliconn view', function()
     T.eq({watches[#watches].pattern, watches[#watches].color}, {'badguy', 'red'}, 'added')
 end)
 
+T.case('without the oper feature, masks stage nothing when clicked', function()
+    local fake = FakeTransport.new()
+    T.boot {ui = true, transport = fake, config = {networks = {{
+        id = 'test', features = {'snotice', 'chat'},
+        server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'},
+    }}}}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 376 me :End of MOTD'
+    c:recv ':srv 221 me +o'
+    c:recv ':a.example NOTICE * :*** Notice -- Client connecting: n (u@h.example) [192.0.2.1] {users} <*> [g]'
+    c:take()
+    T.require 'hub.ui.control'.set_view 'cliconn'
+    HUB.current.routes['ui.draw']()
+    for y = 0, tty_height - 1 do
+        HUB.current.routes['ui.entry']('on_mouse', y, 20, false)
+    end
+    T.eq(c:take(), {}, 'no TESTMASK')
+    T.eq(HUB.state.features.oper, nil, 'no oper state')
+end)
+
+T.case('a terminal of one row still draws', function()
+    boot()
+    local height = tty_height
+    local made = {}
+    rawset(_G, 'tty_height', 1)
+    local ok, err = pcall(function()
+        HUB.current.routes['ui.entry']('on_resize')
+        for _, win in ipairs(fake_ncurses.windows) do
+            if win.kind == 'newpad' then table.insert(made, win.h) end
+        end
+        for _, view in ipairs {'status', 'console', 'cliconn', 'buffer'} do
+            T.require 'hub.ui.control'.set_view(view)
+            HUB.current.routes['ui.draw']()
+        end
+    end)
+    rawset(_G, 'tty_height', height)
+    HUB.current.routes['ui.entry']('on_resize')
+    assert(ok, err)
+    T.ok(made[#made] >= 1, 'no pad of zero rows')
+    T.eq(T.log_lines 'error', {}, 'no errors')
+end)
+
+T.case('times from a server that are not times show as ?', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':srv 332 me #chan :a topic'
+    c:recv ':srv 333 me #chan op 99999999999999999999'
+    c:recv ':srv 329 me #chan 1.5'
+    c:recv ':srv 367 me #chan *!*@x op nonsense'
+    c:recv ':srv 368 me #chan :End'
+    T.command('chaninfo #chan', 'test', '#chan')
+    HUB.current.routes['ui.draw']()
+    c:recv ':srv 317 me bob 1e999 1.5 :seconds idle, signon time'
+    local log = HUB.state.nets.test.console
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    control.open_detail('message', 'test', OrderedMap.get(log, OrderedMap.last(log)))
+    HUB.current.routes['ui.draw']()
+    T.eq(T.log_lines 'error', {}, 'drawn')
+    local draw = T.require 'hub.ui.draw'
+    T.eq({draw.date('%c', 1.5), draw.date('%c', 'x'), draw.duration(1/0), draw.duration(0/0)}, {'?', '?', '?', '?'}, '?')
+    T.eq({draw.date('%Y', 0), draw.duration(90)}, {os.date('%Y', 0), '90s'}, 'sane ones as before')
+end)
+
+T.case('the input line shows the cursor past 1024 cells', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    local editor = T.require 'hub.ui.editor'
+    HUB.state.ui.input.mode = 'command'
+    editor.insert(control.editor(), string.rep('x', 3000) .. 'END')
+    HUB.current.routes['ui.draw']()
+    local found
+    for _, win in ipairs(fake_ncurses.windows) do
+        if win.kind == 'newpad' and win.h == 1 and fake_ncurses.row(win, 0):find('END', 1, true) then
+            found = win
+        end
+    end
+    T.ok(found, 'the end of the line is drawn')
+    T.ok(found and found.w >= 3003, 'in a pad wide enough')
+end)
+
 T.case('keys reach input modes, views and commands', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
@@ -1023,6 +1108,33 @@ T.case('a staged K-Line turns the title red', function()
     T.eq(statusbar.title_color(), ncurses.COLOR_WHITE, 'white once canceled')
     oper.stage_undline('test', '198.51.100.0/24')
     T.eq(statusbar.title_color(), ncurses.COLOR_WHITE, 'only K-Lines')
+end)
+
+T.case('Meta-H hides OFTC hybrid server notices in the console', function()
+    local fake = FakeTransport.new()
+    T.boot {ui = true, transport = fake, config = {networks = {{
+        id = 'test', ircd = 'oftc-hybrid',
+        server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'},
+    }}}}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 376 me :End of MOTD'
+    c:recv ':a.example NOTICE me :Client connecting: n (~u@h.example) [192.0.2.1] {users} [Real Name]'
+    c:recv ':bob!b@h PRIVMSG me :visible line'
+    local control = T.require 'hub.ui.control'
+    control.set_view 'console'
+    control.view_state('console').hide_snow = true
+    HUB.current.routes['ui.draw']()
+    local text = {}
+    for _, win in ipairs(fake_ncurses.windows) do
+        for y = 0, win.h - 1 do table.insert(text, fake_ncurses.row(win, y)) end
+    end
+    text = table.concat(text, '\n')
+    T.ok(text:find('visible line', 1, true), 'other lines shown')
+    T.ok(not text:find('Client connecting', 1, true), 'the notice hidden')
 end)
 
 T.case('the message detail reads OFTC hybrid replies and notices', function()

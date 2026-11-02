@@ -715,6 +715,20 @@ T.case('our own messages are never mentions or unseen', function()
     T.eq(sent[#sent], 'MONITOR + bob', 'still watched')
 end)
 
+T.case('a flood of new senders makes a few history requests, and CTCP requests are not mentions', function()
+    local c, chat = boot()
+    for i = 1, 30 do c:recv(':spam' .. i .. '!s@h PRIVMSG me :hi') end
+    local requests = 0
+    for _, line in ipairs(c:take()) do
+        if line:match '^CHATHISTORY' then requests = requests + 1 end
+    end
+    T.eq(requests, chat.history_burst, 'a burst of requests')
+    c:recv ':bob!b@h PRIVMSG me :\x01VERSION\x01'
+    T.eq(chat.buffer('test', 'bob').mention, false, 'VERSION is not a mention')
+    c:recv ':carol!c@h PRIVMSG me :\x01ACTION waves\x01'
+    T.eq(chat.buffer('test', 'carol').mention, true, 'an action is')
+end)
+
 T.case('/msg opens the target\'s buffer', function()
     local c, chat = boot()
     T.command('msg carol hello')
@@ -1113,8 +1127,8 @@ T.case('mentions notify once until seen, and dismiss', function()
     -- a backend that records what it was asked
     local calls = {}
     HUB.current.gen.loaded['hub.features.notify.test'] = {
-        notify = function(previous, target, nick, text)
-            table.insert(calls, {'notify', previous or false, target, nick, text})
+        notify = function(previous, target, nick, text, net, key)
+            table.insert(calls, {'notify', previous or false, target, nick, text, net, key})
             return previous or 'handle'
         end,
         dismiss = function(handle) table.insert(calls, {'dismiss', handle}) end,
@@ -1127,8 +1141,8 @@ T.case('mentions notify once until seen, and dismiss', function()
     c:recv ':bob!b@h PRIVMSG me :one'
     c:recv ':bob!b@h PRIVMSG me :two'
     T.eq(calls, {
-        {'notify', false, 'bob', 'bob', 'one'},
-        {'notify', 'handle', 'bob', 'bob', 'two'},
+        {'notify', false, 'bob', 'bob', 'one', 'test', 'BOB'},
+        {'notify', 'handle', 'bob', 'bob', 'two', 'test', 'BOB'},
     }, 'second notification knows the first')
 
     tty.set_focus(true)
@@ -1140,6 +1154,24 @@ T.case('mentions notify once until seen, and dismiss', function()
     notify.dismiss('test', 'bob')
     T.eq(#calls, 3, 'only once')
     T.eq(chat.buffer('test', 'bob').mention, true, 'the buffer still shows the mention')
+end)
+
+T.case('mac notifications group by network and buffer, with a plain subtitle', function()
+    boot()
+    local mac = T.require 'hub.features.notify.mac'
+    local runs = {}
+    local methods = HUB.current.task_methods
+    local execute = methods.execute
+    methods.execute = function(_, command, args) table.insert(runs, {command, args}) return 0, '', '' end
+    local ok, err = pcall(function()
+        T.eq(mac.notify(nil, '[afk]bob', 'bob', 'hi', 'test', '{AFK}BOB'), 'irc.snowcone.test.{AFK}BOB', 'the group')
+    end)
+    methods.execute = execute
+    assert(ok, err)
+    local args = runs[1][2]
+    local subtitle
+    for i, a in ipairs(args) do if a == '-subtitle' then subtitle = args[i + 1] end end
+    T.eq(subtitle, 'test [afk]bob', 'starts with the network')
 end)
 
 T.case('crypto commands write keys and print the services commands', function()

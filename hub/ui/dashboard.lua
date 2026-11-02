@@ -2,6 +2,7 @@
 -- action bar for ban staging, and the load in the status bar.
 
 local common   <const> = require 'hub.features.common'
+local config_schema <const> = require 'hub.runtime.config_schema'
 local control  <const> = require 'hub.ui.control'
 local draw     <const> = require 'hub.ui.draw'
 local loadavg  <const> = require 'hub.lib.loadavg'
@@ -81,7 +82,7 @@ end
 
 --- Draw function for a color name, or nil.
 function M.color(name)
-    if name and draw[name] then return draw[name] end
+    if name and config_schema.colors[name] then return draw[name] end
 end
 
 -- Action bar ==========================================================

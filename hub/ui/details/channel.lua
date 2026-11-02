@@ -36,9 +36,9 @@ local list_names <const> = {b = 'bans', q = 'quiets', e = 'excepts', I = 'invex'
 
 -- A time with how long ago it was
 local function when(win, t)
-    win:waddstr(os.date('%c', t))
+    win:waddstr(draw.date('%c', t))
     key(win, 'ago')
-    win:waddstr(draw.duration(os.time() - t))
+    win:waddstr(draw.duration(os.time() - (tonumber(t) or 0/0)))
 end
 
 -- The nick of a source, or the source
@@ -176,7 +176,7 @@ local function list_mode(ctx, win, channel, mode, pattern)
         end
         if entry.ts then
             key(win, 'on')
-            win:waddstr(os.date('%Y-%m-%d %H:%M', entry.ts))
+            win:waddstr(draw.date('%Y-%m-%d %H:%M', entry.ts))
         end
         win:waddstr '\n'
     end

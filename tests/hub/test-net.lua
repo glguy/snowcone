@@ -1294,6 +1294,8 @@ T.case('configuration constraints from the dashboard', function()
         {rate_limit = {burst = 1.5, interval = 2}},
         {rate_limit = {burst = 5, interval = 0}},
         {reconnect = {min_delay = 0, max_delay = 1}},
+        {watches = {{pattern = 'x', color = 'duration'}}},
+        {watches = {{pattern = 'x', color = 'orange'}}},
         {identity = {nick = 'n', user = ':x'}},
         {snomask = ':+s'},
         {oper = {credentials = {{mechanism = 'password', username = ':o', password = 'x'}}}},

@@ -55,7 +55,8 @@ function M.set_impl(f)
     lookup_impl = f
 end
 
---- Organization and AS number of an address, when known.
+--- Organization and AS number of an address, when known. An address the
+--- database can't read, as a server may send one, is unknown.
 ---@param addr string
 ---@return string|nil org
 ---@return integer|nil asn
@@ -63,7 +64,10 @@ function M.lookup(addr)
     if lookup_impl == nil then
         lookup_impl = open()
     end
-    return lookup_impl(addr)
+    local ok, org, asn = pcall(lookup_impl, addr)
+    if ok then
+        return org, asn
+    end
 end
 
 return M

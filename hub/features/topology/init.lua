@@ -314,6 +314,14 @@ function M.subscribe(sub)
         end
     end)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
+    -- a MAP or LINKS reply the connection cut off is never finished
+    sub.on('net.closed', function(ev)
+        local T = common.get_state(M.name, ev.net)
+        if T then
+            T.in_map = nil
+            T.partial_links = nil
+        end
+    end)
 end
 
 -- Keep the rotation refresh running. The timer's id lives in state so a

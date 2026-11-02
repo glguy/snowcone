@@ -330,6 +330,8 @@ T.case('/reload with a file reads that file from then on', function()
     T.sleep(50)
     T.eq({HUB.current.config.file, HUB.current.config.ui.profile}, {chosen, 'chat'}, 'the chosen file')
     T.eq(HUB.config_file, chosen, 'remembered')
+    T.eq(T.require 'hub.runtime.config'.resolve_path 'servers.toml', dir .. '/servers.toml',
+        'relative paths beside the file')
 
     write_config(chosen, 'dashboard')
     T.ok(T.reload(), 'a reload without a file')

@@ -81,6 +81,49 @@ local function guard(name, what, f, ...)
     return ok, err
 end
 
+-- fn, reporting its errors as the plugin's. A canceled task's quiet end
+-- passes through.
+local function guarded(name, what, fn)
+    return function(...)
+        local result = table.pack(xpcall(fn, traceback, ...))
+        if result[1] then
+            return table.unpack(result, 2, result.n)
+        end
+        local err = result[2]
+        if type(err) == 'table' and err.task_canceled then
+            error(err, 0)
+        end
+        report(name, what, err)
+    end
+end
+
+-- A view's functions run guarded; a render that fails shows that it did
+-- until the next reload, rather than failing, and being reported, every
+-- frame
+local function guard_view(name, view)
+    local id = view.id
+    for _, field in ipairs {'keypress', 'status', 'modes'} do
+        if type(view[field]) == 'function' then
+            view[field] = guarded(name, 'view ' .. id .. ' ' .. field, view[field])
+        end
+    end
+    local render = view.render
+    if type(render) == 'function' then
+        local failed = false
+        view.render = function(ctx, win, ...)
+            if failed then
+                win:waddstr('plugin ' .. name .. ': view ' .. id .. ' failed; see /plugins\n')
+                return
+            end
+            local ok, err = xpcall(render, traceback, ctx, win, ...)
+            if not ok then
+                failed = true
+                report(name, 'view ' .. id .. ' render', err)
+            end
+        end
+    end
+end
+
 local function directory()
     local cfg = HUB.state.config.plugins
     local dir = cfg and cfg.directory
@@ -112,7 +155,7 @@ local function make_api(name, entry, current)
 
     function api.command(command, spec, fn, help, usage)
         guard(name, 'command ' .. command, current.add_command, owner(name), {
-            name = command, spec = spec, fn = fn,
+            name = command, spec = spec, fn = guarded(name, 'command ' .. command, fn),
             help = help or ('from plugin ' .. name),
             usage = usage or spec_usage(spec),
             group = 'plugin ' .. name,
@@ -123,6 +166,7 @@ local function make_api(name, entry, current)
         view.id = id
         view.title = view.title or id
         view.scope = view.scope or 'global'
+        guard_view(name, view)
         if guard(name, 'view ' .. id, current.add_view, owner(name), view) then
             table.insert(entry.views, id)
         end
@@ -131,7 +175,7 @@ local function make_api(name, entry, current)
     function api.send(net, cmd, ...) return send.send(net, cmd, ...) end
     function api.log(fmt, ...) log.add(name, fmt, ...) end
     function api.task(task_name, fn, ...)
-        return task.spawn(task_name, {owner = owner(name)}, fn, ...)
+        return task.spawn(task_name, {owner = owner(name)}, guarded(name, 'task ' .. task_name, fn), ...)
     end
     function api.networks() return manager.ids() end
 
@@ -149,13 +193,13 @@ local function make_api(name, entry, current)
     end
 
     function api.timer(ms, fn)
-        local id = register_callback(fn)
+        local id = register_callback(guarded(name, 'timer', fn))
         return timer.start(owner(name), ms, 'plugins.callback', id)
     end
     api.cancel_timer = timer.cancel
 
     function api.httpd(host, service, handler)
-        local id = register_callback(handler)
+        local id = register_callback(guarded(name, 'httpd', handler))
         local listener = snowcone.start_httpd(host, service, dispatch.trampoline('plugins.callback', id))
         return resources.add('httpd', owner(name), listener, 'close')
     end

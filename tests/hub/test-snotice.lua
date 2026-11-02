@@ -288,6 +288,28 @@ T.case('network trackers count connections by range', function()
     T.raises('bad address range', nettrack.new_range, 'nonsense')
 end)
 
+T.case('an address the database rejects is unknown', function()
+    local c = boot {'snotice'}
+    local ip_org = T.require 'hub.features.ip_org'
+    ip_org.set_impl(function() error 'bad address' end)
+    notice(c, 'a.example', 'Client connecting: n (u@h) [1.2.3] {users} <*> [g]')
+    ip_org.set_impl(nil)
+    T.eq(T.require 'hub.lib.OrderedMap'.lookup(stores().users, 'n').org, nil, 'no organization')
+end)
+
+T.case('a ban keeps a bounded number of nicks by name', function()
+    local c = boot {'snotice'}
+    local stores_m = T.require 'hub.features.snotice.stores'
+    notice(c, 'a.example', 'op!o@staff.example{op} added global 60 min. K-Line for [*@192.0.2.9] [spam]')
+    for i = 1, stores_m.max_names + 20 do
+        notice(c, 'a.example', 'Disconnecting K-Lined user n' .. i .. '[~u@192.0.2.9] (*@192.0.2.9)')
+    end
+    local entry = T.require 'hub.lib.OrderedMap'.lookup(stores().klines, 'kline *@192.0.2.9')
+    local n = 0
+    for _ in pairs(entry.nicks or {}) do n = n + 1 end
+    T.eq({n, entry.more_hits}, {stores_m.max_names, 20}, 'the rest counted')
+end)
+
 T.case('the stores fold nicks with the casemapping the server announces', function()
     local c = boot {'snotice'}
     local OrderedMap = T.require 'hub.lib.OrderedMap'
@@ -395,6 +417,10 @@ local hybrid_notices = {
      {name = 'expired', server = 'a.example', kind = 'k-line', mask = '*@192.0.2.8'}},
     {bare 'KLINE *@192.0.2.9 (spam) active for n[~u@192.0.2.9]',
      {name = 'kline_active', server = 'a.example', nick = 'n', user = '~u', host = '192.0.2.9', mask = '*@192.0.2.9'}},
+    {bare 'KLINE *@192.0.2.9 (spam) active for a[b[~u@192.0.2.9]',
+     {name = 'kline_active', server = 'a.example', nick = 'a[b', user = '~u', host = '192.0.2.9', mask = '*@192.0.2.9'}},
+    {headed 'Possible Flooder [f][~f@h.example] on a.example target: #c',
+     {name = 'flooder', server = 'a.example', nick = '[f]', user = '~f', host = 'h.example', target = '#c'}},
     {bare 'DLINE *@198.51.100.7 (x) active for n[~u@198.51.100.7]',
      {name = 'dline_active', server = 'a.example', nick = 'n', user = '~u', host = '198.51.100.7', mask = '198.51.100.7'}},
     {bare 'X-line Rejecting [botnet] [bots], user b[~b@h.example] [192.0.2.3]',

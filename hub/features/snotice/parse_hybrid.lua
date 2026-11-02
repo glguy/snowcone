@@ -158,7 +158,7 @@ return function(server, str)
     -- "KLINE <user>@<host> (<reason>) active for <nick>[<user>@<ip>]"
     do
         local kind, mask, nick, user, host =
-            string.match(str, '^(%u)LINE (%S+) %(.*%) active for ([^[ ]+)%[([^@ ]+)@([^%] ]+)%]$')
+            string.match(str, '^(%u)LINE (%S+) %(.*%) active for (%S+)%[([^@ %[]+)@([^%] ]+)%]$')
         if kind == 'K' then
             return {
                 name = 'kline_active',
@@ -182,7 +182,7 @@ return function(server, str)
 
     do
         local mask, nick, user, host, ip =
-            string.match(str, '^X%-line Rejecting %[(.*)%] %[.*%], user ([^[ ]+)%[([^@ ]+)@([^%] ]+)%] %[(%S*)%]$')
+            string.match(str, '^X%-line Rejecting %[(.*)%] %[.*%], user (%S+)%[([^@ %[]+)@([^%] ]+)%] %[(%S*)%]$')
         if nick then
             return {
                 name = 'rejected',
@@ -259,10 +259,10 @@ return function(server, str)
 
     do
         local nick, user, host, target =
-            string.match(str, '^Possible Flooder ([^[ ]+)%[([^@ ]+)@([^%] ]+)%] on %S+ target: (%S+)$')
+            string.match(str, '^Possible Flooder (%S+)%[([^@ %[]+)@([^%] ]+)%] on %S+ target: (%S+)$')
         if not nick then
             nick, user, host, target =
-                string.match(str, '^Possible Join Flooder ([^[ ]+)%[([^@ ]+)@([^%] ]+)%] on %S+ target: (%S+)$')
+                string.match(str, '^Possible Join Flooder (%S+)%[([^@ %[]+)@([^%] ]+)%] on %S+ target: (%S+)$')
         end
         if nick then
             return {
@@ -327,10 +327,10 @@ return function(server, str)
     -- one per limit, with the limit's setting as the kind
     do
         local kind, nick, user, host, ip, class =
-            string.match(str, '^Too many .- %((%S+)%) ([^[ ]+)%[([^@ ]+)@([^%] ]+)%] %[(%S*)%] {(%S*)}$')
+            string.match(str, '^Too many .- %((%S+)%) (%S+)%[([^@ %[]+)@([^%] ]+)%] %[(%S*)%] {(%S*)}$')
         if not kind then
             nick, user, host, ip =
-                string.match(str, '^Too many on IP for ([^[ ]+)%[([^@ ]+)@([^%] ]+)%] %((%S*)%)%. %(generic too_many%)$')
+                string.match(str, '^Too many on IP for (%S+)%[([^@ %[]+)@([^%] ]+)%] %((%S*)%)%. %(generic too_many%)$')
             kind = nick and 'too_many'
         end
         if nick then

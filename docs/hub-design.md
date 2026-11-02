@@ -290,8 +290,10 @@ views, persistent `api.state`, sending, logging, tasks, timers and HTTP
 listeners. Plugins start once their generation is current, into that
 generation, so they reload with the client; a newer generation closes their
 resources and tasks before starting its own plugins, and their callbacks
-fire only into their own generation. A plugin's errors are logged under its
-name. Files written for ircc or the
+fire only into their own generation. A plugin's errors, from any of its
+callbacks (handlers, commands, views, timers, tasks, HTTP handlers), are
+logged under its name; a view whose render fails says so in place of
+drawing, and is reported once. Files written for ircc or the
 dashboard are refused with a message to port them.
 
 ## 7. User interface
@@ -420,7 +422,7 @@ patterns = ['%f[%w]mynick%f[^%w]']
 backend = 'mac'                # bell, mac or iterm2
 
 [plugins]
-directory = 'plugins'          # default; relative to the config directory
+directory = 'plugins'          # relative to this file; default: plugins in the config directory
 modules = ['example']
 
 [[networks]]

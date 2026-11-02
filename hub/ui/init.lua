@@ -21,24 +21,46 @@ local M = {}
 
 local pad_width <const> = pads.width
 
-local layout = {textbox_offset = 0, detail_rows = 0}
+local layout = {textbox_offset = 0, textbox_width = 0, detail_rows = 0}
 
+-- Replace a window with a new one, made before the old one goes, so a
+-- failure leaves the old one usable
+local function replace(key, make, ...)
+    local new = make(...)
+    if layout[key] then layout[key]:delwin() end
+    layout[key] = new
+end
+
+-- Cells of the input line's pad, at first
+local textbox_min <const> = 1024
+
+-- Windows are at least a row and a column, however small the terminal
 local function make_layout()
-    if layout.main_pad then layout.main_pad:delwin() end
-    layout.main_pad = ncurses.newpad(tty_height - 1, pad_width)
+    local rows = math.max(1, tty_height - 1)
+    local cols = math.max(1, tty_width)
+    replace('main_pad', ncurses.newpad, rows, pad_width)
 
     -- the detail pane and document views wrap at the terminal's width
     -- and grow downward
-    if layout.detail_pad then layout.detail_pad:delwin() end
-    layout.detail_pad = ncurses.newpad(tty_height - 1, tty_width)
-    if layout.document_pad then layout.document_pad:delwin() end
-    layout.document_pad = ncurses.newpad(tty_height - 1, tty_width)
+    replace('detail_pad', ncurses.newpad, rows, cols)
+    replace('document_pad', ncurses.newpad, rows, cols)
 
-    if layout.input_win then layout.input_win:delwin() end
-    layout.input_win = ncurses.newwin(1, tty_width, tty_height - 1, 0)
+    replace('input_win', ncurses.newwin, 1, cols, math.max(0, tty_height - 1), 0)
 
-    if layout.textbox_pad then layout.textbox_pad:delwin() end
-    layout.textbox_pad = ncurses.newpad(1, 1024)
+    replace('textbox_pad', ncurses.newpad, 1, textbox_min)
+    layout.textbox_width = textbox_min
+end
+
+-- The input line's pad is as wide as the line drawn needs, by a bound
+-- with room to spare: no byte draws as more than two cells
+local function fit_textbox()
+    local ed = control.editor()
+    local needed = (#ed.before_cursor + #ed.at_cursor) * 4 + 16
+    if needed > layout.textbox_width then
+        local width = math.max(needed, layout.textbox_width * 2)
+        replace('textbox_pad', ncurses.newpad, 1, width)
+        layout.textbox_width = width
+    end
 end
 
 --- Context handed to a view's render, keypress and status functions.
@@ -85,6 +107,7 @@ local function render()
     if tty.suspended() then return end
 
     clicks.reset()
+    fit_textbox()
     local main_pad, input_win, textbox_pad = layout.main_pad, layout.input_win, layout.textbox_pad
     ncurses.erase()
     main_pad:werase()

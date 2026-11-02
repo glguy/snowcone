@@ -103,7 +103,7 @@ function M.render(ctx, win)
     -- the reply it was
     local function when(name, t)
         label(win, name)
-        win:waddstr(os.date('%c', t))
+        win:waddstr(draw.date('%c', t))
         key(win, 'ago')
         win:waddstr(draw.duration(w.at - t), '\n')
     end

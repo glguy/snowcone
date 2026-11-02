@@ -16,12 +16,15 @@ local function run(args)
     end)
 end
 
-function M.notify(previous, buffer, nick, msg)
+function M.notify(previous, buffer, nick, msg, net, key)
     if previous then return previous end
-    local tag = 'irc.snowcone.' .. buffer
+    -- one group per buffer of each network
+    local tag = 'irc.snowcone.' .. net .. '.' .. key
     run {
         '-title', 'Snowcone',
-        '-subtitle', buffer,
+        -- terminal-notifier reads arguments as property lists: one that
+        -- starts with the network's id can't be read as [a], {b} or (c)
+        '-subtitle', net .. ' ' .. buffer,
         '-sound', 'default',
         -- \< for a terminal-notifier quirk
         '-message', string.format('\\<%s> %s', nick, msg),

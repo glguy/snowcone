@@ -28,6 +28,7 @@
 
 local bus        <const> = require 'hub.runtime.bus'
 local casemap    <const> = require 'hub.lib.casemap'
+local clock      <const> = require 'hub.runtime.clock'
 local commands   <const> = require 'hub.features.chat.commands'
 local common     <const> = require 'hub.features.common'
 local ctcp       <const> = require 'hub.features.chat.ctcp'
@@ -36,6 +37,7 @@ local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
 local N          <const> = require 'hub.lib.numerics'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
+local ratelimit  <const> = require 'hub.lib.ratelimit'
 local receipt    <const> = require 'hub.features.chat.receipt'
 local send       <const> = require 'hub.net.send'
 local task       <const> = require 'hub.runtime.task'
@@ -47,6 +49,10 @@ local M = {}
 M.name = 'chat'
 M.buffer_size = 1000
 M.list_size = 10000
+-- History requests new buffers may make at once, and the seconds that
+-- earn another
+M.history_burst = 10
+M.history_interval = 6
 
 --- A buffer named for a server, which sends WALLOPS and messages to
 --- broadcast masks; such a buffer has no history, typing or MONITOR. A
@@ -98,6 +104,7 @@ end
 ---@field closing table<string, true> channels /close parted, by folded name;
 --- for the current connection
 ---@field composing hub.ChatComposing|nil what we are writing and where
+---@field history_bucket number|nil pacing of new buffers' history requests (lib/ratelimit)
 ---@field casemapping string|nil what the keys are folded with: the
 --- network's, as last announced; rfc1459 before any
 
@@ -233,8 +240,12 @@ function M.open(net, target, before)
     end
     buffer = {name = target, messages = OrderedMap.new(M.buffer_size), activity = 0, mention = false}
     C.buffers[key] = buffer
-    if not M.is_server(net, target) then
-        -- what came before the message that opened it, or the latest
+    -- what came before the message that opened it, or the latest; a flood
+    -- of new senders gets a few such requests, not one each
+    local now = clock.now()
+    if not M.is_server(net, target)
+    and ratelimit.wait(C.history_bucket or now, now, M.history_burst, M.history_interval) == 0 then
+        C.history_bucket = ratelimit.take(C.history_bucket or now, now, M.history_interval)
         history.request(M, net, target, before and 'BEFORE' or 'LATEST', before)
     end
     bus.emit('chat.buffer', {net = net, target = target, opened = true})
@@ -392,10 +403,12 @@ local function route_chat(net, irc, target, text, msg)
     end
 
     -- to us, to a broadcast mask ($$*.net), or to a nick we just left: in
-    -- the sender's buffer; only one to us is a mention
+    -- the sender's buffer; only one to us is a mention, and not a CTCP
+    -- request (VERSION, PING) other than an action
     local sender = nick or msg.source
     if sender then
-        add(net, sender, msg, irc_model.is_me(irc, target), true)
+        local ctcp_request = text:find '^\x01' and not text:find '^\x01ACTION'
+        add(net, sender, msg, irc_model.is_me(irc, target) and not ctcp_request, true)
     end
 end
 

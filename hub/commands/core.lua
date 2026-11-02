@@ -45,8 +45,8 @@ M.commands = {
         help = 'Reload code and configuration, keeping connections and state; a file is read from then on',
         fn = function(_, file)
             file = file:match '^%s*(.-)%s*$'
-            -- relative to the configuration directory, like other paths
-            file = file ~= '' and config.resolve_path(path.expanduser(file)) or nil
+            -- relative to the configuration directory
+            file = file ~= '' and path.join(config.config_dir(), path.expanduser(file)) or nil
             -- Not from inside the command's own frame: the reload replaces
             -- the code that is running it
             timer.start('commands', 0, 'app.reload', file)

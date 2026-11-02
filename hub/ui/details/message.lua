@@ -184,7 +184,7 @@ local function set_by(who, time)
     if who then table.insert(parts, {'by ' .. scrub(who)}) end
     if time then
         local ago = math.max(0, os.time() - time)
-        table.insert(parts, {os.date('%Y-%m-%d %H:%M', time) .. ', ' .. draw.duration(ago) .. ' ago'})
+        table.insert(parts, {draw.date('%Y-%m-%d %H:%M', time) .. ', ' .. draw.duration(ago) .. ' ago'})
     end
     return parts
 end

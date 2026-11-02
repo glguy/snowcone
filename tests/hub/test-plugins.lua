@@ -5,6 +5,7 @@
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')
 local FakeTransport = dofile(here .. '/fake_transport.lua')
+dofile(here .. '/fake_ncurses.lua').install()
 local path = require 'pl.path'
 local file = require 'pl.file'
 
@@ -156,7 +157,8 @@ end
 
         T.eq({callback('GET', '/x', '', {})}, {200, 'GET /x', {['Content-Type'] = 'text/plain'}}, 'reply')
         T.eq(select('#', callback('GET', '/fail', '', {})), 0, 'an error gives no reply')
-        T.ok(T.log_lines('error')[1], 'and is reported')
+        local logged = T.log_lines 'plugin'
+        T.ok(logged[#logged]:find('saver httpd: ', 1, true), 'and is reported as the plugin\'s: ' .. logged[#logged])
     end)
     snowcone.start_httpd = real
     os.remove(path.join(dir, 'saver.dat'))
@@ -180,6 +182,31 @@ end
         T.ok(errors[#errors]:find('log handler fails', 1, true), errors[#errors])
     end)
     os.remove(path.join(dir, 'logboom.lua'))
+    if not ok then error(err, 0) end
+end)
+
+T.case('a plugin\'s view, timer and task errors are its own, and a failed view is reported once', function()
+    assert(file.write(path.join(dir, 'badview.lua'), [[
+return function(api)
+    api.view('broken', {render = function() error 'render fails' end})
+    api.timer(0, function() error 'timer fails' end)
+    api.task('t', function() error 'task fails' end)
+end
+]]))
+    local ok, err = pcall(function()
+        HUB = nil
+        T.boot {strict = false, ui = true, config = {plugins = {directory = dir, modules = {'badview'}}, networks = {}}}
+        T.require 'hub.ui.control'.set_view 'broken'
+        for _ = 1, 3 do HUB.current.routes['ui.draw']() end
+        HUB.current.routes['plugins.callback'](1)
+        local logged = table.concat(T.log_lines 'plugin', '\n')
+        local _, renders = logged:gsub('render fails', '')
+        T.eq(renders, 1, 'the render failure once: ' .. logged)
+        T.ok(logged:find('badview task t: ', 1, true), 'the task under the plugin')
+        T.ok(logged:find('badview timer: ', 1, true), 'the timer too')
+        T.eq(T.log_lines 'error', {}, 'nothing as a hub error')
+    end)
+    os.remove(path.join(dir, 'badview.lua'))
     if not ok then error(err, 0) end
 end)
 

@@ -77,13 +77,32 @@ function M.outbound(msg)
     return '>>>', M.red
 end
 
---- A length of time in a few characters: 45s, 12m, 3h 20m, 2d 4h.
+-- Times a server sends are only text: anything past a few centuries
+-- isn't a time
+local max_seconds <const> = 1e10
+
+--- A length of time in a few characters: 45s, 12m, 3h 20m, 2d 4h; ?
+--- for what isn't a sane length.
 function M.duration(seconds)
+    seconds = tonumber(seconds)
+    if not seconds or seconds ~= seconds or math.abs(seconds) > max_seconds then return '?' end
     seconds = math.floor(seconds)
     if seconds < 120 then return seconds .. 's' end
     if seconds < 7200 then return seconds // 60 .. 'm' end
     if seconds < 172800 then return string.format('%dh %dm', seconds // 3600, seconds % 3600 // 60) end
     return string.format('%dd %dh', seconds // 86400, seconds % 86400 // 3600)
+end
+
+--- A time (epoch seconds, as a number or text) formatted by os.date, or ?
+--- for what isn't a sane time.
+---@param fmt string
+---@param t any
+---@return string
+function M.date(fmt, t)
+    t = math.tointeger(tonumber(t))
+    if not t or math.abs(t) > max_seconds then return '?' end
+    local ok, text = pcall(os.date, fmt, t)
+    return ok and text or '?'
 end
 
 -- The characters of text, one string each: a byte and the continuation

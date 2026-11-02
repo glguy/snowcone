@@ -88,6 +88,36 @@ T.case('command specs fit the whole line, word by word', function()
     T.ok(not pcall(mkcommand, '$z'), 'an unknown type refused')
 end)
 
+T.case('a failed oneOf alternative leaves later errors their own path', function()
+    T.boot {}
+    local schema = T.require 'hub.lib.schema'
+    local s = {type = 'table', fields = {
+        a = {oneOf = {{type = 'table', fields = {x = {type = 'string'}}}, {type = 'table'}}},
+        z = {type = 'string'},
+    }}
+    local ok, err = pcall(schema.check, s, {a = {y = 1}, z = 3}, {'root'})
+    T.ok(not ok and err:find('in root.z ', 1, true), err)
+end)
+
+T.case('overrides reach any setting, with TOML values', function()
+    T.boot {}
+    local config = T.require 'hub.runtime.config'
+    local raw = {networks = {{id = 'libera'}, {id = 'oftc'}}}
+    config.apply_override(raw, 'networks.oftc.reclaim_nick=false')
+    config.apply_override(raw, 'networks.1.features=["chat"]')
+    config.apply_override(raw, 'ui.profile=chat')
+    config.apply_override(raw, "mention.patterns=['a=b']")
+    T.eq(raw, {
+        networks = {{id = 'libera', features = {'chat'}}, {id = 'oftc', reclaim_nick = false}},
+        ui = {profile = 'chat'},
+        mention = {patterns = {'a=b'}},
+    }, 'applied')
+    for _, bad in ipairs {'ui.profile', 'networks.nope.x=1', 'ui..x=1', 'ui.profile.x=1'} do
+        local ok, err = pcall(config.apply_override, raw, bad)
+        T.ok(not ok and not tostring(err):find 'traceback', bad .. ': ' .. tostring(err))
+    end
+end)
+
 T.case('ratelimit allows a burst, then one line per interval', function()
     T.boot {}
     local ratelimit = T.require 'hub.lib.ratelimit'

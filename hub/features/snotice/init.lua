@@ -5,6 +5,7 @@
 local bus      <const> = require 'hub.runtime.bus'
 local clock    <const> = require 'hub.runtime.clock'
 local common   <const> = require 'hub.features.common'
+local config_schema <const> = require 'hub.runtime.config_schema'
 local ircd     <const> = require 'hub.net.ircd'
 local lexer    <const> = require 'pl.lexer'
 local loadavg  <const> = require 'hub.lib.loadavg'
@@ -136,8 +137,11 @@ local function track_servers(net, names)
     end
 end
 
--- The servers file's servers, and its address ranges to count. Ranges
--- added while opered are counted now; otherwise opering counts them.
+-- The servers file's servers, and its address ranges to count, made to
+-- match the file: trackers it no longer names go, ranges it dropped go,
+-- and ranges it keeps keep their counts. A tracker from the file replaces
+-- one /nettrack made with its name. Ranges added while opered are
+-- counted now; otherwise opering counts them.
 local function apply_servers(net)
     local servers = common.servers(net)
     ---@cast servers -nil snotice is enabled, so the network exists
@@ -145,14 +149,28 @@ local function apply_servers(net)
     local S = stores.get(net)
     local irc = HUB.state.nets[net].irc
     local opered = irc and irc.oper
-    for name, ranges in pairs(servers.net_tracks or {}) do
-        if not S.net_trackers[name] then
-            for _, range in ipairs(ranges) do
-                local ok, err = pcall(nettrack.add, S.net_trackers, name, range)
+    local wanted = servers.net_tracks or {}
+
+    -- the trackers the file made last time
+    local previous = S.file_tracks or {}
+    for name in pairs(previous) do
+        if not wanted[name] then S.net_trackers[name] = nil end
+    end
+    S.file_tracks = {}
+    for name, ranges in pairs(wanted) do
+        S.file_tracks[name] = true
+        local old = previous[name] and S.net_trackers[name] or {}
+        local tracker = {}
+        S.net_trackers[name] = tracker
+        for _, label in ipairs(ranges) do
+            if old[label] then
+                tracker[label] = old[label]
+            else
+                local ok, err = pcall(nettrack.add, S.net_trackers, name, label)
                 if not ok then
                     log.add_net(net, 'snotice', 'net_tracks %s: %s', name, err)
                 elseif opered then
-                    query(net, 'TESTMASK', '*@' .. range)
+                    query(net, 'TESTMASK', '*@' .. label)
                 end
             end
         end
@@ -224,10 +242,7 @@ end
 
 -- Commands ============================================================
 
-local colors <const> = {
-    black = true, red = true, green = true, yellow = true,
-    blue = true, magenta = true, cyan = true, white = true,
-}
+local colors <const> = config_schema.colors
 
 -- /addwatch [id] ['pattern'|filter] [color] [beep|nobeep] [flash|noflash]
 local function addwatch(ctx, args)

@@ -150,14 +150,17 @@ local function make_view(id, title, store, tracker)
             addircstr(win, entry.gecos)
         end
 
-        ctx.add_click(y, 14, 79, function()
-            if entry.reason == 'K-Lined' then
-                oper.entry_to_unkline(net, entry)
-            else
-                oper.entry_to_kline(net, entry)
-            end
-            vs.highlight = entry.mask
-        end)
+        -- staging belongs to the oper feature, which shows what it stages
+        if common.enabled(net, 'oper') then
+            ctx.add_click(y, 14, 79, function()
+                if entry.reason == 'K-Lined' then
+                    oper.entry_to_unkline(net, entry)
+                else
+                    oper.entry_to_kline(net, entry)
+                end
+                vs.highlight = entry.mask
+            end)
+        end
     end
 
     return {

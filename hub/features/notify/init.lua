@@ -24,7 +24,9 @@ local backends = {
 }
 
 --- Make another backend module available by name. A backend has
---- notify(previous, target, nick, text) -> handle and dismiss(handle).
+--- notify(previous, target, nick, text, net, key) -> handle and
+--- dismiss(handle); key is the target folded, which with net names the
+--- buffer.
 function M.register_backend(name, module)
     backends[name] = module
 end
@@ -64,7 +66,7 @@ function M.notify(net, target, nick, text)
     if not impl or tty.focused() then return end
     local key = chat.fold(net, target)
     local m = muted(net)
-    m[key] = impl.notify(m[key], target, nick or '?', text)
+    m[key] = impl.notify(m[key], target, nick or '?', text, net, key)
 end
 
 --- Withdraw a buffer's notification once it is seen.

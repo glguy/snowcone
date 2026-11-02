@@ -142,8 +142,12 @@ return {
             end
         elseif ctx.vs.hide_snow then
             show = function(msg)
-                if all then msg = msg.msg end
+                local net = ctx.net
+                if all then net, msg = msg.net, msg.msg end
+                -- notices to *, and server notices however their server
+                -- sends them (OFTC hybrid's go to our nick)
                 return (msg.command ~= 'NOTICE' or msg[1] ~= '*')
+                   and message.snotice_text(net, msg) == nil
                    and not squelch_commands[msg.command]
             end
         end

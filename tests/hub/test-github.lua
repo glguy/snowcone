@@ -334,7 +334,8 @@ T.case('client commands save, join and check events', function()
     HUB.boot.strict = false
     command 'gh_event_on a/b pull_request:open'
     HUB.boot.strict = strict
-    T.ok(T.log_lines('error')[1]:find('Unknown event', 1, true), 'misspelled event refused')
+    local logged = T.log_lines 'plugin'
+    T.ok(logged[#logged]:find('Unknown event', 1, true), 'misspelled event refused')
     T.eq(saved().projects['a/b'].events, {}, 'not saved')
 
     command 'gh_event_on a/b pull_request:opened'

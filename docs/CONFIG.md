@@ -29,9 +29,9 @@ The configuration is a TOML file. hub reads the first of these that applies:
 
 A file given with `/reload` or `--config` must be named `*.toml`.
 
-`$XDG_CONFIG_HOME/snowcone` is the *configuration directory*. Relative paths in the configuration, such as `servers_file`, `plugins.directory` and `{file = ...}` secrets, are relative to it.
+`$XDG_CONFIG_HOME/snowcone` is the *configuration directory*. Relative paths in the configuration, such as `servers_file`, `plugins.directory` and `{file = ...}` secrets, are relative to the directory of the configuration file.
 
-Settings can be overridden on the command line with `key.path=value`, for example `ui.profile=chat`. Overrides are applied to the file's contents before checking.
+Settings can be overridden on the command line with `key.path=value`, for example `ui.profile=chat`. A number in the path indexes a list, and a name after `networks` is a network's id: `networks.libera.reclaim_nick=false`. The value is read as a TOML value (`true`, `3`, `'text'`, `[1, 2]`), or else taken as text. Overrides are applied to the file's contents before checking.
 
 A field of the wrong type, a missing required field or an unknown feature name stops the load with an error naming the field. So does a field the schema doesn't know, reported as `Unexpected field ...`, so a misspelled or outdated key is never ignored.
 

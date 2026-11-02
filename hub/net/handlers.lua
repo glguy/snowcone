@@ -114,7 +114,7 @@ H[N.RPL_TOPICWHOTIME] = function(_, irc, msg)
     local channel = irc_model.get_channel(irc, msg[2])
     if channel then
         channel.topic_who = msg[3]
-        channel.topic_time = tonumber(msg[4])
+        channel.topic_time = math.tointeger(tonumber(msg[4]))
     end
 end
 
@@ -122,7 +122,7 @@ end
 H[N.RPL_CREATIONTIME] = function(_, irc, msg)
     local channel = irc_model.get_channel(irc, msg[2])
     if channel then
-        channel.creationtime = tonumber(msg[3])
+        channel.creationtime = math.tointeger(tonumber(msg[3]))
     end
 end
 

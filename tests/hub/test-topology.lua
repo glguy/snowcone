@@ -46,6 +46,31 @@ T.case('the servers file is loaded and seeds the notice stores', function()
     T.ok(S.net_trackers.docs['192.0.2.0/24'], 'address ranges from the file')
 end)
 
+T.case('a reload makes the address ranges match the servers file', function()
+    boot()
+    local S = snotice()
+    S.net_trackers.docs['192.0.2.0/24'].count = 5
+    S.net_trackers.mine = {}  -- as /nettrack makes
+    local dir = os.tmpname()
+    os.remove(dir)
+    assert(require 'pl.path'.mkdir(dir))
+    local filename = dir .. '/servers.toml'
+    assert(require 'pl.file'.write(filename,
+        "[net_tracks]\ndocs = ['192.0.2.0/24', '198.51.100.0/24']\nnew = ['203.0.113.0/24']\n"))
+    T.ok(T.reload {config = {networks = {{
+        id = 'test', server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'}, servers_file = filename,
+    }}}}, 'reload')
+    S = snotice()
+    T.eq(S.net_trackers.docs['192.0.2.0/24'].count, 5, 'a kept range keeps its count')
+    T.ok(S.net_trackers.docs['198.51.100.0/24'], 'an added range')
+    T.eq(S.net_trackers.docs['2001:db8::/32'], nil, 'a dropped range')
+    T.ok(S.net_trackers.new, 'a new tracker')
+    T.eq(S.net_trackers['odd.prefix'], nil, 'a tracker the file no longer names')
+    T.ok(S.net_trackers.mine, 'one /nettrack made stays')
+    require 'pl.dir'.rmtree(dir)
+end)
+
 T.case('a servers file that cannot be read fails the reload', function()
     boot()
     local before = HUB.current
@@ -166,6 +191,14 @@ T.case('MAP, LINKS, VERSION and STATS u', function()
     T.eq(topo().versions['alpha.example'], '20260101-abc', 'version')
     c:recv ':beta.example 242 me :Server Up 2 days, 03:04:05'
     T.ok(topo().uptimes['beta.example']:match '^%d+%-%d+%-%d+ %d+:%d+:%d+$', 'startup time')
+end)
+
+T.case('a MAP or LINKS reply cut off by a disconnect is dropped', function()
+    local c = boot()
+    c:recv ':srv 015 me :gone.example[01G] ---- | Users:   7 (1%)'
+    c:recv ':srv 364 me gone.example hub.example :1 Gone'
+    c:finish 'reset'
+    T.eq({topo().in_map, topo().partial_links}, {}, 'forgotten')
 end)
 
 T.case('netsplit and netjoin resync', function()

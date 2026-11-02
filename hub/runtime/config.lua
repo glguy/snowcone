@@ -10,7 +10,6 @@
 
 local app     <const> = require 'pl.app'
 local file    <const> = require 'pl.file'
-local lexer   <const> = require 'pl.lexer'
 local path    <const> = require 'pl.path'
 local tablex  <const> = require 'pl.tablex'
 local schema  <const> = require 'hub.lib.schema'
@@ -25,41 +24,50 @@ function M.config_dir()
     return path.join(config_home, 'snowcone')
 end
 
---- Parse a table assignment of the form: (key '.')* key '=' value
---- Keys and values can be numbers, quoted strings, or unquoted strings.
+--- Apply a command-line override, KEY.PATH=value, to raw configuration.
+--- The path is split at dots; a number indexes a list, and a name under
+--- `networks` is a network's id. The value is read as a TOML value (true,
+--- 3, 'text', [1, 2]), or else taken as text.
 function M.apply_override(tab, src)
-    local keys = {}
-    local key
-    local value
-    local want = 'key'
-    for token, lexeme in lexer.scan(src) do
-        if 'key' == want and ('iden' == token or 'string' == token or 'number' == token) then
-            key = lexeme
-            want = 'separator'
-        elseif 'separator' == want and '.' == token then
-            table.insert(keys, key)
-            want = 'key'
-        elseif 'separator' == want and '=' == token then
-            want = 'value'
-        elseif 'value' == want and ('iden' == token or 'string' == token or 'number' == token) then
-            value = lexeme
-            want = 'eol'
-        else
-            error(
-                'syntax error at \x1f' .. lexeme ..
-                '\x1f got \x02' .. token ..
-                '\x02 expected \x02' .. want ..
-                '\x02 in \x1f' .. src, 0)
-        end
+    local keypath, value = src:match '^([^=]+)=(.*)$'
+    if keypath == nil then
+        error('override needs KEY.PATH=value: ' .. src, 0)
     end
 
-    for _, x in ipairs(keys) do
-        if not tab[x] then
-            tab[x] = {}
+    local keys = {}
+    for key in (keypath .. '.'):gmatch '([^.]*)%.' do
+        if key == '' then
+            error('override has an empty key: ' .. src, 0)
         end
-        tab = tab[x]
+        table.insert(keys, math.tointeger(tonumber(key)) or key)
     end
-    tab[key] = value
+
+    local parsed = mytoml.parse_toml('v = ' .. value)
+    if parsed then
+        value = parsed.v
+    end
+
+    for i = 1, #keys - 1 do
+        local key = keys[i]
+        if keys[i - 1] == 'networks' and i == 2 and type(key) == 'string' then
+            -- a network by its id
+            local found
+            for j, net in ipairs(tab) do
+                if type(net) == 'table' and net.id == key then found = j end
+            end
+            if not found then
+                error('override names no network ' .. key .. ': ' .. src, 0)
+            end
+            key = found
+        end
+        if tab[key] == nil then
+            tab[key] = {}
+        elseif type(tab[key]) ~= 'table' then
+            error('override goes inside a value that is not a table: ' .. src, 0)
+        end
+        tab = tab[key]
+    end
+    tab[keys[#keys]] = value
 end
 
 local function parse(filename, text)
@@ -294,6 +302,8 @@ function M.load(args, override, chosen)
             error('Failed to parse command line flags', 0)
         end
         raw, filename = read_file(dir, flags, chosen)
+        -- relative paths in a file are relative to where it is
+        dir = path.dirname(path.abspath(filename))
         for _, o in ipairs(overrides) do
             M.apply_override(raw, o)
         end
@@ -321,7 +331,8 @@ function M.network(id)
 end
 
 --- Resolve a path from the configuration: absolute paths are kept,
---- relative ones are relative to the configuration directory.
+--- relative ones are relative to the configuration file's directory (the
+--- configuration directory for a configuration not read from a file).
 ---@param entry string|nil
 ---@return string|nil
 function M.resolve_path(entry)

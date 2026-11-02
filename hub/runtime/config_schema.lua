@@ -27,6 +27,13 @@ local middle <const> = '^[^\n\r\x00 :][^\n\r\x00 ]*$'
 -- No line breaks or NUL: may be the last IRC parameter
 local line <const> = '^[^\n\r\x00]*$'
 
+--- The colors a watch or region can have, as drawing names them
+M.colors = {
+    black = true, red = true, green = true, yellow = true,
+    blue = true, magenta = true, cyan = true, white = true,
+}
+local color_schema <const> = {type = 'string', values = M.colors}
+
 -- A TCP port number. 0 is excluded: it is not a usable port.
 local required_port_schema <const> = {
     type = 'number', integer = true, minimum = 1, maximum = 65535, required = true,
@@ -235,7 +242,7 @@ M.network = table_ {
     mention      = mention_schema,
     watches      = array (table_ {
         pattern = {type = 'string', required = true},
-        color  = {type = 'string', pattern = '^%l+$'},
+        color  = color_schema,
         beep    = {type = 'boolean'},
         flash   = {type = 'boolean'},
         active  = {type = 'boolean'},
@@ -255,7 +262,7 @@ M.servers_file = table_ {
     }),
     regions       = assocs (table_ {
         hostname = {type = 'string'},
-        color    = {type = 'string', pattern = '^%l+$'},
+        color    = color_schema,
     }),
     kline_reasons = array (table_ {
         name   = {type = 'string', pattern = line, required = true},
