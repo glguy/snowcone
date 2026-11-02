@@ -433,6 +433,31 @@ end
 H.ACCOUNT = user_change
 H.CHGHOST = user_change
 
+-- "<client> <channel> :<reason>": a JOIN refused, shown in the channel's
+-- buffer, which would otherwise show only that we aren't in it
+local function join_refused(net, irc, msg)
+    local channel = msg[2]
+    if channel and M.buffer(net, channel) and not irc_model.get_channel(irc, channel) then
+        add(net, channel, msg, false, false)
+    end
+end
+for _, n in ipairs {
+    N.ERR_TOOMANYCHANNELS, N.ERR_CHANNELISFULL, N.ERR_INVITEONLYCHAN,
+    N.ERR_BANNEDFROMCHAN, N.ERR_BADCHANNELKEY, N.ERR_NEEDREGGEDNICK, N.ERR_THROTTLE,
+} do
+    H[n] = join_refused
+end
+
+-- "<client> <channel> <forward> :<reason>": the server joins us to
+-- <forward> instead. Both buffers show it, and the UI follows to <forward>.
+H[N.ERR_LINKCHANNEL] = function(net, irc, msg)
+    local from, to = msg[2], msg[3]
+    if not (from and to) then return end
+    join_refused(net, irc, msg)
+    add(net, to, msg, false, false)
+    bus.emit('chat.forward', {net = net, from = from, to = to})
+end
+
 -- "<client> <channel> <client count> :<topic>" (from /list)
 H[N.RPL_LIST] = function(net, _, msg)
     local C = M.get(net)

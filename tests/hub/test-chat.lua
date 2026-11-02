@@ -118,6 +118,28 @@ T.case('whowas gathers every past entry, and reports failures', function()
     T.ok(T.log_lines 'error'[1]:find 'count must be a positive number', 'and says why')
 end)
 
+T.case('a refused or forwarded JOIN shows in the buffer', function()
+    local c, chat = boot()
+    chat.talk('test', '#ban')
+    c:take()
+    c:recv ':srv 474 me #ban :Cannot join channel (+b) - you are banned'
+    T.eq(texts(chat.buffer('test', '#ban')), {'474 me #ban Cannot join channel (+b) - you are banned'}, 'refused')
+    c:recv ':srv 474 me #other :Cannot join channel (+b) - you are banned'
+    T.eq(chat.buffer('test', '#other'), nil, 'no buffer opened for a refusal')
+
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'chat.forward', 'test', function(ev) table.insert(events, ev) end)
+    chat.talk('test', '#angularjs')
+    c:take()
+    c:recv ':srv 470 me #angularjs #angular :Forwarding to another channel'
+    c:recv ':me!u@h JOIN #angular'
+    local line = '470 me #angularjs #angular Forwarding to another channel'
+    T.eq(texts(chat.buffer('test', '#angularjs')), {line}, 'in the buffer joined')
+    T.eq(texts(chat.buffer('test', '#angular')), {line, 'JOIN #angular'}, 'and the one forwarded to')
+    T.eq(#events, 1, 'one forward')
+    T.eq({events[1].from, events[1].to}, {'#angularjs', '#angular'}, 'reported')
+end)
+
 T.case('channel and private messages go to buffers', function()
     local c, chat = boot({mention = {patterns = {'%f[%w]me%f[^%w]'}}})
     c:recv ':me!u@h JOIN #chan'

@@ -28,6 +28,7 @@ carry `net`, the network id.
 | `chat.message` | `{net, target, msg, mention, activity}` a message added to a buffer | features/chat |
 | `chat.buffer` | `{net, target, opened}` a buffer opened or closed | features/chat |
 | `chat.focus` | `{net, target}` /talk asks the UI to show a buffer | features/chat |
+| `chat.forward` | `{net, from, to}` the server forwarded our JOIN of `from` to `to` (470) | features/chat |
 | `chat.show_list` | `{net}` /list asks the UI to show the list | features/chat |
 | `chat.show_channel` | `{net, target}` /chaninfo asks the UI to show a channel's information | features/chat |
 | `quote.sent` | `{net, reply}` /quote sent a labeled line; `reply` is a `hub.QuoteReply` filled in place when the reply comes; the UI shows it | commands/quote |

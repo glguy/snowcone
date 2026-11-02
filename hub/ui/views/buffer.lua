@@ -12,6 +12,8 @@
 -- is highlighted until Esc. Click a channel's name in the status bar for
 -- its information, a nick's for its WHOIS. After the name, the two who
 -- most recently started typing there (not those who paused).
+-- A channel's buffer shows why the server refused our JOIN; when it
+-- forwards the JOIN elsewhere, both buffers say so and the view follows.
 -- Viewing a buffer marks it seen and, with the terminal focused,
 -- withdraws its notification.
 -- View state: scroll, hscroll, hide_presence, highlight (a message).
@@ -26,6 +28,7 @@ local editor     <const> = require 'hub.ui.editor'
 local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
 local matching   <const> = require 'hub.lib.matching'
+local N          <const> = require 'hub.lib.numerics'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local scrub      <const> = require 'hub.lib.scrub'
 
@@ -122,6 +125,26 @@ function renderer.CHGHOST(win, msg)
     win:waddstr 'host '
     draw.italic_(win)
     win:waddstr(scrub(msg[1] or ''), '@', scrub(msg[2] or ''))
+end
+
+-- a JOIN the server refused, and its reason
+local function join_refused(win, msg)
+    draw.italic(win)
+    win:waddstr 'refused '
+    addircstr(win, msg[3] or '')
+end
+for _, n in ipairs {
+    N.ERR_TOOMANYCHANNELS, N.ERR_CHANNELISFULL, N.ERR_INVITEONLYCHAN,
+    N.ERR_BANNEDFROMCHAN, N.ERR_BADCHANNELKEY, N.ERR_NEEDREGGEDNICK, N.ERR_THROTTLE,
+} do
+    renderer[n] = join_refused
+end
+
+renderer[N.ERR_LINKCHANNEL] = function(win, msg)
+    draw.italic(win)
+    win:waddstr 'forward '
+    draw.normal(win)
+    win:waddstr(scrub(msg[2] or ''), ' → ', scrub(msg[3] or ''))
 end
 
 -- Scroll to the message with msgid `id`, in the middle of the screen when
@@ -426,6 +449,13 @@ return {
             control.set_current_net(ev.net)
             control.set_talk_target(ev.net, ev.target)
             control.set_view 'buffer'
+        end)
+        -- a forwarded JOIN takes the buffer we were joining to where we went
+        sub.on('chat.forward', function(ev)
+            local current = control.talk_target(ev.net)
+            if current and chat.fold(ev.net, current) == chat.fold(ev.net, ev.from) then
+                control.set_talk_target(ev.net, ev.to)
+            end
         end)
         -- closing the shown buffer moves to one with a mention, else back
         -- to the previous one (as after Meta-A into a query), else one

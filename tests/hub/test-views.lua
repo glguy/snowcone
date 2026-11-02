@@ -2168,4 +2168,20 @@ T.case('the formatting palette puts codes in at the cursor', function()
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case('a forwarded JOIN shows the buffer forwarded to', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    c:take()
+    T.require 'hub.ui.cmdline'.execute 'talk #angularjs'
+    T.eq(c:take(), {'JOIN #angularjs'}, 'joins')
+    c:recv ':srv 470 me #angularjs #angular :Forwarding to another channel'
+    c:recv ':me!u@h JOIN #angular'
+    T.eq(control.talk_target 'test', '#angular', 'followed')
+    HUB.current.routes['ui.draw']()
+    T.eq(T.log_lines 'error', {}, 'drawn')
+    key(-string.byte 's')
+    T.eq(control.talk_target 'test', '#angularjs', 'Meta-S goes back')
+    HUB.current.routes['ui.draw']()
+end)
+
 T.run()
