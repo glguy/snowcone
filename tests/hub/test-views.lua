@@ -361,6 +361,21 @@ T.case('views follow their events once, after a reload too', function()
     T.eq(control.talk_target 'test', '#b', 'closing the shown buffer moves on')
 end)
 
+T.case('a prompt goes when its task is canceled', function()
+    local fake = FakeTransport.new()
+    T.boot {ui = true, transport = fake, config = {networks = {{
+        id = 'test',
+        server = {host = 'test.example', port = 6667},
+        registration = {password = {prompt = 'server password'}},
+        identity = {nick = 'me'},
+    }}}}
+    local input = HUB.state.ui.input
+    T.eq(input.mode, 'password', 'prompting')
+    T.require 'hub.net.manager'.disconnect 'test'
+    T.eq(input.mode, nil, 'gone with its task')
+    T.eq(input.prompts, {}, 'queue empty')
+end)
+
 T.case('C-s leaves a prompt in place', function()
     local fake = FakeTransport.new()
     T.boot {ui = true, transport = fake, config = {networks = {{

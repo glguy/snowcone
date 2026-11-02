@@ -167,7 +167,9 @@ every topic, and a test checks that every literal topic emitted is listed.
   `t:request(commands, timeout, cmd, ...)` sends a command and iterates
   over its replies: the labeled reply when the network has
   `labeled-response`, else `wait_irc` steps.
-  A task scoped to a network is canceled when its connection ends.
+  A task scoped to a network is canceled when its connection ends; a
+  task canceled while it runs ends at its next wait, and canceling emits
+  `task.canceled`, which takes its prompt away.
   A task keeps running the code it started with across a reload; the
   contract between a suspended task and the current task module is the
   short list of record fields and resume values at the top of

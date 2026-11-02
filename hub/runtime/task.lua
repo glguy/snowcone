@@ -6,9 +6,11 @@
 -- task module of whichever generation is current. The two meet only here:
 --
 --   record fields  id, name, owner, net, co, seq, wait, commands,
---                  reply_label, timer, lookup (a dnslookup handle),
+--                  reply_label, topic and predicate (wait_event), label
+--                  (prompt), timer, lookup (a dnslookup handle),
 --                  process (an execute handle), tty (true while the child
---                  has the terminal), wait_since (optional, for /stats)
+--                  has the terminal), wait_since (optional, for /stats),
+--                  secrets (runtime/secrets.lua)
 --   wait kinds     irc, reply, event, sleep, dns, execute, prompt
 --   resume values  wait_irc    the message, or nil on timeout
 --                  request     (wait 'reply') the reply's messages, or nil
@@ -22,10 +24,17 @@
 -- Keep that list stable. `seq` changes with every wait, so a wakeup meant
 -- for an earlier wait (a late timer, say) is ignored.
 --
--- A task body gets the task record as its first argument. Methods are
--- found through HUB.current, so a body that calls t:send or t:emit after a
--- reload reaches the new generation's code. Bodies should use those
--- methods rather than module tables held in upvalues.
+-- A task body gets the task record as its first argument. It may hold
+-- modules in upvalues, and runs its own generation's code until it
+-- returns; module-level tables it reaches that way must be constants or
+-- caches. What must be current (routes, the bus, configuration, the task
+-- methods) it reaches through HUB: methods are found through
+-- HUB.current, so t:send or t:emit after a reload reaches the new
+-- generation's code. t:api is for a module a body can't require.
+--
+-- A canceled task stops at once when it is waiting. One canceled while it
+-- runs (itself, or by a task it woke) finishes its step, and its next
+-- wait ends it quietly. Canceling emits task.canceled.
 
 local bus       <const> = require 'hub.runtime.bus'
 local clock     <const> = require 'hub.runtime.clock'
@@ -106,6 +115,13 @@ local function end_wait(t)
     t.label = nil
 end
 
+-- Raised by a canceled task's next wait; ends it without a report. A
+-- field, not identity, since the generation that raises it may not be
+-- the one that resumed the task.
+local function is_canceled(err)
+    return type(err) == 'table' and err.task_canceled == true
+end
+
 --- Resume a task if it is still waiting on the wait numbered seq.
 function M.resume(id, seq, ...)
     local t = HUB.tasks[id]
@@ -115,10 +131,10 @@ function M.resume(id, seq, ...)
     end_wait(t)
 
     local ok, err = coroutine.resume(t.co, ...)
-    if coroutine.status(t.co) == 'dead' then
+    if coroutine.status(t.co) == 'dead' and HUB.tasks[id] == t then
         HUB.tasks[id] = nil
     end
-    if not ok then
+    if not ok and not is_canceled(err) then
         dispatch.report('task ' .. t.name, traceback(err, t.co))
     end
 end
@@ -151,10 +167,12 @@ function M.cancel(id)
     if t == nil then return end
     HUB.tasks[id] = nil
     end_wait(t)
-    -- a task canceling itself finishes its current step; nothing resumes it
-    if coroutine.running() ~= t.co then
+    -- a running task (itself, or one whose step led here) finishes its
+    -- step, and its next wait ends it
+    if coroutine.status(t.co) == 'suspended' then
         coroutine.close(t.co)
     end
+    bus.emit('task.canceled', {task = id, name = t.name, net = t.net})
 end
 
 --- Cancel every task, at shutdown.
@@ -204,9 +222,18 @@ end
 --- Wake tasks waiting for this event. Called by bus.emit.
 function M.deliver_event(topic, ev)
     for _, t in ipairs(sorted_tasks()) do
-        if t.wait == 'event' and t.topic == topic
-        and (t.predicate == nil or t.predicate(ev)) then
-            M.resume(t.id, t.seq, ev)
+        if t.wait == 'event' and t.topic == topic then
+            local ok, wanted = true, true
+            if t.predicate then
+                ok, wanted = xpcall(t.predicate, traceback, ev)
+            end
+            if not ok then
+                -- its own failure, not the emitter's
+                M.cancel(t.id)
+                dispatch.report('task ' .. t.name, wanted)
+            elseif wanted then
+                M.resume(t.id, t.seq, ev)
+            end
         end
     end
 end
@@ -225,6 +252,9 @@ end
 local function begin_wait(t, kind, timeout_ms)
     if coroutine.running() ~= t.co then
         error('a task can only wait from its own coroutine', 3)
+    end
+    if HUB.tasks[t.id] ~= t then
+        error({task_canceled = true}, 0)
     end
     t.seq = t.seq + 1
     t.wait = kind
@@ -384,11 +414,6 @@ end
 
 M.routes = {
     ['task.wake'] = M.resume,
-    -- from an execute started before execute returned a handle
-    ['task.executed'] = function(id, seq, use_tty, ...)
-        if use_tty then tty.resume() end
-        M.resume(id, seq, ...)
-    end,
     ['task.event'] = M.deliver_event,
 }
 

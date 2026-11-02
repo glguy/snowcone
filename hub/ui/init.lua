@@ -343,6 +343,7 @@ end
 
 function M.subscribe(sub)
     sub.on('task.prompt', control.add_prompt)
+    sub.on('task.canceled', function() control.check_prompts() end)
     details.subscribe(sub)
     for _, m in ipairs(view_modules) do
         if m.subscribe then m.subscribe(sub) end

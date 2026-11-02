@@ -207,6 +207,11 @@ function M.reload(root, init, app, opts)
     HUB.current = new
     local activated, err = xpcall(new.routes['app.activate'], traceback, first)
     if not activated then
+        if first then
+            -- nothing is drawing or reading input yet to show it
+            snowcone.shutdown()
+            error(err, 0)
+        end
         report_failure(new, traceback, err)
         return false, err
     end

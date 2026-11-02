@@ -11,6 +11,7 @@ carry `net`, the network id.
 | `clock.tick` | `{now}` once a second, when the tick runs | app |
 | `log` | `{category, text, time, timestamp, net?}` for each log line | runtime/log |
 | `task.prompt` | `{task, label, net?}` a task waits for a secret; answer with `task.answer(task, text)` | runtime/task |
+| `task.canceled` | `{task, name, net?}` a task was canceled; a prompt it asked goes | runtime/task |
 | `net.state` | `{net, phase, prev, reason?}` on every phase change | net/manager |
 | `net.connected` | `{net, fingerprint}` transport is up, registration starts | net/manager |
 | `net.registered` | `{net, nick}` end of MOTD after welcome | net/registration |

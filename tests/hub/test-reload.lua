@@ -118,6 +118,65 @@ T.case('conflicting routes fail the load', function()
     T.ok(err:find('route app.tick is already defined', 1, true), err)
 end)
 
+T.case('a load that fails wiring leaves state alone', function()
+    T.boot()
+    local ok = T.reload {
+        modules = {'hub.test.dup'},
+        overrides = {['hub.test.dup'] = [[
+return {
+    routes = {['app.tick'] = function() end},
+    init_state = function(S) S.test_touched = true end,
+}
+]]},
+    }
+    T.eq(ok, false, 'reload result')
+    T.eq(HUB.state.test_touched, nil, 'its init_state never ran')
+end)
+
+T.case('a task canceled by a task it woke ends at its next wait', function()
+    T.boot()
+    local task = T.require 'hub.runtime.task'
+    local bus = T.require 'hub.runtime.bus'
+    local a_id
+    local reached = {}
+    task.spawn('b', {}, function(t)
+        t:wait_event 'test.go'
+        task.cancel(a_id)
+    end)
+    local a = task.spawn('a', {}, function(t)
+        t:sleep(0)
+        bus.emit('test.go', {})      -- wakes b, which cancels a
+        table.insert(reached, 'after emit')
+        t:execute('true')            -- would stop keyboard input for good
+        table.insert(reached, 'after execute')
+    end)
+    a_id = a.id
+    HUB.current.routes['task.wake'](a.id, a.seq)
+    T.eq(reached, {'after emit'}, 'its step finished, its next wait ended it')
+    T.eq(HUB.tasks[a.id], nil, 'gone')
+    T.eq(HUB.tty_suspended or 0, 0, 'the terminal never suspended')
+    T.eq(T.tracebacks(), {}, 'quietly')
+end)
+
+T.case('a wait_event predicate that raises fails only its task', function()
+    T.boot {strict = false}
+    local task = T.require 'hub.runtime.task'
+    local bus = T.require 'hub.runtime.bus'
+    local woken = {}
+    local bad = task.spawn('bad', {}, function(t)
+        t:wait_event('test.go', function() error 'predicate fails' end)
+    end)
+    task.spawn('good', {}, function(t)
+        t:wait_event 'test.go'
+        table.insert(woken, 'good')
+    end)
+    bus.emit('test.go', {})
+    T.eq(woken, {'good'}, 'later waiters woken')
+    T.eq(HUB.tasks[bad.id], nil, 'the failing task canceled')
+    local errors = T.log_lines 'error'
+    T.ok(errors[#errors]:find('task bad: ', 1, true), errors[#errors])
+end)
+
 T.case('a timer started before reload fires into new code', function()
     T.boot(with_marker 'v1')
     HUB.test_fired = {}

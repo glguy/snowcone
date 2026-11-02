@@ -109,8 +109,6 @@ function M.build(gen, opts)
     end
     table.insert(modules, {name = 'hub.app', module = M})
 
-    state.prepare(modules)
-
     --- A generation as it runs: its modules and what they registered.
     ---@class hub.Current
     ---@field id integer set when it becomes current
@@ -160,6 +158,9 @@ function M.build(gen, opts)
         end
     end
 
+    -- last: wiring can still fail, and a generation that does must leave
+    -- the running one's state alone
+    state.prepare(modules)
     return current
 end
 
