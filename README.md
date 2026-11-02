@@ -118,6 +118,25 @@ Some things to know:
   connections, scrollback and the line being typed; changed connection
   settings wait for `/reconnect`. `/reload FILE` switches to another
   configuration file, which later reloads keep reading.
+- Page Up/Down and the arrows scroll every list the same way; scrolling
+  back pins it. Esc clears a view's scroll and filter.
+- Ctrl-N/Ctrl-P and the function keys move through the views of
+  `[ui] profile`; the function keys renumber when the current network
+  changes, since views of features it lacks are left out. A network's
+  view can be shown by name: `/cliconn@oftc`.
+- The status bar's yellow tags say what alters the view from its default:
+  its modes, scroll position and filter.
+- The detail pane at the top shows one thing in full: click a log line
+  marked ▸, a message in a buffer or the console, or a channel name, or
+  use `/whois`, `/whowas`, `/chaninfo`, `/quote` or `/eval`. It is as
+  tall as its content, up to half the screen. Its rule has [CLOSE],
+  [BACK] after a click inside it, and [DISCARD], which also drops it from
+  the log lines that hold it.
+- While the pane is open, Esc closes it first (outside input modes), the
+  paging keys and the wheel over it scroll it, and Left and Right scroll
+  a wide one (`/quote` replies, `/eval` values). Ctrl-S and `/filter`
+  filter the channel, `/quote` and WHOWAS panes instead of the view.
+- Meta-P opens the formatting palette.
 
 Plugins are Lua files in `~/.config/snowcone/plugins/`, listed in
 `[plugins] modules`. A plugin returns a function that receives an api.

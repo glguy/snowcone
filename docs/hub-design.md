@@ -283,84 +283,113 @@ dashboard are refused with a message to port them.
 
 ## 7. User interface
 
-- **Views** are records `{id, title, scope, render(ctx, win),
-  keypress(ctx, key), status(ctx, win), modes(ctx), reset(vs), document,
-  command, feature}`; Esc clears the scroll and `/filter` and calls `reset`
-  for anything else the view keeps. A view with a `feature` belongs to
-  that feature, so a network without it looks like a client without it:
-  the view leaves the rotation (Profiles, below), its command is hidden and
-  refused like any feature command (`/cliconn@net` shows that network's),
-  and switching to such a network, or a reload that removes the feature,
-  moves to the first view. The first view is the first of the rotation for
-  a feature the current network has, else the first that needs none. A `document` view is drawn whole into a
-  pad and paged; every view gets a command of its name unless `command`
-  is false. A view module returns a view or a list of views, and may bring
-  `commands` of its own and a `subscribe(sub)` for the events it follows
-  (the buffer view's `chat.focus` and `chat.buffer`, the list's
-  `chat.show_list`); `ui/init.lua` lists the modules once. `ctx` gives
-  the view's persistent
-  state (`ctx.vs`), the current network (`ctx.net`), the size, and
-  `add_button`/`add_click` for mouse regions rebuilt each frame
-  (`ui/clicks.lua`). Views read
-  feature state and call feature functions; they don't send IRC or change
-  stores themselves.
-- **The detail pane** shows one thing in full above the view, for the
-  whole client: `ui.detail` in state, `{kind, net, data}`, drawn by the
-  renderer for its kind in `ui/details/` (`channel`, `error`, `keys`, `message`, `reply`, `value`, `whois`,
-  `whowas`). The record
-  doubles as the renderer's view state (`ctx.vs`), so it keeps the scroll
-  and the renderer's own fields. It is as tall as its content up to half
-  the screen, over a rule with [CLOSE], [DISCARD] (drops it from the log
-  lines that hold it, so it can be freed), the title and the rows shown;
-  the view gets the rows below. While it is open the paging keys scroll
-  it, its renderer's `keypress` comes before the view's, and Esc closes
-  it before anything else, outside input modes. A kind with `filter`
-  (`channel`, `reply`, `whowas`) takes the filter too: Ctrl-S and `/filter` filter
-  it, live, instead of the view, and it keeps its own (`control.filter
-  'detail'`); the renderers are listed in `ui/details/init.lua`, which
-  draws the pane's frame around them. A
-  `wide` kind (`reply`, `value`) draws rows that don't wrap, and Left and
-  Right scroll it; the others wrap like a document, and Left and Right
-  do nothing while they are shown. A wide kind whose content can run to
-  thousands of rows (`reply`: a `/quote STATS` answer) gives `rows` in
-  place of `render`, the count and a function that draws one row, and
-  the frame draws only the rows shown. Features don't open it:
-  they log one line with a `detail` (`log.add_detail`), which the status
-  view makes clickable, and emit an event the UI answers by opening it
-  when the user asked for the thing (`chat.whois`, `chat.whowas`,
-  `chat.show_channel`); each kind names the events that open it in
-  `events`, and `ui/details/init.lua` subscribes to them all.
-  Anything private (a new private key) opens with the `ui.open_detail`
-  route instead, which no plugin hears.
-- **Streams** draw with `draw.draw_rotation` (principle 6), which also
-  records the page size, so Page Up/Down and the arrows scroll every
-  stream the same way.
-- **Networks:** one is current (`/net`, Meta-1..9, clicking the status bar);
-  net-scoped views and commands use it, and a command names another
-  after its name, `/quote@network`. The status bar lists every network by state, with `+` or
-  `!` for unseen chat.
-- **Three scopes of state, three pages:** `/stats` is the client (memory,
-  tasks, resources, errors, and entry counts of every store: summary
-  counts, never byte estimates); `/session` is a network, what lasts across
-  connections above the current connection; `/networks` is the overview.
-- **Status bar fragments** are divided by one separator, the Powerline
-  right-pointing triangle (U+E0B0, `statusbar.separator`). A view's
-  `status` function starts each fragment it adds with `ctx.fragment(win)`;
-  it shows data, such as loads or chat activity. A view's `modes` returns
-  the tags of what alters it from its default, such as `hide`, each a
-  string or `{tag, value}`. The bar draws them, then the scroll position
-  and filter every view has, as one fragment of lower-case tags in yellow
-  with their values in the normal color, shown only when a mode is on.
-- **Input modes:** command, filter (live, per view), talk, and password —
-  prompts from tasks, with their own editor so a half-typed command
-  survives and secrets stay out of history.
-- **Profiles** (`[ui] profile`, `/profile`) choose the view rotation for
-  Ctrl-N/Ctrl-P and the function keys: `dashboard`, `chat` or `all`. The
-  rotation leaves out views for features the current network lacks, so
-  the function keys renumber when the current network changes.
-- **Filters:** `/filter` and Ctrl-S filter any view by pattern (PCRE2 when
-  rex_pcre2 is installed). The connection views also take a structured
-  query with `/prefilter`.
+### Views
+
+A view is a record:
+
+| Field | Purpose |
+| --- | --- |
+| `id`, `title` | Its name and heading. |
+| `scope` | `net` for a view of the current network. |
+| `render(ctx, win)` | Draws it. |
+| `keypress(ctx, key)` | Optional; true when it took the key. |
+| `status(ctx, win)` | Optional status bar fragments: data, such as loads. |
+| `modes(ctx)` | Optional tags of what alters it from its default, each a string or `{tag, value}`. |
+| `reset(vs)` | Optional; clears what else it keeps when its scroll and filter are cleared. |
+| `document` | Drawn whole into a pad and paged, rather than a stream. |
+| `command` | False for no command of its name; every other view gets one. |
+| `feature` | The feature it belongs to. |
+
+A view module returns a view or a list of them, and may bring `commands`
+and a `subscribe(sub)` for the events it follows; `ui/init.lua` lists the
+modules once. A view with a `feature` behaves as if absent on a network
+without it: it leaves the rotation, its command is refused like any
+feature command, and the UI moves off it when the current network or a
+reload takes the feature away.
+
+Views read feature state and call feature functions; they don't send IRC
+or change stores themselves.
+
+### ctx
+
+`ctx` is what a view or detail kind draws with: `vs`, its persistent
+state (scroll, filter, its own fields); `net`, the current network (the
+detail's for a kind); `id`; the size (`rows`, `cols`); and
+`add_button`/`add_click`, mouse regions rebuilt every frame
+(`ui/clicks.lua`). A status function also gets `ctx.fragment(win)`, which
+starts each fragment it adds.
+
+### The detail pane
+
+One pane for the client shows one thing in full above the view.
+`state.ui.detail` is `{kind, net, data}`, and doubles as the kind's view
+state, so it holds the scroll and the kind's own fields; `detail_back` is
+the stack [BACK] returns through. `ui/details/init.lua` lists the kinds
+and draws the pane's frame around them.
+
+A kind is a record:
+
+| Field | Purpose |
+| --- | --- |
+| `kind` | Its name. |
+| `render(ctx, win)` | Draws the content, wrapped like a document. |
+| `rows(ctx)` | In place of `render`, for content that can be long: returns the count of rows and `draw(win, i)`, which draws row `i` at the cursor. Only the rows shown are drawn. |
+| `title(detail)`, `modes(detail)` | Optional, for the rule. |
+| `keypress(ctx, key)` | Optional; comes before the view's. |
+| `filter` | It takes the filter while shown, and reads it with `control.filter(ctx.id)`. |
+| `wide` | Its rows don't wrap; it scrolls sideways across the pad's width. |
+| `events` | Optional map from a topic to `fn(ev)` returning the detail's `net` and `data`; the pane opens the kind on that event. |
+
+Everything a kind draws from a server, a plugin or a file is scrubbed,
+or drawn with `irc_formatting`.
+
+**Events or the route.** A feature never opens the pane. It logs one
+line with the detail (`log.add_detail`), which reopens it, and emits an
+event the UI answers by opening it when the user asked for the thing.
+Plugins hear these events. Anything private opens with the
+`ui.open_detail` route instead, which no subscriber hears, and is held
+only by the pane: never logged, never in an event, gone once the pane
+shows something else.
+
+### Streams
+
+Streams draw with `draw.draw_rotation` (principle 6), which records the
+page size, so every stream scrolls the same way.
+
+### Networks
+
+One network is current; net-scoped views and commands use it, and a
+command names another after its name (`/quote@network`).
+
+### Scopes
+
+Three pages, three scopes of state: `/stats` is the client, `/session` a
+network across its connections, `/networks` the overview. `/stats` shows
+counts, never sizes.
+
+### Status bar
+
+Fragments are divided by one separator, `statusbar.separator`. A view's
+`status` shows data; its `modes` shows only what alters it from its
+default. The bar adds the scroll position and the filter every view has,
+in the same fragment as the modes, shown only when one is on.
+
+### Input modes
+
+Command, filter (live, per view or for the detail pane), talk, and
+password. A prompt from a task has its own editor, so a half-typed
+command survives and secrets stay out of history.
+
+### Profiles
+
+`[ui] profile` (`dashboard`, `chat` or `all`) chooses the view rotation.
+The rotation leaves out views for features the current network lacks.
+
+### Filters
+
+Every view, and a detail kind with `filter`, takes a pattern filter:
+PCRE2 when rex_pcre2 is installed, Lua patterns otherwise. The connection
+views also take a structured query (`/prefilter`).
 
 ## 8. Configuration
 

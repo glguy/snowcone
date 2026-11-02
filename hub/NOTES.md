@@ -245,7 +245,12 @@ a decision is made, and change or remove it when the decision does.
   on one line stays a log line: the pane is for more than that.
 - **Events or the route.** A detail a plugin might want to watch (a WHOIS
   reply) arrives as an event the UI answers; anything private opens with
-  the `ui.open_detail` route, which no plugin hears.
+  the `ui.open_detail` route, which no plugin hears. Plugins are trusted
+  code that can read `HUB`, so the route keeps secrets out of events, not
+  out of reach.
+- **A long wide kind draws by rows** (`rows` in place of `render`): a
+  `/quote STATS` reply can run to thousands of rows, and drawing only
+  those shown keeps its size from costing anything per frame.
 - **Channel information is read live** from the model, so the pane
   follows topic and mode changes. Joining doesn't bring a channel's modes
   or creation time, so opening it asks for MODE when the modes aren't
