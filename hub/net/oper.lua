@@ -16,13 +16,8 @@ local oper_replies <const> = {
 
 local function password_login(t, credential)
     local password <const> = secrets.resolve(t, credential.password)
-    local msg
-    for reply in t:request(oper_replies, 30000, 'OPER', credential.username,
-        {content = password, secret = true})
-    do
-        msg = reply
-        break
-    end
+    local msg <const> = t:request(oper_replies, 30000, 'OPER', credential.username,
+        {content = password, secret = true})()
     local command <const> = msg and msg.command
     if command == N.RPL_YOUREOPER then
         t:log('oper', 'oper up')
