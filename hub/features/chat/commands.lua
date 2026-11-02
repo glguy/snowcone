@@ -108,10 +108,10 @@ function M.commands(chat)
             chat.list(ctx.net, arg)
             bus.emit('chat.show_list', {net = ctx.net})
         end),
-        chat.command('whois', '$g', 'nick', 'WHOIS a nick, shown in the detail pane', function(ctx, nick)
+        chat.command('whois', '$g', 'nick', 'WHOIS a nick, shown in the detail pane; !nick is an operspy WHOIS', function(ctx, nick)
             chat.whois(ctx.net, nick)
         end),
-        chat.command('wii', '$g', 'nick', 'WHOIS a nick on its server (with idle time)', function(ctx, nick)
+        chat.command('wii', '$g', 'nick', 'WHOIS a nick on its server (with idle time); !nick is an operspy WHOIS', function(ctx, nick)
             chat.whois(ctx.net, nick, true)
         end),
         chat.command('whowas', '$g $R', 'nick [count]', 'WHOWAS a nick, at most count entries',

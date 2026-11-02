@@ -81,6 +81,30 @@ T.case('whois reports a refused remote whois', function()
     T.eq(next(HUB.tasks), nil, 'finished')
 end)
 
+T.case('whois of !nick is an operspy whois of nick', function()
+    local c = boot()
+    local task = T.require 'hub.runtime.task'
+    local whois = T.require 'hub.features.chat.whois'
+    local seen = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'chat.whois', 'test', function(ev) seen[#seen + 1] = ev.whois end)
+    task.spawn('whois', {net = 'test'}, whois, '!Nick')
+    T.eq(c:take(), {'WHOIS !Nick'}, 'asked')
+    c:recv ':srv 311 me Nick ~n h.example * :Real'
+    c:recv ':srv 319 me Nick :#open !@#secret'
+    c:recv ':srv 318 me !Nick :End of /WHOIS list.'
+    local w = seen[1]
+    T.eq({w and w.nick, w and w.operspy, w and w.channels}, {'Nick', true, {'#open', '!@#secret'}}, 'read')
+    T.eq(T.log_lines 'whois', {'Nick!~n@h.example operspy, 2 channels'}, 'logged')
+    T.eq(next(HUB.tasks), nil, 'finished')
+
+    -- remotely it goes to nick's server; without oper:spy, !nick is no one
+    task.spawn('whois', {net = 'test'}, whois, '!Nick', true)
+    T.eq(c:take(), {'WHOIS Nick !Nick'}, 'remote')
+    c:recv ':srv 401 me !Nick :No such nick/channel'
+    T.eq(T.log_lines 'whois', {'Nick!~n@h.example operspy, 2 channels', 'whois failed: no such nickname'}, 'refused')
+    T.eq(next(HUB.tasks), nil, 'finished too')
+end)
+
 T.case('whois reads OFTC hybrid replies', function()
     local c = boot {ircd = 'oftc-hybrid'}
     local task = T.require 'hub.runtime.task'

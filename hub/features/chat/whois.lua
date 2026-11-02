@@ -3,6 +3,11 @@
 -- emitted as chat.whois for the UI to show. OFTC hybrid's replies differ
 -- in places: 275 for TLS, 320 for the real host, 307, 308 and 309 for
 -- identified, admin and service, and no account.
+--
+-- An operator's "!nick" is an operspy WHOIS of nick: the server answers
+-- for nick, listing the channels only operspy shows with a ! before
+-- them, but ends with "!nick" (as it fails, for one without oper:spy).
+-- A remote one goes to nick's server as WHOIS nick !nick.
 
 local bus       <const> = require 'hub.runtime.bus'
 local ip_org    <const> = require 'hub.features.ip_org'
@@ -39,10 +44,16 @@ local NH        <const> = require 'hub.lib.numerics_hybrid'
 ---@field idle integer|nil seconds idle when the reply came
 ---@field signon integer|nil epoch seconds
 ---@field at integer epoch seconds when the reply came
+---@field operspy boolean asked as !nick; channels only operspy shows start with !
 
 return function(t, nick, remote)
+    local target = nick:match '^!(.+)$'
+    local operspy = target ~= nil
+    target = target or nick
+
     ---@type hub.Whois
-    local w = {nick = nick, channels = {}, specials = {}, helpop = false, bot = false, secure = false, at = os.time()}
+    local w = {nick = target, channels = {}, specials = {}, helpop = false, bot = false, secure = false,
+        at = os.time(), operspy = operspy}
 
     local function fail(fmt, ...)
         t:log('whois', fmt, ...)
@@ -92,6 +103,7 @@ return function(t, nick, remote)
                 w.org, w.asn = ip_org.lookup(w.ip)
             end
             local notes = {}
+            if w.operspy then table.insert(notes, 'operspy') end
             if w.account then table.insert(notes, 'account ' .. w.account) end
             if w.operator then table.insert(notes, 'oper ' .. w.operator)
             elseif w.oper_text then table.insert(notes, w.oper_text) end
@@ -135,22 +147,26 @@ return function(t, nick, remote)
 
     local replies
     if remote then
-        replies = t:request(commands, 30000, 'WHOIS', nick, nick)
+        replies = t:request(commands, 30000, 'WHOIS', target, nick)
     else
         replies = t:request(commands, 30000, 'WHOIS', nick)
     end
 
     local irc = HUB.state.nets[t.net].irc
     ---@cast irc -nil the WHOIS went out, so the network is connected
-    local key = irc_model.fold(irc, nick)
+    -- the replies name the target, but an operspy WHOIS ends with !nick
+    local key, spy_key = irc_model.fold(irc, target), irc_model.fold(irc, nick)
     for msg in replies do
         -- "<client> <command> :Server load is temporarily too heavy..."
         if msg.command == N.RPL_LOAD2HI then
             if msg[2] == 'WHOIS' then
                 return fail('whois %s failed: %s', nick, msg[3] or 'try again later')
             end
-        elseif msg[2] and irc_model.fold(irc, msg[2]) == key and handlers[msg.command](msg) then
-            return
+        elseif msg[2] then
+            local name = irc_model.fold(irc, msg[2])
+            if (name == key or name == spy_key) and handlers[msg.command](msg) then
+                return
+            end
         end
     end
     fail('whois %s: no reply', nick)

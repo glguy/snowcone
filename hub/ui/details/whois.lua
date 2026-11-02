@@ -17,7 +17,7 @@ M.events = {
 }
 
 function M.title(detail)
-    return 'whois ' .. scrub(detail.data.nick)
+    return (detail.data.operspy and 'operspy whois ' or 'whois ') .. scrub(detail.data.nick)
 end
 
 local function text(win, value)
@@ -93,9 +93,11 @@ function M.render(ctx, win)
     local channels = {}
     for i, channel in ipairs(w.channels) do channels[i] = scrub(channel) end
     words(ctx, win, 'channels', channels, function(win_, name)
-        -- operators and voiced users stand out
+        -- channels only operspy shows stand out, then operators and
+        -- voiced users
         local prefix = name:match '^[^#&]*'
-        if prefix:find '@' then draw.green(win_)
+        if w.operspy and prefix:find '^!' then draw.magenta(win_)
+        elseif prefix:find '@' then draw.green(win_)
         elseif prefix ~= '' then draw.yellow(win_) end
     end)
 
