@@ -455,6 +455,8 @@ M.channel_errors = {
     [N.ERR_THROTTLE] = 2,
     [N.ERR_CHANOPRIVSNEEDED] = 2,
     [N.ERR_VOICENEEDED] = 2,
+    [N.ERR_KEYSET] = 2,
+    [N.ERR_MLOCKRESTRICTED] = 2,    -- <channel> <mode> <mlock> :reason
 }
 
 local function channel_error(net, irc, msg)
@@ -749,26 +751,163 @@ local function unban_command(name, mode, help)
     return cmd
 end
 
+-- Send changes ({sign, flag, argument or nil}) to a channel's modes, in
+-- order, in as few MODE lines as the server's MODES allows arguments
+local function send_changes(net, irc, channel, changes)
+    -- MODES with no value sets no limit
+    local limit = irc.isupport.MODES
+    local per = limit == true and math.huge or math.tointeger(tonumber(limit)) or 3
+    per = math.max(per, 1)
+    local line = {changes = {}, args = {}}
+    local lines = {line}
+    for _, change in ipairs(changes) do
+        if change[3] then
+            if #line.args == per then
+                line = {changes = {}, args = {}}
+                table.insert(lines, line)
+            end
+            table.insert(line.args, change[3])
+        end
+        table.insert(line.changes, change)
+    end
+    for _, l in ipairs(lines) do
+        local modestring, sign = {}, nil
+        for _, change in ipairs(l.changes) do
+            if change[1] ~= sign then
+                sign = change[1]
+                table.insert(modestring, sign)
+            end
+            table.insert(modestring, change[2])
+        end
+        send.send(net, 'MODE', channel, table.concat(modestring), table.unpack(l.args))
+    end
+end
+
 -- Give (+o) or take (-o) a prefix mode for nicks in the shown channel, in
 -- as few MODE lines as the server's MODES allows; with no nicks, bare()
 local function prefix_command(name, change, help, bare)
     return chat_command(name, '$R', '[nick...]', help, function(ctx, args)
         local channel = shown_channel(ctx)
-        local nicks = {}
-        for nick in args:gmatch '%g+' do table.insert(nicks, nick) end
-        if not nicks[1] then return bare(ctx.net, channel) end
+        local changes = {}
+        local sign, mode = change:sub(1, 1), change:sub(2)
+        for nick in args:gmatch '%g+' do table.insert(changes, {sign, mode, nick}) end
+        if not changes[1] then return bare(ctx.net, channel) end
         local irc = model(ctx.net)
         ---@cast irc -nil shown_channel needs it
-        -- MODES with no value sets no limit
-        local limit = irc.isupport.MODES
-        local per = limit == true and #nicks or math.tointeger(tonumber(limit)) or 3
-        per = math.max(per, 1)
-        local sign, mode = change:sub(1, 1), change:sub(2)
-        for i = 1, #nicks, per do
-            local chunk = table.move(nicks, i, math.min(i + per - 1, #nicks), 1, {})
-            send.send(ctx.net, 'MODE', channel, sign .. mode:rep(#chunk), table.unpack(chunk))
-        end
+        send_changes(ctx.net, irc, channel, changes)
     end)
+end
+
+-- The changes a modestring makes, {sign, flag, takes an argument}, by the
+-- network's modes; a letter it doesn't have is an error. A change with
+-- no sign before it sets.
+local function parse_modestring(irc, modestring)
+    local changes, sign = {}, '+'
+    for flag in modestring:gmatch '.' do
+        if flag == '+' or flag == '-' then
+            sign = flag
+        else
+            local takes = irc_model.mode_takes_arg(irc, sign, flag)
+            if takes == nil then error('not a channel mode here: ' .. flag, 0) end
+            table.insert(changes, {sign, flag, takes})
+        end
+    end
+    return changes
+end
+
+local mode_command = chat_command('mode', '$R', '[modes [arg...]]',
+    "Change the shown channel's modes, e.g. +nt-s or +k key; with none, or only list modes like +b, show them",
+function(ctx, args)
+    local channel = shown_channel(ctx)
+    local irc = model(ctx.net)
+    ---@cast irc -nil shown_channel needs it
+    local words = {}
+    for word in args:gmatch '%g+' do table.insert(words, word) end
+    local modestring = table.remove(words, 1)
+    if not modestring then
+        M.refresh_modes(ctx.net, channel)
+        bus.emit('chat.show_channel', {net = ctx.net, target = channel})
+        return
+    end
+
+    local parsed = parse_modestring(irc, modestring)
+    if not parsed[1] then error('no modes: ' .. modestring, 0) end
+
+    -- only lists asked for, such as +b or +bq: fetch them, to show
+    if not words[1] then
+        local lists = true
+        for _, change in ipairs(parsed) do
+            if not (change[1] == '+' and irc.modes_A:find(change[2], 1, true)) then
+                lists = false
+            end
+        end
+        if lists then
+            for _, change in ipairs(parsed) do M.fetch_list(ctx.net, channel, change[2]) end
+            bus.emit('chat.show_channel', {net = ctx.net, target = channel})
+            return
+        end
+    end
+
+    local changes, n = {}, 0
+    for _, change in ipairs(parsed) do
+        local sign, flag, takes = change[1], change[2], change[3]
+        local arg
+        if takes then
+            n = n + 1
+            arg = words[n]
+            if not arg then error(sign .. flag .. ' needs an argument', 0) end
+        end
+        table.insert(changes, {sign, flag, arg})
+    end
+    if words[n + 1] then
+        error('more arguments than the modes take: ' .. words[n + 1], 0)
+    end
+    send_changes(ctx.net, irc, channel, changes)
+end)
+
+-- Tab on a change's argument offers what fits it: the channel's nicks for
+-- a prefix mode, a list's masks to unset (fetching a list not yet
+-- fetched, for the next Tab), the key to unset
+function mode_command.complete(ctx, before, seed)
+    local irc = model(ctx.net)
+    local channel = irc and ctx.target and irc_model.get_channel(irc, ctx.target)
+    if not channel then return nil end
+    ---@cast irc -nil the channel came from it
+    local words = {}
+    for word in before:gmatch '%g+' do table.insert(words, word) end
+    if not words[1] then return nil end
+    local ok, parsed = pcall(parse_modestring, irc, words[1])
+    if not ok then return nil end
+
+    -- the change whose argument is being typed
+    local change, n = nil, 0
+    for _, c in ipairs(parsed) do
+        if c[3] then
+            n = n + 1
+            if n == #words then change = c break end
+        end
+    end
+    if not change then return nil end
+    local sign, flag = change[1], change[2]
+
+    local t = {}
+    local function offer(s)
+        if s:sub(1, #seed) == seed then table.insert(t, s) end
+    end
+    if irc.mode_to_prefix[flag] then
+        for _, member in pairs(channel.members) do offer(member.user.nick) end
+    elseif sign == '-' and irc.modes_A:find(flag, 1, true) then
+        local entries = channel.list_modes[flag]
+        if not entries then
+            M.fetch_list(ctx.net, channel.name, flag)
+            return nil
+        end
+        for mask in pairs(entries) do offer(mask) end
+    elseif sign == '-' and channel.modes and type(channel.modes[flag]) == 'string' then
+        offer(channel.modes[flag])
+    end
+    table.sort(t)
+    return t[1] and t or nil
 end
 
 -- Ask ChanServ (Atheme) for a prefix mode of our own
@@ -849,6 +988,7 @@ M.commands = {
         bus.emit('chat.show_channel', {net = ctx.net, target = target})
     end),
     topic_command,
+    mode_command,
     chat_command('list', '$R', '[pattern]', 'List channels, optionally matching a pattern', function(ctx, arg)
         M.list(ctx.net, arg)
         bus.emit('chat.show_list', {net = ctx.net})

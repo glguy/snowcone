@@ -837,6 +837,72 @@ T.case('op, deop, voice and devoice nicks, or ourselves', function()
     T.eq(c:take(), {'MODE #chan -v me'}, 'devoice ourselves directly')
 end)
 
+T.case('mode changes the shown channel, checked against CHANMODES, or shows it', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    control.init_state(HUB.state)
+    local cmdline = T.require 'hub.ui.cmdline'
+    local bus = T.require 'hub.runtime.bus'
+    c:recv ':srv 005 me PREFIX=(ov)@+ CHANMODES=bq,k,l,imnst MODES=2 :are supported'
+    c:recv ':me!u@h JOIN #chan'
+    c:take()
+    control.set_talk_target('test', '#chan')
+    local shown = {}
+    bus.on(HUB.current.bus, 'chat.show_channel', 'test', function(ev) table.insert(shown, ev.target) end)
+
+    cmdline.execute 'mode +nt-s'
+    T.eq(c:take(), {'MODE #chan +nt-s'}, 'flags')
+    cmdline.execute 'mode +kl key 50'
+    T.eq(c:take(), {'MODE #chan +kl key 50'}, 'arguments in order')
+    cmdline.execute 'mode -l+o-k bob key'
+    T.eq(c:take(), {'MODE #chan -l+o-k bob key'}, 'unset l takes none; k does')
+    cmdline.execute 'mode +ooo-v a b c d'
+    T.eq(c:take(), {'MODE #chan +oo a b', 'MODE #chan +o-v c d'}, 'as many arguments a line as MODES')
+    cmdline.execute 'mode i'
+    T.eq(c:take(), {'MODE #chan +i'}, 'no sign: sets, as the server reads it')
+
+    for bad, why in pairs {
+        ['mode +x'] = 'not a channel mode here: x',
+        ['mode +k'] = '+k needs an argument',
+        ['mode +n extra'] = 'more arguments than the modes take: extra',
+        ['mode +'] = 'no modes: +',
+    } do
+        cmdline.execute(bad)
+        T.eq(c:take(), {}, 'unsent: ' .. bad)
+        local errors = T.log_lines 'error'
+        T.eq(errors[#errors], 'mode: ' .. why, 'refused')
+    end
+
+    cmdline.execute 'mode'
+    T.eq(c:take(), {'MODE #chan'}, 'none: modes asked for again')
+    cmdline.execute 'mode +bq'
+    T.eq(c:take(), {'MODE #chan +b', 'MODE #chan +q'}, 'only lists: fetched')
+    T.eq(shown, {'#chan', '#chan'}, 'and shown')
+end)
+
+T.case('Tab after mode offers what fits the argument', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    control.init_state(HUB.state)
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:recv ':srv 005 me PREFIX=(ov)@+ CHANMODES=bq,k,l,imnst :are supported'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':srv 353 me = #chan :@me bob'
+    c:recv ':srv 324 me #chan +k sekrit'
+    c:take()
+    control.set_talk_target('test', '#chan')
+
+    T.eq(cmdline.complete_args('mode +o ', 'b'), {'bob'}, 'nicks for a prefix mode')
+    T.eq(cmdline.complete_args('mode +lo 5 ', 'b'), {'bob'}, 'past earlier arguments')
+    T.eq(cmdline.complete_args('mode -k ', ''), {'sekrit'}, 'the key to unset')
+    T.eq(cmdline.complete_args('mode +b ', ''), nil, 'nothing for a mask to set')
+    T.eq(cmdline.complete_args('mode -b ', ''), nil, 'a list not fetched')
+    T.eq(c:take(), {'MODE #chan +b'}, 'is asked for')
+    c:recv ':srv 367 me #chan *!*@bad.example op 1700000000'
+    c:recv ':srv 368 me #chan :End of Channel Ban List'
+    T.eq(cmdline.complete_args('mode -b ', ''), {'*!*@bad.example'}, 'its masks')
+end)
+
 T.case('Tab after unban offers the ban list, fetching it first', function()
     local c = boot()
     local control = T.require 'hub.ui.control'

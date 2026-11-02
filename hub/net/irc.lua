@@ -312,6 +312,23 @@ function M.new_channel(name)
     return {name = name, members = {}, list_modes = {}}
 end
 
+--- Whether a change of a channel mode takes an argument, by the
+--- network's PREFIX and CHANMODES: a prefix, list or type B mode always,
+--- a type C mode when set; nil for a mode the network doesn't have.
+---@param irc hub.Irc
+---@param sign '+'|'-'
+---@param flag string
+---@return boolean|nil
+function M.mode_takes_arg(irc, sign, flag)
+    if irc.mode_to_prefix[flag] or irc.modes_A:find(flag, 1, true) or irc.modes_B:find(flag, 1, true) then
+        return true
+    elseif irc.modes_C:find(flag, 1, true) then
+        return sign == '+'
+    elseif irc.modes_D:find(flag, 1, true) then
+        return false
+    end
+end
+
 ---@param user hub.User
 ---@param modes table<string, true>|nil
 ---@return hub.Member

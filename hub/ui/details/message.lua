@@ -411,9 +411,7 @@ local function mode_changes(irc, msg)
         if flag == '+' or flag == '-' then
             sign = flag
         else
-            local takes = irc and (irc.mode_to_prefix[flag]
-                or irc.modes_A:find(flag, 1, true) or irc.modes_B:find(flag, 1, true)
-                or sign == '+' and irc.modes_C:find(flag, 1, true))
+            local takes = irc and irc_model.mode_takes_arg(irc, sign, flag)
             local arg
             if takes then
                 arg = msg[cursor]
