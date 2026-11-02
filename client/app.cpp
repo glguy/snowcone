@@ -158,6 +158,15 @@ auto do_mouse(lua_State* const L, int const y, int const x, bool const shifted) 
     lua_callback(L, "on_mouse", 3);
 }
 
+// delta is 1 for the wheel turned up, -1 for down
+auto do_wheel(lua_State* const L, int const y, int const x, int const delta) -> void
+{
+    lua_pushinteger(L, y);
+    lua_pushinteger(L, x);
+    lua_pushinteger(L, delta);
+    lua_callback(L, "on_wheel", 3);
+}
+
 auto do_keyboard(lua_State* const L, long const key) -> void
 {
     lua_pushinteger(L, key);
@@ -376,9 +385,20 @@ auto App::stdin_thread(unsigned const generation) -> boost::asio::awaitable<void
             else if (KEY_MOUSE == key)
             {
                 MEVENT ev;
-                if (OK == getmouse(&ev) && ev.bstate & BUTTON1_CLICKED)
+                if (OK == getmouse(&ev))
                 {
-                    do_mouse(L, ev.y, ev.x, ev.bstate & BUTTON_SHIFT);
+                    if (ev.bstate & BUTTON1_CLICKED)
+                    {
+                        do_mouse(L, ev.y, ev.x, ev.bstate & BUTTON_SHIFT);
+                    }
+                    else if (ev.bstate & BUTTON4_PRESSED)
+                    {
+                        do_wheel(L, ev.y, ev.x, 1);
+                    }
+                    else if (ev.bstate & BUTTON5_PRESSED)
+                    {
+                        do_wheel(L, ev.y, ev.x, -1);
+                    }
                 }
             }
             else if (BracketedPaste::start_paste == key)
@@ -576,7 +596,7 @@ auto App::start_ui() -> void
     noecho(); // no echo input to screen
     nonl(); // no newline on pressing return
     curs_set(0); // no cursor
-    mousemask(BUTTON1_CLICKED | BUTTON_SHIFT, nullptr);
+    mousemask(BUTTON1_CLICKED | BUTTON4_PRESSED | BUTTON5_PRESSED | BUTTON_SHIFT, nullptr);
     set_escdelay(25);
     nodelay(stdscr, TRUE); // nonblocking input reads
     intrflush(stdscr, FALSE);

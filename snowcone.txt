@@ -62,7 +62,8 @@ USING HUB
   a channel's information or a nick's /whois. A status line that starts
   with ▸ opens what it summarizes. While the pane is open it takes the
   scrolling keys; Esc or its [CLOSE] closes it, and [DISCARD] also drops
-  it from the status lines that would reopen it.
+  it from the status lines that would reopen it. The mouse wheel scrolls
+  the pane or the view, whichever it is over.
 
 KEYS
   /            Type a command

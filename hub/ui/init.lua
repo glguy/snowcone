@@ -228,6 +228,13 @@ function entry.on_mouse(y, x, shifted)
     compose()
 end
 
+-- The wheel scrolls what it is over, the detail pane or else the view,
+-- a few lines a notch
+function entry.on_wheel(y, _, delta)
+    keymap.scroll(y < layout.detail_rows, 0, 3 * delta)
+    dispatch.dirty()
+end
+
 function entry.on_resize()
     make_layout()
     dispatch.dirty()

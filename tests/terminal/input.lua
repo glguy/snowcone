@@ -9,6 +9,7 @@
 --                   printable ASCII as \xHH (only the ends past 64 bytes)
 --   discarded 70006 a paste over the limit, by size
 --   mouse 3 10 false
+--   wheel 3 10 1    the wheel at row 3, column 10: 1 up, -1 down
 --   resize 100 30   after SIGWINCH: tty_width, tty_height
 
 local out = assert(io.open('/dev/fd/3', 'w'))
@@ -58,6 +59,8 @@ snowcone.setmodule(function(event, ...)
         if text then emit('paste', #text, show(text)) else emit('discarded', size) end
     elseif event == 'on_mouse' then
         emit('mouse', ...)
+    elseif event == 'on_wheel' then
+        emit('wheel', ...)
     elseif event == 'on_resize' then
         emit('resize', tty_width, tty_height)
     end

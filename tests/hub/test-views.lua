@@ -1242,8 +1242,16 @@ T.case('the detail pane sits above the view, scrolls, and closes', function()
     key(-ncurses.KEY_UP)
     T.eq(detail.scroll, 16, 'a line up')
 
-    -- the rule's [CLOSE] is clickable on the row below the pane
+    -- the wheel scrolls what it is over
     local entry = HUB.current.routes['ui.entry']
+    entry('on_wheel', 3, 10, -1)
+    T.eq(detail.scroll, 19, 'wheeled down over the pane')
+    entry('on_wheel', 3, 10, 1)
+    T.eq(detail.scroll, 16, 'wheeled up over the pane')
+    entry('on_wheel', 25, 10, -1)
+    T.eq(detail.scroll, 16, 'the view takes the wheel below the pane')
+
+    -- the rule's [CLOSE] is clickable on the row below the pane
     entry('on_mouse', 18, 2, false)
     T.eq(control.detail(), nil, 'closed by click')
 

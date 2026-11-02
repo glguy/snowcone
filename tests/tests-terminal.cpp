@@ -684,6 +684,26 @@ TEST_F(Input, MouseClick)
     finish(term);
 }
 
+TEST_F(Input, MouseWheel)
+{
+    // The wheel is a press of button 4 (up) or 5 (down) with no release
+    ASSERT_TRUE(term.wait_output("1000h")) << shown(term.output());
+    if (term.output().find("\x1b[?1006") != std::string::npos)
+    {
+        term.send("\x1b[<64;11;4M");
+        expect_events(term, {"wheel 3 10 1"});
+        term.send("\x1b[<65;2;1M");
+    }
+    else
+    {
+        term.send("\x1b[M\x60\x2b\x24");
+        expect_events(term, {"wheel 3 10 1"});
+        term.send("\x1b[M\x61\x22\x21");
+    }
+    expect_events(term, {"wheel 0 1 -1"});
+    finish(term);
+}
+
 TEST_F(Input, Resize)
 {
     // Each is reported once, and nothing else arrives in between; the

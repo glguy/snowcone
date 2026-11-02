@@ -178,26 +178,32 @@ M.input = {
     [-ncurses.KEY_BTAB     ] = function() do_tab(-1) end,
 }
 
--- Scroll by pages and lines toward older entries of a rolling log, or
--- toward the top of a document. The detail pane, while it is open, takes
--- the scrolling from the view. draw.draw_rotation and pads.set_paging
--- (ui/pads.lua) record the page size and limit.
-local function scroll(pages, lines)
-    return function()
+--- Scroll by pages and lines toward older entries of a rolling log, or
+--- toward the top of a document: the detail pane when `detail` and it is
+--- open, else the view. draw.draw_rotation and pads.set_paging
+--- (ui/pads.lua) record the page size and limit.
+---@param detail boolean
+---@param pages integer
+---@param lines integer
+function M.scroll(detail, pages, lines)
+    local vs = detail and control.detail() --[[@as hub.ViewState|nil]]
+    local document = true
+    if not vs then
         local view = control.current_view()
-        local vs = control.detail() --[[@as hub.ViewState|nil]]
-        local document = true
-        if not vs then
-            vs = control.view_state(view.id)
-            document = view.document
-        end
-        if vs.page then
-            -- a document's scroll counts rows down from its top
-            local sign = document and -1 or 1
-            local target = vs.scroll + sign * (pages * vs.page + lines)
-            vs.scroll = math.max(0, math.min(target, vs.max_scroll))
-        end
+        vs = control.view_state(view.id)
+        document = view.document
     end
+    if vs.page then
+        -- a document's scroll counts rows down from its top
+        local sign = document and -1 or 1
+        local target = vs.scroll + sign * (pages * vs.page + lines)
+        vs.scroll = math.max(0, math.min(target, vs.max_scroll))
+    end
+end
+
+-- The scrolling keys go to the detail pane while it is open
+local function scroll(pages, lines)
+    return function() M.scroll(true, pages, lines) end
 end
 
 -- Scroll sideways by most of a screen. The detail pane, while it is open,
