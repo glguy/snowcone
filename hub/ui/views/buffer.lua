@@ -128,17 +128,18 @@ function renderer.CHGHOST(win, msg)
     win:waddstr(scrub(msg[1] or ''), '@', scrub(msg[2] or ''))
 end
 
--- a JOIN the server refused, and its reason
-local function join_refused(win, msg)
+-- an error about a channel: the nick it names, if any, and the reason
+local function channel_error(win, msg)
     draw.italic(win)
     win:waddstr 'refused '
-    addircstr(win, msg[3] or '')
+    if chat.channel_errors[msg.command] == 3 then
+        draw.normal(win)
+        win:waddstr(scrub(msg[2] or ''), ' ')
+    end
+    addircstr(win, msg[#msg] or '')
 end
-for _, n in ipairs {
-    N.ERR_TOOMANYCHANNELS, N.ERR_CHANNELISFULL, N.ERR_INVITEONLYCHAN,
-    N.ERR_BANNEDFROMCHAN, N.ERR_BADCHANNELKEY, N.ERR_NEEDREGGEDNICK, N.ERR_THROTTLE,
-} do
-    renderer[n] = join_refused
+for n in pairs(chat.channel_errors) do
+    renderer[n] = channel_error
 end
 
 renderer[N.ERR_LINKCHANNEL] = function(win, msg)

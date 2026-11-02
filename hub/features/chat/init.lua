@@ -433,19 +433,38 @@ end
 H.ACCOUNT = user_change
 H.CHGHOST = user_change
 
--- "<client> <channel> :<reason>": a JOIN refused, shown in the channel's
--- buffer, which would otherwise show only that we aren't in it
-local function join_refused(net, irc, msg)
-    local channel = msg[2]
-    if channel and M.buffer(net, channel) and not irc_model.get_channel(irc, channel) then
+--- Errors about a channel, by numeric: which parameter names the
+--- channel. A JOIN refused, or a change we asked for there, is shown in
+--- the channel's buffer, which would otherwise show nothing happened.
+M.channel_errors = {
+    [N.ERR_NOSUCHCHANNEL] = 2,      -- <channel> :reason
+    [N.ERR_TOOMANYCHANNELS] = 2,
+    [N.ERR_BANNICKCHANGE] = 3,      -- <nick> <channel> :reason
+    [N.ERR_UNAVAILRESOURCE] = 2,    -- a channel juped, or a nick
+    [N.ERR_USERNOTINCHANNEL] = 3,   -- <nick> <channel> :reason
+    [N.ERR_NOTONCHANNEL] = 2,
+    [N.ERR_LINKCHANNEL] = 2,        -- <channel> <forward> :reason
+    [N.ERR_CHANNELISFULL] = 2,
+    [N.ERR_INVITEONLYCHAN] = 2,
+    [N.ERR_BANNEDFROMCHAN] = 2,
+    [N.ERR_BADCHANNELKEY] = 2,
+    [N.ERR_BADCHANMASK] = 2,
+    [N.ERR_NEEDREGGEDNICK] = 2,
+    [N.ERR_BANLISTFULL] = 2,        -- <channel> <mode> :reason
+    [N.ERR_BADCHANNAME] = 2,
+    [N.ERR_THROTTLE] = 2,
+    [N.ERR_CHANOPRIVSNEEDED] = 2,
+    [N.ERR_VOICENEEDED] = 2,
+}
+
+local function channel_error(net, irc, msg)
+    local channel = msg[M.channel_errors[msg.command]]
+    if channel and irc_model.is_channel_name(irc, channel) and M.buffer(net, channel) then
         add(net, channel, msg, false, false)
     end
 end
-for _, n in ipairs {
-    N.ERR_TOOMANYCHANNELS, N.ERR_CHANNELISFULL, N.ERR_INVITEONLYCHAN,
-    N.ERR_BANNEDFROMCHAN, N.ERR_BADCHANNELKEY, N.ERR_NEEDREGGEDNICK, N.ERR_THROTTLE,
-} do
-    H[n] = join_refused
+for n in pairs(M.channel_errors) do
+    H[n] = channel_error
 end
 
 -- "<client> <channel> <forward> :<reason>": the server joins us to
@@ -453,7 +472,7 @@ end
 H[N.ERR_LINKCHANNEL] = function(net, irc, msg)
     local from, to = msg[2], msg[3]
     if not (from and to) then return end
-    join_refused(net, irc, msg)
+    channel_error(net, irc, msg)
     add(net, to, msg, false, false)
     bus.emit('chat.forward', {net = net, from = from, to = to})
 end

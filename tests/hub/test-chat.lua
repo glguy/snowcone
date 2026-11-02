@@ -118,6 +118,24 @@ T.case('whowas gathers every past entry, and reports failures', function()
     T.ok(T.log_lines 'error'[1]:find 'count must be a positive number', 'and says why')
 end)
 
+T.case("an error about a change in a channel shows in its buffer", function()
+    local c, chat = boot()
+    c:recv ':me!u@h JOIN #c'
+    c:recv ':bob!b@h PRIVMSG me :hi'
+    c:take()
+    c:recv ":srv 482 me #c :You're not a channel operator"
+    c:recv ":srv 441 me alice #c :They aren't on that channel"
+    c:recv ':srv 478 me #c b :Channel ban list is full'
+    c:recv ':srv 437 me bob :Nick/channel is temporarily unavailable'
+    T.eq(texts(chat.buffer('test', '#c')), {
+        'JOIN #c',
+        "482 me #c You're not a channel operator",
+        "441 me alice #c They aren't on that channel",
+        '478 me #c b Channel ban list is full',
+    }, 'the channel, found where each numeric names it')
+    T.eq(#texts(chat.buffer('test', 'bob')), 1, 'a nick named where a channel can be is not one')
+end)
+
 T.case('a refused or forwarded JOIN shows in the buffer', function()
     local c, chat = boot()
     chat.talk('test', '#ban')
