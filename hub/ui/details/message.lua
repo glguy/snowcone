@@ -244,15 +244,17 @@ local function sender(ctx, win, msg)
 
         local caps = irc and irc.caps_enabled or {}
         local account = tag_value(tags, 'account')
+        -- identified means the nick belongs to the account, grouped or not
+        local identified = tags['solanum.chat/identified'] ~= nil
         if account then
             table.insert(identity, {'account ' .. scrub(account)})
-            if irc and irc_model.fold(irc, account) ~= irc_model.fold(irc, msg.nick) then
+            if not identified and irc and irc_model.fold(irc, account) ~= irc_model.fold(irc, msg.nick) then
                 table.insert(identity, {'not the nick', draw.yellow})
             end
         elseif caps['account-tag'] then
             table.insert(identity, {'not logged in', draw.yellow})
         end
-        if tags['solanum.chat/identify-msg'] ~= nil then
+        if identified then
             table.insert(identity, {'identified', draw.green})
         elseif caps['solanum.chat/identify-msg'] then
             table.insert(identity, {'not identified', draw.yellow})

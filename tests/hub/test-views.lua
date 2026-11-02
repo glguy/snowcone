@@ -984,7 +984,7 @@ T.case('the message detail sums up a chat line', function()
     c:recv ':me!u@h JOIN #c'
     c:recv ':srv 353 me = #c :me @alice bob'
     c:recv ':srv 366 me #c :End of /NAMES list.'
-    c:recv('@account=work;solanum.chat/identify-msg;bot;msgid=m1;solanum.chat/realhost=real.example'
+    c:recv('@account=work;solanum.chat/identified;bot;msgid=m1;solanum.chat/realhost=real.example'
         .. ' :alice!a@h.example PRIVMSG @#c :\x01ACTION waves\x01')
     c:recv ':bob!b@h PRIVMSG #c :plain'
     local chat = T.require 'hub.features.chat'
@@ -999,7 +999,7 @@ T.case('the message detail sums up a chat line', function()
     local rows = rows_of(detail_pad())
     for _, want in ipairs {
         '^    from: alice a@h.example, real host real.example$',
-        '^identity: account work, not the nick, identified$',
+        '^identity: account work, identified$',
         '^    role: @ %+o, bot$',
         '^    sent: action to #c, @ and above only, at %d%d:%d%d:%d%d$',
         '^    text: waves$',
