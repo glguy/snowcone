@@ -58,11 +58,14 @@ return function(t)
         irc.sasl_credentials = config.automatic_credentials(cfg.sasl)
     end
 
-    -- resolved before anything is sent, since it may prompt
+    -- prepared by the connect task before the connection opened
     local ok, password = pcall(secrets.server_password, t, cfg.registration)
     if not ok then
         t:log('irc', 'Password resolution failed: %s', password)
         password = nil
+    elseif password and password:find '[\r\n%z]' then
+        t:api 'hub.net.manager'.give_up(t.net, 'registration.password: a line break or NUL in it')
+        return
     end
 
     local nick  = cfg.identity.nick

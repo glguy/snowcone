@@ -369,7 +369,6 @@ T.case('C-s leaves a prompt in place', function()
         registration = {password = {prompt = 'server password'}},
         identity = {nick = 'me'},
     }}}}
-    fake.last():con()
     local control = T.require 'hub.ui.control'
     local input = HUB.state.ui.input
     T.eq(input.mode, 'password', 'prompting')

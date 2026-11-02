@@ -7,7 +7,9 @@
 -- A private key may instead be {store = name}, a key in an OpenSSL store,
 -- which key_store gives and resolve refuses.
 -- Resolution runs inside a task, since commands and prompts suspend it.
--- Resolved values are never stored in HUB.state.
+-- Resolved values are never stored in HUB.state. A task can resolve the
+-- secrets it will need ahead of time (prepare), such as registration's
+-- before the connection opens; they are kept with the task until it ends.
 
 local file   <const> = require 'pl.file'
 local config <const> = require 'hub.runtime.config'
@@ -29,11 +31,36 @@ function M.key_store(entry)
     return type(entry) == 'table' and entry.store or nil
 end
 
---- Resolve one secret; nil stays nil.
+local resolve
+
+--- Resolve one secret; nil stays nil. A secret the task prepared gives
+--- what it resolved to then, or its error.
 ---@param t hub.Task
 ---@param entry hub.Secret|nil
 ---@return string|nil
 function M.resolve(t, entry)
+    local prepared = t.secrets and t.secrets[entry]
+    if prepared then
+        if prepared.ok then return prepared.value end
+        error(prepared.err, 0)
+    end
+    return resolve(t, entry)
+end
+
+--- Resolve secrets now, for the task to use later.
+---@param t hub.Task
+---@param entries (hub.Secret|false)[] false for a secret not configured
+function M.prepare(t, entries)
+    t.secrets = t.secrets or {}
+    for _, entry in ipairs(entries) do
+        if type(entry) == 'table' and not t.secrets[entry] then
+            local ok, value = pcall(resolve, t, entry)
+            t.secrets[entry] = ok and {ok = true, value = value} or {ok = false, err = value}
+        end
+    end
+end
+
+function resolve(t, entry)
     local kind = type(entry)
 
     if kind == 'nil' or kind == 'string' then
@@ -70,7 +97,8 @@ function M.resolve(t, entry)
             if not text then
                 error(err or ('failed to read ' .. filename), 0)
             end
-            return text
+            -- a file's last line ends with a line break; the secret doesn't
+            return (text:gsub('\r?\n$', '', 1))
         end
     end
 

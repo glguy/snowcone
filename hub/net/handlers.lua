@@ -13,6 +13,7 @@ local bus       <const> = require 'hub.runtime.bus'
 local cap       <const> = require 'hub.net.cap'
 local check     <const> = require 'hub.lib.check'
 local clock     <const> = require 'hub.runtime.clock'
+local dispatch  <const> = require 'hub.runtime.dispatch'
 local irc_model <const> = require 'hub.net.irc'
 local ircd      <const> = require 'hub.net.ircd'
 local log       <const> = require 'hub.runtime.log'
@@ -172,29 +173,26 @@ H[N.ERR_MONLISTFULL] = function(rec)
     log.add_net(rec.id, 'monitor', 'monitor list full')
 end
 
--- During registration a rejected nick gets a random replacement, and the
--- configured one is reclaimed later. NICKLEN isn't known before
--- RPL_WELCOME, so a nick refused as erroneous is taken to be too long,
--- and the replacement is shorter than it.
-local function new_nickname(rec, irc, msg)
+-- During registration a nick that is taken or held gets a random
+-- replacement, and the configured one is reclaimed later.
+local function new_nickname(rec, irc)
     if rec.phase == 'registering' then
         local wanted = rec.cfg.identity.nick
-        local keep = 10
-        if msg.command == N.ERR_ERRONEUSNICKNAME then
-            keep = math.min(keep, #msg[2] - 7) -- room for -NNNNN
-        end
-        if keep < 1 then
-            log.add_net(rec.id, 'irc', 'no replacement nick short enough for %s', msg[2])
-            return
-        end
-        local nick = string.format('%s-%05d', wanted:sub(1, keep), math.random(0, 99999))
+        local nick = string.format('%s-%05d', wanted:sub(1, 10), math.random(0, 99999))
         send.send(rec.id, 'NICK', nick)
         irc.recover_nick = irc_model.fold(irc, wanted)
         irc.nick = nick -- optimistic
     end
 end
 
-H[N.ERR_ERRONEUSNICKNAME] = new_nickname
+-- A nick the server finds unacceptable during registration is a problem
+-- in the configuration: a replacement can't know what the server wants
+H[N.ERR_ERRONEUSNICKNAME] = function(rec, _, msg)
+    if rec.phase == 'registering' then
+        dispatch.route 'net.give_up'(rec.id, string.format(
+            'identity.nick: the server refuses %s: %s', msg[2] or '?', msg[3] or 'erroneous nickname'))
+    end
+end
 H[N.ERR_NICKNAMEINUSE] = new_nickname
 H[N.ERR_UNAVAILRESOURCE] = new_nickname
 
@@ -217,7 +215,7 @@ end
 function H.NICK(rec, irc, msg)
     local oldnick = msg.nick
     local newnick = msg[1]
-    if not oldnick then return end
+    if not oldnick or not newnick then return end
 
     local oldkey = irc_model.fold(irc, oldnick)
     local newkey = irc_model.fold(irc, newnick)
@@ -258,6 +256,7 @@ end
 function H.JOIN(_, irc, msg)
     local who = msg.nick
     local name = msg[1]
+    if not who or not name then return end
     if irc_model.is_me(irc, who) then
         irc.channels[irc_model.fold(irc, name)] = irc_model.new_channel(name)
     end
@@ -270,8 +269,8 @@ end
 
 -- "<client> <symbol> <channel> :[prefix]<nick>{ [prefix]<nick>}"
 H[N.RPL_NAMREPLY] = function(_, irc, msg)
-    local channel = irc_model.get_channel(irc, msg[3])
-    if not channel then return end
+    local channel = msg[3] and irc_model.get_channel(irc, msg[3])
+    if not channel or not msg[4] then return end
 
     -- Prefixes come off before the userhost (userhost-in-names) does;
     -- matching the nick first with '[^!@ ]+' would drop the @ of ops.
@@ -293,6 +292,7 @@ end
 function H.PART(_, irc, msg)
     local who = msg.nick
     local name = msg[1]
+    if not who or not name then return end
     if irc_model.is_me(irc, who) then
         irc.channels[irc_model.fold(irc, name)] = nil
     else
@@ -306,6 +306,7 @@ end
 function H.KICK(_, irc, msg)
     local name = msg[1]
     local target = msg[2]
+    if not name or not target then return end
     if irc_model.is_me(irc, target) then
         irc.channels[irc_model.fold(irc, name)] = nil
     else
@@ -340,7 +341,9 @@ end
 
 -- "<client> <nick> :<message>"
 H[N.RPL_AWAY] = function(_, irc, msg)
-    irc_model.get_user(irc, msg[2]).away = msg[3]
+    if msg[2] then
+        irc_model.get_user(irc, msg[2]).away = msg[3]
+    end
 end
 
 -----------------------------------------------------------------------
@@ -363,6 +366,7 @@ function H.MODE(rec, irc, msg)
     local target = msg[1]
     local modestring = msg[2]
     local cursor = 3
+    if not target or not modestring then return end
 
     if irc_model.is_me(irc, target) then
         parse_umodes(irc.mode, modestring)
@@ -381,7 +385,7 @@ function H.MODE(rec, irc, msg)
         elseif flag == '-' then
             polarity = false
         elseif irc.mode_to_prefix[flag] then
-            local member = irc_model.get_member(irc, channel, msg[cursor])
+            local member = msg[cursor] and irc_model.get_member(irc, channel, msg[cursor])
             cursor = cursor + 1
             if member then
                 member.modes[flag] = polarity or nil
@@ -390,7 +394,7 @@ function H.MODE(rec, irc, msg)
             local modes = channel.list_modes[flag]
             local mask = msg[cursor]
             cursor = cursor + 1
-            if modes then
+            if modes and mask then
                 if polarity then
                     modes[mask] = {who = msg.source}
                 else

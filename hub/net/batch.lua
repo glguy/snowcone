@@ -25,7 +25,7 @@ consumers['soju.im/bouncer-networks'] = function(irc, _, messages)
     local networks = {}
     for _, msg in ipairs(messages) do
         -- BOUNCER NETWORK <netid> <tag-encoded attributes>
-        if 'BOUNCER' == msg.command and 'NETWORK' == msg[1] then
+        if 'BOUNCER' == msg.command and 'NETWORK' == msg[1] and msg[2] and msg[3] then
             networks[msg[2]] = snowcone.parse_irc_tags(msg[3])
         end
     end
@@ -57,6 +57,7 @@ end
 --- Handle a BATCH command.
 ---@return hub.Batch|nil # the batch it closed
 function M.BATCH(net, irc, msg)
+    if not msg[1] then return end
     local polarity = msg[1]:sub(1, 1)
     local name = msg[1]:sub(2)
 

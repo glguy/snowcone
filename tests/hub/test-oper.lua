@@ -60,6 +60,29 @@ T.case('/oper logs in with a named credential, or the automatic ones', function(
     T.eq(T.log_lines 'oper', {'password mismatch', 'host mismatch'}, 'outcomes logged')
 end)
 
+T.case('a credential that fails goes on to the next, and to MODE', function()
+    local fake = FakeTransport.new()
+    T.boot {transport = fake, config = {networks = {{
+        id = 'test',
+        server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'},
+        oper = {automatic = {'a', 'b'}, credentials = {
+            {name = 'a', mechanism = 'password', username = 'first', password = {file = '/nonexistent/oper.pass'}},
+            {name = 'b', mechanism = 'password', username = 'second', password = 'p2'},
+        }},
+    }}}}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 376 me :End of MOTD'
+    local sent = c:take()
+    T.eq(sent[#sent], 'OPER second p2', 'b after a fails')
+    T.ok(T.log_lines('oper')[1]:find '^a: ', T.log_lines('oper')[1])
+    c:recv ':srv 464 me :Password incorrect'
+    T.eq(c:take(), {'MODE me'}, 'then MODE')
+end)
+
 T.case('mask rules (the dashboard asserts)', function()
     boot()
     local masks = T.require 'hub.features.oper.masks'

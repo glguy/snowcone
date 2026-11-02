@@ -29,6 +29,12 @@ local function boot(networks)
     control.init_state(HUB.state)
     local bus = T.require 'hub.runtime.bus'
     bus.on(HUB.current.bus, 'task.prompt', 'test', control.add_prompt)
+    -- and the prompts asked while booting, before that subscription
+    for id, t in pairs(HUB.tasks) do
+        if t.wait == 'prompt' then
+            control.add_prompt {task = id, label = t.label, net = t.net}
+        end
+    end
     return fake, control, T.require 'hub.ui.cmdline'
 end
 
@@ -169,13 +175,17 @@ T.case('a prompt takes over input and keeps the typed command', function()
     })}
     local editor = T.require 'hub.ui.editor'
     local input = HUB.state.ui.input
+    local manager = T.require 'hub.net.manager'
+    manager.disconnect 'a'
+    control.check_prompts()
+    T.eq(input.mode, nil, 'the prompt at boot gone with its connect task')
 
     -- a half-typed command when the prompt arrives
     input.mode = 'command'
     for _, c in utf8.codes 'quote PI' do editor.add(input.editor, c) end
 
-    local c = fake.last()
-    c:con()
+    manager.connect 'a'
+    T.eq(fake.last(), nil, 'asked before connecting')
     T.eq(input.mode, 'password', 'prompting')
     T.eq(control.current_prompt().label, 'server password', 'label')
     T.ok(control.editor() == input.secret, 'secret editor in use')
@@ -190,6 +200,8 @@ T.case('a prompt takes over input and keeps the typed command', function()
     T.eq(editor.content(input.editor), 'quote PI', 'typed command kept')
     T.eq(editor.content(input.secret), '', 'secret cleared')
     T.eq(T.require 'hub.lib.OrderedMap'.size(input.secret.history), 0, 'secret not in history')
+    local c = fake.last()
+    c:con()
     T.eq(c:take(), {'CAP LS 302', 'PASS hunter2', 'NICK me', 'USER me 0 * me'}, 'PASS sent')
     T.eq(cmdline ~= nil, true, 'loaded')
 end)
@@ -199,11 +211,11 @@ T.case('aborting a prompt fails only that secret', function()
         server = {host = 'a.test', port = 6667},
         registration = {password = {prompt = 'server password'}},
     })}
-    local c = fake.last()
-    c:con()
     T.eq(HUB.state.ui.input.mode, 'password', 'prompting')
     control.answer_prompt(nil)
     T.eq(HUB.state.ui.input.mode, nil, 'input mode restored')
+    local c = fake.last()
+    c:con()
     T.eq(c:take(), {'CAP LS 302', 'NICK me', 'USER me 0 * me'}, 'registers without PASS')
     T.ok(T.log_lines('irc')[#T.log_lines 'irc']:find('prompt aborted', 1, true), 'reported')
 end)
@@ -213,9 +225,9 @@ T.case('a prompt whose task ended is skipped', function()
         server = {host = 'a.test', port = 6667},
         registration = {password = {prompt = 'server password'}},
     })}
-    fake.last():con()
+    T.eq(fake.last(), nil, 'not connected yet')
     T.eq(HUB.state.ui.input.mode, 'password', 'prompting')
-    fake.last():finish 'reset' -- cancels the registration task
+    T.require 'hub.net.manager'.disconnect 'a' -- cancels the connect task
     control.check_prompts()
     T.eq(HUB.state.ui.input.mode, nil, 'prompt dropped')
     T.eq(HUB.state.ui.input.prompts, {}, 'queue empty')
@@ -228,14 +240,13 @@ T.case('text typed for a prompt whose task ended is not the next one\'s', functi
         network('b', {server = {host = 'b.test', port = 6667}, registration = {password = secret}}),
     }
     local editor = T.require 'hub.ui.editor'
-    fake.conns[1]:con()
-    fake.conns[2]:con()
+    T.eq(fake.last(), nil, 'asked before connecting')
     T.eq(control.current_prompt().net, 'a', 'a asks first')
     for _, ch in utf8.codes 'half' do editor.add(control.editor(), ch) end
     editor.kill_to_beg(control.editor())
     for _, ch in utf8.codes 'typed' do editor.add(control.editor(), ch) end
 
-    fake.conns[1]:finish 'reset'
+    T.require 'hub.net.manager'.disconnect 'a'
     control.check_prompts()
     T.eq(control.current_prompt().net, 'b', 'b asks next')
     T.eq(editor.content(control.editor()), '', 'starting empty')

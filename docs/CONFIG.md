@@ -154,7 +154,7 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 | `ircd` | `'solanum'` | The server software the network runs: `'solanum'` or `'oftc-hybrid'`. It decides how server notices are recognized and parsed, what numerics mean, how `snomask` is set, how CHALLENGE works and how MAP, TESTMASK and TESTLINE replies read. OFTC hybrid has no MASKTRACE or TESTKLINE, and its connection notices carry no account, so a K-Line can't freeze one. |
 | `features` | all features | Which [features](#features) run on this network. |
 | `autoconnect` | `true` | Connect at startup, and after a reload that adds the network. With `false`, the network waits for `/connect`. |
-| `reconnect.min_delay` | `1` | Seconds before the first reconnect attempt. |
+| `reconnect.min_delay` | `1` | Seconds before the first reconnect attempt; at least 0.1. |
 | `reconnect.max_delay` | `300` | The longest wait between attempts. The delay doubles after each failure up to this limit, and returns to `min_delay` once a connection has stayed registered for a minute. It must not be below `min_delay`. |
 | `rate_limit.burst` | none | Lines that may go to the server at once. Without a `rate_limit` table, lines are never held back. With one, `burst` and `interval` are both required. |
 | `rate_limit.interval` | none | Seconds to earn back one line of the burst, above 0. A line that has to wait shows as `queued` in chat and the console until it goes, or `unsent` if the connection ends first. A PONG goes ahead of waiting lines, and QUIT drops them and goes at once. `burst = 5` and `interval = 2` match RFC 1459's message timer. |
@@ -316,7 +316,7 @@ A gateway that predates the IRCv3 subprotocols may refuse an offer of more than 
 
 | Field | Default | Meaning |
 |---|---|---|
-| `nick` | | Required. The nick to register with, and the one `reclaim_nick` takes back. No spaces or control characters. |
+| `nick` | | Required. The nick to register with, and the one `reclaim_nick` takes back. No spaces or control characters. A nick the server refuses as erroneous stops the network from connecting until the configuration changes. |
 | `user` | `nick` | The username sent in USER. |
 | `realname` | `nick` | The real name sent in USER. |
 | `bot` | `false` | Mark the connection as a bot: after registration, set the user mode the server names in ISUPPORT `BOT` (IRCv3 bot mode). A server that names none gets no mode, and the log says so. |
@@ -496,7 +496,7 @@ Fields that hold passwords, keys or certificates accept a secret, which is one o
 | Form | Value |
 |---|---|
 | `'text'` | The string itself. |
-| `{ file = 'path' }` | The whole contents of the file. Relative paths are relative to the configuration directory. |
+| `{ file = 'path' }` | The contents of the file, without its final line break. Relative paths are relative to the configuration directory. |
 | `{ command = 'program', arguments = [...] }` | The program's output, as described below. |
 | `{ prompt = 'label' }` | Asked for in the input line when needed, showing the network and label. Esc aborts it. |
 
@@ -511,7 +511,7 @@ A `command` secret has these fields:
 
 A command that exits with a non-zero status fails that secret, and the failure is logged with its error output.
 
-Secrets are resolved each time they are needed, at connect, registration or login, and are never stored. A prompt or command is therefore asked again on each reconnect.
+Secrets are resolved each time they are needed and are never stored. Those for the connection, registration (`password`) and automatic SASL are all resolved before connecting, so a prompt never holds an open connection; oper secrets are resolved at login. A prompt or command is therefore asked again on each reconnect.
 
 In TOML, dotted keys keep these short:
 

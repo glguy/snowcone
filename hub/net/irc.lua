@@ -264,6 +264,10 @@ function isupport_logic.CHATHISTORY(irc, arg)
     end
 end
 
+-- Tokens whose logic tells a bare token (true) from a value; the rest
+-- take a bare token as an empty value
+local flag_tokens <const> = {MONITOR = true, INVEX = true, EXCEPTS = true}
+
 --- Record an ISUPPORT token; val is nil when removed, true without a value.
 ---@param net string
 ---@param irc hub.Irc
@@ -273,7 +277,11 @@ function M.set_isupport(net, irc, key, val)
     irc.isupport[key] = val
     local f = isupport_logic[key]
     if f then
-        f(irc, val)
+        if val == true and not flag_tokens[key] then
+            f(irc, '')
+        else
+            f(irc, val)
+        end
     end
     bus.emit('irc.isupport', {net = net, key = key, value = val})
 end

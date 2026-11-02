@@ -127,7 +127,7 @@ function M.LS(t)
             if more then
                 capsarg = msg[4]
             end
-            irc_model.add_caps(irc, capsarg)
+            irc_model.add_caps(irc, capsarg or '')
         elseif msg.command == N.RPL_WELCOME then
             return msg -- the server doesn't negotiate capabilities
         elseif msg.command == N.ERR_UNKNOWNCOMMAND and msg[2] == 'CAP' then

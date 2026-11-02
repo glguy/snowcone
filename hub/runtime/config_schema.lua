@@ -22,6 +22,8 @@ end
 
 -- No spaces, line breaks or NUL: a single IRC parameter
 local word <const> = '^[^\n\r\x00 ]+$'
+-- A word not starting with ':': a parameter that may come before others
+local middle <const> = '^[^\n\r\x00 :][^\n\r\x00 ]*$'
 -- No line breaks or NUL: may be the last IRC parameter
 local line <const> = '^[^\n\r\x00]*$'
 
@@ -74,7 +76,7 @@ local required_key_schema <const> = private_key(true)
 
 local identity_fields <const> = {
     nick     = {type = 'string', pattern = word, required = true},
-    user     = {type = 'string', pattern = word},
+    user     = {type = 'string', pattern = middle},
     realname = {type = 'string', pattern = '^[^\n\r\x00]+$'},
     bot      = {type = 'boolean'},
 }
@@ -156,13 +158,13 @@ local oper_schema <const> = table_ {
         table_ {
             name      = {type = 'string'},
             mechanism = {type = 'string', pattern = '^password$', required = true},
-            username  = {type = 'string', required = true, pattern = word},
+            username  = {type = 'string', required = true, pattern = middle},
             password  = required_line_password_schema,
         },
         table_ {
             name      = {type = 'string'},
             mechanism = {type = 'string', pattern = '^challenge$', required = true},
-            username  = {type = 'string', required = true, pattern = word},
+            username  = {type = 'string', required = true, pattern = middle},
             key       = required_key_schema,
             password  = password_schema,
         },
@@ -185,7 +187,8 @@ local mention_schema <const> = table_ {
     patterns = array {type = 'string'},
 }
 
-local delay_schema <const> = {type = 'number', minimum = 0}
+-- No shorter than this, so a refused connection can't spin
+local delay_schema <const> = {type = 'number', minimum = 0.1}
 
 -- Lines that may go at once, and seconds to earn back one; config.lua
 -- checks that interval is above 0
@@ -219,7 +222,7 @@ M.network = table_ {
     rate_limit   = rate_limit_schema,
     reclaim_nick = {type = 'boolean'},
     channels     = array {type = 'string', pattern = '^[^\n\r\x00 ,]+$'},
-    snomask      = {type = 'string', pattern = word},
+    snomask      = {type = 'string', pattern = middle},
     quit_message = {type = 'string', pattern = line},
     servers_file = {type = 'string'},
     server       = required_table(server_fields),

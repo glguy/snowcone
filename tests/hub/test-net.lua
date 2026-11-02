@@ -300,7 +300,7 @@ T.case('nick in use during registration, then reclaimed with MONITOR', function(
     T.eq(nicks, {{net = 'test', old = temp, new = 'me', self = true}}, 'nick event')
 end)
 
-T.case('an erroneous nick during registration is replaced by a shorter one', function()
+T.case('an erroneous nick during registration is a configuration error', function()
     local fake = boot {network('test', {identity = {nick = 'averylongnick'}})}
     local c = fake.last()
     c:con()
@@ -308,23 +308,41 @@ T.case('an erroneous nick during registration is replaced by a shorter one', fun
     c:recv ':srv CAP * LS :'
     c:take()
 
-    -- in use: the usual ten characters
+    -- in use: a replacement of ten characters and a number
     c:recv ':srv 433 * averylongnick :Nickname is already in use'
     local sent = c:take()
-    local temp = T.ok(sent[1]:match '^NICK (averylongn%-%d%d%d%d%d)$', 'in use: ' .. sent[1])
+    T.ok(sent[1]:match '^NICK averylongn%-%d%d%d%d%d$', 'in use: ' .. sent[1])
 
-    -- erroneous: shorter than the nick refused, each time
-    for _ = 1, 3 do
-        c:recv(':srv 432 * ' .. temp .. ' :Erroneous Nickname')
-        sent = c:take()
-        local shorter = T.ok(sent[1] and sent[1]:match '^NICK (avery%w*%-%d%d%d%d%d)$', 'erroneous: ' .. tostring(sent[1]))
-        T.ok(#shorter < #temp, 'shorter: ' .. shorter)
-        temp = shorter
+    -- erroneous: no replacement, and no reconnect
+    c:recv ':srv 432 * averylongnick :Erroneous Nickname'
+    T.eq(c:take(), {}, 'no NICK')
+    T.ok(c.closed, 'connection closed')
+    T.eq(rec().phase, 'idle', 'idle')
+    T.eq(rec().target, 'idle', 'staying disconnected')
+    T.eq(rec().reconnect_timer, nil, 'no reconnect')
+    local lines = T.log_lines 'irc'
+    T.ok(lines[#lines]:find('the server refuses averylongnick: Erroneous Nickname', 1, true), lines[#lines])
+end)
+
+T.case('a file secret drops its final line break; one inside stops registration', function()
+    local dir = os.tmpname()
+    local function connect(text)
+        assert(require 'pl.file'.write(dir, text))
+        local fake = boot {network('test', {registration = {password = {file = dir}}})}
+        local c = fake.last()
+        c:con()
+        return c
     end
 
-    -- nothing short enough is left
-    c:recv ':srv 432 * a-12345 :Erroneous Nickname'
-    T.eq(c:take(), {}, 'gives up')
+    local c = connect 'hunter2\n'
+    T.eq(c:take(), {'CAP LS 302', 'PASS hunter2', 'NICK me', 'USER me 0 * me'}, 'PASS without the line break')
+
+    c = connect 'hunter2\nmore\n'
+    T.eq(c:take(), {}, 'nothing sent')
+    T.eq(rec().target, 'idle', 'staying disconnected')
+    local lines = T.log_lines 'irc'
+    T.ok(lines[#lines]:find('registration.password', 1, true), lines[#lines])
+    os.remove(dir)
 end)
 
 T.case('events from an earlier attempt are dropped', function()
@@ -496,6 +514,54 @@ T.case('a lopsided PREFIX and a NAMES word of only prefixes add no one', functio
     T.eq(irc_model.get_channel(irc, '#chan').members[''], nil, 'no member without a nick')
 end)
 
+T.case('valueless ISUPPORT tokens are empty values, or flags', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c, 'me', 'CHANTYPES STATUSMSG PREFIX CHANMODES LINELEN EXCEPTS')
+    local irc = rec().irc
+    T.eq(irc.chantypes, '', 'no channel types')
+    T.eq(irc.statusmsg, '', 'no STATUSMSG prefixes')
+    T.eq(irc.prefixes, '', 'no prefixes')
+    T.eq(irc.modes_A, '', 'no list modes')
+    T.eq(irc.linelen, 512, 'default line length')
+    T.eq(irc.excepts, 'e', 'EXCEPTS a flag')
+    T.eq(irc.isupport.CHANTYPES, true, 'the token kept as sent')
+
+    c:recv ':x!u@h PRIVMSG me :hello'
+    c:recv ':x!u@h PRIVMSG #notachan :hello'
+    T.eq(T.tracebacks(), {}, 'messages still handled')
+end)
+
+T.case('lines missing parameters change nothing and raise nothing', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c, 'me', 'PREFIX=(ov)@+ CHANMODES=b,k,l,imnt')
+    c:recv ':me JOIN #x'
+    local irc_model = T.require 'hub.net.irc'
+    local irc = rec().irc
+    T.ok(irc_model.get_channel(irc, '#x'), 'a bare-nick source joins')
+    T.ok(irc_model.get_channel(irc, '#x').members.ME, 'as a member')
+
+    for _, line in ipairs {
+        ':srv BATCH',
+        ':srv 353 me = #x',
+        ':srv 353 me',
+        ':me!u@h MODE #x +o',
+        ':me!u@h MODE #x +b',
+        ':me!u@h MODE #x',
+        ':me!u@h MODE',
+        ':x!u@h NICK',
+        ':x!u@h JOIN',
+        ':x!u@h PART',
+        ':x!u@h KICK #x',
+        ':srv 301 me',
+    } do
+        c:recv(line)
+    end
+    T.eq(T.tracebacks(), {}, 'no errors')
+    T.eq(rec().phase, 'connected', 'still connected')
+end)
+
 T.case('liveness: PING once when quiet, close when silent', function()
     local fake = boot {network('test')}
     local c = fake.last()
@@ -633,10 +699,10 @@ T.case('secrets come from a command or a prompt', function()
         oper = {automatic = {'password'},
             credentials = {{mechanism = 'password', username = 'op', password = {prompt = 'oper password'}}}},
     })}
+    T.eq(fake.last(), nil, 'no connection while the command runs')
+    T.sleep(500)
     local c = fake.last()
     c:con()
-    T.eq(c:take(), {}, 'nothing sent while the command runs')
-    T.sleep(500)
     T.eq(c:take(), {'CAP LS 302', 'PASS s3cret', 'NICK me', 'USER me 0 * me'}, 'PASS from the command')
 
     local bus = T.require 'hub.runtime.bus'
@@ -1174,6 +1240,10 @@ T.case('configuration constraints from the dashboard', function()
         {rate_limit = {burst = 0, interval = 2}},
         {rate_limit = {burst = 1.5, interval = 2}},
         {rate_limit = {burst = 5, interval = 0}},
+        {reconnect = {min_delay = 0, max_delay = 1}},
+        {identity = {nick = 'n', user = ':x'}},
+        {snomask = ':+s'},
+        {oper = {credentials = {{mechanism = 'password', username = ':o', password = 'x'}}}},
     } do
         local net = {id = 'x', server = {host = 'h', port = 1}, identity = {nick = 'n'}}
         for k, v in pairs(bad) do net[k] = v end

@@ -186,7 +186,9 @@ every topic, and a test checks that every literal topic emitted is listed.
   `--config=PATH`, else `hub.toml` in the snowcone config directory — with `KEY.PATH=value` overrides; validated
   against `runtime/config_schema.lua`.
 - Secrets — a string, `{file}`, `{command, arguments}` or `{prompt}` — are
-  resolved inside tasks when needed and never stored in state. Files
+  resolved inside tasks when needed and never stored in state; the
+  connect task resolves registration's and automatic SASL's with the
+  layers' (`resolving_secrets`) and keeps them until it ends. Files
   hub writes for them, such as new private keys, are created with
   `files.write_private`: readable only by the user, never over an
   existing file.
@@ -205,15 +207,16 @@ connected at once.
   ended are dropped.
 - **Reconnecting:** exponential backoff with jitter within the network's
   `reconnect` range, reset after a session that lasted a minute. Errors in
-  configuration (bad secrets, no host) stop retrying; refused connections
-  retry.
+  configuration (bad secrets, no host, a nick or password the server can't
+  take) stop retrying (`manager.give_up`); refused connections retry.
 - **Liveness:** a PING once a minute (and after 30 s of silence) measures
   lag; 60 s of silence closes the connection. All timeouts belong to Lua;
   the C++ side has none.
 - **Registration:** `CAP LS 302`, PASS, NICK and USER go out together; SASL
   runs over the configured credentials in order until one succeeds; the
-  welcome and the end of MOTD finish it. A rejected nick gets a temporary
-  one, and the wanted nick is reclaimed through MONITOR or server notices.
+  welcome and the end of MOTD finish it. A nick that is taken or held
+  gets a temporary one, and the wanted nick is reclaimed through MONITOR
+  or server notices; a nick refused as erroneous is a configuration error.
 - **Protocol model** (`rec.irc`): nick, modes, capabilities, ISUPPORT,
   channels and members, monitor list, batches, soju bouncer networks.
   Keys fold with the network's

@@ -43,13 +43,18 @@ function M.login(t, credential)
     return password_login(t, credential)
 end
 
---- Try credentials in order until one works.
+--- Try credentials in order until one works. A credential that fails
+--- with an error, such as a secret that doesn't resolve, is logged and the
+--- next one tried.
 ---@param t hub.Task
 ---@param credentials table[] `oper.credentials` entries
 ---@return boolean # we are an operator
 function M.first(t, credentials)
     for _, credential in ipairs(credentials) do
-        if M.login(t, credential) then
+        local ok, result = pcall(M.login, t, credential)
+        if not ok then
+            t:log('oper', '%s: %s', credential.name or credential.username, tostring(result))
+        elseif result then
             return true
         end
     end

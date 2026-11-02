@@ -8,6 +8,7 @@
 local batch        <const> = require 'hub.net.batch'
 local bus          <const> = require 'hub.runtime.bus'
 local clock        <const> = require 'hub.runtime.clock'
+local config       <const> = require 'hub.runtime.config'
 local dispatch     <const> = require 'hub.runtime.dispatch'
 local handlers     <const> = require 'hub.net.handlers'
 local irc_model    <const> = require 'hub.net.irc'
@@ -277,14 +278,27 @@ function M.finish(id, reason, retry)
     end
 end
 
+--- End the current attempt for a problem in the configuration, and stay
+--- disconnected: it won't fix itself.
+---@param id string
+---@param reason string
+function M.give_up(id, reason)
+    local rec = get(id)
+    if rec.target == 'connected' then
+        rec.target = 'idle'
+    end
+    M.finish(id, reason, false)
+end
+
 -- A connect attempt failed before there was a connection
 local function failed(id, attempt, reason, retry)
     local rec = nets()[id]
     if rec == nil or rec.attempt ~= attempt then return end
-    if not retry and rec.target == 'connected' then
-        rec.target = 'idle' -- a configuration problem won't fix itself
+    if retry then
+        M.finish(id, reason, retry)
+    else
+        M.give_up(id, reason)
     end
-    M.finish(id, reason, retry)
 end
 
 -- Connecting =========================================================
@@ -298,6 +312,19 @@ local function connect_body(t, attempt)
     if not ok then
         return failed(id, attempt, layers, false)
     end
+
+    -- registration's secrets too, so no prompt or command holds an open,
+    -- unregistered connection while the server's timeout runs
+    local needed = {cfg.registration.password or false}
+    if cfg.sasl and cfg.sasl.automatic then
+        for _, credential in ipairs(config.automatic_credentials(cfg.sasl)) do
+            table.insert(needed, credential.password or false)
+            if not secrets.key_store(credential.key) then
+                table.insert(needed, credential.key or false)
+            end
+        end
+    end
+    secrets.prepare(t, needed)
 
     -- the native connect takes a local socket as its path and port 0
     local server = cfg.server
@@ -318,6 +345,10 @@ local function connect_body(t, attempt)
     rec.liveness = clock.now()
     M.set_phase(id, 'connecting')
     log.add_net(id, 'irc', 'connecting to %s', server.path or host .. ':' .. port)
+
+    -- this task registers, with the secrets it holds; it ends with the attempt
+    t:wait_event('net.connected', function(ev) return ev.net == id end)
+    registration(t)
 end
 
 --- Start connecting an idle network.
@@ -439,8 +470,13 @@ function events.CON(rec, fingerprint)
 
     M.set_phase(rec.id, 'registering')
     bus.emit('net.connected', {net = rec.id, fingerprint = fingerprint})
-    task.spawn('registration', {net = rec.id, owner = 'net'}, registration)
 end
+
+-- Commands whose source is always a user
+local user_commands <const> = {
+    JOIN = true, PART = true, NICK = true, QUIT = true, AWAY = true,
+    ACCOUNT = true, CHGHOST = true, SETNAME = true,
+}
 
 function events.MSG(rec, msg, flush)
     if not flush then
@@ -457,6 +493,10 @@ function events.MSG(rec, msg, flush)
     local source = msg.source
     if source then
         msg.nick, msg.user, msg.host = source:match '^([^!]*)!([^@]*)@(.*)$'
+        -- only a user sends these, so a bare source is a nick
+        if not msg.nick and user_commands[msg.command] and not source:find '[!@]' then
+            msg.nick = source
+        end
     end
 
     local id = rec.id
@@ -647,6 +687,7 @@ M.routes = {
             M.connect(id)
         end
     end,
+    ['net.give_up'] = M.give_up,
     ['net.force_close'] = function(id, attempt)
         local rec = nets()[id]
         if rec and rec.attempt == attempt and rec.phase == 'closing' then
