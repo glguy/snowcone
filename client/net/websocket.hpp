@@ -44,7 +44,9 @@ inline constexpr char const* text_subprotocol = "text.ircv3.net";
  * each received message followed by "\n". Writes send each complete line as
  * one message without its line ending, and hold a trailing incomplete line
  * until the rest of it is written. A message can't contain CR or LF, so
- * either one ends a line, and empty lines are not sent.
+ * either one ends a line, and empty lines are not sent. A text message
+ * must be UTF-8, so in text mode each byte that isn't part of a valid
+ * sequence is sent as U+FFFD.
  *
  * Supports one read and one write in progress at a time.
  */
@@ -57,6 +59,10 @@ class LineStream
 
     /// Written bytes not yet sent, the first line of them possibly in flight
     std::string out_;
+
+    /// The text message in flight when its line in out_ isn't valid UTF-8:
+    /// that line with each invalid byte replaced
+    std::string text_;
 
     struct ReadOp;
     struct WriteOp;

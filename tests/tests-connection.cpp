@@ -888,6 +888,30 @@ auto connect_expecting_failure(
     co_return message;
 }
 
+TEST(WebSocket, TextModeSendsInvalidUtf8AsReplacementCharacters)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+
+    // The server's read fails on a text message that isn't UTF-8
+    auto server_result = asio::co_spawn(io, websocket_server(acceptor, "text.ircv3.net", 1, {}), asio::use_future);
+    auto client_result = asio::co_spawn(
+        io,
+        websocket_client(conn, websocket_settings(acceptor, {.host = "h", .path = "/"}),
+            // valid é and €; a stray byte, a cut-short sequence, an overlong
+            // form, a surrogate, and a code point past U+10FFFF
+            {"caf\xc3\xa9 \xe2\x82\xac \xff \xe2\x82 \xc0\x80 \xed\xa0\x80 \xf4\x90\x80\x80\r\n"}),
+        asio::use_future
+    );
+    ASSERT_TRUE(run_briefly(io)) << "timed out";
+
+    static_cast<void>(client_result.get());
+    auto const r = std::string{"\xef\xbf\xbd"};
+    EXPECT_EQ(server_result.get().messages, (std::vector<std::string>{
+        "caf\xc3\xa9 \xe2\x82\xac " + r + " " + r + r + " " + r + r + " " + r + r + r + " " + r + r + r + r}));
+}
+
 TEST(WebSocket, NoSubprotocolFailsTheConnection)
 {
     asio::io_context io;
