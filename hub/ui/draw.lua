@@ -205,39 +205,51 @@ function M.fade_time(win, timestamp, time)
 end
 
 -- Lay out a rolling window of entries around a divider that rotates as new
--- entries arrive. While scrolled back, vs.pin holds the map's ticker from
--- when scrolling started so the viewport stays put. The pin is the view's,
--- not the map's, so two views of one map don't fight over it.
+-- entries arrive. While scrolled back, vs.pin holds the number of the
+-- newest entry from when scrolling started, so the viewport stays put as
+-- entries arrive; the scroll counts the shown (matching) entries back from
+-- it. The pin is the view's, not the map's, so two views of one map don't
+-- fight over it. Returns the window and the number of matching entries up
+-- to the pin, for the scroll limit.
 local function rotating_window(vs, source, rows, predicate)
     OrderedMap.set_predicate(source, predicate)
 
-    local offset, divider
+    local newest, skip, divider
     if vs.scroll > 0 then
-        local pin = vs.pin or source.ticker
-        vs.pin = pin
-        offset = vs.scroll + source.ticker - pin
+        -- a map emptied since (OrderedMap.reset) numbers from 1 again
+        newest = math.min(vs.pin or source.n, source.n)
+        vs.pin = newest
+        skip = vs.scroll
         divider = rows - 1
     else
         vs.pin = nil
+        newest = source.n
+        skip = 0
         divider = source.ticker
-        offset = 0
     end
 
-    if rows <= 0 then return {} end
-
-    local n = 0
     local window = {}
-
-    for entry in OrderedMap.each(source, offset) do
-        if n + 1 >= rows then break end -- saves a row for divider
+    local n, matching = 0, 0
+    for entry in OrderedMap.each(source, source.n - newest) do
         if not predicate or predicate(entry) then
-            window[(divider - 1 - n) % rows + 1] = entry
-            n = n + 1
+            matching = matching + 1
+            if skip > 0 then
+                skip = skip - 1
+            elseif n + 1 < rows then -- saves a row for divider
+                window[(divider - 1 - n) % rows + 1] = entry
+                n = n + 1
+            elseif not predicate then
+                -- the rest are counted without testing each
+                matching = newest - OrderedMap.first(source) + 1
+                break
+            end
         end
     end
 
-    window[divider % rows + 1] = 'divider'
-    return window
+    if rows > 0 then
+        window[divider % rows + 1] = 'divider'
+    end
+    return window, matching
 end
 
 --- Draw entries of an OrderedMap as a rotating log. It records the page
@@ -252,8 +264,8 @@ end
 function M.draw_rotation(win, vs, start, rows, data, show_entry, draw_entry)
     -- one row is the divider; a page keeps one entry in view
     vs.page = math.max(1, rows - 2)
-    vs.max_scroll = math.max(0, OrderedMap.size(data) - (rows - 1))
-    local window = rotating_window(vs, data, rows, show_entry)
+    local window, matching = rotating_window(vs, data, rows, show_entry)
+    vs.max_scroll = math.max(0, matching - (rows - 1))
     local last_time
     for i = 1, rows do
         local entry = window[i]

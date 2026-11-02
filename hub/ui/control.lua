@@ -86,6 +86,19 @@ function M.set_current_net(id)
     if not HUB.state.nets[id] then
         error('no such network: ' .. tostring(id), 0)
     end
+    if HUB.state.ui.current_net ~= id then
+        -- a network's views show another network's entries now: their
+        -- scroll and pin mean nothing there
+        for view_id, view in pairs(HUB.current.views) do
+            if view.scope == 'net' then
+                local vs = HUB.state.ui.views[view_id]
+                if vs then
+                    vs.scroll = 0
+                    vs.pin = nil
+                end
+            end
+        end
+    end
     HUB.state.ui.current_net = id
     M.ensure_usable_view()
     dispatch.dirty()

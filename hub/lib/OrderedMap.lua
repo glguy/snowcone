@@ -220,7 +220,7 @@ end
 ---@param offset integer|nil
 ---@return fun(): any, any # yields val, key
 function M.each(om, offset)
-    local k = om.n - (offset or 0)
+    local k = om.n - math.max(0, offset or 0)
     local lo = om.lo
     return function()
         if lo <= k then
@@ -246,7 +246,8 @@ function M.reveach(om)
     end
 end
 
---- Remove every entry, keeping the capacity and casemapping.
+--- Remove every entry, keeping the capacity, casemapping and ticker
+--- (which counts inserts, for rotating views).
 ---@param om hub.OrderedMap
 function M.reset(om)
     om.index = {}
@@ -254,7 +255,6 @@ function M.reset(om)
     om.vals = {}
     om.n = 0
     om.lo = 1
-    om.ticker = 0
 end
 
 return M

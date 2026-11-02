@@ -365,7 +365,10 @@ shows something else.
 ### Streams
 
 Streams draw with `draw.draw_rotation` (principle 6), which records the
-page size, so every stream scrolls the same way.
+page size and scroll limit, so every stream scrolls the same way. A
+scrolled view pins the number of the newest entry and counts its scroll
+in the entries it shows, so neither new entries nor a filter move it.
+Choosing another network unscrolls the net-scoped views.
 
 ### Networks
 

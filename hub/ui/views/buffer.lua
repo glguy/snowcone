@@ -164,7 +164,9 @@ local function jump(ctx, buffer, id)
     -- scrolled by s, the newest shown is entry last - s, on the row above
     -- the divider
     local s = OrderedMap.last(buffer.messages) - k - (ctx.rows - 2) // 2
-    vs.scroll = math.max(0, math.min(s, vs.max_scroll or s))
+    -- the limit unfiltered, as the next frame will count it
+    local limit = OrderedMap.size(buffer.messages) - (ctx.rows - 1)
+    vs.scroll = math.max(0, math.min(s, limit))
     vs.pin = nil
     vs.highlight = OrderedMap.get(buffer.messages, k)
 end

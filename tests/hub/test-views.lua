@@ -401,6 +401,67 @@ T.case('the paging keys scroll any rolling view within its log', function()
     T.eq(vs.scroll, 0, 'back to the newest')
 end)
 
+-- What a rotating log of {text} entries shows, newest first, drawn into
+-- a window of `rows` rows
+local function rotation(vs, om, rows, show)
+    local win = ncurses.newwin(rows, 80)
+    T.require 'hub.ui.draw'.draw_rotation(win, vs, 0, rows, om, show, function(w, entry)
+        w:waddstr('|' .. entry.text)
+    end)
+    -- rows from the divider up, wrapping round
+    local divider
+    for y = 0, rows - 1 do
+        if not fake_ncurses.row(win, y):find('|', 1, true) then divider = y end
+    end
+    local list = {}
+    for i = 1, rows - 1 do
+        local text = fake_ncurses.row(win, (divider - i) % rows):match '|([^·]*)'
+        if text then table.insert(list, text) end
+    end
+    return list
+end
+
+T.case('a scrolled rolling view stays put, counting the entries it shows', function()
+    boot()
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    local om = OrderedMap.new(100)
+    local function add(text) OrderedMap.insert(om, nil, {text = text, time = '00:00:00', timestamp = 0}) end
+    for i = 1, 40 do add((i % 2 == 0 and 'foo ' or 'bar ') .. i) end
+    local vs = {scroll = 0}
+    local foo = function(entry) return entry.text:find 'foo' ~= nil end
+
+    T.eq(rotation(vs, om, 5, foo), {'foo 40', 'foo 38', 'foo 36', 'foo 34'}, 'the newest matches')
+    T.eq(vs.max_scroll, 16, 'the limit counts matches: 20 less a window of 4')
+    vs.scroll = 4
+    T.eq(rotation(vs, om, 5, foo), {'foo 32', 'foo 30', 'foo 28', 'foo 26'}, 'a page back is four matches')
+    for i = 41, 60 do add('bar ' .. i) end
+    T.eq(rotation(vs, om, 5, foo), {'foo 32', 'foo 30', 'foo 28', 'foo 26'}, 'unmoved by others')
+    add 'foo 61'
+    T.eq(rotation(vs, om, 5, foo), {'foo 32', 'foo 30', 'foo 28', 'foo 26'}, 'and by matches')
+
+    -- emptied and refilled while scrolled
+    OrderedMap.reset(om)
+    for i = 1, 8 do add('new ' .. i) end
+    T.eq(rotation(vs, om, 5), {'new 4', 'new 3', 'new 2', 'new 1'}, 'from the newest, once each')
+    vs.scroll = 0
+    T.eq(rotation(vs, om, 5), {'new 8', 'new 7', 'new 6', 'new 5'}, 'and unscrolled')
+end)
+
+T.case('choosing another network unscrolls its views', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    local vs = control.view_state 'console'
+    vs.scroll, vs.pin = 3, 10
+    local status = control.view_state 'status'
+    status.scroll = 2
+    control.set_current_net 'test'
+    T.eq({vs.scroll, vs.pin}, {3, 10}, 'the same network: kept')
+    HUB.state.ui.current_net = 'other'
+    control.set_current_net 'test'
+    T.eq({vs.scroll, vs.pin}, {0}, 'a network view unscrolled')
+    T.eq(status.scroll, 2, 'a global view kept')
+end)
+
 -- The pad document views draw into: the newest one as wide as the screen
 -- (the detail pane's is made before it)
 local function document_pad()
