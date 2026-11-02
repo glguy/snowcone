@@ -3,7 +3,6 @@
 -- `snote.<name>` with the network id.
 
 local bus      <const> = require 'hub.runtime.bus'
-local clock    <const> = require 'hub.runtime.clock'
 local common   <const> = require 'hub.features.common'
 local config_schema <const> = require 'hub.runtime.config_schema'
 local ircd     <const> = require 'hub.net.ircd'
@@ -323,22 +322,6 @@ M.commands = {
             if irc and irc.oper then
                 query(ctx.net, 'TESTMASK', '*@' .. range)
             end
-        end,
-    },
-    {
-        name = 'inject', spec = '$r', usage = 'notice', scope = 'net', feature = 'snotice',
-        help = 'Handle a server notice as if a server sent it (for testing)',
-        fn = function(ctx, text)
-            local note = notice.parser(ctx.net)('INJECT.', text)
-            if not note then
-                error('no notice format matches', 0)
-            end
-            note.net = ctx.net
-            note.time = os.date '!%H:%M:%S'
-            note.timestamp = clock.now()
-            stores.apply(note)
-            bus.emit('snote', note)
-            bus.emit('snote.' .. note.name, note)
         end,
     },
 }
