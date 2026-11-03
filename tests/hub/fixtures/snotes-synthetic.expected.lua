@@ -509,6 +509,82 @@ return {
     server = "alpha.example",
     time = "10:00:49"
   },
+  {
+    duration = 1440,
+    kind = "k-line",
+    mask = "*@192.0.2.10",
+    name = "ban_added",
+    server = "gamma.example",
+    time = "10:00:49"
+  },
+  {
+    duration = 30,
+    kind = "k-line",
+    mask = "~u@192.0.2.12",
+    name = "ban_added",
+    server = "gamma.example",
+    time = "10:00:49"
+  },
+  {
+    kind = "k-line",
+    mask = "*@192.0.2.11",
+    name = "ban_added",
+    server = "gamma.example",
+    time = "10:00:49"
+  },
+  {
+    duration = 60,
+    kind = "d-line",
+    mask = "198.51.100.0/24",
+    name = "ban_added",
+    server = "gamma.example",
+    time = "10:00:49"
+  },
+  {
+    kind = "x-line",
+    mask = "*spam?gecos*",
+    name = "ban_added",
+    server = "gamma.example",
+    time = "10:00:49"
+  },
+  {
+    duration = 525600,
+    kind = "resv",
+    mask = "#badchan",
+    name = "ban_added",
+    server = "gamma.example",
+    time = "10:00:49"
+  },
+  {
+    kind = "k-line",
+    mask = "*@192.0.2.10",
+    name = "ban_removed",
+    server = "gamma.example",
+    time = "10:00:49"
+  },
+  {
+    kind = "d-line",
+    mask = "198.51.100.0/24",
+    name = "ban_removed",
+    server = "gamma.example",
+    time = "10:00:49"
+  },
+  {
+    kind = "k-line",
+    mask = "*@192.0.2.11",
+    name = "ban_removed",
+    server = "gamma.example",
+    time = "10:00:49"
+  },
+  {
+    kind = "resv",
+    mask = "#badchan",
+    name = "ban_removed",
+    server = "gamma.example",
+    time = "10:00:49"
+  },
+  false,
+  false,
   false,
   false
 }

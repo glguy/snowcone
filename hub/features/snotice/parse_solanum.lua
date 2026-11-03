@@ -13,6 +13,13 @@ local simple = {
     ['Got signal SIGHUP, reloading ircd conf. file'] = 'rehash_config',
 }
 
+local ban_kinds <const> = {
+    ['K-Line'] = true,
+    ['D-Line'] = true,
+    ['X-Line'] = true,
+    ['RESV'] = true,
+}
+
 -- luacheck: ignore 631
 return function(server, str)
     do
@@ -81,6 +88,49 @@ return function(server, str)
                 mask = mask,
                 duration = math.tointeger(duration),
                 reason = reason,
+            }
+        end
+    end
+
+    -- the server's answer to our own ban, without the header, to our nick:
+    -- "Added [global |temporary ]<n> min. K-Line [<mask>]", "Added temporary
+    -- <n> min. D-Line for [<mask>]", "Added X-Line for [<mask>] [<reason>]";
+    -- the notice to every oper says who and why
+    do
+        local rest = string.match(str, '^Added (.*)$')
+        local duration, kind, mask
+        if rest then
+            local minutes, after = string.match(rest, '^%a+ (%d+) min%. (.*)$')
+            if minutes then duration, rest = minutes, after end
+            kind, mask = string.match(rest, '^(%S+) for %[(.-)%] %[.*%]$')
+            if not kind then kind, mask = string.match(rest, '^(%S+) for %[(.*)%]$') end
+            if not kind then kind, mask = string.match(rest, '^(%S+) %[(.*)%]$') end
+        end
+        if ban_kinds[kind] then
+            return {
+                name = 'ban_added',
+                server = server,
+                kind = string.lower(kind), -- k-line, d-line, x-line, resv
+                mask = mask,
+                duration = math.tointeger(duration),
+            }
+        end
+    end
+
+    -- and to our unban: "Un-klined [<mask>] from global k-lines",
+    -- "Un-dlined [<mask>] from temporary D-lines", "<kind> for [<mask>] is removed"
+    do
+        local letter, mask = string.match(str, '^Un%-([kd])lined %[(.*)%] from %a+ %a%-lines$')
+        local kind = letter and letter:upper() .. '-Line'
+        if not kind then
+            kind, mask = string.match(str, '^(%S+) for %[(.*)%] is removed$')
+        end
+        if ban_kinds[kind] then
+            return {
+                name = 'ban_removed',
+                server = server,
+                kind = string.lower(kind),
+                mask = mask,
             }
         end
     end

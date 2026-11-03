@@ -22,7 +22,7 @@ local required = {
     'rejected', 'netsplit', 'netjoin', 'kill', 'newmaxlocal', 'flooder',
     'spambot', 'targetchange', 'create_channel', 'operspy', 'override',
     'toomany', 'badlogin', 'oper', 'grant', 'ungrant', 'modload',
-    'modunload', 'shedding_on', 'shedding_off',
+    'modunload', 'shedding_on', 'shedding_off', 'ban_added', 'ban_removed',
 }
 
 local function boot(features)

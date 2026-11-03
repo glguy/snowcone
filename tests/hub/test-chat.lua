@@ -260,6 +260,15 @@ T.case('channel and private messages go to buffers', function()
     T.eq({chan.activity, chan.mention}, {0, false}, 'seen')
 end)
 
+T.case("the server's answer to our ban is a server notice, not chat", function()
+    local c, chat = boot()
+    c:recv ':srv.example NOTICE me :Added global 1440 min. K-Line [*@192.0.2.1]'
+    c:recv ':srv.example NOTICE me :Un-klined [*@192.0.2.1] from global k-lines'
+    T.eq(chat.buffer('test', 'srv.example'), nil, 'no buffer for the server')
+    c:recv ':srv.example NOTICE me :something else'
+    T.eq(texts(chat.buffer('test', 'srv.example')), {'NOTICE me something else'}, 'its other notices are chat')
+end)
+
 T.case('global mention patterns apply without network ones', function()
     local c, chat = boot(nil, {mention = {patterns = {'snowcone'}}})
     c:recv ':alice!a@h PRIVMSG #c :I like snowcone'

@@ -481,8 +481,9 @@ function H.PRIVMSG(net, irc, msg)
 end
 
 function H.NOTICE(net, irc, msg)
-    -- server notices belong to the snotice feature
-    if msg[1] == '*' then return end
+    -- server notices belong to the snotice feature, which marks them
+    -- before chat hears the message (app.lua)
+    if msg[1] == '*' or msg.snote then return end
     local prefix, target = irc_model.split_statusmsg(irc, msg[1])
     msg.statusmsg = prefix
     route_chat(net, irc, target, msg[2], msg)

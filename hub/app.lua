@@ -35,6 +35,8 @@ local function module_names(opts)
         'hub.net.handlers',
         'hub.net.manager',
         'hub.features.common',
+        -- before chat: it marks server notices (msg.snote) on irc.message,
+        -- and chat leaves those it marked alone
         'hub.features.snotice',
         'hub.features.topology',
         'hub.features.oper',

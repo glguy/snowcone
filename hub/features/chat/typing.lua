@@ -213,11 +213,8 @@ function H.PRIVMSG(chat, net, irc, msg)
     end
 end
 
-function H.NOTICE(chat, net, irc, msg)
-    -- server notices belong to the snotice feature
-    if msg[1] == '*' then return end
-    H.PRIVMSG(chat, net, irc, msg)
-end
+-- a server's notices have no nick, so they end nobody's typing
+H.NOTICE = H.PRIVMSG
 
 function H.TAGMSG(chat, net, irc, msg)
     local state = msg.tags['+typing']

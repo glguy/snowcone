@@ -56,5 +56,17 @@
 @time=2026-01-02T10:00:47.000Z :alpha.example NOTICE * :*** Notice -- Filtering enabled.
 @time=2026-01-02T10:00:48.000Z :alpha.example NOTICE * :*** Notice -- New filters loaded.
 @time=2026-01-02T10:00:49.000Z :alpha.example NOTICE * :*** Notice -- Got signal SIGHUP, reloading ircd conf. file
+@time=2026-01-02T10:00:49.500Z :gamma.example NOTICE me :Added global 1440 min. K-Line [*@192.0.2.10]
+@time=2026-01-02T10:00:49.500Z :gamma.example NOTICE me :Added temporary 30 min. K-Line [~u@192.0.2.12]
+@time=2026-01-02T10:00:49.500Z :gamma.example NOTICE me :Added K-Line [*@192.0.2.11]
+@time=2026-01-02T10:00:49.500Z :gamma.example NOTICE me :Added temporary 60 min. D-Line for [198.51.100.0/24]
+@time=2026-01-02T10:00:49.500Z :gamma.example NOTICE me :Added X-Line for [*spam?gecos*] [no]
+@time=2026-01-02T10:00:49.500Z :gamma.example NOTICE me :Added global 525600 min. RESV [#badchan]
+@time=2026-01-02T10:00:49.500Z :gamma.example NOTICE me :Un-klined [*@192.0.2.10] from global k-lines
+@time=2026-01-02T10:00:49.500Z :gamma.example NOTICE me :Un-dlined [198.51.100.0/24] from temporary D-lines
+@time=2026-01-02T10:00:49.500Z :gamma.example NOTICE me :K-Line for [*@192.0.2.11] is removed
+@time=2026-01-02T10:00:49.500Z :gamma.example NOTICE me :RESV for [#badchan] is removed
+@time=2026-01-02T10:00:49.500Z :gamma.example NOTICE me :Added a mystery thing
+@time=2026-01-02T10:00:49.500Z :gamma.example NOTICE other :Added K-Line [*@192.0.2.11]
 @time=2026-01-02T10:00:50.000Z :alpha.example NOTICE * :*** Notice -- Something the parser has never seen
 @time=2026-01-02T10:00:51.000Z :alpha.example NOTICE * :Not a server notice at all

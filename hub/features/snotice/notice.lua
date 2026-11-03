@@ -3,7 +3,8 @@
 -- answer on each message as it arrives (msg.snote), so the console and the
 -- message detail show it as it was then, whatever our nick is now.
 --
--- Solanum sends a notice to * with a header. OFTC hybrid sends it to the
+-- Solanum sends a notice to * with a header, and its answer to our ban or
+-- unban to our nick without one. OFTC hybrid sends it to the
 -- oper's nick, with the header when one server tells its own opers and
 -- without it when the notice is the network's (a connection, an exit, a
 -- kill), from the server it happened on.
@@ -54,8 +55,11 @@ local function recognize(net, msg)
         -- the network's notices have no header; a parse tells them from
         -- the server's other notices to us
         if parse_hybrid(msg.source, body) then return body end
-    elseif target == '*' and headed then
-        return body:sub(#header + 1)
+    elseif target == '*' then
+        if headed then return body:sub(#header + 1) end
+    elseif not headed and to_me(net, target) and parse_solanum(msg.source, body) then
+        -- the server's answer to our ban or unban
+        return body
     end
 end
 
