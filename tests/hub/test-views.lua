@@ -630,6 +630,54 @@ local function status_bar()
     end
 end
 
+T.case('j lists the buffers to jump to by labels they keep', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    for _, chan in ipairs {'#a', '#b', '#c'} do
+        c:recv(':me!u@h JOIN ' .. chan)
+    end
+    c:recv ':bob!b@h PRIVMSG me :hi'
+    cmdline.execute 'talk #a'
+    cmdline.execute 'talk #c'
+    control.set_view 'buffer'
+    local function pane()
+        HUB.current.routes['ui.draw']()
+        return rows_of(detail_pad())
+    end
+
+    key(string.byte 'j')
+    T.eq(control.detail().kind, 'jump', 'opened')
+    local rows = pane()
+    -- Meta-A goes to bob, the one with a mention; Meta-S back to #a
+    T.ok(has_row(rows, '^0←#a  1 #b  2 #c  3→bob$'), table.concat(rows, '\n', 0, #rows))
+
+    -- an unassigned label is taken and does nothing
+    key(string.byte 'z')
+    T.eq({control.detail().kind, HUB.state.ui.input.mode}, {'jump', nil}, 'swallowed')
+
+    -- closing #b frees its label for the next buffer; the rest keep theirs,
+    -- a rename too
+    cmdline.execute 'close #b'
+    c:recv ':bob!b@h NICK zed'
+    c:recv ':me!u@h JOIN #new'
+    rows = pane()
+    T.ok(has_row(rows, '^0←#a  2 #c  1 #new  3→zed$'), table.concat(rows, '\n', 0, #rows))
+
+    -- a label jumps there and closes the pane
+    key(string.byte '3')
+    T.eq({control.detail(), control.talk_target 'test', HUB.state.ui.view}, {nil, 'zed', 'buffer'}, 'jumped')
+
+    -- the columns are as wide as their widest names
+    control.open_detail('jump', 'test', {})
+    for i = 1, 40 do c:recv(string.format(':me!u@h JOIN #chan%02d', i)) end
+    c:recv(':me!u@h JOIN #' .. string.rep('x', 40))
+    rows = pane()
+    T.ok(has_row(rows, ' I #' .. string.rep('x', 22) .. '…$'), table.concat(rows, '\n', 0, #rows))
+    T.ok(#rows < 10, 'in columns')
+    T.eq(T.log_lines 'error', {}, 'no errors')
+end)
+
 T.case('a document view grows to its whole length and pages down from the top', function()
     boot()
     local control = T.require 'hub.ui.control'

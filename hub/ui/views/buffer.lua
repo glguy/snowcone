@@ -5,13 +5,14 @@
 -- mode. @ and + toggle sending to a channel's ops or voiced users
 -- (STATUSMSG), shown before the channel's name in the status bar and the
 -- input mode; each buffer keeps its own until Esc, and no typing notices
--- go there. n and p step through the network's buffers; Meta-H hides joins,
--- parts, quits, nick changes, account changes and host changes. Click a
--- sender to inspect the message in the detail pane. A private message
--- meant for a channel (channel-context, sent with /cmsg) is shown there
--- marked >, after its sender; ours marked <, after its recipient. A reply
--- (the +reply tag) starts with ↩: click it to scroll to the message it
--- answers, which is highlighted until Esc. Click a channel's name in the
+-- go there. n and p step through the network's buffers, and j lists them
+-- in the detail pane to jump to by label (ui/details/jump.lua); Meta-H
+-- hides joins, parts, quits, nick changes, account changes and host
+-- changes. Click a sender to inspect the message in the detail pane. A
+-- private message meant for a channel (channel-context, sent with /cmsg)
+-- is shown there marked >, after its sender; ours marked <, after its
+-- recipient. A reply (the +reply tag) starts with ↩: click it to scroll
+-- to the message it answers, which is highlighted until Esc. Click a channel's name in the
 -- status bar for its information, a nick's for its WHOIS. After the name,
 -- the two who most recently started typing there (not those who paused).
 -- With no buffer chosen, the view shows one with a mention, else one with
@@ -272,6 +273,7 @@ local keys = {
     [-string.byte 'h'] = function(ctx) ctx.vs.hide_presence = not ctx.vs.hide_presence end,
     [string.byte 'n'] = function(ctx) step_buffer(ctx, true) end,
     [string.byte 'p'] = function(ctx) step_buffer(ctx, false) end,
+    [string.byte 'j'] = function(ctx) control.open_detail('jump', ctx.net, {}) end,
     [string.byte 't'] = function()
         editor.reset(control.editor())
         control.set_input_mode 'talk'

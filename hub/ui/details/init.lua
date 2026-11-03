@@ -33,6 +33,7 @@ for _, m in ipairs {
     require 'hub.ui.details.channel',
     require 'hub.ui.details.error',
     require 'hub.ui.details.format',
+    require 'hub.ui.details.jump',
     require 'hub.ui.details.keys',
     require 'hub.ui.details.message',
     require 'hub.ui.details.reply',
