@@ -990,6 +990,28 @@ T.case('the status bar shows the modes of the view as one fragment', function()
     T.ok(status_bar():find(' scroll 3,+16 ', 1, true), 'horizontal scroll')
 end)
 
+T.case('the status bar names a few buffers with unseen messages, mentions first', function()
+    local c = boot()
+    local chat = T.require 'hub.features.chat'
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    for _, chan in ipairs {'#a', '#b', '#c', '#d', '#e', '#f'} do
+        c:recv(':me!u@h JOIN ' .. chan)
+        chat.look(chat.buffer('test', chan))
+    end
+    cmdline.execute 'talk #a'
+    control.set_view 'buffer'
+    for _, chan in ipairs {'#b', '#c', '#d', '#e', '#f'} do
+        c:recv(':bob!b@h PRIVMSG ' .. chan .. ' :hello')
+    end
+    c:recv ':carol!c@h PRIVMSG me :psst'
+
+    local bar = status_bar()
+    T.ok(bar:find(' carol .- #b .- #c .- #d .- %+2$'),
+        'the mention, then by name, then how many more')
+    T.ok(not bar:find('#e', 1, true) and not bar:find('#f', 1, true), 'the rest only counted')
+end)
+
 T.case('a list wraps under its value column, even when a word ends at the edge', function()
     boot()
     local fields = T.require 'hub.ui.fields'

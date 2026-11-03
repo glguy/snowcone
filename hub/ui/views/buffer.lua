@@ -14,7 +14,9 @@
 -- recipient. A reply (the +reply tag) starts with ↩: click it to scroll
 -- to the message it answers, which is highlighted until Esc. Click a channel's name in the
 -- status bar for its information, a nick's for its WHOIS. After the name,
--- the two who most recently started typing there (not those who paused).
+-- the two who most recently started typing there (not those who paused),
+-- then up to four buffers with unseen messages, mentions first, and a
+-- count of the rest, which opens the jump list.
 -- With no buffer chosen, the view shows one with a mention, else one with
 -- activity, else the first by name. A channel's buffer shows why the
 -- server refused our JOIN; when it forwards the JOIN elsewhere, both
@@ -39,6 +41,9 @@ local tty        <const> = require 'hub.runtime.tty'
 
 -- How many of those typing the status bar names
 local typing_shown <const> = 2
+
+-- How many buffers with unseen messages the status bar names
+local active_shown <const> = 4
 
 local function chat_renderer(win, msg)
     local text = msg[2] or ''
@@ -384,7 +389,8 @@ return {
 
     -- The target behind its STATUSMSG prefix (red), colored by whether we
     -- can reach it, who is typing there, then buffers with unseen messages
-    -- (magenta for mentions)
+    -- (magenta for mentions): a few, mentions first, then how many more
+    -- (click it for the jump list)
     status = function(ctx, win)
         local net = ctx.net
         if not (net and common.enabled(net, 'chat')) then return end
@@ -448,19 +454,36 @@ return {
             end
         end
 
+        -- mentions first, then by name; past active_shown, only a count
+        local active, others = {}, {}
         for _, entry in ipairs(sorted_names(net)) do
             local buffer = chat.get(net).buffers[entry[1]]
             if buffer.activity > 0 then
-                ctx.fragment(win)
-                if buffer.mention then draw.magenta(win) else draw.yellow(win) end
-                local name = buffer.name
-                local _, x1 = ncurses.getyx(win)
-                win:waddstr(scrub(name))
-                local _, x2 = ncurses.getyx(win)
-                ctx.add_click(tty_height - 1, x1, x2, function()
-                    control.set_talk_target(net, name)
-                end)
+                table.insert(buffer.mention and active or others, buffer)
             end
+        end
+        table.move(others, 1, #others, #active + 1, active)
+        for i = 1, math.min(#active, active_shown) do
+            local buffer = active[i]
+            ctx.fragment(win)
+            if buffer.mention then draw.magenta(win) else draw.yellow(win) end
+            local name = buffer.name
+            local _, x1 = ncurses.getyx(win)
+            win:waddstr(scrub(name))
+            local _, x2 = ncurses.getyx(win)
+            ctx.add_click(tty_height - 1, x1, x2, function()
+                control.set_talk_target(net, name)
+            end)
+        end
+        if #active > active_shown then
+            ctx.fragment(win)
+            if active[active_shown + 1].mention then draw.magenta(win) else draw.yellow(win) end
+            local _, x1 = ncurses.getyx(win)
+            win:waddstr('+', tostring(#active - active_shown))
+            local _, x2 = ncurses.getyx(win)
+            ctx.add_click(tty_height - 1, x1, x2, function()
+                control.open_detail('jump', net, {})
+            end)
         end
         draw.normal(win)
     end,
