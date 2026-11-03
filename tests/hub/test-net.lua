@@ -247,10 +247,15 @@ T.case('identity.bot without ISUPPORT BOT sends no mode', function()
     T.ok(found, 'logged')
 end)
 
-T.case('channels are joined after registration, on every connection', function()
-    local long = {}
-    for i = 1, 40 do long[i] = ('#channel%02d'):format(i) end
-    local fake = boot {network('test', {channels = long})}
+T.case('buffers with join are joined after registration, on every connection', function()
+    local long, buffers = {}, {}
+    for i = 1, 40 do
+        long[i] = ('#channel%02d'):format(i)
+        table.insert(buffers, {name = long[i], join = true})
+        table.insert(buffers, {name = ('#other%02d'):format(i)})
+    end
+    table.insert(buffers, {name = '#off', join = false})
+    local fake = boot {network('test', {buffers = buffers})}
     local c = fake.last()
     register(c)
     local joins = {}
@@ -259,7 +264,7 @@ T.case('channels are joined after registration, on every connection', function()
         if names then table.insert(joins, names) end
     end
     T.eq(#joins, 2, 'split over two lines')
-    T.eq(table.concat(joins, ','), table.concat(long, ','), 'every channel, in order')
+    T.eq(table.concat(joins, ','), table.concat(long, ','), 'every channel with join, in order')
 
     c:finish 'gone'
     fire_reconnect 'test'
@@ -1182,6 +1187,25 @@ T.case('network defaults', function()
     }}})
     T.eq(ok, false, 'id is required')
     T.ok(err:find('networks.1.id', 1, true), err)
+end)
+
+T.case('buffers are checked for repeated names and labels', function()
+    T.boot()
+    local config = T.require 'hub.runtime.config'
+    local function load(buffers)
+        return pcall(config.normalize, {networks = {network('x', {buffers = buffers})}})
+    end
+    T.ok(load {{name = '#a', label = 'a', activity = false, mention = {patterns = {}}}, {name = '#b', label = false, hidden = true}}, 'accepted')
+    local ok, err = load {{name = '#a'}, {name = '#A'}}
+    T.ok(not ok and err:find('networks.x.buffers.2: #A is already buffers.1', 1, true), tostring(err))
+    ok, err = load {{name = '#a', label = 'q'}, {name = '#b', label = 'q'}}
+    T.ok(not ok and err:find('networks.x.buffers.2.label: q is already the label of buffers.1', 1, true), tostring(err))
+    ok, err = load {{name = '#a', label = true}}
+    T.ok(not ok and err:find('networks.x.buffers.1.label', 1, true), tostring(err))
+    ok, err = load {{name = '#a', label = 'ab'}}
+    T.ok(not ok and err:find('one letter or digit', 1, true), tostring(err))
+    ok, err = load {{name = '#a', level = 'quiet'}}
+    T.ok(not ok and err:find('Unexpected field', 1, true), tostring(err))
 end)
 
 T.case('an invalid configuration on reload leaves the old one active', function()

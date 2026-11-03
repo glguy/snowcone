@@ -26,6 +26,11 @@
 -- Our own PRIVMSG and NOTICE lines are shown from irc.sent, and with
 -- labeled-response await the server's reply (chat/receipt.lua).
 --
+-- A buffer's configured settings ([[networks.buffers]]) may give it its
+-- own mention patterns, which in a private buffer replace the rule that
+-- every message to us is a mention, and with activity = false leave its
+-- messages other than mentions seen.
+--
 -- A private message with the channel-context tag naming a channel we are
 -- in is shown in that channel's buffer, marked msg.context: '>' from the
 -- sender to us, '<' from us to the recipient. /cmsg sends one.
@@ -192,6 +197,33 @@ local function refold(net)
     C.buffers = buffers
     -- pending and closing belong to the connection, and the server names
     -- its casemapping before anything goes into them
+end
+
+-- Buffer settings =====================================================
+
+-- The configured buffers by folded name, for a network's `buffers` and
+-- the casemapping they were folded with, rebuilt when either changes
+local settings_index = setmetatable({}, {__mode = 'k'})
+
+--- The configured settings of a buffer ([[networks.buffers]]), if any.
+---@param net string
+---@param target string
+---@return table|nil {name, join, level, label, hidden}
+function M.settings(net, target)
+    local rec = HUB.state.nets[net]
+    local buffers = rec and rec.cfg.buffers
+    if not buffers or #buffers == 0 then return end
+    -- the casemappings fold these differently, so this tells them apart
+    local probe = M.fold(net, '[]\\~')
+    local index = settings_index[buffers]
+    if not index or index.probe ~= probe then
+        index = {probe = probe, by_name = {}}
+        for _, buffer in ipairs(buffers) do
+            index.by_name[M.fold(net, buffer.name)] = buffer
+        end
+        settings_index[buffers] = index
+    end
+    return index.by_name[M.fold(net, target)]
 end
 
 -- Buffers =============================================================
@@ -363,6 +395,11 @@ local function add(net, target, msg, mention, activity)
     -- a message the buffer already has, from history or a bouncer
     if id and M.find(buffer, id) then return end
     insert(buffer, msg)
+    -- a buffer configured with activity = false is unseen only by mentions
+    if activity and not mention then
+        local settings = M.settings(net, target)
+        if settings and settings.activity == false then activity = false end
+    end
     if mention then
         buffer.mention = true
     end
@@ -374,13 +411,30 @@ end
 
 -- Mentions ============================================================
 
---- Mention patterns (Lua patterns): the network's, else the global ones.
-local function mention_patterns(net)
+--- A buffer's own mention patterns (Lua patterns), if it has them.
+local function buffer_patterns(net, target)
+    local settings = M.settings(net, target)
+    return settings and settings.mention and settings.mention.patterns
+end
+
+--- Mention patterns (Lua patterns) for a channel: its own, else the
+--- network's, else the global ones.
+local function mention_patterns(net, target)
+    local patterns = buffer_patterns(net, target)
+    if patterns then return patterns end
     local rec = HUB.state.nets[net]
     local own = rec and rec.cfg.mention
     if own and own.patterns then return own.patterns end
     local global = HUB.state.config and HUB.state.config.mention
     return global and global.patterns or {}
+end
+
+local function matches(patterns, text)
+    for _, pattern in ipairs(patterns) do
+        local ok, found = pcall(string.find, text, pattern)
+        if ok and found then return true end
+    end
+    return false
 end
 
 -- Where a message belongs: channel messages in the channel, private ones
@@ -402,32 +456,29 @@ local function route_chat(net, irc, target, text, msg)
     end
 
     if irc_model.is_channel_name(irc, target) then
-        local mention = false
-        for _, pattern in ipairs(mention_patterns(net)) do
-            local ok, found = pcall(string.find, text, pattern)
-            if ok and found then
-                mention = true
-                break
-            end
-        end
-        add(net, target, msg, mention, true)
+        add(net, target, msg, matches(mention_patterns(net, target), text), true)
         return
     end
 
     -- to us, to a broadcast mask ($$*.net), or to a nick we just left: in
     -- the sender's buffer, or the channel it is meant for; only one to us
-    -- is a mention, and not a CTCP request (VERSION, PING) other than an
-    -- action
+    -- is a mention, unless that buffer has its own patterns, and never a
+    -- CTCP request (VERSION, PING) other than an action
     local sender = nick or msg.source
     if sender then
+        local buffer = context and nick and context or sender
         local ctcp_request = text:find '^\x01' and not text:find '^\x01ACTION'
-        local mention = irc_model.is_me(irc, target) and not ctcp_request
-        if context and nick then
-            msg.context = '>'
-            add(net, context, msg, mention, true)
-        else
-            add(net, sender, msg, mention, true)
+        local patterns = buffer_patterns(net, buffer)
+        local mention = false
+        if not ctcp_request then
+            if patterns then
+                mention = matches(patterns, text)
+            else
+                mention = irc_model.is_me(irc, target)
+            end
         end
+        if buffer == context then msg.context = '>' end
+        add(net, buffer, msg, mention, true)
     end
 end
 

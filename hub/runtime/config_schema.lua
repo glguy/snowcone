@@ -194,6 +194,20 @@ local mention_schema <const> = table_ {
     patterns = array {type = 'string'},
 }
 
+-- Settings for the buffer of a channel or nick; config.lua checks that
+-- label isn't true, and that names and labels are not repeated
+local buffer_schema <const> = table_ {
+    name     = {type = 'string', required = true, pattern = '^[^\n\r\x00 ,]+$'},
+    join     = {type = 'boolean'},
+    mention  = mention_schema,
+    activity = {type = 'boolean'},
+    label    = {oneOf = {
+        {type = 'string', pattern = '^%w$', expected = 'one letter or digit'},
+        {type = 'boolean'},
+    }},
+    hidden   = {type = 'boolean'},
+}
+
 -- No shorter than this, so a refused connection can't spin
 local delay_schema <const> = {type = 'number', minimum = 0.1}
 
@@ -228,7 +242,7 @@ M.network = table_ {
     reconnect    = table_ {min_delay = delay_schema, max_delay = delay_schema},
     rate_limit   = rate_limit_schema,
     reclaim_nick = {type = 'boolean'},
-    channels     = array {type = 'string', pattern = '^[^\n\r\x00 ,]+$'},
+    buffers      = array (buffer_schema),
     snomask      = {type = 'string', pattern = middle},
     quit_message = {type = 'string', pattern = line},
     servers_file = {type = 'string'},

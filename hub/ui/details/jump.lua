@@ -3,7 +3,10 @@
 -- clicking the buffer, shows that buffer and closes the pane. A buffer
 -- keeps its label while it exists, across renames, so closing another
 -- doesn't move it; a new buffer takes the first free one, and past 62
--- there are none, but a click still works.
+-- there are none, but a click still works. A buffer configured with a
+-- label ([[networks.buffers]]) has that one, and no other buffer takes
+-- it, open or not; one configured with label = false has none. A hidden
+-- one isn't listed, but has a label like any other and its key works.
 --
 -- The buffers go in columns by name, each column as wide as its widest
 -- name, so one long name widens only its own; names past name_cap cells
@@ -45,24 +48,37 @@ local function labels()
     return vs.labels
 end
 
---- The network's buffers sorted by folded name, each {key, buffer}, every
---- one labeled while labels last.
+--- The network's buffers sorted by folded name, each {key, buffer,
+--- configured label, hidden}, every one labeled while labels last.
 local function entries(net)
     local list = {}
     for key, buffer in pairs(chat.get(net).buffers) do
-        table.insert(list, {key, buffer})
+        local settings = chat.settings(net, buffer.name)
+        table.insert(list, {key, buffer, settings and settings.label, settings and settings.hidden})
     end
     table.sort(list, function(a, b) return a[1] < b[1] end)
 
-    local L = labels()
+    -- configured labels are kept for their buffers, open or not
+    local rec = HUB.state.nets[net]
     local used = {}
+    for _, buffer in ipairs(rec and rec.cfg.buffers or {}) do
+        if buffer.label then used[buffer.label] = true end
+    end
+
+    local L = labels()
     for _, entry in ipairs(list) do
-        local label = L[entry[2]]
-        if label then used[label] = true end
+        local buffer, configured = entry[2], entry[3]
+        if configured ~= nil then
+            L[buffer] = configured or nil
+        elseif L[buffer] and used[L[buffer]] then
+            L[buffer] = nil
+        elseif L[buffer] then
+            used[L[buffer]] = true
+        end
     end
     local next_free = 1
     for _, entry in ipairs(list) do
-        if not L[entry[2]] then
+        if not L[entry[2]] and entry[3] == nil then
             while next_free <= #alphabet and used[alphabet:sub(next_free, next_free)] do
                 next_free = next_free + 1
             end
@@ -119,7 +135,10 @@ function M.render(ctx, win)
         win:waddstr 'No buffers\n'
         return
     end
-    local list = entries(net)
+    local list = {}
+    for _, entry in ipairs(entries(net)) do
+        if not entry[4] then table.insert(list, entry) end
+    end
     if #list == 0 then
         win:waddstr 'No buffers: /talk <target>\n'
         return
@@ -180,7 +199,8 @@ function M.render(ctx, win)
 end
 
 -- Every label character is taken while the pane is shown, assigned or
--- not, so a key never means something else for want of a buffer
+-- not, so a key never means something else for want of a buffer; a
+-- hidden buffer's label works too
 function M.keypress(ctx, key)
     if key < 0 or key > 0x7f then return false end
     local char = string.char(key)

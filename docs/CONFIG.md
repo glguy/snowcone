@@ -14,6 +14,7 @@ Contents:
   - [Registering](#registering): `identity`, `registration` (server password, capabilities)
   - [SASL](#sasl)
   - [Becoming an operator](#becoming-an-operator): `oper`
+  - [Buffers](#buffers): channels to join, and how each buffer's messages count
   - [Mentions and watches](#mentions-and-watches)
   - [The servers file](#the-servers-file)
 - [Secrets](#secrets)
@@ -83,6 +84,16 @@ username = 'mynick'
 key.file = 'libera-challenge.pem'
 password.prompt = 'challenge key password'
 
+[[networks.buffers]]
+name = '#snowcone'
+join = true
+label = 's'
+
+[[networks.buffers]]
+name = '#libera'
+join = true
+activity = false
+
 [[networks.watches]]
 pattern = 'badbot'
 color = 'red'
@@ -118,7 +129,7 @@ In TOML, tables such as `[networks.server]` and `[[networks.layers]]` belong to 
 
 | Field | Meaning |
 |---|---|
-| `patterns` | Lua patterns. A channel message matching any of them is a mention: its buffer is marked `!` and a notification may be sent. A private message is always a mention. |
+| `patterns` | Lua patterns. A channel message matching any of them is a mention: its buffer is marked `!` and a notification may be sent. A private message is always a mention. A [buffer's own](#buffers) patterns replace both rules. |
 
 A network's own `[networks.mention]` replaces these for that network. It does not add to them.
 
@@ -158,7 +169,7 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 | `reconnect.max_delay` | `300` | The longest wait between attempts. The delay doubles after each failure up to this limit, and returns to `min_delay` once a connection has stayed registered for a minute. It must not be below `min_delay`. |
 | `rate_limit.burst` | none | Lines that may go to the server at once. Without a `rate_limit` table, lines are never held back. With one, `burst` and `interval` are both required. |
 | `rate_limit.interval` | none | Seconds to earn back one line of the burst, above 0. A line that has to wait shows as `queued` in chat and the console until it goes, or `unsent` if the connection ends first. A PONG goes ahead of waiting lines, and QUIT drops them and goes at once. `burst = 5` and `interval = 2` match RFC 1459's message timer. |
-| `channels` | none | Channels to JOIN after every registration, so also after each reconnect, as many to a line as fit. Names only, without keys. A change takes effect at the next connection. |
+| `buffers` | none | Channels to join, and settings for the buffers of channels and nicks. See [Buffers](#buffers). |
 | `reclaim_nick` | `true` | When the wanted nick is taken, watch it with MONITOR and take it back once it is free. The wanted nick is the configured one, or the last given to `/nick`, which later connections register with too until the configured nick changes. |
 | `quit_message` | `'snowcone'` | The QUIT message for `/disconnect`, `/reconnect` and quitting. |
 | `snomask` | `'BFZbcklnsx'`, or `'bcfknrs'` on OFTC hybrid | What chooses the server notices to see, set after becoming an operator: on Solanum the server notice mask (`MODE nick +s mask`), on OFTC hybrid the user modes that select notices (`MODE nick +modes`). Used only with the `snotice` feature. |
@@ -440,9 +451,50 @@ password = { command = 'pass', arguments = ['show', 'oper'] }
 
 `/oper <name>` logs in with one credential. `/oper` alone tries the `automatic` list, or the first credential when there is none. It works on any network, with or without the `oper` feature. After you become an operator, the `snotice` feature sets the [snomask](#network-settings).
 
+### Buffers
+
+Each `[[networks.buffers]]` entry names a channel or nick and sets how its buffer behaves. A buffer without an entry has the defaults.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `name` | | Required. The channel or nick, matched with the network's casemapping. Two entries can't name the same buffer. |
+| `join` | `false` | JOIN the channel after every registration, so also after each reconnect. The channels to join go as many to a line as fit, in the order of the entries. Names only, without keys. Leave it out for a channel a bouncer joins for you, or for a nick. |
+| `mention.patterns` | | The buffer's own mention patterns. See below. |
+| `activity` | `true` | With `false`, only mentions mark the buffer unseen. Other messages are still stored. |
+| `label` | the first free one | The buffer's key in the jump pane (`j` in the buffer view): one letter or digit. No other buffer gets that key, even while this buffer isn't open. Two entries can't have the same label. With `false`, the buffer has no key, but you can still click it. |
+| `hidden` | `false` | Leave the buffer out of the jump pane. It still has a label, and typing that label in the jump pane still goes to the buffer. With `label = false` as well, the buffer can't be reached from the jump pane at all. |
+
+Other people's messages mark their buffer unseen (`+`, yellow); joins, parts and your own lines don't. A mention marks it `!` in magenta instead: Meta-A goes to it first, and it can send a [notification](#notifications). In a channel, a mention is a message matching the [mention patterns](#mention). In a private buffer, every message to you is a mention.
+
+A buffer's own `mention.patterns` replace those rules for that buffer, in a channel or a private buffer:
+
+- `patterns = []`: nothing in the buffer is a mention.
+- `patterns = ['']`: every message is a mention.
+
+```toml
+[[networks.buffers]]
+name = '#busy'
+join = true
+activity = false
+label = false
+
+[[networks.buffers]]
+name = '#alerts'
+join = true
+mention.patterns = ['']
+
+[[networks.buffers]]
+name = 'somebot'
+mention.patterns = []
+activity = false
+hidden = true
+```
+
+`#busy` is marked only by mentions, every message in `#alerts` is a mention, and `somebot`'s messages never mark its buffer.
+
 ### Mentions and watches
 
-`[networks.mention]` takes `patterns` like the [top-level table](#mention) and replaces the top-level patterns for this network.
+`[networks.mention]` takes `patterns` like the [top-level table](#mention) and replaces the top-level patterns for this network. A [buffer's own](#buffers) patterns replace both.
 
 `[[networks.watches]]` highlights connections whose server notices match a pattern, on networks with the `snotice` feature:
 
@@ -540,7 +592,7 @@ The store is opened with the credential's `password`, or the layer's `client_pas
 - **Networks:**
   - A network added to the file connects if `autoconnect` allows.
   - A network removed from the file disconnects.
-- **Settings that apply at once:** `ircd` (except for the `snomask` modes, which are set when you become an operator), `features`, `reconnect`, `reclaim_nick`, `quit_message`, `snomask`, `oper`, `mention`, `watches`, the servers file and the top-level tables.
-- **Settings that wait for a new connection:** a change to `server`, `layers`, `websocket`, `identity`, `registration` or `sasl` marks the network `restart pending: /reconnect` in `/networks` and `/session` until you reconnect.
+- **Settings that apply at once:** `ircd` (except for the `snomask` modes, which are set when you become an operator), `features`, `reconnect`, `reclaim_nick`, `quit_message`, `snomask`, `oper`, `mention`, `watches`, the `mention`, `activity`, `label` and `hidden` of `buffers`, the servers file and the top-level tables. Messages already received keep how they counted.
+- **Settings that wait for a new connection:** `join` in `buffers`; hub doesn't join or part channels on a reload. A change to `server`, `layers`, `websocket`, `identity`, `registration` or `sasl` marks the network `restart pending: /reconnect` in `/networks` and `/session` until you reconnect.
 
 A configuration that fails to load leaves the running one in place. The error is logged, hub switches to `/status` to show it, and `/stats` shows `last load failed` under `code`.

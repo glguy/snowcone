@@ -31,16 +31,20 @@ local function bot_mode(t, irc)
     end
 end
 
--- JOIN the configured channels, as many to a line as fit
-local function join_channels(t, channels)
+-- JOIN the configured buffers that ask to be joined, as many to a line
+-- as fit
+local function join_channels(t, buffers)
     local names, size = {}, 0
-    for _, name in ipairs(channels) do
-        if #names > 0 and size + #name > 400 then
-            t:send('JOIN', table.concat(names, ','))
-            names, size = {}, 0
+    for _, buffer in ipairs(buffers) do
+        if buffer.join then
+            local name = buffer.name
+            if #names > 0 and size + #name > 400 then
+                t:send('JOIN', table.concat(names, ','))
+                names, size = {}, 0
+            end
+            table.insert(names, name)
+            size = size + #name + 1
         end
-        table.insert(names, name)
-        size = size + #name + 1
     end
     if #names > 0 then
         t:send('JOIN', table.concat(names, ','))
@@ -105,9 +109,7 @@ return function(t)
     end
 
     -- before opering, which may wait on a CHALLENGE reply
-    if cfg.channels then
-        join_channels(t, cfg.channels)
-    end
+    join_channels(t, cfg.buffers)
 
     oper_up(t, cfg)
 end

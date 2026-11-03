@@ -269,6 +269,54 @@ T.case("the server's answer to our ban is a server notice, not chat", function()
     T.eq(texts(chat.buffer('test', 'srv.example')), {'NOTICE me something else'}, 'its other notices are chat')
 end)
 
+T.case("a buffer's own mention patterns and activity = false change how its messages count", function()
+    local buffers = {
+        {name = '#Every', mention = {patterns = {''}}}, {name = '#none', mention = {patterns = {}}},
+        {name = '#quiet', activity = false}, {name = '#silent', mention = {patterns = {}}, activity = false},
+        {name = '#plain'}, {name = 'Bob', mention = {patterns = {}}}, {name = 'carol', mention = {patterns = {'urgent'}}},
+    }
+    local c, chat = boot({buffers = buffers, mention = {patterns = {'ping'}}})
+    local function counts(name)
+        local buffer = chat.buffer('test', name)
+        return {buffer.activity, buffer.mention}
+    end
+    for _, name in ipairs {'#every', '#none', '#quiet', '#silent', '#plain'} do
+        c:recv(':me!u@h JOIN ' .. name)
+        c:recv(':alice!a@h PRIVMSG ' .. name .. ' :hello')
+    end
+    T.eq(counts '#every', {1, true}, "[''] makes every message a mention, the name in any case")
+    T.eq(counts '#none', {1, false}, 'an ordinary message')
+    T.eq(counts '#quiet', {0, false}, 'activity = false: an ordinary message is seen')
+    T.eq(counts '#silent', {0, false}, 'both')
+    T.eq(counts '#plain', {1, false}, 'no settings')
+    T.eq(#texts(chat.buffer('test', '#quiet')), 2, 'its messages are kept')
+
+    for _, name in ipairs {'#none', '#quiet', '#silent', '#plain'} do
+        c:recv(':alice!a@h PRIVMSG ' .. name .. ' :ping me')
+    end
+    T.eq(counts '#none', {2, false}, "[] replaces the network's patterns")
+    T.eq(counts '#quiet', {1, true}, 'activity = false: a mention marks it')
+    T.eq(counts '#silent', {0, false}, 'nothing marks it')
+    T.eq(counts '#plain', {2, true}, "the network's patterns")
+
+    -- a private buffer's patterns replace "every message to us"
+    c:recv ':bob!b@h PRIVMSG me :psst'
+    T.eq(counts 'bob', {1, false}, 'not a mention')
+    c:recv ':carol!c@h PRIVMSG me :hi'
+    T.eq(counts 'carol', {1, false}, 'not matching')
+    c:recv ':carol!c@h PRIVMSG me :urgent'
+    T.eq(counts 'carol', {2, true}, 'matching')
+    c:recv ':dave!d@h PRIVMSG me :hi'
+    T.eq(counts 'dave', {1, true}, 'without settings, a mention')
+
+    -- a reload applies to later messages
+    buffers[4] = {name = '#silent', mention = {patterns = {''}}}
+    T.ok(T.reload {config = {networks = {{id = 'test', server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'}, buffers = buffers}}}}, 'reloaded')
+    c:recv ':alice!a@h PRIVMSG #silent :now'
+    T.eq(counts '#silent', {1, true}, 'the new settings')
+end)
+
 T.case('global mention patterns apply without network ones', function()
     local c, chat = boot(nil, {mention = {patterns = {'snowcone'}}})
     c:recv ':alice!a@h PRIVMSG #c :I like snowcone'

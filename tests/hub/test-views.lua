@@ -12,13 +12,14 @@ local path = require 'pl.path'
 fake_ncurses.install(150, 40)
 local ncurses = fake_ncurses.ncurses
 
-local function boot()
+local function boot(buffers)
     local fake = FakeTransport.new()
     T.boot {ui = true, transport = fake, config = {networks = {{
         id = 'test',
         server = {host = 'test.example', port = 6667},
         identity = {nick = 'me'},
         servers_file = path.abspath(here .. '/fixtures/servers.toml'),
+        buffers = buffers,
     }}}}
     local c = fake.last()
     c:con()
@@ -675,6 +676,80 @@ T.case('j lists the buffers to jump to by labels they keep', function()
     rows = pane()
     T.ok(has_row(rows, ' I #' .. string.rep('x', 22) .. '…$'), table.concat(rows, '\n', 0, #rows))
     T.ok(#rows < 10, 'in columns')
+    T.eq(T.log_lines 'error', {}, 'no errors')
+end)
+
+T.case('configured buffers keep their labels, have none, or are left out of the jump pane', function()
+    local c = boot {
+        {name = '#pinned', label = '0'}, {name = '#later', label = '1'},
+        {name = '#nolabel', label = false}, {name = '#hidden', hidden = true},
+    }
+    local control = T.require 'hub.ui.control'
+    for _, chan in ipairs {'#a', '#hidden', '#nolabel', '#pinned'} do
+        c:recv(':me!u@h JOIN ' .. chan)
+    end
+    control.set_view 'buffer'
+    control.open_detail('jump', 'test', {})
+    local function pane()
+        HUB.current.routes['ui.draw']()
+        return rows_of(detail_pad())
+    end
+
+    -- #a skips 1, kept for #later, which isn't open
+    local rows = pane()
+    T.ok(has_row(rows, '^2 #a  ' .. '  #nolabel  0 #pinned$'), table.concat(rows, '\n', 0, #rows))
+    c:recv ':me!u@h JOIN #later'
+    rows = pane()
+    T.ok(has_row(rows, '1 #later'), table.concat(rows, '\n', 0, #rows))
+
+    key(string.byte '0')
+    T.eq(control.talk_target 'test', '#pinned', 'jumped by the configured label')
+
+    -- a hidden buffer isn't shown, but its label, 3 after #a's, works
+    control.open_detail('jump', 'test', {})
+    key(string.byte '3')
+    T.eq({control.detail(), control.talk_target 'test'}, {nil, '#hidden'}, 'jumped to the hidden buffer')
+    T.eq(T.log_lines 'error', {}, 'no errors')
+end)
+
+T.case('a reload moves labels to newly configured buffers, and others take free ones', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    for _, chan in ipairs {'#a', '#b', '#c'} do
+        c:recv(':me!u@h JOIN ' .. chan)
+    end
+    control.set_view 'buffer'
+    control.open_detail('jump', 'test', {})
+    local function pane()
+        HUB.current.routes['ui.draw']()
+        return rows_of(detail_pad())
+    end
+    local function reload(buffers)
+        T.ok(T.reload {config = {networks = {{
+            id = 'test',
+            server = {host = 'test.example', port = 6667},
+            identity = {nick = 'me'},
+            servers_file = path.abspath(here .. '/fixtures/servers.toml'),
+            buffers = buffers,
+        }}}}, 'reloaded')
+    end
+    local rows = pane()
+    T.ok(has_row(rows, '^0 #a  1 #b  2 #c$'), table.concat(rows, '\n', 0, #rows))
+
+    -- #c takes 0 from #a, and #a takes 3, as 1 and 2 are #b's and the
+    -- unopened #d's
+    reload {{name = '#c', label = '0'}, {name = '#d', label = '2'}}
+    rows = pane()
+    T.ok(has_row(rows, '^3 #a  1 #b  0 #c$'), table.concat(rows, '\n', 0, #rows))
+
+    -- a hidden buffer keeps its label, so no other takes it
+    reload {{name = '#c', hidden = true}}
+    c:recv ':me!u@h JOIN #e'
+    rows = pane()
+    T.ok(has_row(rows, '^3 #a  1 #b  2 #e$'), table.concat(rows, '\n', 0, #rows))
+    reload {}
+    rows = pane()
+    T.ok(has_row(rows, '^3 #a  1 #b  0 #c  2 #e$'), table.concat(rows, '\n', 0, #rows))
     T.eq(T.log_lines 'error', {}, 'no errors')
 end)
 

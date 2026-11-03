@@ -12,6 +12,7 @@ local app     <const> = require 'pl.app'
 local file    <const> = require 'pl.file'
 local path    <const> = require 'pl.path'
 local tablex  <const> = require 'pl.tablex'
+local casemap <const> = require 'hub.lib.casemap'
 local schema  <const> = require 'hub.lib.schema'
 local cschema <const> = require 'hub.runtime.config_schema'
 
@@ -211,6 +212,28 @@ local function normalize_network(net, i)
     else
         net.features = tablex.copy(all_features)
     end
+
+    -- names alike in ASCII case are alike in every casemapping
+    local names, labels = {}, {}
+    for n, buffer in ipairs(net.buffers or {}) do
+        local key = casemap.fold('ascii', buffer.name)
+        if names[key] then
+            error(string.format('networks.%s.buffers.%d: %s is already buffers.%d',
+                net.id, n, buffer.name, names[key]), 0)
+        end
+        names[key] = n
+        local key_label = buffer.label
+        if key_label == true then
+            error(string.format('networks.%s.buffers.%d.label: a letter or digit, or false for none', net.id, n), 0)
+        elseif key_label then
+            if labels[key_label] then
+                error(string.format('networks.%s.buffers.%d.label: %s is already the label of buffers.%d',
+                    net.id, n, key_label, labels[key_label]), 0)
+            end
+            labels[key_label] = n
+        end
+    end
+    net.buffers = net.buffers or {}
 
     if net.autoconnect == nil then net.autoconnect = true end
     if net.reclaim_nick == nil then net.reclaim_nick = true end
