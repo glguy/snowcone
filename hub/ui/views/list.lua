@@ -1,6 +1,7 @@
 -- /list results of the current network.
 
 local addircstr  <const> = require 'hub.ui.irc_formatting'
+local bus        <const> = require 'hub.runtime.bus'
 local chat       <const> = require 'hub.features.chat'
 local common     <const> = require 'hub.features.common'
 local control    <const> = require 'hub.ui.control'
@@ -9,13 +10,20 @@ local matching   <const> = require 'hub.lib.matching'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local scrub      <const> = require 'hub.lib.scrub'
 
-local function draw_entry(win, entry)
-    draw.green(win)
-    win:waddstr(' ', scrub(entry.channel))
-    draw.blue(win)
-    win:waddstr(' ', tostring(entry.users or '?'), ' ')
-    draw.normal(win)
-    addircstr(win, entry.topic)
+-- Draw a channel: clicking its name talks there, as /talk does
+local function entry_drawer(ctx)
+    return function(win, entry)
+        draw.green(win)
+        win:waddstr ' '
+        ctx.add_button(win, scrub(entry.channel), function()
+            chat.talk(ctx.net, entry.channel)
+            bus.emit('chat.focus', {net = ctx.net, target = entry.channel})
+        end, true)
+        draw.blue(win)
+        win:waddstr(' ', tostring(entry.users or '?'), ' ')
+        draw.normal(win)
+        addircstr(win, entry.topic)
+    end
 end
 
 return {
@@ -53,7 +61,7 @@ return {
                     or matching.safematch(entry.topic, pattern)
             end
         end
-        draw.draw_rotation(win, ctx.vs, 1, math.max(0, ctx.rows - 1), C.list, show, draw_entry)
+        draw.draw_rotation(win, ctx.vs, 1, math.max(0, ctx.rows - 1), C.list, show, entry_drawer(ctx))
     end,
 
     subscribe = function(sub)

@@ -964,6 +964,72 @@ T.case('wrapped text continues under its column, breaking a word too long for a 
         {'label: aaaa abcdef', '       gggggggg'}, 'measured as drawn')
 end)
 
+T.case('clicking a channel in the list talks there', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    cmdline.execute 'list'
+    c:recv ':srv 322 me #lobby 12 :come in'
+    c:recv ':srv 323 me :End of /LIST'
+    T.eq(HUB.state.ui.view, 'list', 'the list')
+    HUB.current.routes['ui.draw']()
+    c:take()
+
+    -- the main pad: as tall as the screen less the input line
+    local main
+    for i = #fake_ncurses.windows, 1, -1 do
+        local win = fake_ncurses.windows[i]
+        if win.kind == 'newpad' and win.h == tty_height - 1 and win.w ~= tty_width then
+            main = win
+            break
+        end
+    end
+    local rows = rows_of(main)
+    for y = 0, #rows do
+        local x = rows[y]:find('#lobby', 1, true)
+        if x then
+            HUB.current.routes['ui.entry']('on_mouse', y, x, false)
+            break
+        end
+    end
+    T.eq({HUB.state.ui.view, control.talk_target 'test'}, {'buffer', '#lobby'}, 'its buffer is shown')
+    T.eq(c:take(), {'JOIN #lobby'}, 'and joined')
+end)
+
+T.case('/list fetches only the first time; a pattern or the refresh button fetches again', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    local chat = T.require 'hub.features.chat'
+    c:take()
+    cmdline.execute 'list'
+    T.eq(c:take(), {'LIST'}, 'the first fetches')
+    c:recv ':srv 322 me #lobby 12 :come in'
+    c:recv ':srv 323 me :End of /LIST'
+
+    control.set_view 'console'
+    cmdline.execute 'list'
+    T.eq(c:take(), {}, 'again does not')
+    T.eq(HUB.state.ui.view, 'list', 'but shows the list')
+    T.eq(T.require 'hub.lib.OrderedMap'.size(chat.get('test').list), 1, 'as it was')
+
+    cmdline.execute 'list #l*'
+    T.eq(c:take(), {'LIST #l*'}, 'a pattern fetches')
+
+    HUB.current.routes['ui.draw']()
+    local status
+    for i = #fake_ncurses.windows, 1, -1 do
+        local win = fake_ncurses.windows[i]
+        if win.kind == 'newpad' and win.h == tty_height - 1 and win.w ~= tty_width then
+            status = fake_ncurses.row(win, 0)
+            break
+        end
+    end
+    local x = utf8.len(status:sub(1, status:find('[↻]', 1, true) - 1))
+    HUB.current.routes['ui.entry']('on_mouse', 0, x, false)
+    T.eq(c:take(), {'LIST'}, 'the refresh button fetches')
+end)
+
 T.case('session lists show one row and expand on a click', function()
     local c = boot()
     local tokens = {}
