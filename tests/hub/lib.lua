@@ -14,6 +14,14 @@ T.here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 T.root = T.here .. '/../../hub'
 T.init = T.root .. '/init.lua'
 
+-- HUB_TEST_HIDE names modules, separated by commas, that fail to load as
+-- if they weren't installed, so a test can run without its optional
+-- libraries
+for name in (os.getenv 'HUB_TEST_HIDE' or ''):gmatch '[^,]+' do
+    package.loaded[name] = nil
+    package.preload[name] = function() error(name .. ' hidden by HUB_TEST_HIDE') end
+end
+
 local cases = {}
 local current_co
 local timers = {} -- keeps raw timers reachable until they fire

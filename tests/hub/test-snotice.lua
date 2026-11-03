@@ -297,12 +297,13 @@ end)
 
 T.case('a watch matches what the cliconn filter matches', function()
     local c = boot {'snotice'}
+    local ip = T.require 'hub.lib.matching'.kind == 'pcre2' and '^192\\.0\\.2\\.' or '^192%.0%.2%.'
     T.command "addwatch '^Real' red"
-    T.command "addwatch '^192\\.0\\.2\\.' blue"
+    T.command("addwatch '" .. ip .. "' blue")
     notice(c, 'a.example', 'Client connecting: n (u@h.example) [192.0.2.1] {users} <*> [Real Name]')
     local hits = {}
     for _, watch in ipairs(stores().watches) do hits[watch.pattern] = watch.hits end
-    T.eq({hits['^Real'], hits['^192\\.0\\.2\\.']}, {1, 1}, 'gecos and IP alone')
+    T.eq({hits['^Real'], hits[ip]}, {1, 1}, 'gecos and IP alone')
 end)
 
 T.case('a watch is removed by identity, whatever its place now', function()

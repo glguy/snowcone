@@ -58,6 +58,11 @@ foreach(name test-reload test-structure test-lib test-net test-ui test-snotice t
 endforeach()
 # the GitHub plugin needs a Lua json module, and skips without one
 set_tests_properties(hub-test-github PROPERTIES SKIP_RETURN_CODE 77)
+# watches fall back to Lua patterns without rex_pcre2
+add_test(NAME hub-test-snotice-no-pcre2
+  COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/hub/test-snotice.lua")
+set_tests_properties(hub-test-snotice-no-pcre2 PROPERTIES TIMEOUT 30
+  ENVIRONMENT HUB_TEST_HIDE=rex_pcre2)
 
 add_test(NAME script-execute
   COMMAND sh -c "exec \"$0\" \"$1\" </dev/null" $<TARGET_FILE:snowcone> "${CMAKE_CURRENT_SOURCE_DIR}/script-execute.lua")
