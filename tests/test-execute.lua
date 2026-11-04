@@ -42,6 +42,7 @@ co = coroutine.create(function()
     assert(type(h) == 'userdata', 'execute returned ' .. type(h))
     assert(getmetatable(h) == false, 'metatable reachable')
     assert(code == 0 and out == 'hi\n', 'echo: ' .. tostring(out))
+    ---@cast h snowcone.Cancellable
     h:cancel() -- harmless after completion
 
     -- a dropped handle doesn't stop the process

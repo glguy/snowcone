@@ -85,6 +85,7 @@ local max_minutes <const> = 100 * units.Y
 --- Minutes in a duration like '1d', '4h', '1w 2d', or nil if it doesn't
 --- parse or is past a hundred years.
 function M.parse_duration(str)
+    ---@type integer|nil
     local acc = 0
     local leftover = str:gsub(' *(%d+) *([mhdwMY]) *', function(n, u)
         local count = math.tointeger(tonumber(n))

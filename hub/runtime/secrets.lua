@@ -33,13 +33,19 @@ end
 
 local resolve
 
+--- A secret a task resolved ahead of time: its value, or the error.
+---@class hub.PreparedSecret
+---@field ok boolean
+---@field value string|nil
+---@field err any
+
 --- Resolve one secret; nil stays nil. A secret the task prepared gives
 --- what it resolved to then, or its error.
 ---@param t hub.Task
 ---@param entry hub.Secret|nil
 ---@return string|nil
 function M.resolve(t, entry)
-    local prepared = t.secrets and t.secrets[entry]
+    local prepared = t.secrets and t.secrets[entry] --[[@as hub.PreparedSecret|nil]]
     if prepared then
         if prepared.ok then return prepared.value end
         error(prepared.err, 0)

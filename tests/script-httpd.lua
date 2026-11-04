@@ -153,8 +153,8 @@ sequence(function(step)
     end
 
     -- 204 and 304 have no body, and 204 no Content-Length
-    for _i, case in ipairs {{'/no-content', '204'}, {'/not-modified', '304'}} do
-        _, out = curl {'-D', '-', url(case[1])}
+    for _, case in ipairs {{'/no-content', '204'}, {'/not-modified', '304'}} do
+        out = select(2, curl {'-D', '-', url(case[1])})
         expect(case[2] .. ' status', out:match '\n(%d+)$', case[2])
         expect(case[2] .. ' without a body', out:find('dropped', 1, true), nil)
         expect(case[2] .. ' without Content-Length', out:lower():find('content-length', 1, true), nil)

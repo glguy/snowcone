@@ -30,6 +30,7 @@ do
     local priv_key = myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, true, priv_key_raw)
     local pub_key = myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, false, pub_key_raw)
     assert(priv_key:export().pub == pub_key_raw)
+    assert(pub_key:export().pub == pub_key_raw)
 end
 
 do
@@ -70,7 +71,6 @@ fails('bad bignum string', myopenssl.bignum, '')
 fails('out of range', function() return seven << ((1 << 32) + 1) end)
 assert(tostring(seven << 1) == '14')
 
-local sha256 = myopenssl.get_digest 'sha256'
 fails("unknown digest 'nope'", myopenssl.get_digest, 'nope')
 fails('out of range', sha256.pbkdf2, sha256, 'p', 's', (1 << 32) + 1, 32)
 fails('out of range', myopenssl.rand, -1)

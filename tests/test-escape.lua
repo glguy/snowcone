@@ -14,6 +14,7 @@ local function run(source, expected, next_step)
     snowcone.execute(arg[-1], {child}, function(code, _, err)
         os.remove(child)
         assert(code ~= 0, 'child script succeeded: ' .. source)
+        assert(err, 'child script did not run: ' .. source)
         assert(err:find(expected, 1, true), ('stderr: %q'):format(err))
         assert(not err:find('\27', 1, true), 'raw ESC on stderr')
         if next_step then next_step() end

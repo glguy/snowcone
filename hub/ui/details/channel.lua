@@ -41,7 +41,7 @@ local list_names <const> = {b = 'bans', q = 'quiets', e = 'excepts', I = 'invex'
 local function when(win, t)
     win:waddstr(draw.date('%c', t))
     key(win, 'ago')
-    win:waddstr(draw.duration(os.time() - (tonumber(t) or 0/0)))
+    win:waddstr(draw.duration(os.time() - (tonumber(t) or (0/0))))
 end
 
 -- The nick of a source, or the source

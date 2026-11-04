@@ -27,7 +27,8 @@ local layout = {textbox_offset = 0, textbox_width = 0, detail_rows = 0}
 -- failure leaves the old one usable
 local function replace(key, make, ...)
     local new = make(...)
-    if layout[key] then layout[key]:delwin() end
+    local old = layout[key] --[[@as ncurses.Window|nil]]
+    if old then old:delwin() end
     layout[key] = new
 end
 

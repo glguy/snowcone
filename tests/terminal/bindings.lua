@@ -105,20 +105,20 @@ check('attributes and colors', function()
         local k = i * 40503 % n -- a permutation, as 40503 is prime to 257
         local fore, back = k // 257 - 1, k % 257 - 1
         if (fore ~= 208 or back ~= 17) and (fore >= 0 or back >= 0) then
-            local pair = pair_of(fore, back)
-            if pair == 0 then
+            local got = pair_of(fore, back)
+            if got == 0 then
                 error(string.format('no pair for %d,%d', fore, back))
             end
-            if i >= n - 256 then table.insert(recent, {fore, back, pair}) end
+            if i >= n - 256 then table.insert(recent, {fore, back, got}) end
         end
         if i % 257 == 0 then equal(pair_of(208, 17), kept) end
     end
     local seen = {[kept] = true}
     for _, r in ipairs(recent) do
-        local fore, back, pair = table.unpack(r)
-        if seen[pair] then error('pair ' .. pair .. ' twice') end
-        seen[pair] = true
-        equal(pair_of(fore, back), pair) -- still theirs
+        local fore, back, got = table.unpack(r)
+        if seen[got] then error('pair ' .. got .. ' twice') end
+        seen[got] = true
+        equal(pair_of(fore, back), got) -- still theirs
     end
     ncurses.colorset()
     raises(ncurses.colorset, 256)

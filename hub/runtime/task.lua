@@ -75,6 +75,8 @@ local task_mt <const> = {
 ---@field lookup snowcone.Cancellable|nil
 ---@field process snowcone.Cancellable|nil
 ---@field tty boolean|nil true while the child has the terminal
+---@field secrets table<hub.Secret, hub.PreparedSecret>|nil what the task
+--- resolved ahead of time (runtime/secrets.lua)
 local methods = {}
 M.methods = methods
 

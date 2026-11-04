@@ -888,7 +888,7 @@ T.case('/msg opens the target\'s buffer', function()
 end)
 
 T.case('a private buffer\'s MONITOR follows its nick, and spares the nick being reclaimed', function()
-    local c, chat = boot()
+    local c = boot()
     T.command 'talk Carol'
     T.eq(c:take(), {'CHATHISTORY LATEST Carol * 50', 'MONITOR + Carol'}, 'watched')
     c:recv ':srv 730 me :Carol!c@h'

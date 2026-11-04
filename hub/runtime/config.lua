@@ -124,7 +124,8 @@ end
 ---@return table[]
 function M.automatic_credentials(cfg)
     local credentials = {}
-    for _, name in ipairs(cfg and cfg.automatic or {}) do
+    if not cfg then return credentials end
+    for _, name in ipairs(cfg.automatic or {}) do
         table.insert(credentials, M.get_credential(cfg.credentials, name))
     end
     return credentials

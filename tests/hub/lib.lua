@@ -8,6 +8,14 @@
 -- A watchdog timer fails the run if a case never finishes, since the
 -- script would otherwise just exit once nothing is pending.
 
+-- What tests keep on HUB and HUB.state, beside hub's own fields
+---@class hub.Root
+---@field test_draws integer
+
+---@class hub.State
+---@field test {loads: integer}
+---@field test_touched boolean|nil
+
 local T = {}
 
 T.here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
@@ -24,7 +32,7 @@ end
 
 local cases = {}
 local current_co
-local timers = {} -- keeps raw timers reachable until they fire
+T.timers = {} -- keeps raw timers reachable until they fire
 
 ------------------------------------------------------------------------
 -- assertions
@@ -171,9 +179,9 @@ end
 function T.sleep(ms)
     local co = assert(current_co, 'T.sleep outside a case')
     local t = snowcone.newtimer()
-    timers[t] = true
+    T.timers[t] = true
     t:start(ms, function()
-        timers[t] = nil
+        T.timers[t] = nil
         resume(co)
     end)
     coroutine.yield()

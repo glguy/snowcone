@@ -562,7 +562,7 @@ T.case('a lopsided PREFIX and a NAMES word of only prefixes add no one', functio
     c:recv ':srv 353 me = #chan :@ me'
 
     local irc_model = T.require 'hub.net.irc'
-    local irc = rec().irc
+    local irc = assert(rec().irc)
     T.eq(irc.prefixes, '', 'PREFIX ignored')
     T.eq(irc_model.get_channel(irc, '#chan').members, {ME = irc_model.get_channel(irc, '#chan').members.ME},
         'only me')
@@ -576,7 +576,7 @@ T.case('valueless ISUPPORT tokens are empty values, or flags', function()
     local fake = boot {network('test')}
     local c = fake.last()
     register(c, 'me', 'CHANTYPES STATUSMSG PREFIX CHANMODES LINELEN EXCEPTS')
-    local irc = rec().irc
+    local irc = assert(rec().irc)
     T.eq(irc.chantypes, '', 'no channel types')
     T.eq(irc.statusmsg, '', 'no STATUSMSG prefixes')
     T.eq(irc.prefixes, '', 'no prefixes')
@@ -683,7 +683,7 @@ T.case('bouncer network updates set and remove attributes', function()
     local c = fake.last()
     register(c)
     bouncer_list(c)
-    local networks = rec().irc.bouncer_networks
+    local networks = assert(rec().irc.bouncer_networks)
     T.eq(networks['1'], {name = 'libera', state = 'connected'}, 'listed')
     c:recv ':srv BOUNCER NETWORK 1 :state=disconnected;error=gone'
     T.eq(networks['1'], {name = 'libera', state = 'disconnected', error = 'gone'}, 'updated')
@@ -701,7 +701,7 @@ T.case('bad bouncer network attributes are reported, not applied', function()
     c:recv ':srv BOUNCER NETWORK 1 :name=other;'
     c:recv ':srv BOUNCER NETWORK 2 :name=new;'
     c:recv ':srv BOUNCER NETWORK 3'
-    local networks = rec().irc.bouncer_networks
+    local networks = assert(rec().irc.bouncer_networks)
     T.eq(networks['1'], {name = 'libera', state = 'connected'}, 'unchanged')
     T.eq(networks['2'], nil, 'no record for a bad update')
     T.eq(networks['3'], nil, 'nor for a missing one')
@@ -743,7 +743,7 @@ T.case('replayed history never changes the connection', function()
     c:recv '@batch=inner :alice!a@h PART #c'
     c:recv '@batch=h1 :srv BATCH -inner'
     c:recv ':srv BATCH -h1'
-    local irc = rec().irc
+    local irc = assert(rec().irc)
     T.ok(irc.channels['#C'].members.ALICE, 'alice still a member')
     T.eq(irc.nick, 'me', 'our nick unchanged')
     T.eq(#messages, 2, 'only the outer BATCH lines are messages')
@@ -1127,7 +1127,7 @@ T.case('tags are escaped and not counted in the line length', function()
     local long = string.rep('x', 512 - #'PRIVMSG #c \r\n')
     local task = T.require 'hub.runtime.task'
     task.spawn('long', {net = 'test'}, function(t)
-        for _ in t:request({}, 1000, 'PRIVMSG', '#c', long) do end
+        t:request({}, 1000, 'PRIVMSG', '#c', long)
     end)
     T.eq(c:take(), {'@label=sc1 PRIVMSG #c ' .. long}, 'a full line still goes')
     c:recv '@label=sc1 :srv ACK'

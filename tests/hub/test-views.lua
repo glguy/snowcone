@@ -1370,11 +1370,11 @@ T.case('Meta-H hides OFTC hybrid server notices in the console', function()
     control.set_view 'console'
     control.view_state('console').hide_snow = true
     HUB.current.routes['ui.draw']()
-    local text = {}
+    local rows = {}
     for _, win in ipairs(fake_ncurses.windows) do
-        for y = 0, win.h - 1 do table.insert(text, fake_ncurses.row(win, y)) end
+        for y = 0, win.h - 1 do table.insert(rows, fake_ncurses.row(win, y)) end
     end
-    text = table.concat(text, '\n')
+    local text = table.concat(rows, '\n')
     T.ok(text:find('visible line', 1, true), 'other lines shown')
     T.ok(not text:find('Client connecting', 1, true), 'the notice hidden')
 end)
@@ -1684,7 +1684,6 @@ T.case('the message detail sums up joins, parts, kicks, quits, nicks, modes and 
         '^password: secret$',
     })
     T.ok(not has_row(rows, 'flags') and not has_row(rows, 'desc'), 'no flags, no description')
-    local message = T.require 'hub.ui.details.message'
     expect(summary(':srv 216 me k *.example * ~bad :Spam (2026/11/01)|ticket 42', true), {
         '^   reply: RPL_STATSKLINE %(216%) to me, at ',
         '^    type: temporary K%-Line$',

@@ -102,7 +102,7 @@ function M.date(fmt, t)
     t = math.tointeger(tonumber(t))
     if not t or math.abs(t) > max_seconds then return '?' end
     local ok, text = pcall(os.date, fmt, t)
-    return ok and text or '?'
+    return ok and text --[[@as string]] or '?'
 end
 
 -- The characters of text, one string each: a byte and the continuation

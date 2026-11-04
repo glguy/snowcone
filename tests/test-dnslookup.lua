@@ -17,6 +17,7 @@ local h = snowcone.dnslookup('localhost', function()
 end)
 assert(type(h) == 'userdata', 'dnslookup returned ' .. type(h))
 assert(getmetatable(h) == false, 'metatable reachable')
+---@cast h snowcone.Cancellable
 h:cancel()
 h:cancel() -- harmless twice
 
