@@ -2,8 +2,7 @@
 --
 -- `[plugins] modules` names files in `[plugins] directory` (default:
 -- plugins/ in the configuration directory). A plugin file returns a
--- function, called with the api below. ircc and dashboard plugins (which
--- return a table) are not supported: port them to this api.
+-- function, called with the api below.
 --
 -- Plugins start once their generation is current, after the previous
 -- generation's plugins are stopped, so a plugin never acts while its
@@ -253,20 +252,12 @@ local function load_one(name, current)
 
     local ok, result = xpcall(chunk, traceback)
     if not ok then
-        -- old plugins usually fail first on the old clients' modules
-        local old_module = tostring(result):match "module '((%a+)%.[%w_.]+)' not found"
-        if old_module and (old_module:match '^utils%.' or old_module:match '^components%.') then
-            result = 'an ircc or dashboard plugin (it needs ' .. old_module
-                .. '); port it to the hub plugin api'
-        end
         report(name, 'start', result)
         return {name = name, error = result}
     end
 
     if type(result) ~= 'function' then
-        local e = type(result) == 'table'
-            and 'an ircc or dashboard plugin; port it to the hub plugin api'
-            or 'returned ' .. type(result) .. ', not a function'
+        local e = 'returned ' .. type(result) .. ', not a function'
         report(name, 'start', e)
         return {name = name, error = e}
     end

@@ -3,22 +3,8 @@
 Decisions the code doesn't explain on its own, with their reasons.
 `docs/hub-design.md`
 describes how hub is built; this file doesn't repeat it. Add an entry when
-a decision is made, and change or remove it when the decision does.
-
-## Scope
-
-- **hub replaced ircc and dashboard,** which are removed from the tree.
-  Native modules only they used (hsfilter, myarchive) went with them.
-- **No plugin compatibility.** ircc and dashboard plugins are ported to the
-  hub api, not shimmed. A plugin that returns a table, or fails on a
-  `utils.*`/`components.*` module, is refused with a message to port it.
-- **No filterdb** (ircc's `/upload_filterdb` with hyperscan) for now.
-- **Not ported from the dashboard:** `/shed_eta`, and Esc canceling a
-  staged ban (the CANCEL button does it).
-- **Different from the dashboard on purpose:** `servers_file` must be
-  configured; the connection query language is `/prefilter`, because
-  `/filter` is every view's pattern filter (both names kept); CTCP replies
-  to staff belong to chat, so a network without `chat` doesn't answer them.
+a decision is made, and change or remove it when the decision does. Record
+what someone might otherwise undo, not the history of what changed.
 
 ## Runtime
 
@@ -96,8 +82,6 @@ a decision is made, and change or remove it when the decision does.
 
 ## Configuration
 
-- **One shape:** no single-server form and no `settings.toml`. A
-  `.lua` configuration runs in its own environment.
 - **Loaded inside the guarded build**, so a bad file on reload leaves the
   old code and configuration running; it is committed at activation.
 - **Only values sent on an IRC line** (`registration.password`, `oper.password`)
@@ -106,10 +90,9 @@ a decision is made, and change or remove it when the decision does.
   outdated key can't be ignored in silence. `lib/schema.lua` takes the
   first oneOf alternative that matches, and raises errors without a
   source position.
-- **The servers file is network configuration**, TOML like the rest and
-  checked against `cschema.servers_file`, read with it; a file that can't
-  be read or checked fails the load. It isn't topology's, so oper's reasons and
-  snotice's ranges don't depend on that feature.
+- **The servers file is network configuration**, read with it; a file that
+  can't be read or checked fails the load. It isn't topology's, so oper's
+  reasons and snotice's ranges don't depend on that feature.
 - **Watches from configuration** are replaced on every load, keeping hit
   counts by pattern; watches added with `/addwatch` stay.
   `/addwatch filter` takes the cliconn view's filter from `ctx.filter`,
@@ -162,7 +145,6 @@ a decision is made, and change or remove it when the decision does.
 - **Chat history** goes before the messages of the current connection, in
   the server's order, skipping lines a buffer already has (by msgid, else
   time tag, source and text).
-- **"Is this our nick"** uses the network's casemapping.
 - **The rate limit lives in Lua.** The native connection writes whatever
   it is given at once, so pacing the hand-off paces the wire. Lines that
   back up in the native or kernel buffers on a stalled link can still
@@ -188,11 +170,10 @@ a decision is made, and change or remove it when the decision does.
 
 - **snotice:** the parser must match the golden fixtures on every line,
   and so must any rewrite of it.
-  Fixtures never contain personal data: the live capture was anonymized
-  consistently (so bans still match their notices), override and
-  bad-login notices were left out because they carry unparsed personal
-  text, and the raw capture was deleted. Connection entries keep `class`,
-  which `/prefilter` can ask for.
+  Fixtures never contain personal data: a capture is anonymized
+  consistently (so bans still match their notices), and override and
+  bad-login notices stay out because they carry unparsed personal text.
+  Connection entries keep `class`, which `/prefilter` can ask for.
 - **Operator status:** `irc.oper` fires once per connection, from
   RPL_YOUREOPER or user mode `o`, since a bouncer session may already be
   opered. RPL_YOUREOPER also sets the network's `snomask`.
@@ -212,17 +193,17 @@ a decision is made, and change or remove it when the decision does.
   confirms it, an error refuses it, and a connection that ends first
   leaves it unconfirmed. A labeled line, or one with several targets or a
   statusmsg one, is copied per buffer, so the console keeps the line as
-  sent and each echo updates only its own copy. CTCP replies go only to staff, and VERSION
-  is a fixed string, so a reply never starts a process. A nick
-  change onto a nick that already has a buffer renames nothing; the change
-  is noted in the old buffer.
-- **notify:** muting and dismissal both use the folded target.
-- `/dump` escapes `\` in tags.
+  sent and each echo updates only its own copy. CTCP replies go only to
+  staff and belong to chat, so a network without `chat` doesn't answer
+  them; VERSION is a fixed string, so a reply never starts a process. A
+  nick change onto a nick that already has a buffer renames nothing; the
+  change is noted in the old buffer.
 
 ## User interface
 
 - **Filters** are per view and use PCRE2 everywhere when `rex_pcre2` is
-  installed, Lua patterns otherwise.
+  installed, Lua patterns otherwise. The connection query language is
+  `/prefilter`, because `/filter` is every view's pattern filter.
 - **Errors raised at level 0** (no source position) are the user's:
   configuration and usage errors, and bad input from a server. Every
   handler logs them as one line; anything else is a bug and gets a
@@ -232,8 +213,8 @@ a decision is made, and change or remove it when the decision does.
 - **Prompts** have their own editor, so a half-typed command survives and
   secrets never reach history. Esc aborts, and the task's secret fails.
 - **One detail pane for the client, at the top,** rather than one per
-  view: inspecting a buffer's message no longer switches to the console,
-  and a WHOIS stays open across views. It takes the paging keys while it
+  view: inspecting a buffer's message doesn't switch to the console, and
+  a WHOIS stays open across views. It takes the paging keys while it
   is open; if wanting to scroll both becomes common, revisit that. A
   multi-line report goes there, with a one-line summary in the status log
   that reopens it, rather than as several log lines.
@@ -275,8 +256,7 @@ a decision is made, and change or remove it when the decision does.
   parser. A plugin command without a usage gets one from its spec.
 - **The status view cuts lines at 400 bytes,** so a long line can't wrap
   past the pad onto the rows below.
-- **The editor** accepts line breaks (it also takes Lua for `/eval`), and
-  hex input checks its digits.
+- **The editor** accepts line breaks, since it also takes Lua for `/eval`.
 - **Formatting is typed as IRC codes,** not a markup of our own: the line
   holds what is sent, so history, undo and `/quote` need no translation,
   and nothing a user types literally (`*`, `_`) changes meaning. The input
@@ -312,8 +292,6 @@ a decision is made, and change or remove it when the decision does.
   next message. Parting but keeping the buffer is rare enough to leave to
   `/quote part`. Our PART coming back drops the buffer again, in case a
   message reopened it first.
-- The `list` view has no `/list` of its own (`command = false`): the chat
-  command shows it.
 - **`/stats`** is for working out what the client holds: counts only,
   never byte estimates (Lua can't size a value, and shared messages would
   be counted twice), and no CLEAR buttons.

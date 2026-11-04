@@ -34,8 +34,7 @@ return function(api)
 end
 ]],
     broken = [[error 'broken at load']],
-    old = [[return {name = 'old', irc = function() end}]],
-    older = [[local N = require 'utils.numerics' return {name = 'older'}]],
+    tabular = [[return {name = 'tabular'}]],
     clash = [[return function(api) api.command('quit', '', function() end) end]],
     boom = [[
 return function(api)
@@ -47,7 +46,7 @@ for name, src in pairs(sources) do
     assert(file.write(path.join(dir, name .. '.lua'), src))
 end
 
-local order = {'boom', 'good', 'broken', 'old', 'older', 'clash', 'missing'}
+local order = {'boom', 'good', 'broken', 'tabular', 'clash', 'missing'}
 
 local function config()
     return {
@@ -83,8 +82,7 @@ T.case('plugins load, and failures stay with their plugin', function()
     T.eq(errors.good, false, 'good loaded')
     T.eq(errors.boom, false, 'boom loaded')
     T.ok(errors.broken:find('broken at load', 1, true), errors.broken)
-    T.ok(errors.old:find('port it to the hub plugin api', 1, true), errors.old)
-    T.ok(errors.older:find('it needs utils.numerics); port it', 1, true), errors.older)
+    T.eq(errors.tabular, 'returned table, not a function', 'tabular refused')
     T.ok(errors.missing, 'missing file reported')
     T.ok(HUB.current.commands.greet, 'command registered')
     T.eq({HUB.current.commands.greet.usage, HUB.current.commands.greet.group}, {'word', 'plugin good'},

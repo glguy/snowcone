@@ -1,9 +1,8 @@
 # hub design
 
-`hub` is snowcone's Lua application, which replaced the retired `dashboard`
-and `ircc`. It does the work of both — the solanum server-notice console
-with its ban workflow, and a chat client — on any number of IRC networks at
-once, in one process. This document describes how it is built and the rules that keep it
+`hub` is snowcone's Lua application: the solanum server-notice console with
+its ban workflow, and a chat client, on any number of IRC networks at once,
+in one process. This document describes how it is built and the rules that keep it
 that way. It is for anyone changing hub, human or agent.
 
 Related files:
@@ -42,9 +41,8 @@ These hold everywhere. A change that breaks one needs a decision recorded in
 9. **Everything below the UI runs headless.** The protocol and features run
    in snowcone without a UI, with a fake transport, so they are tested without
    a terminal or a network.
-10. **Clean breaks over compatibility.** hub reads its own configuration
-    format and its own plugin API. Old ircc and dashboard files are not read
-    and their plugins are ported, not shimmed.
+10. **Clean breaks over compatibility.** A change to the configuration format
+    or the plugin API leaves no shims or aliases behind.
 
 ## 2. Layers
 
@@ -270,7 +268,7 @@ unreachable or wrong without the other, not to save a check.
 
 | Feature | What it does |
 | --- | --- |
-| snotice | Parses server notices (the dashboard's parser), keeps recent connections, exits, bans, new channels, per-second load trackers, address-range counts and watches; emits `snote` and `snote.<name>`. |
+| snotice | Parses server notices, keeps recent connections, exits, bans, new channels, per-second load trackers, address-range counts and watches; emits `snote` and `snote.<name>`. |
 | topology | Populations from MAP, links and upstream from LINKS, versions, uptimes, user shedding, DNS rotations. Asks for MAP and LINKS at registration, on becoming an operator and on netsplits and netjoins. |
 | oper | Libera ban masks; staging a K-Line, unkline or undline with a TESTMASK count; sending it only on confirmation; operator commands. |
 | chat | Buffers per network and target, routing (WALLOPS and broadcasts to the sender's buffer; our own lines never mentions or unseen), mentions, chat history, MONITOR for private buffers, CTCP replies to staff, `/list`, quiets, bans and kicks with Libera channel ban masks. |
@@ -293,8 +291,7 @@ resources and tasks before starting its own plugins, and their callbacks
 fire only into their own generation. A plugin's errors, from any of its
 callbacks (handlers, commands, views, timers, tasks, HTTP handlers), are
 logged under its name; a view whose render fails says so in place of
-drawing, and is reported once. Files written for ircc or the
-dashboard are refused with a message to port them.
+drawing, and is reported once.
 
 ## 7. User interface
 
@@ -500,8 +497,7 @@ All tests run in snowcone without a UI, from CTest, with `luacheck` over
 - Golden replay: `fixtures/snotes-live.log` (captured from a live network,
   anonymized by `tests/hub/tools/anonymize-snotes.lua`) and `snotes-synthetic.log`,
   checked against the output of the reference parser in
-  `tests/hub/tools/parse_snote.lua` (the retired dashboard's). Fixtures never contain
-  personal data.
+  `tests/hub/tools/parse_snote.lua`. Fixtures never contain personal data.
 - `test-structure.lua` enforces layering, native API ownership and the
   event catalog.
 
@@ -516,5 +512,3 @@ Work that the design leaves room for:
   buffer is scrolled to its start.
 - **State across restarts** (buffers, watches, plugin state) by saving
   `HUB.state` parts on quit.
-- **More plugins ported** from the retired ircc and dashboard as they are
-  needed.
