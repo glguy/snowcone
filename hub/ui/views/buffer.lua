@@ -7,7 +7,8 @@
 -- input mode; each buffer keeps its own until Esc, and no typing notices
 -- go there. n and p step through the network's buffers, and j lists them
 -- in the detail pane to jump to by label (ui/details/jump.lua);
--- Meta-Ctrl-K closes the shown buffer, as /close does; Meta-H hides joins, parts, quits, nick changes, account changes and host
+-- Meta-Ctrl-K closes the shown buffer, as /close does; Meta-H hides joins,
+-- parts, quits, nick changes, account changes and host
 -- changes. Click a sender to inspect the message in the detail pane. A
 -- private message meant for a channel (channel-context, sent with /cmsg)
 -- is shown there marked >, after its sender; ours marked <, after its
@@ -34,14 +35,14 @@ local editor     <const> = require 'hub.ui.editor'
 local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
 local matching   <const> = require 'hub.lib.matching'
-local keys       <const> = require 'hub.ui.keys'
+local ui_keys    <const> = require 'hub.ui.keys'
 local N          <const> = require 'hub.lib.numerics'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local scrub      <const> = require 'hub.lib.scrub'
 local tty        <const> = require 'hub.runtime.tty'
 
-local meta_ctrl  <const> = keys.meta_ctrl
-local meta       <const> = keys.meta
+local meta_ctrl  <const> = ui_keys.meta_ctrl
+local meta       <const> = ui_keys.meta
 
 -- How many of those typing the status bar names
 local typing_shown <const> = 2
