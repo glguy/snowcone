@@ -1,5 +1,5 @@
 -- An error in the detail pane: where it came from, its whole message, and
--- the traceback of an error from code (log.error_data).
+-- the traceback of an error from code (runtime/log.lua).
 
 local draw  <const> = require 'hub.ui.draw'
 local scrub <const> = require 'hub.lib.scrub'

@@ -146,7 +146,7 @@ Plugins are Lua files in `~/.config/snowcone/plugins/`, listed in
 return function(api)
     api.state.count = api.state.count or 0     -- kept across reloads
 
-    api.on('snote.connect', function(ev)        -- any event; see hub/EVENTS.md
+    api.on('snote.connect', function(ev)        -- any event; see docs/EVENTS.md
         api.state.count = api.state.count + 1
     end)
 
@@ -162,16 +162,10 @@ return function(api)
 end
 ```
 
-The api also has `api.name`, `api.log`, `api.task`, `api.net_task(net, ...)`
-(a task that sends on a network and ends with its connection),
-`api.timer` and `api.cancel_timer`, `api.httpd`, `api.networks()` and
-`api.config` (the `[plugins.custom.<name>]` table). `api.save(table)` and
-`api.load()` keep a table of plain values in `<name>.dat`, and
-`api.path(ext)` names the plugin's own files. `api.command` takes
-`{net = true}` last for a command that acts on a network. The comment at
-the top of `hub/features/plugins/init.lua` gives every call, including
-the HTTP handler's. A plugin's errors are logged under its name;
-`/plugins` lists loaded plugins and their errors.
+[docs/PLUGINS.md](docs/PLUGINS.md) covers the rest of the api: tasks,
+timers, HTTP listeners, saved data and what happens on a reload. A plugin's
+errors go to `/status` under its name; `/plugins` lists loaded plugins and
+says which failed.
 
 ## Pre-filter
 

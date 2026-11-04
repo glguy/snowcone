@@ -16,7 +16,7 @@ modules = ['github']
 network = 'libera'
 ```
 
-Run `/reload` to start it, and again after updating the plugin. `/plugins` shows any error from starting it. Click `[github]` there for the plugin's view, which lists the projects, their channels and how many events each announces.
+Run `/reload` to start it, and again after updating the plugin. `/plugins` says if it failed to start, and `/status` has the error. Click `[github]` there for the plugin's view, which lists the projects, their channels and how many events each announces.
 
 ## The webhook server
 

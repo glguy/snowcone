@@ -151,7 +151,7 @@ Without this table, no notifications are sent.
 | `directory` | `plugins` in the configuration directory | Where plugin files are found. |
 | `custom` | | Per-plugin settings. A plugin named `hello` sees `[plugins.custom.hello]` as `api.config`. |
 
-A plugin file returns a function that receives the plugin api. See the README and [hub/features/plugins/init.lua](../hub/features/plugins/init.lua).
+A plugin file returns a function that receives the plugin api. See [PLUGINS.md](PLUGINS.md).
 
 ## Networks
 

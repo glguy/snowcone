@@ -103,6 +103,21 @@ local function render_document(view, ctx, at)
     end
 end
 
+-- Draw a view into its pad. Returns the refresh to do.
+local function draw_view(view, ctx, at)
+    if view.document then
+        return render_document(view, ctx, at)
+    end
+    local main_pad = layout.main_pad
+    draw.normal(main_pad)
+    view.render(ctx, main_pad)
+    local hscroll = math.max(0, math.min(ctx.vs.hscroll or 0, pad_width - tty_width))
+    clicks.place(0, ctx.rows, at, hscroll)
+    return function()
+        main_pad:pnoutrefresh(0, hscroll, at, 0, tty_height - 2, tty_width - 1)
+    end
+end
+
 local function render()
     if tty.suspended() then return end
 
@@ -124,24 +139,28 @@ local function render()
     layout.detail_rows = 0
     if kind then
         ---@cast detail -nil a kind comes from the detail
-        layout.detail_rows, refresh_detail = details.render(detail, kind, layout.detail_pad)
+        local rows, refresh = control.attempt(details.disable_kind, kind,
+            details.render, detail, kind, layout.detail_pad)
+        if not rows then
+            -- disabled: its stand-in, in this frame
+            clicks.restart()
+            rows, refresh = details.render(detail, details.kinds[detail.kind], layout.detail_pad)
+        end
+        layout.detail_rows, refresh_detail = rows, refresh
     end
     local at = layout.detail_rows
 
     local view = control.current_view()
     local ctx = view_context(view)
 
-    local refresh
-    if view.document then
-        refresh = render_document(view, ctx, at)
-    else
-        draw.normal(main_pad)
-        view.render(ctx, main_pad)
-        local hscroll = math.max(0, math.min(ctx.vs.hscroll or 0, pad_width - tty_width))
-        clicks.place(0, ctx.rows, at, hscroll)
-        refresh = function()
-            main_pad:pnoutrefresh(0, hscroll, at, 0, tty_height - 2, tty_width - 1)
-        end
+    local refresh = control.attempt(control.disable_view, view, draw_view, view, ctx, at)
+    if not refresh then
+        -- disabled: its stand-in, in this frame
+        clicks.restart()
+        main_pad:werase()
+        view = control.current_view()
+        ctx = view_context(view)
+        refresh = draw_view(view, ctx, at)
     end
 
     -- the status bar's clicks are in screen rows already
@@ -204,13 +223,15 @@ local function keyboard(key)
     local detail = control.detail()
     local kind = detail and details.kinds[detail.kind]
     -- a kind comes from the detail, so detail is set when kind is
-    ---@diagnostic disable-next-line: param-type-mismatch
-    if kind and kind.keypress and kind.keypress(details.context(detail, layout.detail_rows), key) then
+    if kind and kind.keypress
+        ---@diagnostic disable-next-line: param-type-mismatch
+        and control.attempt(control.key_failed, kind, kind.keypress, details.context(detail, layout.detail_rows), key)
+    then
         return
     end
 
     local view = control.current_view()
-    if view.keypress and view.keypress(view_context(view), key) then
+    if view.keypress and control.attempt(control.key_failed, view, view.keypress, view_context(view), key) then
         return
     end
 
@@ -390,6 +411,26 @@ M.routes = {
         end
     end,
     ['ui.draw'] = render,
+    -- for code below the UI, through dispatch.show_view and open_detail
+    ['ui.show_view'] = function(id)
+        if HUB.current.views[id] == nil then
+            error('no such view: ' .. tostring(id), 0)
+        end
+        control.set_view(id)
+    end,
+    ['ui.open_detail'] = function(kind, net, data)
+        if details.kinds[kind] == nil then
+            error('no such detail kind: ' .. tostring(kind), 0)
+        end
+        control.open_detail(kind, net, data)
+    end,
+    -- details.kinds is this generation's, so a plugin's kind ends with it
+    ['ui.add_detail_kind'] = function(kind)
+        if details.kinds[kind.kind] then
+            error('detail kind ' .. kind.kind .. ' is already defined', 0)
+        end
+        details.kinds[kind.kind] = kind
+    end,
 }
 for k, v in pairs(control.routes) do
     M.routes[k] = v

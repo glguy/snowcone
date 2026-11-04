@@ -6,6 +6,7 @@
 local file <const> = require 'pl.file'
 local files <const> = require 'hub.runtime.files'
 local config <const> = require 'hub.runtime.config'
+local dispatch <const> = require 'hub.runtime.dispatch'
 local log  <const> = require 'hub.runtime.log'
 local task <const> = require 'hub.runtime.task'
 
@@ -35,7 +36,7 @@ end
 -- Log each services command. A private key is more than a line can
 -- show, and must not be logged, so the record goes to the detail pane,
 -- when there is a UI; only the pane holds the key, until it shows
--- something else. A route, unlike an event, reaches no plugin
+-- something else. Opening it, unlike an event, reaches no plugin
 -- subscribers.
 ---@param keys hub.Keys
 local function report(keys)
@@ -43,8 +44,7 @@ local function report(keys)
         log.add('crypto', '%s', command)
     end
     if keys.private then
-        local open = HUB.current.routes['ui.open_detail']
-        if open then open('keys', nil, keys) end
+        dispatch.open_detail('keys', nil, keys)
     end
 end
 

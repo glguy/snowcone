@@ -7,9 +7,10 @@ that way. It is for anyone changing hub, human or agent.
 
 Related files:
 
-- `hub/EVENTS.md` — every event topic and its payload.
+- `docs/EVENTS.md` — every event topic and its payload.
 - `hub/NOTES.md` — decisions and their reasons, and mistakes not to repeat.
-- `README.md`, section "Hub" — user-facing configuration and plugin docs.
+- `docs/CONFIG.md` — the configuration file.
+- `docs/PLUGINS.md` — writing plugins.
 
 ## 1. Principles
 
@@ -35,9 +36,10 @@ These hold everywhere. A change that breaks one needs a decision recorded in
    they are read or clicked. Scrolling back pins the view.
 7. **Features never draw.** Features update data and emit events; the UI
    decides what to show, beep or flash.
-8. **Failures stay where they happen.** An error in a route, subscriber,
-   handler, plugin or command is logged with its origin and the rest of the
-   client carries on.
+8. **Failures stay where they happen, and are reported in one place.** An
+   error in a route, subscriber, handler, plugin or command goes through
+   `log.error` to the status view with its origin, and the rest of the
+   client carries on. Nothing keeps its own copy of an error to show.
 9. **Everything below the UI runs headless.** The protocol and features run
    in snowcone without a UI, with a fake transport, so they are tested without
    a terminal or a network.
@@ -150,7 +152,7 @@ whatever is pending.
 
 `bus.emit(topic, ev)` delivers synchronously, in subscription order, each
 subscriber under `xpcall`, then wakes tasks waiting on the event. Topics are
-`area.event`; events about a network carry `net`. `hub/EVENTS.md` lists
+`area.event`; events about a network carry `net`. `docs/EVENTS.md` lists
 every topic, and a test checks that every literal topic emitted is listed.
 
 ### Resources, timers and tasks
@@ -283,15 +285,15 @@ messages — goes out only from a user action.
 
 A plugin is a Lua file in the plugins directory, listed in
 `[plugins] modules`, that returns `function(api)`. The api is documented in
-the README and at the top of `features/plugins/init.lua`: events, commands,
+`docs/PLUGINS.md` and at the top of `features/plugins/init.lua`: events, commands,
 views, persistent `api.state`, sending, logging, tasks, timers and HTTP
 listeners. Plugins start once their generation is current, into that
 generation, so they reload with the client; a newer generation closes their
 resources and tasks before starting its own plugins, and their callbacks
 fire only into their own generation. A plugin's errors, from any of its
-callbacks (handlers, commands, views, timers, tasks, HTTP handlers), are
-logged under its name; a view whose render fails says so in place of
-drawing, and is reported once.
+callbacks (handlers, commands, views, timers, tasks, HTTP handlers), go
+through `log.error` with its name. Its views and detail kinds fail like
+built-in ones (section 7), reported under their `origin`, which names it.
 
 ## 7. User interface
 
@@ -309,7 +311,7 @@ A view is a record:
 | `modes(ctx)` | Optional tags of what alters it from its default, each a string or `{tag, value}`. |
 | `reset(vs)` | Optional; clears what else it keeps when its scroll and filter are cleared. |
 | `document` | Drawn whole into a pad and paged, rather than a stream. |
-| `command` | False for no command of its name; every other view gets one. |
+| `command` | False for no command of its name; every other built-in view gets one. A plugin's view gets none, and opens with `api.show_view`. |
 | `feature` | The feature it belongs to. |
 
 A view module returns a view or a list of them, and may bring `commands`
@@ -355,13 +357,29 @@ A kind is a record:
 Everything a kind draws from a server, a plugin or a file is scrubbed,
 or drawn with `irc_formatting`.
 
-**Events or the route.** A feature never opens the pane. It logs one
-line with the detail (`log.add_detail`), which reopens it, and emits an
-event the UI answers by opening it when the user asked for the thing.
-Plugins hear these events. Anything private opens with the
-`ui.open_detail` route instead, which no subscriber hears, and is held
+**Events or `dispatch.open_detail`.** A feature never opens the pane. It
+logs one line with the detail (`log.add_detail`), which reopens it, and
+emits an event the UI answers by opening it when the user asked for the
+thing. Plugins hear these events. Anything private opens with
+`dispatch.open_detail` instead, which no subscriber hears, and is held
 only by the pane: never logged, never in an event, gone once the pane
 shows something else.
+
+Code below the UI opens things only through `dispatch.show_view` and
+`dispatch.open_detail`. They do nothing without a UI and raise an error
+for an unknown view or kind. A plugin has them as `api.show_view` and
+`api.open_detail`, and adds kinds of its own with `api.detail`, into
+`details.kinds`, which is the generation's, so they end with it. A
+plugin's kinds don't open on `events`, which are read when the generation
+is built; a plugin subscribes and calls `api.open_detail` instead.
+
+**Failures.** A view or kind that fails to draw (`render`, `status`,
+`modes`, `title`) is disabled until the next reload, and reported once to
+the status view. A stand-in takes its record's place in `current.views` or
+`details.kinds`, drawing a line that says it failed, so nothing else needs
+to know and a reload brings the real one back. Input is only reported, a
+`keypress` or a click: it doesn't fail again by itself, and can fail for a
+reason that passes. Strict mode raises, so a test can't miss a failure.
 
 ### Streams
 

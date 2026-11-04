@@ -39,6 +39,37 @@ function M.route(route)
     return f
 end
 
+-- Call one of the UI's routes, which are there only with a UI
+local function ui_route(route, ...)
+    local f = HUB.current.routes[route]
+    if f then f(...) end
+end
+
+--- Show a view, for code below the UI. Without a UI nothing happens. An
+--- unknown view raises an error.
+---@param id string
+function M.show_view(id)
+    ui_route('ui.show_view', id)
+end
+
+--- Show something in the detail pane, for code below the UI. Without a UI
+--- nothing happens. An unknown kind raises an error. No event or log line
+--- comes of this, so the pane alone holds `data`: a detail can hold a
+--- secret.
+---@param kind string
+---@param net string|nil
+---@param data any
+function M.open_detail(kind, net, data)
+    ui_route('ui.open_detail', kind, net, data)
+end
+
+--- Add a detail kind to this generation, for a plugin. Without a UI nothing
+--- happens. A name already taken raises an error.
+---@param kind table a renderer (ui/details/init.lua)
+function M.add_detail_kind(kind)
+    ui_route('ui.add_detail_kind', kind)
+end
+
 --- Draw when something changed and nothing holds drawing back.
 function M.flush()
     if HUB.defer_draw then

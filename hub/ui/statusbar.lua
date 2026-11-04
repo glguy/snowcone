@@ -136,7 +136,7 @@ local talk_modes <const> = {talk = true, quiet = true, action = true, notice = t
 --- has. Nothing when no mode is on.
 local function draw_modes(win, view, ctx)
     local vs = ctx.vs
-    local modes = view.modes and view.modes(ctx) or {}
+    local modes = view.modes and control.attempt(control.disable_view, view, view.modes, ctx) or {}
 
     -- once scrolled, a document shows how far down it is
     local rows
@@ -269,7 +269,7 @@ function M.draw(win, textbox, layout, view, ctx)
         -- views start each fragment of their own with ctx.fragment
         ctx.fragment = M.fragment
         if view.status then
-            view.status(ctx, win)
+            control.attempt(control.disable_view, view, view.status, ctx, win)
         end
         draw_modes(win, view, ctx)
 

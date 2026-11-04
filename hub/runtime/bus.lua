@@ -1,7 +1,7 @@
 -- Synchronous publish and subscribe.
 --
 -- Each generation builds its own bus; subscriptions are never persisted.
--- Every topic emitted with a literal name MUST be listed in hub/EVENTS.md.
+-- Every topic emitted with a literal name MUST be listed in docs/EVENTS.md.
 
 local dispatch  <const> = require 'hub.runtime.dispatch'
 local traceback <const> = require 'hub.lib.traceback'

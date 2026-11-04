@@ -220,15 +220,31 @@ what someone might otherwise undo, not the history of what changed.
   that reopens it, rather than as several log lines.
 - **A private key is shown only in the detail pane.** The crypto commands
   log the services command; only `/x25519_new`, whose key has no file,
-  opens the pane, through the `ui.open_detail` route rather than an
-  event, which plugins could subscribe to. Once the pane shows something
+  opens the pane, with `dispatch.open_detail` rather than an event,
+  which plugins could subscribe to. Once the pane shows something
   else the key is gone; headless, it is never shown. A result that fits
   on one line stays a log line: the pane is for more than that.
-- **Events or the route.** A detail a plugin might want to watch (a WHOIS
-  reply) arrives as an event the UI answers; anything private opens with
-  the `ui.open_detail` route, which no plugin hears. Plugins are trusted
-  code that can read `HUB`, so the route keeps secrets out of events, not
-  out of reach.
+- **Events or `dispatch.open_detail`.** A detail a plugin might want to
+  watch (a WHOIS reply) arrives as an event the UI answers; anything
+  private opens with `dispatch.open_detail`, which no plugin hears. Plugins
+  are trusted code that can read `HUB`, so this keeps secrets out of
+  events, not out of reach.
+- **A view or detail kind that fails to draw is disabled until a reload,**
+  and logged once. Drawn unguarded, it failed every frame, pushing older
+  lines out of the log. Retrying with a log only on a new message, and
+  closing the pane, were both considered: a state that stays until `/reload`
+  is simpler to reason about, and `/reload` is cheap. The cost is that one
+  message the `message` kind can't draw disables that kind for every
+  message until then. A stand-in record takes its place, so no call site
+  checks anything. Input is the exception, keys and clicks alike: a failure
+  there doesn't repeat by itself, and can pass, as `api.send` raising while
+  a network is down does, so it is only reported.
+- **Every failure goes to the status view through `log.error`.** Plugins
+  had a category and a report of their own, and `/plugins` a copy of the
+  error with its own traceback link, so where to look depended on what
+  failed. `/plugins` now says that a plugin failed and links to `/status`.
+  The log is a ring, so an old failure can roll off; `/reload` repeats a
+  load or start error.
 - **A long wide kind draws by rows** (`rows` in place of `render`): a
   `/quote STATS` reply can run to thousands of rows, and drawing only
   those shown keeps its size from costing anything per frame.

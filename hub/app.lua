@@ -252,8 +252,7 @@ end
 local function reload_failed(err)
     HUB.last_reload = {at = os.time(), ok = false, error = tostring(err):match '^[^\n]*'}
     log.error('reload', err)
-    local show = HUB.current.routes['ui.show_view']
-    if show then show 'status' end
+    dispatch.show_view 'status'
 end
 
 -- Quitting sends QUIT on every network and exits once the servers close

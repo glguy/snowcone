@@ -122,7 +122,7 @@ end
 
 --- Count an error by where it came from (a route, a subscriber, a
 --- command, a plugin), for /stats. The counts live in HUB, outside state.
-function M.count_error(where)
+local function count_error(where)
     local errors = HUB.errors or {total = 0, by_origin = {}}
     HUB.errors = errors
     errors.total = errors.total + 1
@@ -135,31 +135,21 @@ end
 ---@param where string
 ---@param err any
 ---@return {where: string, message: string, traceback: string|nil}|nil
-function M.error_data(where, err)
-    err = tostring(err)
+local function error_data(where, err)
     if not err:find '\n' then return nil end
     local message, traceback = err:match '^(.-)\n(stack traceback:\n.*)$'
     return {where = where, message = message or err, traceback = traceback}
 end
 
---- Log the first line of an error, with the rest in the line's detail.
----@param category string
----@param where string
----@param err any
----@param fmt string format string for the line
----@param ... any format arguments
-function M.add_error(category, where, err, fmt, ...)
-    local data = M.error_data(where, err)
-    add(nil, category, data and {kind = 'error', data = data}, fmt, ...)
-end
-
 --- Log an error as one line, keeping its traceback out of the log and the
---- status bar: it is in the line's detail.
+--- status bar: it is in the line's detail. Every failure comes here, so
+--- the status view is the one place that shows them.
 function M.error(where, err)
-    M.count_error(where)
+    count_error(where)
     err = tostring(err)
     local first = err:match '^[^\n]*'
-    M.add_error('error', where, err, '%s: %s', where, first)
+    local data = error_data(where, err)
+    add(nil, 'error', data and {kind = 'error', data = data}, '%s: %s', where, first)
     local S = HUB.state
     if S and S.log then
         S.log_last = string.format('%s: %s', where, first)

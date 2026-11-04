@@ -212,7 +212,7 @@ end)
 
 T.case('every emitted topic is listed in EVENTS.md', function()
     local listed = {}
-    for topic in assert(file.read(path.join(root, 'EVENTS.md'))):gmatch '\n| `([^`]+)` |' do
+    for topic in assert(file.read(path.join(root, '..', 'docs', 'EVENTS.md'))):gmatch '\n| `([^`]+)` |' do
         listed[topic] = true
     end
     T.ok(listed['log'], 'EVENTS.md parsed')

@@ -5,7 +5,9 @@ local chat     <const> = require 'hub.features.chat'
 local common   <const> = require 'hub.features.common'
 local dispatch <const> = require 'hub.runtime.dispatch'
 local editor   <const> = require 'hub.ui.editor'
+local scrub    <const> = require 'hub.lib.scrub'
 local task     <const> = require 'hub.runtime.task'
+local traceback <const> = require 'hub.lib.traceback'
 local manager  <const> = require 'hub.net.manager'
 
 local M = {}
@@ -216,6 +218,57 @@ end
 function M.current_view()
     local views = HUB.current.views
     return views[HUB.state.ui.view] or views.status
+end
+
+--- Call f(...) and return what it returns; when it raises, call
+--- failed(record, err) and return nothing.
+---@param failed fun(record: table, err: any)
+---@param record table the view or detail kind f belongs to
+---@param f function
+function M.attempt(failed, record, f, ...)
+    local results = table.pack(xpcall(f, traceback, ...))
+    if results[1] then
+        return table.unpack(results, 2, results.n)
+    end
+    failed(record, results[2])
+end
+
+--- What a view or detail kind that failed draws in its place.
+---@param name string
+---@return fun(ctx: table, win: ncurses.Window)
+function M.failed_render(name)
+    return function(_, win)
+        win:waddstr(scrub(name), ' failed; see /status. /reload tries again.\n')
+    end
+end
+
+--- Disable a view that failed to draw, which would otherwise fail every
+--- frame: a stand-in takes its place in this generation, so nothing else
+--- needs to know, and a reload brings the view back. Reported once, last,
+--- since strict mode raises.
+---@param view table
+---@param err any
+function M.disable_view(view, err)
+    local views = HUB.current.views
+    if views[view.id] ~= view then return end -- disabled already this frame
+    views[view.id] = {
+        id = view.id,
+        title = view.title,
+        scope = view.scope,
+        feature = view.feature,
+        command = view.command,
+        render = M.failed_render(view.title or view.id),
+    }
+    dispatch.dirty()
+    dispatch.report(view.origin or ('view ' .. view.id), err)
+end
+
+--- Report a key handler's failure. A key doesn't fail again by itself, and
+--- may fail for a reason that passes, so its view or kind stays.
+---@param record table a view or detail kind
+---@param err any
+function M.key_failed(record, err)
+    dispatch.report(record.origin or ('key in ' .. (record.id or record.kind)), err)
 end
 
 --- Persistent state of a view, created on first use.
@@ -446,11 +499,7 @@ end
 M.check_prompts = next_prompt
 
 M.routes = {
-    ['ui.show_view'] = M.set_view,
     ['ui.set_current_net'] = M.set_current_net,
-    -- for commands, which don't require ui (and a route, unlike an event,
-    -- reaches no subscribers, so a detail can hold a secret)
-    ['ui.open_detail'] = M.open_detail,
 }
 
 return M

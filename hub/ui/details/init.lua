@@ -16,10 +16,15 @@
 --
 -- A kind may also name the events that open it: `events` maps a topic to
 -- a function of the event that returns the detail's net and data. Private
--- data doesn't come by event; it opens with the ui.open_detail route.
+-- data doesn't come by event; it opens with dispatch.open_detail.
+--
+-- A kind that fails to draw is disabled until the next reload (disable_kind)
+-- and the error logged as `origin` when the kind has one (a plugin's), else
+-- as its name.
 
 local clicks  <const> = require 'hub.ui.clicks'
 local control <const> = require 'hub.ui.control'
+local dispatch <const> = require 'hub.runtime.dispatch'
 local draw    <const> = require 'hub.ui.draw'
 local pads    <const> = require 'hub.ui.pads'
 local log     <const> = require 'hub.runtime.log'
@@ -42,6 +47,17 @@ for _, m in ipairs {
     require 'hub.ui.details.whowas',
 } do
     M.kinds[m.kind] = m
+end
+
+--- Disable a kind that failed to draw, as control.disable_view does a view.
+---@param kind table
+---@param err any
+function M.disable_kind(kind, err)
+    local name = kind.kind
+    if M.kinds[name] ~= kind then return end -- disabled already
+    M.kinds[name] = {kind = name, render = control.failed_render(name)}
+    dispatch.dirty()
+    dispatch.report(kind.origin or ('detail ' .. name), err)
 end
 
 --- What a filter applies to now: 'detail' while the pane shows a kind

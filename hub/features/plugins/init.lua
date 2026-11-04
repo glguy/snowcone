@@ -8,8 +8,8 @@
 -- generation's plugins are stopped, so a plugin never acts while its
 -- generation might still fail to load. Subscriptions, commands and views
 -- belong to the generation; the resources and tasks a plugin started are
--- closed when the next generation starts its plugins. A plugin error is
--- logged with its name and never breaks the client.
+-- closed when the next generation starts its plugins. A plugin error goes
+-- to the status view with its name and never breaks the client.
 --
 -- api:
 --   api.name, api.state (persistent: state.features.plugins[name])
@@ -19,6 +19,9 @@
 --                                    'nick [count]'; opts {net = true} makes
 --                                    it act on a network (ctx.net, /x@net)
 --   api.view(id, {title, render, keypress, status, modes})
+--   api.show_view(id)                show a view, the plugin's or another
+--   api.detail(kind, {title, render, keypress, modes, wide})
+--   api.open_detail(kind, net, data) show something in the detail pane
 --   api.send(net, cmd, ...)  api.log(fmt, ...)
 --   api.task(name, fn, ...)          a task, fn(t, ...)
 --   api.net_task(net, name, fn, ...) a task on a network: t:send, t:request
@@ -63,6 +66,9 @@ M.loaded = loaded
 local callbacks = {}
 local next_callback = 0
 
+-- The callback of each timer that hasn't fired, by the timer's id
+local timer_callbacks = {}
+
 -- Words for a spec's arguments, for a plugin command that gives no usage
 local spec_words <const> = {
     g = 'word', r = 'text', R = '[text]', i = 'number', f = 'number',
@@ -78,9 +84,7 @@ local function owner(name)
 end
 
 local function report(name, what, err)
-    log.count_error('plugin ' .. name)
-    log.add_error('plugin', name .. ' ' .. what, err,
-        '%s %s: %s', name, what, tostring(err):match '^[^\n]*')
+    log.error('plugin ' .. name .. ' ' .. what, err)
 end
 
 local function guard(name, what, f, ...)
@@ -102,33 +106,6 @@ local function guarded(name, what, fn)
             error(err, 0)
         end
         report(name, what, err)
-    end
-end
-
--- A view's functions run guarded; a render that fails shows that it did
--- until the next reload, rather than failing, and being reported, every
--- frame
-local function guard_view(name, view)
-    local id = view.id
-    for _, field in ipairs {'keypress', 'status', 'modes'} do
-        if type(view[field]) == 'function' then
-            view[field] = guarded(name, 'view ' .. id .. ' ' .. field, view[field])
-        end
-    end
-    local render = view.render
-    if type(render) == 'function' then
-        local failed = false
-        view.render = function(ctx, win, ...)
-            if failed then
-                win:waddstr('plugin ' .. name .. ': view ' .. id .. ' failed; see /plugins\n')
-                return
-            end
-            local ok, err = xpcall(render, traceback, ctx, win, ...)
-            if not ok then
-                failed = true
-                report(name, 'view ' .. id .. ' render', err)
-            end
-        end
     end
 end
 
@@ -175,11 +152,18 @@ local function make_api(name, entry, current)
         view.id = id
         view.title = view.title or id
         view.scope = view.scope or 'global'
-        guard_view(name, view)
+        view.origin = 'plugin ' .. name .. ' view ' .. id
         if guard(name, 'view ' .. id, current.add_view, owner(name), view) then
             table.insert(entry.views, id)
         end
     end
+    function api.show_view(id) dispatch.show_view(id) end
+    function api.detail(kind, record)
+        record.kind = kind
+        record.origin = 'plugin ' .. name .. ' detail ' .. kind
+        guard(name, 'detail ' .. kind, dispatch.add_detail_kind, record)
+    end
+    function api.open_detail(kind, net, data) dispatch.open_detail(kind, net, data) end
 
     function api.send(net, cmd, ...) return send.send(net, cmd, ...) end
     function api.log(fmt, ...) log.add(name, fmt, ...) end
@@ -225,11 +209,27 @@ local function make_api(name, entry, current)
         if not ok then error(target .. ': ' .. tostring(err), 0) end
     end
 
+    -- A timer fires once, so its callback goes when it fires or is canceled
     function api.timer(ms, fn)
-        local id = register_callback(guarded(name, 'timer', fn))
-        return timer.start(owner(name), ms, 'plugins.callback', id)
+        local run = guarded(name, 'timer', fn)
+        local id, timer_id
+        id = register_callback(function()
+            callbacks[id] = nil
+            timer_callbacks[timer_id] = nil
+            return run()
+        end)
+        timer_id = timer.start(owner(name), ms, 'plugins.callback', id)
+        timer_callbacks[timer_id] = id
+        return timer_id
     end
-    api.cancel_timer = timer.cancel
+    function api.cancel_timer(timer_id)
+        local id = timer_callbacks[timer_id]
+        if id then
+            callbacks[id] = nil
+            timer_callbacks[timer_id] = nil
+            timer.cancel(timer_id)
+        end
+    end
 
     function api.httpd(host, service, handler)
         local id = register_callback(guarded(name, 'httpd', handler))
