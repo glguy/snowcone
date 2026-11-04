@@ -2511,6 +2511,141 @@ T.case('channel information: topic, modes, members and lists, live', function()
     T.ok(T.log_lines 'error'[1]:find 'not a channel: bob', 'refused')
 end)
 
+T.case('a topic is not fetched, none, or set', function()
+    local c = boot()
+    local cmdline = T.require 'hub.ui.cmdline'
+    local control = T.require 'hub.ui.control'
+    c:recv ':me!u@h JOIN #chan'
+    control.set_talk_target('test', '#chan')
+    cmdline.execute 'chaninfo'
+    T.ok(detail_text():find('topic: not fetched [↻]', 1, true), 'before the join is done')
+    c:recv ':srv 366 me #chan :End of /NAMES list.'
+    T.ok(detail_text():find('topic: none [↻]', 1, true), 'a join with no topic has none')
+
+    c:recv ':alice!a@h TOPIC #chan :a topic'
+    c:recv ':srv 333 me #chan alice!a@h 1700000000'
+    T.ok(detail_text():find('topic: a topic [↻]', 1, true), 'set')
+    T.ok(detail_text():find('set by: alice', 1, true), 'and by whom')
+    c:recv ':srv 331 me #chan :No topic is set.'
+    T.ok(detail_text():find('topic: none [↻]', 1, true), 'RPL_NOTOPIC empties it')
+    T.ok(not detail_text():find('set by', 1, true), 'and who set it')
+
+    -- a join's end of names leaves a topic alone
+    c:recv ':srv 332 me #chan :again'
+    c:recv ':srv 366 me #chan :End of /NAMES list.'
+    T.ok(detail_text():find('topic: again', 1, true), 'kept')
+
+    c:take()
+    local y = 0
+    for row in detail_text():gmatch '[^\n]*' do
+        local x = row:find('topic:', 1, true) and row:find('[↻]', 1, true)
+        if x then
+            HUB.current.routes['ui.entry']('on_mouse', y, x, false)
+            break
+        end
+        y = y + 1
+    end
+    T.eq(c:take(), {'TOPIC #chan'}, 'asked again from its button')
+end)
+
+T.case('channel information for a channel we are not in is a snapshot', function()
+    local c = boot()
+    local chat = T.require 'hub.features.chat'
+    local cmdline = T.require 'hub.ui.cmdline'
+    local control = T.require 'hub.ui.control'
+    local irc_model = T.require 'hub.net.irc'
+    local irc = HUB.state.nets.test.irc
+    c:recv ':srv 005 me CHANMODES=eIbq,k,flj,mnst PREFIX=(ov)@+ :are supported'
+    c:recv ':me!u@h JOIN #home'
+    c:recv ':srv 366 me #home :End of /NAMES list.'
+    c:take()
+    control.set_talk_target('test', '#home')
+
+    -- replies for a channel nobody asked about aren't kept
+    c:recv ':srv 324 me #other +nt'
+    T.eq(irc_model.known_channel(irc, '#other'), nil, 'unasked')
+
+    -- the buffer opens in the background, without joining
+    cmdline.execute 'chaninfo #Ext'
+    T.eq(c:take(), {'MODE #Ext', 'TOPIC #Ext'}, 'asks for modes and topic')
+    T.ok(chat.buffer('test', '#ext'), 'a buffer')
+    T.eq(control.talk_target('test'), '#home', 'focus stays')
+    T.eq(irc_model.get_channel(irc, '#ext'), nil, 'not joined')
+    T.eq({control.detail().kind, control.detail().data.name}, {'channel', '#Ext'}, 'shown')
+    local text = detail_text()
+    T.ok(text:find('status: not joined', 1, true), text)
+    T.ok(text:find('topic: not fetched [↻]', 1, true), 'nothing yet')
+    T.ok(text:find('modes: not known', 1, true), 'nothing yet')
+    T.ok(not text:find('members:', 1, true), 'no members')
+    T.ok(not text:find('you:', 1, true), 'not us')
+
+    c:recv ':srv 324 me #ext +ntk sekrit'
+    c:recv ':srv 329 me #ext 1600000000'
+    c:recv ':srv 332 me #ext :their topic'
+    c:recv ':srv 333 me #ext alice!a@h 1700000000'
+    c:recv ':srv 367 me #ext *!*@bad.example op!o@h 1700000000'
+    c:recv ':srv 368 me #ext :End of Channel Ban List'
+    text = detail_text()
+    T.ok(text:find 'topic: their topic fetched %d+s ago', text)
+    T.ok(text:find 'modes: k=sekrit n t fetched %d+s ago', text)
+    T.ok(text:find 'bans: 1 entry fetched %d+s ago', text)
+    T.ok(text:find('created: ', 1, true), 'created')
+
+    -- /chaninfo again asks for the lists it has too
+    cmdline.execute 'chaninfo #Ext'
+    T.eq(c:take(), {'MODE #Ext', 'TOPIC #Ext', 'MODE #Ext +b'}, 'again')
+
+    -- no topic: said so, not left as it was
+    c:recv ':srv 331 me #ext :No topic is set.'
+    T.ok(detail_text():find('topic: none', 1, true), 'none')
+
+    -- our changes ask again, since no broadcast comes back
+    T.command('mode +m', 'test', '#Ext')
+    T.eq(c:take(), {'MODE #Ext +m', 'MODE #Ext', 'TOPIC #Ext', 'MODE #Ext +b'}, '/mode')
+    T.command('topic new', 'test', '#Ext')
+    T.eq(c:take(), {'TOPIC #Ext new', 'MODE #Ext', 'TOPIC #Ext', 'MODE #Ext +b'}, '/topic')
+    T.command('ban *!*@x', 'test', '#Ext')
+    T.eq(c:take(), {'MODE #Ext +b *!*@x', 'MODE #Ext', 'TOPIC #Ext', 'MODE #Ext +b'}, '/ban')
+    chat.unset_list('test', '#Ext', 'b', '*!*@bad.example')
+    T.eq(c:take(), {'MODE #Ext -b *!*@bad.example', 'MODE #Ext', 'TOPIC #Ext', 'MODE #Ext +b'}, '[x]')
+    T.eq(T.log_lines 'error', {}, 'no errors')
+
+    -- a refusal shows in the buffer
+    c:recv ':srv 482 me #ext :You are not a channel operator'
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    T.ok(OrderedMap.size(chat.buffer('test', '#ext').messages) > 0, 'refused, in the buffer')
+
+    -- closing the buffer forgets it and sends no PART
+    chat.close('test', '#ext')
+    T.eq(c:take(), {}, 'no PART')
+    T.eq(irc_model.known_channel(irc, '#ext'), nil, 'forgotten')
+    T.ok(detail_text():find('Not in this channel', 1, true), 'the pane says so')
+    local y = 0
+    for row in detail_text():gmatch '[^\n]*' do
+        local x = row:find('[↻]', 1, true)
+        if x then
+            HUB.current.routes['ui.entry']('on_mouse', y, x, false)
+            break
+        end
+        y = y + 1
+    end
+    T.eq(c:take(), {'MODE #Ext', 'TOPIC #Ext'}, 'its button looks again')
+    T.ok(chat.buffer('test', '#ext'), 'with a buffer again')
+
+    -- joining replaces the snapshot, and a join's PART doesn't bring it back
+    c:recv ':srv 324 me #ext +nt'
+    c:recv ':me!u@h JOIN #ext'
+    c:recv ':srv 366 me #ext :End of /NAMES list.'
+    T.eq(irc_model.observed_channel(irc, '#ext'), nil, 'no snapshot once joined')
+    T.ok(irc_model.get_channel(irc, '#ext'), 'joined')
+    T.ok(not detail_text():find('not joined', 1, true), 'the pane follows')
+    c:take()
+    T.command('mode +m', 'test', '#ext')
+    T.eq(c:take(), {'MODE #ext +m'}, 'broadcasts tell us now')
+    c:recv ':me!u@h PART #ext'
+    T.eq(irc_model.known_channel(irc, '#ext'), nil, 'parted')
+end)
+
 T.case('every built-in command has a group, and a usage when it takes arguments', function()
     boot()
     local problems = {}

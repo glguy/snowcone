@@ -256,6 +256,18 @@ a decision is made, and change or remove it when the decision does.
   or creation time, so opening it asks for MODE when the modes aren't
   known; list modes (bans, quiets, ...) are fetched only from their
   buttons, since they can be long and some need operator status.
+- **A channel we aren't in is a snapshot,** in `irc.observed`, apart from
+  `irc.channels`, whose records mean membership to everything that reads
+  them. No broadcasts reach us there, so `/chaninfo` asks for all of it
+  again, the pane shows how old each part is, and our own changes ask
+  again after them; it has no members, since NICK and QUIT wouldn't keep
+  them. `/chaninfo` opens the channel's buffer in the background: the
+  buffer shows refusals and takes `/mode` and `/topic`, and closing it
+  forgets the snapshot. A reconnect forgets it too, and the buffer stays;
+  `/chaninfo` there fetches it again. Nothing is added to the buffer that
+  the server didn't send.
+- **A topic is not fetched (nil) or empty ('').** A join brings no reply
+  when there is no topic, so the end of its names settles it as empty.
 - **`/help` groups commands** by what they're for (client, connection,
   each feature, each plugin), in the order modules list them, so related
   commands sit together; the view commands are one row of names. A

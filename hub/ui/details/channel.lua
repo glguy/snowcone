@@ -1,7 +1,10 @@
 -- A channel's information in the detail pane, read live from the model
 -- (net/irc.lua): topic and who set it, creation time, modes, our own
 -- prefix modes (op, voice, ...), members by rank, and the list modes (bans, quiets, ...); [↻] asks the server for
--- a list, or for the modes, again or for the first time.
+-- a list, or for the topic or modes, again or for the first time.
+-- A channel we aren't in shows its snapshot (net/irc.lua), with how old each
+-- part is and no members; it lives as long as the channel's buffer, or the
+-- connection.
 -- A fetched list shows its count and folds its entries behind [+]; the
 -- detail keeps the open ones in open_lists. [x] removes an entry. The
 -- data is {name}; the filter (Ctrl-S, /filter) shows only the members
@@ -121,6 +124,18 @@ local function members(ctx, win, irc, channel, pattern)
     end)
 end
 
+-- How long ago a snapshot's part came, after a value that ends in a space;
+-- a joined channel has no such times
+local function fetched(win, channel, what)
+    local t = channel.fetched and channel.fetched[what]
+    if t then
+        draw.blue(win)
+        win:waddstr 'fetched '
+        draw.normal(win)
+        win:waddstr(draw.duration(os.time() - t), ' ago ')
+    end
+end
+
 local function list_mode(ctx, win, channel, mode, pattern)
     local name = channel.name
     local entries = channel.list_modes[mode]
@@ -148,6 +163,7 @@ local function list_mode(ctx, win, channel, mode, pattern)
     for _ in pairs(entries) do n = n + 1 end
     win:waddstr(pattern and string.format('%d of %d ', #sorted, n)
         or string.format('%d %s ', n, n == 1 and 'entry' or 'entries'))
+    fetched(win, channel, mode)
     local vs = ctx.vs
     local open = vs.open_lists and vs.open_lists[mode]
     if n > 0 then
@@ -186,22 +202,39 @@ function M.render(ctx, win)
     local name = ctx.vs.data.name
     local rec = ctx.net and HUB.state.nets[ctx.net]
     local irc = rec and rec.irc
-    local channel = irc and irc_model.get_channel(irc, name)
+    local channel = irc and irc_model.known_channel(irc, name)
 
     heading(win, scrub(channel and channel.name or name))
     if not channel then
-        win:waddstr(irc and 'Not in this channel: /talk to join it\n' or 'Not connected\n')
+        if irc then
+            win:waddstr 'Not in this channel: /talk to join it, or look without joining '
+            ctx.add_button(win, '[↻]', function() chat.channel_info(ctx.net, name) end)
+            win:waddstr '\n'
+        else
+            win:waddstr 'Not connected\n'
+        end
         return
     end
     ---@cast irc -nil the channel came from it
     local pattern = control.filter(ctx.id)
+    local joined = irc_model.get_channel(irc, name) ~= nil
+
+    if not joined then
+        label(win, 'status')
+        win:waddstr 'not joined\n'
+    end
 
     label(win, 'topic')
-    if channel.topic and channel.topic ~= '' then
-        addircstr(win, channel.topic)
+    if channel.topic == nil then
+        win:waddstr 'not fetched '
+    elseif channel.topic == '' then
+        win:waddstr 'none '
     else
-        win:waddstr '-'
+        addircstr(win, channel.topic)
+        win:waddstr ' '
     end
+    fetched(win, channel, 'topic')
+    ctx.add_button(win, '[↻]', function() chat.refresh_topic(ctx.net, name) end)
     win:waddstr '\n'
     if channel.topic_who then
         label(win, 'set by')
@@ -253,11 +286,14 @@ function M.render(ctx, win)
     else
         win:waddstr 'not known '
     end
+    fetched(win, channel, 'modes')
     ctx.add_button(win, '[↻]', function() chat.refresh_modes(ctx.net, name) end)
     win:waddstr '\n'
 
-    ours(win, irc, channel)
-    members(ctx, win, irc, channel, pattern)
+    if joined then
+        ours(win, irc, channel)
+        members(ctx, win, irc, channel, pattern)
+    end
 
     for mode in irc.modes_A:gmatch '.' do
         list_mode(ctx, win, channel, mode, pattern)

@@ -104,7 +104,9 @@ function M.new()
     ---@field caps_available table<string, string|true> value, or true without one
     ---@field isupport table<string, string|true>
     ---@field batches table<string, hub.Batch> open batches by name
-    ---@field channels table<string, hub.Channel> by folded name
+    ---@field channels table<string, hub.Channel> joined ones, by folded name
+    ---@field observed table<string, hub.Channel>|nil snapshots of channels
+    --- we aren't in, by folded name; made by the first observe_channel
     ---@field users table<string, hub.User> by folded nick, weak values
     ---@field mode table<string, true> our user modes
     ---@field account string|nil ours, once logged in
@@ -167,10 +169,12 @@ end
 ---@field list_modes table<string, table<string, hub.ListEntry>> by mode, then mask
 ---@field modes table<string, string|true>|nil from RPL_CHANNELMODEIS: the
 --- argument, or true without one
----@field topic string|nil
+---@field topic string|nil nil when not fetched, empty when there is none
 ---@field topic_who string|nil who set the topic
 ---@field topic_time number|nil when, epoch seconds
 ---@field creationtime number|nil
+---@field fetched table<string, number>|nil a snapshot's: when its replies
+--- came, epoch seconds, by 'topic', 'modes' or a list mode's letter
 
 ---@class hub.Member
 ---@field user hub.User
@@ -322,6 +326,59 @@ end
 ---@return hub.Channel
 function M.new_channel(name)
     return {name = name, members = {}, list_modes = {}}
+end
+
+--- A snapshot of a channel we aren't in. No broadcasts reach us there, so
+--- it holds only what we asked for, as of when we asked; it has no members.
+---@param irc hub.Irc
+---@param name string
+---@return hub.Channel|nil
+function M.observed_channel(irc, name)
+    return irc.observed and irc.observed[M.fold(irc, name)]
+end
+
+--- The channel's record: the joined one, else its snapshot. For metadata;
+--- whether we are in a channel is get_channel's to say.
+---@param irc hub.Irc
+---@param name string
+---@return hub.Channel|nil
+function M.known_channel(irc, name)
+    return M.get_channel(irc, name) or M.observed_channel(irc, name)
+end
+
+--- The snapshot of a channel we aren't in, made when missing.
+---@param irc hub.Irc
+---@param name string
+---@return hub.Channel
+function M.observe_channel(irc, name)
+    local observed = irc.observed or {}
+    irc.observed = observed
+    local key = M.fold(irc, name)
+    local channel = observed[key]
+    if not channel then
+        channel = M.new_channel(name)
+        channel.fetched = {}
+        observed[key] = channel
+    end
+    return channel
+end
+
+---@param irc hub.Irc
+---@param name string
+function M.forget_observed(irc, name)
+    if irc.observed then
+        irc.observed[M.fold(irc, name)] = nil
+    end
+end
+
+--- Note that a snapshot's part just came from the server; joined channels
+--- are live and keep no such times.
+---@param channel hub.Channel
+---@param what string 'topic', 'modes' or a list mode's letter
+function M.note_fetched(channel, what)
+    if channel.fetched then
+        channel.fetched[what] = os.time()
+    end
 end
 
 --- Whether a change of a channel mode takes an argument, by the

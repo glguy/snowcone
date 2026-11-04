@@ -35,7 +35,7 @@ end
 -- Set or unset (change is +b, -q, ...) a list mode on the ban mask of a
 -- nick, looking it up first, and kick it when kick is a reason
 ---@param t hub.Task
-local function ban_nick(t, channel, nick, change, kick)
+local function ban_nick(t, chat, channel, nick, change, kick)
     local found, err = lookup(t, nick)
     if not found then return t:log('chat', '%s', err) end
     t:send('MODE', channel, change, '*!' .. ban_mask(found.user, found.ip, found.host))
@@ -44,6 +44,7 @@ local function ban_nick(t, channel, nick, change, kick)
     elseif kick then
         t:send('KICK', channel, found.nick, kick)
     end
+    chat.refetch_observed(t.net, channel)
 end
 
 -- Set a list mode: a mask as given (an extban too), or a nick's ban mask
@@ -52,8 +53,9 @@ local function ban_command(chat, name, mode, help)
         local channel = M.shown_channel(ctx)
         if is_mask(arg) then
             send.send(ctx.net, 'MODE', channel, '+' .. mode, arg)
+            chat.refetch_observed(ctx.net, channel)
         else
-            task.spawn(name, {net = ctx.net, owner = chat.name}, ban_nick, channel, arg, '+' .. mode)
+            task.spawn(name, {net = ctx.net, owner = chat.name}, ban_nick, chat, channel, arg, '+' .. mode)
         end
     end)
 end
@@ -64,8 +66,9 @@ local function unban_command(chat, name, mode, help)
         local channel = M.shown_channel(ctx)
         if is_mask(arg) then
             send.send(ctx.net, 'MODE', channel, '-' .. mode, arg)
+            chat.refetch_observed(ctx.net, channel)
         else
-            task.spawn(name, {net = ctx.net, owner = chat.name}, ban_nick, channel, arg, '-' .. mode)
+            task.spawn(name, {net = ctx.net, owner = chat.name}, ban_nick, chat, channel, arg, '-' .. mode)
         end
     end)
     -- Tab offers the list's masks and the channel's nicks; a list not yet
@@ -73,7 +76,7 @@ local function unban_command(chat, name, mode, help)
     function cmd.complete(ctx, before, seed)
         if before ~= '' then return nil end
         local irc = model(ctx.net)
-        local channel = irc and ctx.target and irc_model.get_channel(irc, ctx.target)
+        local channel = irc and ctx.target and irc_model.known_channel(irc, ctx.target)
         if not channel then return nil end
         local entries = channel.list_modes[mode]
         if not entries then
@@ -205,6 +208,7 @@ local function mode_command(chat)
             error('more arguments than the modes take: ' .. words[n + 1], 0)
         end
         send_changes(ctx.net, irc, channel, changes)
+        chat.refetch_observed(ctx.net, channel)
     end)
 
     -- Tab on a change's argument offers what fits it: the channel's nicks
@@ -212,7 +216,7 @@ local function mode_command(chat)
     -- fetched, for the next Tab), the key to unset
     function cmd.complete(ctx, before, seed)
         local irc = model(ctx.net)
-        local channel = irc and ctx.target and irc_model.get_channel(irc, ctx.target)
+        local channel = irc and ctx.target and irc_model.known_channel(irc, ctx.target)
         if not channel then return nil end
         ---@cast irc -nil the channel came from it
         local words = {}
@@ -278,7 +282,7 @@ function M.commands(chat)
         chat.command('kickban', '$g $R', 'nick [reason]', 'Ban a nick from the shown channel and kick it',
         function(ctx, nick, reason)
             local channel = M.shown_channel(ctx)
-            task.spawn('kickban', {net = ctx.net, owner = chat.name}, ban_nick, channel, nick, '+b', reason)
+            task.spawn('kickban', {net = ctx.net, owner = chat.name}, ban_nick, chat, channel, nick, '+b', reason)
         end),
         unban_command(chat, 'unquiet', 'q', 'Unquiet a mask, or a nick by its ban mask, in the shown channel'),
         unban_command(chat, 'unban', 'b', 'Unban a mask, or a nick by its ban mask, from the shown channel'),

@@ -92,26 +92,37 @@ end
 -- The topic it replaces goes with the message, which features see after
 -- the model has forgotten it
 function H.TOPIC(_, irc, msg)
-    local channel = irc_model.get_channel(irc, msg[1])
+    local channel = irc_model.known_channel(irc, msg[1])
     if channel then
         msg.topic_before = {topic = channel.topic, who = channel.topic_who, time = channel.topic_time}
         channel.topic = msg[2]
         channel.topic_who = msg.source
         channel.topic_time = os.time()
+        irc_model.note_fetched(channel, 'topic')
     end
 end
 
 -- "<client> <channel> :<topic>"
 H[N.RPL_TOPIC] = function(_, irc, msg)
-    local channel = irc_model.get_channel(irc, msg[2])
+    local channel = irc_model.known_channel(irc, msg[2])
     if channel then
         channel.topic = msg[3]
+        irc_model.note_fetched(channel, 'topic')
+    end
+end
+
+-- "<client> <channel> :No topic is set"
+H[N.RPL_NOTOPIC] = function(_, irc, msg)
+    local channel = irc_model.known_channel(irc, msg[2])
+    if channel then
+        channel.topic, channel.topic_who, channel.topic_time = '', nil, nil
+        irc_model.note_fetched(channel, 'topic')
     end
 end
 
 -- "<client> <channel> <nick> <setat>"
 H[N.RPL_TOPICWHOTIME] = function(_, irc, msg)
-    local channel = irc_model.get_channel(irc, msg[2])
+    local channel = irc_model.known_channel(irc, msg[2])
     if channel then
         channel.topic_who = msg[3]
         channel.topic_time = math.tointeger(tonumber(msg[4]))
@@ -120,7 +131,7 @@ end
 
 -- "<client> <channel> <creationtime>"
 H[N.RPL_CREATIONTIME] = function(_, irc, msg)
-    local channel = irc_model.get_channel(irc, msg[2])
+    local channel = irc_model.known_channel(irc, msg[2])
     if channel then
         channel.creationtime = math.tointeger(tonumber(msg[3]))
     end
@@ -305,6 +316,7 @@ function H.JOIN(_, irc, msg)
     if not who or not name then return end
     if irc_model.is_me(irc, who) then
         irc.channels[irc_model.fold(irc, name)] = irc_model.new_channel(name)
+        irc_model.forget_observed(irc, name)
     end
 
     local channel = irc_model.get_channel(irc, name)
@@ -332,6 +344,15 @@ H[N.RPL_NAMREPLY] = function(_, irc, msg)
             channel.members[irc_model.fold(irc, entry)] =
                 irc_model.new_member(irc_model.get_user(irc, entry), modes)
         end
+    end
+end
+
+-- "<client> <channel> :End of /NAMES list": a join brings a topic before
+-- its names, or none when there is none
+H[N.RPL_ENDOFNAMES] = function(_, irc, msg)
+    local channel = irc_model.get_channel(irc, msg[2])
+    if channel and channel.topic == nil then
+        channel.topic = ''
     end
 end
 
@@ -421,8 +442,8 @@ function H.MODE(rec, irc, msg)
     end
 
     if not irc_model.is_channel_name(irc, target) then return end
-    local channel = irc_model.get_channel(irc, target)
-    if not channel then return end -- mode information for a channel we aren't in
+    local channel = irc_model.known_channel(irc, target)
+    if not channel then return end -- mode information for a channel we don't track
 
     local polarity = true
     for flag in modestring:gmatch '.' do
@@ -481,9 +502,10 @@ end
 
 local function list_end(mode)
     return function(_, irc, msg)
-        local channel = irc_model.get_channel(irc, msg[2])
+        local channel = irc_model.known_channel(irc, msg[2])
         if channel then
             channel.list_modes[mode] = irc.partial_mode_list or {}
+            irc_model.note_fetched(channel, mode)
         end
         irc.partial_mode_list = nil
     end
@@ -502,8 +524,9 @@ H[N.RPL_ENDOFINVITELIST] = list_end 'I'
 
 -- "<client> <channel> <modestring> <mode arguments>..."
 H[N.RPL_CHANNELMODEIS] = function(_, irc, msg)
-    local channel = irc_model.get_channel(irc, msg[2])
+    local channel = irc_model.known_channel(irc, msg[2])
     if not channel then return end
+    irc_model.note_fetched(channel, 'modes')
     local cursor = 4
     local modes = {}
     channel.modes = modes

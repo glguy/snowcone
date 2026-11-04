@@ -44,14 +44,16 @@ end
 local function topic_command(chat)
     local cmd = chat.command('topic', '$R', '[text]', "Set the shown channel's topic, or clear it",
     function(ctx, text)
-        send.send(ctx.net, 'TOPIC', modes.shown_channel(ctx), text)
+        local channel = modes.shown_channel(ctx)
+        send.send(ctx.net, 'TOPIC', channel, text)
+        chat.refetch_observed(ctx.net, channel)
     end)
 
     -- Tab with nothing typed yet offers the current topic, to edit
     function cmd.complete(ctx, before, seed)
         if before ~= '' or seed ~= '' then return nil end
         local irc = model(ctx.net)
-        local channel = irc and ctx.target and irc_model.get_channel(irc, ctx.target)
+        local channel = irc and ctx.target and irc_model.known_channel(irc, ctx.target)
         if channel and channel.topic and channel.topic ~= '' then
             return {channel.topic}
         end
@@ -113,7 +115,7 @@ function M.commands(chat)
             send.send(ctx.net, 'PRIVMSG', target, '\x01' .. text .. '\x01')
         end),
         chat.command('chaninfo', '$R', '[channel]',
-            "Show a channel's topic, modes and members, the shown one by default",
+            "Show a channel's topic, modes and members",
         function(ctx, target)
             if target == '' then target = ctx.target end
             local irc = model(ctx.net)
