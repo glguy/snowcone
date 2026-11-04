@@ -127,9 +127,6 @@ local input_mode_palette <const> = {
     password = ncurses.COLOR_RED,
 }
 
--- Input modes whose line goes to the shown buffer
-local talk_modes <const> = {talk = true, quiet = true, action = true, notice = true}
-
 --- Draw the active modes of the view, as one fragment of lower-case tags
 --- in yellow, each with its value (if any) in the normal color: the
 --- view's own (from view.modes) and then the scroll and filter every view
@@ -204,11 +201,17 @@ function M.draw(win, textbox, layout, view, ctx)
         local input_mode_color = input_mode_palette[mode]
         transition(win, titlecolor, input_mode_color)
         -- padded on either side, as M.fragment pads a fragment; talking
-        -- behind a STATUSMSG prefix shows it
+        -- behind a STATUSMSG prefix shows it, and a line too long to send
+        -- shows by how much, for when its cut is scrolled out of the
+        -- input line
         ncurses.colorset(ncurses.COLOR_WHITE, input_mode_color, win)
-        local net = talk_modes[mode] and control.current_net()
+        local net = control.talk_modes[mode] and control.current_net()
         local prefix = net and control.statusmsg(net)
-        win:waddstr(' ', mode, ' ', prefix and prefix .. ' ' or '')
+        local cut, over
+        if net then
+            cut, over = control.overflow(net, mode, ed.before_cursor .. ed.at_cursor)
+        end
+        win:waddstr(' ', mode, ' ', prefix and prefix .. ' ' or '', over and '-' .. over .. ' ' or '')
         transition(win, input_mode_color, nil)
 
         if mode == 'password' then
@@ -238,7 +241,7 @@ function M.draw(win, textbox, layout, view, ctx)
         else
             -- formatted as it will be seen, codes and all
             x1 = addircstr(textbox, ed.before_cursor .. ed.at_cursor,
-                {mark = #ed.before_cursor, color = input_mode_color})
+                {mark = #ed.before_cursor, color = input_mode_color, cut = cut})
         end
         textbox:wmove(0, x1)
         ncurses.cursset(1)

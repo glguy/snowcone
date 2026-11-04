@@ -5,6 +5,7 @@ local chat     <const> = require 'hub.features.chat'
 local common   <const> = require 'hub.features.common'
 local dispatch <const> = require 'hub.runtime.dispatch'
 local editor   <const> = require 'hub.ui.editor'
+local irc_model <const> = require 'hub.net.irc'
 local scrub    <const> = require 'hub.lib.scrub'
 local task     <const> = require 'hub.runtime.task'
 local traceback <const> = require 'hub.lib.traceback'
@@ -138,6 +139,33 @@ function M.statusmsg(net)
     local vs = M.view_state 'buffer'
     local prefixes = target and vs.statusmsg and vs.statusmsg[net]
     return prefixes and prefixes[chat.fold(net, target)]
+end
+
+--- Input modes whose line goes to the shown buffer, and the command it
+--- goes out as.
+M.talk_modes = {talk = 'PRIVMSG', quiet = 'PRIVMSG', action = 'PRIVMSG', notice = 'NOTICE'}
+
+--- Where a line in a talk mode stops reaching others, when the server
+--- relays it to the network's shown buffer: the bytes that do, whole
+--- characters of them, and how far over the line is. Nothing when it all
+--- fits, or there is nowhere to send it yet.
+---@param net string
+---@param mode string one of talk_modes
+---@param text string valid UTF-8, as the editor gives it
+---@return integer|nil cut
+---@return integer|nil over
+function M.overflow(net, mode, text)
+    local irc = HUB.state.nets[net].irc
+    local target = M.talk_target(net)
+    if not (irc and target) then return end
+    local room = irc_model.text_room(irc, M.talk_modes[mode], (M.statusmsg(net) or '') .. target)
+    if mode == 'action' then room = room - chat.action_overhead end
+    room = math.max(room, 0)
+    if #text <= room then return end
+    local over = #text - room
+    -- back to the start of a character the cut would break
+    while text:byte(room + 1) & 0xC0 == 0x80 do room = room - 1 end
+    return room, over
 end
 
 --- Set the STATUSMSG prefix of a network's buffer, by default the shown

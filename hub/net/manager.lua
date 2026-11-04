@@ -518,6 +518,8 @@ function events.MSG(rec, msg, flush)
     elseif open and open.replay then
         return
     else
+        -- not from a replay above: history shows the masks of back then
+        irc_model.note_userhost(irc, msg)
         local h = handlers.for_ircd(id)[msg.command]
         if h then
             local ok, err = xpcall(h, traceback, rec, irc, msg)

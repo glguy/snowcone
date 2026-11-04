@@ -812,6 +812,9 @@ function M.action(net, target, text)
     send.send(net, 'PRIVMSG', target, '\x01ACTION ' .. text .. '\x01')
 end
 
+--- Bytes an action adds to its text.
+M.action_overhead = #'\x01ACTION \x01'
+
 --- Report what we are writing and where, for our typing notices: net and
 --- target nil, or text empty, when we are writing nothing. Writing goes
 --- on in one place at a time, so it ends on every other network.

@@ -51,12 +51,18 @@ function execute.filter()
 end
 
 -- Send the line to the shown buffer, behind its STATUSMSG prefix, with
--- say(net, target, text)
+-- say(net, target, text). A line others would get only part of stays to
+-- be shortened.
 local function talk_with(say)
     local ed = control.editor()
     local text = editor.content(ed)
     local net = control.current_net()
     local target = net and control.talk_target(net)
+    local over = net and select(2, control.overflow(net, HUB.state.ui.input.mode, text))
+    if over then
+        log.add('error', 'not sent: the line is too long by %d %s', over, over == 1 and 'byte' or 'bytes')
+        return
+    end
     control.set_input_mode()
     if text == '' then
         editor.reset(ed)

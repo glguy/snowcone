@@ -15,6 +15,8 @@ end
 
 local hex6 <const> = string.rep('%x', 6)
 
+local cut_marker <const> = '|'
+
 -- The text str draws without edit, by the rules the drawing below follows:
 -- color codes and their parameters, and the style codes, take no cells;
 -- any other control character shows as its glyph
@@ -46,14 +48,16 @@ end
 --- as its glyph (lib/scrub), drawn in the formatting it starts, so every
 --- code point keeps a cell and the cursor moves over codes as over text.
 --- Colors left at the default are edit.color. Returns the column of the
---- byte after the first edit.mark bytes, where the cursor goes.
+--- byte after the first edit.mark bytes, where the cursor goes. A marker
+--- is drawn after the first edit.cut bytes, if given, where the line stops
+--- reaching others; it must fall inside str, before a character.
 ---
 --- With `wrap` (and no edit), the text wraps at spaces to continue at
 --- column wrap.indent, as draw.wrap_text does, judging words by the text
 --- shown, so a code inside a word doesn't break it.
 ---@param win ncurses.Window
 ---@param str string
----@param edit {mark: integer, color: integer}|nil
+---@param edit {mark: integer, color: integer, cut: integer|nil}|nil
 ---@param wrap {cols: integer, indent: integer}|nil
 ---@return integer|nil
 return function(win, str, edit, wrap)
@@ -73,6 +77,7 @@ return function(win, str, edit, wrap)
 
     local default = edit and edit.color or -1
     local mark = edit and edit.mark
+    local cut = edit and edit.cut
     local cursor_x
     local pos = 0 -- bytes of str drawn
 
@@ -101,30 +106,45 @@ return function(win, str, edit, wrap)
 
     init()
 
-    -- Text of str as it is, noting the cursor's column when it is inside;
-    -- edit shows its controls, so it scrubs
-    local function put(text)
-        if mark and not cursor_x and mark < pos + #text then
-            local k = mark - pos
-            win:waddstr(scrub(text:sub(1, k)))
-            cursor_x = select(2, ncurses.getyx(win))
-            win:waddstr(scrub(text:sub(k + 1)))
-        elseif edit then
-            win:waddstr(scrub(text))
-        elseif wrapped then
-            wrapped(text)
-        else
-            win:waddstr(text)
+    -- With edit, on reaching the byte after pos bytes: the cut's marker,
+    -- then the cursor's column
+    local function arrive()
+        if cut == pos then
+            ncurses.colorset(ncurses.COLOR_WHITE, ncurses.COLOR_RED, win)
+            win:waddstr(cut_marker)
+            set_colors()
         end
-        pos = pos + #text
+        if mark == pos then
+            cursor_x = select(2, ncurses.getyx(win))
+        end
+    end
+
+    -- Text of str as it is; edit shows its controls, so it scrubs, and
+    -- draws it in runs that end where the mark and the cut fall
+    local function put(text)
+        if not edit then
+            if wrapped then
+                wrapped(text)
+            else
+                win:waddstr(text)
+            end
+            return
+        end
+        while text ~= '' do
+            arrive()
+            local k = #text
+            if mark > pos then k = math.min(k, mark - pos) end
+            if cut and cut > pos then k = math.min(k, cut - pos) end
+            win:waddstr(scrub(text:sub(1, k)))
+            text = text:sub(k + 1)
+            pos = pos + k
+        end
     end
 
     -- A control character and its parameters, shown only with edit
     local function code(ctrl, params)
         if edit then
-            if mark == pos and not cursor_x then
-                cursor_x = select(2, ncurses.getyx(win))
-            end
+            arrive()
             win:waddstr(scrub(ctrl))
             pos = pos + 1
             if params ~= '' then put(params) end

@@ -310,6 +310,24 @@ function H.NICK(rec, irc, msg)
     bus.emit('irc.nick', {net = rec.id, old = oldnick, new = newnick, self = self})
 end
 
+-- Our user@host changes; this message's own source shows the old one
+function H.CHGHOST(_, irc, msg)
+    if irc_model.is_me(irc, msg.nick) and msg[1] and msg[2] then
+        irc.userhost = msg[1] .. '@' .. msg[2]
+    end
+end
+
+-- "<client> <host> :is now your hidden host", perhaps user@host
+H[N.RPL_HOSTHIDDEN] = function(_, irc, msg)
+    local shown = msg[2]
+    if not shown then return end
+    if shown:find('@', 1, true) then
+        irc.userhost = shown
+    elseif irc.userhost then
+        irc.userhost = irc.userhost:match '^[^@]*@' .. shown
+    end
+end
+
 function H.JOIN(_, irc, msg)
     local who = msg.nick
     local name = msg[1]

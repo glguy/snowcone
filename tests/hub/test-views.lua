@@ -2771,6 +2771,153 @@ T.case('the line being typed shows its formatting, codes and all', function()
     rawset(ncurses, 'colorset', nil)
 end)
 
+T.case('the marker of a cut falls between the bytes it is given', function()
+    boot()
+    local addircstr = T.require 'hub.ui.irc_formatting'
+    local function drawn(str, mark, cut)
+        local win = ncurses.newwin(1, 80)
+        local x = addircstr(win, str, {mark = mark, color = 7, cut = cut})
+        return fake_ncurses.row(win, 0), x
+    end
+    T.eq({drawn('abcd', 0, 2)}, {'ab|cd', 0}, 'the cursor before it')
+    T.eq({drawn('abcd', 4, 2)}, {'ab|cd', 5}, 'the cursor after it')
+    T.eq({drawn('abcd', 2, 2)}, {'ab|cd', 3}, 'the cursor on the first character lost')
+    T.eq((drawn('a\x02b', 0, 1)), 'a|␂b', 'before a code')
+    T.eq((drawn('\x0304ab', 0, 2)), '␃0|4ab', 'among the digits of a color')
+    T.eq((drawn('abcd', 1)), 'abcd', 'no marker without a cut')
+end)
+
+T.case('a line too long for the server to relay whole shows where it is cut', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local editor = T.require 'hub.ui.editor'
+    local function input_rows()
+        HUB.current.routes['ui.draw']()
+        local bar, line
+        for i = #fake_ncurses.windows, 1, -1 do
+            local win = fake_ncurses.windows[i]
+            if win.h == 1 and win.kind == 'newwin' then bar = bar or fake_ncurses.row(win, 0) end
+            if win.h == 1 and win.kind == 'newpad' then line = line or fake_ncurses.row(win, 0) end
+        end
+        return bar, line
+    end
+    local function typed(mode, text)
+        control.set_input_mode(mode)
+        local ed = control.editor()
+        editor.reset(ed)
+        editor.insert(ed, text)
+        return input_rows()
+    end
+
+    -- :me!u@h PRIVMSG #chan :\r\n is 25 bytes of the 50
+    c:recv ':srv 005 me LINELEN=50 :are supported'
+    c:recv ':me!u@h JOIN #chan'
+    control.set_talk_target('test', '#chan')
+    control.set_view 'buffer'
+    local function x(n) return string.rep('x', n) end
+
+    local bar, line = typed('talk', x(25))
+    T.eq(line, x(25), 'a line that just fits has no marker')
+    T.ok(not bar:find(' talk -', 1, true), 'and no count')
+
+    bar, line = typed('talk', x(30))
+    T.eq(line, x(25) .. '|' .. x(5), 'the marker at the cut')
+    T.ok(bar:find(' talk -5 ', 1, true), 'how far over')
+
+    bar, line = typed('action', x(20))
+    T.eq(line, x(16) .. '|' .. x(4), 'an action has less room')
+    T.ok(bar:find(' action -4 ', 1, true), 'by what it adds')
+
+    _, line = typed('notice', x(27))
+    T.eq(line, x(26) .. '|x', 'NOTICE is a byte shorter than PRIVMSG')
+
+    bar, line = typed('talk', x(24) .. 'é')
+    T.eq(line, x(24) .. '|é', 'a character the cut would break goes whole')
+    T.ok(bar:find(' talk -1 ', 1, true), 'and the count is of bytes')
+
+    control.set_statusmsg('test', '@')
+    _, line = typed('talk', x(25))
+    T.eq(line, x(24) .. '|x', 'a STATUSMSG prefix goes out too')
+    control.set_statusmsg('test', nil)
+
+    -- what the server says of our mask moves the cut
+    c:recv ':me!u@h CHGHOST user host'
+    _, line = typed('talk', x(25))
+    T.eq(line, x(19) .. '|' .. x(6), 'CHGHOST, whose source shows the old mask')
+    c:recv ':srv 396 me a.b :is now your hidden host'
+    _, line = typed('talk', x(25))
+    T.eq(line, x(20) .. '|' .. x(5), 'a hidden host keeps the user')
+    c:recv ':me!u@h PRIVMSG #chan :echo'
+    _, line = typed('talk', x(25))
+    T.eq(line, x(25), 'any line of ours shows the mask')
+
+    c:recv ':srv BATCH +h chathistory #chan'
+    c:recv '@batch=h :me!olduser@a.very.long.old.host PRIVMSG #chan :old'
+    c:recv ':srv BATCH -h'
+    _, line = typed('talk', x(25))
+    T.eq(line, x(25), 'but not a line from history, with the mask of back then')
+
+    _, line = typed('command', x(60))
+    T.eq(line, x(60), 'a command has no marker')
+    editor.reset(control.editor())
+    control.set_input_mode()
+end)
+
+T.case('Enter leaves a line too long to reach others whole, unsent', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local editor = T.require 'hub.ui.editor'
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    c:recv ':srv 005 me LINELEN=50 :are supported'
+    c:recv ':me!u@h JOIN #chan'
+    control.set_talk_target('test', '#chan')
+    control.set_view 'buffer'
+    c:take()
+
+    local function enter(mode, text)
+        control.set_input_mode(mode)
+        local ed = control.editor()
+        editor.reset(ed)
+        editor.insert(ed, text)
+        key(13)
+        return ed
+    end
+    local long = string.rep('x', 26)
+    for _, mode in ipairs {'talk', 'quiet', 'action', 'notice'} do
+        local text = mode == 'notice' and long .. 'x' or long
+        local history = OrderedMap.size(control.editor().history)
+        local ed = enter(mode, text)
+        T.eq(c:take(), {}, mode .. ': nothing goes out')
+        T.eq(HUB.state.ui.input.mode, mode, mode .. ': still in the mode')
+        T.eq(editor.content(ed), text, mode .. ': the line is kept')
+        T.eq(OrderedMap.size(ed.history), history, mode .. ': and not in history yet')
+    end
+    local errors = T.log_lines 'error'
+    T.eq(errors[#errors], 'not sent: the line is too long by 1 byte', 'says why')
+
+    enter('talk', long)
+    key(0x7f)
+    key(13)
+    T.eq(c:take(), {'PRIVMSG #chan ' .. string.rep('x', 25)}, 'shortened, it goes')
+    T.eq(HUB.state.ui.input.mode, nil, 'and the mode ends')
+
+    -- nothing to measure against, so the send's own rules apply
+    control.set_talk_target('test', nil)
+    local ed = enter('talk', long)
+    T.eq(HUB.state.ui.input.mode, nil, 'without a buffer the line is not held')
+    T.eq(editor.content(ed), '', 'as before')
+end)
+
+T.case('with our mask unknown, the room is for the longest', function()
+    local c = boot()
+    local irc_model = T.require 'hub.net.irc'
+    local irc = HUB.state.nets.test.irc
+    -- :me! PRIVMSG #chan :\r\n is 22 bytes, around user@host
+    T.eq(irc_model.text_room(irc, 'PRIVMSG', '#chan'), 512 - 22 - (10 + 1 + 63), 'by default')
+    c:recv ':srv 005 me USERLEN=12 HOSTLEN=20 :are supported'
+    T.eq(irc_model.text_room(irc, 'PRIVMSG', '#chan'), 512 - 22 - (12 + 1 + 20), 'by what the server says')
+end)
+
 T.case('the formatting palette puts codes in at the cursor', function()
     local c = boot()
     local control = T.require 'hub.ui.control'

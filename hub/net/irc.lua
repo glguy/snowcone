@@ -99,6 +99,7 @@ end
 function M.new()
     ---@class hub.Irc
     ---@field nick string|nil ours, once registered
+    ---@field userhost string|nil ours, user@host, once a message has shown it
     ---@field caps_wanted table<string, true>
     ---@field caps_enabled table<string, true>
     ---@field caps_available table<string, string|true> value, or true without one
@@ -289,6 +290,30 @@ function M.set_isupport(net, irc, key, val)
 end
 
 -- Users, channels, monitor ===========================================
+
+--- Keep our user@host when a message comes from us.
+---@param irc hub.Irc
+---@param msg hub.Message
+function M.note_userhost(irc, msg)
+    if msg.user and msg.host and M.is_me(irc, msg.nick) then
+        irc.userhost = msg.user .. '@' .. msg.host
+    end
+end
+
+--- Bytes of text a PRIVMSG or NOTICE can carry and still reach others
+--- whole. The server relays it as `:nick!user@host COMMAND target :text`,
+--- which has to fit in a line, and cuts what doesn't. Until a message has
+--- shown our user@host, it is taken to be as long as it may be.
+---@param irc hub.Irc
+---@param command string
+---@param target string
+---@return integer # negative when not even an empty text fits
+function M.text_room(irc, command, target)
+    local userhost = irc.userhost and #irc.userhost
+        or (tonumber(irc.isupport.USERLEN) or 10) + 1 + (tonumber(irc.isupport.HOSTLEN) or 63)
+    local relayed = string.format(':%s! %s %s :\r\n', irc.nick or '', command, target)
+    return irc.linelen - #relayed - userhost
+end
 
 --- The user record for a nick, created when missing.
 ---@param irc hub.Irc

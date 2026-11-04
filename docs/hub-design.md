@@ -413,6 +413,12 @@ Command, filter (live, per view or for the detail pane), talk, and
 password. A prompt from a task has its own editor, so a half-typed
 command survives and secrets stay out of history.
 
+A line in talk mode that is too long for the server to relay whole shows a
+`|` where it would be cut, and the bytes it is over beside the mode. Enter
+leaves it in the input line, unsent: nothing splits a line. The limit
+counts what the server adds, `:nick!user@host`: our user@host as a message
+of ours last showed it, or the longest allowed until one has.
+
 ### Profiles
 
 `[ui] profile` (`dashboard`, `chat` or `all`) chooses the view rotation.
