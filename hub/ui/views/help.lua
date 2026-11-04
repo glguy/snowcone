@@ -9,6 +9,7 @@ local control   <const> = require 'hub.ui.control'
 local draw      <const> = require 'hub.ui.draw'
 local fields    <const> = require 'hub.ui.fields'
 local matching  <const> = require 'hub.lib.matching'
+local meta      <const> = require 'hub.ui.keys'.meta
 local scrub     <const> = require 'hub.lib.scrub'
 
 -- Groups in the order shown, with their headings; any other group (a
@@ -130,7 +131,7 @@ end
 return {
     id = 'help',
     keypress = function(ctx, key)
-        if key == -string.byte 'a' then
+        if key == meta 'a' then
             ctx.vs.all = not ctx.vs.all
             return true
         end

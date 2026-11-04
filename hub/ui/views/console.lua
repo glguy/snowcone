@@ -11,9 +11,8 @@ local control       <const> = require 'hub.ui.control'
 local draw          <const> = require 'hub.ui.draw'
 local matching      <const> = require 'hub.lib.matching'
 local message       <const> = require 'hub.ui.details.message'
+local meta          <const> = require 'hub.ui.keys'.meta
 local scrub         <const> = require 'hub.lib.scrub'
-
-local meta <const> = function(x) return -string.byte(x) end
 
 -- The source column, a button that inspects the message; blank, but
 -- still a button, for a message without a source

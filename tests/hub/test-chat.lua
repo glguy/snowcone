@@ -1077,7 +1077,7 @@ T.case('topic sets and clears, and Tab offers the current one to edit', function
     local function tab(typed)
         editor.reset(input.editor)
         for _, ch in utf8.codes(typed) do editor.add(input.editor, ch) end
-        keymap.input[keymap.ctrl 'I']()
+        keymap.input[T.require 'hub.ui.keys'.ctrl 'I']()
         return editor.content(input.editor)
     end
     T.eq(tab 'topic ', 'topic old topic', 'the current topic')
@@ -1185,7 +1185,7 @@ T.case('Tab after unban offers the ban list, fetching it first', function()
     local function tab(typed)
         editor.reset(input.editor)
         for _, ch in utf8.codes(typed) do editor.add(input.editor, ch) end
-        keymap.input[keymap.ctrl 'I']()
+        keymap.input[T.require 'hub.ui.keys'.ctrl 'I']()
         return editor.content(input.editor)
     end
     T.eq(tab 'unban *', 'unban *', 'nothing yet')

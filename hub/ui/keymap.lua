@@ -1,7 +1,4 @@
--- Key codes and the key handler tables.
---
--- Keys arrive as integers: a code point, or a negated ncurses KEY_ value
--- for special keys, or a negated character for Meta combinations.
+-- The key handler tables.
 
 local chat      <const> = require 'hub.features.chat'
 local cmdline   <const> = require 'hub.ui.cmdline'
@@ -10,22 +7,15 @@ local irc_model <const> = require 'hub.net.irc'
 local control   <const> = require 'hub.ui.control'
 local details   <const> = require 'hub.ui.details'
 local editor    <const> = require 'hub.ui.editor'
+local keys      <const> = require 'hub.ui.keys'
 local pads      <const> = require 'hub.ui.pads'
 local dispatch  <const> = require 'hub.runtime.dispatch'
 local log       <const> = require 'hub.runtime.log'
 local tty       <const> = require 'hub.runtime.tty'
 
+local ctrl <const>, meta <const> = keys.ctrl, keys.meta
+
 local M = {}
-
-function M.ctrl(x)
-    return 0x1f & string.byte(x)
-end
-
-function M.meta(x)
-    return -string.byte(x)
-end
-
-local ctrl <const>, meta <const> = M.ctrl, M.meta
 
 -- Enter in each input mode
 local execute = {}

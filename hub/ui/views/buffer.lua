@@ -6,8 +6,8 @@
 -- (STATUSMSG), shown before the channel's name in the status bar and the
 -- input mode; each buffer keeps its own until Esc, and no typing notices
 -- go there. n and p step through the network's buffers, and j lists them
--- in the detail pane to jump to by label (ui/details/jump.lua); Meta-H
--- hides joins, parts, quits, nick changes, account changes and host
+-- in the detail pane to jump to by label (ui/details/jump.lua);
+-- Meta-Ctrl-K closes the shown buffer, as /close does; Meta-H hides joins, parts, quits, nick changes, account changes and host
 -- changes. Click a sender to inspect the message in the detail pane. A
 -- private message meant for a channel (channel-context, sent with /cmsg)
 -- is shown there marked >, after its sender; ours marked <, after its
@@ -34,10 +34,14 @@ local editor     <const> = require 'hub.ui.editor'
 local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
 local matching   <const> = require 'hub.lib.matching'
+local keys       <const> = require 'hub.ui.keys'
 local N          <const> = require 'hub.lib.numerics'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local scrub      <const> = require 'hub.lib.scrub'
 local tty        <const> = require 'hub.runtime.tty'
+
+local meta_ctrl  <const> = keys.meta_ctrl
+local meta       <const> = keys.meta
 
 -- How many of those typing the status bar names
 local typing_shown <const> = 2
@@ -275,7 +279,7 @@ local function step_buffer(ctx, forward)
 end
 
 local keys = {
-    [-string.byte 'h'] = function(ctx) ctx.vs.hide_presence = not ctx.vs.hide_presence end,
+    [meta 'h'] = function(ctx) ctx.vs.hide_presence = not ctx.vs.hide_presence end,
     [string.byte 'n'] = function(ctx) step_buffer(ctx, true) end,
     [string.byte 'p'] = function(ctx) step_buffer(ctx, false) end,
     [string.byte 'j'] = function(ctx) control.open_detail('jump', ctx.net, {}) end,
@@ -283,7 +287,7 @@ local keys = {
         editor.reset(control.editor())
         control.set_input_mode 'talk'
     end,
-    [-string.byte 't'] = function()
+    [meta 't'] = function()
         editor.reset(control.editor())
         control.set_input_mode 'quiet'
     end,
@@ -294,6 +298,12 @@ local keys = {
     [string.byte 'T'] = function()
         editor.reset(control.editor())
         control.set_input_mode 'notice'
+    end,
+    [meta_ctrl 'k'] = function(ctx)
+        -- a line being typed stays with the buffer it was meant for
+        if HUB.state.ui.input.mode then return end
+        local target = control.talk_target(ctx.net)
+        if target then chat.close(ctx.net, target) end
     end,
 }
 

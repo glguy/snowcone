@@ -19,7 +19,7 @@ local layer_rank = {lib = 1, runtime = 2, net = 3, features = 4, commands = 5, u
 local ui_tier = {
     ['ui/draw.lua'] = 1, ['ui/pads.lua'] = 1, ['ui/clicks.lua'] = 1,
     ['ui/colors.lua'] = 1, ['ui/fields.lua'] = 1, ['ui/irc_formatting.lua'] = 1,
-    ['ui/editor.lua'] = 1,
+    ['ui/editor.lua'] = 1, ['ui/keys.lua'] = 1,
     ['ui/control.lua'] = 2,
     ['ui/keymap.lua'] = 4,
     ['ui/init.lua'] = 5,

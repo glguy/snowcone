@@ -447,6 +447,43 @@ T.case('views follow their events once, after a reload too', function()
     T.eq(control.talk_target 'test', '#b', 'closing the shown buffer moves on')
 end)
 
+T.case('Meta-C-k closes the shown buffer, except while typing', function()
+    local c = boot()
+    local chat = T.require 'hub.features.chat'
+    local control = T.require 'hub.ui.control'
+    local editor = T.require 'hub.ui.editor'
+    local ctrl_k <const> = 0x1f & string.byte 'K'
+    c:recv ':me!u@h JOIN #a'
+    c:recv ':me!u@h JOIN #b'
+    control.set_view 'buffer'
+    control.set_talk_target('test', '#a')
+    c:take()
+
+    key(ctrl_k)
+    T.eq(control.talk_target 'test', '#a', 'C-k alone keeps the buffer')
+    T.eq(c:take(), {}, 'C-k alone sends nothing')
+
+    key(-ctrl_k)
+    T.eq(c:take(), {'PART #a'}, 'parts the channel')
+    T.eq(chat.buffer('test', '#a'), nil, 'the buffer is gone')
+    T.eq(control.talk_target 'test', '#b', 'moves on')
+
+    -- in an input mode the line stays with its buffer
+    key(string.byte 't')
+    type_text 'hello'
+    key(-ctrl_k)
+    T.eq(editor.content(control.editor()), 'hello', 'keeps the line')
+    T.eq(control.talk_target 'test', '#b', 'keeps the buffer')
+    T.eq(c:take(), {}, 'nothing sent')
+    key(0x1f & string.byte 'G')
+
+    key(-ctrl_k)
+    T.eq(control.talk_target 'test', nil, 'none left')
+    c:take()
+    key(-ctrl_k)
+    T.eq(c:take(), {}, 'with no buffer it does nothing')
+end)
+
 T.case('the shown buffer is marked seen only while the terminal has focus', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
