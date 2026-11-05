@@ -10893,42 +10893,19 @@ read_bin_int(const std::string& str, const source_location src)
     const auto max_value  = (std::numeric_limits<T>::max)();
 
     T val{0};
-    T base{1};
-    for(auto i = str.rbegin(); i != str.rend(); ++i)
+    for(const auto c : str)
     {
-        const auto c = *i;
-        if(c == '1')
-        {
-            val += base;
-            // prevent `base` from overflow
-            if(is_bounded && max_value / 2 < base && std::next(i) != str.rend())
-            {
-                base = 0;
-            }
-            else
-            {
-                base *= 2;
-            }
-        }
-        else
-        {
-            assert(c == '0');
+        assert(c == '0' || c == '1');
+        const T bit = (c == '1') ? T{1} : T{0};
 
-            if(is_bounded && max_value / 2 < base && std::next(i) != str.rend())
-            {
-                base = 0;
-            }
-            else
-            {
-                base *= 2;
-            }
+        // prevent `val` from overflow
+        if(is_bounded && (max_value - bit) / 2 < val)
+        {
+            return err(make_error_info("toml::parse_bin_integer: "
+                "too large integer: current max value = 2^" + std::to_string(max_digits),
+                std::move(src), "must be < 2^" + std::to_string(max_digits)));
         }
-    }
-    if(base == 0)
-    {
-        return err(make_error_info("toml::parse_bin_integer: "
-            "too large integer: current max value = 2^" + std::to_string(max_digits),
-            std::move(src), "must be < 2^" + std::to_string(max_digits)));
+        val = val * 2 + bit;
     }
     return ok(val);
 }
@@ -10999,14 +10976,22 @@ template<typename T>
 result<T, error_info>
 read_dec_float(const std::string& str, const source_location src)
 {
-    T val;
+    T val{0};
     std::istringstream iss(str);
     iss >> val;
     if(iss.fail())
     {
-        return err(make_error_info("toml::parse_floating: "
-            "failed to read floating point value from stream",
-            std::move(src), "here"));
+        // The syntax is already checked, so only the range can be wrong.
+        // libc++ also fails on a subnormal or on rounding to zero, and stores
+        // the value; those are not errors. Too large a value is stored as an
+        // infinity (libc++) or the largest finite value (libstdc++).
+        if( ! ((std::numeric_limits<T>::lowest)() < val &&
+               val < (std::numeric_limits<T>::max)()))
+        {
+            return err(make_error_info("toml::parse_floating: "
+                "too large floating point value",
+                std::move(src), "here"));
+        }
     }
     return ok(val);
 }
@@ -13975,6 +13960,19 @@ inline namespace TOML11_INLINE_VERSION_NAMESPACE
 namespace detail
 {
 
+// Parsing and error recovery recurse once per level of nesting.
+constexpr int max_nesting_depth = 64;
+constexpr std::size_t max_dotted_keys = 32;
+struct nesting_guard
+{
+    nesting_guard() noexcept { ++depth(); }
+    ~nesting_guard() noexcept { --depth(); }
+    nesting_guard(const nesting_guard&) = delete;
+    nesting_guard& operator=(const nesting_guard&) = delete;
+    bool too_deep() const noexcept { return depth() > max_nesting_depth; }
+    static int& depth() noexcept { static thread_local int d = 0; return d; }
+};
+
 template<typename TC>
 bool skip_whitespace(location& loc, const context<TC>& ctx)
 {
@@ -14010,6 +14008,7 @@ void skip_comment_block(location& loc, const context<TC>& ctx)
                     loc.advance();
                     break;
                 }
+                loc.advance();
             }
         }
         else if(syntax::newline(ctx.toml_spec()).scan(loc).is_ok())
@@ -14118,6 +14117,9 @@ void skip_array_like(location& loc, const context<TC>& ctx)
     assert(loc.current() == '[');
     loc.advance();
 
+    const nesting_guard guard;
+    if(guard.too_deep()) { loc.advance(loc.source()->size()); return; }
+
     while( ! loc.eof())
     {
         if(loc.current() == '\"' || loc.current() == '\'')
@@ -14148,16 +14150,7 @@ void skip_array_like(location& loc, const context<TC>& ctx)
         {
             // key-value pair cannot be inside the array.
             // guessing the error is "missing closing bracket `]`".
-            // find the previous key just before `=`.
-            while(loc.get_location() != 0)
-            {
-                loc.retrace();
-                if(loc.current() == '\n')
-                {
-                    loc.advance();
-                    break;
-                }
-            }
+            // recovery only moves forward, so that it always terminates.
             break;
         }
         else if(loc.current() == ']')
@@ -14179,6 +14172,9 @@ void skip_inline_table_like(location& loc, const context<TC>& ctx)
     loc.advance();
 
     const auto& spec = ctx.toml_spec();
+
+    const nesting_guard guard;
+    if(guard.too_deep()) { loc.advance(loc.source()->size()); return; }
 
     while( ! loc.eof())
     {
@@ -16085,6 +16081,12 @@ parse_key(location& loc, const context<TC>& ctx)
             return err(key.unwrap_err());
         }
         keys.push_back(std::move(key.unwrap()));
+        if(keys.size() > max_dotted_keys)
+        {
+            auto src = source_location(region(first));
+            return err(make_error_info("toml::parse_key: too many dotted keys",
+                        std::move(src), "here"));
+        }
 
         auto reg = syntax::dot_sep(spec).scan(loc);
         if( ! reg.is_ok())
@@ -16371,7 +16373,7 @@ parse_array(location& loc, context<TC>& ctx)
 
             const auto before_skip = loc.get_location();
             skip_value(loc, ctx);
-            if(before_skip == loc.get_location()) // cannot skip! break...
+            if(loc.get_location() <= before_skip) // cannot skip! break...
             {
                 break;
             }
@@ -17299,6 +17301,13 @@ template<typename TC>
 result<basic_value<TC>, error_info>
 parse_value(location& loc, context<TC>& ctx)
 {
+    const nesting_guard guard;
+    if(guard.too_deep())
+    {
+        auto src = source_location(region(loc));
+        return err(make_error_info("toml::parse_value: nesting too deep",
+                    std::move(src), "here"));
+    }
     const auto ty_res = guess_value_type(loc, ctx);
     if(ty_res.is_err())
     {

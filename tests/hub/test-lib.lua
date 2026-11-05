@@ -142,4 +142,60 @@ T.case('ratelimit allows a burst, then one line per interval', function()
     T.eq(ratelimit.take(t, now + 100, interval), now + 102, 'idle time refills the burst, no further')
 end)
 
+T.case('TOML errors give positions, not the text of the file', function()
+    local value, err = mytoml.parse_toml('a = 1\npassword = "hunter2\n')
+    T.eq(value, nil, 'rejected')
+    T.ok(err:find('line 2, column', 1, true), err)
+    T.ok(not err:find('hunter2', 1, true), err)
+    T.ok(not err:find('parse_toml', 1, true), err)
+    T.ok(not err:find('toml::', 1, true), err)
+
+    -- a type TOML has and Lua doesn't
+    value, err = mytoml.parse_toml('a = 1\nb = 1979-05-27\n')
+    T.eq(value, nil, 'date rejected')
+    T.ok(err:find('line 2, column 5: local_date', 1, true), err)
+
+    -- many mistakes make a bounded message
+    value, err = mytoml.parse_toml(string.rep('x\n', 100))
+    T.eq(value, nil, 'all rejected')
+    T.ok(err:find('and %d+ more$'), err)
+    T.eq(select(2, err:gsub('\n', '')), 5, 'five errors and the count')
+
+    -- each error is one line, though this one's note holds a line break
+    value, err = mytoml.parse_toml('[a] b = 1\n')
+    T.eq(value, nil, 'text after a table rejected')
+    T.ok(not err:find '%c', err)
+
+    -- one mistake reported at two levels of nesting reads once
+    value, err = mytoml.parse_toml('a = [\n[1 [ # c\n]]\n]\n')
+    T.eq(value, nil, 'nesting rejected')
+    local first, second = err:match '^([^\n]*)\n([^\n]*)'
+    T.ok(first and first ~= second, err)
+end)
+
+T.case('TOML binary integers use the whole range', function()
+    local function v(text) return (mytoml.parse_toml('v = ' .. text) or {}).v end
+    T.eq(v('0b' .. string.rep('1', 63)), math.maxinteger, 'the largest')
+    T.eq(v('0b' .. string.rep('0', 100) .. '101'), 5, 'leading zeros do not count')
+    T.eq(v('0b0000_0000'), 0, 'zero')
+    T.eq(v('0b1' .. string.rep('0', 63)), nil, 'one past the largest')
+    T.eq(v('0b' .. string.rep('1', 64)), nil, 'too many digits')
+end)
+
+T.case('TOML floats out of range', function()
+    local function v(text) return (mytoml.parse_toml('v = ' .. text) or {}).v end
+    T.eq(v('1e-310'), 1e-310, 'subnormal')
+    T.eq(v('5e-324'), 5e-324, 'the smallest subnormal')
+    T.eq(v('-1e-310'), -1e-310, 'negative subnormal')
+    T.eq(v('1e-999'), 0.0, 'too small rounds to zero')
+    T.eq(v('1.7976931348623157e308'), 1.7976931348623157e308, 'the largest')
+    T.eq(v('-1.7976931348623157e308'), -1.7976931348623157e308, 'the lowest')
+    T.eq(v('1e999'), nil, 'too large')
+    T.eq(v('-1e999'), nil, 'too large and negative')
+    T.eq(v('1.8e308'), nil, 'just too large')
+
+    local _, err = mytoml.parse_toml('v = 1e999')
+    T.ok(err:find('too large', 1, true), err)
+end)
+
 T.run()
