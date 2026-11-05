@@ -193,6 +193,13 @@ T.case('MAP, LINKS, VERSION and STATS u', function()
     T.ok(topo().uptimes['beta.example']:match '^%d+%-%d+%-%d+ %d+:%d+:%d+$', 'startup time')
 end)
 
+T.case('LINKS on a network of one server lists that server', function()
+    local c = boot()
+    c:recv ':srv 364 me solo.example solo.example :0 Solo'
+    c:recv ':srv 365 me * :End of /LINKS list.'
+    T.eq(topo().links, {['solo.example'] = {}}, 'known, and not linked to itself')
+end)
+
 T.case('a MAP or LINKS reply cut off by a disconnect is dropped', function()
     local c = boot()
     c:recv ':srv 015 me :gone.example[01G] ---- | Users:   7 (1%)'

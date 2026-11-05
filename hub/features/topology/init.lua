@@ -126,11 +126,15 @@ H[N.RPL_LINKS] = function(T, msg)
     -- links go both ways; merge, since a server can appear in several
     -- replies (replacing its set would make the result depend on reply order)
     local server, linked = msg[2], msg[3]
-    if server and linked and server ~= linked then
+    if server and linked then
+        -- the replying server lists itself as its own hub, which is no link,
+        -- but on a network of one server that's the only sign of the server
         partial[server] = partial[server] or {}
-        partial[server][linked] = true
         partial[linked] = partial[linked] or {}
-        partial[linked][server] = true
+        if server ~= linked then
+            partial[server][linked] = true
+            partial[linked][server] = true
+        end
     end
 end
 
