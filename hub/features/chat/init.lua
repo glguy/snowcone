@@ -16,7 +16,7 @@
 --            (chat/typing.lua)
 -- }
 --
--- Sending: replies to CTCP requests from staff, CHATHISTORY (history.lua)
+-- Sending: replies to CTCP requests (paced, except to staff), CHATHISTORY (history.lua)
 -- and MONITOR for buffers, our typing (TAGMSG, chat/typing.lua), and what
 -- the commands ask for. PRIVMSG and NOTICE go out only from commands and
 -- talk mode. Bans, quiets and kicks
@@ -62,6 +62,10 @@ M.list_size = 10000
 -- earn another
 M.history_burst = 10
 M.history_interval = 6
+-- CTCP replies to non-staff that may go at once, and the seconds that earn
+-- another; the burst stays below a typical rate limit's (5 lines)
+M.ctcp_burst = 2
+M.ctcp_interval = 20
 
 --- A buffer named for a server, which sends WALLOPS and messages to
 --- broadcast masks; such a buffer has no history, typing or MONITOR. A
@@ -117,6 +121,7 @@ end
 --- for the current connection
 ---@field composing hub.ChatComposing|nil what we are writing and where
 ---@field history_bucket number|nil pacing of new buffers' history requests (lib/ratelimit)
+---@field ctcp_bucket number|nil pacing of CTCP replies to non-staff (lib/ratelimit)
 ---@field casemapping string|nil what the keys are folded with: the
 --- network's, as last announced; rfc1459 before any
 
@@ -515,22 +520,37 @@ end
 
 local H = {}
 
+-- Anyone can send us requests, and each reply spends the network's rate
+-- limit, so only staff are always answered. Others share a small budget,
+-- and get no reply while a reply would have to wait: requests can't build
+-- a backlog in front of what the user sends. The budget is the network's,
+-- not the sender's, since a flood can come from many nicks.
+local function answer_ctcp(net, nick, staff, name, args)
+    local h = ctcp[name]
+    local response = h and h(args)
+    if not response then return end
+    if not staff then
+        local C = M.get(net)
+        local now = clock.now()
+        local bucket = C.ctcp_bucket or now
+        if ratelimit.wait(bucket, now, M.ctcp_burst, M.ctcp_interval) > 0
+        or not send.ready(net) then
+            return
+        end
+        C.ctcp_bucket = ratelimit.take(bucket, now, M.ctcp_interval)
+    end
+    query(net, 'NOTICE', nick, '\x01' .. name .. ' ' .. response .. '\x01')
+end
+
 function H.PRIVMSG(net, irc, msg)
     local prefix, target = irc_model.split_statusmsg(irc, msg[1])
     local text = msg[2]
     msg.statusmsg = prefix
 
-    -- answer only targeted CTCP requests from staff
+    -- answer only CTCP requests sent to us, not to a channel
     local name, args = text:match '^\x01([^\x01 ]+) ?([^\x01]*)\x01?$'
-    if name and irc_model.is_me(irc, target) and msg.tags['solanum.chat/oper'] and msg.nick then
-        name = name:upper()
-        local h = ctcp[name]
-        if h then
-            local response = h(args)
-            if response then
-                query(net, 'NOTICE', msg.nick, '\x01' .. name .. ' ' .. response .. '\x01')
-            end
-        end
+    if name and msg.nick and irc_model.is_me(irc, target) then
+        answer_ctcp(net, msg.nick, msg.tags['solanum.chat/oper'] ~= nil, name:upper(), args)
     end
 
     route_chat(net, irc, target, text, msg)

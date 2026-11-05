@@ -985,8 +985,11 @@ T.case('history and MONITOR after registration', function()
     T.ok(tablex.find(sent, 'MONITOR + Bob'), 'monitor')
 end)
 
-T.case('CTCP replies only to staff', function()
-    local c = boot()
+T.case('CTCP replies to anyone are paced, and to staff are not', function()
+    local c, chat = boot()
+    local clock = T.require 'hub.runtime.clock'
+    local now = clock.now()
+    clock.now = function() return now end
     local function notices()
         local list = {}
         for _, line in ipairs(c:take()) do
@@ -994,10 +997,32 @@ T.case('CTCP replies only to staff', function()
         end
         return list
     end
-    c:recv ':nobody!n@h PRIVMSG me :\x01VERSION\x01'
-    T.eq(notices(), {}, 'ignored')
+
+    c:recv ':nobody!n@h PRIVMSG #chan :\x01VERSION\x01'
+    T.eq(notices(), {}, 'a request to a channel is ignored')
+
+    for i = 1, chat.ctcp_burst + 2 do
+        c:recv(':spam' .. i .. '!s@h PRIVMSG me :\x01PING ' .. i .. '\x01')
+    end
+    T.eq(#notices(), chat.ctcp_burst, 'a flood gets a burst of replies')
+
     c:recv '@solanum.chat/oper :staff!s@h PRIVMSG me :\x01PING 123\x01'
-    T.eq(notices(), {'NOTICE staff :\x01PING 123\x01'}, 'answered')
+    T.eq(notices(), {'NOTICE staff :\x01PING 123\x01'}, 'staff still answered')
+
+    now = now + chat.ctcp_interval * chat.ctcp_burst
+    c:recv ':bob!b@h PRIVMSG me :\x01PING 1\x01'
+    T.eq(notices(), {'NOTICE bob :\x01PING 1\x01'}, 'the budget refills')
+
+    -- a reply that would have to wait is not sent, and costs nothing
+    now = now + chat.ctcp_interval * chat.ctcp_burst
+    HUB.state.nets.test.cfg.rate_limit = {burst = 1, interval = 10}
+    T.command 'msg carol hello'
+    T.command 'msg carol hello again'
+    c:take()
+    c:recv ':bob!b@h PRIVMSG me :\x01PING 2\x01'
+    T.eq(notices(), {}, 'no reply while lines are held back')
+    T.eq(chat.get('test').ctcp_bucket, now - chat.ctcp_interval * chat.ctcp_burst + chat.ctcp_interval,
+        'the budget is untouched')
 end)
 
 T.case('talk, close and list', function()

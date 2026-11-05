@@ -1,5 +1,5 @@
 -- Replies to CTCP requests. The chat feature answers only requests sent
--- to us by network staff.
+-- to us, and paces its replies to anyone but network staff.
 
 local M = {}
 

@@ -193,9 +193,11 @@ what someone might otherwise undo, not the history of what changed.
   confirms it, an error refuses it, and a connection that ends first
   leaves it unconfirmed. A labeled line, or one with several targets or a
   statusmsg one, is copied per buffer, so the console keeps the line as
-  sent and each echo updates only its own copy. CTCP replies go only to
-  staff and belong to chat, so a network without `chat` doesn't answer
-  them; VERSION is a fixed string, so a reply never starts a process. A
+  sent and each echo updates only its own copy. CTCP replies belong to
+  chat, so a network without `chat` doesn't answer them. Staff are always
+  answered; others share a small budget per network and get no reply
+  while a reply would have to wait, so requests can't use up the rate
+  limit. VERSION is a fixed string, so a reply never starts a process. A
   nick change onto a nick that already has a buffer renames nothing; the
   change is noted in the old buffer.
 
