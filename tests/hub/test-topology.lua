@@ -161,6 +161,12 @@ T.case('OFTC hybrid MAP lines', function()
     T.eq(topo().population, {['alpha.example'] = 100, ['beta.example'] = 2000, ['gamma.example'] = 5}, 'population')
 end)
 
+T.case('OFTC hybrid VERSION', function()
+    local c = boot {ircd = 'oftc-hybrid'}
+    c:recv ':alpha.example 351 me hybrid-7.2.2+oftc1.7.3(oftc-hybrid-1.7.3-70-g36f04316) alpha.example :TS6'
+    T.eq(topo().versions['alpha.example'], '1.7.3-70-g36f04316', 'version')
+end)
+
 T.case('MAP, LINKS, VERSION and STATS u', function()
     local c = boot()
     c:recv ':srv 015 me :alpha.example[01A] ---- | Users:   100 (10%)'

@@ -114,9 +114,16 @@ H[N.RPL_MAPEND] = function(T, _, net)
     bus.emit('topology.map', {net = net, population = T.population})
 end
 
+-- The interesting part of a version, by ircd. OFTC hybrid's:
+-- "hybrid-7.2.2+oftc1.7.3(oftc-hybrid-1.7.3-70-g36f04316)"
+local version_patterns <const> = {
+    [ircd.SOLANUM] = '%((.*)%)',
+    [ircd.HYBRID] = '%(oftc%-hybrid%-(.*)%)',
+}
+
 -- "<client> <version> <server> :<comments>"
-H[N.RPL_VERSION] = function(T, msg)
-    T.versions[msg.source] = (msg[2] or ''):match '%((.*)%)'
+H[N.RPL_VERSION] = function(T, msg, net)
+    T.versions[msg.source] = (msg[2] or ''):match(version_patterns[ircd.of(net)])
 end
 
 -- "<client> <server> <hub> :<hopcount> <info>"
