@@ -1312,6 +1312,10 @@ T.case('mentions notify once until seen, and dismiss', function()
     notify.dismiss('test', 'bob')
     T.eq(#calls, 3, 'only once')
     T.eq(chat.buffer('test', 'bob').mention, true, 'the buffer still shows the mention')
+
+    tty.set_focus(false)
+    c:recv ':bob!b@h PRIVMSG me :\x02bold\x02 \x0304,05red\x03 \x04ff0000hex\x0f'
+    T.eq(calls[4], {'notify', false, 'bob', 'bob', 'bold red hex', 'test', 'BOB'}, 'formatting stripped')
 end)
 
 T.case('mac notifications group by network and buffer, with a plain subtitle', function()

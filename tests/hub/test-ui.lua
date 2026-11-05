@@ -51,6 +51,19 @@ T.case('scrub makes C0 and C1 controls visible', function()
     T.eq(scrub 'café\u{a0}ok', 'café\u{a0}ok', 'other text kept')
 end)
 
+T.case('strip_formatting removes styles and colors with their parameters', function()
+    boot {}
+    local strip = T.require 'hub.lib.strip_formatting'
+    T.eq(strip 'plain', 'plain', 'nothing to strip')
+    T.eq(strip '\x02b\x0f\x11m\x16r\x1di\x1es\x1fu', 'bmrisu', 'styles')
+    T.eq(strip '\x034a\x0304b\x034,5c\x0304,05d\x03e', 'abcde', 'colors')
+    T.eq(strip '\x03123', '3', 'a color number is two digits at most')
+    T.eq(strip '\x034,x', ',x', 'a comma without a background stays')
+    T.eq(strip '\x04ff0000a\x04ff0000,00ff00b\x04c', 'abc', 'hex colors')
+    T.eq(strip '\x04ff00a', 'ff00a', 'a short hex color is text')
+    T.eq(strip 'a\x07\x1bb', 'a\x07\x1bb', 'other controls stay')
+end)
+
 T.case('net commands use the current network or name@network', function()
     local fake, control, cmdline = boot {network('a'), network('b')}
     local ca, cb = fake.conns[1], fake.conns[2]

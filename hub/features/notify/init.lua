@@ -8,9 +8,10 @@
 -- is recorded and when it is dismissed, so the two always meet whatever
 -- case the target arrives in.
 
-local chat   <const> = require 'hub.features.chat'
-local common <const> = require 'hub.features.common'
-local tty    <const> = require 'hub.runtime.tty'
+local chat             <const> = require 'hub.features.chat'
+local common           <const> = require 'hub.features.common'
+local strip_formatting <const> = require 'hub.lib.strip_formatting'
+local tty              <const> = require 'hub.runtime.tty'
 
 local M = {}
 
@@ -25,8 +26,8 @@ local backends = {
 
 --- Make another backend module available by name. A backend has
 --- notify(previous, target, nick, text, net, key) -> handle and
---- dismiss(handle); key is the target folded, which with net names the
---- buffer.
+--- dismiss(handle); text comes without its IRC formatting, and key is the
+--- target folded, which with net names the buffer.
 function M.register_backend(name, module)
     backends[name] = module
 end
@@ -66,7 +67,7 @@ function M.notify(net, target, nick, text)
     if not impl or tty.focused() then return end
     local key = chat.fold(net, target)
     local m = muted(net)
-    m[key] = impl.notify(m[key], target, nick or '?', text, net, key)
+    m[key] = impl.notify(m[key], target, nick or '?', strip_formatting(text), net, key)
 end
 
 --- Withdraw a buffer's notification once it is seen.
