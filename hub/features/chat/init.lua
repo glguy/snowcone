@@ -95,6 +95,7 @@ end
 --- What chat's commands (chat/commands.lua, modes.lua) use of chat.
 ---@class hub.Chat : hub.ChatLookup
 ---@field name string
+---@field name_matcher fun(net: string, seed: string): fun(name: string): boolean
 ---@field command fun(name: string, spec: string, usage: string, help: string, fn: function): table
 ---@field talk fun(net: string, target: string)
 ---@field open fun(net: string, target: string): hub.ChatBuffer
@@ -166,6 +167,17 @@ function M.fold(net, target)
     end
     local C = common.get_state(M.name, net)
     return casemap.fold(C and C.casemapping or 'rfc1459', target)
+end
+
+--- A test for names that start with seed, as the network folds them.
+---@param net string
+---@param seed string
+---@return fun(name: string): boolean
+function M.name_matcher(net, seed)
+    local prefix = M.fold(net, seed)
+    return function(name)
+        return M.fold(net, name):sub(1, #prefix) == prefix
+    end
 end
 
 -- Fold the keys again after the server announces its casemapping. Buffers
@@ -384,6 +396,25 @@ end
 ---@return hub.Message|nil
 function M.newest(buffer)
     return (OrderedMap.get(buffer.messages, OrderedMap.last(buffer.messages)))
+end
+
+--- Whom of some nicks spoke last in a buffer, not counting us.
+---@generic T
+---@param net string
+---@param target string
+---@param nicks table<string, T> by folded nick
+---@return T|nil # the value of the nick found
+function M.last_speaker(net, target, nicks)
+    local buffer = enabled(net) and M.buffer(net, target)
+    if not buffer then return nil end
+    local irc = model(net)
+    for msg in OrderedMap.each(buffer.messages) do
+        if msg.nick and (msg.command == 'PRIVMSG' or msg.command == 'NOTICE') then
+            local found = nicks[M.fold(net, msg.nick)]
+            if found and not (irc and irc_model.is_me(irc, msg.nick)) then return found end
+        end
+    end
+    return nil
 end
 
 -- Typing ============================================================

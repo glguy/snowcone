@@ -84,8 +84,9 @@ local function unban_command(chat, name, mode, help)
             return nil
         end
         local t = {}
+        local starts = chat.name_matcher(ctx.net, seed)
         local function offer(s)
-            if s:sub(1, #seed) == seed then table.insert(t, s) end
+            if starts(s) then table.insert(t, s) end
         end
         for mask in pairs(entries) do offer(mask) end
         for _, member in pairs(channel.members) do offer(member.user.nick) end
@@ -237,8 +238,9 @@ local function mode_command(chat)
         local sign, flag = change[1], change[2]
 
         local t = {}
+        local starts = chat.name_matcher(ctx.net, seed)
         local function offer(s)
-            if s:sub(1, #seed) == seed then table.insert(t, s) end
+            if starts(s) then table.insert(t, s) end
         end
         if irc.mode_to_prefix[flag] then
             for _, member in pairs(channel.members) do offer(member.user.nick) end

@@ -86,7 +86,8 @@ local function names_like(seed)
     local irc = rec and rec.irc
     local t = {}
     if not irc then return t end
-    local function starts(s) return s:sub(1, #seed) == seed end
+    ---@cast net -nil there is a model only with a network
+    local starts = chat.name_matcher(net, seed)
     for _, channel in pairs(irc.channels) do
         if starts(channel.name) then table.insert(t, channel.name) end
     end
@@ -100,21 +101,39 @@ local function names_like(seed)
     return t
 end
 
+-- Where the cycle over sorted candidates starts: Shift-Tab at the last
+local function cycle_end(t, dir)
+    return dir == 1 and 1 or #t
+end
+
+-- The cycle over names, sorted as the network folds them. Either direction
+-- starts at whichever of them spoke last in the shown buffer.
+local function name_cycle(t, dir)
+    local net = control.current_net()
+    if not net then
+        table.sort(t)
+        return cycle_end(t, dir), t
+    end
+    local folded = {}
+    for _, name in ipairs(t) do folded[name] = chat.fold(net, name) end
+    table.sort(t, function(a, b) return folded[a] < folded[b] end)
+    local index = {}
+    for i, name in ipairs(t) do index[folded[name]] = i end
+    local target = control.talk_target(net)
+    return target and chat.last_speaker(net, target, index) or cycle_end(t, dir), t
+end
+
 local function do_tab(dir)
     local ed = control.editor()
     editor.tab(ed, dir, function(prefix, seed)
-        local t
         local command = HUB.state.ui.input.mode == 'command'
         if command and prefix == '' then
-            t = cmdline.complete(seed)
-        else
-            t = command and cmdline.complete_args(prefix, seed) or names_like(seed)
+            local t = cmdline.complete(seed)
+            if next(t) then return cycle_end(t, dir), t end
+            return
         end
-        if next(t) then
-            table.sort(t)
-            -- Shift-Tab starts from the last candidate
-            return dir == 1 and 1 or #t, t
-        end
+        local t = command and cmdline.complete_args(prefix, seed) or names_like(seed)
+        if next(t) then return name_cycle(t, dir) end
     end)
 end
 

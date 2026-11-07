@@ -33,8 +33,9 @@ local function close_command(chat)
     function cmd.complete(ctx, before, seed)
         if before ~= '' then return nil end
         local t = {}
+        local starts = chat.name_matcher(ctx.net, seed)
         for _, buffer in pairs(chat.get(ctx.net).buffers) do
-            if buffer.name:sub(1, #seed) == seed then table.insert(t, buffer.name) end
+            if starts(buffer.name) then table.insert(t, buffer.name) end
         end
         return t
     end

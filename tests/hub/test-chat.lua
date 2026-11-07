@@ -1238,6 +1238,92 @@ T.case('Tab after close offers buffers, and after sasl credentials', function()
     T.eq(T.complete_args('sasl ', 'm'), {'main'}, 'matching')
 end)
 
+-- Tab and Shift-Tab on a line in talk mode, on the shown buffer #chan
+local function talk_tab()
+    local control = T.require 'hub.ui.control'
+    control.init_state(HUB.state)
+    local editor = T.require 'hub.ui.editor'
+    local keymap = T.require 'hub.ui.keymap'
+    local keys = T.require 'hub.ui.keys'
+    control.set_talk_target('test', '#chan')
+    local input = HUB.state.ui.input
+    input.mode = 'talk'
+    local function press(key)
+        keymap.input[key]()
+        return editor.content(input.editor)
+    end
+    return function(typed)
+        if typed then
+            editor.reset(input.editor)
+            for _, ch in utf8.codes(typed) do editor.add(input.editor, ch) end
+        end
+        return press(keys.ctrl 'I')
+    end, function(typed)
+        editor.reset(input.editor)
+        for _, ch in utf8.codes(typed) do editor.add(input.editor, ch) end
+        return press(-ncurses.KEY_BTAB)
+    end
+end
+
+T.case('Tab folds names as the network does', function()
+    local c = boot()
+    c:recv ':me!u@h JOIN #Chan'
+    c:recv ':srv 353 me = #Chan :@me Bob{x alice CAROL'
+    local tab = talk_tab()
+    T.eq(tab 'BOB', 'Bob{x', 'a nick, in its own case')
+    T.eq(tab 'bob[', 'Bob{x', 'rfc1459 folds [ with {')
+    T.eq(tab '#c', '#Chan', 'a channel')
+    T.eq(tab 'a', 'alice', 'one of them')
+    T.eq(tab '', '#Chan', 'sorted by folded name, not bytes')
+    T.eq(tab(), 'alice', 'next')
+    T.eq(tab(), 'Bob{x', 'next')
+    T.eq(tab(), 'CAROL', 'next')
+    T.eq(tab(), 'me', 'next')
+
+    c:recv ':srv 005 me CASEMAPPING=ascii :are supported'
+    T.eq(tab 'bob[', 'bob[', 'ascii does not')
+    T.eq(tab 'bob{', 'Bob{x', 'but folds letters')
+
+    c:take()
+    T.eq(T.complete_args('close ', '#C', nil, '#Chan'), {'#Chan'}, 'close offers buffers by fold')
+    c:recv ':srv 005 me PREFIX=(ov)@+ CHANMODES=bq,k,l,imnst :are supported'
+    T.eq(T.complete_args('mode +o ', 'AL', nil, '#Chan'), {'alice'}, 'mode offers nicks by fold')
+end)
+
+T.case('Tab starts at the last speaker who matches, within the sorted cycle', function()
+    local c = boot()
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':srv 353 me = #chan :@me halloy1 halloy2 halloy3 hallie zed gone'
+    local tab, backtab = talk_tab()
+
+    T.eq(tab 'hal', 'hallie', 'nobody has spoken: from the top')
+    T.eq(backtab 'hal', 'halloy3', 'or the bottom')
+
+    c:recv ':halloy3!u@h PRIVMSG #chan :first'
+    c:recv ':HALLOY2!u@h PRIVMSG #chan :second'
+    c:recv ':zed!u@h PRIVMSG #chan :third'
+    T.eq(tab 'hal', 'halloy2', 'the newest who matches, whatever their case')
+    T.eq(tab(), 'halloy3', 'then on through the cycle')
+    T.eq(tab(), 'hallie', 'wrapping round')
+    T.eq(tab(), 'halloy1', 'to the rest')
+    T.eq(backtab 'hal', 'halloy2', 'Shift-Tab starts there too')
+    T.eq(tab '', 'zed', 'nothing typed: the last speaker of all')
+
+    c:recv ':halloy1!u@h NOTICE #chan :a notice is speaking'
+    T.eq(tab 'hal', 'halloy1', 'notices count')
+    c:recv ':halloy3!u@h TOPIC #chan :a topic is not'
+    c:recv ':halloy2!u@h PART #chan'
+    T.eq(tab 'hal', 'halloy1', 'neither do other changes')
+
+    c:recv ':halloy1!u@h QUIT :gone'
+    T.eq(tab 'hal', 'halloy3', 'someone gone is passed over')
+
+    c:recv ':me!u@h PRIVMSG #chan :my own line'
+    T.eq(tab 'm', 'me', 'still offered, when alone')
+    c:recv ':srv 353 me = #chan :mabel'
+    T.eq(tab 'm', 'mabel', 'but we are not the last speaker')
+end)
+
 T.case('channel ban mask rules', function()
     boot()
     local masks = T.require 'hub.features.chat.masks'
