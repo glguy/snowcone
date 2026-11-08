@@ -1336,6 +1336,8 @@ T.case('a click on a reply scrolls to the message it answers, until Esc', functi
     T.ok(not shown 'the question', 'the parent is off the screen')
     vs.filter = 'answer'
     click_reply 'the answer'
+    -- the scroll is worked out on the next frame
+    screen()
     T.eq(vs.filter, nil, 'the filter is cleared')
     T.ok(vs.scroll > 0, 'scrolled')
     T.eq(vs.highlight and vs.highlight[2], 'the question', 'highlighted')
@@ -1347,6 +1349,53 @@ T.case('a click on a reply scrolls to the message it answers, until Esc', functi
     click_reply 'about something old'
     T.eq(T.log_lines 'error', {'the message replied to is not in this buffer'}, 'reported')
     T.eq(vs.scroll, 0, 'not scrolled')
+end)
+
+T.case('the message detail shows its message in its buffer or the console', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local chat = T.require 'hub.features.chat'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv '@msgid=target :alice!a@h PRIVMSG #chan :the target'
+    for i = 1, 60 do c:recv(':bob!b@h PRIVMSG #chan :filler ' .. i) end
+    c:recv ':carol!c@h PRIVMSG me :elsewhere'
+    control.set_talk_target('test', 'carol')
+    control.set_view 'channels'
+    local msg = chat.find(chat.buffer('test', '#chan'), 'target')
+    control.open_detail('message', 'test', msg)
+
+    local entry = HUB.current.routes['ui.entry']
+    local function click(button)
+        HUB.current.routes['ui.draw']()
+        local top = rows_of(detail_pad())[0]
+        local at = top:find(button, 1, true)
+        if not at then error('no button ' .. button .. ' in ' .. top) end
+        entry('on_mouse', 0, at, false)
+        -- the scroll is worked out on the next frame
+        HUB.current.routes['ui.draw']()
+    end
+
+    local buffer_vs = control.view_state 'buffer'
+    buffer_vs.filter = 'filler'
+    click '[buffer]'
+    T.eq({HUB.state.ui.view, control.talk_target 'test'}, {'buffer', '#chan'}, 'shows its buffer')
+    T.eq(buffer_vs.filter, nil, 'the filter is cleared')
+    T.ok(buffer_vs.scroll > 0, 'scrolled')
+    T.ok(buffer_vs.highlight == msg, 'highlighted')
+    T.ok(control.detail().data == msg, 'still inspected')
+
+    local console_vs = control.view_state 'console'
+    console_vs.filter = 'carol'
+    click '[console]'
+    T.eq(HUB.state.ui.view, 'console', 'shows the console')
+    T.eq(console_vs.filter, nil, 'the console filter is cleared')
+    T.ok(console_vs.scroll > 0, 'scrolled there too')
+
+    -- a message in neither has neither button
+    control.open_detail('message', 'test', snowcone.parse_irc ':a!b@c PRIVMSG #x :hi')
+    HUB.current.routes['ui.draw']()
+    T.eq(rows_of(detail_pad())[0]:match '^(.-)%s*$', '[summary] [message] [raw]', 'only the levels')
+    T.eq(T.log_lines 'error', {}, 'no errors')
 end)
 
 T.case('our messages show whether the server confirmed them', function()
@@ -1530,7 +1579,7 @@ T.case('the message detail decodes server notices', function()
     local detail = control.detail()
     T.eq(message.level(detail), 'summary', 'opens at the summary')
     local rows = rows_of(detail_pad())
-    T.eq(rows[0]:match '^(.-)%s*$', '[summary] [message] [raw]', 'the level buttons')
+    T.eq(rows[0]:match '^(.-)%s*$', '[summary] [message] [raw] [console]', 'the level buttons, and one to show it in the console')
     T.ok(has_row(rows, '^    sent: server notice, at '), 'a server notice')
     T.ok(has_row(rows, '^    name: connect$'), 'the parsed fields')
     T.ok(has_row(rows, '^    nick: n$'), 'in the summary column')
