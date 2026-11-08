@@ -14,7 +14,14 @@ local phase_palette <const> = {
     idle = ncurses.COLOR_RED,
 }
 
-local function activity(net)
+local M = {}
+
+--- Unseen chat on a network: 'mention' when a buffer with unseen
+--- messages mentions us, 'activity' for unseen messages otherwise, nil
+--- when all is seen.
+---@param net string
+---@return 'mention'|'activity'|nil
+function M.activity(net)
     local C = common.get_state('chat', net)
     local seen
     for _, buffer in pairs(C and C.buffers or {}) do
@@ -23,8 +30,6 @@ local function activity(net)
     end
     return seen
 end
-
-local M = {}
 
 -- The separator between fragments of the bar (a Powerline triangle), and
 -- its line version for fragments that share a background
@@ -100,7 +105,7 @@ local function draw_nets(win, ctx, titlecolor)
 
         -- unseen chat: ! for a mention, + otherwise (in black on the
         -- current network, where the colors would vanish)
-        local marker = activity(id)
+        local marker = M.activity(id)
         if marker then
             if bg then
                 ncurses.colorset(ncurses.COLOR_BLACK, bg, win)

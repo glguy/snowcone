@@ -2,7 +2,8 @@
 /**
  * @file bracketed_paste.hpp
  * @author Eric Mertens (emertens@gmail.com)
- * @brief Bracketed paste logic
+ * @brief Terminal modes: bracketed paste, focus reporting and the saved
+ * window title and icon name
  *
  */
 
@@ -10,9 +11,11 @@ struct BracketedPaste
 {
     /// Define the key codes below for the paste and focus sequences
     static auto install() -> void;
-    /// Turn on bracketed paste and focus reporting
+    /// Save the window title and icon name and turn on bracketed paste and
+    /// focus reporting; does nothing while they are on
     static auto enable() -> void;
-    /// Turn off bracketed paste and focus reporting; safe to call more than once
+    /// Turn off bracketed paste and focus reporting and restore the window
+    /// title and icon name; does nothing while they are off
     static auto disable() -> void;
     static constexpr int start_paste = 01000;
     static constexpr int end_paste = 01001;

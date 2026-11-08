@@ -494,6 +494,17 @@ auto expect_killed_by(Terminal& term, int const sig) -> void
 }
 
 /// End the client with ^D
+/// How many times text appears in the output
+auto occurrences(std::string const& output, std::string_view const text) -> int
+{
+    int n = 0;
+    for (auto at = output.find(text); at != std::string::npos; at = output.find(text, at + text.size()))
+    {
+        ++n;
+    }
+    return n;
+}
+
 auto finish(Terminal& term) -> void
 {
     term.send("\x04");
@@ -813,6 +824,27 @@ TEST_F(Screen, SuspendWhereItCannotStop)
     term.send("s");
     expect_events(term, {"stopped", "drawn 80 24", "started"});
     finish(term);
+}
+
+TEST_F(Screen, TitleIsSavedAndRestored)
+{
+    term.send("t");
+    expect_events(term, {"titled"});
+    EXPECT_TRUE(term.wait_output("\x1b]0;screen test\a")) << shown(term.output());
+    finish(term);
+    auto const out = term.output();
+    EXPECT_EQ(1, occurrences(out, "\x1b[22;0t")) << shown(out);
+    EXPECT_EQ(1, occurrences(out, "\x1b[23;0t")) << shown(out);
+    EXPECT_LT(out.find("\x1b[22;0t"), out.find("\x1b]0;"));
+    EXPECT_LT(out.find("\x1b]0;"), out.find("\x1b[23;0t"));
+}
+
+TEST_F(Screen, StoppedInputLeavesTheTitleAlone)
+{
+    term.send("s");
+    expect_events(term, {"stopped", "drawn 80 24", "started"});
+    finish(term);
+    EXPECT_EQ(std::string::npos, term.output().find("while stopped")) << shown(term.output());
 }
 
 TEST_F(Screen, Sigterm)

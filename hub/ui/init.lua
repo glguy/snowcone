@@ -13,6 +13,7 @@ local editor    <const> = require 'hub.ui.editor'
 local keymap    <const> = require 'hub.ui.keymap'
 local pads      <const> = require 'hub.ui.pads'
 local statusbar <const> = require 'hub.ui.statusbar'
+local termtitle <const> = require 'hub.ui.termtitle'
 local dispatch  <const> = require 'hub.runtime.dispatch'
 local log       <const> = require 'hub.runtime.log'
 local tty       <const> = require 'hub.runtime.tty'
@@ -178,6 +179,7 @@ local function render()
         textbox_pad:pnoutrefresh(0, layout.textbox_offset, tty_height - 1, ix, tty_height - 1, tty_width - 1)
     end
     ncurses.doupdate()
+    termtitle.update(view, ctx)
 end
 
 -- Native entry points ================================================
@@ -278,7 +280,9 @@ function entry.on_wheel(y, _, delta)
     dispatch.dirty()
 end
 
+-- Also after a stop (^Z), which put back the title the terminal had
 function entry.on_resize()
+    tty.forget_title()
     make_layout()
     dispatch.dirty()
 end

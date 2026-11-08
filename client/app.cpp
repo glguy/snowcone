@@ -500,6 +500,25 @@ auto App::stop_input() -> void
     endwin();
 }
 
+auto App::set_title(std::string_view const title) -> void
+{
+    if (not ui || shutting_down || not input_running)
+    {
+        return;
+    }
+    std::fputs("\x1b]0;", stdout);
+    for (auto const c : title)
+    {
+        auto const u = static_cast<unsigned char>(c);
+        if (u >= 0x20 && u != 0x7f)
+        {
+            std::fputc(u, stdout);
+        }
+    }
+    std::fputc('\a', stdout);
+    std::fflush(stdout);
+}
+
 /// Runs until the event loop has no work left. Interactive mode always has
 /// work until shutdown(); a script ends once its last resource finishes.
 /// SIGINT, SIGTERM or SIGHUP: Lua's, if it asked for them. Otherwise, as

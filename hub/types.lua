@@ -171,6 +171,9 @@ function snowcone.start_ui() end
 
 function snowcone.start_input() end
 function snowcone.stop_input() end
+--- Set the terminal's window title, while the client has the terminal.
+---@param title string
+function snowcone.set_title(title) end
 function snowcone.shutdown() end
 
 -- ncurses ============================================================

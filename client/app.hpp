@@ -88,6 +88,13 @@ public:
     /// after shutdown().
     auto stop_input() -> void;
 
+    /// Set the terminal's window title and icon name (OSC 0), which some
+    /// terminals show as the tab's, dropping control characters, which would
+    /// end the sequence early. Only while the client has the terminal: not
+    /// without a UI, nor while input is stopped for a child. BracketedPaste
+    /// saves both titles found at startup and restores them.
+    auto set_title(std::string_view title) -> void;
+
     /// Deliver SIGINT, SIGTERM and SIGHUP to Lua's on_signal rather than
     /// restoring the terminal and taking the default action. Until
     /// shutdown(), which hands every signal but SIGUSR1 and SIGWINCH back

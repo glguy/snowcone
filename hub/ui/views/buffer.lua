@@ -22,7 +22,8 @@
 -- activity, else the first by name. A channel's buffer shows why the
 -- server refused our JOIN; when it forwards the JOIN elsewhere, both
 -- buffers say so and the view follows. Viewing a buffer while the terminal
--- is focused marks it seen and withdraws its notification.
+-- is focused marks it seen and withdraws its notification. The terminal's
+-- title names the shown buffer.
 -- View state: scroll, hscroll, hide_presence, highlight (a message).
 
 local addircstr  <const> = require 'hub.ui.irc_formatting'
@@ -388,6 +389,10 @@ return {
 
     modes = function(ctx)
         return {ctx.vs.hide_presence and 'hide' or nil}
+    end,
+
+    terminal_title = function(ctx)
+        return ctx.net and control.talk_target(ctx.net)
     end,
 
     keypress = function(ctx, key)

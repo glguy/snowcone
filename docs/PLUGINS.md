@@ -203,6 +203,7 @@ api.view('seen', {
     keypress = function(ctx, key) ... end,
     status = function(ctx, win) ... end,
     modes = function(ctx) ... end,
+    terminal_title = function(ctx) ... end,
 })
 ```
 
@@ -212,6 +213,7 @@ api.view('seen', {
 | `keypress(ctx, key)` | Optional. Returns true when it took the key. |
 | `status(ctx, win)` | Optional status bar data. Calls `ctx.fragment(win)` before each fragment it adds. |
 | `modes(ctx)` | Optional list of tags showing what alters the view from its default, each a string or `{tag, value}`. |
+| `terminal_title(ctx)` | Optional text for what the view shows, in the terminal's window title after the network. Default: `title`. |
 | `scope` | `'net'` for a view of the current network. Default: `'global'`. |
 | `document` | True to draw the whole view into a pad and page it, rather than fill the screen. |
 

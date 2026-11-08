@@ -65,7 +65,8 @@ These hold everywhere. A change that breaks one needs a decision recorded in
 - `lib` requires nothing else from hub and doesn't touch `HUB`.
 - Only `ui` touches `ncurses`. Only `net` calls `snowcone.connect`. Only
   `runtime` calls `newtimer`, `dnslookup`, `execute`, `setmodule`,
-  `catch_signals`, `stop_input`, `start_input` and `write_private`; other
+  `catch_signals`, `stop_input`, `start_input`, `set_title` and
+  `write_private`; other
   layers use its wrappers, so every handle is tracked.
 - A lower layer reaches upward only through a route name
   (`dispatch.route 'app.quit'`) or an event.
@@ -129,6 +130,7 @@ Duplicate routes, commands or views fail the build.
 | `entry_installed` | yes | The `setmodule` entry is in place. |
 | `tty_suspended` | yes | How many children hold the terminal. |
 | `tty_unfocused` | yes | The terminal said it lost focus (`runtime/tty.lua`). |
+| `tty_title` | yes | The window title last written (`runtime/tty.lua`). |
 | `task_next_id` | yes | Last task id given out. |
 | `plugins_started` | yes | Plugin names to stop before the next generation starts its own. |
 | `quitting`, `shut_down` | yes | Quitting has begun; shutdown has run. |
@@ -309,6 +311,7 @@ A view is a record:
 | `keypress(ctx, key)` | Optional; true when it took the key. |
 | `status(ctx, win)` | Optional status bar fragments: data, such as loads. |
 | `modes(ctx)` | Optional tags of what alters it from its default, each a string or `{tag, value}`. |
+| `terminal_title(ctx)` | Optional; what it shows, for the terminal's title. Default: `title`. |
 | `reset(vs)` | Optional; clears what else it keeps when its scroll and filter are cleared. |
 | `document` | Drawn whole into a pad and paged, rather than a stream. |
 | `command` | False for no command of its name; every other built-in view gets one. A plugin's view gets none, and opens with `api.show_view`. |
@@ -407,6 +410,19 @@ Fragments are divided by one separator, `statusbar.separator`. A view's
 default. The bar adds the scroll position and the filter every view has,
 in the same fragment as the modes, shown only when one is on.
 
+### Terminal title
+
+After each frame, `ui/termtitle.lua` sets the terminal's window title,
+and its icon name, which some terminals show on the tab: `!` or `+` for
+unseen chat on any network, as the status bar marks them, then
+`snowcone`, the current network and what the view shows (its
+`terminal_title`, else its title). The marker comes first so a tab that
+cuts the title short keeps it. `runtime/tty.lua` writes it only when it
+changes, and again after a child process or a stop (^Z) has had the
+terminal; while a child has it, the title waits. The native side saves
+the titles it found when it takes the terminal and restores them when it
+gives the terminal back.
+
 ### Input modes
 
 Command, filter (live, per view or for the detail pane), talk, and
@@ -488,8 +504,9 @@ hub relies on these parts of the `snowcone` table (see `client/`):
 | `execute(cmd, args, fn, opts?)` | `fn(code, stdout, stderr)` or `fn(nil, err)`. Options: `input` (without it the child has the terminal), `group` (own process group, needs `input`), `max_output` (per stream, 16 MiB default; past it the child is killed). Returns a handle whose `cancel()` kills the child (or its group) and keeps `fn` from running; dropping the handle doesn't cancel. |
 | `time()`, `monotime()` | Wall clock (seconds, nanoseconds); monotonic seconds. |
 | `setmodule(fn)` | The single entry for keyboard, paste, mouse, resize, signals and print. A bracketed paste arrives whole as `on_paste(text)`, raw (escape sequences intact); one over 64 KiB is discarded and arrives as `on_paste(nil, size)`. A left click arrives as `on_mouse(y, x, shifted)` and a turn of the wheel as `on_wheel(y, x, delta)`, 1 up and -1 down. |
-| `start_ui()` | Takes over the terminal (ncurses, bracketed paste, keyboard input, signal handling) and defines `ncurses`, `tty_width` and `tty_height`. Without it a program has no terminal and `print` writes to stdout; tests never call it. One-way; does nothing on a reload. hub's `init.lua` calls it when run as the program. |
+| `start_ui()` | Takes over the terminal (ncurses, bracketed paste, keyboard input, signal handling, the window title and icon name, saved to restore at exit) and defines `ncurses`, `tty_width` and `tty_height`. Without it a program has no terminal and `print` writes to stdout; tests never call it. One-way; does nothing on a reload. hub's `init.lua` calls it when run as the program. |
 | `catch_signals(on)` | SIGINT, SIGTERM and SIGHUP arrive as `on_signal(name)`; otherwise the terminal is restored and the default action taken. `shutdown()` restores the terminal and the defaults for good, so a ^C then ends a process that fails to exit. ^Z (SIGTSTP) is handled natively: the terminal is restored, the process group stops, and SIGCONT redraws through `on_resize`. |
+| `set_title(text)` | Sets the terminal's window title and icon name (OSC 0) while the client has the terminal; nothing without a UI or while a child has it. |
 | `start_httpd`, `parse_irc`, `parse_irc_tags`, `irccase`, `pton`, `shutdown`, `raise`, `isalnum`, `stop_input`, `start_input` | As documented in `client/`. |
 
 Optional libraries (`mystringprep`, `mygeoip`, `mmdb`, `rex_pcre2`) are

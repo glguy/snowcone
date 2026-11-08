@@ -505,6 +505,36 @@ T.case('the shown buffer is marked seen only while the terminal has focus', func
     T.eq({buffer.activity, buffer.mention}, {0, false}, 'seen on return')
 end)
 
+T.case('the terminal title names the view and marks unseen chat', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local tty = T.require 'hub.runtime.tty'
+    local function draw()
+        HUB.current.routes['ui.draw']()
+        return HUB.tty_title
+    end
+
+    control.set_view 'status'
+    T.eq(draw(), 'snowcone - test status', 'a view by its title')
+
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':bob!b@h PRIVMSG me :hi'
+    control.set_talk_target('test', 'bob')
+    control.set_view 'buffer'
+    T.eq(draw(), 'snowcone - test bob', 'the buffer view by its target')
+
+    tty.set_focus(false)
+    c:recv ':alice!a@h PRIVMSG #chan :hello'
+    T.eq(draw(), '+ snowcone - test bob', 'unseen activity first')
+    c:recv ':bob!b@h PRIVMSG me :still there?'
+    T.eq(draw(), '! snowcone - test bob', 'a mention outranks activity')
+    tty.set_focus(true)
+    T.eq(draw(), '+ snowcone - test bob', 'the shown buffer is seen, the channel is not')
+
+    control.set_talk_target('test', '#chan')
+    T.eq(draw(), 'snowcone - test #chan', 'all seen')
+end)
+
 T.case('a prompt goes when its task is canceled', function()
     local fake = FakeTransport.new()
     T.boot {ui = true, transport = fake, config = {networks = {{

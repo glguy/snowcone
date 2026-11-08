@@ -2,11 +2,14 @@
 -- text, attributes, colors and wide characters, and its size on the last
 -- row, and redraws on every resize. Keys:
 --
---   s   stop input for 300 ms, as when a command has the terminal
+--   s   stop input for 300 ms, as when a command has the terminal, and
+--       try to set the window title meanwhile
 --   z   suspend, as hub's ^Z does
+--   t   set the window title, with a control character to drop
 --   ^D  shut down
 --
--- Events on descriptor 3: ready, drawn <width> <height>, stopped, started
+-- Events on descriptor 3: ready, drawn <width> <height>, stopped, started,
+-- titled
 
 local out = assert(io.open('/dev/fd/3', 'w'))
 out:setvbuf 'line'
@@ -44,6 +47,7 @@ snowcone.setmodule(function(event, ...)
             snowcone.shutdown()
         elseif key == string.byte 's' then
             snowcone.stop_input()
+            snowcone.set_title 'while stopped'
             emit 'stopped'
             timer:start(300, function()
                 snowcone.start_input()
@@ -52,6 +56,9 @@ snowcone.setmodule(function(event, ...)
             end)
         elseif key == string.byte 'z' then
             snowcone.raise(snowcone.SIGTSTP)
+        elseif key == string.byte 't' then
+            snowcone.set_title 'screen\a test'
+            emit 'titled'
         end
     elseif event == 'on_resize' then
         draw()

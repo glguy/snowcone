@@ -65,6 +65,7 @@ local native_owner = {
     ['snowcone.setmodule'] = 'runtime',
     ['snowcone.stop_input'] = 'runtime',
     ['snowcone.start_input'] = 'runtime',
+    ['snowcone.set_title'] = 'runtime',
     ['snowcone.catch_signals'] = 'runtime',
     ['snowcone.write_private'] = 'runtime',
 }

@@ -352,6 +352,15 @@ auto l_stop_input(lua_State* const L) -> int
     return 0;
 }
 
+/// set_title(text): set the terminal's window title, while the client has
+/// the terminal. Control characters are dropped; C1 controls (U+0080 to
+/// U+009F) are the caller's to remove.
+auto l_set_title(lua_State* const L) -> int
+{
+    App::from_lua(L)->set_title(check_string_view(L, 1));
+    return 0;
+}
+
 /// start_ui(): take over the terminal for a full-screen UI, and define the
 /// ncurses global and the tty_width and tty_height globals. Until then a
 /// program has no terminal, reads no input and leaves signals their default
@@ -391,9 +400,9 @@ auto l_catch_signals(lua_State* const L) -> int
 /// return[1]: nil on failure, with return[2] the error message
 auto l_write_private(lua_State* const L) -> int
 {
-    auto const path = luaL_checkstring(L, 1);
-    std::size_t len;
-    auto const content = luaL_checklstring(L, 2, &len);
+    // NUL-terminated at its size, for open and unlink
+    auto const path = check_c_string(L, 1).data();
+    auto const content = check_string_view(L, 2);
 
     auto const fail = [L, path](int const e) -> int {
         luaL_pushfail(L);
@@ -407,9 +416,9 @@ auto l_write_private(lua_State* const L) -> int
         return fail(errno);
     }
     std::size_t done = 0;
-    while (done < len)
+    while (done < content.size())
     {
-        auto const n = write(fd, content + done, len - done);
+        auto const n = write(fd, content.data() + done, content.size() - done);
         if (n < 0)
         {
             if (errno == EINTR)
@@ -450,6 +459,7 @@ luaL_Reg const applib_module[] = {
     {"execute", boundary<l_execute>},
     {"stop_input", boundary<l_stop_input>},
     {"start_input", boundary<l_start_input>},
+    {"set_title", boundary<l_set_title>},
     {"catch_signals", boundary<l_catch_signals>},
     {"start_ui", boundary<l_start_ui>},
     {"start_httpd", boundary<start_httpd>},
