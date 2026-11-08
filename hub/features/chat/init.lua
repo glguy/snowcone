@@ -398,6 +398,33 @@ function M.newest(buffer)
     return (OrderedMap.get(buffer.messages, OrderedMap.last(buffer.messages)))
 end
 
+-- Whether a buffer holds a message: by its msgid when it has one, else
+-- by searching
+local function holds(buffer, msg)
+    local id = msgid(msg)
+    if id and M.find(buffer, id) == msg then return true end
+    return OrderedMap.find(buffer.messages, function(other) return other == msg end) ~= nil
+end
+
+--- A buffer of a network that holds a message: the one named `prefer`
+--- when it does, else the first by name. Nil when none does.
+---@param net string
+---@param msg hub.Message
+---@param prefer string|nil
+---@return hub.ChatBuffer|nil
+function M.holder(net, msg, prefer)
+    if not enabled(net) then return nil end
+    local preferred = prefer and M.buffer(net, prefer)
+    if preferred and holds(preferred, msg) then return preferred end
+    local best, best_key
+    for key, buffer in pairs(M.get(net).buffers) do
+        if buffer ~= preferred and (not best_key or key < best_key) and holds(buffer, msg) then
+            best, best_key = buffer, key
+        end
+    end
+    return best
+end
+
 --- Whom of some nicks spoke last in a buffer, not counting us.
 ---@generic T
 ---@param net string

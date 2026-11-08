@@ -246,6 +246,16 @@ function M.reveach(om)
     end
 end
 
+--- The newest value satisfying p, or nil.
+---@param om hub.OrderedMap
+---@param p fun(val: any): boolean
+---@return any
+function M.find(om, p)
+    for val in M.each(om) do
+        if p(val) then return val end
+    end
+end
+
 --- Remove every entry, keeping the capacity, casemapping and ticker
 --- (which counts inserts, for rotating views).
 ---@param om hub.OrderedMap

@@ -309,4 +309,29 @@ function M.draw_rotation(win, vs, start, rows, data, show_entry, draw_entry)
     end
 end
 
+--- Scroll a rotating log so an entry is in the middle of its rows when it
+--- can be. Nothing when the map no longer holds it.
+---@param vs hub.ViewState
+---@param rows integer as draw_rotation gets them
+---@param data hub.OrderedMap
+---@param show_entry (fun(entry: table): boolean)|nil as draw_rotation gets it
+---@param target fun(entry: table): boolean finds the entry
+---@return boolean found
+function M.scroll_to(vs, rows, data, show_entry, target)
+    -- the scroll counts the shown entries newer than the newest on screen
+    local newer, shown, found = 0, 0, false
+    for entry in OrderedMap.each(data) do
+        if not found and target(entry) then found = true end
+        if not show_entry or show_entry(entry) then
+            shown = shown + 1
+            if not found then newer = newer + 1 end
+        end
+    end
+    if not found then return false end
+    local s = newer - (rows - 2) // 2
+    vs.scroll = math.max(0, math.min(s, shown - (rows - 1)))
+    vs.pin = nil
+    return true
+end
+
 return M

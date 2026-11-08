@@ -4,7 +4,8 @@
 -- (ui/details/message.lua), as in a buffer. Meta-H hides server notices and
 -- PING/PONG/AWAY; Meta-G switches between the current network and all
 -- networks interleaved, with a network column.
--- View state: scroll, hscroll, filter, hide_snow, all.
+-- View state: scroll, hscroll, filter, hide_snow, all, reveal (a message
+-- to scroll to on the next frame; ui/details/message.lua's [console]).
 
 local addircstr     <const> = require 'hub.ui.irc_formatting'
 local control       <const> = require 'hub.ui.control'
@@ -12,6 +13,7 @@ local draw          <const> = require 'hub.ui.draw'
 local matching      <const> = require 'hub.lib.matching'
 local message       <const> = require 'hub.ui.details.message'
 local meta          <const> = require 'hub.ui.keys'.meta
+local OrderedMap    <const> = require 'hub.lib.OrderedMap'
 local scrub         <const> = require 'hub.lib.scrub'
 
 -- The source column, a button that inspects the message; blank, but
@@ -84,6 +86,14 @@ local squelch_commands <const> = {
     AWAY = true,
 }
 
+-- What Meta-H hides: notices to *, and server notices however their
+-- server sends them (OFTC hybrid's go to our nick)
+local function snow(net, msg)
+    return msg.command == 'NOTICE' and msg[1] == '*'
+        or message.snotice_text(net, msg) ~= nil
+        or squelch_commands[msg.command] ~= nil
+end
+
 local function haystack(msg)
     local parts = {tostring(msg.command), table.concat(msg, ' ')}
     if msg.source then
@@ -130,6 +140,19 @@ return {
             return
         end
 
+        -- a message to bring into view clears what could hide it, and
+        -- leaves all networks when that ring no longer holds it
+        local reveal = ctx.vs.reveal
+        if reveal then
+            control.set_filter(ctx.id, nil)
+            if snow(ctx.net, reveal) then ctx.vs.hide_snow = nil end
+            if ctx.vs.all and not OrderedMap.find(data, function(entry) return entry.msg == reveal end) then
+                ctx.vs.all = nil
+                data = console_of(ctx)
+                ---@cast data -nil the network's ring, as the all ring was there
+            end
+        end
+
         local all = ctx.vs.all
         local pattern = control.filter(ctx.id)
         local show
@@ -141,14 +164,15 @@ return {
             end
         elseif ctx.vs.hide_snow then
             show = function(msg)
-                local net = ctx.net
-                if all then net, msg = msg.net, msg.msg end
-                -- notices to *, and server notices however their server
-                -- sends them (OFTC hybrid's go to our nick)
-                return (msg.command ~= 'NOTICE' or msg[1] ~= '*')
-                   and message.snotice_text(net, msg) == nil
-                   and not squelch_commands[msg.command]
+                if all then return not snow(msg.net, msg.msg) end
+                return not snow(ctx.net, msg)
             end
+        end
+        if reveal then
+            ctx.vs.reveal = nil
+            draw.scroll_to(ctx.vs, ctx.rows, data, show, function(entry)
+                return (all and entry.msg or entry) == reveal
+            end)
         end
 
         draw.draw_rotation(win, ctx.vs, 0, ctx.rows, data, show, function(w, entry)

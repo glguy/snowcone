@@ -24,7 +24,8 @@
 -- buffers say so and the view follows. Viewing a buffer while the terminal
 -- is focused marks it seen and withdraws its notification. The terminal's
 -- title names the shown buffer.
--- View state: scroll, hscroll, hide_presence, highlight (a message).
+-- View state: scroll, hscroll, hide_presence, highlight (a message),
+-- reveal (a message to scroll to and highlight on the next frame).
 
 local addircstr  <const> = require 'hub.ui.irc_formatting'
 local chat       <const> = require 'hub.features.chat'
@@ -38,7 +39,6 @@ local log        <const> = require 'hub.runtime.log'
 local matching   <const> = require 'hub.lib.matching'
 local ui_keys    <const> = require 'hub.ui.keys'
 local N          <const> = require 'hub.lib.numerics'
-local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local scrub      <const> = require 'hub.lib.scrub'
 local tty        <const> = require 'hub.runtime.tty'
 
@@ -164,25 +164,14 @@ renderer[N.ERR_LINKCHANNEL] = function(win, msg)
     win:waddstr(scrub(msg[2] or ''), ' → ', scrub(msg[3] or ''))
 end
 
--- Scroll to the message with msgid `id`, in the middle of the screen when
--- it can be, and highlight it
+-- Scroll to the message with msgid `id` and highlight it (see reveal)
 local function jump(ctx, buffer, id)
-    local k = OrderedMap.number(buffer.messages, id)
-    if not k then
+    local msg = chat.find(buffer, id)
+    if not msg then
         log.add('error', 'the message replied to is not in this buffer')
         return
     end
-    local vs = ctx.vs
-    -- a filter could hide it
-    control.set_filter(ctx.id, nil)
-    -- scrolled by s, the newest shown is entry last - s, on the row above
-    -- the divider
-    local s = OrderedMap.last(buffer.messages) - k - (ctx.rows - 2) // 2
-    -- the limit unfiltered, as the next frame will count it
-    local limit = OrderedMap.size(buffer.messages) - (ctx.rows - 1)
-    vs.scroll = math.max(0, math.min(s, limit))
-    vs.pin = nil
-    vs.highlight = OrderedMap.get(buffer.messages, k)
+    ctx.vs.reveal = msg
 end
 
 local function render_msg(ctx, win, buffer, msg)
@@ -367,12 +356,25 @@ return {
             dispatch.route 'notify.dismiss' (ctx.net, target)
         end
 
+        -- a message to bring into view clears what could hide it
+        local reveal = ctx.vs.reveal
+        if reveal then
+            control.set_filter(ctx.id, nil)
+            if presence_commands[reveal.command] then ctx.vs.hide_presence = nil end
+        end
+
         local pattern = control.filter(ctx.id)
         local show
         if pattern then
             show = function(msg) return matching.safematch(haystack(msg), pattern) end
         elseif ctx.vs.hide_presence then
             show = function(msg) return not presence_commands[msg.command] end
+        end
+        if reveal then
+            ctx.vs.reveal = nil
+            if draw.scroll_to(ctx.vs, ctx.rows, buffer.messages, show, function(msg) return msg == reveal end) then
+                ctx.vs.highlight = reveal
+            end
         end
         draw.draw_rotation(win, ctx.vs, 0, ctx.rows, buffer.messages, show, function(w, msg)
             render_msg(ctx, w, buffer, msg)

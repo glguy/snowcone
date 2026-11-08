@@ -3,15 +3,21 @@
 -- command that has one; the message as the server sent it (tags, source,
 -- our delivery and the server's receipt, command and arguments); and that
 -- with its strings escaped. It opens at the summary when there is one.
+-- [buffer], for a message a chat buffer holds, shows that buffer (the one
+-- shown, when it is among them) scrolled to the message, highlighted;
+-- [console], for one the network's console holds, shows it there.
 -- Also the command colors and notice matching the console shares.
 
 local addircstr   <const> = require 'hub.ui.irc_formatting'
+local chat        <const> = require 'hub.features.chat'
+local control     <const> = require 'hub.ui.control'
 local draw        <const> = require 'hub.ui.draw'
 local hybrid      <const> = require 'hub.ui.details.hybrid'
 local irc_model   <const> = require 'hub.net.irc'
 local ircd        <const> = require 'hub.net.ircd'
 local notice      <const> = require 'hub.features.snotice.notice'
 local numerics    <const> = require 'hub.lib.numerics'
+local OrderedMap  <const> = require 'hub.lib.OrderedMap'
 local scrub       <const> = require 'hub.lib.scrub'
 local solanum     <const> = require 'hub.ui.details.solanum'
 local tablex      <const> = require 'pl.tablex'
@@ -666,6 +672,26 @@ function M.render(ctx, win)
             ctx.add_button(win, '[' .. level .. ']', function() detail.level = level end, level ~= shown)
             win:waddstr ' '
         end
+    end
+    local net = ctx.net
+    local buffer = net and chat.holder(net, msg, control.talk_target(net))
+    if buffer then
+        local name = buffer.name
+        ctx.add_button(win, '[buffer]', function()
+            control.set_current_net(net)
+            control.set_talk_target(net, name)
+            control.set_view 'buffer'
+            control.view_state 'buffer'.reveal = msg
+        end, true)
+        win:waddstr ' '
+    end
+    local rec = net and HUB.state.nets[net]
+    if rec and OrderedMap.find(rec.console, function(other) return other == msg end) then
+        ctx.add_button(win, '[console]', function()
+            control.set_current_net(net)
+            control.set_view 'console'
+            control.view_state 'console'.reveal = msg
+        end, true)
     end
     win:waddstr '\n\n'
 
