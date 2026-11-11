@@ -3134,7 +3134,7 @@ T.case('connload colors versions from green, the newest, to red, the oldest', fu
     c:recv ':c.example 351 me solanum-1.0(1.9.1) c.example :x'
     c:recv ':d.example 351 me solanum-1.0(1.10) d.example :x'
     -- services age apart from the ircd: alone, the newest of their kind
-    c:recv ':services. NOTICE * :*** Notice -- Client connecting: n (~u@h.example) [198.18.0.1] {?} <*> [n]', false)
+    c:recv(':services. NOTICE * :*** Notice -- Client connecting: n (~u@h.example) [198.18.0.1] {?} <*> [n]', false)
     c:recv ':services. 351 me atheme-7.3.0-rc2 services. :x'
     HUB.current.routes['app.tick']()
 
