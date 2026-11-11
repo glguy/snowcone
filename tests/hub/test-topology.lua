@@ -195,6 +195,10 @@ T.case('MAP, LINKS, VERSION and STATS u', function()
 
     c:recv ':alpha.example 351 me solanum-1.0(20260101-abc) alpha.example :eHIKMpSZ6'
     T.eq(topo().versions['alpha.example'], '20260101-abc', 'version')
+    c:recv ':services. 351 me atheme-7.3.0-rc2 services. :bf55352ddf7ecdacc9c3 CHLORcejt [solanum] [enc:crypto/pbkdf2v2] Build Date: Nov 10 2026'
+    T.eq(topo().versions['services.'], 'atheme-7.3.0-rc2', 'services version')
+    c:recv ':services.oftc.net 351 me oftc-ircservices-1.5.12 services.oftc.net'
+    T.eq(topo().versions['services.oftc.net'], 'ircservices-1.5.12', 'OFTC services version')
     c:recv ':beta.example 242 me :Server Up 2 days, 03:04:05'
     T.ok(topo().uptimes['beta.example']:match '^%d+%-%d+%-%d+ %d+:%d+:%d+$', 'startup time')
 end)

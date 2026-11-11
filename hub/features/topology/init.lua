@@ -121,9 +121,23 @@ local version_patterns <const> = {
     [ircd.HYBRID] = '%(oftc%-hybrid%-(.*)%)',
 }
 
+-- Services answer with their own version, whatever the ircd, kept with
+-- their name to show what it is: atheme's "atheme-7.3.0-rc2", and
+-- "oftc-ircservices-1.5.12" as "ircservices-1.5.12", to fit the column
+local services_versions <const> = {'^(atheme%-%S+)$', '^oftc%-(ircservices%-%S+)$'}
+
+local function version_of(text, net)
+    local v = text:match(version_patterns[ircd.of(net)])
+    if v then return v end
+    for _, pattern in ipairs(services_versions) do
+        v = text:match(pattern)
+        if v then return v end
+    end
+end
+
 -- "<client> <version> <server> :<comments>"
 H[N.RPL_VERSION] = function(T, msg, net)
-    T.versions[msg.source] = (msg[2] or ''):match(version_patterns[ircd.of(net)])
+    T.versions[msg.source] = version_of(msg[2] or '', net)
 end
 
 -- "<client> <server> <hub> :<hopcount> <info>"

@@ -3,8 +3,11 @@
 --
 -- Click a column title to sort by it, again to reverse. A yellow 4 or 6
 -- marks an address in a DNS rotation; D a drain, S user shedding.
+-- Versions run from green, the newest, through yellow to red, the oldest,
+-- each against others of its kind.
 -- View state: ordering, descending.
 
+local colors    <const> = require 'hub.ui.colors'
 local common    <const> = require 'hub.features.common'
 local dashboard <const> = require 'hub.ui.dashboard'
 local draw      <const> = require 'hub.ui.draw'
@@ -23,6 +26,51 @@ local function make_colors(values)
         if not assignment[v] then
             assignment[v] = palette[i]
             i = i % #palette + 1
+        end
+    end
+    return assignment
+end
+
+-- Versions in order of age: runs of digits compare as numbers, so
+-- 1.10 follows 1.9 as 20240102 follows 20231231
+local function version_key(v)
+    return (v:gsub('%d+', function(d)
+        d = d:gsub('^0+', '')
+        return string.char(math.min(#d, 255)) .. d
+    end))
+end
+
+local function version_less(a, b)
+    local ka, kb = version_key(a), version_key(b)
+    return ka < kb or ka == kb and a < b
+end
+
+-- A color for each distinct version on a gradient from red, the oldest,
+-- through yellow to green, the newest; the empty value black. Versions
+-- age against others of their kind, those with the same text before the
+-- first digit: services' "atheme-7.3.0" apart from the ircd's.
+local function version_colors(versions)
+    local seen, kinds = {}, {}
+    for _, v in pairs(versions) do
+        if v ~= '' and not seen[v] then
+            seen[v] = true
+            local kind = v:match '^%D*'
+            local list = kinds[kind] or {}
+            kinds[kind] = list
+            table.insert(list, v)
+        end
+    end
+    local count = ncurses.COLORS
+    local assignment = {[''] = draw.black}
+    for _, list in pairs(kinds) do
+        table.sort(list, version_less)
+        for i, v in ipairs(list) do
+            -- age: 0 for the newest, 1 for the oldest
+            local age = #list == 1 and 0 or (#list - i) / (#list - 1)
+            local red = math.floor(math.min(1, 2 * age) * 255 + 0.5)
+            local green = math.floor(math.min(1, 2 - 2 * age) * 255 + 0.5)
+            local color = colors.rgb(red << 16 | green << 8, count)
+            assignment[v] = function(w) ncurses.colorset(color, nil, w) end
         end
     end
     return assignment
@@ -59,7 +107,11 @@ local function orderings(topo, info)
         load15 = by(function(r) return r.load[15] end),
         region = by(function(r) return (info[r.name] or {}).region or '' end),
         conns = by(function(r) return topo.population[r.name] or -1 end),
-        version = by(function(r) return topo.versions[r.name] or '' end),
+        version = function(x, y)
+            local a, b = topo.versions[x.name] or '', topo.versions[y.name] or ''
+            if a == b then return x.name < y.name end
+            return version_less(a, b)
+        end,
         uptime = by(function(r) return topo.uptimes[r.name] or '' end),
         uplink = by(function(r) return topo.upstream[r.name] or '' end),
     }
@@ -98,7 +150,7 @@ local function make_view(id, title, tracker_name, header_color)
 
             local has_versions = next(topo.versions) ~= nil
             local has_uptimes = next(topo.uptimes) ~= nil
-            local version_color = make_colors(topo.versions)
+            local version_color = version_colors(topo.versions)
             local uplink_color = make_colors(topo.upstream)
 
             local rows = {}
@@ -126,7 +178,7 @@ local function make_view(id, title, tracker_name, header_color)
             win:waddstr ' AF'
             add_column(ctx, win, '  Conns', 'conns')
             add_column(ctx, win, '  Up', 'uplink')
-            if has_versions then add_column(ctx, win, '  Version          ', 'version') end
+            if has_versions then add_column(ctx, win, '  Version           ', 'version') end
             if has_uptimes then add_column(ctx, win, '  Startup           ', 'uptime') end
             if servers.flags then win:waddstr '  Flags' end
             draw.normal(win)
@@ -174,7 +226,7 @@ local function make_view(id, title, tracker_name, header_color)
                 if has_versions then
                     local version = topo.versions[name]
                     ;(version_color[version or ''] or draw.normal)(win)
-                    win:waddstr(string.format('  %-17.17s', scrub(version or '?')))
+                    win:waddstr(string.format('  %-18.18s', scrub(version or '?')))
                     draw.normal(win)
                 end
 

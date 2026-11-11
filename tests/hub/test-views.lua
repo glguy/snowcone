@@ -3123,4 +3123,34 @@ T.case('a forwarded JOIN shows the buffer forwarded to', function()
     HUB.current.routes['ui.draw']()
 end)
 
+T.case('connload colors versions from green, the newest, to red, the oldest', function()
+    local c = boot()
+    for _, server in ipairs {'a.example', 'b.example', 'c.example', 'd.example'} do
+        c:recv(':' .. server .. ' NOTICE * :*** Notice -- Client connecting: n (~u@h.example) [198.18.0.1] {?} <*> [n]', false)
+    end
+    -- by number, 1.10 is newer than 1.9; d shares b's version
+    c:recv ':a.example 351 me solanum-1.0(1.9) a.example :x'
+    c:recv ':b.example 351 me solanum-1.0(1.10) b.example :x'
+    c:recv ':c.example 351 me solanum-1.0(1.9.1) c.example :x'
+    c:recv ':d.example 351 me solanum-1.0(1.10) d.example :x'
+    -- services age apart from the ircd: alone, the newest of their kind
+    c:recv ':services. NOTICE * :*** Notice -- Client connecting: n (~u@h.example) [198.18.0.1] {?} <*> [n]', false)
+    c:recv ':services. 351 me atheme-7.3.0-rc2 services. :x'
+    HUB.current.routes['app.tick']()
+
+    local control = T.require 'hub.ui.control'
+    control.set_view 'connload'
+    control.view_state('connload').ordering = 'version'
+    local calls = {}
+    rawset(ncurses, 'colorset', function(fore) table.insert(calls, fore) end)
+    HUB.current.routes['ui.draw']()
+    rawset(ncurses, 'colorset', nil)
+    local gradient = {}
+    for _, fore in ipairs(calls) do
+        if fore == 196 or fore == 226 or fore == 46 then table.insert(gradient, fore) end
+    end
+    T.eq(gradient, {196, 226, 46, 46, 46}, 'red, yellow, then green for both of the newest and services')
+    T.eq(T.log_lines 'error', {}, 'no drawing errors')
+end)
+
 T.run()
