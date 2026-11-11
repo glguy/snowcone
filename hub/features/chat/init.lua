@@ -605,13 +605,15 @@ function H.PRIVMSG(net, irc, msg)
     local text = msg[2]
     msg.statusmsg = prefix
 
+    -- the request first, so it opens the sender's buffer that our reply
+    -- is then shown in
+    route_chat(net, irc, target, text, msg)
+
     -- answer only CTCP requests sent to us, not to a channel
     local name, args = text:match '^\x01([^\x01 ]+) ?([^\x01]*)\x01?$'
     if name and msg.nick and irc_model.is_me(irc, target) then
         answer_ctcp(net, msg.nick, msg.tags['solanum.chat/oper'] ~= nil, name:upper(), args)
     end
-
-    route_chat(net, irc, target, text, msg)
 end
 
 function H.NOTICE(net, irc, msg)

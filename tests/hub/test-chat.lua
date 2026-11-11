@@ -1008,6 +1008,9 @@ T.case('CTCP replies to anyone are paced, and to staff are not', function()
 
     c:recv '@solanum.chat/oper :staff!s@h PRIVMSG me :\x01PING 123\x01'
     T.eq(notices(), {'NOTICE staff :\x01PING 123\x01'}, 'staff still answered')
+    T.eq(texts(chat.buffer('test', 'staff')),
+        {'PRIVMSG me \x01PING 123\x01', 'NOTICE staff \x01PING 123\x01'},
+        'the request and its reply in the sender\'s buffer')
 
     now = now + chat.ctcp_interval * chat.ctcp_burst
     c:recv ':bob!b@h PRIVMSG me :\x01PING 1\x01'
