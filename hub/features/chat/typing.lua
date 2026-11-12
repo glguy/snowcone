@@ -46,6 +46,16 @@ local function stop_typing(chat, net, buffer, nick)
     end
 end
 
+--- Key a buffer's entries again, after the network's casemapping changes.
+---@param buffer hub.ChatBuffer
+---@param fold fun(nick: string): string the new casemapping's fold
+function M.refold(buffer, fold)
+    if not buffer.typing then return end
+    local typing = {}
+    for _, entry in pairs(buffer.typing) do typing[fold(entry.nick)] = entry end
+    buffer.typing = typing
+end
+
 --- Who is typing in a buffer, the most recent change first (ties by
 --- folded nick); expired entries are dropped.
 ---@param chat hub.ChatLookup
