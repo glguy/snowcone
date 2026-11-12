@@ -10,19 +10,13 @@
 --
 -- The functions take chat (features/chat), which requires this module.
 
+local common     <const> = require 'hub.features.common'
 local irc_model  <const> = require 'hub.net.irc'
-local log        <const> = require 'hub.runtime.log'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
-local send       <const> = require 'hub.net.send'
 
 local M = {}
 
-local function query(net, ...)
-    local ok, err = pcall(send.send, net, ...)
-    if not ok then
-        log.add_net(net, 'chat', '%s', err)
-    end
-end
+local query <const> = common.sender 'chat'
 
 --- Ask for a buffer's history, when the server has it and we are
 --- registered: the messages BEFORE or the LATEST since `time` (a server

@@ -3,6 +3,9 @@
 -- A feature keeps per-network state in HUB.state.features[name][net],
 -- created on first use and dropped when the network is removed.
 
+local log  <const> = require 'hub.runtime.log'
+local send <const> = require 'hub.net.send'
+
 local M = {}
 
 function M.init_state(S)
@@ -58,6 +61,20 @@ end
 function M.net_command(feature)
     return function(name, spec, usage, help, fn)
         return {name = name, spec = spec, usage = usage, scope = 'net', feature = feature, help = help, fn = fn}
+    end
+end
+
+--- A sender for the feature: send(net, command, ...) sends a line
+--- (net/send.lua), and when it can't go logs why under the feature's name
+--- rather than raising.
+---@param feature string
+---@return fun(net: string, command: string, ...: string)
+function M.sender(feature)
+    return function(net, ...)
+        local ok, err = pcall(send.send, net, ...)
+        if not ok then
+            log.add_net(net, feature, '%s', err)
+        end
     end
 end
 

@@ -15,10 +15,11 @@ local N        <const> = require 'hub.lib.numerics'
 local NH       <const> = require 'hub.lib.numerics_hybrid'
 local nettrack <const> = require 'hub.features.snotice.nettrack'
 local notice   <const> = require 'hub.features.snotice.notice'
-local send     <const> = require 'hub.net.send'
 local stores   <const> = require 'hub.features.snotice.stores'
 
 local M = {}
+
+local query <const> = common.sender 'snotice'
 
 M.name = 'snotice'
 
@@ -39,13 +40,6 @@ function M.parse(net, msg)
         ev.timestamp = msg.timestamp
     end
     return ev
-end
-
-local function query(net, ...)
-    local ok, err = pcall(send.send, net, ...)
-    if not ok then
-        log.add_net(net, 'snotice', '%s', err)
-    end
 end
 
 --- Ask for the user count of every tracked address range.

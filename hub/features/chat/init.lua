@@ -55,6 +55,8 @@ local whois      <const> = require 'hub.features.chat.whois'
 
 local M = {}
 
+local query <const> = common.sender 'chat'
+
 M.name = 'chat'
 M.buffer_size = 1000
 M.list_size = 10000
@@ -143,13 +145,6 @@ end
 
 local function enabled(net)
     return common.enabled(net, M.name)
-end
-
-local function query(net, ...)
-    local ok, err = pcall(send.send, net, ...)
-    if not ok then
-        log.add_net(net, 'chat', '%s', err)
-    end
 end
 
 local function model(net)

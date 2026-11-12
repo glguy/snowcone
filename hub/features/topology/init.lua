@@ -14,11 +14,12 @@ local ircd      <const> = require 'hub.net.ircd'
 local log       <const> = require 'hub.runtime.log'
 local N         <const> = require 'hub.lib.numerics'
 local resources <const> = require 'hub.runtime.resources'
-local send      <const> = require 'hub.net.send'
 local task      <const> = require 'hub.runtime.task'
 local timer     <const> = require 'hub.runtime.timer'
 
 local M = {}
+
+local query <const> = common.sender 'topology'
 
 M.name = 'topology'
 M.refresh_ms = 30000
@@ -66,13 +67,6 @@ end
 
 local function enabled(net)
     return common.enabled(net, M.name)
-end
-
-local function query(net, ...)
-    local ok, err = pcall(send.send, net, ...)
-    if not ok then
-        log.add_net(net, 'topology', '%s', err)
-    end
 end
 
 --- Ask for the server map and links again.
