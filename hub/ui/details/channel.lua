@@ -1,6 +1,7 @@
 -- A channel's information in the detail pane, read live from the model
 -- (net/irc.lua): topic and who set it, creation time, modes, our own
--- prefix modes (op, voice, ...), members by rank, and the list modes (bans, quiets, ...); [↻] asks the server for
+-- prefix modes (op, voice, ...), members by rank (in italics when known to
+-- be away), and the list modes (bans, quiets, ...); [↻] asks the server for
 -- a list, or for the topic or modes, again or for the first time.
 -- A channel we aren't in shows its snapshot (net/irc.lua), with how old each
 -- part is and no members; it lives as long as the channel's buffer, or the
@@ -71,6 +72,7 @@ local function ours(win, irc, channel)
     elseif prefixes ~= '' then
         draw.yellow(win)
     end
+    if member.user.away then draw.italic(win) end
     win:waddstr(prefixes, scrub(member.user.nick))
     draw.normal(win)
     key(win, 'as')
@@ -92,7 +94,10 @@ local function members(ctx, win, irc, channel, pattern)
         counts[prefix] = (counts[prefix] or 0) + 1
         local nick = member.user.nick
         if not pattern or matching.safematch(nick, pattern) then
-            table.insert(ranked, {rank = rank, text = prefix .. nick, nick = irc_model.fold(irc, nick)})
+            table.insert(ranked, {
+                rank = rank, text = prefix .. nick, nick = irc_model.fold(irc, nick),
+                away = member.user.away and true or false,
+            })
         end
     end
     table.sort(ranked, function(a, b)
@@ -116,11 +121,12 @@ local function members(ctx, win, irc, channel, pattern)
     local list = {}
     for i, entry in ipairs(ranked) do list[i] = scrub(entry.text) end
     label(win, pattern and 'matching' or 'nicks')
-    words(ctx, win, 'members', list, function(w, text)
+    words(ctx, win, 'members', list, function(w, text, i)
         local p = text:sub(1, 1)
         if irc.prefix_to_mode[p] then
             if p == irc.prefixes:sub(1, 1) then draw.green(w) else draw.yellow(w) end
         end
+        if ranked[i].away then draw.italic(w) end
     end)
 end
 

@@ -2,7 +2,8 @@
 -- terminal. It has the real module's names (tests-terminal checks that they
 -- match) and raises an error for any other. Constants are distinct numbers,
 -- but for COLORS, which is 256; functions do nothing unless defined below.
--- Windows track the cursor through wmove and waddstr, and keep their text.
+-- Windows track the cursor through wmove and waddstr, and keep their text,
+-- and which of it was written in italics.
 --
 --   local fake = dofile 'fake_ncurses.lua'
 --   fake.install()    -- sets the ncurses, tty_width and tty_height globals
@@ -50,13 +51,16 @@ M.windows = {}
 -- a row moves the cursor to the start of the next at once, and on the
 -- last row it stays in the last column.
 local function new_window(kind, h, w)
-    local win = {kind = kind, y = 0, x = 0, h = h or math.huge, w = w or math.huge, text = {}}
+    local win = {kind = kind, y = 0, x = 0, h = h or math.huge, w = w or math.huge, text = {}, slanted = {}}
     table.insert(M.windows, win)
     local function put(self, c)
         if self.y >= self.h then return end
         local row = self.text[self.y] or {}
         self.text[self.y] = row
         row[self.x + 1] = c
+        local slanted = self.slanted[self.y] or {}
+        self.slanted[self.y] = slanted
+        slanted[self.x + 1] = rawget(self, 'italic')
         self.x = self.x + 1
         if self.x >= self.w then
             if self.y + 1 < self.h then
@@ -82,7 +86,7 @@ local function new_window(kind, h, w)
                 end
             end
         elseif name == 'werase' then
-            return function(self) self.y, self.x, self.text = 0, 0, {} end
+            return function(self) self.y, self.x, self.text, self.slanted = 0, 0, {}, {} end
         elseif name == 'wresize' then
             return function(self, rows, cols) self.h, self.w = rows, cols end
         elseif name == 'pnoutrefresh' then
@@ -104,8 +108,42 @@ function M.row(win, y)
     return table.concat(out)
 end
 
+--- The runs of italic text in row y of a window, in order.
+function M.italics(win, y)
+    local row, slanted = win.text[y] or {}, win.slanted[y] or {}
+    local last = 0
+    for x in pairs(row) do last = math.max(last, x) end
+    local runs, run = {}, nil
+    for x = 1, last + 1 do
+        if slanted[x] and row[x] then
+            run = (run or '') .. row[x]
+        elseif run then
+            table.insert(runs, run)
+            run = nil
+        end
+    end
+    return runs
+end
+
+-- Attribute changes, as far as italics go; the window is the last argument
+local function set_italic(on)
+    return function(attr, ...)
+        local n = select('#', ...)
+        local win = n > 0 and select(n, ...) or nil
+        if type(win) ~= 'table' then return end
+        if on == nil then -- attrset
+            win.italic = attr == constant_values.WA_ITALIC or nil
+        elseif attr == constant_values.WA_ITALIC then
+            win.italic = on or nil
+        end
+    end
+end
+local attr_functions = {attron = set_italic(true), attroff = set_italic(false), attrset = set_italic(nil)}
+
 M.ncurses = setmetatable({}, {__index = function(_, name)
-    if is_constant[name] then
+    if attr_functions[name] then
+        return attr_functions[name]
+    elseif is_constant[name] then
         return constant_values[name]
     elseif name == 'newwin' or name == 'newpad' then
         return function(h, w) return new_window(name, h, w) end

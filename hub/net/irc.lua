@@ -5,9 +5,14 @@
 -- exists while a connection does. Nick and channel keys are folded with the
 -- network's casemapping, which ISUPPORT CASEMAPPING selects.
 --
--- irc.users holds weak values: a user stays while a channel member or a
--- monitor entry refers to it. That metatable carries no code, so it is
--- safe across reloads.
+-- A user is in irc.users exactly while they are in view: a member of a
+-- channel we are in, or online by MONITOR. A record starts when they come
+-- into view and is removed when they leave it, so nothing it holds
+-- outlives the time we could have heard about it. Only the functions here
+-- add or remove members, monitor entries and users.
+--
+-- A user's away state is kept only while the server tells us of its
+-- changes (live, below); otherwise it is unknown.
 
 local bus     <const> = require 'hub.runtime.bus'
 local casemap <const> = require 'hub.lib.casemap'
@@ -108,7 +113,8 @@ function M.new()
     ---@field channels table<string, hub.Channel> joined ones, by folded name
     ---@field observed table<string, hub.Channel>|nil snapshots of channels
     --- we aren't in, by folded name; made by the first observe_channel
-    ---@field users table<string, hub.User> by folded nick, weak values
+    ---@field users table<string, hub.User> by folded nick, those in view
+    ---@field away string|true|false|nil ours, as for hub.User
     ---@field mode table<string, true> our user modes
     ---@field account string|nil ours, once logged in
     ---@field oper boolean|nil
@@ -138,7 +144,7 @@ function M.new()
         batches = {},
         channels = {},
         mode = {},
-        users = setmetatable({}, {__mode = 'v'}),
+        users = {},
 
         linelen = 512, -- updated by ISUPPORT
         chantypes = '&#', -- updated by ISUPPORT
@@ -162,7 +168,8 @@ end
 
 ---@class hub.User
 ---@field nick string
----@field away string|nil the away message
+---@field away string|true|false|nil away with this message, or with none
+--- (true); here (false); unknown (nil)
 
 ---@class hub.Channel
 ---@field name string
@@ -220,8 +227,12 @@ end
 function isupport_logic.MONITOR(irc, arg)
     if arg then
         irc.monitor = irc.monitor or {}
-    else
+    elseif irc.monitor then
+        local old = irc.monitor
         irc.monitor = nil
+        for key in pairs(old) do
+            M.settle(irc, key)
+        end
     end
 end
 
@@ -315,18 +326,91 @@ function M.text_room(irc, command, target)
     return irc.linelen - #relayed - userhost
 end
 
---- The user record for a nick, created when missing.
+--- The record of a user in view, or nil.
 ---@param irc hub.Irc
 ---@param nick string
----@return hub.User
-function M.get_user(irc, nick)
+---@return hub.User|nil
+function M.find_user(irc, nick)
+    return irc.users[M.fold(irc, nick)]
+end
+
+-- The record for a nick coming into view, made when missing; a new one
+-- knows nothing of the user, except ours, which knows our away state
+---@return hub.User user
+---@return boolean created
+local function enter_view(irc, nick)
     local key = M.fold(irc, nick)
     local user = irc.users[key]
-    if not user then
-        user = {nick = nick}
-        irc.users[key] = user
+    if user then return user, false end
+    user = {nick = nick}
+    if M.is_me(irc, nick) then user.away = irc.away end
+    irc.users[key] = user
+    return user, true
+end
+
+-- Whether the user is in a channel we are in
+local function in_channel(irc, key)
+    for _, channel in pairs(irc.channels) do
+        if channel.members[key] then return true end
     end
-    return user
+    return false
+end
+
+-- Whether MONITOR reports the user online
+local function monitored(irc, key)
+    local entry = irc.monitor and irc.monitor[key]
+    return entry ~= nil and entry.user ~= nil
+end
+
+--- Whether the server tells us when a user goes away or comes back:
+--- away-notify covers the channels we share, and extended-monitor
+--- extends it to the nicks we monitor. Our own state comes from replies
+--- to our AWAY, so it is always live.
+---@param irc hub.Irc
+---@param nick string
+---@return boolean
+function M.away_live(irc, nick)
+    if M.is_me(irc, nick) then return true end
+    if not irc.caps_enabled['away-notify'] then return false end
+    local key = M.fold(irc, nick)
+    return in_channel(irc, key)
+        or irc.caps_enabled['extended-monitor'] ~= nil and monitored(irc, key)
+end
+
+--- After a change in what keeps a user in view: remove them once nothing
+--- does, and forget their away state once it is no longer live.
+---@param irc hub.Irc
+---@param key string folded nick
+function M.settle(irc, key)
+    local user = irc.users[key]
+    if not user then return end
+    if not (in_channel(irc, key) or monitored(irc, key)) then
+        irc.users[key] = nil
+    elseif not M.away_live(irc, user.nick) then
+        user.away = nil
+    end
+end
+
+--- Forget the away state of every user whose state is no longer live,
+--- as when away-notify or extended-monitor goes away.
+---@param irc hub.Irc
+function M.settle_all(irc)
+    for key in pairs(irc.users) do
+        M.settle(irc, key)
+    end
+end
+
+--- Set a user's away state, when they are in view and it is live; ours
+--- is kept even when we are in no channel.
+---@param irc hub.Irc
+---@param nick string
+---@param away string|true|false
+function M.set_away(irc, nick, away)
+    if M.is_me(irc, nick) then irc.away = away end
+    local user = M.find_user(irc, nick)
+    if user and M.away_live(irc, nick) then
+        user.away = away
+    end
 end
 
 --- A nick is ours, compared with the network's casemapping (a server may
@@ -436,6 +520,99 @@ function M.get_member(irc, channel, nick)
     return channel.members[M.fold(irc, nick)]
 end
 
+--- Start a channel we just joined, in place of any record of it.
+---@param irc hub.Irc
+---@param name string
+---@return hub.Channel
+function M.join_channel(irc, name)
+    M.drop_channel(irc, name)
+    local channel = M.new_channel(name)
+    irc.channels[M.fold(irc, name)] = channel
+    M.forget_observed(irc, name)
+    return channel
+end
+
+--- Leave a channel: its members leave our view unless something else
+--- keeps them in it.
+---@param irc hub.Irc
+---@param name string
+function M.drop_channel(irc, name)
+    local key = M.fold(irc, name)
+    local channel = irc.channels[key]
+    if not channel then return end
+    irc.channels[key] = nil
+    for member_key in pairs(channel.members) do
+        M.settle(irc, member_key)
+    end
+end
+
+--- Add or replace a member of a channel we are in. A user coming into
+--- view by a JOIN with away-notify is known to be here: the server sends
+--- AWAY next when they are away. Members from NAMES start unknown.
+---@param irc hub.Irc
+---@param channel hub.Channel
+---@param nick string
+---@param modes table<string, true>|nil
+---@param joined boolean|nil the member is joining now
+---@return hub.Member
+function M.add_member(irc, channel, nick, modes, joined)
+    local was_live = M.away_live(irc, nick)
+    local user = enter_view(irc, nick)
+    local member = M.new_member(user, modes)
+    channel.members[M.fold(irc, nick)] = member
+    if joined and not was_live and M.away_live(irc, nick) then
+        user.away = false
+    end
+    return member
+end
+
+---@param irc hub.Irc
+---@param channel hub.Channel
+---@param nick string
+function M.remove_member(irc, channel, nick)
+    local key = M.fold(irc, nick)
+    channel.members[key] = nil
+    M.settle(irc, key)
+end
+
+--- A user quit: out of every channel, and offline on MONITOR.
+---@param irc hub.Irc
+---@param nick string
+function M.remove_user(irc, nick)
+    local key = M.fold(irc, nick)
+    for _, channel in pairs(irc.channels) do
+        channel.members[key] = nil
+    end
+    if irc.monitor and irc.monitor[key] then
+        irc.monitor[key] = {}
+    end
+    irc.users[key] = nil
+end
+
+--- A user changed nick: the record moves to the new key in irc.users and
+--- in each channel. MONITOR follows nicks, not users, and reports each
+--- one by itself.
+---@param irc hub.Irc
+---@param oldnick string
+---@param newnick string
+function M.rename_user(irc, oldnick, newnick)
+    local oldkey = M.fold(irc, oldnick)
+    local newkey = M.fold(irc, newnick)
+    local user = irc.users[oldkey]
+    if not user then return end
+    user.nick = newnick
+    if oldkey == newkey then return end
+    irc.users[oldkey] = nil
+    irc.users[newkey] = user
+    for _, channel in pairs(irc.channels) do
+        local member = channel.members[oldkey]
+        if member then
+            channel.members[oldkey] = nil
+            channel.members[newkey] = member
+        end
+    end
+end
+
 --- Commands sent to a channel by their first argument (past a STATUSMSG
 --- prefix), whose messages keep the sender's prefix modes there
 --- (net/handlers.lua).
@@ -490,15 +667,18 @@ function M.get_monitor(irc, nick)
     return irc.monitor and irc.monitor[M.fold(irc, nick)]
 end
 
---- Track a monitored nick; online links its user record.
+--- Track a monitored nick; online links its user record, bringing it
+--- into view.
 ---@param irc hub.Irc
 ---@param nick string
 ---@param online boolean
 function M.add_monitor(irc, nick, online)
+    local key = M.fold(irc, nick)
     if online then
-        irc.monitor[M.fold(irc, nick)] = {user = M.get_user(irc, nick)}
+        irc.monitor[key] = {user = (enter_view(irc, nick))}
     else
-        irc.monitor[M.fold(irc, nick)] = {}
+        irc.monitor[key] = {}
+        M.settle(irc, key)
     end
 end
 
@@ -506,7 +686,9 @@ end
 ---@param nick string
 function M.del_monitor(irc, nick)
     if irc.monitor then
-        irc.monitor[M.fold(irc, nick)] = nil
+        local key = M.fold(irc, nick)
+        irc.monitor[key] = nil
+        M.settle(irc, key)
     end
 end
 
@@ -596,6 +778,7 @@ function M.del_caps(irc, capsarg)
             set_sasl_mechs(irc, nil)
         end
     end
+    M.settle_all(irc)
 end
 
 --- Record a CAP ACK: names enabled, or disabled with a leading -
@@ -605,6 +788,7 @@ function M.ack_caps(irc, capsarg)
     for minus, cap in capsarg:gmatch '(%-?)([^ ]+)' do
         irc.caps_enabled[cap] = minus == '' or nil
     end
+    M.settle_all(irc)
 end
 
 --- Apply `registration.capabilities` from configuration: names to add, or remove

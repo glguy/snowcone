@@ -406,7 +406,8 @@ return {
     end,
 
     -- The target behind its STATUSMSG prefix (red), colored by whether we
-    -- can reach it, who is typing there, then buffers with unseen messages
+    -- can reach it and in italics when it is a nick known to be away, who
+    -- is typing there, then buffers with unseen messages
     -- (magenta for mentions): a few, mentions first, then how many more
     -- (click it for the jump list)
     status = function(ctx, win)
@@ -442,6 +443,8 @@ return {
             local name = buffer and buffer.name or target
             local _, x1 = ncurses.getyx(win)
             draw.bold(win)
+            local user = irc and irc_model.find_user(irc, target)
+            if user and user.away then draw.italic(win) end
             win:waddstr(scrub(name))
             draw.normal(win)
             -- a channel's name opens its information, a nick's its WHOIS

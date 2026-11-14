@@ -280,7 +280,6 @@ function H.NICK(rec, irc, msg)
 
     local oldkey = irc_model.fold(irc, oldnick)
     local newkey = irc_model.fold(irc, newnick)
-    local rename = oldkey ~= newkey
     local self = irc_model.is_me(irc, oldnick)
 
     if self then
@@ -291,21 +290,7 @@ function H.NICK(rec, irc, msg)
     end
 
     msg.channels = channels_of(irc, oldkey)
-
-    local user = irc_model.get_user(irc, oldnick)
-    user.nick = newnick
-    if rename then
-        irc.users[oldkey] = nil
-        irc.users[newkey] = user
-    end
-
-    for _, channel in pairs(irc.channels) do
-        local member = channel.members[oldkey]
-        if member and rename then
-            channel.members[oldkey] = nil
-            channel.members[newkey] = member
-        end
-    end
+    irc_model.rename_user(irc, oldnick, newnick)
 
     bus.emit('irc.nick', {net = rec.id, old = oldnick, new = newnick, self = self})
 end
@@ -333,13 +318,12 @@ function H.JOIN(_, irc, msg)
     local name = msg[1]
     if not who or not name then return end
     if irc_model.is_me(irc, who) then
-        irc.channels[irc_model.fold(irc, name)] = irc_model.new_channel(name)
-        irc_model.forget_observed(irc, name)
+        irc_model.join_channel(irc, name)
     end
 
     local channel = irc_model.get_channel(irc, name)
     if channel then
-        channel.members[irc_model.fold(irc, who)] = irc_model.new_member(irc_model.get_user(irc, who))
+        irc_model.add_member(irc, channel, who, nil, true)
     end
 end
 
@@ -359,8 +343,7 @@ H[N.RPL_NAMREPLY] = function(_, irc, msg)
         end
         entry = entry:match '^[^!@]*'
         if entry ~= '' then
-            channel.members[irc_model.fold(irc, entry)] =
-                irc_model.new_member(irc_model.get_user(irc, entry), modes)
+            irc_model.add_member(irc, channel, entry, modes)
         end
     end
 end
@@ -379,11 +362,11 @@ function H.PART(_, irc, msg)
     local name = msg[1]
     if not who or not name then return end
     if irc_model.is_me(irc, who) then
-        irc.channels[irc_model.fold(irc, name)] = nil
+        irc_model.drop_channel(irc, name)
     else
         local channel = irc_model.get_channel(irc, name)
         if channel then
-            channel.members[irc_model.fold(irc, who)] = nil
+            irc_model.remove_member(irc, channel, who)
         end
     end
 end
@@ -393,11 +376,11 @@ function H.KICK(_, irc, msg)
     local target = msg[2]
     if not name or not target then return end
     if irc_model.is_me(irc, target) then
-        irc.channels[irc_model.fold(irc, name)] = nil
+        irc_model.drop_channel(irc, name)
     else
         local channel = irc_model.get_channel(irc, name)
         if channel then
-            channel.members[irc_model.fold(irc, target)] = nil
+            irc_model.remove_member(irc, channel, target)
         end
     end
 end
@@ -407,28 +390,35 @@ function H.QUIT(rec, irc, msg)
     if not nick then return end
     local key = irc_model.fold(irc, nick)
     msg.channels = channels_of(irc, key)
-
-    for _, channel in pairs(irc.channels) do
-        channel.members[key] = nil
-    end
-    irc.users[key] = nil
+    irc_model.remove_user(irc, nick)
 
     if want_nick(rec, irc, nick) then
         M.reclaim_nick(rec.id)
     end
 end
 
+-- No message, or an empty one, when back
 function H.AWAY(_, irc, msg)
     if msg.nick then
-        irc_model.get_user(irc, msg.nick).away = msg[1] -- nil when back
+        local text = msg[1]
+        irc_model.set_away(irc, msg.nick, text ~= nil and text ~= '' and text or false)
     end
 end
 
 -- "<client> <nick> :<message>"
 H[N.RPL_AWAY] = function(_, irc, msg)
     if msg[2] then
-        irc_model.get_user(irc, msg[2]).away = msg[3]
+        local text = msg[3]
+        irc_model.set_away(irc, msg[2], text ~= nil and text ~= '' and text or true)
     end
+end
+
+-- Replies to our own AWAY
+H[N.RPL_UNAWAY] = function(_, irc)
+    if irc.nick then irc_model.set_away(irc, irc.nick, false) end
+end
+H[N.RPL_NOWAWAY] = function(_, irc)
+    if irc.nick then irc_model.set_away(irc, irc.nick, true) end
 end
 
 -----------------------------------------------------------------------

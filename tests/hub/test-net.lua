@@ -554,6 +554,159 @@ T.case('channel membership and modes', function()
     T.eq(chan.members.OTHER, nil, 'parted')
 end)
 
+-- Drive registration with these capabilities acknowledged
+local function register_caps(c, caps, isupport)
+    c:con()
+    c:recv(':srv CAP * LS :' .. caps)
+    c:recv(':srv CAP me ACK :' .. caps)
+    c:recv ':srv 001 me :Welcome'
+    c:recv(':srv 005 me ' .. (isupport or 'CHANTYPES=#') .. ' :are supported')
+    c:recv ':srv 376 me :End of MOTD'
+end
+
+-- Every user record is in view, and every member's record is the user's
+local function check_view(irc)
+    for key, user in pairs(irc.users) do
+        local seen = irc.monitor and irc.monitor[key] and irc.monitor[key].user == user
+        for _, channel in pairs(irc.channels) do
+            local member = channel.members[key]
+            if member then
+                T.ok(member.user == user, 'one record for ' .. key)
+                seen = true
+            end
+        end
+        T.ok(seen, key .. ' in view')
+    end
+    for _, channel in pairs(irc.channels) do
+        for key, member in pairs(channel.members) do
+            T.ok(irc.users[key] == member.user, key .. ' recorded')
+        end
+    end
+end
+
+-- The folded nicks of the users in view, sorted
+local function in_view(irc)
+    local keys = {}
+    for key in pairs(irc.users) do table.insert(keys, key) end
+    table.sort(keys)
+    return keys
+end
+
+T.case('users are in view exactly while a channel or MONITOR keeps them', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c, 'me', 'CHANTYPES=# MONITOR=100')
+    local irc = assert(rec().irc)
+    c:recv ':me!u@h JOIN #a'
+    c:recv ':srv 353 me = #a :me alice bob erin'
+    c:recv ':me!u@h JOIN #b'
+    c:recv ':srv 353 me = #b :me alice erin'
+    check_view(irc)
+    T.eq(in_view(irc), {'ALICE', 'BOB', 'ERIN', 'ME'}, 'from NAMES')
+
+    c:recv ':bob!u@h PART #a'
+    T.eq(irc.users.BOB, nil, 'gone with their only channel')
+    c:recv ':erin!u@h NICK Fay'
+    check_view(irc)
+    T.eq(in_view(irc), {'ALICE', 'FAY', 'ME'}, 'renamed')
+    T.ok(irc.channels['#A'].members.FAY.user == irc.channels['#B'].members.FAY.user, 'one record')
+    c:recv ':fay!u@h NICK FAY'
+    T.eq(irc.users.FAY.nick, 'FAY', 'a change of case keeps the record')
+
+    c:recv ':me!u@h PART #a'
+    check_view(irc)
+    T.eq(in_view(irc), {'ALICE', 'FAY', 'ME'}, 'kept by #b')
+    c:recv ':op!u@h KICK #b me :out'
+    T.eq(in_view(irc), {}, 'no channel, no one')
+
+    c:recv ':srv 730 me :carol!c@h,dave!d@h'
+    check_view(irc)
+    T.eq(in_view(irc), {'CAROL', 'DAVE'}, 'online by MONITOR')
+    c:recv ':srv 731 me :carol'
+    T.eq(in_view(irc), {'DAVE'}, 'offline')
+    c:recv ':me!u@h JOIN #a'
+    c:recv ':srv 353 me = #a :me dave'
+    c:recv ':dave!d@h QUIT :bye'
+    T.eq(in_view(irc), {'ME'}, 'quit')
+    T.eq(irc.monitor.DAVE, {}, 'offline on MONITOR too')
+
+    c:recv ':srv 730 me :dave!d@h'
+    T.require 'hub.net.irc'.del_monitor(irc, 'dave')
+    T.eq(irc.users.DAVE, nil, 'unwatched')
+    c:recv ':srv 730 me :zed!z@h'
+    c:recv ':srv 005 me -MONITOR :are supported'
+    T.eq(irc.users.ZED, nil, 'MONITOR withdrawn, no one online by it')
+end)
+
+T.case('away is known while away-notify keeps it current, and only then', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register_caps(c, 'away-notify')
+    local irc = assert(rec().irc)
+    c:recv ':me!u@h JOIN #a'
+    c:recv ':srv 353 me = #a :me alice'
+    T.eq(irc.users.ALICE.away, nil, 'unknown from NAMES')
+    c:recv ':srv 301 me alice :at lunch'
+    T.eq(irc.users.ALICE.away, 'at lunch', 'known from RPL_AWAY')
+    c:recv ':alice!a@h AWAY'
+    T.eq(irc.users.ALICE.away, false, 'back')
+
+    c:recv ':bob!b@h JOIN #a'
+    T.eq(irc.users.BOB.away, false, 'here on joining')
+    c:recv ':bob!b@h AWAY :brb'
+    T.eq(irc.users.BOB.away, 'brb', 'away')
+    c:recv ':bob!b@h PART #a'
+    c:recv ':bob!b@h JOIN #a'
+    T.eq(irc.users.BOB.away, false, 'back while out of view: no AWAY follows the JOIN')
+    c:recv ':bob!b@h AWAY :'
+    T.eq(irc.users.BOB.away, false, 'an empty message is back')
+    c:recv ':bob!b@h AWAY :brb'
+    c:recv ':me!u@h JOIN #b'
+    c:recv ':bob!b@h JOIN #b'
+    T.eq(irc.users.BOB.away, 'brb', 'a JOIN while in view keeps what is known')
+
+    c:recv ':srv 301 me zed :gone'
+    T.eq(irc.users.ZED, nil, 'no record for a user out of view')
+
+    c:recv ':srv CAP me DEL :away-notify'
+    T.eq(irc.users.BOB.away, nil, 'unknown without away-notify')
+    c:recv ':srv 301 me bob :brb'
+    T.eq(irc.users.BOB.away, nil, 'a reply would not be kept current')
+    c:recv ':carol!c@h JOIN #a'
+    T.eq(irc.users.CAROL.away, nil, 'nor a JOIN')
+end)
+
+T.case('a monitored nick has an away state with extended-monitor', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register_caps(c, 'away-notify extended-monitor', 'CHANTYPES=# MONITOR=100')
+    local irc = assert(rec().irc)
+    c:recv ':srv 730 me :carol!c@h'
+    T.eq(irc.users.CAROL.away, nil, 'unknown when online')
+    c:recv ':carol!c@h AWAY :out'
+    T.eq(irc.users.CAROL.away, 'out', 'kept current')
+    c:recv ':me!u@h JOIN #a'
+    c:recv ':carol!c@h JOIN #a'
+    T.eq(irc.users.CAROL.away, 'out', 'already current when she joins')
+    c:recv ':carol!c@h PART #a'
+    T.eq(irc.users.CAROL.away, 'out', 'and after she parts')
+    c:recv ':srv CAP me DEL :extended-monitor'
+    T.eq(irc.users.CAROL.away, nil, 'unknown without extended-monitor')
+end)
+
+T.case('our own away state comes from the replies to AWAY', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    local irc = assert(rec().irc)
+    c:recv ':srv 306 me :You have been marked as being away'
+    T.eq(irc.away, true, 'away')
+    c:recv ':me!u@h JOIN #a'
+    T.eq(irc.users.ME.away, true, 'carried into our record')
+    c:recv ':srv 305 me :You are no longer marked as being away'
+    T.eq({irc.away, irc.users.ME.away}, {false, false}, 'back')
+end)
+
 T.case('a lopsided PREFIX and a NAMES word of only prefixes add no one', function()
     local fake = boot {network('test')}
     local c = fake.last()

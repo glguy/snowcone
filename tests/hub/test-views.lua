@@ -2511,6 +2511,51 @@ T.case('clicks follow a wide detail scrolled sideways, and its rule stays put', 
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+-- The italic runs of a window's rows, trimmed, in order
+local function italics_of(win)
+    local runs = {}
+    for y = 0, win.y do
+        for _, run in ipairs(fake_ncurses.italics(win, y)) do
+            run = run:match '^%s*(.-)%s*$'
+            if run ~= '' then table.insert(runs, run) end
+        end
+    end
+    return runs
+end
+
+T.case('nicks known to be away are in italics: members and a private target', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:recv ':srv CAP me ACK :away-notify'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':srv 353 me = #chan :me alice bob'
+    c:recv ':srv 301 me alice :lunch'
+    c:recv ':carol!c@h JOIN #chan'
+    c:recv ':carol!c@h AWAY :out'
+    c:recv ':srv 306 me :You have been marked as being away'
+    c:take()
+    control.set_talk_target('test', '#chan')
+
+    cmdline.execute 'chaninfo'
+    c:take()
+    HUB.current.routes['ui.draw']()
+    T.eq(italics_of(detail_pad()), {'me', 'alice', 'carol', 'me'}, 'us, then the away members')
+
+    control.set_talk_target('test', 'carol')
+    control.set_view 'buffer'
+    T.ok(status_bar():find('carol', 1, true), 'carol named')
+    local bar
+    for i = #fake_ncurses.windows, 1, -1 do
+        local win = fake_ncurses.windows[i]
+        if win.kind == 'newwin' and win.h == 1 and win.w == tty_width then bar = win break end
+    end
+    T.eq(italics_of(bar), {'carol'}, 'a private target')
+    c:recv ':carol!c@h AWAY'
+    status_bar()
+    T.eq(italics_of(bar), {}, 'back')
+end)
+
 T.case('channel information: topic, modes, members and lists, live', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
