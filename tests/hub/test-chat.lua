@@ -323,6 +323,37 @@ T.case('global mention patterns apply without network ones', function()
     T.eq(chat.buffer('test', '#c').mention, true, 'global pattern')
 end)
 
+T.case('mention regexes, and a level setting either list replaces both below it', function()
+    if not pcall(require, 'rex_pcre2') then return end
+    local buffers = {
+        {name = '#own', mention = {regexes = {'^deploy (failed|stuck)$'}}},
+        {name = 'bob', mention = {regexes = {'(?i)^URGENT'}}},
+    }
+    local c, chat = boot({buffers = buffers, mention = {regexes = {'\\bme\\b'}}},
+        {mention = {patterns = {'snowcone'}}})
+    local function mention(name) return chat.buffer('test', name).mention end
+    c:recv ':alice!a@h PRIVMSG #c :I like snowcone'
+    T.eq(mention '#c', false, "the network's regexes replace the global patterns")
+    c:recv ':alice!a@h PRIVMSG #c :hello me'
+    T.eq(mention '#c', true, "the network's regex")
+    c:recv ':alice!a@h PRIVMSG #own :hello me'
+    T.eq(mention '#own', false, "the buffer's own replace the network's")
+    c:recv ':alice!a@h PRIVMSG #own :deploy stuck'
+    T.eq(mention '#own', true, "the buffer's own regex")
+    c:recv ':bob!b@h PRIVMSG me :hi'
+    T.eq(mention 'bob', false, 'a private buffer with regexes: not every message')
+    c:recv ':bob!b@h PRIVMSG me :urgent: look'
+    T.eq(mention 'bob', true, '(?i) ignores case')
+end)
+
+T.case('mention patterns are Lua patterns whatever is installed', function()
+    local c, chat = boot({mention = {patterns = {'a%d'}}})
+    c:recv ':alice!a@h PRIVMSG #c :a\\d'
+    T.eq(chat.buffer('test', '#c').mention, false, 'not read as a regex')
+    c:recv ':alice!a@h PRIVMSG #d :a1'
+    T.eq(chat.buffer('test', '#d').mention, true, 'a Lua pattern')
+end)
+
 T.case('statusmsg, echo and membership changes', function()
     local c, chat = boot()
     c:recv ':me!u@h JOIN #c'

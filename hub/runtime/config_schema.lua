@@ -190,8 +190,11 @@ local sasl_schema <const> = table_ {
     }),
 }
 
+-- Lua patterns and PCRE2 regular expressions; config.lua checks that the
+-- regexes compile
 local mention_schema <const> = table_ {
     patterns = array {type = 'string'},
+    regexes  = array {type = 'string'},
 }
 
 -- Settings for the buffer of a channel or nick; config.lua checks that

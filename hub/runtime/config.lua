@@ -13,6 +13,7 @@ local file    <const> = require 'pl.file'
 local path    <const> = require 'pl.path'
 local tablex  <const> = require 'pl.tablex'
 local casemap <const> = require 'hub.lib.casemap'
+local regex   <const> = require 'hub.lib.regex'
 local schema  <const> = require 'hub.lib.schema'
 local cschema <const> = require 'hub.runtime.config_schema'
 
@@ -161,6 +162,16 @@ for _, name in ipairs(cschema.features) do
     all_features[name] = true
 end
 
+-- Mention settings' regexes must compile, so they need rex_pcre2
+local function check_mention(mention, where)
+    for i, source in ipairs(mention and mention.regexes or {}) do
+        local err = regex.check(source)
+        if err then
+            error(string.format('%s.regexes.%d: %s', where, i, err), 0)
+        end
+    end
+end
+
 -- `i` names the network in errors until its id is known to be valid
 local function normalize_network(net, i)
     local label = type(net.id) == 'string' and net.id or tostring(i)
@@ -223,6 +234,7 @@ local function normalize_network(net, i)
                 net.id, n, buffer.name, names[key]), 0)
         end
         names[key] = n
+        check_mention(buffer.mention, string.format('networks.%s.buffers.%d.mention', net.id, n))
         local key_label = buffer.label
         if key_label == true then
             error(string.format('networks.%s.buffers.%d.label: a letter or digit, or false for none', net.id, n), 0)
@@ -235,6 +247,7 @@ local function normalize_network(net, i)
         end
     end
     net.buffers = net.buffers or {}
+    check_mention(net.mention, string.format('networks.%s.mention', net.id))
 
     if net.autoconnect == nil then net.autoconnect = true end
     if net.reclaim_nick == nil then net.reclaim_nick = true end
@@ -287,6 +300,7 @@ end
 function M.normalize(raw)
     raw = tablex.deepcopy(raw)
     schema.check(cschema.file, raw, {})
+    check_mention(raw.mention, 'mention')
 
     local networks = {}
     local seen = {}

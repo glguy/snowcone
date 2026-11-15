@@ -1361,6 +1361,28 @@ T.case('buffers are checked for repeated names and labels', function()
     T.ok(not ok and err:find('Unexpected field', 1, true), tostring(err))
 end)
 
+T.case('mention regexes are checked at load, and need rex_pcre2', function()
+    T.boot()
+    local config = T.require 'hub.runtime.config'
+    local regex = T.require 'hub.lib.regex'
+    local function load(raw)
+        return pcall(config.normalize, raw)
+    end
+    local buffered = {networks = {network('x', {buffers = {{name = '#a', mention = {regexes = {'ok'}}}}})}}
+    local ok, err = load(buffered)
+    if regex.available then
+        T.ok(ok, tostring(err))
+        ok, err = load {mention = {regexes = {'fine', '('}}}
+        T.ok(not ok and err:find('mention.regexes.2: ', 1, true), tostring(err))
+        ok, err = load {networks = {network('x', {mention = {regexes = {'[a'}}})}}
+        T.ok(not ok and err:find('networks.x.mention.regexes.1: ', 1, true), tostring(err))
+    else
+        T.ok(not ok and err:find('networks.x.buffers.1.mention.regexes.1: regular expressions need rex_pcre2', 1, true),
+            tostring(err))
+    end
+    T.ok(load {mention = {patterns = {'('}}}, 'patterns are not checked')
+end)
+
 T.case('an invalid configuration on reload leaves the old one active', function()
     boot {network('test')}
     local before = HUB.state.config

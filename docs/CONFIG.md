@@ -129,9 +129,10 @@ In TOML, tables such as `[networks.server]` and `[[networks.layers]]` belong to 
 
 | Field | Meaning |
 |---|---|
-| `patterns` | Lua patterns. A channel message matching any of them is a mention: its buffer is marked `!` and a notification may be sent. A private message is always a mention. A [buffer's own](#buffers) patterns replace both rules. |
+| `patterns` | Lua patterns. A channel message matching any of them, or any of `regexes`, is a mention: its buffer is marked `!` and a notification may be sent. A private message is always a mention. A [buffer's own](#buffers) mention settings replace both rules. |
+| `regexes` | PCRE2 regular expressions, matched as written: `(?i)` ignores case. They need `rex_pcre2`; a configuration with one fails to load without it, and so does one that doesn't compile. |
 
-A network's own `[networks.mention]` replaces these for that network. It does not add to them.
+A network's own `[networks.mention]` replaces these for that network. It does not add to them. Setting either `patterns` or `regexes` replaces both lists: a network with only `regexes` uses none of the top-level `patterns`.
 
 ### `[notifications]`
 
@@ -459,14 +460,14 @@ Each `[[networks.buffers]]` entry names a channel or nick and sets how its buffe
 |---|---|---|
 | `name` | | Required. The channel or nick, matched with the network's casemapping. Two entries can't name the same buffer. |
 | `join` | `false` | JOIN the channel after every registration, so also after each reconnect. The channels to join go as many to a line as fit, in the order of the entries. Names only, without keys. Leave it out for a channel a bouncer joins for you, or for a nick. |
-| `mention.patterns` | | The buffer's own mention patterns. See below. |
+| `mention.patterns`, `mention.regexes` | | The buffer's own mention patterns and regular expressions, as in the [top-level table](#mention). See below. |
 | `activity` | `true` | With `false`, only mentions mark the buffer unseen. Other messages are still stored. |
 | `label` | the first free one | The buffer's key in the jump pane (`j` in the buffer view): one letter or digit. No other buffer gets that key, even while this buffer isn't open. Two entries can't have the same label. With `false`, the buffer has no key, but you can still click it. |
 | `hidden` | `false` | Leave the buffer out of the jump pane. It still has a label, and typing that label in the jump pane still goes to the buffer. With `label = false` as well, the buffer can't be reached from the jump pane at all. |
 
 Other people's messages mark their buffer unseen (`+`, yellow); joins, parts and your own lines don't. A mention marks it `!` in magenta instead: Meta-A goes to it first, and it can send a [notification](#notifications). In a channel, a mention is a message matching the [mention patterns](#mention). In a private buffer, every message to you is a mention.
 
-A buffer's own `mention.patterns` replace those rules for that buffer, in a channel or a private buffer:
+A buffer's own `mention.patterns` or `mention.regexes` replace those rules for that buffer, in a channel or a private buffer. Setting either one replaces both lists:
 
 - `patterns = []`: nothing in the buffer is a mention.
 - `patterns = ['']`: every message is a mention.
@@ -494,7 +495,7 @@ hidden = true
 
 ### Mentions and watches
 
-`[networks.mention]` takes `patterns` like the [top-level table](#mention) and replaces the top-level patterns for this network. A [buffer's own](#buffers) patterns replace both.
+`[networks.mention]` takes `patterns` and `regexes` like the [top-level table](#mention) and replaces the top-level ones for this network. A [buffer's own](#buffers) replace both.
 
 `[[networks.watches]]` highlights connections whose server notices match a pattern, on networks with the `snotice` feature:
 

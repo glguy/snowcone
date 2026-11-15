@@ -29,9 +29,9 @@
 -- labeled-response await the server's reply (chat/receipt.lua).
 --
 -- A buffer's configured settings ([[networks.buffers]], chat/config.lua)
--- may give it its own mention patterns, which in a private buffer replace
--- the rule that every message to us is a mention, and with activity =
--- false leave its messages other than mentions seen.
+-- may give it its own mention patterns or regexes, which in a private
+-- buffer replace the rule that every message to us is a mention, and
+-- with activity = false leave its messages other than mentions seen.
 --
 -- A private message with the channel-context tag naming a channel we are
 -- in is shown in that channel's buffer, marked msg.context: '>' from the
@@ -456,23 +456,23 @@ local function route_chat(net, irc, target, text, msg)
     end
 
     if irc_model.is_channel_name(irc, target) then
-        add(net, target, msg, config.matches(config.mention_patterns(M, net, target), text), true)
+        add(net, target, msg, config.matches(config.mention(M, net, target), text), true)
         return
     end
 
     -- to us, to a broadcast mask ($$*.net), or to a nick we just left: in
     -- the sender's buffer, or the channel it is meant for; only one to us
-    -- is a mention, unless that buffer has its own patterns, and never a
-    -- CTCP request (VERSION, PING) other than an action
+    -- is a mention, unless that buffer has its own patterns or regexes,
+    -- and never a CTCP request (VERSION, PING) other than an action
     local sender = nick or msg.source
     if sender then
         local buffer = context and nick and context or sender
         local ctcp_request = text:find '^\x01' and not text:find '^\x01ACTION'
-        local patterns = config.own_patterns(M, net, buffer)
+        local own = config.own_mention(M, net, buffer)
         local mention = false
         if not ctcp_request then
-            if patterns then
-                mention = config.matches(patterns, text)
+            if own then
+                mention = config.matches(own, text)
             else
                 mention = irc_model.is_me(irc, target)
             end
