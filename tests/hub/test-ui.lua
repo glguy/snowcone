@@ -312,14 +312,19 @@ T.case('patterns that would run away do not hang', function()
     local loaded, preload = package.loaded.rex_pcre2, package.preload.rex_pcre2
     package.loaded.rex_pcre2 = nil
     package.preload.rex_pcre2 = function() error 'hidden' end
+    -- loaded outside hub's loader, so given the module it requires
+    package.loaded['hub.lib.luapattern'] = T.require 'hub.lib.luapattern'
     local ok, lua_matching = pcall(dofile, T.root .. '/lib/matching.lua')
     package.loaded.rex_pcre2, package.preload.rex_pcre2 = loaded, preload
+    package.loaded['hub.lib.luapattern'] = nil
     assert(ok, lua_matching)
     T.eq(lua_matching.kind, 'lua', 'Lua patterns')
     T.ok(lua_matching.compile 'foo.*bar.-baz', 'two repeats')
     T.ok(lua_matching.compile '[*+-]+%d*x%-', 'quantifier characters in sets and escapes')
     T.eq(lua_matching.compile '.-.-.-x', nil, 'three refused')
     T.eq(lua_matching.compile '%a+%s*%d+', nil, 'of any item')
+    T.eq(lua_matching.compile 'ok(', nil, 'malformed past its first item')
+    T.ok(lua_matching.check '.-.-.-x':find('repeats more than 2', 1, true), 'says why')
 end)
 
 T.case('editor: line breaks, hex input and history', function()

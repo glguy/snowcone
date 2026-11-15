@@ -12,8 +12,10 @@ local app     <const> = require 'pl.app'
 local file    <const> = require 'pl.file'
 local path    <const> = require 'pl.path'
 local tablex  <const> = require 'pl.tablex'
-local casemap <const> = require 'hub.lib.casemap'
-local regex   <const> = require 'hub.lib.regex'
+local casemap    <const> = require 'hub.lib.casemap'
+local luapattern <const> = require 'hub.lib.luapattern'
+local matching   <const> = require 'hub.lib.matching'
+local regex      <const> = require 'hub.lib.regex'
 local schema  <const> = require 'hub.lib.schema'
 local cschema <const> = require 'hub.runtime.config_schema'
 
@@ -162,8 +164,15 @@ for _, name in ipairs(cschema.features) do
     all_features[name] = true
 end
 
--- Mention settings' regexes must compile, so they need rex_pcre2
+-- Mention settings' patterns must be well formed, and their regexes
+-- compile, so they need rex_pcre2
 local function check_mention(mention, where)
+    for i, pattern in ipairs(mention and mention.patterns or {}) do
+        local err = luapattern.check(pattern)
+        if err then
+            error(string.format('%s.patterns.%d: %s', where, i, err), 0)
+        end
+    end
     for i, source in ipairs(mention and mention.regexes or {}) do
         local err = regex.check(source)
         if err then
@@ -193,8 +202,8 @@ local function check_hide(net)
             error(where .. ': a pattern or a regex, not both', 0)
         end
         for i, pattern in ipairs(rule.pattern or {}) do
-            local ok, err = pcall(string.find, '', pattern)
-            if not ok then
+            local err = luapattern.check(pattern)
+            if err then
                 error(string.format('%s.pattern.%d: %s', where, i, err), 0)
             end
         end
@@ -285,6 +294,13 @@ local function normalize_network(net, i)
     net.buffers = net.buffers or {}
     check_mention(net.mention, string.format('networks.%s.mention', net.id))
     check_hide(net)
+    -- a watch's pattern is a filter pattern (lib/matching.lua)
+    for n, watch in ipairs(net.watches or {}) do
+        local err = matching.check(watch.pattern)
+        if err then
+            error(string.format('networks.%s.watches.%d.pattern: %s', net.id, n, err), 0)
+        end
+    end
 
     if net.autoconnect == nil then net.autoconnect = true end
     if net.reclaim_nick == nil then net.reclaim_nick = true end

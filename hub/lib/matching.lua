@@ -8,6 +8,8 @@
 -- patterns, which have no limit, may repeat at most two items with *, +
 -- or -, since each more multiplies the work by the subject's length.
 
+local luapattern <const> = require 'hub.lib.luapattern'
+
 local has_rex, rex = pcall(require, 'rex_pcre2')
 
 local M = {}
@@ -52,6 +54,22 @@ local function repeats(pat)
     return count
 end
 
+--- Why a pattern can't be used, or nil when it can.
+---@param pat string
+---@return string|nil
+function M.check(pat)
+    if has_rex then
+        local ok, err = pcall(rex.new, pat)
+        return not ok and tostring(err) or nil
+    end
+    local err = luapattern.check(pat)
+    if err then return err end
+    if repeats(pat) > max_repeats then
+        return string.format('repeats more than %d items with *, + or -', max_repeats)
+    end
+    return nil
+end
+
 --- Compile a pattern into a matcher, or nil when it is invalid.
 ---@param pat string
 ---@return (fun(str: string): boolean)|nil
@@ -68,9 +86,7 @@ function M.compile(pat)
         return nil
     end
 
-    if not pcall(string.find, '', pat) or repeats(pat) > max_repeats then
-        return nil
-    end
+    if M.check(pat) then return nil end
     return function(str)
         if insensitive then str = str:lower() end
         local ok, found = pcall(string.find, str, pat)

@@ -17,6 +17,50 @@ local function collect(iter)
     return t
 end
 
+T.case('Lua patterns are checked through to their end', function()
+    T.boot {}
+    local check = T.require 'hub.lib.luapattern'.check
+    for _, good in ipairs {
+        '', '^KLINE:EXPIRE:', 'a$', 'a$b', '[]]', '[^]]', '[%]]', '%f[%w]me%f[^%w]',
+        '%bxy', '(a)%1', '()', '(a(b)%2)', '[a-z]+%d*', '*a', '^g[:,]', '%%', 'a-', '[%a_][%w_]*',
+    } do
+        T.eq(check(good), nil, good)
+        T.ok(pcall(string.find, 'some text', good), 'Lua agrees: ' .. good)
+    end
+    for pattern, err in pairs {
+        ['a['] = "missing ']'", ['x('] = 'unfinished capture', ['foo%'] = "ends with '%'",
+        ['a%b'] = 'missing arguments to %b', ['a%bx'] = 'missing arguments to %b',
+        ['a%f'] = "missing '['", ['a%fx'] = "missing '['", ['b[%'] = "missing ']'",
+        ['a)'] = 'invalid pattern capture', ['a%1'] = 'invalid capture index %1',
+        ['(a%1)'] = 'invalid capture index %1', ['a%0'] = 'invalid capture index %0',
+        ['[a'] = "missing ']'", ['a%f[x'] = "missing ']'",
+        [string.rep('()', 33)] = 'too many captures',
+    } do
+        local got = check(pattern)
+        T.ok(got and got:find(err, 1, true), pattern .. ': ' .. tostring(got))
+    end
+
+    -- whatever passes, Lua matches without raising
+    local alphabet = {'a', 'b', '(', ')', '[', ']', '%', '^', '$', '*', '+', '-', '?', '.', 'f', '1', '2'}
+    local seed = 12345
+    local function random(n)
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        return seed % n + 1
+    end
+    local subjects = {'', 'a', 'ab', 'ba', 'aab(b)', 'a[b]a', '%a%', 'aaaa bbbb', '()[]%^$*+-?.f12'}
+    for _ = 1, 20000 do
+        local parts = {}
+        for _ = 1, random(8) do table.insert(parts, alphabet[random(#alphabet)]) end
+        local pattern = table.concat(parts)
+        if check(pattern) == nil then
+            for _, subject in ipairs(subjects) do
+                local ok, err = pcall(string.find, subject, pattern)
+                T.ok(ok, ('accepted %q raises on %q: %s'):format(pattern, subject, tostring(err)))
+            end
+        end
+    end
+end)
+
 T.case('OrderedMap numbers entries and drops the oldest', function()
     local OrderedMap, om = ordered_map(3)
     T.eq({OrderedMap.first(om), OrderedMap.last(om), OrderedMap.size(om)}, {1, 0, 0}, 'empty')

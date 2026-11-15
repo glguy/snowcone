@@ -1381,6 +1381,7 @@ T.case('hide rules are checked at load', function()
     fails({{action = 'hide'}}, 'networks.x.hide.1: matches every message')
     fails({{nick = 'a'}, {nick = 'b', pattern = 'x', regex = 'y'}}, 'networks.x.hide.2: a pattern or a regex, not both')
     fails({{pattern = '[x'}}, 'networks.x.hide.1.pattern.1: ')
+    fails({{pattern = 'ok', nick = 'a'}, {pattern = {'fine', 'a%b'}}}, 'networks.x.hide.2.pattern.2: missing arguments to %b')
     fails({{nick = 'a', action = 'drop'}}, 'action must be one of hide, show')
     fails({{command = 'join'}}, 'an IRC command in capitals')
     fails({{nick = 'a', level = 1}}, 'Unexpected field')
@@ -1410,7 +1411,13 @@ T.case('mention regexes are checked at load, and need rex_pcre2', function()
         T.ok(not ok and err:find('networks.x.buffers.1.mention.regexes.1: regular expressions need rex_pcre2', 1, true),
             tostring(err))
     end
-    T.ok(load {mention = {patterns = {'('}}}, 'patterns are not checked')
+    ok, err = load {mention = {patterns = {'^ok', 'me('}}}
+    T.ok(not ok and err:find('mention.patterns.2: unfinished capture', 1, true), tostring(err))
+    ok, err = load {networks = {network('x', {buffers = {{name = '#a', mention = {patterns = {'a['}}}}})}}
+    T.ok(not ok and err:find("networks.x.buffers.1.mention.patterns.1: malformed pattern (missing ']')", 1, true),
+        tostring(err))
+    ok, err = load {networks = {network('x', {watches = {{pattern = 'fine'}, {pattern = 'x('}}})}}
+    T.ok(not ok and err:find('networks.x.watches.2.pattern: ', 1, true), tostring(err))
 end)
 
 T.case('an invalid configuration on reload leaves the old one active', function()

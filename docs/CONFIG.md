@@ -130,7 +130,7 @@ In TOML, tables such as `[networks.server]` and `[[networks.layers]]` belong to 
 
 | Field | Meaning |
 |---|---|
-| `patterns` | Lua patterns. A channel message matching any of them, or any of `regexes`, is a mention: its buffer is marked `!` and a notification may be sent. A private message is always a mention. A [buffer's own](#buffers) mention settings replace both rules. |
+| `patterns` | Lua patterns; a malformed one fails the load. A channel message matching any of them, or any of `regexes`, is a mention: its buffer is marked `!` and a notification may be sent. A private message is always a mention. A [buffer's own](#buffers) mention settings replace both rules. |
 | `regexes` | PCRE2 regular expressions, matched as written: `(?i)` ignores case. They need `rex_pcre2`; a configuration with one fails to load without it, and so does one that doesn't compile. |
 
 A network's own `[networks.mention]` replaces these for that network. It does not add to them. Setting either `patterns` or `regexes` replaces both lists: a network with only `regexes` uses none of the top-level `patterns`.
@@ -543,7 +543,7 @@ A message is decided as it reaches its buffer, including from chat history. A QU
 
 | Field | Default | Meaning |
 |---|---|---|
-| `pattern` | | Required. A PCRE2 regular expression when `rex_pcre2` is installed, otherwise a Lua pattern. `/stats` shows which, under `filters`. A pattern without capital letters ignores case. |
+| `pattern` | | Required. A PCRE2 regular expression when `rex_pcre2` is installed, otherwise a Lua pattern. `/stats` shows which, under `filters`. A pattern without capital letters ignores case. One that doesn't compile fails the load, and so does a Lua pattern that repeats more than two items with `*`, `+` or `-`. |
 | `color` | | The highlight color: `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan` or `white`. |
 | `beep` | `false` | Ring the bell on a match. |
 | `flash` | `false` | Flash the screen on a match. |
