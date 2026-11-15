@@ -33,6 +33,7 @@ end
 
 -- JOIN the configured buffers that ask to be joined, as many to a line
 -- as fit
+---@param buffers hub.BufferSettings[]
 local function join_channels(t, buffers)
     local names, size = {}, 0
     for _, buffer in ipairs(buffers) do

@@ -219,7 +219,7 @@ end
 --- chat/config.lua), if any.
 ---@param net string
 ---@param target string
----@return table|nil {name, join, level, label, hidden}
+---@return hub.BufferSettings|nil
 function M.settings(net, target)
     return config.settings(M, net, target)
 end

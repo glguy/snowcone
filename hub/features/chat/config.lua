@@ -6,6 +6,16 @@
 
 local M = {}
 
+--- A configured buffer ([[networks.buffers]]), as validated by
+--- runtime/config_schema.lua and runtime/config.lua.
+---@class hub.BufferSettings
+---@field name string the channel or nick, folded by the network's casemapping to match
+---@field join boolean|nil JOIN after every registration
+---@field mention {patterns: string[]|nil}|nil the buffer's own mention patterns
+---@field activity boolean|nil false: only mentions mark the buffer unseen
+---@field label string|false|nil the jump pane key, one letter or digit; false for none
+---@field hidden boolean|nil left out of the jump pane
+
 -- The configured buffers by folded name, for a network's `buffers` and
 -- the casemapping they were folded with, rebuilt when either changes
 local settings_index = setmetatable({}, {__mode = 'k'})
@@ -14,7 +24,7 @@ local settings_index = setmetatable({}, {__mode = 'k'})
 ---@param chat hub.ChatLookup
 ---@param net string
 ---@param target string
----@return table|nil {name, join, level, label, hidden}
+---@return hub.BufferSettings|nil
 function M.settings(chat, net, target)
     local rec = HUB.state.nets[net]
     local buffers = rec and rec.cfg.buffers
