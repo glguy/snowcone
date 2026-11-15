@@ -1,5 +1,7 @@
 -- Hide rules ([[networks.hide]]): which messages the buffer view leaves
--- out until Meta-H shows them in their buffer.
+-- out until Meta-H shows them in their buffer, and which chat discards,
+-- never placing them in a buffer (nor opening one for them), from chat
+-- history too. The console still shows what is discarded.
 --
 -- A message is classified once, as it is placed in a buffer, and the
 -- result is kept with the buffer, since a QUIT or NICK is the same
@@ -12,6 +14,7 @@
 -- identity changes. Our own messages match no rule.
 --
 -- The functions take chat (features/chat), which requires this module.
+-- runtime/config.lua checks the rules as the configuration loads.
 
 local irc_model        <const> = require 'hub.net.irc'
 local regex            <const> = require 'hub.lib.regex'
@@ -28,7 +31,7 @@ local M = {}
 ---@field command string[]|nil
 ---@field pattern string[]|nil Lua patterns
 ---@field regex string[]|nil PCRE2 regular expressions
----@field action 'hide'|'show'|nil hide when nil
+---@field action 'hide'|'show'|'discard'|nil hide when nil
 
 --- How a message was classified in a buffer: whether it is hidden, and
 --- the rule that decided, by its position in [[networks.hide]] or
@@ -69,8 +72,8 @@ local function any_name(chat, net, names, name)
     return false
 end
 
-local function matches(chat, net, rule, buffer, msg)
-    if rule.buffer and not any_name(chat, net, rule.buffer, buffer.name) then return false end
+local function matches(chat, net, rule, target, msg)
+    if rule.buffer and not any_name(chat, net, rule.buffer, target) then return false end
     if rule.nick and not any_name(chat, net, rule.nick, msg.nick) then return false end
     if rule.account and not any_name(chat, net, rule.account, msg.tags and msg.tags.account) then
         return false
@@ -109,7 +112,32 @@ local function ours(irc, msg)
     return msg.command == 'NICK' and msg[1] ~= nil and irc_model.is_me(irc, msg[1])
 end
 
+-- The first configured rule matching someone else's message for a
+-- buffer named `target`, and its position. Our own messages match none.
+local function first_rule(chat, net, target, msg)
+    local rec = HUB.state.nets[net]
+    if ours(rec and rec.irc, msg) then return nil, 'ours' end
+    for i, rule in ipairs(rec and rec.cfg.hide or {}) do
+        if matches(chat, net, rule, target, msg) then return rule, i end
+    end
+    return nil
+end
+
+--- Whether chat discards a message bound for the buffer named `target`,
+--- which it then neither opens nor adds to.
+---@param chat hub.ChatLookup
+---@param net string
+---@param target string
+---@param msg hub.Message
+---@return boolean
+function M.discards(chat, net, target, msg)
+    local rule = first_rule(chat, net, target, msg)
+    return rule ~= nil and rule.action == 'discard'
+end
+
 --- Classify a message placed in a buffer, unless it already was there.
+--- A discarding rule hides what reaches a buffer all the same, as a
+--- message can when its buffer was renamed since chat asked.
 ---@param chat hub.ChatLookup
 ---@param net string
 ---@param buffer hub.ChatBuffer
@@ -121,18 +149,12 @@ function M.classify(chat, net, buffer, msg)
         buffer.hide = decided
     end
     if decided[msg] ~= nil then return end
-    local rec = HUB.state.nets[net]
+    local rule, i = first_rule(chat, net, buffer.name, msg)
     local decision = false
-    if not ours(rec and rec.irc, msg) then
-        for i, rule in ipairs(rec and rec.cfg.hide or {}) do
-            if matches(chat, net, rule, buffer, msg) then
-                decision = {hidden = rule.action ~= 'show', rule = i}
-                break
-            end
-        end
-        if not decision and M.presence[msg.command] then
-            decision = built_in
-        end
+    if rule then
+        decision = {hidden = rule.action ~= 'show', rule = i}
+    elseif i ~= 'ours' and M.presence[msg.command] then
+        decision = built_in
     end
     decided[msg] = decision
 end

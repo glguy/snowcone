@@ -501,21 +501,23 @@ The buffer view leaves out the messages that hide rules hide. Meta-H shows them 
 
 Each `[[networks.hide]]` entry is a rule. They are tried in order and the first that matches decides. After them come built-in rules that hide joins, parts, quits, nick changes, account changes and host changes. A rule with `action = 'show'` overrides the rules after it, the built-in ones included.
 
+A rule with `action = 'discard'` keeps the messages it matches out of buffers altogether: they aren't stored, a private message doesn't open a buffer, and they are left out of chat history too. A CTCP request it discards gets no reply. The console still shows them, so it is the place to look when a discarding rule seems to match too much.
+
 | Field | Matches |
 |---|---|
 | `buffer` | The buffer the message is placed in: a channel or a nick, in any case the network's casemapping allows. |
 | `nick` | The sender's nick, in any case. |
 | `account` | The sender's account, in any case, from the message's `account` tag. A message without one never matches. |
-| `command` | The IRC command, in capitals: `PRIVMSG`, `NOTICE`, `JOIN` and so on, or a numeric by its digits, such as `'474'`. |
+| `command` | The IRC command, in capitals: `PRIVMSG`, `NOTICE`, `WALLOPS`, `OPERWALL`, `JOIN`, `PART`, `KICK`, `TOPIC`, `MODE`, `QUIT`, `NICK`, `ACCOUNT`, `CHGHOST`, or a channel error's numeric by its digits, such as `'474'`. A command that never reaches a buffer fails the load. |
 | `pattern` | The text of a PRIVMSG or NOTICE, as a Lua pattern. |
 | `regex` | The text of a PRIVMSG or NOTICE, as a PCRE2 regular expression, matched as written: `(?i)` ignores case. A configuration with one fails to load without `rex_pcre2`. |
-| `action` | `'hide'`, the default, or `'show'`. |
+| `action` | `'hide'`, the default, `'show'` or `'discard'`. |
 
-Each matching field takes one string or a list of them, and a list matches when any of its entries does. A rule matches when every field it has matches. It must have at least one, can't have both `pattern` and `regex`, and fails the load with a pattern or regex that doesn't compile.
+Each matching field takes one string or a list of them, and a list matches when any of its entries does. A rule matches when every field it has matches. It must have at least one, can't have both `pattern` and `regex`, and fails the load with a pattern or regex that doesn't compile. A rule that could never match fails the load too: one with an empty list, a `nick` or `account` holding `!`, `@`, `*`, `?`, a comma or a space (they are matched exactly, not as masks), or a `pattern` or `regex` with a `command` list that has neither PRIVMSG nor NOTICE.
 
 The text `pattern` and `regex` see has its IRC formatting removed, and an action (`/me`) is seen without its CTCP framing. They never match other commands, such as the reason of a PART or QUIT.
 
-A hidden message is kept in its buffer. It never marks the buffer unseen and is never a mention, so it sends no notification. Your own messages are never hidden. The message's detail pane names the rule that decided it, such as `networks.libera.hide.1`.
+A hidden message is kept in its buffer. It never marks the buffer unseen and is never a mention, so it sends no notification. A hidden private message from someone new still opens a buffer for them, which shows nothing until Meta-H; discard such messages instead. Your own messages are never hidden or discarded. The message's detail pane names the rule that decided it, such as `networks.libera.hide.1`.
 
 ```toml
 [[networks.hide]]

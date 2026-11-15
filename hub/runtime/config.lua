@@ -8,16 +8,17 @@
 -- servers file is read here into `servers`; one that can't be read fails
 -- the load like the configuration file itself.
 
-local app     <const> = require 'pl.app'
-local file    <const> = require 'pl.file'
-local path    <const> = require 'pl.path'
-local tablex  <const> = require 'pl.tablex'
-local casemap    <const> = require 'hub.lib.casemap'
-local luapattern <const> = require 'hub.lib.luapattern'
-local matching   <const> = require 'hub.lib.matching'
-local regex      <const> = require 'hub.lib.regex'
-local schema  <const> = require 'hub.lib.schema'
-local cschema <const> = require 'hub.runtime.config_schema'
+local app            <const> = require 'pl.app'
+local file           <const> = require 'pl.file'
+local path           <const> = require 'pl.path'
+local tablex         <const> = require 'pl.tablex'
+local casemap        <const> = require 'hub.lib.casemap'
+local channel_errors <const> = require 'hub.lib.channel_errors'
+local luapattern     <const> = require 'hub.lib.luapattern'
+local matching       <const> = require 'hub.lib.matching'
+local regex          <const> = require 'hub.lib.regex'
+local schema         <const> = require 'hub.lib.schema'
+local cschema        <const> = require 'hub.runtime.config_schema'
 
 local M = {}
 
@@ -181,37 +182,73 @@ local function check_mention(mention, where)
     end
 end
 
--- The matching fields of a hide rule ([[networks.hide]])
+-- The commands chat places in a buffer (features/chat), as a hide rule
+-- names them: numerics by their digits
+local buffer_commands <const> = {
+    PRIVMSG = true, NOTICE = true, WALLOPS = true, OPERWALL = true,
+    JOIN = true, PART = true, KICK = true, TOPIC = true, MODE = true,
+    QUIT = true, NICK = true, ACCOUNT = true, CHGHOST = true,
+}
+for numeric in pairs(channel_errors) do
+    buffer_commands[tostring(numeric)] = true
+end
+
+-- The matching fields of a hide rule
 local hide_fields <const> = {'buffer', 'nick', 'account', 'command', 'pattern', 'regex'}
 
--- Each hide rule's matching fields become lists. A rule must match on
--- something, since it would otherwise hide everything; it takes a
--- pattern or a regex, not both; and those must compile.
+-- What a nick or account can't hold: a rule's are matched exactly, so
+-- one with these was meant as a mask or a glob, and never matches
+local not_in_name <const> = '[!@*?, ]'
+
+-- Each hide rule's ([[networks.hide]], chat/hide.lua) matching fields
+-- become lists. A rule must match on something, since it would otherwise
+-- hide everything, and nothing in it may make it never match: an empty
+-- list, a command no buffer holds, a nick or account no one can have, or
+-- text to match with commands that have none. It takes a pattern or a
+-- regex, not both, and those must compile.
 local function check_hide(net)
     for n, rule in ipairs(net.hide or {}) do
         local where = string.format('networks.%s.hide.%d', net.id, n)
+        local function fail(fmt, ...)
+            error(where .. string.format(fmt, ...), 0)
+        end
         local any = false
         for _, field in ipairs(hide_fields) do
             if type(rule[field]) == 'string' then rule[field] = {rule[field]} end
-            if rule[field] then any = true end
+            if rule[field] then
+                any = true
+                if #rule[field] == 0 then fail('.%s: an empty list matches nothing', field) end
+            end
         end
         if not any then
-            error(where .. ': matches every message; give it buffer, nick, account, command, pattern or regex', 0)
+            fail ': matches every message; give it buffer, nick, account, command, pattern or regex'
         end
-        if rule.pattern and rule.regex then
-            error(where .. ': a pattern or a regex, not both', 0)
+        if rule.pattern and rule.regex then fail ': a pattern or a regex, not both' end
+        for _, field in ipairs {'nick', 'account'} do
+            for i, name in ipairs(rule[field] or {}) do
+                if name:find(not_in_name) then
+                    fail('.%s.%d: %s is matched exactly, and no %s holds !, @, *, ?, a comma or a space',
+                        field, i, name, field)
+                end
+            end
+        end
+        local has_text = false
+        for i, command in ipairs(rule.command or {}) do
+            if not buffer_commands[command] then
+                fail('.command.%d: no buffer holds %s', i, command)
+            end
+            if command == 'PRIVMSG' or command == 'NOTICE' then has_text = true end
+        end
+        if rule.command and (rule.pattern or rule.regex) and not has_text then
+            fail ': a pattern or regex matches only PRIVMSG and NOTICE, which command leaves out'
         end
         for i, pattern in ipairs(rule.pattern or {}) do
             local err = luapattern.check(pattern)
-            if err then
-                error(string.format('%s.pattern.%d: %s', where, i, err), 0)
-            end
+            if err then fail('.pattern.%d: %s', i, err) end
         end
         for i, source in ipairs(rule.regex or {}) do
             local err = regex.check(source)
-            if err then
-                error(string.format('%s.regex.%d: %s', where, i, err), 0)
-            end
+            if err then fail('.regex.%d: %s', i, err) end
         end
     end
     net.hide = net.hide or {}

@@ -27,6 +27,11 @@ local function boot(extra, global)
     return c, T.require 'hub.features.chat', fake
 end
 
+local function tablex_find(list, value)
+    for _, v in ipairs(list) do if v == value then return true end end
+    return false
+end
+
 local function texts(buffer)
     local list = {}
     for msg in T.require 'hub.lib.OrderedMap'.reveach(buffer.messages) do
@@ -453,6 +458,53 @@ T.case('a hide rule names a numeric by its digits', function()
     c:recv ':srv 474 me #c :Cannot join channel (+b) - you are banned'
     local buffer = chat.buffer('test', '#c')
     T.eq(chat.hidden(buffer, chat.newest(buffer)), true, 'matched')
+end)
+
+T.case('discard rules keep messages out of buffers, history and replies', function()
+    local fake = FakeTransport.new()
+    T.boot {transport = fake, config = {networks = {{id = 'test', server = {host = 'h', port = 1},
+        identity = {nick = 'me'}, hide = {
+            {nick = 'spambot', action = 'discard'},
+            {buffer = '#c', pattern = '^!', action = 'discard'},
+            {nick = 'me', action = 'discard'},
+        }}}}}
+    local chat = T.require 'hub.features.chat'
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :batch draft/chathistory'
+    c:recv ':srv CAP me ACK :batch draft/chathistory'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 005 me CHANTYPES=# CHATHISTORY=50 MONITOR=10 :are supported'
+    c:recv ':srv 376 me :End of MOTD'
+    c:recv ':me!u@h JOIN #c'
+    c:take()
+    local events = 0
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'chat.message', 'test', function() events = events + 1 end)
+
+    c:recv ':spambot!s@h PRIVMSG me :buy now'
+    c:recv ':spambot!s@h PRIVMSG me :\x01VERSION\x01'
+    T.eq(chat.buffer('test', 'spambot'), nil, 'no buffer opened')
+    T.eq(c:take(), {}, 'no history, MONITOR or CTCP reply')
+    c:recv ':alice!a@h PRIVMSG #c :!trigger'
+    c:recv ':alice!a@h PRIVMSG #c :hello'
+    c:recv ':spambot!s@h JOIN #c'
+    T.eq(texts(chat.buffer('test', '#c')), {'JOIN #c', 'PRIVMSG #c hello'}, 'only what no rule discards')
+    T.eq({events, chat.buffer('test', '#c').activity}, {1, 1}, 'nothing else counted')
+    local console = {}
+    for msg in T.require 'hub.lib.OrderedMap'.each(HUB.state.nets.test.console) do
+        table.insert(console, msg[2])
+    end
+    T.ok(tablex_find(console, 'buy now') and tablex_find(console, '!trigger'), 'the console shows them')
+
+    chat.say('test', '#c', '!mine')
+    T.eq(#texts(chat.buffer('test', '#c')), 3, 'ours is never discarded')
+
+    c:recv ':srv BATCH +h chathistory #c'
+    c:recv '@batch=h;msgid=h1;time=2026-01-01T00:00:00.000Z :spambot!s@h PRIVMSG #c :old spam'
+    c:recv '@batch=h;msgid=h2;time=2026-01-01T00:00:01.000Z :bob!b@h PRIVMSG #c :old news'
+    c:recv ':srv BATCH -h'
+    T.eq(texts(chat.buffer('test', '#c'))[1], 'PRIVMSG #c old news', 'discarded from history too')
+    T.eq(#texts(chat.buffer('test', '#c')), 4, 'and only that')
 end)
 
 T.case('statusmsg, echo and membership changes', function()

@@ -44,7 +44,8 @@ local clock      <const> = require 'hub.runtime.clock'
 local commands   <const> = require 'hub.features.chat.commands'
 local common     <const> = require 'hub.features.common'
 local config     <const> = require 'hub.features.chat.config'
-local ctcp       <const> = require 'hub.features.chat.ctcp'
+local channel_errors <const> = require 'hub.lib.channel_errors'
+local ctcp           <const> = require 'hub.features.chat.ctcp'
 local hide       <const> = require 'hub.features.chat.hide'
 local history    <const> = require 'hub.features.chat.history'
 local irc_model  <const> = require 'hub.net.irc'
@@ -100,6 +101,7 @@ end
 ---@field buffer fun(net: string, target: string): hub.ChatBuffer|nil
 ---@field open fun(net: string, target: string): hub.ChatBuffer
 ---@field insert fun(net: string, buffer: hub.ChatBuffer, msg: hub.Message)
+---@field discards fun(net: string, target: string, msg: hub.Message): boolean
 ---@field newest fun(buffer: hub.ChatBuffer): hub.Message|nil
 
 --- What chat's commands (chat/commands.lua, modes.lua) use of chat.
@@ -350,6 +352,16 @@ M.insert = insert -- for chat/history.lua and receipt.lua
 --- Whether the hide rules hide a message in a buffer (chat/hide.lua).
 M.hidden = hide.hidden
 
+--- Whether the hide rules discard a message bound for a buffer, which
+--- is then neither opened nor added to (chat/hide.lua).
+---@param net string
+---@param target string
+---@param msg hub.Message
+---@return boolean
+function M.discards(net, target, msg)
+    return hide.discards(M, net, target, msg)
+end
+
 --- How the hide rules classified a message in a buffer, or nil when
 --- none decided (chat/hide.lua).
 M.hide_decision = hide.decision
@@ -428,11 +440,14 @@ function M.typing(net, buffer)
     return typing.list(M, net, buffer)
 end
 
+-- Place a message in a buffer, opening it if need be, unless the hide
+-- rules discard it; false when they do
 local function add(net, target, msg, mention, activity)
+    if hide.discards(M, net, target, msg) then return false end
     local buffer = M.open(net, target, msg.tags and msg.tags.time)
     local id = msgid(msg)
     -- a message the buffer already has, from history or a bouncer
-    if id and M.find(buffer, id) then return end
+    if id and M.find(buffer, id) then return true end
     insert(net, buffer, msg)
     -- a hidden message never counts; a buffer configured with activity =
     -- false is unseen only by mentions
@@ -451,13 +466,15 @@ local function add(net, target, msg, mention, activity)
     end
     bus.emit('chat.message', {net = net, target = target, msg = msg, mention = mention,
         activity = activity, hidden = hidden})
+    return true
 end
 
 -- Routing =============================================================
 
 -- Where a message belongs: channel messages in the channel, private ones
 -- in a buffer named for the other side, unless they are meant to be
--- shown in a channel we are in (channel-context)
+-- shown in a channel we are in (channel-context). False when the hide
+-- rules discard it.
 local function route_chat(net, irc, target, text, msg)
     local nick = msg.nick
     local context = not msg.statusmsg and irc_model.channel_context(irc, target, msg.tags)
@@ -466,16 +483,13 @@ local function route_chat(net, irc, target, text, msg)
     if nick and irc_model.is_me(irc, nick) then
         if context then
             msg.context = '<'
-            add(net, context, msg, false, false)
-        else
-            add(net, target, msg, false, false)
+            return add(net, context, msg, false, false)
         end
-        return
+        return add(net, target, msg, false, false)
     end
 
     if irc_model.is_channel_name(irc, target) then
-        add(net, target, msg, config.matches(config.mention(M, net, target), text), true)
-        return
+        return add(net, target, msg, config.matches(config.mention(M, net, target), text), true)
     end
 
     -- to us, to a broadcast mask ($$*.net), or to a nick we just left: in
@@ -496,8 +510,9 @@ local function route_chat(net, irc, target, text, msg)
             end
         end
         if buffer == context then msg.context = '>' end
-        add(net, buffer, msg, mention, true)
+        return add(net, buffer, msg, mention, true)
     end
+    return true
 end
 
 -- Add a membership change to the buffers of the channels it concerns
@@ -557,11 +572,12 @@ function H.PRIVMSG(net, irc, msg)
 
     -- the request first, so it opens the sender's buffer that our reply
     -- is then shown in
-    route_chat(net, irc, target, text, msg)
+    local kept = route_chat(net, irc, target, text, msg)
 
-    -- answer only CTCP requests sent to us, not to a channel
+    -- answer only CTCP requests sent to us, not to a channel, and none
+    -- the hide rules discard
     local name, args = text:match '^\x01([^\x01 ]+) ?([^\x01]*)\x01?$'
-    if name and msg.nick and irc_model.is_me(irc, target) then
+    if name and kept and msg.nick and irc_model.is_me(irc, target) then
         answer_ctcp(net, msg.nick, msg.tags['solanum.chat/oper'] ~= nil, name:upper(), args)
     end
 end
@@ -627,7 +643,7 @@ function H.NICK(net, _, msg)
         local new = M.fold(net, msg[1])
         if new ~= old and C.buffers[new] then
             -- a buffer for the new nick exists: keep both, unrenamed
-            insert(net, buffer, msg)
+            if not hide.discards(M, net, buffer.name, msg) then insert(net, buffer, msg) end
             return
         end
         buffer.name = msg[1]
@@ -654,30 +670,8 @@ H.ACCOUNT = user_change
 H.CHGHOST = user_change
 
 --- Errors about a channel, by numeric: which parameter names the
---- channel. A JOIN refused, or a change we asked for there, is shown in
---- the channel's buffer, which would otherwise show nothing happened.
-M.channel_errors = {
-    [N.ERR_NOSUCHCHANNEL] = 2,      -- <channel> :reason
-    [N.ERR_TOOMANYCHANNELS] = 2,
-    [N.ERR_BANNICKCHANGE] = 3,      -- <nick> <channel> :reason
-    [N.ERR_UNAVAILRESOURCE] = 2,    -- a channel juped, or a nick
-    [N.ERR_USERNOTINCHANNEL] = 3,   -- <nick> <channel> :reason
-    [N.ERR_NOTONCHANNEL] = 2,
-    [N.ERR_LINKCHANNEL] = 2,        -- <channel> <forward> :reason
-    [N.ERR_CHANNELISFULL] = 2,
-    [N.ERR_INVITEONLYCHAN] = 2,
-    [N.ERR_BANNEDFROMCHAN] = 2,
-    [N.ERR_BADCHANNELKEY] = 2,
-    [N.ERR_BADCHANMASK] = 2,
-    [N.ERR_NEEDREGGEDNICK] = 2,
-    [N.ERR_BANLISTFULL] = 2,        -- <channel> <mode> :reason
-    [N.ERR_BADCHANNAME] = 2,
-    [N.ERR_THROTTLE] = 2,
-    [N.ERR_CHANOPRIVSNEEDED] = 2,
-    [N.ERR_VOICENEEDED] = 2,
-    [N.ERR_KEYSET] = 2,
-    [N.ERR_MLOCKRESTRICTED] = 2,    -- <channel> <mode> <mlock> :reason
-}
+--- channel (lib/channel_errors.lua).
+M.channel_errors = channel_errors
 
 local function channel_error(net, irc, msg)
     local channel = msg[M.channel_errors[msg.command]]

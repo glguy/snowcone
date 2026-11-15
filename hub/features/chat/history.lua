@@ -100,7 +100,10 @@ function M.merge(chat, net, buffer, messages, since, irc)
     for _, msg in ipairs(messages) do
         local key = message_key(msg)
         local mine = irc and msg.nick and irc_model.is_me(irc, msg.nick) and unconfirmed[own_key(msg)]
-        if mine and #mine > 0 then
+        if chat.discards(net, buffer.name, msg) then
+            -- the hide rules discard it from history, as when it arrives
+            seen[key] = true
+        elseif mine and #mine > 0 then
             local line = table.remove(mine, 1)
             line.tags = line.tags or {}
             line.tags.msgid = msg.tags.msgid

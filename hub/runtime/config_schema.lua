@@ -216,9 +216,8 @@ local function strings(element)
     return {oneOf = {element, array(element)}}
 end
 
--- A rule hiding messages from the buffer view, or showing what a later
--- rule would hide; config.lua checks that it matches on something, that
--- it has a pattern or a regex but not both, and that those compile
+-- A rule hiding messages from the buffer view, discarding them, or
+-- showing what a later rule would hide; chat/hide.lua checks the rest
 local hide_schema <const> = table_ {
     buffer  = strings {type = 'string'},
     nick    = strings {type = 'string'},
@@ -226,7 +225,7 @@ local hide_schema <const> = table_ {
     command = strings {type = 'string', pattern = '^[%u%d]+$', expected = 'an IRC command in capitals'},
     pattern = strings {type = 'string'},
     regex   = strings {type = 'string'},
-    action  = {type = 'string', values = {hide = true, show = true}},
+    action  = {type = 'string', values = {hide = true, show = true, discard = true}},
 }
 
 -- No shorter than this, so a refused connection can't spin
