@@ -172,6 +172,42 @@ local function check_mention(mention, where)
     end
 end
 
+-- The matching fields of a hide rule ([[networks.hide]])
+local hide_fields <const> = {'buffer', 'nick', 'account', 'command', 'pattern', 'regex'}
+
+-- Each hide rule's matching fields become lists. A rule must match on
+-- something, since it would otherwise hide everything; it takes a
+-- pattern or a regex, not both; and those must compile.
+local function check_hide(net)
+    for n, rule in ipairs(net.hide or {}) do
+        local where = string.format('networks.%s.hide.%d', net.id, n)
+        local any = false
+        for _, field in ipairs(hide_fields) do
+            if type(rule[field]) == 'string' then rule[field] = {rule[field]} end
+            if rule[field] then any = true end
+        end
+        if not any then
+            error(where .. ': matches every message; give it buffer, nick, account, command, pattern or regex', 0)
+        end
+        if rule.pattern and rule.regex then
+            error(where .. ': a pattern or a regex, not both', 0)
+        end
+        for i, pattern in ipairs(rule.pattern or {}) do
+            local ok, err = pcall(string.find, '', pattern)
+            if not ok then
+                error(string.format('%s.pattern.%d: %s', where, i, err), 0)
+            end
+        end
+        for i, source in ipairs(rule.regex or {}) do
+            local err = regex.check(source)
+            if err then
+                error(string.format('%s.regex.%d: %s', where, i, err), 0)
+            end
+        end
+    end
+    net.hide = net.hide or {}
+end
+
 -- `i` names the network in errors until its id is known to be valid
 local function normalize_network(net, i)
     local label = type(net.id) == 'string' and net.id or tostring(i)
@@ -248,6 +284,7 @@ local function normalize_network(net, i)
     end
     net.buffers = net.buffers or {}
     check_mention(net.mention, string.format('networks.%s.mention', net.id))
+    check_hide(net)
 
     if net.autoconnect == nil then net.autoconnect = true end
     if net.reclaim_nick == nil then net.reclaim_nick = true end

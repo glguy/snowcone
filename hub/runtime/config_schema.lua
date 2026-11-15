@@ -211,6 +211,24 @@ local buffer_schema <const> = table_ {
     hidden   = {type = 'boolean'},
 }
 
+-- A hide rule's matching field: one string, or a list of them
+local function strings(element)
+    return {oneOf = {element, array(element)}}
+end
+
+-- A rule hiding messages from the buffer view, or showing what a later
+-- rule would hide; config.lua checks that it matches on something, that
+-- it has a pattern or a regex but not both, and that those compile
+local hide_schema <const> = table_ {
+    buffer  = strings {type = 'string'},
+    nick    = strings {type = 'string'},
+    account = strings {type = 'string'},
+    command = strings {type = 'string', pattern = '^[%u%d]+$', expected = 'an IRC command in capitals'},
+    pattern = strings {type = 'string'},
+    regex   = strings {type = 'string'},
+    action  = {type = 'string', values = {hide = true, show = true}},
+}
+
 -- No shorter than this, so a refused connection can't spin
 local delay_schema <const> = {type = 'number', minimum = 0.1}
 
@@ -257,6 +275,7 @@ M.network = table_ {
     sasl         = sasl_schema,
     oper         = oper_schema,
     mention      = mention_schema,
+    hide         = array(hide_schema),
     watches      = array (table_ {
         pattern = {type = 'string', required = true},
         color  = color_schema,

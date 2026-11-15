@@ -15,6 +15,7 @@ Contents:
   - [SASL](#sasl)
   - [Becoming an operator](#becoming-an-operator): `oper`
   - [Buffers](#buffers): channels to join, and how each buffer's messages count
+  - [Hide rules](#hide-rules): messages the buffer view leaves out
   - [Mentions and watches](#mentions-and-watches)
   - [The servers file](#the-servers-file)
 - [Secrets](#secrets)
@@ -171,6 +172,7 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 | `rate_limit.burst` | none | Lines that may go to the server at once. Without a `rate_limit` table, lines are never held back. With one, `burst` and `interval` are both required. |
 | `rate_limit.interval` | none | Seconds to earn back one line of the burst, above 0. A line that has to wait shows as `queued` in chat and the console until it goes, or `unsent` if the connection ends first. A PONG goes ahead of waiting lines, and QUIT drops them and goes at once. `burst = 5` and `interval = 2` match RFC 1459's message timer. |
 | `buffers` | none | Channels to join, and settings for the buffers of channels and nicks. See [Buffers](#buffers). |
+| `hide` | none | Rules for the messages the buffer view leaves out. See [Hide rules](#hide-rules). |
 | `reclaim_nick` | `true` | When the wanted nick is taken, watch it with MONITOR and take it back once it is free. The wanted nick is the configured one, or the last given to `/nick`, which later connections register with too until the configured nick changes. |
 | `quit_message` | `'snowcone'` | The QUIT message for `/disconnect`, `/reconnect` and quitting. |
 | `snomask` | `'BFZbcklnsx'`, or `'bcfknrs'` on OFTC hybrid | What chooses the server notices to see, set after becoming an operator: on Solanum the server notice mask (`MODE nick +s mask`), on OFTC hybrid the user modes that select notices (`MODE nick +modes`). Used only with the `snotice` feature. |
@@ -493,6 +495,46 @@ hidden = true
 
 `#busy` is marked only by mentions, every message in `#alerts` is a mention, and `somebot`'s messages never mark its buffer.
 
+### Hide rules
+
+The buffer view leaves out the messages that hide rules hide. Meta-H shows them in the buffer shown, and again hides them. Each buffer keeps its own setting while you switch between buffers, and its mode reads `show` while it shows them. Bringing a hidden message into view, as a click on a reply does, shows them too. `/filter` searches every message, hidden or not.
+
+Each `[[networks.hide]]` entry is a rule. They are tried in order and the first that matches decides. After them come built-in rules that hide joins, parts, quits, nick changes, account changes and host changes. A rule with `action = 'show'` overrides the rules after it, the built-in ones included.
+
+| Field | Matches |
+|---|---|
+| `buffer` | The buffer the message is placed in: a channel or a nick, in any case the network's casemapping allows. |
+| `nick` | The sender's nick, in any case. |
+| `account` | The sender's account, in any case, from the message's `account` tag. A message without one never matches. |
+| `command` | The IRC command, in capitals: `PRIVMSG`, `NOTICE`, `JOIN` and so on, or a numeric by its digits, such as `'474'`. |
+| `pattern` | The text of a PRIVMSG or NOTICE, as a Lua pattern. |
+| `regex` | The text of a PRIVMSG or NOTICE, as a PCRE2 regular expression, matched as written: `(?i)` ignores case. A configuration with one fails to load without `rex_pcre2`. |
+| `action` | `'hide'`, the default, or `'show'`. |
+
+Each matching field takes one string or a list of them, and a list matches when any of its entries does. A rule matches when every field it has matches. It must have at least one, can't have both `pattern` and `regex`, and fails the load with a pattern or regex that doesn't compile.
+
+The text `pattern` and `regex` see has its IRC formatting removed, and an action (`/me`) is seen without its CTCP framing. They never match other commands, such as the reason of a PART or QUIT.
+
+A hidden message is kept in its buffer. It never marks the buffer unseen and is never a mention, so it sends no notification. Your own messages are never hidden. The message's detail pane names the rule that decided it, such as `networks.libera.hide.1`.
+
+```toml
+[[networks.hide]]
+buffer = '#libera-audit'
+nick = 'OperServ'
+pattern = '^KLINE:EXPIRE:'
+
+[[networks.hide]]
+buffer = '#project'
+nick = ['ci-bot', 'deploy-bot']
+
+[[networks.hide]]
+buffer = '#small'
+command = ['JOIN', 'PART', 'QUIT']
+action = 'show'
+```
+
+A message is decided as it reaches its buffer, including from chat history. A QUIT or NICK reaches each buffer of a channel the user was in, so a rule naming one buffer can hide it there and not in the others. A reload changes how later messages are decided, not the ones already kept.
+
 ### Mentions and watches
 
 `[networks.mention]` takes `patterns` and `regexes` like the [top-level table](#mention) and replaces the top-level ones for this network. A [buffer's own](#buffers) replace both.
@@ -593,7 +635,7 @@ The store is opened with the credential's `password`, or the layer's `client_pas
 - **Networks:**
   - A network added to the file connects if `autoconnect` allows.
   - A network removed from the file disconnects.
-- **Settings that apply at once:** `ircd` (except for the `snomask` modes, which are set when you become an operator), `features`, `reconnect`, `reclaim_nick`, `quit_message`, `snomask`, `oper`, `mention`, `watches`, the `mention`, `activity`, `label` and `hidden` of `buffers`, the servers file and the top-level tables. Messages already received keep how they counted.
+- **Settings that apply at once:** `ircd` (except for the `snomask` modes, which are set when you become an operator), `features`, `reconnect`, `reclaim_nick`, `quit_message`, `snomask`, `oper`, `mention`, `watches`, `hide` (for messages that arrive afterwards), the `mention`, `activity`, `label` and `hidden` of `buffers`, the servers file and the top-level tables. Messages already received keep how they counted.
 - **Settings that wait for a new connection:** `join` in `buffers`; hub doesn't join or part channels on a reload. A change to `server`, `layers`, `websocket`, `identity`, `registration` or `sasl` marks the network `restart pending: /reconnect` in `/networks` and `/session` until you reconnect.
 
 A configuration that fails to load leaves the running one in place. The error is logged, hub switches to `/status` to show it, and `/stats` shows `last load failed` under `code`.

@@ -26,7 +26,7 @@ carry `net`, the network id.
 | `snote` | `{net, name, server, time, timestamp, ...fields}` a parsed server notice | features/snotice |
 | `snote.<name>` | the same event, by notice name | features/snotice |
 | `topology.map` | `{net, population}` a MAP reply ended; population is `[server] = users` | features/topology |
-| `chat.message` | `{net, target, msg, mention, activity}` a message added to a buffer | features/chat |
+| `chat.message` | `{net, target, msg, mention, activity, hidden}` a message added to a buffer; `hidden` when a hide rule hides it there, and then never a mention or activity | features/chat |
 | `chat.buffer` | `{net, target, opened}` a buffer opened or closed | features/chat |
 | `chat.focus` | `{net, target}` /talk asks the UI to show a buffer | features/chat |
 | `chat.forward` | `{net, from, to}` the server forwarded our JOIN of `from` to `to` (470) | features/chat |

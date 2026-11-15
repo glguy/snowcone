@@ -45,6 +45,7 @@ local commands   <const> = require 'hub.features.chat.commands'
 local common     <const> = require 'hub.features.common'
 local config     <const> = require 'hub.features.chat.config'
 local ctcp       <const> = require 'hub.features.chat.ctcp'
+local hide       <const> = require 'hub.features.chat.hide'
 local history    <const> = require 'hub.features.chat.history'
 local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
@@ -98,7 +99,7 @@ end
 ---@field fold fun(net: string, target: string): string
 ---@field buffer fun(net: string, target: string): hub.ChatBuffer|nil
 ---@field open fun(net: string, target: string): hub.ChatBuffer
----@field insert fun(buffer: hub.ChatBuffer, msg: hub.Message)
+---@field insert fun(net: string, buffer: hub.ChatBuffer, msg: hub.Message)
 ---@field newest fun(buffer: hub.ChatBuffer): hub.Message|nil
 
 --- What chat's commands (chat/commands.lua, modes.lua) use of chat.
@@ -238,6 +239,8 @@ end
 ---@field mention boolean
 ---@field typing table<string, hub.ChatTyping>|nil by folded nick; nil in
 --- buffers from before typing was tracked (chat/typing.lua)
+---@field hide table<hub.Message, hub.HideDecision|false>|nil how each
+--- message was classified (chat/hide.lua), weak-keyed; nil until one is
 
 --- A buffer, created (and its history requested) when missing.
 ---@param net string
@@ -333,13 +336,23 @@ local function msgid(msg)
 end
 
 -- A message is keyed by its msgid; ours, until its echo brings one, by
--- itself. Others are reached only by iteration.
-local function insert(buffer, msg)
+-- itself. Others are reached only by iteration. The hide rules classify
+-- it first (chat/hide.lua), since the map asks the view's predicate
+-- whether it is shown as it goes in.
+local function insert(net, buffer, msg)
+    hide.classify(M, net, buffer, msg)
     local key = msgid(msg)
     if key == nil and msg.receipt == 'awaiting' then key = msg end
     OrderedMap.insert(buffer.messages, key, msg)
 end
 M.insert = insert -- for chat/history.lua and receipt.lua
+
+--- Whether the hide rules hide a message in a buffer (chat/hide.lua).
+M.hidden = hide.hidden
+
+--- How the hide rules classified a message in a buffer, or nil when
+--- none decided (chat/hide.lua).
+M.hide_decision = hide.decision
 
 --- The message with a msgid in a buffer, while the buffer holds it.
 ---@param buffer hub.ChatBuffer
@@ -420,9 +433,13 @@ local function add(net, target, msg, mention, activity)
     local id = msgid(msg)
     -- a message the buffer already has, from history or a bouncer
     if id and M.find(buffer, id) then return end
-    insert(buffer, msg)
-    -- a buffer configured with activity = false is unseen only by mentions
-    if activity and not mention then
+    insert(net, buffer, msg)
+    -- a hidden message never counts; a buffer configured with activity =
+    -- false is unseen only by mentions
+    local hidden = hide.hidden(buffer, msg)
+    if hidden then
+        mention, activity = false, false
+    elseif activity and not mention then
         local settings = M.settings(net, target)
         if settings and settings.activity == false then activity = false end
     end
@@ -432,7 +449,8 @@ local function add(net, target, msg, mention, activity)
     if activity then
         buffer.activity = buffer.activity + 1
     end
-    bus.emit('chat.message', {net = net, target = target, msg = msg, mention = mention, activity = activity})
+    bus.emit('chat.message', {net = net, target = target, msg = msg, mention = mention,
+        activity = activity, hidden = hidden})
 end
 
 -- Routing =============================================================
@@ -609,7 +627,7 @@ function H.NICK(net, _, msg)
         local new = M.fold(net, msg[1])
         if new ~= old and C.buffers[new] then
             -- a buffer for the new nick exists: keep both, unrenamed
-            insert(buffer, msg)
+            insert(net, buffer, msg)
             return
         end
         buffer.name = msg[1]

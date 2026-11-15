@@ -179,7 +179,7 @@ function M.on_sent(chat, net, irc, msg)
             entries[chat.fold(net, target)] = {msg = copy, buffer = buffer}
         end
         if buffer then
-            chat.insert(buffer, copy)
+            chat.insert(net, buffer, copy)
         end
     end
     if label then

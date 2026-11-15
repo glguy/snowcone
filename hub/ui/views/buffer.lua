@@ -7,12 +7,14 @@
 -- input mode; each buffer keeps its own until Esc, and no typing notices
 -- go there. n and p step through the network's buffers, and j lists them
 -- in the detail pane to jump to by label (ui/details/jump.lua);
--- Meta-Ctrl-K closes the shown buffer, as /close does; Meta-H hides joins,
--- parts, quits, nick changes, account changes and host
--- changes. Click a sender to inspect the message in the detail pane. A
--- private message meant for a channel (channel-context, sent with /cmsg)
--- is shown there marked >, after its sender; ours marked <, after its
--- recipient. A reply (the +reply tag) starts with ↩: click it to scroll
+-- Meta-Ctrl-K closes the shown buffer, as /close does. The messages the
+-- hide rules hide (chat/hide.lua; joins, parts, quits and identity
+-- changes unless configured otherwise) are left out; Meta-H shows them
+-- in the shown buffer, which keeps that until Meta-H there again, and
+-- the mode reads `show` meanwhile. Click a sender to inspect the
+-- message in the detail pane. A private message meant for a channel
+-- (channel-context, sent with /cmsg) is shown there marked >, after its
+-- sender; ours marked <, after its recipient. A reply (the +reply tag) starts with ↩: click it to scroll
 -- to the message it answers, which is highlighted until Esc. Click a channel's name in the
 -- status bar for its information, a nick's for its WHOIS. After the name,
 -- the two who most recently started typing there (not those who paused),
@@ -24,8 +26,9 @@
 -- buffers say so and the view follows. Viewing a buffer while the terminal
 -- is focused marks it seen and withdraws its notification. The terminal's
 -- title names the shown buffer.
--- View state: scroll, hscroll, hide_presence, highlight (a message),
--- reveal (a message to scroll to and highlight on the next frame).
+-- View state: scroll, hscroll, showing (buffers showing their hidden
+-- messages, weak-keyed), highlight (a message), reveal (a message to
+-- scroll to and highlight on the next frame).
 
 local addircstr  <const> = require 'hub.ui.irc_formatting'
 local chat       <const> = require 'hub.features.chat'
@@ -225,15 +228,16 @@ local function render_msg(ctx, win, buffer, msg)
     if h then h(win, msg) end
 end
 
--- Commands Meta-H hides: comings, goings and identity changes
-local presence_commands <const> = {
-    JOIN = true,
-    PART = true,
-    QUIT = true,
-    NICK = true,
-    ACCOUNT = true,
-    CHGHOST = true,
-}
+-- The buffers showing their hidden messages, kept by the buffer itself
+-- so a renamed private buffer keeps it
+local function showing(vs)
+    local set = vs.showing
+    if not set then
+        set = setmetatable({}, {__mode = 'k'})
+        vs.showing = set
+    end
+    return set
+end
 
 local function haystack(msg)
     local parts = {tostring(msg.command), table.concat(msg, ' ')}
@@ -269,8 +273,19 @@ local function step_buffer(ctx, forward)
     control.set_talk_target(net, names[index][2])
 end
 
+local function current_buffer(ctx)
+    if not (ctx.net and common.enabled(ctx.net, 'chat')) then return nil end
+    local target = control.talk_target(ctx.net)
+    return target and chat.buffer(ctx.net, target), target
+end
+
 local keys = {
-    [meta 'h'] = function(ctx) ctx.vs.hide_presence = not ctx.vs.hide_presence end,
+    [meta 'h'] = function(ctx)
+        local buffer = current_buffer(ctx)
+        if not buffer then return end
+        local set = showing(ctx.vs)
+        set[buffer] = not set[buffer] or nil
+    end,
     [string.byte 'n'] = function(ctx) step_buffer(ctx, true) end,
     [string.byte 'p'] = function(ctx) step_buffer(ctx, false) end,
     [string.byte 'j'] = function(ctx) control.open_detail('jump', ctx.net, {}) end,
@@ -318,12 +333,6 @@ for prefix in ('@+'):gmatch '.' do
     keys[string.byte(prefix)] = function(ctx) toggle_statusmsg(ctx, prefix) end
 end
 
-local function current_buffer(ctx)
-    if not (ctx.net and common.enabled(ctx.net, 'chat')) then return nil end
-    local target = control.talk_target(ctx.net)
-    return target and chat.buffer(ctx.net, target), target
-end
-
 return {
     id = 'buffer',
     title = 'buffer',
@@ -360,15 +369,16 @@ return {
         local reveal = ctx.vs.reveal
         if reveal then
             control.set_filter(ctx.id, nil)
-            if presence_commands[reveal.command] then ctx.vs.hide_presence = nil end
+            if chat.hidden(buffer, reveal) then showing(ctx.vs)[buffer] = true end
         end
 
+        -- a filter searches every message, hidden or not
         local pattern = control.filter(ctx.id)
         local show
         if pattern then
             show = function(msg) return matching.safematch(haystack(msg), pattern) end
-        elseif ctx.vs.hide_presence then
-            show = function(msg) return not presence_commands[msg.command] end
+        elseif not showing(ctx.vs)[buffer] then
+            show = function(msg) return not chat.hidden(buffer, msg) end
         end
         if reveal then
             ctx.vs.reveal = nil
@@ -390,7 +400,8 @@ return {
     end,
 
     modes = function(ctx)
-        return {ctx.vs.hide_presence and 'hide' or nil}
+        local buffer = current_buffer(ctx)
+        return {buffer and showing(ctx.vs)[buffer] and 'show' or nil}
     end,
 
     terminal_title = function(ctx)

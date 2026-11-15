@@ -5,7 +5,9 @@
 -- with its strings escaped. It opens at the summary when there is one.
 -- [buffer], for a message a chat buffer holds, shows that buffer (the one
 -- shown, when it is among them) scrolled to the message, highlighted;
--- [console], for one the network's console holds, shows it there.
+-- [console], for one the network's console holds, shows it there. A line
+-- under the buttons names the hide rule that decided the message in that
+-- buffer (chat/hide.lua), when one did.
 -- Also the command colors and notice matching the console shares.
 
 local addircstr   <const> = require 'hub.ui.irc_formatting'
@@ -693,7 +695,16 @@ function M.render(ctx, win)
             control.view_state 'console'.reveal = msg
         end, true)
     end
-    win:waddstr '\n\n'
+    win:waddstr '\n'
+    local decision = buffer and chat.hide_decision(buffer, msg)
+    if decision then
+        draw.yellow(win)
+        win:waddstr(string.format('%s in %s by %s\n', decision.hidden and 'hidden' or 'shown', scrub(buffer.name),
+            decision.rule == 'built-in' and 'the built-in rule for joins, parts, quits and identity changes'
+            or string.format('networks.%s.hide.%d', scrub(net), decision.rule)))
+        draw.normal(win)
+    end
+    win:waddstr '\n'
 
     if shown == 'summary' and summary then
         sender(ctx, win, msg)

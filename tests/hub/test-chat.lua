@@ -354,6 +354,107 @@ T.case('mention patterns are Lua patterns whatever is installed', function()
     T.eq(chat.buffer('test', '#d').mention, true, 'a Lua pattern')
 end)
 
+T.case('hide rules classify messages as they reach each buffer', function()
+    local fake = FakeTransport.new()
+    local hide = {
+        {buffer = '#audit', nick = 'OperServ', pattern = '^KLINE:EXPIRE:'},
+        {account = 'statusbot'},
+        {nick = 'actor', pattern = '^waves'},
+        {buffer = '#small', command = {'JOIN', 'QUIT'}, action = 'show'},
+        {nick = 'me'},
+    }
+    if pcall(require, 'rex_pcre2') then
+        table.insert(hide, 1, {nick = 'ci', regex = '(?i)^build \\d+ passed$'})
+    end
+    T.boot {transport = fake, config = {mention = {patterns = {'me'}}, networks = {
+        {id = 'test', server = {host = 'h', port = 1}, identity = {nick = 'me'}, hide = hide}}}}
+    local chat = T.require 'hub.features.chat'
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :batch draft/chathistory message-tags'
+    c:recv ':srv CAP me ACK :batch draft/chathistory message-tags'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 005 me CHANTYPES=# CHATHISTORY=50 :are supported'
+    c:recv ':srv 376 me :End of MOTD'
+    for _, name in ipairs {'#audit', '#small', '#other'} do c:recv(':me!u@h JOIN ' .. name) end
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'chat.message', 'test', function(ev)
+        table.insert(events, ev)
+    end)
+    local function hidden(name)
+        local buffer = chat.buffer('test', name)
+        local list = {}
+        for msg in T.require 'hub.lib.OrderedMap'.reveach(buffer.messages) do
+            if chat.hidden(buffer, msg) then table.insert(list, tostring(msg.command) .. ' ' .. (msg[2] or msg[1] or '')) end
+        end
+        return list
+    end
+
+    T.eq(hidden '#audit', {}, 'our own joins are never hidden')
+    c:recv ':OperServ!s@services PRIVMSG #audit :KLINE:EXPIRE: me *@192.0.2.1'
+    c:recv ':OperServ!s@services PRIVMSG #other :KLINE:EXPIRE: *@192.0.2.1'
+    T.eq(hidden '#audit', {'PRIVMSG KLINE:EXPIRE: me *@192.0.2.1'}, 'in the buffer the rule names')
+    T.eq(hidden '#other', {}, 'not in another')
+    T.eq({chat.buffer('test', '#audit').mention, chat.buffer('test', '#audit').activity}, {false, 0},
+        'never a mention or activity')
+    T.eq({events[1].hidden, events[1].mention, events[2].hidden}, {true, false, false}, 'the events say so')
+
+    c:recv '@account=StatusBot :sb!s@h NOTICE #other :status'
+    c:recv ':sb!s@h NOTICE #other :no account tag'
+    c:recv ':actor!a@h PRIVMSG #other :\x01ACTION waves\x01'
+    c:recv ':actor!a@h PRIVMSG #other :\x01ACTION waves again'
+    c:recv ':actor!a@h PRIVMSG #other :\x01ACTION smiles\x01'
+    T.eq(hidden '#other', {'NOTICE status', 'PRIVMSG \x01ACTION waves\x01', 'PRIVMSG \x01ACTION waves again'},
+        'the account in any case, and an action without its framing, closed or not')
+    if hide[1].regex then
+        c:recv ':ci!c@h PRIVMSG #other :BUILD 12 passed'
+        c:recv ':ci!c@h PRIVMSG #other :build 13 failed'
+        T.eq(#hidden '#other', 4, 'a regex')
+    end
+
+    -- a QUIT is the same message in each buffer, decided in each
+    c:recv ':alice!a@h JOIN #small'
+    c:recv ':alice!a@h JOIN #other'
+    c:recv ':alice!a@h QUIT :bye'
+    local function last(name)
+        local buffer = chat.buffer('test', name)
+        return chat.hidden(buffer, chat.newest(buffer))
+    end
+    T.eq({last '#small', last '#other'}, {false, true}, "a show rule in #small, the built-in rule in #other")
+    local quit = chat.newest(chat.buffer('test', '#other'))
+    T.eq(chat.hide_decision(chat.buffer('test', '#other'), quit).rule, 'built-in', 'decided by')
+    T.eq(chat.hide_decision(chat.buffer('test', '#small'), quit).rule, #hide - 1, 'by position')
+
+    -- what we send matches no rule
+    chat.say('test', '#other', 'from me')
+    T.eq(last '#other', false, 'ours')
+
+    -- our nick change: the model has taken the new nick when chat hears it
+    c:recv ':me!u@h NICK newme'
+    T.eq({last '#small', last '#other'}, {false, false}, 'our own NICK')
+    c:recv ':newme!u@h NICK me'
+
+    -- history is classified as it is merged, and what was there keeps how it was
+    c:recv ':srv BATCH +h chathistory #audit'
+    c:recv '@batch=h;msgid=x1;time=2026-01-01T00:00:00.000Z :OperServ!s@services PRIVMSG #audit :KLINE:EXPIRE: *@192.0.2.9'
+    c:recv ':srv BATCH -h'
+    T.eq(#hidden '#audit', 2, 'from history too')
+
+    -- a reload applies to later messages only
+    T.ok(T.reload {config = {networks = {{id = 'test', server = {host = 'h', port = 1},
+        identity = {nick = 'me'}}}}}, 'reloaded without rules')
+    c:recv ':OperServ!s@services PRIVMSG #audit :KLINE:EXPIRE: *@192.0.2.10'
+    T.eq(#hidden '#audit', 2, 'kept, and the new one shown')
+end)
+
+T.case('a hide rule names a numeric by its digits', function()
+    local c, chat = boot({hide = {{command = '474'}}})
+    c:recv ':me!u@h JOIN #c'
+    c:recv ':srv 474 me #c :Cannot join channel (+b) - you are banned'
+    local buffer = chat.buffer('test', '#c')
+    T.eq(chat.hidden(buffer, chat.newest(buffer)), true, 'matched')
+end)
+
 T.case('statusmsg, echo and membership changes', function()
     local c, chat = boot()
     c:recv ':me!u@h JOIN #c'
@@ -999,7 +1100,7 @@ T.case('history and MONITOR after registration', function()
     chat.open('test', '#c')
     chat.open('test', 'Bob')
     chat.open('test', '#t')
-    chat.insert(chat.buffer('test', '#t'),
+    chat.insert('test', chat.buffer('test', '#t'),
         {command = 'PRIVMSG', tags = {time = '2026-01-01T00:00:09.000Z'}, '#t', 'last seen'})
     local c = fake.last()
     c:con()

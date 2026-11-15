@@ -79,11 +79,12 @@ end
 --- (no labeled-response) each absorb one copy from history, taking its
 --- msgid and time.
 ---@param chat hub.ChatLookup
+---@param net string
 ---@param buffer hub.ChatBuffer
 ---@param messages hub.Message[]
 ---@param since number|nil clock.now() at registration
 ---@param irc hub.Irc|nil to know our nick
-function M.merge(chat, buffer, messages, since, irc)
+function M.merge(chat, net, buffer, messages, since, irc)
     local older, newer, seen = {}, {}, {}
     local unconfirmed = {}
     for msg in OrderedMap.reveach(buffer.messages) do
@@ -116,7 +117,7 @@ function M.merge(chat, buffer, messages, since, irc)
     OrderedMap.reset(buffer.messages)
     for _, list in ipairs {older, newer} do
         for _, msg in ipairs(list) do
-            chat.insert(buffer, msg)
+            chat.insert(net, buffer, msg)
         end
     end
 end
@@ -134,7 +135,7 @@ function M.on_batch(chat, ev)
             msg.statusmsg = irc_model.split_statusmsg(irc, msg[1])
         end
     end
-    M.merge(chat, buffer, ev.messages, rec.registered_at, irc)
+    M.merge(chat, ev.net, buffer, ev.messages, rec.registered_at, irc)
 end
 
 return M

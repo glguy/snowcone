@@ -1361,6 +1361,36 @@ T.case('buffers are checked for repeated names and labels', function()
     T.ok(not ok and err:find('Unexpected field', 1, true), tostring(err))
 end)
 
+T.case('hide rules are checked at load', function()
+    T.boot()
+    local config = T.require 'hub.runtime.config'
+    local function load(hide)
+        local ok, result = pcall(config.normalize, {networks = {network('x', {hide = hide})}})
+        return ok, ok and result.networks[1].hide or result
+    end
+    local ok, rules = load {{buffer = '#a', nick = {'b', 'c'}, pattern = '^x'}, {command = 'JOIN', action = 'show'}}
+    T.ok(ok, tostring(rules))
+    T.eq(rules[1], {buffer = {'#a'}, nick = {'b', 'c'}, pattern = {'^x'}}, 'every field a list')
+    T.eq(rules[2].command, {'JOIN'}, 'command')
+    local _, none = load(nil)
+    T.eq(none, {}, 'none')
+    local function fails(hide, needle)
+        local done, err = load(hide)
+        T.ok(not done and tostring(err):find(needle, 1, true), tostring(err))
+    end
+    fails({{action = 'hide'}}, 'networks.x.hide.1: matches every message')
+    fails({{nick = 'a'}, {nick = 'b', pattern = 'x', regex = 'y'}}, 'networks.x.hide.2: a pattern or a regex, not both')
+    fails({{pattern = '[x'}}, 'networks.x.hide.1.pattern.1: ')
+    fails({{nick = 'a', action = 'drop'}}, 'action must be one of hide, show')
+    fails({{command = 'join'}}, 'an IRC command in capitals')
+    fails({{nick = 'a', level = 1}}, 'Unexpected field')
+    if pcall(require, 'rex_pcre2') then
+        fails({{regex = '('}}, 'networks.x.hide.1.regex.1: ')
+    else
+        fails({{regex = 'x'}}, 'networks.x.hide.1.regex.1: regular expressions need rex_pcre2')
+    end
+end)
+
 T.case('mention regexes are checked at load, and need rex_pcre2', function()
     T.boot()
     local config = T.require 'hub.runtime.config'

@@ -12,7 +12,7 @@ local path = require 'pl.path'
 fake_ncurses.install(150, 40)
 local ncurses = fake_ncurses.ncurses
 
-local function boot(buffers)
+local function boot(buffers, hide)
     local fake = FakeTransport.new()
     T.boot {ui = true, transport = fake, config = {networks = {{
         id = 'test',
@@ -20,6 +20,7 @@ local function boot(buffers)
         identity = {nick = 'me'},
         servers_file = path.abspath(here .. '/fixtures/servers.toml'),
         buffers = buffers,
+        hide = hide,
     }}}}
     local c = fake.last()
     c:con()
@@ -345,13 +346,15 @@ T.case('keys reach input modes, views and commands', function()
     T.ok(HUB.state.ui.view ~= 'buffer', 'C-n leaves the buffer view')
     control.set_view 'buffer'
 
-    -- Meta-H hides joins and the like in the buffer view
+    -- Meta-H shows the hidden messages of the buffer shown, and again
+    -- hides them
     c:recv ':carol!c@h JOIN #chan'
+    local chan = T.require 'hub.features.chat'.buffer('test', control.talk_target 'test')
     key(-string.byte 'h')
-    T.eq(control.view_state 'buffer'.hide_presence, true, 'presence hidden')
+    T.eq(control.view_state 'buffer'.showing[chan], true, 'showing')
     HUB.current.routes['ui.draw']()
     key(-string.byte 'h')
-    T.eq(control.view_state 'buffer'.hide_presence, false, 'presence shown')
+    T.eq(control.view_state 'buffer'.showing[chan], nil, 'hidden again')
 
     -- F1 picks the first view of the rotation
     key(-ncurses.KEY_F1)
@@ -1287,6 +1290,92 @@ T.case('a private message shown in a channel is marked > after its sender, ours 
     local text = table.concat(rows, '\n')
     T.ok(text:find('alice>psst', 1, true), 'theirs: ' .. text)
     T.ok(text:find('bob<back', 1, true), 'ours: ' .. text)
+    T.eq(T.log_lines 'error', {}, 'no errors')
+end)
+
+-- The rows of the main pad: as tall as the screen less the input line
+local function main_rows()
+    HUB.current.routes['ui.draw']()
+    for i = #fake_ncurses.windows, 1, -1 do
+        local win = fake_ncurses.windows[i]
+        if win.kind == 'newpad' and win.h == tty_height - 1 and win.w ~= tty_width then
+            local rows = {}
+            for y = 0, win.h - 1 do rows[y] = fake_ncurses.row(win, y) end
+            return rows
+        end
+    end
+    error 'no main pad'
+end
+
+local function on_main(text)
+    for _, row in pairs(main_rows()) do
+        if row:find(text, 1, true) then return true end
+    end
+    return false
+end
+
+T.case('hide rules leave messages out of the buffer view until Meta-H shows them there', function()
+    local c = boot({}, {
+        {buffer = '#audit', nick = 'OperServ', pattern = '^KLINE:EXPIRE:'},
+        {buffer = '#small', command = 'JOIN', action = 'show'},
+    })
+    local chat = T.require 'hub.features.chat'
+    local control = T.require 'hub.ui.control'
+    c:recv ':me!u@h JOIN #audit'
+    c:recv ':me!u@h JOIN #small'
+    c:recv ':OperServ!s@services PRIVMSG #audit :KLINE:EXPIRE: \x02*@192.0.2.1\x02'
+    c:recv ':operserv!s@services PRIVMSG #audit :\x0304KLINE:EXPIRE:\x03 *@192.0.2.2'
+    c:recv ':OperServ!s@services PRIVMSG #audit :KLINE:ADD: *@192.0.2.3'
+    c:recv ':alice!a@h JOIN #audit'
+    c:recv ':alice!a@h JOIN #small'
+    T.eq(chat.buffer('test', '#audit').activity, 1, 'only the shown message counts')
+
+    control.set_talk_target('test', '#audit')
+    control.set_view 'buffer'
+    T.ok(on_main 'KLINE:ADD:', 'a message no rule hides')
+    T.ok(not on_main '192.0.2.1', 'hidden, bold in the text')
+    T.ok(not on_main '192.0.2.2', 'hidden, the nick in any case and the text colored')
+    T.ok(not on_main 'alice', 'a join, by the built-in rule')
+    T.ok(on_main 'join', 'our own join is shown')
+    T.ok(not status_bar():find('show', 1, true), 'no mode while hiding')
+
+    key(-string.byte 'h')
+    T.ok(on_main '192.0.2.1' and on_main 'alice', 'Meta-H shows them')
+    T.ok(status_bar():find('show', 1, true), 'the mode reads show')
+
+    -- each buffer keeps its own
+    control.set_talk_target('test', '#small')
+    T.ok(not status_bar():find('show', 1, true), 'another buffer hides')
+    T.ok(on_main 'alice', "a show rule overrides the built-in one")
+    control.set_talk_target('test', '#audit')
+    T.ok(on_main '192.0.2.1', 'kept while switching')
+    key(-string.byte 'h')
+    T.ok(not on_main '192.0.2.1', 'hidden again')
+
+    -- only what is shown moves the view's divider
+    local buffer = chat.buffer('test', '#audit')
+    main_rows()
+    local ticker = buffer.messages.ticker
+    c:recv ':bob!b@h JOIN #audit'
+    c:recv ':OperServ!s@services PRIVMSG #audit :KLINE:EXPIRE: *@192.0.2.4'
+    T.eq(buffer.messages.ticker, ticker, 'hidden messages leave it')
+    c:recv ':bob!b@h PRIVMSG #audit :hello'
+    T.eq(buffer.messages.ticker, ticker + 1, 'a shown one moves it')
+
+    -- the detail pane names the rule
+    local hidden
+    for msg in T.require 'hub.lib.OrderedMap'.each(buffer.messages) do
+        if (msg[2] or ''):find '192.0.2.1' then hidden = msg end
+    end
+    control.open_detail('message', 'test', hidden)
+    HUB.current.routes['ui.draw']()
+    T.ok(has_row(rows_of(detail_pad()), 'hidden in #audit by networks.test.hide.1'), 'the rule named')
+
+    -- bringing a hidden message into view shows the buffer's hidden ones
+    control.view_state 'buffer'.reveal = hidden
+    main_rows()
+    T.ok(on_main '192.0.2.1', 'revealed')
+    T.ok(status_bar():find('show', 1, true), 'and showing')
     T.eq(T.log_lines 'error', {}, 'no errors')
 end)
 
