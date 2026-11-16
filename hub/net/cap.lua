@@ -1,4 +1,4 @@
--- Capability negotiation. LS and REQ run inside network tasks.
+-- Capability negotiation. negotiate and REQ run inside network tasks.
 
 local irc_model <const> = require 'hub.net.irc'
 local N         <const> = require 'hub.lib.numerics'
@@ -110,11 +110,10 @@ function M.REQ(t, request)
     end
 end
 
---- The initial negotiation during registration, after CAP LS was sent.
---- Ends negotiation with CAP END.
+-- Read the CAP LS reply, then request and end, through to RPL_WELCOME
 ---@param t hub.Task
----@return hub.Message|nil # RPL_WELCOME if the server registered without CAP
-function M.LS(t)
+---@return hub.Message # RPL_WELCOME
+local function LS(t)
     local irc = model(t)
     local more = true
     while more do
@@ -131,7 +130,7 @@ function M.LS(t)
         elseif msg.command == N.RPL_WELCOME then
             return msg -- the server doesn't negotiate capabilities
         elseif msg.command == N.ERR_UNKNOWNCOMMAND and msg[2] == 'CAP' then
-            return
+            return t:wait_irc {N.RPL_WELCOME}
         end
     end
 
@@ -146,6 +145,21 @@ function M.LS(t)
     end
 
     t:send('CAP', 'END')
+    return t:wait_irc {N.RPL_WELCOME}
+end
+
+--- Registration with capability negotiation. CAP LS goes out first so
+--- the server holds registration, then send_registration sends PASS,
+--- NICK and USER. Negotiation ends with CAP END; a server without CAP
+--- registers right away.
+---@param t hub.Task
+---@param send_registration fun()
+---@return hub.Message # RPL_WELCOME
+function M.negotiate(t, send_registration)
+    t:send('CAP', 'LS', '302')
+    send_registration()
+    -- "<client> :Welcome to the <networkname> Network, <nick>[!<user>@<host>]"
+    return LS(t)
 end
 
 --- Handle CAP subcommands as they arrive. An ACK is recorded whoever

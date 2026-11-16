@@ -1,9 +1,7 @@
 -- Connection registration, run as a network task after CON.
 --
--- CAP LS, PASS, NICK and USER go out together; the server holds
--- registration until CAP END, so SASL still happens first. A server
--- without CAP registers right away, and the RPL_WELCOME that ends LS is
--- used directly.
+-- PASS, NICK and USER go out right behind CAP LS; the server holds
+-- registration until CAP END, so SASL still happens first.
 
 local cap       <const> = require 'hub.net.cap'
 local clock     <const> = require 'hub.runtime.clock'
@@ -78,16 +76,14 @@ return function(t)
     local user  = cfg.identity.user  or cfg.identity.nick
     local realname = cfg.identity.realname or cfg.identity.nick
 
-    t:send('CAP', 'LS', '302')
-    if password then
-        t:send('PASS', {content = password, secret = true})
-    end
-    t:send('NICK', nick)
     irc.nick = nick -- optimistic
-    t:send('USER', user, '0', '*', realname)
-
-    -- "<client> :Welcome to the <networkname> Network, <nick>[!<user>@<host>]"
-    local welcome = cap.LS(t) or t:wait_irc {N.RPL_WELCOME}
+    local welcome = cap.negotiate(t, function()
+        if password then
+            t:send('PASS', {content = password, secret = true})
+        end
+        t:send('NICK', nick)
+        t:send('USER', user, '0', '*', realname)
+    end)
     irc.nick = welcome[1] -- first confirmation
 
     -- "<client> :End of /MOTD command."

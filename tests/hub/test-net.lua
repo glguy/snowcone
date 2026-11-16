@@ -220,6 +220,18 @@ T.case('a server without CAP registers directly', function()
     T.eq(c:take(), {'MODE me'}, 'no CAP END')
 end)
 
+T.case('a server that ignores CAP registers on its welcome', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    c:con()
+    c:take()
+    c:recv ':srv 001 other :Welcome'
+    c:recv ':srv 422 other :MOTD File is missing'
+    T.eq(rec().phase, 'connected', 'phase')
+    T.eq(rec().irc.nick, 'other', 'nick from the welcome')
+    T.eq(c:take(), {'MODE other'}, 'no CAP END')
+end)
+
 T.case('identity.bot sets the named bot mode before the registered event', function()
     local fake = boot {network('test', {identity = {nick = 'me', bot = true}})}
     local c = fake.last()
