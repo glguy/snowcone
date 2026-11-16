@@ -639,6 +639,47 @@ T.case('a scrolled rolling view stays put, counting the entries it shows', funct
     T.eq(rotation(vs, om, 5), {'new 8', 'new 7', 'new 6', 'new 5'}, 'and unscrolled')
 end)
 
+T.case('Ctrl-L lays a rolling view out from the top', function()
+    boot()
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    local om = OrderedMap.new(100)
+    local function add(text) OrderedMap.insert(om, nil, {text = text, time = '00:00:00', timestamp = 0}) end
+    local rows = 5
+    -- the text on each row, '-' for the divider, '' for an empty row
+    local function screen(vs)
+        -- as wide as the divider, which a view's pad holds unwrapped
+        local win = ncurses.newwin(rows, 1000)
+        T.require 'hub.ui.draw'.draw_rotation(win, vs, 0, rows, om, nil, function(w, entry)
+            w:waddstr('|' .. entry.text)
+        end)
+        local out = {}
+        for y = 0, rows - 1 do
+            local row = fake_ncurses.row(win, y)
+            out[y + 1] = row:match '|([^·]*)' or (row:find('·', 1, true) and '-') or ''
+        end
+        return out
+    end
+    for i = 1, 7 do add('m' .. i) end
+    local vs = {scroll = 3}
+
+    vs.scroll, vs.realign = 0, true
+    T.eq(screen(vs), {'m4', 'm5', 'm6', 'm7', '-'}, 'oldest at the top, newest above the divider')
+    T.eq(vs.realign, nil, 'once')
+    add 'm8'
+    T.eq(screen(vs), {'-', 'm5', 'm6', 'm7', 'm8'}, 'the next finishes the screen')
+    add 'm9'
+    T.eq(screen(vs), {'m9', '-', 'm6', 'm7', 'm8'}, 'then they start from the top')
+
+    -- with too few to fill it, they start at the top
+    OrderedMap.reset(om)
+    add 'a'
+    add 'b'
+    vs.realign = true
+    T.eq(screen(vs), {'a', 'b', '-', '', ''}, 'a short log')
+    add 'c'
+    T.eq(screen(vs), {'a', 'b', 'c', '-', ''}, 'continues below')
+end)
+
 T.case('choosing another network unscrolls its views', function()
     boot()
     local control = T.require 'hub.ui.control'

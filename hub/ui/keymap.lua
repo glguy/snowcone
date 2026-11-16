@@ -279,7 +279,18 @@ M.global = {
     [-ncurses.KEY_RESUME] = function() tty.set_focus(true) end,
     [-ncurses.KEY_EXIT] = function() tty.set_focus(false) end,
 
-    [ctrl 'L'] = function() ncurses.clear() end,
+    -- redraws the screen, and a rolling log returns to its newest
+    -- entries laid out from the top: oldest on the first row, newest above
+    -- the divider at the bottom (ui/draw.lua)
+    [ctrl 'L'] = function()
+        ncurses.clear()
+        local view = control.current_view()
+        if not view.document then
+            local vs = control.view_state(view.id)
+            vs.scroll = 0
+            vs.realign = true
+        end
+    end,
     [ctrl 'N'] = control.next_view,
     [ctrl 'P'] = control.prev_view,
 

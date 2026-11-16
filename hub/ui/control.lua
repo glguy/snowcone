@@ -323,6 +323,8 @@ end
 ---@field page integer|nil rows a page key moves, set by the renderer
 ---@field max_scroll integer|nil set by the renderer
 ---@field pin integer|nil entry number that holds a rotating log still (ui/draw.lua)
+---@field rotation table<hub.OrderedMap, integer>|nil divider offset by map, weak-keyed (ui/draw.lua)
+---@field realign boolean|nil Ctrl-L asks the next frame to lay the log out from the top
 ---@field filter string|nil the saved filter
 ---@field expanded table<string, boolean>|nil open lists (ui/fields.lua)
 ---@field [string] any

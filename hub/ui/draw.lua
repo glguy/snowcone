@@ -230,33 +230,37 @@ end
 -- it. The pin is the view's, not the map's, so two views of one map don't
 -- fight over it. Returns the window and the number of matching entries up
 -- to the pin, for the scroll limit.
+--
+-- The divider follows the map's ticker, shifted by the view's offset for
+-- that map (vs.rotation, weak-keyed by map). vs.realign, set by Ctrl-L
+-- (ui/keymap.lua), chooses the offset that puts the oldest shown entry on
+-- the first row and the newest just above the divider, so new entries
+-- finish the screen and then write over it from the top.
 local function rotating_window(vs, source, rows, predicate)
     OrderedMap.set_predicate(source, predicate)
 
-    local newest, skip, divider
+    local newest, skip
     if vs.scroll > 0 then
         -- a map emptied since (OrderedMap.reset) numbers from 1 again
         newest = math.min(vs.pin or source.n, source.n)
         vs.pin = newest
         skip = vs.scroll
-        divider = rows - 1
     else
         vs.pin = nil
         newest = source.n
         skip = 0
-        divider = source.ticker
     end
 
-    local window = {}
-    local n, matching = 0, 0
+    -- newest first
+    local placed = {}
+    local matching = 0
     for entry in OrderedMap.each(source, source.n - newest) do
         if not predicate or predicate(entry) then
             matching = matching + 1
             if skip > 0 then
                 skip = skip - 1
-            elseif n + 1 < rows then -- saves a row for divider
-                window[(divider - 1 - n) % rows + 1] = entry
-                n = n + 1
+            elseif #placed + 1 < rows then -- saves a row for divider
+                placed[#placed + 1] = entry
             elseif not predicate then
                 -- the rest are counted without testing each
                 matching = newest - OrderedMap.first(source) + 1
@@ -265,9 +269,28 @@ local function rotating_window(vs, source, rows, predicate)
         end
     end
 
+    local window = {}
     if rows > 0 then
+        local divider
+        if vs.scroll > 0 then
+            divider = rows - 1
+        else
+            local offsets = vs.rotation
+            if not offsets then
+                offsets = setmetatable({}, {__mode = 'k'})
+                vs.rotation = offsets
+            end
+            if vs.realign then
+                offsets[source] = (#placed - source.ticker) % rows
+            end
+            divider = source.ticker + (offsets[source] or 0)
+        end
+        for n, entry in ipairs(placed) do
+            window[(divider - n) % rows + 1] = entry
+        end
         window[divider % rows + 1] = 'divider'
     end
+    vs.realign = nil
     return window, matching
 end
 

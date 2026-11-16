@@ -119,7 +119,9 @@ Some things to know:
   settings wait for `/reconnect`. `/reload FILE` switches to another
   configuration file, which later reloads keep reading.
 - Page Up/Down and the arrows scroll every list the same way; scrolling
-  back pins it. Esc clears a view's scroll and filter.
+  back pins it. Esc clears a view's scroll and filter. Ctrl-L redraws
+  and lays the list out afresh from the top, newest at the bottom, so new
+  lines finish the screen and then start again from the top.
 - Ctrl-N/Ctrl-P and the function keys move through the views of
   `[ui] profile`; the function keys renumber when the current network
   changes, since views of features it lacks are left out. A network's
