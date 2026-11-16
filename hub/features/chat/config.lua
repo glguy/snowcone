@@ -88,7 +88,8 @@ function M.mention(chat, net, target)
 end
 
 --- Whether text matches any of the mention settings' Lua patterns or
---- regular expressions; a malformed one matches nothing.
+--- regular expressions; a malformed one matches nothing. Chat passes the
+--- text without formatting or action framing (lib/message_text.lua).
 ---@param mention hub.MentionSettings|nil
 ---@param text string
 ---@return boolean

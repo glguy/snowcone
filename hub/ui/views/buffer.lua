@@ -40,9 +40,11 @@ local editor     <const> = require 'hub.ui.editor'
 local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
 local matching   <const> = require 'hub.lib.matching'
+local message_text <const> = require 'hub.lib.message_text'
 local ui_keys    <const> = require 'hub.ui.keys'
 local N          <const> = require 'hub.lib.numerics'
 local scrub      <const> = require 'hub.lib.scrub'
+local strip_formatting <const> = require 'hub.lib.strip_formatting'
 local tty        <const> = require 'hub.runtime.tty'
 
 local meta_ctrl  <const> = ui_keys.meta_ctrl
@@ -56,7 +58,7 @@ local active_shown <const> = 4
 
 local function chat_renderer(win, msg)
     local text = msg[2] or ''
-    local action = msg.command == 'PRIVMSG' and text:match '^\x01ACTION (.*)\x01$'
+    local action = msg.command == 'PRIVMSG' and message_text.action(text)
     addircstr(win, action or text)
 end
 
@@ -180,7 +182,7 @@ end
 local function render_msg(ctx, win, buffer, msg)
     local command = msg.command
     local source = msg.nick or (msg.source or '?'):match '^[^.!]*'
-    local action = command == 'PRIVMSG' and (msg[2] or ''):match '^\x01ACTION (.*)\x01$'
+    local action = command == 'PRIVMSG' and message_text.action(msg[2] or '')
 
     if source == '>>>' then
         local color
@@ -239,10 +241,17 @@ local function showing(vs)
     return set
 end
 
+-- What a filter searches: the source, command and arguments, without
+-- formatting, and a message's text as mentions and hide rules see it
+-- (lib/message_text.lua)
 local function haystack(msg)
-    local parts = {tostring(msg.command), table.concat(msg, ' ')}
+    local args = {}
+    for i, arg in ipairs(msg) do args[i] = arg end
+    local text = message_text.of(msg)
+    if text then args[2] = text end
+    local parts = {tostring(msg.command), table.concat(args, ' ')}
     if msg.source then table.insert(parts, 1, msg.source) end
-    return table.concat(parts, ' ')
+    return strip_formatting(table.concat(parts, ' '))
 end
 
 -- Buffer names of a network, sorted by folded name
@@ -525,6 +534,10 @@ return {
             control.set_current_net(ev.net)
             control.set_talk_target(ev.net, ev.target)
             control.set_view 'buffer'
+        end)
+        -- a private buffer renamed with its nick stays shown
+        sub.on('chat.rename', function(ev)
+            control.rename_target(ev.net, ev.from, ev.to)
         end)
         -- a forwarded JOIN takes the buffer we were joining to where we went
         sub.on('chat.forward', function(ev)

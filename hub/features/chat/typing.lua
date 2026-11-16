@@ -305,6 +305,11 @@ function H.NICK(chat, net, _, msg)
         stop_typing(chat, net, query, msg.nick)
     else
         rename_typing(chat, net, query, msg.nick, msg[1])
+        -- what we are writing there follows the buffer
+        local entry = query and chat.get(net).composing
+        if entry and chat.fold(net, entry.target) == chat.fold(net, msg.nick) then
+            entry.target = msg[1]
+        end
     end
 end
 

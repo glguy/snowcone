@@ -129,6 +129,22 @@ function M.set_talk_target(net, target)
     dispatch.dirty()
 end
 
+--- Follow a buffer's rename (chat.rename): the shown and previous buffers
+--- that named it by its old name name it by its new one. Unlike a move to
+--- another buffer, it changes nothing Meta-S goes back to.
+---@param net string
+---@param from string
+---@param to string
+function M.rename_target(net, from, to)
+    local vs = M.view_state 'buffer'
+    local key = chat.fold(net, from)
+    for _, names in ipairs {vs.targets or {}, vs.previous or {}} do
+        local name = names[net]
+        if name and chat.fold(net, name) == key then names[net] = to end
+    end
+    dispatch.dirty()
+end
+
 --- The STATUSMSG prefix ('@' or '+') lines to a network's shown buffer
 --- go out with, or nil. Each buffer keeps its own, so leaving one and
 --- coming back doesn't drop its lines to the whole channel.

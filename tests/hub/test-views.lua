@@ -701,6 +701,23 @@ local function status_bar()
     end
 end
 
+T.case('a shown query follows its nick, and Meta-S still goes back', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':bob!b@h PRIVMSG me :hi'
+    cmdline.execute 'talk #chan'
+    cmdline.execute 'talk bob'
+    c:recv ':bob!b@h NICK zed'
+    T.eq(control.talk_target 'test', 'zed', 'still shown')
+    T.ok(status_bar():find('zed', 1, true), 'by its new name')
+    key(-string.byte 's')
+    T.eq(control.talk_target 'test', '#chan', 'back')
+    key(-string.byte 's')
+    T.eq(control.talk_target 'test', 'zed', 'and back to it by its new name')
+end)
+
 T.case('j lists the buffers to jump to by labels they keep', function()
     local c = boot()
     local control = T.require 'hub.ui.control'

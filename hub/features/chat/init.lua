@@ -15,6 +15,8 @@
 --            goes when our PART comes back
 --   composing what we are writing and where, for our typing notices
 --            (chat/typing.lua)
+--   monitoring [folded nick] = true: our MONITOR + awaiting its reply
+--            (chat/monitor.lua)
 -- }
 --
 -- Sending: replies to CTCP requests (paced, except to staff), CHATHISTORY
@@ -50,6 +52,7 @@ local hide       <const> = require 'hub.features.chat.hide'
 local history    <const> = require 'hub.features.chat.history'
 local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
+local message_text <const> = require 'hub.lib.message_text'
 local monitor    <const> = require 'hub.features.chat.monitor'
 local N          <const> = require 'hub.lib.numerics'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
@@ -132,6 +135,9 @@ end
 ---@field closing table<string, true> channels /close parted, by folded name;
 --- for the current connection
 ---@field composing hub.ChatComposing|nil what we are writing and where
+---@field monitoring table<string, true>|nil nicks we sent MONITOR + for and
+--- have had no reply about, by folded nick; for the current connection
+--- (chat/monitor.lua)
 ---@field history_bucket number|nil pacing of new buffers' history requests (lib/ratelimit)
 ---@field ctcp_bucket number|nil pacing of CTCP replies to non-staff (lib/ratelimit)
 ---@field casemapping string|nil what the keys are folded with: the
@@ -477,6 +483,9 @@ end
 -- rules discard it.
 local function route_chat(net, irc, target, text, msg)
     local nick = msg.nick
+    -- mentions are matched on the text without formatting, as hide rules
+    -- and filters are (lib/message_text.lua)
+    local plain = message_text.plain(text)
     local context = not msg.statusmsg and irc_model.channel_context(irc, target, msg.tags)
     -- ours, relayed by a bouncer from another client, echoed or replayed:
     -- never a mention, never unseen
@@ -489,7 +498,7 @@ local function route_chat(net, irc, target, text, msg)
     end
 
     if irc_model.is_channel_name(irc, target) then
-        return add(net, target, msg, config.matches(config.mention(M, net, target), text), true)
+        return add(net, target, msg, config.matches(config.mention(M, net, target), plain), true)
     end
 
     -- to us, to a broadcast mask ($$*.net), or to a nick we just left: in
@@ -504,7 +513,7 @@ local function route_chat(net, irc, target, text, msg)
         local mention = false
         if not ctcp_request then
             if own then
-                mention = config.matches(own, text)
+                mention = config.matches(own, plain)
             else
                 mention = irc_model.is_me(irc, target)
             end
@@ -658,6 +667,9 @@ function H.NICK(net, _, msg)
             end
         end
         add(net, msg[1], msg, false, false)
+        -- what names the buffer elsewhere (the UI's shown buffer, notify)
+        -- follows it
+        bus.emit('chat.rename', {net = net, from = msg.nick, to = msg[1]})
     end
 end
 
@@ -696,6 +708,11 @@ end
 -- "<client> <channel> :<reason>": our line there was refused
 H[N.ERR_CANNOTSENDTOCHAN] = function(net, irc, msg)
     receipt.on_refusal(M, net, irc, msg)
+end
+
+-- Replies to our MONITOR + (chat/monitor.lua), after the model's
+for _, n in ipairs {N.RPL_MONONLINE, N.RPL_MONOFFLINE, N.ERR_MONLISTFULL} do
+    H[n] = function(net, irc, msg) monitor.on_reply(M, net, irc, msg) end
 end
 
 -- Replies to LIST (chat/channels.lua)
@@ -767,6 +784,7 @@ function M.subscribe(sub)
         local C = M.get(ev.net)
         receipt.settle_all(C)
         typing.reset(C)
+        monitor.reset(C)
         C.closing = {}
     end)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)

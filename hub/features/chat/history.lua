@@ -7,6 +7,8 @@
 -- (those received since its registration), which puts it before
 -- everything when a buffer opens and between the old and new messages
 -- after a reconnect. Messages a buffer already has are skipped.
+-- A private message a channel's history holds for its channel-context
+-- tag is marked as it is live (msg.context).
 --
 -- The functions take chat (features/chat), which requires this module.
 
@@ -133,9 +135,19 @@ function M.on_batch(chat, ev)
     local irc = rec and rec.irc
     local buffer = chat.buffer(ev.net, ev.params[1] or '')
     if not (irc and buffer) then return end
+    local key = chat.fold(ev.net, buffer.name)
     for _, msg in ipairs(ev.messages) do
         if msg.command == 'PRIVMSG' or msg.command == 'NOTICE' then
             msg.statusmsg = irc_model.split_statusmsg(irc, msg[1])
+            -- a private message the server keeps with the channel it was
+            -- shown in (channel-context) is marked as it was live: >
+            -- from its sender, < from us. The tag is compared with the
+            -- buffer, since history can come before we rejoin.
+            local context = not msg.statusmsg and msg[1] and not irc_model.is_channel_name(irc, msg[1])
+                and irc_model.channel_context_name(irc, msg.tags)
+            if context and chat.fold(ev.net, context) == key then
+                msg.context = msg.nick and irc_model.is_me(irc, msg.nick) and '<' or '>'
+            end
         end
     end
     M.merge(chat, ev.net, buffer, ev.messages, rec.registered_at, irc)

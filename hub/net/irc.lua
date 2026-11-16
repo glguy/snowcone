@@ -722,12 +722,23 @@ local channel_context_tags <const> = {M.channel_context_tag, '+draft/channel-con
 ---@param tags table<string, string|true>|nil
 ---@return string|nil
 function M.channel_context(irc, target, tags)
-    if not tags or M.is_channel_name(irc, target) then return nil end
+    if M.is_channel_name(irc, target) then return nil end
+    local name = M.channel_context_name(irc, tags)
+    local channel = name and M.get_channel(irc, name)
+    return channel and channel.name
+end
+
+--- The channel a channel-context tag names, joined or not; nil without
+--- one naming a channel.
+---@param irc hub.Irc
+---@param tags table<string, string|true>|nil
+---@return string|nil
+function M.channel_context_name(irc, tags)
+    if not tags then return nil end
     for _, key in ipairs(channel_context_tags) do
         local name = tags[key]
         if type(name) == 'string' and M.is_channel_name(irc, name) then
-            local channel = M.get_channel(irc, name)
-            return channel and channel.name
+            return name
         end
     end
 end

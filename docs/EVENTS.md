@@ -28,6 +28,7 @@ carry `net`, the network id.
 | `topology.map` | `{net, population}` a MAP reply ended; population is `[server] = users` | features/topology |
 | `chat.message` | `{net, target, msg, mention, activity, hidden}` a message added to a buffer; `hidden` when a hide rule hides it there, and then never a mention or activity | features/chat |
 | `chat.buffer` | `{net, target, opened}` a buffer opened or closed | features/chat |
+| `chat.rename` | `{net, from, to}` a private buffer follows its nick's change from `from` to `to` | features/chat |
 | `chat.focus` | `{net, target}` /talk asks the UI to show a buffer | features/chat |
 | `chat.forward` | `{net, from, to}` the server forwarded our JOIN of `from` to `to` (470) | features/chat |
 | `chat.show_list` | `{net}` /list asks the UI to show the list | features/chat |

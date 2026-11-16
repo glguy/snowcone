@@ -10,7 +10,7 @@
 
 local chat             <const> = require 'hub.features.chat'
 local common           <const> = require 'hub.features.common'
-local strip_formatting <const> = require 'hub.lib.strip_formatting'
+local message_text     <const> = require 'hub.lib.message_text'
 local tty              <const> = require 'hub.runtime.tty'
 
 local M = {}
@@ -26,8 +26,9 @@ local backends = {
 
 --- Make another backend module available by name. A backend has
 --- notify(previous, target, nick, text, net, key) -> handle and
---- dismiss(handle); text comes without its IRC formatting, and key is the
---- target folded, which with net names the buffer.
+--- dismiss(handle); text comes without its IRC formatting or an action's
+--- CTCP framing (lib/message_text.lua), and key is the target folded,
+--- which with net names the buffer.
 function M.register_backend(name, module)
     backends[name] = module
 end
@@ -67,7 +68,7 @@ function M.notify(net, target, nick, text)
     if not impl or tty.focused() then return end
     local key = chat.fold(net, target)
     local m = muted(net)
-    m[key] = impl.notify(m[key], target, nick or '?', strip_formatting(text), net, key)
+    m[key] = impl.notify(m[key], target, nick or '?', message_text.plain(text), net, key)
 end
 
 --- Withdraw a buffer's notification once it is seen.
@@ -88,6 +89,14 @@ function M.subscribe(sub)
         if ev.mention and common.enabled(ev.net, 'chat') then
             local text = ev.msg[2] or ''
             M.notify(ev.net, ev.target, ev.msg.nick, text)
+        end
+    end)
+    -- a renamed buffer's notification is dismissed under its new name
+    sub.on('chat.rename', function(ev)
+        local m = muted(ev.net)
+        local from, to = chat.fold(ev.net, ev.from), chat.fold(ev.net, ev.to)
+        if from ~= to and m[from] ~= nil and m[to] == nil then
+            m[to], m[from] = m[from], nil
         end
     end)
     sub.on('net.removed', function(ev)

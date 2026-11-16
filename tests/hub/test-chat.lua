@@ -265,6 +265,20 @@ T.case('channel and private messages go to buffers', function()
     T.eq({chan.activity, chan.mention}, {0, false}, 'seen')
 end)
 
+T.case('mentions match the text without formatting or action framing', function()
+    local c, chat = boot({mention = {patterns = {'^me:', '^waves at me$'}}})
+    c:recv ':me!u@h JOIN #chan'
+    local chan = chat.buffer('test', '#chan')
+    c:recv ':alice!a@h PRIVMSG #chan :\x02me\x02: hi'
+    T.eq(chan.mention, true, 'formatting ignored')
+    chat.look(chan)
+    c:recv ':alice!a@h PRIVMSG #chan :\x01ACTION waves at \x0304me\x01'
+    T.eq(chan.mention, true, 'an action matched by its text')
+    chat.look(chan)
+    c:recv ':alice!a@h PRIVMSG #chan :\x01ACTION waves at me'
+    T.eq(chan.mention, true, 'the closing \\x01 may be missing')
+end)
+
 T.case("the server's answer to our ban is a server notice, not chat", function()
     local c, chat = boot()
     c:recv ':srv.example NOTICE me :Added global 1440 min. K-Line [*@192.0.2.1]'
@@ -877,6 +891,25 @@ T.case('a private message with channel-context shows in the channel', function()
     T.ok(errors[#errors]:find 'not a nick', 'not to a channel')
 end)
 
+T.case("a channel's history marks the private messages shown in it", function()
+    local c, chat = boot(nil, nil)
+    c:recv ':srv CAP * NEW :batch message-tags server-time'
+    c:recv ':srv CAP me ACK :batch message-tags server-time'
+    c:recv ':me!u@h JOIN #a'
+    c:take()
+    c:recv ':srv BATCH +h chathistory #a'
+    c:recv '@batch=h;msgid=1;+channel-context=#a :alice!a@h PRIVMSG me :psst'
+    c:recv '@batch=h;msgid=2;+channel-context=#a :me!u@h PRIVMSG alice :hi'
+    c:recv '@batch=h;msgid=3;+channel-context=#b :alice!a@h PRIVMSG me :other'
+    c:recv '@batch=h;msgid=4 :alice!a@h PRIVMSG #a :plain'
+    c:recv ':srv BATCH -h'
+    local marks = {}
+    for msg in T.require 'hub.lib.OrderedMap'.reveach(chat.buffer('test', '#a').messages) do
+        if msg.command == 'PRIVMSG' then table.insert(marks, msg[2] .. ' ' .. tostring(msg.context)) end
+    end
+    T.eq(marks, {'psst >', 'hi <', 'other nil', 'plain nil'}, 'marked as live')
+end)
+
 T.case('/cmsg needs client tags, and the channel-context tag', function()
     local c = boot()
     c:recv ':me!u@h JOIN #c'
@@ -1071,6 +1104,13 @@ T.case('/msg opens the target\'s buffer', function()
     c:take()
 end)
 
+T.case('/ctcp opens the target\'s buffer', function()
+    local c, chat = boot()
+    T.command('ctcp carol VERSION')
+    T.eq(texts(chat.buffer('test', 'carol')), {'PRIVMSG carol \x01VERSION\x01'}, 'with the request')
+    c:take()
+end)
+
 T.case('a private buffer\'s MONITOR follows its nick, and spares the nick being reclaimed', function()
     local c = boot()
     T.command 'talk Carol'
@@ -1085,6 +1125,33 @@ T.case('a private buffer\'s MONITOR follows its nick, and spares the nick being 
     c:take()
     T.command 'close wanted'
     T.eq(c:take(), {}, 'the reclaim keeps its MONITOR')
+end)
+
+T.case('a private buffer closed before its MONITOR reply unwatches on the reply', function()
+    local c = boot()
+    local irc_model = T.require 'hub.net.irc'
+    local irc = HUB.state.nets.test.irc
+    T.command 'talk bob'
+    T.eq(c:take(), {'CHATHISTORY LATEST bob * 50', 'MONITOR + bob'}, 'watched')
+    T.command 'close bob'
+    T.eq(c:take(), {}, 'nothing to take back before the reply')
+    c:recv ':srv 731 me :bob'
+    T.eq(c:take(), {'MONITOR - bob'}, 'the reply unwatches it')
+    T.eq(irc_model.get_monitor(irc, 'bob'), nil, 'and the model forgets it')
+
+    -- reopened before the reply, it stays watched, asked for once
+    T.command 'talk carol'
+    T.command 'close carol'
+    T.command 'talk carol'
+    T.eq(c:take(), {'CHATHISTORY LATEST carol * 50', 'MONITOR + carol', 'CHATHISTORY LATEST carol * 50'},
+        'asked once')
+    c:recv ':srv 730 me :carol!c@h'
+    T.eq(c:take(), {}, 'kept')
+    T.ok(irc_model.get_monitor(irc, 'carol'), 'monitored')
+
+    -- a nick chat didn't ask for is not chat's to unwatch
+    c:recv ':srv 731 me :dave'
+    T.eq(c:take(), {}, 'left alone')
 end)
 
 T.case('history absorbs our unconfirmed lines instead of repeating them', function()
@@ -1614,6 +1681,14 @@ T.case('mentions notify once until seen, and dismiss', function()
     tty.set_focus(false)
     c:recv ':bob!b@h PRIVMSG me :\x02bold\x02 \x0304,05red\x03 \x04ff0000hex\x0f'
     T.eq(calls[4], {'notify', false, 'bob', 'bob', 'bold red hex', 'test', 'BOB'}, 'formatting stripped')
+
+    c:recv ':carol!c@h PRIVMSG me :\x01ACTION \x02waves\x02\x01'
+    T.eq(calls[5], {'notify', false, 'carol', 'carol', 'waves', 'test', 'CAROL'}, 'an action without its framing')
+
+    -- a renamed buffer's notification is dismissed under its new name
+    c:recv ':carol!c@h NICK caroline'
+    notify.dismiss('test', 'caroline')
+    T.eq(calls[6], {'dismiss', 'handle'}, 'followed the rename')
 end)
 
 T.case('mac notifications group by network and buffer, with a plain subtitle', function()

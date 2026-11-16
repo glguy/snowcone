@@ -113,6 +113,7 @@ function M.commands(chat)
             send.send_tagged(ctx.net, {[irc_model.channel_context_tag] = channel}, 'PRIVMSG', nick, text)
         end),
         chat.command('ctcp', '$g $r', 'target request', 'Send a CTCP request', function(ctx, target, text)
+            open_targets(chat, ctx.net, target)
             send.send(ctx.net, 'PRIVMSG', target, '\x01' .. text .. '\x01')
         end),
         chat.command('chaninfo', '$R', '[channel]',

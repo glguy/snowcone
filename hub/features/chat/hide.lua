@@ -16,9 +16,9 @@
 -- The functions take chat (features/chat), which requires this module.
 -- runtime/config.lua checks the rules as the configuration loads.
 
-local irc_model        <const> = require 'hub.net.irc'
-local regex            <const> = require 'hub.lib.regex'
-local strip_formatting <const> = require 'hub.lib.strip_formatting'
+local irc_model    <const> = require 'hub.net.irc'
+local message_text <const> = require 'hub.lib.message_text'
+local regex        <const> = require 'hub.lib.regex'
 
 local M = {}
 
@@ -52,16 +52,6 @@ M.presence = {
 
 local built_in <const> = {hidden = true, rule = 'built-in'}
 
--- The text a rule's pattern or regex sees: a PRIVMSG's or NOTICE's,
--- without its formatting, and an action's without its CTCP framing,
--- whose closing \x01 may be missing
-local function text_of(msg)
-    if msg.command ~= 'PRIVMSG' and msg.command ~= 'NOTICE' then return nil end
-    local text = msg[2] or ''
-    text = text:match '^\x01ACTION (.-)\x01?$' or text
-    return strip_formatting(text)
-end
-
 -- Whether a name is any of the names, as the network folds them
 local function any_name(chat, net, names, name)
     if not name then return false end
@@ -87,7 +77,8 @@ local function matches(chat, net, rule, target, msg)
         if not found then return false end
     end
     if rule.pattern or rule.regex then
-        local text = text_of(msg)
+        -- a PRIVMSG's or NOTICE's, without formatting or action framing
+        local text = message_text.of(msg)
         if not text then return false end
         local found = false
         for _, pattern in ipairs(rule.pattern or {}) do

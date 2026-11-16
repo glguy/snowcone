@@ -9,6 +9,7 @@ local draw       <const> = require 'hub.ui.draw'
 local matching   <const> = require 'hub.lib.matching'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local scrub      <const> = require 'hub.lib.scrub'
+local strip_formatting <const> = require 'hub.lib.strip_formatting'
 
 -- Draw a channel: clicking its name talks there, as /talk does
 local function entry_drawer(ctx)
@@ -58,7 +59,7 @@ return {
             show = function(entry)
                 return matching.safematch(entry.channel, pattern)
                     or matching.safematch(tostring(entry.users), pattern)
-                    or matching.safematch(entry.topic, pattern)
+                    or matching.safematch(strip_formatting(entry.topic), pattern)
             end
         end
         draw.draw_rotation(win, ctx.vs, 1, math.max(0, ctx.rows - 1), C.list, show, entry_drawer(ctx))
