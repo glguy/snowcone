@@ -150,6 +150,10 @@ each formatting code; Meta-p's palette puts them in at the cursor.
 A chat line too long for the server to relay whole shows a red | where it
 would be cut, and beside the mode the bytes it is over, as talk -37.
 Enter won't send it until it is shortened.
+.PP
+With [spell] configured, misspelled words in a chat line are underlined
+in red, and Meta-$ replaces the misspelled word at or before the cursor
+with each suggestion in turn; C-_ undoes it. /spell add word accepts a word.
 .SH COMMANDS
 /help lists the commands you can use on the current network, grouped by
 what they are for, with the views as one row of names to click; C-s

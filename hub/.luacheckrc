@@ -18,7 +18,7 @@ stds = {
             },
             "tty_height", "tty_width", "ncurses",
             "myopenssl", "mybase64", "mytoml",
-            "mystringprep", "mygeoip",
+            "mystringprep", "mygeoip", "myhunspell",
         },
     },
 },

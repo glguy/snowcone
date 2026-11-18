@@ -1,7 +1,7 @@
 -- Reading and validating configuration.
 --
 -- The result is plain data:
---   {file, dir, ui, plugins, notifications, mention,
+--   {file, dir, ui, plugins, notifications, mention, spell,
 --    networks = {{id, features = {[name] = true}, ...}, ...}}
 -- Secrets stay as configured (strings, {command=}, {file=}, {prompt=});
 -- they are resolved at connect time by runtime/secrets.lua. A network's
@@ -414,6 +414,7 @@ function M.normalize(raw)
         plugins = raw.plugins,
         notifications = raw.notifications,
         mention = raw.mention,
+        spell = raw.spell,
         networks = networks,
     }
 end

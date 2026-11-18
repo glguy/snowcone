@@ -8,6 +8,7 @@ local editor    <const> = require 'hub.ui.editor'
 local matching  <const> = require 'hub.lib.matching'
 local oper      <const> = require 'hub.features.oper'
 local scrub     <const> = require 'hub.lib.scrub'
+local spell     <const> = require 'hub.runtime.spell'
 
 local phase_palette <const> = {
     connected = ncurses.COLOR_GREEN,
@@ -185,6 +186,16 @@ function M.title_color()
     return ncurses.COLOR_WHITE
 end
 
+-- The misspelled words of the line being talked on net, but for names
+-- where it goes, and, while typing, the word at the cursor
+---@param net string
+---@param ed hub.Editor
+local function misspelled(net, ed)
+    if not spell.available() then return nil end
+    local typing = (ed.state == 'insert' or ed.state == 'erase') and #ed.before_cursor + 1 or nil
+    return spell.misspelled_ranges(ed.before_cursor .. ed.at_cursor, control.names_here(net), typing)
+end
+
 --- Draw the status bar.
 ---@param win ncurses.Window for the bar
 ---@param textbox ncurses.Window pad for the input text
@@ -246,7 +257,8 @@ function M.draw(win, textbox, layout, view, ctx)
         else
             -- formatted as it will be seen, codes and all
             x1 = addircstr(textbox, ed.before_cursor .. ed.at_cursor,
-                {mark = #ed.before_cursor, color = input_mode_color, cut = cut})
+                {mark = #ed.before_cursor, color = input_mode_color, cut = cut,
+                 bad = net and misspelled(net, ed)})
         end
         textbox:wmove(0, x1)
         ncurses.cursset(1)

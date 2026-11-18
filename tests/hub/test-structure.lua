@@ -68,6 +68,7 @@ local native_owner = {
     ['snowcone.set_title'] = 'runtime',
     ['snowcone.catch_signals'] = 'runtime',
     ['snowcone.write_private'] = 'runtime',
+    ['myhunspell.open'] = 'runtime',
 }
 
 local function strip_comments(src)

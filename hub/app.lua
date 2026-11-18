@@ -31,6 +31,7 @@ local function module_names(opts)
         'hub.runtime.log',
         'hub.runtime.timer',
         'hub.runtime.task',
+        'hub.runtime.spell',
         'hub.net.send',
         'hub.net.handlers',
         'hub.net.manager',

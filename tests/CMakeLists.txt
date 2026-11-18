@@ -51,13 +51,15 @@ endforeach()
 
 # hub's tests share tests/hub/lib.lua and load hub from the source tree
 foreach(name test-reload test-structure test-lib test-net test-ui test-snotice test-topology test-oper test-chat test-views test-plugins
-             test-github)
+             test-github test-spell)
   add_test(NAME hub-${name}
     COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/hub/${name}.lua")
   set_tests_properties(hub-${name} PROPERTIES TIMEOUT 30)
 endforeach()
 # the GitHub plugin needs a Lua json module, and skips without one
 set_tests_properties(hub-test-github PROPERTIES SKIP_RETURN_CODE 77)
+# spell checking needs snowcone built with hunspell, and skips without it
+set_tests_properties(hub-test-spell PROPERTIES SKIP_RETURN_CODE 77)
 # watches fall back to Lua patterns without rex_pcre2
 add_test(NAME hub-test-snotice-no-pcre2
   COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/hub/test-snotice.lua")

@@ -16,6 +16,7 @@ local quote    <const> = require 'hub.commands.quote'
 local irc_model <const> = require 'hub.net.irc'
 local sasl     <const> = require 'hub.net.sasl'
 local send     <const> = require 'hub.net.send'
+local spell    <const> = require 'hub.runtime.spell'
 local task     <const> = require 'hub.runtime.task'
 local timer    <const> = require 'hub.runtime.timer'
 
@@ -256,6 +257,35 @@ M.commands = {
                 out:write '\n'
             end
             out:close()
+        end,
+    },
+    {
+        name = 'spell',
+        spec = '$R',
+        usage = '[add] word',
+        group = 'client',
+        help = 'Check the spelling of a word, or add it to your personal word list',
+        fn = function(_, text)
+            if not spell.available() then
+                error(spell.unavailable_reason(), 0)
+            end
+            local added = text:match '^add%s+(%S+)%s*$'
+            local word = added or text:match '^(%S+)%s*$'
+            if word == nil then
+                error('usage: /spell [add] word', 0)
+            end
+            if added then
+                local ok, err = spell.add(word)
+                if not ok then error(tostring(err), 0) end
+                log.add('spell', 'added %s to %s', word, spell.personal_path())
+            elseif not spell.checkable(word) then
+                log.add('spell', "%s can't be checked with this dictionary", word)
+            elseif spell.check(word) then
+                log.add('spell', '%s is spelled correctly', word)
+            else
+                local t = spell.suggest(word)
+                log.add('spell', '%s: %s', word, t[1] and table.concat(t, ', ') or 'no suggestions')
+            end
         end,
     },
     {

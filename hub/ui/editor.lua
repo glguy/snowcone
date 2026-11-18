@@ -46,9 +46,11 @@ function M.new()
     ---@field before_cursor string rendered text, for the status bar
     ---@field at_cursor string
     ---@field at integer|nil the number of the history line shown, while recalling
-    ---@field state 'insert'|'kill'|'tab'|'yank'|nil the last change; nil for an edit
-    ---@field tablist any[]|nil completions, when state is tab: strings from
-    --- mklist, turned into code point arrays in place
+    ---@field state 'insert'|'erase'|'kill'|'tab'|'spell'|'yank'|nil the last
+    --- change: typing, deleting a character, ...; nil for an edit
+    ---@field tablist any[]|nil completions, when state is tab, or spellings
+    --- when it is spell: strings from mklist, turned into code point arrays
+    --- in place
     ---@field tabix integer|nil the completion shown
     ---@field yanked {at: integer, n: integer, k: integer}|nil the text the last
     --- yank put in, and its number in kills, when state is yank
@@ -197,7 +199,7 @@ function M.backspace(self)
     if 1 < i then
         save(self)
         table.remove(self.buffer, i - 1)
-        M.move(self, i - 1)
+        M.move(self, i - 1, 'erase')
     end
 end
 
@@ -207,7 +209,7 @@ function M.delete(self)
         save(self)
         table.remove(self.buffer, self.cursor)
     end
-    self.state = nil
+    self.state = 'erase'
     render(self)
 end
 
@@ -552,6 +554,18 @@ function M.paste_older(self)
     yank(self, k)
 end
 
+-- Put candidate tabix of tablist in place of buffer[i..cursor-1], the
+-- cursor after it
+---@param self hub.Editor
+local function show_candidate(self, i, state)
+    save(self, state)
+    local buffer = self.buffer
+    tablex.removevalues(buffer, i, self.cursor - 1)
+    local new = self.tablist[self.tabix]
+    tablex.insertvalues(buffer, i, new)
+    M.move(self, i + #new, state)
+end
+
 ---@param self hub.Editor
 function M.tab(self, dir, mklist)
     local cur = self.cursor
@@ -572,21 +586,59 @@ function M.tab(self, dir, mklist)
         end
         local prefix = utf8.char(table.unpack(self.buffer, 1, i - 1))
         local seed = utf8.char(table.unpack(self.buffer, i, cur - 1))
-        self.tabix, self.tablist = mklist(prefix, seed)
-        if self.tablist == nil then
+        -- kept only when there are candidates: a cycle of spellings
+        -- shares these fields, and may be the one going on
+        local tabix, tablist = mklist(prefix, seed)
+        if tablist == nil then
             return
         end
+        self.tabix, self.tablist = tabix, tablist
         for ix, str in ipairs(self.tablist) do
             self.tablist[ix] = codepoints(str)
         end
     end
 
-    save(self, 'tab')
-    local buffer = self.buffer
-    tablex.removevalues(buffer, i, cur - 1)
-    local new = self.tablist[self.tabix]
-    tablex.insertvalues(buffer, i, new)
-    M.move(self, i + #new, 'tab')
+    show_candidate(self, i, 'tab')
+end
+
+-- Replace a word of the line with each of a list of spellings in turn,
+-- and then the word as it was; the cursor goes after it. A run of
+-- replacements undoes at once, back to where the cursor was.
+-- pick(line, at) chooses the word given the line and the cursor's byte
+-- offset in it: it returns the word's first and last bytes and the
+-- spellings, or nil to leave the line alone.
+---@param self hub.Editor
+---@param dir integer 1 for the next spelling, -1 for the one before
+---@param pick fun(line: string, at: integer): integer|nil, integer|nil, string[]|nil
+function M.replace_word(self, dir, pick)
+    local i
+    if self.state == 'spell' then
+        local tabix = self.tabix
+        local tablist = self.tablist
+        ---@cast tabix -nil
+        ---@cast tablist -nil a replacement sets both with the state
+        self.tabix = (tabix + dir - 1) % #tablist + 1
+        i = self.cursor - #tablist[tabix]
+    else
+        local line = M.content(self)
+        local lo, hi, list = pick(line, #self.before_cursor + 1)
+        if not (lo and hi and list and list[1]) then return end
+        -- byte offsets to code point indexes
+        local first = utf8.len(line, 1, lo - 1) + 1
+        local last = utf8.len(line, 1, hi)
+        local spellings = {}
+        for ix, str in ipairs(list) do
+            spellings[ix] = codepoints(str)
+        end
+        table.insert(spellings, codepoints(line:sub(lo, hi)))
+        save(self) -- with the cursor where it is, for undo
+        self.state = 'spell'
+        self.tablist = spellings
+        self.tabix = dir == 1 and 1 or #spellings - 1
+        self.cursor = last + 1
+        i = first
+    end
+    show_candidate(self, i, 'spell')
 end
 
 return M

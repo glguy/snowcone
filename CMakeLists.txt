@@ -27,6 +27,7 @@ pkg_search_module(LUA      REQUIRED IMPORTED_TARGET lua>=5.4 lua5.4 lua-5.4 lua5
 pkg_check_modules(NCURSESW REQUIRED IMPORTED_TARGET ncursesw>=6.1)
 pkg_check_modules(GEOIP             IMPORTED_TARGET geoip)
 pkg_check_modules(LIBIDN            IMPORTED_TARGET libidn)
+pkg_check_modules(HUNSPELL          IMPORTED_TARGET hunspell)
 
 find_package(OpenSSL REQUIRED)
 
@@ -63,6 +64,10 @@ if (LIBIDN_FOUND)
 add_subdirectory(mystringprep)
 endif()
 
+if (HUNSPELL_FOUND)
+add_subdirectory(myhunspell)
+endif()
+
 add_subdirectory(base64)
 add_subdirectory(ircmsg)
 add_subdirectory(myncurses)
@@ -91,8 +96,9 @@ set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Eric Mertens <emertens@gmail.com>")
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "lua-penlight")
 # Loaded only where used: regular expression filters (rex_pcre2), IP
-# organizations from GeoLite2 (mmdb), the GitHub plugin (json)
-set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "lua-rex-pcre2, lua-mmdb, lua-json")
+# organizations from GeoLite2 (mmdb), the GitHub plugin (json), a
+# dictionary for spell checking ([spell])
+set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "lua-rex-pcre2, lua-mmdb, lua-json, hunspell-en-us")
 # The version counts commits when cpack runs (cmake/CPackProjectConfig.cmake),
 # and the file name follows it: snowcone_<version>_<arch>.deb
 find_package(Git QUIET)

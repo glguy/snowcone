@@ -28,4 +28,8 @@ if(LIBIDN_FOUND)
 target_link_libraries(snowcone PRIVATE mystringprep)
 endif()
 
+if(HUNSPELL_FOUND)
+target_link_libraries(snowcone PRIVATE myhunspell)
+endif()
+
 install(TARGETS snowcone DESTINATION "${CMAKE_INSTALL_BINDIR}")

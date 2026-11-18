@@ -19,6 +19,7 @@ local M = {}
 ---@field log_last string|false the last log line, until dismissed
 ---@field clock {started: number}
 ---@field ui hub.UiState (ui/control.lua)
+---@field spell hub.SpellState the open dictionary (runtime/spell.lua)
 
 --- Each feature's state. Per-network state is by network id
 --- (features/common.lua).

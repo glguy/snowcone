@@ -145,6 +145,35 @@ Notifications are sent for mentions while the terminal doesn't have focus. A buf
 
 Without this table, no notifications are sent.
 
+### `[spell]`
+
+Spell checking for the messages you type. It needs snowcone built with
+hunspell, and a hunspell dictionary.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `dictionary` | | Required when the table is present. A hunspell dictionary without its extension: `'/usr/share/hunspell/en_US'` reads `en_US.aff` and `en_US.dic`; naming either file works too. A relative path is relative to the configuration file. |
+| `personal` | `words` in the configuration directory | Your own words, one per line, also accepted. `/spell add` appends to it. |
+
+While you talk (not in commands, filters or prompts), misspelled words are
+underlined in red. The word you are still typing isn't flagged. Words with
+digits, URLs, channel names, and the nicks in the shown channel (with
+their possessives) are never checked. Meta-$ replaces the misspelled word
+at the cursor, or else the last one before it, with each suggestion in
+turn, and then the word as it was. Ctrl-_ undoes the whole run. A word
+with formatting codes inside it is left for you to fix by hand.
+`/spell WORD` shows whether a word is spelled right and offers
+suggestions. `/spell add WORD` accepts it from now on.
+
+A dictionary that isn't UTF-8 (many `en_US` files are ISO8859-1) checks
+only words written entirely in ASCII. Words in a script the dictionary
+doesn't cover, such as Cyrillic against `en_US`, are all flagged.
+
+`/reload` opens the dictionary again and re-reads the personal list, so
+it picks up a dictionary installed after an error, or words added by hand.
+
+Without this table, or without hunspell, nothing is checked.
+
 ### `[plugins]`
 
 | Field | Default | Meaning |

@@ -525,3 +525,35 @@ function mygeoip_lib.open_db(edition) end
 
 ---@type mygeoip.lib|nil
 mygeoip = mygeoip_lib
+
+---@class myhunspell.Handle
+local HunspellHandle = {}
+
+---@param word string
+---@return boolean
+function HunspellHandle:spell(word) end
+
+---@param word string
+---@return string[]
+function HunspellHandle:suggest(word) end
+
+--- Accept a word until the handle is closed.
+---@param word string
+function HunspellHandle:add(word) end
+
+---@return string # the dictionary's encoding, such as UTF-8 or ISO8859-1
+function HunspellHandle:encoding() end
+
+function HunspellHandle:close() end
+
+---@class myhunspell.lib
+local myhunspell_lib = {}
+
+--- Open a dictionary; raises when a file can't be read.
+---@param aff string
+---@param dic string
+---@return myhunspell.Handle
+function myhunspell_lib.open(aff, dic) end
+
+---@type myhunspell.lib|nil
+myhunspell = myhunspell_lib

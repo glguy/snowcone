@@ -3,6 +3,7 @@
 
 #cmakedefine GEOIP_FOUND
 #cmakedefine LIBIDN_FOUND
+#cmakedefine HUNSPELL_FOUND
 #cmakedefine CMAKE_INSTALL_FULL_DATAROOTDIR "@CMAKE_INSTALL_FULL_DATAROOTDIR@"
 
 #endif

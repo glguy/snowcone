@@ -22,11 +22,17 @@ These are the baseline dependencies
 ```sh
 # Debian build dependencies
 apt install cmake pkg-config liblua5.4-dev libidn-dev libssl-dev libncurses-dev libgeoip-dev lua-mmdb lua-penlight lua-rex-pcre2-dev
+# Optional for spell checking
+apt install libhunspell-dev hunspell-en-us
 # Optional for testing
 apt install libgmock-dev libgtest-dev libvterm-dev lua-check
 
 # Homebrew
 brew install cmake pkg-config lua luarocks libidn ncurses openssl pcre2
+# Optional for spell checking; Homebrew has no dictionaries, so get an
+# en_US.aff and en_US.dic from https://github.com/LibreOffice/dictionaries
+# or wordlist.aspell.net and point [spell] at them (docs/CONFIG.md)
+brew install hunspell
 # Optional for testing
 brew install googletest libvterm luacheck
 # Lua run-time dependencies

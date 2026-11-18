@@ -26,6 +26,10 @@ extern "C" {
 #include "mystringprep.h"
 #endif
 
+#ifdef HUNSPELL_FOUND
+#include "myhunspell.h"
+#endif
+
 #include "process.hpp"
 
 #include <algorithm>
@@ -546,6 +550,11 @@ auto prepare_globals(lua_State* const L, int const argc, char const* const* cons
 
 #ifdef LIBIDN_FOUND
     luaL_requiref(L, "mystringprep", luaopen_mystringprep, 1);
+    lua_pop(L, 1);
+#endif
+
+#ifdef HUNSPELL_FOUND
+    luaL_requiref(L, "myhunspell", luaopen_myhunspell, 1);
     lua_pop(L, 1);
 #endif
 

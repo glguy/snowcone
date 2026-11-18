@@ -95,6 +95,10 @@ KEYS
   would be cut, and beside the mode the bytes it is over, as talk -37.
   Enter won't send it until it is shortened.
 
+  With [spell] configured, misspelled words in a chat line are underlined
+  in red, and Meta-$ replaces the misspelled word at or before the cursor
+  with each suggestion in turn; C-_ undoes it. /spell add word accepts a word.
+
 COMMANDS
   /help lists the commands you can use on the current network, grouped
   by what they are for, with the views as one row of names to click;

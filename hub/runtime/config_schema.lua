@@ -323,6 +323,10 @@ M.file = table_ {
                    expected = 'a backend name: bell, mac or iterm2'},
     },
     mention = mention_schema,
+    spell = table_ {
+        dictionary = {type = 'string', required = true, pattern = '.', expected = 'a dictionary path'},
+        personal   = {type = 'string', pattern = '.', expected = 'a word list path'},
+    },
 }
 
 return M

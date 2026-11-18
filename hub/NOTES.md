@@ -98,6 +98,12 @@ what someone might otherwise undo, not the history of what changed.
   `/addwatch filter` takes the cliconn view's filter from `ctx.filter`,
   which only the UI supplies.
 
+- **The spell dictionary reopens on every activation** (runtime/spell.lua),
+  closing the one before, rather than being kept while its paths stay the
+  same: /reload then re-reads the dictionary and a hand-edited personal
+  list and repeats an error opening them, as for any other load error.
+  Opening en_US takes about 10 ms.
+
 ## Networks and protocol
 
 - **The stale-event guard** needs the attempt to match *and* the record to

@@ -9,6 +9,7 @@ local details   <const> = require 'hub.ui.details'
 local editor    <const> = require 'hub.ui.editor'
 local keys      <const> = require 'hub.ui.keys'
 local pads      <const> = require 'hub.ui.pads'
+local spell     <const> = require 'hub.runtime.spell'
 local dispatch  <const> = require 'hub.runtime.dispatch'
 local log       <const> = require 'hub.runtime.log'
 local tty       <const> = require 'hub.runtime.tty'
@@ -137,6 +138,25 @@ local function do_tab(dir)
     end)
 end
 
+-- Meta-$ while talking: the next spelling of the misspelled word at the
+-- cursor, or else the last one before it, as the line underlines them
+local function do_spell(dir)
+    local net = control.current_net()
+    if not (net and control.talk_modes[HUB.state.ui.input.mode]) then return end
+    editor.replace_word(control.editor(), dir, function(line, at)
+        local w = spell.pick(line, at, control.names_here(net))
+        if not w then return end
+        -- where the codes would go in a different word is a guess
+        if line:sub(w.lo, w.hi) ~= w.word then
+            log.add('spell', '%s has formatting inside it; fix it by hand', w.word)
+            return
+        end
+        local t = spell.suggest(w.word)
+        if not t[1] then log.add('spell', 'no suggestions for %s', w.word) end
+        return w.lo, w.hi, t
+    end)
+end
+
 local function with_editor(f)
     return function() f(control.editor()) end
 end
@@ -173,6 +193,7 @@ M.input = {
     [meta 'c'              ] = with_editor(editor.capitalize_word),
     [meta '<'              ] = with_editor(editor.oldest_history),
     [meta '>'              ] = with_editor(editor.newest_history),
+    [meta '$'              ] = function() do_spell(1) end,
     -- abandons the line or prompt, but not the view's scroll and filter
     [ctrl 'G'              ] = function()
         if control.current_prompt() then

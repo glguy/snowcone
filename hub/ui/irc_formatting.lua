@@ -36,13 +36,16 @@ end
 --- byte after the first edit.mark bytes, where the cursor goes. A marker
 --- is drawn after the first edit.cut bytes, if given, where the line stops
 --- reaching others; it must fall inside str, before a character.
+--- edit.bad lists byte ranges, lo to hi inclusive, sorted and apart, of
+--- words misspelled: they are drawn underlined in red. Each must fall
+--- inside text, between control characters.
 ---
 --- With `wrap` (and no edit), the text wraps at spaces to continue at
 --- column wrap.indent, as draw.wrap_text does, judging words by the text
 --- shown, so a code inside a word doesn't break it.
 ---@param win ncurses.Window
 ---@param str string
----@param edit {mark: integer, color: integer, cut: integer|nil}|nil
+---@param edit {mark: integer, color: integer, cut: integer|nil, bad: {lo: integer, hi: integer}[]|nil}|nil
 ---@param wrap {cols: integer, indent: integer}|nil
 ---@return integer|nil
 return function(win, str, edit, wrap)
@@ -63,15 +66,18 @@ return function(win, str, edit, wrap)
     local default = edit and edit.color or -1
     local mark = edit and edit.mark
     local cut = edit and edit.cut
+    local bad = edit and edit.bad or {}
+    local bad_i = 1 -- the first range not yet drawn past
     local cursor_x
     local pos = 0 -- bytes of str drawn
 
     -- Different colors that come out the same on this terminal show the
     -- background as the default; the same color sent for both is meant to
     -- hide the text, and stays. 99 is the default too.
-    local function set_colors()
+    local function set_colors(fore_override)
         local count = ncurses.COLORS
-        local fore = (foreground == nil or foreground == 99) and default or terminal(foreground, count)
+        local fore = fore_override
+            or (foreground == nil or foreground == 99) and default or terminal(foreground, count)
         local back = terminal(background, count)
         if fore == back and foreground ~= background then
             back = -1
@@ -120,7 +126,22 @@ return function(win, str, edit, wrap)
             local k = #text
             if mark > pos then k = math.min(k, mark - pos) end
             if cut and cut > pos then k = math.min(k, cut - pos) end
+            while bad[bad_i] and bad[bad_i].hi <= pos do bad_i = bad_i + 1 end
+            local range = bad[bad_i]
+            local inside = range and range.lo <= pos + 1
+            if range then
+                k = math.min(k, (inside and range.hi or range.lo - 1) - pos)
+            end
+            if inside then
+                set_colors(ncurses.COLOR_RED)
+                draw.underline(win)
+            end
             win:waddstr(scrub(text:sub(1, k)))
+            if inside then
+                set_colors()
+                -- on_u turns underline off when formatting has it on
+                if on_u ~= draw.underline_ then draw.underline_(win) end
+            end
             text = text:sub(k + 1)
             pos = pos + k
         end

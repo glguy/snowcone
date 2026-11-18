@@ -115,6 +115,26 @@ function M.talk_target(net)
     return vs.targets and vs.targets[net]
 end
 
+--- Whether a word names someone where it would be sent on a network:
+--- the buffer shown, or a member of it when it is a channel. Spell
+--- checking leaves names alone.
+---@param net string
+---@return fun(word: string): boolean
+function M.names_here(net)
+    local rec = HUB.state.nets[net]
+    local irc = rec and rec.irc
+    local target = M.talk_target(net)
+    if not irc then return function() return false end end
+    local folded = target and irc_model.fold(irc, target)
+    local channel = target and irc_model.is_channel_name(irc, target)
+        and irc_model.get_channel(irc, target)
+    return function(word)
+        if word == '' then return false end
+        if folded and irc_model.fold(irc, word) == folded then return true end
+        return channel and irc_model.get_member(irc, channel, word) ~= nil or false
+    end
+end
+
 --- Show a buffer of a network, remembering the one shown before.
 function M.set_talk_target(net, target)
     local vs = M.view_state 'buffer'
