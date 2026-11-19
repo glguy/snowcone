@@ -114,12 +114,19 @@ end
 ---@return boolean # success
 function M.first(t, credentials)
     local irc <const> = HUB.state.nets[t.net].irc
+    local skipped = {}
     for _, credential in ipairs(credentials) do
-        if irc_model.has_sasl_mech(irc, credential.mechanism)
-        and M.authenticate(t, credential)
-        then
+        if not irc_model.has_sasl_mech(irc, credential.mechanism) then
+            table.insert(skipped, credential.mechanism)
+        elseif M.authenticate(t, credential) then
             return true
         end
+    end
+    if #skipped > 0 then
+        local offered = {}
+        for mech in pairs(irc.sasl_mechs or {}) do table.insert(offered, mech) end
+        table.sort(offered)
+        t:log('sasl', 'the server offers %s, not %s', table.concat(offered, ', '), table.concat(skipped, ', '))
     end
     return false
 end

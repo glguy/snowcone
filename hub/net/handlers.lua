@@ -5,9 +5,9 @@
 -- mentions, CTCP and notices to the user are features that subscribe to
 -- `irc.message` and the events emitted here.
 --
--- Each handler in M.commands is called as h(rec, irc, msg) with the network record, its
+-- Each handler in M.by_command is called as h(rec, irc, msg) with the network record, its
 -- model and the message. M.for_ircd gives a network's handlers, by its
--- ircd (net/ircd.lua): Solanum's are M.commands.
+-- ircd (net/ircd.lua): Solanum's are M.by_command.
 
 local bus       <const> = require 'hub.runtime.bus'
 local cap       <const> = require 'hub.net.cap'
@@ -28,7 +28,7 @@ local M = {}
 
 -- [command] = handler
 local H = {}
-M.commands = H
+M.by_command = H
 
 local function spawn_for(rec)
     return function(name, fn, ...)
@@ -51,7 +51,7 @@ function H.PONG(rec, _, msg)
 end
 
 function H.CAP(rec, irc, msg)
-    cap.on_cap(rec.id, irc, msg, spawn_for(rec))
+    cap.on_cap(irc, msg, spawn_for(rec))
 end
 
 -- "<client> <1-13 tokens> :are supported by this server"
@@ -59,26 +59,49 @@ H[N.RPL_ISUPPORT] = function(rec, irc, msg)
     for i = 2, #msg - 1 do
         local token = msg[i]
         local minus, key, equals, val = token:match '^(%-?)([^=]+)(=?)(.*)$'
-        if minus == '-' then
-            val = nil
-        elseif equals == '' then
-            val = true
+        if key then
+            if minus == '-' then
+                val = nil
+            elseif equals == '' then
+                val = true
+            else
+                -- values escape bytes as \xHH
+                val = val:gsub('\\x(%x%x)', function(h) return string.char(tonumber(h, 16)) end)
+            end
+            irc_model.set_isupport(rec.id, irc, key, val)
         end
-        irc_model.set_isupport(rec.id, irc, key, val)
     end
 end
 
+-- From here our nick is the server's, and a refused NICK is the user's
+-- own (net/registration.lua waits on for the end of MOTD)
+H[N.RPL_WELCOME] = function(_, irc)
+    irc.welcomed = true
+end
+
 H[N.RPL_SNOMASK] = function(rec, irc, msg)
+    if not msg[2] then return end
     irc.snomask = msg[2]
     log.add_net(rec.id, 'irc', 'snomask %s', msg[2])
 end
 
--- Operator status, once per connection: from RPL_YOUREOPER or from user
--- modes that include o (opered before we connected, through a bouncer)
+-- Operator status: from RPL_YOUREOPER or from user modes that include o
+-- (opered before we connected, through a bouncer); irc.oper fires each
+-- time we become one
 local function now_oper(rec, irc)
     if not irc.oper then
         irc.oper = true
         bus.emit('irc.oper', {net = rec.id})
+    end
+end
+
+-- Our user modes changed: o says whether we are an operator
+local function follow_umodes(rec, irc)
+    if irc.mode.o then
+        now_oper(rec, irc)
+    elseif irc.oper then
+        irc.oper = nil
+        log.add_net(rec.id, 'irc', 'no longer oper')
     end
 end
 
@@ -93,7 +116,7 @@ end
 -- The topic it replaces goes with the message, which features see after
 -- the model has forgotten it
 function H.TOPIC(_, irc, msg)
-    local channel = irc_model.known_channel(irc, msg[1])
+    local channel = msg[1] and irc_model.known_channel(irc, msg[1])
     if channel then
         msg.topic_before = {topic = channel.topic, who = channel.topic_who, time = channel.topic_time}
         channel.topic = msg[2]
@@ -105,7 +128,7 @@ end
 
 -- "<client> <channel> :<topic>"
 H[N.RPL_TOPIC] = function(_, irc, msg)
-    local channel = irc_model.known_channel(irc, msg[2])
+    local channel = msg[2] and irc_model.known_channel(irc, msg[2])
     if channel then
         channel.topic = msg[3]
         irc_model.note_fetched(channel, 'topic')
@@ -114,7 +137,7 @@ end
 
 -- "<client> <channel> :No topic is set"
 H[N.RPL_NOTOPIC] = function(_, irc, msg)
-    local channel = irc_model.known_channel(irc, msg[2])
+    local channel = msg[2] and irc_model.known_channel(irc, msg[2])
     if channel then
         channel.topic, channel.topic_who, channel.topic_time = '', nil, nil
         irc_model.note_fetched(channel, 'topic')
@@ -123,7 +146,7 @@ end
 
 -- "<client> <channel> <nick> <setat>"
 H[N.RPL_TOPICWHOTIME] = function(_, irc, msg)
-    local channel = irc_model.known_channel(irc, msg[2])
+    local channel = msg[2] and irc_model.known_channel(irc, msg[2])
     if channel then
         channel.topic_who = msg[3]
         channel.topic_time = math.tointeger(tonumber(msg[4]))
@@ -132,7 +155,7 @@ end
 
 -- "<client> <channel> <creationtime>"
 H[N.RPL_CREATIONTIME] = function(_, irc, msg)
-    local channel = irc_model.known_channel(irc, msg[2])
+    local channel = msg[2] and irc_model.known_channel(irc, msg[2])
     if channel then
         channel.creationtime = math.tointeger(tonumber(msg[3]))
     end
@@ -196,7 +219,7 @@ end
 
 -- :<server> 730 <nick> :target[!user@host][,target[!user@host]]*
 H[N.RPL_MONONLINE] = function(rec, irc, msg)
-    if not irc.monitor then return end
+    if not (irc.monitor and msg[2]) then return end
     local nicks = {}
     for nick in msg[2]:gmatch '([^!,]+)[^,]*,?' do
         irc_model.add_monitor(irc, nick, true)
@@ -207,7 +230,7 @@ end
 
 -- :<server> 731 <nick> :target[,target2]*
 H[N.RPL_MONOFFLINE] = function(rec, irc, msg)
-    if not irc.monitor then return end
+    if not (irc.monitor and msg[2]) then return end
     local nicks = {}
     for nick in msg[2]:gmatch '([^!,]+)[^,]*,?' do
         irc_model.add_monitor(irc, nick, false)
@@ -223,30 +246,30 @@ H[N.ERR_MONLISTFULL] = function(rec)
     log.add_net(rec.id, 'monitor', 'monitor list full')
 end
 
--- During registration a nick that is taken or held gets a random
--- replacement, and the wanted one is reclaimed later. Once registered,
--- the wanted nick refused so is waited for.
+-- Before the welcome a nick that is taken or held gets a random
+-- replacement, and the wanted one is reclaimed later. After it, the
+-- wanted nick refused so is waited for.
 local function new_nickname(rec, irc, msg)
     local wanted = M.wanted_nick(rec)
-    if rec.phase == 'registering' then
+    if not irc.welcomed then
         local nick = string.format('%s-%05d', wanted:sub(1, 10), math.random(0, 99999))
         send.send(rec.id, 'NICK', nick)
         irc.recover_nick = wanted
         irc.nick = nick -- optimistic
-    elseif rec.phase == 'connected' and msg[2]
-    and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, wanted) and not irc.recover_nick then
+    elseif msg[2] and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, wanted) and not irc.recover_nick then
         irc.recover_nick = wanted
-        if rec.cfg.reclaim_nick and irc_model.has_monitor(irc) then
+        -- before then, registration starts the MONITOR
+        if rec.cfg.reclaim_nick and irc_model.has_monitor(irc) and rec.phase == 'connected' then
             send.send(rec.id, 'MONITOR', '+', wanted)
         end
     end
 end
 
--- A nick the server finds unacceptable during registration is a problem
+-- A nick the server finds unacceptable before the welcome is a problem
 -- in the configuration: a replacement can't know what the server wants
 H[N.ERR_ERRONEUSNICKNAME] = function(rec, irc, msg)
     local wanted = intent.of(rec)
-    if rec.phase == 'registering' then
+    if not irc.welcomed then
         local field = wanted.nick and '/nick' or 'identity.nick'
         wanted.nick = nil -- the next connection tries the configured one
         dispatch.route 'net.give_up'(rec.id, string.format(
@@ -259,10 +282,10 @@ end
 H[N.ERR_NICKNAMEINUSE] = new_nickname
 H[N.ERR_UNAVAILRESOURCE] = new_nickname
 
--- A password refused during registration is a problem in the
+-- A password refused before the welcome is a problem in the
 -- configuration, and retrying with it could get us throttled
-H[N.ERR_PASSWDMISMATCH] = function(rec, _, msg)
-    if rec.phase == 'registering' then
+H[N.ERR_PASSWDMISMATCH] = function(rec, irc, msg)
+    if not irc.welcomed then
         dispatch.route 'net.give_up'(rec.id, string.format(
             'registration.password: the server refuses it: %s', msg[#msg] or 'password incorrect'))
     end
@@ -308,6 +331,11 @@ function H.NICK(rec, irc, msg)
 
     msg.channels = channels_of(irc, oldkey)
     irc_model.rename_user(irc, oldnick, newnick)
+
+    -- whoever held the wanted nick let it go
+    if not self and oldkey ~= newkey and want_nick(rec, irc, oldnick) then
+        M.reclaim_nick(rec.id)
+    end
 
     bus.emit('irc.nick', {net = rec.id, old = oldnick, new = newnick, self = self})
 end
@@ -369,7 +397,7 @@ end
 -- "<client> <channel> :End of /NAMES list": a join brings a topic before
 -- its names, or none when there is none
 H[N.RPL_ENDOFNAMES] = function(_, irc, msg)
-    local channel = irc_model.get_channel(irc, msg[2])
+    local channel = msg[2] and irc_model.get_channel(irc, msg[2])
     if channel and channel.topic == nil then
         channel.topic = ''
     end
@@ -465,7 +493,7 @@ function H.MODE(rec, irc, msg)
 
     if irc_model.is_me(irc, target) then
         parse_umodes(irc.mode, modestring)
-        if irc.mode.o then now_oper(rec, irc) end
+        follow_umodes(rec, irc)
         return
     end
 
@@ -526,15 +554,17 @@ end
 -- List modes arrive as entries, then an end numeric that stores them
 local function list_entry(mask_index)
     return function(_, irc, msg)
+        local mask = msg[mask_index]
+        if not mask then return end
         local list = irc.partial_mode_list or {}
         irc.partial_mode_list = list
-        list[msg[mask_index]] = {who = msg[mask_index + 1], ts = msg[mask_index + 2]}
+        list[mask] = {who = msg[mask_index + 1], ts = msg[mask_index + 2]}
     end
 end
 
 local function list_end(mode)
     return function(_, irc, msg)
-        local channel = irc_model.known_channel(irc, msg[2])
+        local channel = msg[2] and irc_model.known_channel(irc, msg[2])
         if channel then
             channel.list_modes[mode] = irc.partial_mode_list or {}
             irc_model.note_fetched(channel, mode)
@@ -556,7 +586,7 @@ H[N.RPL_ENDOFINVITELIST] = list_end 'I'
 
 -- "<client> <channel> <modestring> <mode arguments>..."
 H[N.RPL_CHANNELMODEIS] = function(rec, irc, msg)
-    local channel = irc_model.known_channel(irc, msg[2])
+    local channel = msg[2] and msg[3] and irc_model.known_channel(irc, msg[2])
     if not channel then return end
     irc_model.note_fetched(channel, 'modes')
     local cursor = 4
@@ -577,10 +607,11 @@ H[N.RPL_CHANNELMODEIS] = function(rec, irc, msg)
 end
 
 H[N.RPL_UMODEIS] = function(rec, irc, msg)
+    if not msg[2] then return end
     local modes = {}
     parse_umodes(modes, msg[2])
     irc.mode = modes
-    if modes.o then now_oper(rec, irc) end
+    follow_umodes(rec, irc)
 end
 
 -----------------------------------------------------------------------
@@ -588,6 +619,7 @@ end
 
 -- <client> <mechanisms> :are available SASL mechanisms
 H[N.RPL_SASLMECHS] = function(_, irc, msg)
+    if not msg[2] then return end
     irc_model.set_sasl_mechs(irc, msg[2])
 end
 

@@ -248,9 +248,9 @@ connected at once.
   MAP lines, WHOIS replies, CHALLENGE — is a table keyed by
   `ircd.of(net)`, or a branch, next to the code that uses it, in whichever
   layer that is; a new ircd is a new key in those tables.
-- **Operator status** fires `irc.oper` once per connection, from
+- **Operator status** fires `irc.oper` when we become an operator, from
   RPL_YOUREOPER or a user mode `o` (a bouncer session that is already
-  opered).
+  opered); a user mode `-o` clears `irc.oper`.
 - **Sending** goes through `send.send(net, cmd, ...)`: arguments are checked,
   `{content, secret}` arguments are masked in logs, and every line, in or
   out, is recorded in the network's console and the all-networks console.

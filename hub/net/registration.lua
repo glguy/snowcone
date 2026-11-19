@@ -13,6 +13,9 @@ local N         <const> = require 'hub.lib.numerics'
 local oper      <const> = require 'hub.net.oper'
 local secrets   <const> = require 'hub.runtime.secrets'
 
+-- How long the end of MOTD may take after the welcome
+local motd_timeout_ms <const> = 30000
+
 local function oper_up(t, cfg)
     if not oper.first(t, config.automatic_credentials(cfg.oper)) then
         -- learn our modes; also tells whether we're already oper
@@ -102,7 +105,10 @@ return function(t)
 
     -- "<client> :End of /MOTD command."
     -- "<client> :MOTD File is missing"
-    t:wait_irc {N.RPL_ENDOFMOTD, N.ERR_NOMOTD}
+    -- A server that sends neither would hold the session back for good
+    if not t:wait_irc({N.RPL_ENDOFMOTD, N.ERR_NOMOTD}, motd_timeout_ms) then
+        t:log('irc', 'no end of MOTD after %d s; registered anyway', motd_timeout_ms // 1000)
+    end
 
     -- before net.registered, so it precedes anything sent in reply to it
     if cfg.identity.bot then

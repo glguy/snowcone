@@ -389,6 +389,12 @@ function M.raw(net, text)
     if text:find '[\x00\r\n]' then
         error('prohibited character in raw line', 0)
     end
+    -- the server would cut a longer line; tags don't count
+    local body = text:gsub('^@%S*%s*', '')
+    local linelen = rec.irc and rec.irc.linelen or 512
+    if #body + 2 > linelen then
+        error('line too long: ' .. #body + 2, 0)
+    end
     local msg = {
         tags = {},
         command = 'RAW',

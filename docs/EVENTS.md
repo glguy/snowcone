@@ -21,7 +21,7 @@ carry `net`, the network id.
 | `irc.sent` | `{net, msg}` outbound, secrets masked, once per line when it is sent or queued; `msg.delivery` is `{state = 'queued'}` for a queued line, later `'sent'` (with `delay`, seconds) or `'dropped'`, and absent for a line written at once | net/send |
 | `irc.batch` | `{net, type, params, messages, label}` when a batch closes, with every message in it; `label` when it is a labeled reply | net/batch |
 | `irc.nick` | `{net, old, new, self}` | net/handlers |
-| `irc.oper` | `{net}` once per connection, when we are an operator (RPL_YOUREOPER, or user mode o) | net/handlers |
+| `irc.oper` | `{net}` when we become an operator (RPL_YOUREOPER, or user mode o); again after losing it (user mode -o, which clears `irc.oper`) and regaining it | net/handlers |
 | `irc.isupport` | `{net, key, value}` value nil when removed, true without a value | net/irc |
 | `snote` | `{net, name, server, time, timestamp, ...fields}` a parsed server notice | features/snotice |
 | `snote.<name>` | the same event, by notice name | features/snotice |

@@ -45,6 +45,7 @@ local function wait_for_ack(t, request)
         local caps = msg[3]
 
         -- CAP * <ACK|NAK> :x y z
+        caps = caps or ''
         if subcommand == 'ACK' then
             for cap in caps:gmatch '[^ ]+' do
                 outstanding[cap] = nil
@@ -106,7 +107,9 @@ function M.REQ(t, request)
     local credentials = irc.sasl_credentials
     if irc_model.has_sasl(irc) and credentials then
         irc.sasl_credentials = nil
-        sasl.first(t, credentials)
+        if not sasl.first(t, credentials) then
+            t:log('sasl', 'not logged in: no credential succeeded')
+        end
     end
 end
 
@@ -143,6 +146,10 @@ local function LS(t)
     if next(req) then
         M.REQ(t, req)
     end
+    -- kept for a CAP NEW sasl, as when services come back
+    if irc.sasl_credentials and not irc_model.has_sasl(irc) then
+        t:log('sasl', 'not logged in: the server offers no SASL')
+    end
 
     t:send('CAP', 'END')
     return t:wait_irc {N.RPL_WELCOME}
@@ -163,18 +170,18 @@ function M.negotiate(t, send_registration)
 end
 
 --- Handle CAP subcommands as they arrive. An ACK is recorded whoever
---- asked, so a CAP REQ sent by hand takes effect too.
----@param net string
+--- asked, so a CAP REQ sent by hand takes effect too. NEW and DEL are
+--- acted on from the welcome; before it, negotiation is registration's.
 ---@param irc hub.Irc
 ---@param msg hub.Message
 ---@param spawn fun(name: string, fn: fun(t: hub.Task, ...), ...) starts a task on the network
-function M.on_cap(net, irc, msg, spawn)
+function M.on_cap(irc, msg, spawn)
     local sub = msg[2]
     if sub == 'ACK' then
         irc_model.ack_caps(irc, msg[3])
     elseif sub == 'DEL' then
         irc_model.del_caps(irc, msg[3])
-        if HUB.state.nets[net].phase == 'connected' then
+        if irc.welcomed then
             spawn('cap negotiation', M.drop_unsatisfied)
         end
     elseif sub == 'NEW' then
@@ -183,7 +190,7 @@ function M.on_cap(net, irc, msg, spawn)
             table.insert(offered, cap)
         end
         local req = wanted(irc, offered)
-        if next(req) and HUB.state.nets[net].phase == 'connected' then
+        if next(req) and irc.welcomed then
             spawn('cap negotiation', M.REQ, req)
         end
     end

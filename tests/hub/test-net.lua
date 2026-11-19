@@ -867,11 +867,123 @@ T.case('lines missing parameters change nothing and raise nothing', function()
         ':x!u@h PART',
         ':x!u@h KICK #x',
         ':srv 301 me',
+        ':srv 005 me =x -',
+        ':srv 008 me',
+        ':srv 221 me',
+        ':srv 324 me',
+        ':srv 324 me #x',
+        ':srv 332 me',
+        ':srv 333 me',
+        ':srv 366 me',
+        ':srv 367 me #x',
+        ':srv 368 me',
+        ':srv 730 me',
+        ':srv 731 me',
+        ':srv 908 me',
     } do
         c:recv(line)
     end
     T.eq(T.tracebacks(), {}, 'no errors')
     T.eq(rec().phase, 'connected', 'still connected')
+end)
+
+T.case('ISUPPORT values are unescaped', function()
+    local fake = boot {network('test')}
+    register(fake.last(), 'me', 'NETWORK=Some\\x20Net')
+    T.eq(rec().irc.isupport.NETWORK, 'Some Net', 'unescaped')
+end)
+
+T.case('the wanted nick is reclaimed when its holder changes nick', function()
+    local fake = boot {network('test', {reclaim_nick = true})}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 433 * me :Nickname is already in use'
+    local temp = c:take()[5]:match '^NICK (.*)$'
+    c:recv(':srv 001 ' .. temp .. ' :Welcome')
+    c:recv(':srv 005 ' .. temp .. ' CHANTYPES=# :are supported')
+    c:recv(':srv 376 ' .. temp .. ' :End of MOTD')
+    c:recv(':' .. temp .. '!u@h JOIN #c')
+    c:recv ':srv 353 x = #c :me'
+    c:take()
+    c:recv ':me!u@h NICK ME'
+    T.eq(c:take(), {}, 'not for a change of case')
+    c:recv ':ME!u@h NICK other'
+    T.eq(c:take(), {'NICK me'}, 'reclaimed')
+end)
+
+T.case('a /nick while the MOTD arrives is the user\'s, not a configuration error', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 001 me :Welcome'
+    c:take()
+    T.command 'nick 1bad'
+    c:recv ':srv 432 me 1bad :Erroneous Nickname'
+    T.eq(rec().target, 'connected', 'still wanted')
+    T.eq(rec().intent.nick, nil, '/nick forgotten')
+    T.command 'nick taken'
+    c:recv ':srv 433 me taken :Nickname is already in use'
+    T.eq(c:take(), {'NICK 1bad', 'NICK taken'}, 'no random replacement')
+    T.eq(rec().irc.recover_nick, 'taken', 'waited for')
+    c:recv ':srv 376 me :End of MOTD'
+    T.eq(rec().phase, 'connected', 'registered')
+end)
+
+T.case('user mode -o clears operator status, and o sets it again', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    local opered = record 'irc.oper'
+    c:recv ':me MODE me :+o'
+    T.eq(#opered, 1, 'oper')
+    c:recv ':me MODE me :-o'
+    T.eq(rec().irc.oper, nil, 'no longer')
+    c:recv ':srv 381 me :You are now an IRC operator'
+    T.eq(#opered, 2, 'again')
+end)
+
+T.case('CAP DEL between the welcome and the end of MOTD drops what needed it', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :batch echo-message labeled-response'
+    c:recv ':srv CAP me ACK :batch echo-message labeled-response'
+    c:recv ':srv 001 me :Welcome'
+    c:take()
+    c:recv ':srv CAP me DEL :labeled-response'
+    T.eq(c:take(), {'CAP REQ -echo-message'}, 'echo-message turned off')
+    c:recv ':srv CAP me NEW :multi-prefix'
+    c:recv ':srv CAP me ACK :-echo-message'
+    T.eq(c:take(), {'CAP REQ multi-prefix'}, 'a new cap requested')
+end)
+
+T.case('SASL that cannot run says why', function()
+    local function try(ls)
+        local fake = boot {network('test', {sasl = {
+            automatic = {'x'},
+            credentials = {{name = 'x', mechanism = 'EXTERNAL'}},
+        }})}
+        local c = fake.last()
+        c:con()
+        c:recv(':srv CAP * LS :' .. ls)
+        if ls ~= '' then c:recv(':srv CAP me ACK :sasl') end
+        local lines = T.log_lines 'sasl'
+        return table.concat(lines, '\n')
+    end
+    T.ok(try '':find('the server offers no SASL', 1, true), 'no sasl')
+    local lines = try 'sasl=PLAIN,SCRAM-SHA-256'
+    T.ok(lines:find('the server offers PLAIN, SCRAM-SHA-256, not EXTERNAL', 1, true), lines)
+    T.ok(lines:find('no credential succeeded', 1, true), lines)
+end)
+
+T.case('a line typed as is may not be longer than the server takes', function()
+    local fake = boot {network('test')}
+    register(fake.last())
+    local send = T.require 'hub.net.send'
+    T.raises('line too long: 513', send.raw, 'test', 'PRIVMSG #c :' .. ('x'):rep(499))
+    send.raw('test', '@label=x PRIVMSG #c :' .. ('x'):rep(498))
 end)
 
 T.case('a bare PING gets a PONG, and a command must be a word', function()

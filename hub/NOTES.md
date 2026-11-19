@@ -114,8 +114,9 @@ what someone might otherwise undo, not the history of what changed.
   ends LS; that 001 completes registration.
 - `sasl` without a value in CAP LS means the mechanisms are unknown, so
   all are tried.
-- Handlers live in `handlers.commands`, apart from module exports, so a
-  server command can't name a non-handler. `handlers.for_ircd` gives a
+- Handlers live in `handlers.by_command`, apart from module exports, so a
+  server command can't name a non-handler. Not `commands`: the loader
+  reads a module's `commands` as its user commands, and RPL_WELCOME is 1. `handlers.for_ircd` gives a
   network's table: OFTC hybrid's is a copy of it, taken at load, with its
   own quiet list numerics.
 - **`draft/event-playback` is not requested by default:** playback should
@@ -176,7 +177,14 @@ what someone might otherwise undo, not the history of what changed.
   come from a JOIN we sent, else the configuration, and follow `+k` and
   `-k` while we are in the channel. Away comes from AWAY lines we send,
   `/quote` included, not from the replies, which carry no text.
-- **A refused password (464) during registration gives up,** like an
+- **Registration's nick and password handling ends at the welcome,**
+  not the end of MOTD: a `/nick` typed while the MOTD arrives is the
+  user's, refused or waited for as once registered. The end of MOTD is
+  waited for 30 s, then registration goes on without it, since a server
+  that keeps talking would otherwise never pass the liveness check's
+  silence limit and never finish registering. CAP NEW and DEL are acted
+  on from the welcome.
+- **A refused password (464) before the welcome gives up,** like an
   erroneous nick: retrying the same password can get the address
   throttled by a bouncer or the server.
 - **The server's ERROR text is the reason** a connection ended (`server:
@@ -194,9 +202,11 @@ what someone might otherwise undo, not the history of what changed.
   consistently (so bans still match their notices), and override and
   bad-login notices stay out because they carry unparsed personal text.
   Connection entries keep `class`, which `/prefilter` can ask for.
-- **Operator status:** `irc.oper` fires once per connection, from
+- **Operator status:** `irc.oper` fires when we become an operator, from
   RPL_YOUREOPER or user mode `o`, since a bouncer session may already be
-  opered. RPL_YOUREOPER also sets the network's `snomask`.
+  opered. A user mode `-o` clears `irc.oper`, so features stop treating
+  us as one, and becoming one again fires it again. RPL_YOUREOPER also
+  sets the network's `snomask`.
 - **topology** sends MAP and LINKS when registration ends, so the server
   list doesn't wait for operator status, and again on becoming an operator
   unless it synced in the last 10 s (a bouncer reports oper status right
