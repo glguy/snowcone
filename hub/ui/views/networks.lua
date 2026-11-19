@@ -53,14 +53,21 @@ return {
             end
             local irc = rec.irc
             local queued = rec.sendq and #rec.sendq.lines or 0
-            win:waddstr(string.format(' %6s %7d %5s %7s %5s %-16.16s %s',
+            win:waddstr(string.format(' %6s %7d %5s %7s %5s %-16.16s ',
                 draw.duration(now - rec.since),
                 rec.attempt,
                 retry,
                 rec.lag and string.format('%.3f', rec.lag) or '-',
                 queued > 0 and queued or '-',
-                irc and irc.nick and scrub(irc.nick) or '-',
-                scrub(rec.fingerprint or '-')))
+                irc and irc.nick and scrub(irc.nick) or '-'))
+            -- a network that is down says why, in place of its transport
+            if rec.closed and not rec.conn then
+                draw.red(win)
+                win:waddstr(scrub(rec.closed.text))
+                draw.normal(win)
+            else
+                win:waddstr(scrub(rec.fingerprint or '-'))
+            end
 
             if rec.restart_pending then
                 draw.yellow(win)

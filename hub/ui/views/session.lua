@@ -103,6 +103,14 @@ local function render_network(ctx, win, rec, now)
         draw.normal(win)
     end
     win:waddstr '\n'
+    -- why a network that is down is down
+    if rec.closed and rec.phase ~= 'connected' then
+        label(win, 'ended')
+        draw.red(win)
+        win:waddstr(scrub(rec.closed.text))
+        draw.normal(win)
+        win:waddstr(' ', draw.duration(now - rec.closed.at), ' ago\n')
+    end
 
     local features = tablex.keys(cfg.features)
     table.sort(features)

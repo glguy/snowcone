@@ -378,6 +378,50 @@ T.case("the server's ERROR is the reason the connection ended", function()
     T.ok(rec().reconnect_timer, 'still reconnects')
 end)
 
+T.case('a ban waits the longest delay, and a stable session resets it', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    local closed = record 'net.closed'
+    c:recv ':srv 465 * :You are banned from this server- spamming'
+    c:recv 'ERROR :Closing Link: 192.0.2.1 (K-Lined)'
+    c:finish 'end of stream'
+    T.eq(closed[1].kind, 'banned', 'kind')
+    T.eq(closed[1].reason, 'banned: You are banned from this server- spamming', 'the 465 text')
+    T.eq(rec().backoff, 8, 'at max_delay')
+    T.ok(rec().reconnect_at - T.require 'hub.runtime.clock'.now() >= 8, 'retry waits it')
+    T.eq(rec().closed.text, closed[1].reason, 'kept for the views')
+
+    fire_reconnect 'test'
+    c = fake.last()
+    register(c)
+    T.eq(rec().closed, nil, 'forgotten once registered')
+    rec().registered_at = rec().registered_at - 61
+    c:finish 'gone'
+    T.eq(rec().backoff, 2, 'reset after a stable session, then doubled')
+end)
+
+T.case('each way a connection ends has its kind', function()
+    local fake = boot {network('test')}
+    local closed = record 'net.closed'
+    local c = fake.last()
+    register(c)
+    c:finish 'reset by peer'
+    fire_reconnect 'test'
+    c = fake.last()
+    register(c)
+    manager().reconnect 'test'
+    c = fake.last()
+    register(c)
+    manager().disconnect 'test'
+    c:finish()
+    local kinds = {}
+    for _, ev in ipairs(closed) do table.insert(kinds, ev.kind .. ' ' .. ev.reason) end
+    T.eq(kinds, {'stream reset by peer', 'local reconnecting', 'local quit'}, 'kinds')
+    T.eq(rec().reconnect_timer, nil, 'no reconnect after our own')
+end)
+
 T.case('nick in use during registration, then reclaimed with MONITOR', function()
     local fake = boot {network('test')}
     local c = fake.last()

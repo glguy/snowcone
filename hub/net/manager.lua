@@ -50,6 +50,8 @@ local M = {}
 ---@field intent hub.Intent|nil what any connection should become (net/intent.lua)
 ---@field close_timer integer|nil resource id while waiting for the server to
 --- close after QUIT
+---@field closed hub.CloseReason|nil why the last connection ended, until one
+--- registers
 ---@field console hub.OrderedMap recent raw messages, both directions
 ---@field sendq hub.SendQueue|nil lines held back by the rate limit (net/send.lua)
 
@@ -138,12 +140,21 @@ function M.ids()
     return ids
 end
 
-function M.set_phase(id, phase, reason)
+---@param id string
+---@param phase string
+---@param closed hub.CloseReason|nil why, when the phase is idle after a connection
+function M.set_phase(id, phase, closed)
     local rec = get(id)
     local prev = rec.phase
     rec.phase = phase
     rec.since = clock.now()
-    bus.emit('net.state', {net = id, phase = phase, prev = prev, reason = reason})
+    if phase == 'connected' then
+        rec.closed = nil
+    end
+    bus.emit('net.state', {
+        net = id, phase = phase, prev = prev,
+        reason = closed and closed.text, kind = closed and closed.kind,
+    })
     dispatch.dirty()
 end
 
@@ -246,14 +257,35 @@ local function schedule_reconnect(rec)
     log.add_net(rec.id, 'irc', 'reconnecting in %.1f s', delay)
 end
 
+--- Why a connection ended, which decides what happens next:
+---
+---   local    we ended it (/disconnect, /reconnect, QUIT, shutdown): no
+---            reconnect of its own
+---   config   a problem in the configuration (give_up): no reconnect, and
+---            the network stays down
+---   banned   the server refused us with 465: reconnect after the longest
+---            delay, as a ban won't lift soon
+---   refused, timeout, stream, server
+---            reconnect with backoff
+---@class hub.CloseReason
+---@field kind 'local'|'config'|'banned'|'refused'|'timeout'|'stream'|'server'
+---@field text string as logged
+---@field at number clock when it ended
+
+-- Kinds that never reconnect by themselves
+local final_kinds <const> = {['local'] = true, config = true}
+
 --- End the current attempt: close the connection, cancel the network's
---- tasks, and reconnect if that is still the target.
+--- tasks, and reconnect if that is still the target and the kind allows.
 ---@param id string
----@param reason string
----@param retry boolean|nil false prevents a reconnect
-function M.finish(id, reason, retry)
+---@param kind string a hub.CloseReason kind
+---@param text string
+function M.finish(id, kind, text)
     local rec = get(id)
     if rec.phase == 'idle' then return end
+    if kind == 'config' and rec.target == 'connected' then
+        rec.target = 'idle'
+    end
 
     if rec.conn then
         resources.close(rec.conn)
@@ -268,17 +300,22 @@ function M.finish(id, reason, retry)
     rec.registered_at = nil
     rec.lag_token = nil
 
-    M.set_phase(id, 'idle', reason)
-    log.add_net(id, 'irc', 'disconnected: %s', reason)
-    bus.emit('net.closed', {net = id, reason = reason})
+    local closed = {kind = kind, text = text, at = clock.now()}
+    rec.closed = closed
+    M.set_phase(id, 'idle', closed)
+    log.add_net(id, 'irc', 'disconnected: %s', text)
+    bus.emit('net.closed', {net = id, reason = text, kind = kind})
 
     if registered_for and registered_for >= M.stable_after then
         rec.backoff = rec.cfg.reconnect.min_delay
     end
+    if kind == 'banned' then
+        rec.backoff = rec.cfg.reconnect.max_delay
+    end
 
     if rec.target == 'removed' then
         remove_record(id)
-    elseif rec.target == 'connected' and retry ~= false then
+    elseif rec.target == 'connected' and not final_kinds[kind] then
         schedule_reconnect(rec)
     end
 end
@@ -286,24 +323,16 @@ end
 --- End the current attempt for a problem in the configuration, and stay
 --- disconnected: it won't fix itself.
 ---@param id string
----@param reason string
-function M.give_up(id, reason)
-    local rec = get(id)
-    if rec.target == 'connected' then
-        rec.target = 'idle'
-    end
-    M.finish(id, reason, false)
+---@param text string
+function M.give_up(id, text)
+    M.finish(id, 'config', text)
 end
 
 -- A connect attempt failed before there was a connection
-local function failed(id, attempt, reason, retry)
+local function failed(id, attempt, kind, text)
     local rec = nets()[id]
     if rec == nil or rec.attempt ~= attempt then return end
-    if retry then
-        M.finish(id, reason, retry)
-    else
-        M.give_up(id, reason)
-    end
+    M.finish(id, kind, text)
 end
 
 -- Connecting =========================================================
@@ -315,7 +344,7 @@ local function connect_body(t, attempt)
 
     local ok, layers = pcall(build_layers, t, cfg.layers, cfg.websocket)
     if not ok then
-        return failed(id, attempt, layers, false)
+        return failed(id, attempt, 'config', layers)
     end
 
     -- registration's secrets too, so no prompt or command holds an open,
@@ -340,9 +369,9 @@ local function connect_body(t, attempt)
     local called, conn, err = pcall(transport_connect, host, port, layers, cb)
     if not called then
         -- bad arguments raise; treat that like any other configuration error
-        return failed(id, attempt, 'failed to connect: ' .. tostring(conn), false)
+        return failed(id, attempt, 'config', 'failed to connect: ' .. tostring(conn))
     elseif not conn then
-        return failed(id, attempt, 'failed to connect: ' .. tostring(err), true)
+        return failed(id, attempt, 'refused', 'failed to connect: ' .. tostring(err))
     end
 
     rec.conn = resources.add('connection', 'net:' .. id, conn, 'close')
@@ -391,7 +420,7 @@ function M.disconnect(id, quit_msg)
     end
 
     if rec.phase ~= 'idle' and rec.phase ~= 'closing' then
-        M.finish(id, 'disconnected')
+        M.finish(id, 'local', 'disconnected')
     elseif rec.phase == 'idle' and rec.target == 'removed' then
         remove_record(id)
     end
@@ -402,7 +431,7 @@ function M.reconnect(id)
     local rec = get(id)
     rec.target = 'connected'
     if rec.phase ~= 'idle' then
-        M.finish(id, 'reconnecting', false)
+        M.finish(id, 'local', 'reconnecting')
     end
     M.connect(id)
 end
@@ -416,7 +445,7 @@ function M.abandon_all()
             rec.target = 'idle'
         end
         cancel_timer(rec, 'reconnect_timer')
-        M.finish(id, 'shutdown', false)
+        M.finish(id, 'local', 'shutdown')
     end
 end
 
@@ -468,8 +497,7 @@ function events.CON(rec, fingerprint)
     local i = unpinned(rec.cfg.layers, fingerprint)
     if i then
         -- like any configuration problem, retrying won't fix it
-        rec.target = 'idle'
-        M.finish(rec.id, string.format('layers[%d]: TLS key does not match pin', i), false)
+        M.give_up(rec.id, string.format('layers[%d]: TLS key does not match pin', i))
         return
     end
 
@@ -547,16 +575,18 @@ function events.MSG(rec, msg, flush)
     bus.emit('irc.message', {net = id, msg = msg})
 end
 
--- After a QUIT the reason is ours; otherwise the server's ERROR, when it
--- gave one, says why better than the stream does
+-- After a QUIT the reason is ours; otherwise a ban (465), then the
+-- server's ERROR, when it gave one, say why better than the stream does
 function events.END(rec, err)
-    local server_error = rec.irc and rec.irc.error
+    local irc = rec.irc
     if rec.phase == 'closing' then
-        M.finish(rec.id, 'quit')
-    elseif server_error then
-        M.finish(rec.id, 'server: ' .. server_error)
+        M.finish(rec.id, 'local', 'quit')
+    elseif irc and irc.banned then
+        M.finish(rec.id, 'banned', 'banned: ' .. irc.banned)
+    elseif irc and irc.error then
+        M.finish(rec.id, 'server', 'server: ' .. irc.error)
     else
-        M.finish(rec.id, err or 'end of stream')
+        M.finish(rec.id, 'stream', err or 'end of stream')
     end
 end
 
@@ -592,12 +622,12 @@ function M.check_liveness(now)
             local phase = rec.phase
             if phase == 'connecting' then
                 if now - rec.since >= M.connect_timeout then
-                    M.finish(id, 'connect timeout')
+                    M.finish(id, 'timeout', 'connect timeout')
                 end
             elseif phase == 'registering' or phase == 'connected' then
                 local silent = now - rec.liveness
                 if silent >= M.timeout_after then
-                    M.finish(id, 'ping timeout')
+                    M.finish(id, 'timeout', 'ping timeout')
                 elseif phase == 'connected' then
                     -- a PING that got no answer stops counting after a while
                     if rec.lag_token and now - rec.lag_sent >= M.lag_every then
@@ -708,7 +738,7 @@ M.routes = {
         local rec = nets()[id]
         if rec and rec.attempt == attempt and rec.phase == 'closing' then
             rec.close_timer = nil
-            M.finish(id, 'quit timeout')
+            M.finish(id, 'local', 'quit timeout')
         end
     end,
     ['net.check_liveness'] = M.check_liveness,

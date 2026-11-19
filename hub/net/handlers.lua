@@ -297,6 +297,13 @@ function H.ERROR(_, irc, msg)
     irc.error = msg[1]
 end
 
+-- "<client> :You are banned from this server- <reason>", before the
+-- server closes the link: during registration, or when banned while
+-- connected. The next attempt waits the longest delay (net/manager.lua).
+H[N.ERR_YOUREBANNEDCREEP] = function(_, irc, msg)
+    irc.banned = msg[#msg] or 'banned'
+end
+
 -----------------------------------------------------------------------
 -- Users and channels
 

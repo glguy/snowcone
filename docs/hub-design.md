@@ -213,6 +213,10 @@ connected at once.
   `reconnect` range, reset after a session that lasted a minute. Errors in
   configuration (bad secrets, no host, a nick or password the server can't
   take) stop retrying (`manager.give_up`); refused connections retry.
+  Every ending has a kind (`hub.CloseReason`: `local`, `config`, `banned`,
+  `refused`, `timeout`, `stream`, `server`) that decides what comes next,
+  and is kept in `rec.closed` until a connection registers, so the views
+  say why a network is down. A ban (465) retries after the longest delay.
 - **Liveness:** a PING once a minute (and after 30 s of silence) measures
   lag; 60 s of silence closes the connection. All timeouts belong to Lua;
   the C++ side has none.

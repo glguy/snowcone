@@ -12,10 +12,10 @@ carry `net`, the network id.
 | `log` | `{category, text, time, timestamp, net?}` for each log line | runtime/log |
 | `task.prompt` | `{task, label, net?}` a task waits for a secret; answer with `task.answer(task, text)` | runtime/task |
 | `task.canceled` | `{task, name, net?}` a task was canceled; a prompt it asked goes | runtime/task |
-| `net.state` | `{net, phase, prev, reason?}` on every phase change | net/manager |
+| `net.state` | `{net, phase, prev, reason?, kind?}` on every phase change; `reason` and `kind` when a connection ended (as for `net.closed`) | net/manager |
 | `net.connected` | `{net, fingerprint}` transport is up, registration starts | net/manager |
 | `net.registered` | `{net, nick}` end of MOTD after welcome | net/registration |
-| `net.closed` | `{net, reason}` an attempt ended | net/manager |
+| `net.closed` | `{net, reason, kind}` an attempt ended: `reason` is the text logged, `kind` one of `local` (we ended it), `config` (stays down), `banned` (465; retries after `reconnect.max_delay`), `refused`, `timeout`, `stream`, `server` (the server's ERROR) | net/manager |
 | `net.removed` | `{net}` a network left the configuration and its record is gone; drop its feature state | net/manager |
 | `irc.message` | `{net, msg}` every inbound message after the model update, except replayed history (chathistory batches) | net/manager |
 | `irc.sent` | `{net, msg}` outbound, secrets masked, once per line when it is sent or queued; `msg.delivery` is `{state = 'queued'}` for a queued line, later `'sent'` (with `delay`, seconds) or `'dropped'`, and absent for a line written at once | net/send |

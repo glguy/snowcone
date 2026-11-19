@@ -1255,6 +1255,21 @@ T.case('/list fetches only the first time; a pattern or the refresh button fetch
     T.eq(c:take(), {'LIST'}, 'the refresh button fetches')
 end)
 
+T.case('a network that is down says why in /session and /networks', function()
+    local c = boot()
+    c:recv 'ERROR :Closing Link: 192.0.2.1 (Excess Flood)'
+    c:finish 'end of stream'
+    local control = T.require 'hub.ui.control'
+    for _, view in ipairs {'session', 'networks'} do
+        control.set_view(view)
+        HUB.current.routes['ui.draw']()
+        local text = table.concat(rows_of(document_pad()), '\n')
+        T.ok(text:find('server: Closing Link: 192.0.2.1 (Excess Flood)', 1, true), view .. ' shows the reason')
+        T.ok(not text:find('server server:', 1, true), view .. ' without its kind')
+    end
+    T.eq(T.log_lines 'error', {}, 'no errors')
+end)
+
 T.case('session lists show one row and expand on a click', function()
     local c = boot()
     local tokens = {}

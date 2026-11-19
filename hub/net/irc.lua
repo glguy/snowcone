@@ -132,6 +132,7 @@ function M.new()
     ---@field label_next integer|nil the last label given to a request
     ---@field prefixes string membership prefixes, highest first (PREFIX)
     ---@field error string|nil the text of the server's ERROR, closing the link
+    ---@field banned string|nil the text of a 465, the server refusing us
     ---@field welcomed true|nil once RPL_WELCOME came: the nick is the server's
     local irc = {
         kind = 'Irc',

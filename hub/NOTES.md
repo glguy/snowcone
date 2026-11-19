@@ -188,7 +188,16 @@ what someone might otherwise undo, not the history of what changed.
   erroneous nick: retrying the same password can get the address
   throttled by a bouncer or the server.
 - **The server's ERROR text is the reason** a connection ended (`server:
-  ...` in the status log and `net.closed`), unless we sent QUIT.
+  ...` in the status log and `net.closed`), unless we sent QUIT or the
+  server sent 465 first, whose text is more to the point.
+- **Endings are classified only by what is structured:** our own actions,
+  configuration errors, timeouts, the transport, and 465. ERROR text is
+  shown, never parsed: it differs by ircd and bouncer. A ban (465, at
+  registration or when banned while connected) jumps the backoff to
+  `reconnect.max_delay`, since reconnecting into a K-Line every few
+  seconds shows up in opers' notices and can earn a D-Line; a minute
+  registered resets it as usual. The views show the text without its
+  kind.
 - QUIT and NICK carry `msg.channels`, filled before the model forgets the
   user, so features can tell which channels they concern.
 - Interleaved ban-list replies share one collector; servers don't
