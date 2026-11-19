@@ -20,6 +20,7 @@ local M = {}
 ---@class hub.BufferSettings
 ---@field name string the channel or nick, folded by the network's casemapping to match
 ---@field join boolean|nil JOIN after every registration
+---@field key string|nil the channel key to join with
 ---@field mention hub.MentionSettings|nil the buffer's own mention settings
 ---@field activity boolean|nil false: only mentions mark the buffer unseen
 ---@field label string|false|nil the jump pane key, one letter or digit; false for none

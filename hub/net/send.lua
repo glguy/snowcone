@@ -19,6 +19,7 @@
 local bus        <const> = require 'hub.runtime.bus'
 local clock      <const> = require 'hub.runtime.clock'
 local dispatch   <const> = require 'hub.runtime.dispatch'
+local intent     <const> = require 'hub.net.intent'
 local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
 local resources  <const> = require 'hub.runtime.resources'
@@ -253,6 +254,9 @@ end
 -- Chat lines are labeled so their echo or error can be matched to them
 local labeled_commands <const> = {PRIVMSG = true, NOTICE = true}
 
+-- Commands that say what we want of the session (net/intent.lua)
+local wants <const> = {JOIN = true, AWAY = true}
+
 -- Clients may send at most this many bytes of tags, not counting the
 -- leading @ and trailing space
 local max_tag_bytes <const> = 4094
@@ -290,6 +294,14 @@ local function send(how, net, tags, cmd, ...)
         conn:send(raw)
     else
         submit(rec, conn, raw, msg, how == 'first')
+    end
+    if wants[cmd] then
+        local args = {}
+        for i = 1, select('#', ...) do
+            local v = select(i, ...)
+            args[i] = tostring(type(v) == 'table' and v.content or v)
+        end
+        intent.sent(rec, cmd, args)
     end
     M.record(rec, msg)
     bus.emit('irc.sent', {net = net, msg = msg})
@@ -386,6 +398,7 @@ function M.raw(net, text)
         text,
     }
     submit(rec, conn, text .. '\r\n', msg)
+    intent.sent_raw(rec, text)
     M.record(rec, msg)
     dispatch.dirty()
 end

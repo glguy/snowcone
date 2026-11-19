@@ -202,6 +202,7 @@ local mention_schema <const> = table_ {
 local buffer_schema <const> = table_ {
     name     = {type = 'string', required = true, pattern = '^[^\n\r\x00 ,]+$'},
     join     = {type = 'boolean'},
+    key      = {type = 'string', pattern = '^[^\n\r\x00 ,]+$'},
     mention  = mention_schema,
     activity = {type = 'boolean'},
     label    = {oneOf = {

@@ -14,6 +14,7 @@ local cap       <const> = require 'hub.net.cap'
 local check     <const> = require 'hub.lib.check'
 local clock     <const> = require 'hub.runtime.clock'
 local dispatch  <const> = require 'hub.runtime.dispatch'
+local intent    <const> = require 'hub.net.intent'
 local irc_model <const> = require 'hub.net.irc'
 local ircd      <const> = require 'hub.net.ircd'
 local log       <const> = require 'hub.runtime.log'
@@ -145,7 +146,7 @@ end
 ---@param rec hub.Network
 ---@return string
 function M.wanted_nick(rec)
-    return rec.wanted_nick or rec.cfg.identity.nick
+    return intent.of(rec).nick or rec.cfg.identity.nick
 end
 
 local function want_nick(rec, irc, nick)
@@ -185,7 +186,7 @@ end
 ---@param nick string
 function M.declare_nick(net, nick)
     local rec = HUB.state.nets[net]
-    rec.wanted_nick = nick ~= rec.cfg.identity.nick and nick or nil
+    intent.of(rec).nick = nick ~= rec.cfg.identity.nick and nick or nil
     local irc = rec.irc
     if irc then
         stop_reclaim(rec, irc)
@@ -244,18 +245,34 @@ end
 -- A nick the server finds unacceptable during registration is a problem
 -- in the configuration: a replacement can't know what the server wants
 H[N.ERR_ERRONEUSNICKNAME] = function(rec, irc, msg)
+    local wanted = intent.of(rec)
     if rec.phase == 'registering' then
-        local field = rec.wanted_nick and '/nick' or 'identity.nick'
-        rec.wanted_nick = nil -- the next connection tries the configured one
+        local field = wanted.nick and '/nick' or 'identity.nick'
+        wanted.nick = nil -- the next connection tries the configured one
         dispatch.route 'net.give_up'(rec.id, string.format(
             '%s: the server refuses %s: %s', field, msg[2] or '?', msg[3] or 'erroneous nickname'))
-    elseif rec.wanted_nick and msg[2] and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, rec.wanted_nick) then
+    elseif wanted.nick and msg[2] and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, wanted.nick) then
         -- a /nick the server won't take is no longer wanted
-        rec.wanted_nick = nil
+        wanted.nick = nil
     end
 end
 H[N.ERR_NICKNAMEINUSE] = new_nickname
 H[N.ERR_UNAVAILRESOURCE] = new_nickname
+
+-- A password refused during registration is a problem in the
+-- configuration, and retrying with it could get us throttled
+H[N.ERR_PASSWDMISMATCH] = function(rec, _, msg)
+    if rec.phase == 'registering' then
+        dispatch.route 'net.give_up'(rec.id, string.format(
+            'registration.password: the server refuses it: %s', msg[#msg] or 'password incorrect'))
+    end
+end
+
+-- The server's reason for closing the connection, which becomes the
+-- reason it ended (net/manager.lua)
+function H.ERROR(_, irc, msg)
+    irc.error = msg[1]
+end
 
 -----------------------------------------------------------------------
 -- Users and channels
@@ -313,12 +330,13 @@ H[N.RPL_HOSTHIDDEN] = function(_, irc, msg)
     end
 end
 
-function H.JOIN(_, irc, msg)
+function H.JOIN(rec, irc, msg)
     local who = msg.nick
     local name = msg[1]
     if not who or not name then return end
     if irc_model.is_me(irc, who) then
         irc_model.join_channel(irc, name)
+        intent.joined(rec, irc, name)
     end
 
     local channel = irc_model.get_channel(irc, name)
@@ -357,12 +375,13 @@ H[N.RPL_ENDOFNAMES] = function(_, irc, msg)
     end
 end
 
-function H.PART(_, irc, msg)
+function H.PART(rec, irc, msg)
     local who = msg.nick
     local name = msg[1]
     if not who or not name then return end
     if irc_model.is_me(irc, who) then
         irc_model.drop_channel(irc, name)
+        intent.left(rec, irc, name)
     else
         local channel = irc_model.get_channel(irc, name)
         if channel then
@@ -371,12 +390,13 @@ function H.PART(_, irc, msg)
     end
 end
 
-function H.KICK(_, irc, msg)
+function H.KICK(rec, irc, msg)
     local name = msg[1]
     local target = msg[2]
     if not name or not target then return end
     if irc_model.is_me(irc, target) then
         irc_model.drop_channel(irc, name)
+        intent.left(rec, irc, name)
     else
         local channel = irc_model.get_channel(irc, name)
         if channel then
@@ -481,6 +501,10 @@ function H.MODE(rec, irc, msg)
             if modes then
                 modes[flag] = polarity and msg[cursor] or nil
             end
+            -- the key to rejoin with
+            if flag == 'k' and irc_model.get_channel(irc, target) then
+                intent.channel_key(rec, irc, target, polarity and msg[cursor] or false)
+            end
             cursor = cursor + 1
         elseif irc.modes_C:find(flag, 1, true) then
             local modes = channel.modes
@@ -531,7 +555,7 @@ H[N.RPL_INVITELIST] = list_entry(3)
 H[N.RPL_ENDOFINVITELIST] = list_end 'I'
 
 -- "<client> <channel> <modestring> <mode arguments>..."
-H[N.RPL_CHANNELMODEIS] = function(_, irc, msg)
+H[N.RPL_CHANNELMODEIS] = function(rec, irc, msg)
     local channel = irc_model.known_channel(irc, msg[2])
     if not channel then return end
     irc_model.note_fetched(channel, 'modes')
@@ -541,6 +565,10 @@ H[N.RPL_CHANNELMODEIS] = function(_, irc, msg)
     for flag in msg[3]:gmatch '.' do
         if irc.modes_B:find(flag, 1, true) or irc.modes_C:find(flag, 1, true) then
             modes[flag] = msg[cursor]
+            -- the key to rejoin with, shown to members
+            if flag == 'k' and msg[cursor] and msg[cursor] ~= '*' and irc_model.get_channel(irc, msg[2]) then
+                intent.channel_key(rec, irc, msg[2], msg[cursor])
+            end
             cursor = cursor + 1
         elseif irc.modes_D:find(flag, 1, true) then
             modes[flag] = true

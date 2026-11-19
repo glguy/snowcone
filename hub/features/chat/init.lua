@@ -50,6 +50,7 @@ local channel_errors <const> = require 'hub.lib.channel_errors'
 local ctcp           <const> = require 'hub.features.chat.ctcp'
 local hide       <const> = require 'hub.features.chat.hide'
 local history    <const> = require 'hub.features.chat.history'
+local intent     <const> = require 'hub.net.intent'
 local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
 local message_text <const> = require 'hub.lib.message_text'
@@ -301,6 +302,8 @@ function M.close(net, target)
     if irc then
         monitor.unwatch(net, irc, target)
     end
+    -- not rejoined on the next connection, even when we couldn't part
+    intent.left(HUB.state.nets[net], irc, target)
     drop(net, key, target)
 end
 

@@ -490,7 +490,8 @@ Each `[[networks.buffers]]` entry names a channel or nick and sets how its buffe
 | Field | Default | Meaning |
 |---|---|---|
 | `name` | | Required. The channel or nick, matched with the network's casemapping. Two entries can't name the same buffer. |
-| `join` | `false` | JOIN the channel after every registration, so also after each reconnect. The channels to join go as many to a line as fit, in the order of the entries. Names only, without keys. Leave it out for a channel a bouncer joins for you, or for a nick. |
+| `join` | `false` | JOIN the channel after every registration, so also after each reconnect. The channels to join go as many to a line as fit, in the order of the entries. Leave it out for a channel a bouncer joins for you, or for a nick. A new connection also rejoins the channels you were in when the last one ended, configured or not, and sets you away again if you were. Closing a channel's buffer, even while disconnected, leaves it out. |
+| `key` | none | The channel key (`+k`) to join with. A key you joined with later, or one set while you are in the channel, takes its place until you leave. |
 | `mention.patterns`, `mention.regexes` | | The buffer's own mention patterns and regular expressions, as in the [top-level table](#mention). See below. |
 | `activity` | `true` | With `false`, only mentions mark the buffer unseen. Other messages are still stored. |
 | `label` | the first free one | The buffer's key in the jump pane (`j` in the buffer view): one letter or digit. No other buffer gets that key, even while this buffer isn't open. Two entries can't have the same label. With `false`, the buffer has no key, but you can still click it. |
@@ -667,6 +668,6 @@ The store is opened with the credential's `password`, or the layer's `client_pas
   - A network added to the file connects if `autoconnect` allows.
   - A network removed from the file disconnects.
 - **Settings that apply at once:** `ircd` (except for the `snomask` modes, which are set when you become an operator), `features`, `reconnect`, `reclaim_nick`, `quit_message`, `snomask`, `oper`, `mention`, `watches`, `hide` (for messages that arrive afterwards), the `mention`, `activity`, `label` and `hidden` of `buffers`, the servers file and the top-level tables. Messages already received keep how they counted.
-- **Settings that wait for a new connection:** `join` in `buffers`; hub doesn't join or part channels on a reload. A change to `server`, `layers`, `websocket`, `identity`, `registration` or `sasl` marks the network `restart pending: /reconnect` in `/networks` and `/session` until you reconnect.
+- **Settings that wait for a new connection:** `join` and `key` in `buffers`; hub doesn't join or part channels on a reload. A change to `server`, `layers`, `websocket`, `identity`, `registration` or `sasl` marks the network `restart pending: /reconnect` in `/networks` and `/session` until you reconnect.
 
 A configuration that fails to load leaves the running one in place. The error is logged, hub switches to `/status` to show it, and `/stats` shows `last load failed` under `code`.

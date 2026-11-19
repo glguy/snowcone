@@ -289,6 +289,95 @@ T.case('buffers with join are joined after registration, on every connection', f
     T.eq(again, 2, 'joined again after reconnecting')
 end)
 
+T.case('a new connection rejoins the channels we were in, with their keys, and sets us away', function()
+    local isupport = 'CHANTYPES=# CHANMODES=b,k,l,imnst'
+    local fake = boot {network('test', {buffers = {
+        {name = '#conf', join = true, key = 'ck'},
+        {name = '#plain', key = 'unused'},
+    }})}
+    local c = fake.last()
+    register(c, 'me', isupport)
+    local first
+    for _, line in ipairs(c:take()) do
+        first = first or line:match '^JOIN .*'
+    end
+    T.eq(first, 'JOIN #conf ck', 'a configured key')
+    c:recv ':me!u@h JOIN #conf'
+
+    -- keys sent by hand, by position
+    T.command 'quote JOIN #k,#plain,#b,#c,#gone secret'
+    for _, name in ipairs {'#k', '#plain', '#b', '#c', '#gone'} do
+        c:recv(':me!u@h JOIN ' .. name)
+    end
+    c:recv ':op!u@h KICK #b me :bye'
+    c:recv ':op!u@h MODE #c +k newkey'
+    c:recv ':me!u@h PART #plain'
+    T.command 'quote AWAY :gone fishing'
+    c:take()
+
+    -- a channel left while disconnected (its buffer closed) isn't rejoined
+    c:finish 'gone'
+    T.require 'hub.net.intent'.left(rec(), nil, '#GONE')
+    fire_reconnect 'test'
+    c = fake.last()
+    register(c, 'me', isupport)
+    local sent = {}
+    for _, line in ipairs(c:take()) do
+        if line:match '^JOIN ' or line:match '^AWAY ' then table.insert(sent, line) end
+    end
+    T.eq(sent, {'JOIN #conf,#k,#c ck,secret,newkey', 'AWAY :gone fishing'},
+        'kept channels, keyed first, then away')
+
+    -- back, and a key removed
+    c:recv ':me!u@h JOIN #conf'
+    c:recv ':me!u@h JOIN #c'
+    c:recv ':op!u@h MODE #c -k *'
+    T.command 'quote AWAY'
+    c:take()
+    c:finish 'gone'
+    fire_reconnect 'test'
+    c = fake.last()
+    register(c, 'me', isupport)
+    sent = {}
+    for _, line in ipairs(c:take()) do
+        if line:match '^JOIN ' or line:match '^AWAY' then table.insert(sent, line) end
+    end
+    T.eq(sent, {'JOIN #conf,#k,#c ck,secret'}, 'a channel without its key, and not away')
+end)
+
+T.case('a password refused during registration is a configuration error', function()
+    local fake = boot {network('test', {registration = {password = 'wrong'}})}
+    local c = fake.last()
+    c:con()
+    c:take()
+    c:recv ':srv CAP * LS :'
+    c:take()
+    c:recv ':srv 464 * :Password incorrect'
+    T.ok(c.closed, 'connection closed')
+    T.eq(rec().target, 'idle', 'staying disconnected')
+    T.eq(rec().reconnect_timer, nil, 'no reconnect')
+    local lines = T.log_lines 'irc'
+    T.ok(lines[#lines]:find('registration.password: the server refuses it: Password incorrect', 1, true),
+        lines[#lines])
+end)
+
+T.case("the server's ERROR is the reason the connection ended", function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    local closed = record 'net.closed'
+    c:recv 'ERROR :Closing Link: 192.0.2.1 (K-Lined)'
+    c:finish 'end of stream'
+    T.eq(closed[1].reason, 'server: Closing Link: 192.0.2.1 (K-Lined)', 'reason')
+    local lines = T.log_lines 'irc'
+    local found
+    for _, line in ipairs(lines) do
+        found = found or line:find('disconnected: server: Closing Link', 1, true)
+    end
+    T.ok(found, 'in the status log')
+    T.ok(rec().reconnect_timer, 'still reconnects')
+end)
+
 T.case('nick in use during registration, then reclaimed with MONITOR', function()
     local fake = boot {network('test')}
     local c = fake.last()
@@ -367,7 +456,7 @@ T.case('/nick declares the wanted nick, here and on later connections', function
 
     -- until the configured nick changes
     T.ok(T.reload {config = {networks = {network('test', {identity = {nick = 'fourth'}})}}}, 'reload')
-    T.eq(rec().wanted_nick, nil, 'the configured nick wanted again')
+    T.eq(rec().intent.nick, nil, 'the configured nick wanted again')
 end)
 
 T.case('an erroneous nick during registration is a configuration error', function()

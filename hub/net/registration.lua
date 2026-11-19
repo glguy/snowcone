@@ -7,6 +7,7 @@ local cap       <const> = require 'hub.net.cap'
 local clock     <const> = require 'hub.runtime.clock'
 local config    <const> = require 'hub.runtime.config'
 local handlers  <const> = require 'hub.net.handlers'
+local intent    <const> = require 'hub.net.intent'
 local irc_model <const> = require 'hub.net.irc'
 local N         <const> = require 'hub.lib.numerics'
 local oper      <const> = require 'hub.net.oper'
@@ -29,25 +30,38 @@ local function bot_mode(t, irc)
     end
 end
 
--- JOIN the configured buffers that ask to be joined, as many to a line
--- as fit
----@param buffers hub.BufferSettings[]
-local function join_channels(t, buffers)
-    local names, size = {}, 0
-    for _, buffer in ipairs(buffers) do
-        if buffer.join then
-            local name = buffer.name
-            if #names > 0 and size + #name > 400 then
-                t:send('JOIN', table.concat(names, ','))
-                names, size = {}, 0
+-- JOIN the channels the session wants (net/intent.lua), as many to a
+-- line as fit. Keys pair with channels by position, so on each line the
+-- channels with keys come first.
+---@param channels hub.IntentChannel[]
+local function join_channels(t, channels)
+    local line, size = {}, 0
+    local function flush()
+        if #line == 0 then return end
+        local names, keys = {}, {}
+        for _, c in ipairs(line) do
+            if c.key then
+                table.insert(names, c.name)
+                table.insert(keys, c.key)
             end
-            table.insert(names, name)
-            size = size + #name + 1
         end
+        for _, c in ipairs(line) do
+            if not c.key then table.insert(names, c.name) end
+        end
+        if #keys > 0 then
+            t:send('JOIN', table.concat(names, ','), table.concat(keys, ','))
+        else
+            t:send('JOIN', table.concat(names, ','))
+        end
+        line, size = {}, 0
     end
-    if #names > 0 then
-        t:send('JOIN', table.concat(names, ','))
+    for _, channel in ipairs(channels) do
+        local n = #channel.name + 1 + (channel.key and #channel.key + 1 or 0)
+        if #line > 0 and size + n > 400 then flush() end
+        table.insert(line, channel)
+        size = size + n
     end
+    flush()
 end
 
 ---@param t hub.Task
@@ -106,7 +120,11 @@ return function(t)
     end
 
     -- before opering, which may wait on a CHALLENGE reply
-    join_channels(t, cfg.buffers)
+    join_channels(t, intent.channels(rec, irc))
+    local away = intent.of(rec).away
+    if away then
+        t:send('AWAY', away)
+    end
 
     oper_up(t, cfg)
 end

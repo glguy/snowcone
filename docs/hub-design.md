@@ -219,10 +219,17 @@ connected at once.
 - **Registration:** `CAP LS 302`, PASS, NICK and USER go out together; SASL
   runs over the configured credentials in order until one succeeds; the
   welcome and the end of MOTD finish it. The wanted nick is the
-  configured one, or the last given to `/nick` (`rec.wanted_nick`, until
-  the configured nick changes). A nick that is taken or held gets a
-  temporary one, and the wanted nick is reclaimed through MONITOR or
-  server notices; a nick refused as erroneous is a configuration error.
+  configured one, or the last given to `/nick` (until the configured nick
+  changes). A nick that is taken or held gets a temporary one, and the
+  wanted nick is reclaimed through MONITOR or server notices; a nick
+  refused as erroneous, or a password refused (464), is a configuration
+  error. A server's ERROR text becomes the reason the connection ended.
+- **Intent** (`rec.intent`, `net/intent.lua`): what any connection should
+  become, kept across connections and changed only by what we do: the
+  wanted nick, the channels we are in with their keys, and our away
+  message. Registration replays it after the end of MOTD: JOIN for those
+  channels and then the configured `join` buffers, then AWAY. Our PART or
+  KICK, or closing a channel's buffer, takes a channel out.
 - **Protocol model** (`rec.irc`): nick, modes, capabilities, ISUPPORT,
   channels and members, monitor list, batches, soju bouncer networks.
   Keys fold with the network's

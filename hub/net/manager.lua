@@ -11,6 +11,7 @@ local clock        <const> = require 'hub.runtime.clock'
 local config       <const> = require 'hub.runtime.config'
 local dispatch     <const> = require 'hub.runtime.dispatch'
 local handlers     <const> = require 'hub.net.handlers'
+local intent       <const> = require 'hub.net.intent'
 local irc_model    <const> = require 'hub.net.irc'
 local log          <const> = require 'hub.runtime.log'
 local OrderedMap   <const> = require 'hub.lib.OrderedMap'
@@ -46,7 +47,7 @@ local M = {}
 ---@field irc hub.Irc|nil protocol model (net/irc.lua), nil when idle
 ---@field fingerprint string|nil of the current connection
 ---@field registered_at number|nil clock when registration finished
----@field wanted_nick string|nil the nick last given to /nick, until the configured nick changes
+---@field intent hub.Intent|nil what any connection should become (net/intent.lua)
 ---@field close_timer integer|nil resource id while waiting for the server to
 --- close after QUIT
 ---@field console hub.OrderedMap recent raw messages, both directions
@@ -546,9 +547,14 @@ function events.MSG(rec, msg, flush)
     bus.emit('irc.message', {net = id, msg = msg})
 end
 
+-- After a QUIT the reason is ours; otherwise the server's ERROR, when it
+-- gave one, says why better than the stream does
 function events.END(rec, err)
+    local server_error = rec.irc and rec.irc.error
     if rec.phase == 'closing' then
         M.finish(rec.id, 'quit')
+    elseif server_error then
+        M.finish(rec.id, 'server: ' .. server_error)
     else
         M.finish(rec.id, err or 'end of stream')
     end
@@ -620,6 +626,7 @@ local function new_record(net)
         backoff = net.reconnect.min_delay,
         restart_pending = false,
         console = OrderedMap.new(M.console_size),
+        intent = intent.new(),
     }
 end
 
@@ -639,7 +646,7 @@ local function update_record(rec, net)
         end
     end
     if old.identity.nick ~= net.identity.nick then
-        rec.wanted_nick = nil -- the configured nick replaces a /nick
+        intent.of(rec).nick = nil -- the configured nick replaces a /nick
     end
     rec.cfg = net
     rec.backoff = math.max(net.reconnect.min_delay, math.min(rec.backoff, net.reconnect.max_delay))

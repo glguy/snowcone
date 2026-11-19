@@ -167,6 +167,20 @@ what someone might otherwise undo, not the history of what changed.
   queue** and ignores the limit, so it isn't lost to the quit timeout.
   **The lag PING waits** until it would go at once, so time in the queue
   isn't measured as lag.
+- **Intent outlives connections** (`rec.intent`): a new connection
+  rejoins the channels we were in and sets us away again. Only what we do
+  changes it, so a channel whose JOIN failed stays wanted, and is tried on
+  each connection, until its buffer closes; closing a buffer while
+  disconnected drops it too. A configured `join` channel is joined on
+  every connection even after a PART: the configuration says so. Keys
+  come from a JOIN we sent, else the configuration, and follow `+k` and
+  `-k` while we are in the channel. Away comes from AWAY lines we send,
+  `/quote` included, not from the replies, which carry no text.
+- **A refused password (464) during registration gives up,** like an
+  erroneous nick: retrying the same password can get the address
+  throttled by a bouncer or the server.
+- **The server's ERROR text is the reason** a connection ended (`server:
+  ...` in the status log and `net.closed`), unless we sent QUIT.
 - QUIT and NICK carry `msg.channels`, filled before the model forgets the
   user, so features can tell which channels they concern.
 - Interleaved ban-list replies share one collector; servers don't

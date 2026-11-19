@@ -131,6 +131,7 @@ function M.new()
     ---@field bouncer_networks table<string, table<string, string>>|nil by netid
     ---@field label_next integer|nil the last label given to a request
     ---@field prefixes string membership prefixes, highest first (PREFIX)
+    ---@field error string|nil the text of the server's ERROR, closing the link
     local irc = {
         kind = 'Irc',
         casemapping = 'rfc1459',
