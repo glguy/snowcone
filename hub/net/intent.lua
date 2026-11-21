@@ -34,26 +34,11 @@ function M.new()
     return {channels = {}, keys = {}}
 end
 
---- A network's intent, made on first use; one made for a record from
---- before intents starts from its /nick and the channels it is in.
+--- A network's intent, made with its record.
 ---@param rec hub.Network
 ---@return hub.Intent
 function M.of(rec)
-    local intent = rec.intent
-    if intent == nil then
-        intent = M.new()
-        rec.intent = intent
-        intent.nick = rec.wanted_nick
-        rec.wanted_nick = nil
-        local irc = rec.irc
-        if irc then
-            for _, channel in pairs(irc.channels) do
-                table.insert(intent.channels, {name = channel.name})
-            end
-            table.sort(intent.channels, function(a, b) return a.name < b.name end)
-        end
-    end
-    return intent
+    return rec.intent
 end
 
 -- Fold with the connection's casemapping, or rfc1459 without one

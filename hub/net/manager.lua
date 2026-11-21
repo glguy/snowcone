@@ -47,7 +47,7 @@ local M = {}
 ---@field irc hub.Irc|nil protocol model (net/irc.lua), nil when idle
 ---@field fingerprint string|nil of the current connection
 ---@field registered_at number|nil clock when registration finished
----@field intent hub.Intent|nil what any connection should become (net/intent.lua)
+---@field intent hub.Intent what any connection should become (net/intent.lua)
 ---@field close_timer integer|nil resource id while waiting for the server to
 --- close after QUIT
 ---@field closed hub.CloseReason|nil why the last connection ended, until one
