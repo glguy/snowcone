@@ -23,7 +23,7 @@ return {
 
         draw.magenta(win)
         draw.bold(win)
-        win:waddstr(string.format('  %-16s %-18s %6s %7s %5s %7s %5s %-16s %s\n',
+        win:waddstr(string.format('  %-16s %-18s %7s %7s %5s %7s %5s %-16s %s\n',
             'network', 'phase', 'for', 'attempt', 'retry', 'lag', 'sendq', 'nick', 'transport'))
         draw.normal(win)
 
@@ -53,7 +53,7 @@ return {
             end
             local irc = rec.irc
             local queued = rec.sendq and #rec.sendq.lines or 0
-            win:waddstr(string.format(' %6s %7d %5s %7s %5s %-16.16s ',
+            win:waddstr(string.format(' %7s %7d %5s %7s %5s %-16.16s ',
                 draw.duration(now - rec.since),
                 rec.attempt,
                 retry,
