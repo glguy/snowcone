@@ -450,6 +450,36 @@ T.case('nick in use during registration, then reclaimed with MONITOR', function(
     T.eq(nicks, {{net = 'test', old = temp, new = 'me', self = true}}, 'nick event')
 end)
 
+T.case('nick in use while SASL is under way', function()
+    local fake = boot {network('test', {
+        sasl = {
+            automatic = {'PLAIN'},
+            credentials = {{mechanism = 'PLAIN', username = 'u', password = 'p'}},
+        },
+    })}
+    local c = fake.last()
+    c:con()
+    c:take()
+    c:recv ':srv CAP * LS :sasl=PLAIN'
+    T.eq(c:take(), {'CAP REQ sasl'}, 'request')
+    c:recv ':srv CAP me ACK :sasl'
+    T.eq(c:take(), {'AUTHENTICATE PLAIN'}, 'mechanism')
+
+    c:recv ':srv 433 * me :Nickname is already in use'
+    local sent = c:take()
+    T.eq(#sent, 1, 'one reply')
+    local temp = T.ok(sent[1]:match '^NICK (me%-%d%d%d%d%d)$', 'random nick: ' .. sent[1])
+    T.eq(rec().irc.recover_nick, 'me', 'the wanted nick is reclaimed later')
+
+    c:recv 'AUTHENTICATE +'
+    T.eq(c:take(), {'AUTHENTICATE ' .. mybase64.to_base64 '\0u\0p'}, 'SASL carries on')
+    c:recv(':srv 903 ' .. temp .. ' :SASL authentication successful')
+    T.eq(c:take(), {'CAP END'}, 'end of negotiation')
+
+    c:recv(':srv 001 ' .. temp .. ' :Welcome')
+    T.eq(rec().irc.nick, temp, 'registered with the replacement')
+end)
+
 T.case('the wanted nick is reclaimed in the casemapping the server announces', function()
     local fake = boot {network('test', {identity = {nick = 'me{x}'}})}
     local c = fake.last()

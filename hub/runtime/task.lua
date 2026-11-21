@@ -143,7 +143,7 @@ end
 
 --- Start a task. It runs until its first wait before spawn returns.
 ---@param name string
----@param opts {net: string|nil, owner: string|nil}
+---@param opts {net: string|nil, owner: string|nil, secrets: table<hub.Secret, hub.PreparedSecret>|nil}
 ---@param fn fun(t: hub.Task, ...)
 ---@param ... any passed to fn after the task
 ---@return hub.Task
@@ -157,6 +157,7 @@ function M.spawn(name, opts, fn, ...)
         net = opts.net,
         co = coroutine.create(fn),
         seq = 0,
+        secrets = opts.secrets,
     }, task_mt)
     HUB.tasks[id] = t
     M.resume(id, 0, t, ...)
@@ -389,6 +390,16 @@ function methods.prompt(t, label)
     t.label = label
     bus.emit('task.prompt', {task = t.id, label = label, net = t.net})
     return coroutine.yield()
+end
+
+--- Start a task on this one's network, with its owner and the secrets
+--- it prepared. It runs until its first wait before spawn returns.
+---@param name string
+---@param fn fun(t: hub.Task, ...)
+---@param ... any passed to fn after the task
+---@return hub.Task
+function methods.spawn(t, name, fn, ...)
+    return M.spawn(name, {net = t.net, owner = t.owner, secrets = t.secrets}, fn, ...)
 end
 
 --- Send an IRC command on the task's network.

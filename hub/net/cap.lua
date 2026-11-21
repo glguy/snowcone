@@ -113,9 +113,8 @@ function M.REQ(t, request)
     end
 end
 
--- Read the CAP LS reply, then request and end, through to RPL_WELCOME
+-- Read the CAP LS reply, then request and end
 ---@param t hub.Task
----@return hub.Message # RPL_WELCOME
 local function LS(t)
     local irc = model(t)
     local more = true
@@ -130,10 +129,9 @@ local function LS(t)
                 capsarg = msg[4]
             end
             irc_model.add_caps(irc, capsarg or '')
-        elseif msg.command == N.RPL_WELCOME then
-            return msg -- the server doesn't negotiate capabilities
-        elseif msg.command == N.ERR_UNKNOWNCOMMAND and msg[2] == 'CAP' then
-            return t:wait_irc {N.RPL_WELCOME}
+        elseif msg.command == N.RPL_WELCOME
+            or msg.command == N.ERR_UNKNOWNCOMMAND and msg[2] == 'CAP' then
+            return -- the server doesn't negotiate capabilities
         end
     end
 
@@ -152,26 +150,22 @@ local function LS(t)
     end
 
     t:send('CAP', 'END')
-    return t:wait_irc {N.RPL_WELCOME}
 end
 
---- Registration with capability negotiation. CAP LS goes out first so
---- the server holds registration, then send_registration sends PASS,
---- NICK and USER. Negotiation ends with CAP END; a server without CAP
---- registers right away.
+--- Capability negotiation during registration, as a task of its own
+--- (net/registration.lua). It sends CAP LS before its first wait, so
+--- the server holds registration until the CAP END it ends with. A
+--- server without CAP registers right away, and the task ends at the
+--- welcome.
 ---@param t hub.Task
----@param send_registration fun()
----@return hub.Message # RPL_WELCOME
-function M.negotiate(t, send_registration)
+function M.negotiate(t)
     t:send('CAP', 'LS', '302')
-    send_registration()
-    -- "<client> :Welcome to the <networkname> Network, <nick>[!<user>@<host>]"
-    return LS(t)
+    LS(t)
 end
 
 --- Handle CAP subcommands as they arrive. An ACK is recorded whoever
 --- asked, so a CAP REQ sent by hand takes effect too. NEW and DEL are
---- acted on from the welcome; before it, negotiation is registration's.
+--- acted on from the welcome; before it, negotiation is M.negotiate's.
 ---@param irc hub.Irc
 ---@param msg hub.Message
 ---@param spawn fun(name: string, fn: fun(t: hub.Task, ...), ...) starts a task on the network

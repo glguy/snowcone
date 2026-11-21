@@ -13,7 +13,6 @@ local bus       <const> = require 'hub.runtime.bus'
 local cap       <const> = require 'hub.net.cap'
 local check     <const> = require 'hub.lib.check'
 local clock     <const> = require 'hub.runtime.clock'
-local dispatch  <const> = require 'hub.runtime.dispatch'
 local intent    <const> = require 'hub.net.intent'
 local irc_model <const> = require 'hub.net.irc'
 local ircd      <const> = require 'hub.net.ircd'
@@ -74,7 +73,7 @@ H[N.RPL_ISUPPORT] = function(rec, irc, msg)
 end
 
 -- From here our nick is the server's, and a refused NICK is the user's
--- own (net/registration.lua waits on for the end of MOTD)
+-- own; before it, net/registration.lua answers refusals
 H[N.RPL_WELCOME] = function(_, irc)
     irc.welcomed = true
 end
@@ -246,17 +245,12 @@ H[N.ERR_MONLISTFULL] = function(rec)
     log.add_net(rec.id, 'monitor', 'monitor list full')
 end
 
--- Before the welcome a nick that is taken or held gets a random
--- replacement, and the wanted one is reclaimed later. After it, the
--- wanted nick refused so is waited for.
+-- The wanted nick, taken or held, is waited for. Before the welcome
+-- net/registration.lua answers these.
 local function new_nickname(rec, irc, msg)
+    if not irc.welcomed then return end
     local wanted = M.wanted_nick(rec)
-    if not irc.welcomed then
-        local nick = string.format('%s-%05d', wanted:sub(1, 10), math.random(0, 99999))
-        send.send(rec.id, 'NICK', nick)
-        irc.recover_nick = wanted
-        irc.nick = nick -- optimistic
-    elseif msg[2] and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, wanted) and not irc.recover_nick then
+    if msg[2] and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, wanted) and not irc.recover_nick then
         irc.recover_nick = wanted
         -- before then, registration starts the MONITOR
         if rec.cfg.reclaim_nick and irc_model.has_monitor(irc) and rec.phase == 'connected' then
@@ -265,31 +259,17 @@ local function new_nickname(rec, irc, msg)
     end
 end
 
--- A nick the server finds unacceptable before the welcome is a problem
--- in the configuration: a replacement can't know what the server wants
+-- A /nick the server won't take is no longer wanted. Before the
+-- welcome net/registration.lua answers this.
 H[N.ERR_ERRONEUSNICKNAME] = function(rec, irc, msg)
+    if not irc.welcomed then return end
     local wanted = intent.of(rec)
-    if not irc.welcomed then
-        local field = wanted.nick and '/nick' or 'identity.nick'
-        wanted.nick = nil -- the next connection tries the configured one
-        dispatch.route 'net.give_up'(rec.id, string.format(
-            '%s: the server refuses %s: %s', field, msg[2] or '?', msg[3] or 'erroneous nickname'))
-    elseif wanted.nick and msg[2] and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, wanted.nick) then
-        -- a /nick the server won't take is no longer wanted
+    if wanted.nick and msg[2] and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, wanted.nick) then
         wanted.nick = nil
     end
 end
 H[N.ERR_NICKNAMEINUSE] = new_nickname
 H[N.ERR_UNAVAILRESOURCE] = new_nickname
-
--- A password refused before the welcome is a problem in the
--- configuration, and retrying with it could get us throttled
-H[N.ERR_PASSWDMISMATCH] = function(rec, irc, msg)
-    if not irc.welcomed then
-        dispatch.route 'net.give_up'(rec.id, string.format(
-            'registration.password: the server refuses it: %s', msg[#msg] or 'password incorrect'))
-    end
-end
 
 -- The server's reason for closing the connection, which becomes the
 -- reason it ended (net/manager.lua)

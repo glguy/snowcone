@@ -1,7 +1,10 @@
 -- Connection registration, run as a network task after CON.
 --
--- PASS, NICK and USER go out right behind CAP LS; the server holds
--- registration until CAP END, so SASL still happens first.
+-- Capability negotiation runs as a task of its own (net/cap.lua). PASS,
+-- NICK and USER go out right behind its CAP LS; the server holds
+-- registration until CAP END, so SASL still happens first. Meanwhile
+-- this task answers whatever refuses the registration, up to the
+-- welcome; net/handlers.lua takes those numerics from there.
 
 local cap       <const> = require 'hub.net.cap'
 local clock     <const> = require 'hub.runtime.clock'
@@ -15,6 +18,53 @@ local secrets   <const> = require 'hub.runtime.secrets'
 
 -- How long the end of MOTD may take after the welcome
 local motd_timeout_ms <const> = 30000
+
+-- What can come back to PASS, NICK and USER
+local until_welcome <const> = {
+    N.RPL_WELCOME,
+    N.ERR_NICKNAMEINUSE,
+    N.ERR_UNAVAILRESOURCE,
+    N.ERR_ERRONEUSNICKNAME,
+    N.ERR_PASSWDMISMATCH,
+}
+
+-- Wait for the welcome. A nick that is taken or held gets a random
+-- replacement, and the wanted one is reclaimed later. A nick or password
+-- the server refuses is a problem in the configuration: the network
+-- gives up, and this returns nil.
+---@param t hub.Task
+---@param rec hub.Network
+---@param irc hub.Irc
+---@param wanted string
+---@return hub.Message|nil # RPL_WELCOME
+local function await_welcome(t, rec, irc, wanted)
+    while true do
+        local msg = t:wait_irc(until_welcome)
+        local command = msg.command
+        if command == N.RPL_WELCOME then
+            -- "<client> :Welcome to the <networkname> Network, <nick>[!<user>@<host>]"
+            return msg
+        elseif command == N.ERR_NICKNAMEINUSE or command == N.ERR_UNAVAILRESOURCE then
+            local nick = string.format('%s-%05d', wanted:sub(1, 10), math.random(0, 99999))
+            t:send('NICK', nick)
+            irc.recover_nick = wanted
+            irc.nick = nick -- optimistic
+        elseif command == N.ERR_ERRONEUSNICKNAME then
+            -- a replacement can't know what the server wants
+            local want = intent.of(rec)
+            local field = want.nick and '/nick' or 'identity.nick'
+            want.nick = nil -- the next connection tries the configured one
+            t:api 'hub.net.manager'.give_up(t.net, string.format(
+                '%s: the server refuses %s: %s', field, msg[2] or '?', msg[3] or 'erroneous nickname'))
+            return nil
+        else
+            -- retrying with it could get us throttled
+            t:api 'hub.net.manager'.give_up(t.net, string.format(
+                'registration.password: the server refuses it: %s', msg[#msg] or 'password incorrect'))
+            return nil
+        end
+    end
+end
 
 local function oper_up(t, cfg)
     if not oper.first(t, config.automatic_credentials(cfg.oper)) then
@@ -93,14 +143,17 @@ return function(t)
     local user  = cfg.identity.user  or cfg.identity.nick
     local realname = cfg.identity.realname or cfg.identity.nick
 
+    -- CAP LS goes out before spawn returns
+    t:spawn('cap negotiation', cap.negotiate)
+    if password then
+        t:send('PASS', {content = password, secret = true})
+    end
+    t:send('NICK', nick)
+    t:send('USER', user, '0', '*', realname)
     irc.nick = nick -- optimistic
-    local welcome = cap.negotiate(t, function()
-        if password then
-            t:send('PASS', {content = password, secret = true})
-        end
-        t:send('NICK', nick)
-        t:send('USER', user, '0', '*', realname)
-    end)
+
+    local welcome = await_welcome(t, rec, irc, nick)
+    if not welcome then return end
     irc.nick = welcome[1] -- first confirmation
 
     -- "<client> :End of /MOTD command."

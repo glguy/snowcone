@@ -733,7 +733,6 @@ M.routes = {
             M.connect(id)
         end
     end,
-    ['net.give_up'] = M.give_up,
     ['net.force_close'] = function(id, attempt)
         local rec = nets()[id]
         if rec and rec.attempt == attempt and rec.phase == 'closing' then
