@@ -325,8 +325,8 @@ T.case('a new connection rejoins the channels we were in, with their keys, and s
     for _, line in ipairs(c:take()) do
         if line:match '^JOIN ' or line:match '^AWAY ' then table.insert(sent, line) end
     end
-    T.eq(sent, {'JOIN #conf,#k,#c ck,secret,newkey', 'AWAY :gone fishing'},
-        'kept channels, keyed first, then away')
+    T.eq(sent, {'AWAY :gone fishing', 'JOIN #conf,#k,#c ck,secret,newkey'},
+        'away, then kept channels, keyed first')
 
     -- back, and a key removed
     c:recv ':me!u@h JOIN #conf'

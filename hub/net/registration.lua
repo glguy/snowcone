@@ -178,12 +178,14 @@ return function(t)
         t:send('MONITOR', '+', irc.recover_nick)
     end
 
-    -- before opering, which may wait on a CHALLENGE reply
-    join_channels(t, intent.channels(rec, irc))
+    -- before joining, so channels see us away from the start
     local away = intent.of(rec).away
     if away then
         t:send('AWAY', away)
     end
 
+    -- before joining, in case a channel requires it
     oper_up(t, cfg)
+
+    join_channels(t, intent.channels(rec, irc))
 end

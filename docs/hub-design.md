@@ -231,8 +231,8 @@ connected at once.
 - **Intent** (`rec.intent`, `net/intent.lua`): what any connection should
   become, kept across connections and changed only by what we do: the
   wanted nick, the channels we are in with their keys, and our away
-  message. Registration replays it after the end of MOTD: JOIN for those
-  channels and then the configured `join` buffers, then AWAY. Our PART or
+  message. Registration replays it after the end of MOTD: AWAY, then
+  JOIN for those channels and then the configured `join` buffers. Our PART or
   KICK, or closing a channel's buffer, takes a channel out.
 - **Protocol model** (`rec.irc`): nick, modes, capabilities, ISUPPORT,
   channels and members, monitor list, batches, soju bouncer networks.
