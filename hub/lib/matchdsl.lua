@@ -84,6 +84,8 @@ return function(s)
         if lexeme then
             if token == 'bad regex' then
                 got = 'bad regex (' .. tostring(lexeme) .. ')'
+            elseif token == 'open' or token == 'close' or token == 'error' then
+                got = '`' .. lexeme .. '`' -- as typed
             elseif type(token) == 'string' and token ~= 'word' then
                 got = '`' .. token .. '`'
             else
