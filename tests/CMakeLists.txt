@@ -50,8 +50,9 @@ foreach(name test-dnslookup test-escape test-execute test-print test-sasl test-s
 endforeach()
 
 # hub's tests share tests/hub/lib.lua and load hub from the source tree
-foreach(name test-reload test-structure test-lib test-config test-net test-send test-model test-cap test-ui test-snotice test-topology
-             test-oper test-chat test-views test-plugins test-github test-spell)
+foreach(name test-reload test-structure test-lib test-config test-connect test-registration test-reclaim test-tasks
+             test-oper-login test-send test-model test-cap test-ui test-snotice test-topology test-oper test-chat
+             test-views test-details test-input test-plugins test-github test-spell)
   add_test(NAME hub-${name}
     COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/hub/${name}.lua")
   set_tests_properties(hub-${name} PROPERTIES TIMEOUT 30)
@@ -66,9 +67,9 @@ add_test(NAME hub-test-snotice-no-pcre2
 set_tests_properties(hub-test-snotice-no-pcre2 PROPERTIES TIMEOUT 30
   ENVIRONMENT HUB_TEST_HIDE=rex_pcre2)
 # mention regexes fail the load without rex_pcre2
-add_test(NAME hub-test-net-no-pcre2
-  COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/hub/test-net.lua")
-set_tests_properties(hub-test-net-no-pcre2 PROPERTIES TIMEOUT 30
+add_test(NAME hub-test-config-no-pcre2
+  COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/hub/test-config.lua")
+set_tests_properties(hub-test-config-no-pcre2 PROPERTIES TIMEOUT 30
   ENVIRONMENT HUB_TEST_HIDE=rex_pcre2)
 
 add_test(NAME script-execute

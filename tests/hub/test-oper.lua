@@ -103,7 +103,7 @@ T.case('/oper works on a network without the oper feature', function()
     T.eq(sent[#sent], 'OPER o p', 'sent')
 end)
 
-T.case('mask rules (the dashboard asserts)', function()
+T.case('K-Line mask rules', function()
     boot()
     local masks = T.require 'hub.features.oper.masks'
     T.eq(masks('~0a000001', '10.0.0.1', '10.0.0.1'), '*@10.0.0.1', 'simple')

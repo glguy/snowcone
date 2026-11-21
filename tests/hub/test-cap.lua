@@ -5,15 +5,13 @@
 
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')
+local N = dofile(here .. '/netlib.lua')(T)
+local network, boot, rec, register, requester = N.network, N.boot, N.rec, N.register, N.requester
 
 local sasl_plain <const> = {
     automatic = {'PLAIN'},
     credentials = {{mechanism = 'PLAIN', username = 'u', password = 'p'}},
 }
-
-local function rec()
-    return HUB.state.nets.test
-end
 
 -- The names a list of sent lines requested with CAP REQ, sorted
 local function requested(lines)
@@ -135,6 +133,60 @@ T.case('credentials are used once: a later CAP NEW sasl does not log in again', 
     T.eq(c:take(), {'CAP REQ sasl'}, 'requested again')
     c:recv ':srv CAP me ACK :sasl'
     T.eq(c:take(), {}, 'no second login')
+end)
+
+T.case('CAP DEL between the welcome and the end of MOTD drops what needed it', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :batch echo-message labeled-response'
+    c:recv ':srv CAP me ACK :batch echo-message labeled-response'
+    c:recv ':srv 001 me :Welcome'
+    c:take()
+    c:recv ':srv CAP me DEL :labeled-response'
+    T.eq(c:take(), {'CAP REQ -echo-message'}, 'echo-message turned off')
+    c:recv ':srv CAP me NEW :multi-prefix'
+    c:recv ':srv CAP me ACK :-echo-message'
+    T.eq(c:take(), {'CAP REQ multi-prefix'}, 'a new cap requested')
+end)
+
+T.case('a CAP REQ sent by hand takes effect when acked', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    c:take()
+    c:recv ':srv CAP me ACK :batch labeled-response'
+    T.eq(rec().irc.caps_enabled['labeled-response'], true, 'enabled')
+    requester({401}, 1000, 'WHOIS', 'x')
+    T.eq(c:take(), {'@label=sc1 WHOIS x'}, 'requests are labeled')
+    c:recv '@label=sc1 :srv ACK'
+    c:recv ':srv CAP me ACK :-labeled-response'
+    T.eq(rec().irc.caps_enabled['labeled-response'], nil, 'disabled')
+end)
+
+T.case('echo-message is requested only with labeled-response, and dropped without it', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :echo-message multi-prefix'
+    T.eq(c:take(), {'CAP LS 302', 'NICK me', 'USER me 0 * me', 'CAP REQ multi-prefix'}, 'not alone')
+    c:recv ':srv CAP me ACK :multi-prefix'
+    c:recv ':srv 001 me :Welcome'
+    c:recv ':srv 376 me :End of MOTD'
+    c:take()
+
+    c:recv ':srv CAP me NEW :batch labeled-response echo-message'
+    T.eq(c:take(), {'CAP REQ :batch echo-message labeled-response'}, 'with what it needs')
+    c:recv ':srv CAP me ACK :batch echo-message labeled-response'
+
+    T.require 'hub.net.send'.send('test', 'PRIVMSG', '#c', 'hi')
+    T.eq(c:take(), {'@label=sc1 PRIVMSG #c hi'}, 'chat lines are labeled')
+
+    c:recv ':srv CAP me DEL :labeled-response'
+    T.eq(c:take(), {'CAP REQ -echo-message'}, 'turned off with labeled-response gone')
+    c:recv ':srv CAP me ACK :-echo-message'
+    T.eq(rec().irc.caps_enabled['echo-message'], nil, 'off')
+    T.eq(next(HUB.tasks), nil, 'no tasks left')
 end)
 
 T.run()
