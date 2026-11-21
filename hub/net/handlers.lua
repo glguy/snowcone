@@ -19,6 +19,7 @@ local ircd      <const> = require 'hub.net.ircd'
 local log       <const> = require 'hub.runtime.log'
 local N         <const> = require 'hub.lib.numerics'
 local NH        <const> = require 'hub.lib.numerics_hybrid'
+local reclaim   <const> = require 'hub.net.reclaim'
 local send      <const> = require 'hub.net.send'
 local tablex    <const> = require 'pl.tablex'
 local task      <const> = require 'hub.runtime.task'
@@ -171,35 +172,10 @@ function M.wanted_nick(rec)
     return intent.of(rec).nick or rec.cfg.identity.nick
 end
 
-local function want_nick(rec, irc, nick)
-    return irc.recover_nick and rec.cfg.reclaim_nick
-       and irc_model.fold(irc, nick) == irc_model.fold(irc, irc.recover_nick)
-end
-
--- Stop waiting for a nick to free up
-local function stop_reclaim(rec, irc)
-    local nick = irc.recover_nick
-    if nick == nil then return end
-    irc.recover_nick = nil
-    -- monitored once registered, when reclaiming is on; a chat buffer
-    -- for the nick may still want it watched
-    local chat_monitors = HUB.current.routes['chat.monitors']
-    if chat_monitors and chat_monitors(rec.id, nick) then return end
-    if irc.monitor and rec.cfg.reclaim_nick and rec.phase == 'connected' then
-        send.send(rec.id, 'MONITOR', '-', nick)
-        irc_model.del_monitor(irc, nick)
-    end
-end
-
---- Try to take the wanted nick back. Also a route, so that features
---- that see the nick become free (server notices) can trigger it.
-function M.reclaim_nick(net)
-    local rec = HUB.state.nets[net]
-    local irc = rec and rec.irc
-    if irc and irc.recover_nick and rec.cfg.reclaim_nick and rec.phase == 'connected' then
-        send.send(net, 'NICK', irc.recover_nick)
-    end
-end
+--- Try to take the wanted nick back (net/reclaim.lua). Also the route
+--- net.reclaim_nick, for features that see the nick become free (server
+--- notices).
+M.reclaim_nick = reclaim.attempt
 
 --- Change our nick at the user's word: the nick given becomes the wanted
 --- one, here and on later connections, and is what reclaiming waits for
@@ -211,9 +187,17 @@ function M.declare_nick(net, nick)
     intent.of(rec).nick = nick ~= rec.cfg.identity.nick and nick or nil
     local irc = rec.irc
     if irc then
-        stop_reclaim(rec, irc)
+        reclaim.stop(rec, irc)
     end
     send.send(net, 'NICK', nick)
+end
+
+-- Reclaim the wanted nick when we aren't on it
+local function want_back(rec, irc)
+    local wanted = M.wanted_nick(rec)
+    if not irc_model.is_me(irc, wanted) then
+        reclaim.start(rec, irc, wanted)
+    end
 end
 
 -- :<server> 730 <nick> :target[!user@host][,target[!user@host]]*
@@ -234,9 +218,6 @@ H[N.RPL_MONOFFLINE] = function(rec, irc, msg)
     for nick in msg[2]:gmatch '([^!,]+)[^,]*,?' do
         irc_model.add_monitor(irc, nick, false)
         table.insert(nicks, nick)
-        if want_nick(rec, irc, nick) then
-            M.reclaim_nick(rec.id)
-        end
     end
     log.add_net(rec.id, 'monitor', 'monitor offline: %s', table.concat(nicks, ', '))
 end
@@ -245,31 +226,38 @@ H[N.ERR_MONLISTFULL] = function(rec)
     log.add_net(rec.id, 'monitor', 'monitor list full')
 end
 
--- The wanted nick, taken or held, is waited for. Before the welcome
--- net/registration.lua answers these.
-local function new_nickname(rec, irc, msg)
-    if not irc.welcomed then return end
-    local wanted = M.wanted_nick(rec)
-    if msg[2] and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, wanted) and not irc.recover_nick then
-        irc.recover_nick = wanted
-        -- before then, registration starts the MONITOR
-        if rec.cfg.reclaim_nick and irc_model.has_monitor(irc) and rec.phase == 'connected' then
-            send.send(rec.id, 'MONITOR', '+', wanted)
+-- A NICK for the wanted nick refused for now: it is taken (433), held
+-- (437), refused while we are banned in a channel (435), or comes too
+-- soon after others (438). The wanted nick is reclaimed, and the reclaim
+-- task, started here, sees this refusal too. Before the welcome
+-- net/registration.lua answers 433 and 437.
+local function nick_refused(rec, irc, msg)
+    if not irc.welcomed or irc.recover_nick then return end
+    local wanted = irc_model.fold(irc, M.wanted_nick(rec))
+    -- Solanum's 438 names our nick, then the one refused
+    for i = 2, #msg - 1 do
+        if irc_model.fold(irc, msg[i]) == wanted then
+            want_back(rec, irc)
+            return
         end
     end
 end
+H[N.ERR_NICKNAMEINUSE] = nick_refused
+H[N.ERR_UNAVAILRESOURCE] = nick_refused
+H[N.ERR_BANNICKCHANGE] = nick_refused
+H[N.ERR_NICKTOOFAST] = nick_refused
 
--- A /nick the server won't take is no longer wanted. Before the
--- welcome net/registration.lua answers this.
+-- A /nick the server won't take is no longer wanted, and the configured
+-- nick is wanted back. Before the welcome net/registration.lua answers
+-- this.
 H[N.ERR_ERRONEUSNICKNAME] = function(rec, irc, msg)
     if not irc.welcomed then return end
     local wanted = intent.of(rec)
     if wanted.nick and msg[2] and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, wanted.nick) then
         wanted.nick = nil
+        want_back(rec, irc)
     end
 end
-H[N.ERR_NICKNAMEINUSE] = new_nickname
-H[N.ERR_UNAVAILRESOURCE] = new_nickname
 
 -- The server's reason for closing the connection, which becomes the
 -- reason it ended (net/manager.lua)
@@ -311,18 +299,18 @@ function H.NICK(rec, irc, msg)
 
     if self then
         irc.nick = newnick
+        local asked = irc_model.take_nick_sent(irc, newnick)
         if irc.recover_nick and newkey == irc_model.fold(irc, irc.recover_nick) then
-            stop_reclaim(rec, irc)
+            reclaim.stop(rec, irc)
+        elseif not asked and oldkey ~= newkey then
+            -- the server's doing: services, or a collision (RPL_SAVENICK)
+            log.add_net(rec.id, 'irc', 'nick changed to %s by the server', newnick)
+            want_back(rec, irc)
         end
     end
 
     msg.channels = channels_of(irc, oldkey)
     irc_model.rename_user(irc, oldnick, newnick)
-
-    -- whoever held the wanted nick let it go
-    if not self and oldkey ~= newkey and want_nick(rec, irc, oldnick) then
-        M.reclaim_nick(rec.id)
-    end
 
     bus.emit('irc.nick', {net = rec.id, old = oldnick, new = newnick, self = self})
 end
@@ -420,16 +408,12 @@ function H.KICK(rec, irc, msg)
     end
 end
 
-function H.QUIT(rec, irc, msg)
+function H.QUIT(_, irc, msg)
     local nick = msg.nick
     if not nick then return end
     local key = irc_model.fold(irc, nick)
     msg.channels = channels_of(irc, key)
     irc_model.remove_user(irc, nick)
-
-    if want_nick(rec, irc, nick) then
-        M.reclaim_nick(rec.id)
-    end
 end
 
 -- No message, or an empty one, when back
@@ -690,7 +674,7 @@ function M.for_ircd(net)
 end
 
 M.routes = {
-    ['net.reclaim_nick'] = M.reclaim_nick,
+    ['net.reclaim_nick'] = reclaim.attempt,
 }
 
 return M

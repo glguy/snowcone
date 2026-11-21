@@ -225,9 +225,19 @@ connected at once.
   welcome and the end of MOTD finish it. The wanted nick is the
   configured one, or the last given to `/nick` (until the configured nick
   changes). A nick that is taken or held gets a temporary one, and the
-  wanted nick is reclaimed through MONITOR or server notices; a nick
-  refused as erroneous, or a password refused (464), is a configuration
-  error. A server's ERROR text becomes the reason the connection ended.
+  wanted nick is reclaimed (below); a nick refused as erroneous, or a
+  password refused (464), is a configuration error. A server's ERROR
+  text becomes the reason the connection ended.
+- **Nick recovery** (`net/reclaim.lua`): while we are registered on a
+  nick other than the wanted one, a task exists to take it back, and
+  only then. It starts when registration ends on a temporary nick, when
+  a `/nick` is refused for now, and when the server changes our nick
+  without our asking (services, or a collision); it ends when we have
+  the nick or want another. The nick comes free by MONITOR, by its
+  holder quitting or changing nick where we see it, or by a server
+  notice. A refusal that holds for a while is tried again later: 437 and
+  435 after a delay that doubles on the connection, 438 after the wait
+  the server names, sending nothing meanwhile.
 - **Intent** (`rec.intent`, `net/intent.lua`): what any connection should
   become, kept across connections and changed only by what we do: the
   wanted nick, the channels we are in with their keys, and our away

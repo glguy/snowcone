@@ -295,6 +295,9 @@ local function send(how, net, tags, cmd, ...)
     else
         submit(rec, conn, raw, msg, how == 'first')
     end
+    if cmd == 'NICK' and rec.irc and type(...) == 'string' then
+        irc_model.note_nick_sent(rec.irc, (...))
+    end
     if wants[cmd] then
         local args = {}
         for i = 1, select('#', ...) do
@@ -405,6 +408,10 @@ function M.raw(net, text)
     }
     submit(rec, conn, text .. '\r\n', msg)
     intent.sent_raw(rec, text)
+    local cmd, nick = body:match '^(%S+)%s+:?(%S+)'
+    if cmd and cmd:upper() == 'NICK' and rec.irc then
+        irc_model.note_nick_sent(rec.irc, nick)
+    end
     M.record(rec, msg)
     dispatch.dirty()
 end

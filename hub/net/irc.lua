@@ -120,6 +120,10 @@ function M.new()
     ---@field oper boolean|nil
     ---@field snomask string|nil
     ---@field recover_nick string|nil nick to take back when it frees up, as given
+    --- (net/reclaim.lua)
+    ---@field reclaim hub.Reclaim|nil the reclaiming of recover_nick
+    ---@field nicks_sent string[]|nil nicks we sent NICK for that haven't
+    --- come back, oldest first, as sent
     ---@field sasl_credentials table|nil the credentials registration chose
     ---@field partial_mode_list table<string, hub.ListEntry>|nil a list mode
     --- being received
@@ -327,6 +331,39 @@ function M.text_room(irc, command, target)
         or (tonumber(irc.isupport.USERLEN) or 10) + 1 + (tonumber(irc.isupport.HOSTLEN) or 63)
     local relayed = string.format(':%s! %s %s :\r\n', irc.nick or '', command, target)
     return irc.linelen - #relayed - userhost
+end
+
+-- Unanswered NICKs kept, at most: a refused one is never answered by a
+-- NICK of ours
+local max_nicks_sent <const> = 8
+
+--- Note a NICK we sent, so that our nick changing to it is known to be
+--- our doing.
+---@param irc hub.Irc
+---@param nick string
+function M.note_nick_sent(irc, nick)
+    local sent = irc.nicks_sent or {}
+    irc.nicks_sent = sent
+    table.insert(sent, nick)
+    if #sent > max_nicks_sent then table.remove(sent, 1) end
+end
+
+--- Our nick changed to nick: whether we asked for it. The NICK it
+--- answers is forgotten, with those sent before it, which the server
+--- answered first.
+---@param irc hub.Irc
+---@param nick string
+---@return boolean
+function M.take_nick_sent(irc, nick)
+    local sent = irc.nicks_sent or {}
+    local key = M.fold(irc, nick)
+    for i = #sent, 1, -1 do
+        if M.fold(irc, sent[i]) == key then
+            table.move(sent, i + 1, #sent + i, 1)
+            return true
+        end
+    end
+    return false
 end
 
 --- The record of a user in view, or nil.

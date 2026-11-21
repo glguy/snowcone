@@ -14,6 +14,7 @@ local intent    <const> = require 'hub.net.intent'
 local irc_model <const> = require 'hub.net.irc'
 local N         <const> = require 'hub.lib.numerics'
 local oper      <const> = require 'hub.net.oper'
+local reclaim   <const> = require 'hub.net.reclaim'
 local secrets   <const> = require 'hub.runtime.secrets'
 
 -- How long the end of MOTD may take after the welcome
@@ -174,8 +175,8 @@ return function(t)
     t:emit('net.registered', {net = t.net, nick = irc.nick})
 
     -- start waiting for our nickname
-    if irc.recover_nick and cfg.reclaim_nick and irc_model.has_monitor(irc) then
-        t:send('MONITOR', '+', irc.recover_nick)
+    if irc.recover_nick then
+        reclaim.start(rec, irc, irc.recover_nick)
     end
 
     -- before joining, so channels see us away from the start

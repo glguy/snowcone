@@ -360,6 +360,12 @@ T.case('the wanted nick is reclaimed when its holder leaves', function()
     notice(c, 'a.example', 'Client exiting: Me (u@h) [Client Quit] [192.0.2.1]')
     T.eq(c:take(), {'NICK me'}, 'reclaimed')
     notice(c, 'a.example', 'Nick change: From ME to other [u@h]')
+    T.eq(c:take(), {}, 'not while the NICK is unanswered')
+    local clock = T.require 'hub.runtime.clock'
+    local now = clock.now() + 11
+    clock.now = function() return now end
+    notice(c, 'a.example', 'Nick change: From other to ME [u@h]')
+    notice(c, 'a.example', 'Nick change: From ME to another [u@h]')
     T.eq(c:take(), {'NICK me'}, 'reclaimed after a rename')
 end)
 

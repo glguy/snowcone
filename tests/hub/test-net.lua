@@ -986,6 +986,138 @@ T.case('the wanted nick is reclaimed when its holder changes nick', function()
     T.eq(c:take(), {'NICK me'}, 'reclaimed')
 end)
 
+-- Registered on a random nick, with MONITOR, the wanted one taken
+local function on_temp_nick(c)
+    c:con()
+    c:take()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 433 * me :Nickname is already in use'
+    local temp = T.ok(c:take()[2]:match '^NICK (me%-%d+)$', 'random nick')
+    c:recv(':srv 001 ' .. temp .. ' :Welcome')
+    c:recv(':srv 005 ' .. temp .. ' CHANTYPES=# MONITOR=100 :are supported')
+    c:recv(':srv 376 ' .. temp .. ' :End of MOTD')
+    c:take()
+    return temp
+end
+
+-- The nick recovery task, or nil
+local function reclaim_task()
+    for _, t in pairs(HUB.tasks) do
+        if t.name == 'nick recovery' then return t end
+    end
+end
+
+-- End the nick recovery task's wait now instead of waiting for its timer
+local function fire_reclaim_timeout()
+    local t = T.ok(reclaim_task(), 'reclaim task')
+    T.ok(t.timer, 'reclaim task holds back')
+    T.require 'hub.runtime.timer'.cancel(t.timer)
+    HUB.current.routes['task.wake'](t.id, t.seq)
+end
+
+T.case('a held nick is tried again later, waiting longer each time', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    local temp = on_temp_nick(c)
+    stop_clock()
+    T.ok(reclaim_task(), 'reclaiming')
+    c:recv(':srv 731 ' .. temp .. ' :me')
+    T.eq(c:take(), {'NICK me'}, 'tried')
+    c:recv(':srv 437 ' .. temp .. ' me :Nick/channel is temporarily unavailable')
+    T.eq(rec().irc.reclaim.held_until - T.require 'hub.runtime.clock'.now(), 30, 'held 30 s')
+    c:recv(':srv 731 ' .. temp .. ' :me')
+    T.eq(c:take(), {}, 'nothing while held')
+    fire_reclaim_timeout()
+    T.eq(c:take(), {'NICK me'}, 'tried again')
+    c:recv(':srv 437 ' .. temp .. ' me :Nick/channel is temporarily unavailable')
+    T.eq(rec().irc.reclaim.held_until - T.require 'hub.runtime.clock'.now(), 60, 'then 60 s')
+    fire_reclaim_timeout()
+    T.eq(c:take(), {'NICK me'}, 'and again')
+    c:recv(':' .. temp .. '!u@h NICK me')
+    T.eq(c:take(), {'MONITOR - me'}, 'done')
+    T.eq(reclaim_task(), nil, 'no task once the nick is ours')
+end)
+
+T.case('a nick change refused as too fast waits as long as the server says', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    local temp = on_temp_nick(c)
+    local advance = stop_clock()
+    c:recv(':srv 731 ' .. temp .. ' :me')
+    T.eq(c:take(), {'NICK me'}, 'tried')
+    c:recv(':srv 438 ' .. temp .. ' ' .. temp .. ' me :Nick change too fast. Please wait 20 seconds.')
+    T.eq(rec().irc.reclaim.held_until - T.require 'hub.runtime.clock'.now(), 21, 'held past the wait')
+    advance(5)
+    T.eq(HUB.current.routes['net.reclaim_nick']('test'), false, 'a server notice waits too')
+    fire_reclaim_timeout()
+    T.eq(c:take(), {'NICK me'}, 'tried again')
+end)
+
+T.case('a nick the server changes is reclaimed', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c, 'me', 'CHANTYPES=# MONITOR=100')
+    c:take()
+    T.eq(reclaim_task(), nil, 'nothing to reclaim')
+    c:recv ':srv 043 me 001AAAAAA :Nick collision, forcing nick change to your unique ID'
+    c:recv ':me!u@h NICK 001AAAAAA'
+    T.eq(c:take(), {'MONITOR + me'}, 'waiting for me')
+    T.eq(rec().irc.recover_nick, 'me', 'reclaiming')
+    c:recv ':srv 731 001AAAAAA :me'
+    T.eq(c:take(), {'NICK me'}, 'reclaimed')
+    c:recv ':001AAAAAA!u@h NICK me'
+    T.eq(c:take(), {'MONITOR - me'}, 'done')
+
+    -- a change we asked for is ours
+    T.command 'quote NICK other'
+    c:take()
+    c:recv ':me!u@h NICK other'
+    T.eq(c:take(), {}, 'not reclaimed')
+    T.eq(rec().irc.recover_nick, nil, 'nothing to reclaim')
+end)
+
+T.case('a refused /nick leaves the wanted nick reclaimed', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    local temp = on_temp_nick(c)
+
+    -- erroneous: the configured nick is wanted again
+    T.command 'nick 1bad'
+    T.eq(c:take(), {'MONITOR - me', 'NICK 1bad'}, 'me no longer wanted')
+    c:recv(':srv 432 ' .. temp .. ' 1bad :Erroneous Nickname')
+    T.eq(rec().intent.nick, nil, '/nick forgotten')
+    T.eq(c:take(), {'MONITOR + me'}, 'me wanted again')
+
+    -- banned in a channel: tried again later
+    T.command 'nick other'
+    c:take()
+    c:recv(':srv 435 ' .. temp .. ' other #c :Cannot change nickname because you are banned'
+        .. ' or quieted while in this channel.')
+    T.eq(rec().intent.nick, 'other', 'still wanted')
+    T.eq(rec().irc.recover_nick, 'other', 'reclaimed')
+    T.eq(c:take(), {'MONITOR + other'}, 'watched')
+    T.ok(rec().irc.reclaim.held_until, 'held back')
+    c:recv(':srv 731 ' .. temp .. ' :other')
+    T.eq(c:take(), {}, 'not while held')
+    fire_reclaim_timeout()
+    T.eq(c:take(), {'NICK other'}, 'tried again')
+end)
+
+T.case('one nick coming free sends one NICK', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    local temp = on_temp_nick(c)
+    c:recv(':' .. temp .. '!u@h JOIN #c')
+    c:recv ':srv 353 x = #c :me'
+    c:take()
+    c:recv ':me!u@h QUIT :bye'
+    c:recv(':srv 731 ' .. temp .. ' :me')
+    T.eq(c:take(), {'NICK me'}, 'once')
+    c:recv(':srv 433 ' .. temp .. ' me :Nickname is already in use')
+    c:recv(':srv 731 ' .. temp .. ' :me')
+    T.eq(c:take(), {'NICK me'}, 'again after the reply')
+end)
+
 T.case('a /nick while the MOTD arrives is the user\'s, not a configuration error', function()
     local fake = boot {network('test')}
     local c = fake.last()
