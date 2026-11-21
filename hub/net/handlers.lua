@@ -79,9 +79,10 @@ H[N.RPL_WELCOME] = function(_, irc)
     irc.welcomed = true
 end
 
+-- "<client> <snomask> :Server notice mask"; a bare + when cleared
 H[N.RPL_SNOMASK] = function(rec, irc, msg)
     if not msg[2] then return end
-    irc.snomask = msg[2]
+    irc.snomask = msg[2]:match '^%+?$' == nil and msg[2] or nil
     log.add_net(rec.id, 'irc', 'snomask %s', msg[2])
 end
 
@@ -95,8 +96,13 @@ local function now_oper(rec, irc)
     end
 end
 
--- Our user modes changed: o says whether we are an operator
+-- Our user modes changed: o says whether we are an operator, and
+-- without s there is no snomask (a server that strips it on deoper may
+-- not say so with RPL_SNOMASK)
 local function follow_umodes(rec, irc)
+    if not irc.mode.s then
+        irc.snomask = nil
+    end
     if irc.mode.o then
         now_oper(rec, irc)
     elseif irc.oper then
@@ -121,7 +127,7 @@ function H.TOPIC(_, irc, msg)
         msg.topic_before = {topic = channel.topic, who = channel.topic_who, time = channel.topic_time}
         channel.topic = msg[2]
         channel.topic_who = msg.source
-        channel.topic_time = os.time()
+        channel.topic_time = irc_model.message_time(msg)
         irc_model.note_fetched(channel, 'topic')
     end
 end
@@ -432,12 +438,12 @@ H[N.RPL_AWAY] = function(_, irc, msg)
     end
 end
 
--- Replies to our own AWAY
+-- Replies to our own AWAY; the message is the one we sent
 H[N.RPL_UNAWAY] = function(_, irc)
     if irc.nick then irc_model.set_away(irc, irc.nick, false) end
 end
-H[N.RPL_NOWAWAY] = function(_, irc)
-    if irc.nick then irc_model.set_away(irc, irc.nick, true) end
+H[N.RPL_NOWAWAY] = function(rec, irc)
+    if irc.nick then irc_model.set_away(irc, irc.nick, intent.of(rec).away or true) end
 end
 
 -----------------------------------------------------------------------

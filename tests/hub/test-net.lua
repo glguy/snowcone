@@ -880,6 +880,38 @@ T.case('our own away state comes from the replies to AWAY', function()
     T.eq(irc.users.ME.away, true, 'carried into our record')
     c:recv ':srv 305 me :You are no longer marked as being away'
     T.eq({irc.away, irc.users.ME.away}, {false, false}, 'back')
+
+    T.command 'quote AWAY :gone fishing'
+    c:recv ':srv 306 me :You have been marked as being away'
+    T.eq({irc.away, irc.users.ME.away}, {'gone fishing', 'gone fishing'}, 'with the message we sent')
+end)
+
+T.case('a topic change keeps the time the server says it happened', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    c:recv ':me!u@h JOIN #a'
+    c:recv '@time=2026-11-21T12:34:56.789Z :carol!c@h TOPIC #a :news'
+    local channel = T.require 'hub.net.irc'.get_channel(rec().irc, '#a')
+    T.eq({channel.topic, channel.topic_time}, {'news', 1795264496}, 'from server-time')
+    local before = os.time()
+    c:recv ':carol!c@h TOPIC #a :more'
+    T.ok(channel.topic_time >= before, 'now, without one')
+end)
+
+T.case('the snomask goes with user mode s', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    local irc = assert(rec().irc)
+    c:recv ':me MODE me :+os'
+    c:recv ':srv 008 me +bcFs :Server notice mask'
+    T.eq(irc.snomask, '+bcFs', 'set')
+    c:recv ':me MODE me :-os'
+    T.eq({irc.oper, irc.snomask}, {nil, nil}, 'gone on deoper')
+    c:recv ':me MODE me :+s'
+    c:recv ':srv 008 me + :Server notice mask'
+    T.eq(irc.snomask, nil, 'a bare + is none')
 end)
 
 T.case('a lopsided PREFIX and a NAMES word of only prefixes add no one', function()

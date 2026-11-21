@@ -309,6 +309,31 @@ end
 
 -- Users, channels, monitor ===========================================
 
+-- Days from 1970-01-01 to a date of the proleptic Gregorian calendar
+local function days_from_civil(y, m, d)
+    if m <= 2 then y = y - 1 end
+    local era = y // 400
+    local yoe = y - era * 400
+    local doy = (153 * (m + (m > 2 and -3 or 9)) + 2) // 5 + d - 1
+    local doe = yoe * 365 + yoe // 4 - yoe // 100 + doy
+    return era * 146097 + doe - 719468
+end
+
+--- When a message happened, epoch seconds: its server-time tag
+--- (YYYY-MM-DDThh:mm:ss[.sss]Z), else now.
+---@param msg hub.Message
+---@return integer
+function M.message_time(msg)
+    local tag = msg.tags and msg.tags.time
+    local y, mo, d, h, mi, sec = (type(tag) == 'string' and tag or '')
+        :match '^(%d%d%d%d)%-(%d%d)%-(%d%d)T(%d%d):(%d%d):(%d%d)%.?%d*Z$'
+    if not y then return os.time() end
+    y, mo, d = math.tointeger(tonumber(y)), math.tointeger(tonumber(mo)), math.tointeger(tonumber(d))
+    if mo < 1 or mo > 12 or d < 1 or d > 31 then return os.time() end
+    return days_from_civil(y, mo, d) * 86400
+        + math.tointeger(tonumber(h)) * 3600 + math.tointeger(tonumber(mi)) * 60 + math.tointeger(tonumber(sec))
+end
+
 --- Keep our user@host when a message comes from us.
 ---@param irc hub.Irc
 ---@param msg hub.Message
