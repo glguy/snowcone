@@ -4,9 +4,11 @@
 --   T.case('name', function() ... T.sleep(10) ... end)
 --   T.run()
 --
--- Cases run one at a time in a coroutine, each against a fresh HUB.
--- A watchdog timer fails the run if a case never finishes, since the
--- script would otherwise just exit once nothing is pending.
+-- Cases run one at a time in a coroutine, each against a fresh HUB. A
+-- failing case is reported and the rest still run; the run fails at the
+-- end if any did. A watchdog timer fails the run if a case never
+-- finishes, since the script would otherwise just exit once nothing is
+-- pending.
 
 -- What tests keep on HUB and HUB.state, beside hub's own fields
 ---@class hub.Root
@@ -32,6 +34,7 @@ end
 
 local cases = {}
 local current_co
+local cleanups = {}
 T.timers = {} -- keeps raw timers reachable until they fire
 
 ------------------------------------------------------------------------
@@ -132,12 +135,22 @@ function T.complete_args(prefix, seed, net, target)
     return T.require 'hub.commands.run'.complete_args(prefix, seed, origin(net, target))
 end
 
---- Close everything the previous case left behind and forget HUB.
+--- Close everything the previous case left behind and forget HUB: its
+--- tasks first, whose lookups and children would otherwise answer into a
+--- HUB that is gone.
 function T.shutdown()
     if HUB and HUB.current then
+        T.require 'hub.runtime.task'.cancel_all()
         T.require 'hub.runtime.resources'.close_all()
     end
     HUB = nil
+end
+
+--- Run fn when the current case ends, whether it passed or not; the last
+--- registered runs first.
+---@param fn fun()
+function T.cleanup(fn)
+    table.insert(cleanups, fn)
 end
 
 --- Log lines with a given category, oldest first.
@@ -187,6 +200,25 @@ function T.sleep(ms)
     coroutine.yield()
 end
 
+--- Wait until pred() is true, for something outside the test's control
+--- (a child process, a DNS lookup). Fails after timeout_ms, which may be
+--- generous: the wait ends as soon as pred holds.
+---@param pred fun(): any
+---@param what string
+---@param timeout_ms integer|nil default 5000
+---@return any # pred's value
+function T.wait_until(pred, what, timeout_ms)
+    local deadline = snowcone.monotime() + (timeout_ms or 5000) / 1000
+    while true do
+        local v = pred()
+        if v then return v end
+        if snowcone.monotime() >= deadline then
+            error(string.format('%s: not within %d ms', what, timeout_ms or 5000), 2)
+        end
+        T.sleep(5)
+    end
+end
+
 function T.case(name, fn)
     table.insert(cases, {name = name, fn = fn})
 end
@@ -202,21 +234,29 @@ function T.run(timeout_ms)
     end)
 
     current_co = coroutine.create(function()
+        local failed = {}
         for _, c in ipairs(cases) do
             running = c.name
             local ok, err = xpcall(c.fn, debug.traceback)
-            if not ok then
-                finished = true
-                watchdog:cancel()
-                T.shutdown()
-                error('not ok - ' .. c.name .. ': ' .. err, 0)
+            for i = #cleanups, 1, -1 do
+                local cleaned, cerr = xpcall(cleanups[i], debug.traceback)
+                if ok and not cleaned then ok, err = false, 'cleanup: ' .. cerr end
             end
+            cleanups = {}
             T.shutdown()
-            print('ok - ' .. c.name)
+            if ok then
+                print('ok - ' .. c.name)
+            else
+                table.insert(failed, c.name)
+                print('not ok - ' .. c.name .. ': ' .. err)
+            end
         end
         finished = true
         watchdog:cancel()
         print(string.format('1..%d', #cases))
+        if #failed > 0 then
+            error(string.format('%d of %d cases failed: %s', #failed, #cases, table.concat(failed, '; ')), 0)
+        end
     end)
     resume(current_co)
 end

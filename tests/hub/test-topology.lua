@@ -297,9 +297,8 @@ end)
 T.case('rotations come from DNS', function()
     boot()
     HUB.current.routes['topology.refresh']()
-    T.sleep(300)
-    local main = topo().rotations.MAIN
-    T.ok(main and (main['127.0.0.1'] or main['::1']), 'localhost resolved')
+    local main = T.wait_until(function() return topo().rotations.MAIN end, 'the lookup')
+    T.ok(main['127.0.0.1'] or main['::1'], 'localhost resolved')
 end)
 
 T.case('feature commands need the feature', function()

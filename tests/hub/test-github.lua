@@ -285,8 +285,10 @@ T.case('expired mutes are dropped', function()
     local c, listener = boot()
     c:take()
     T.eq(staff(c, 'mute sender=glguy hours=0.0001'), {'NOTICE staffer :Added mute 1'}, 'a short mute')
-    T.sleep(1100)
-    c:take() -- hub's own traffic while waiting, such as a lag check
+    -- an hour later
+    local time = os.time
+    os.time = function(t) return t and time(t) or time() + 3600 end -- luacheck: ignore 122
+    T.cleanup(function() os.time = time end) -- luacheck: ignore 122
     T.eq(deliver(listener, 'push', push()), 204, 'accepted')
     T.eq(#c:take(), 1, 'announced')
     T.eq(saved().mutes, {}, 'expired mute removed')

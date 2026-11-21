@@ -655,11 +655,7 @@ end)
 T.case('a socks password that resolves empty stops the connect', function()
     local fake = boot {network('test', {layers = {{type = 'socks', host = 'p', port = 1080,
         username = 'u', password = {command = 'printf', arguments = {''}}}}})}
-    for _ = 1, 100 do
-        if rec().target == 'idle' then break end
-        T.sleep(10)
-    end
-    T.eq(rec().target, 'idle', 'target dropped to idle')
+    T.wait_until(function() return rec().target == 'idle' end, 'target dropped to idle')
     T.eq(#fake.conns, 0, 'no attempt')
     T.ok(not rec().reconnect_timer, 'no retry')
     T.ok(table.concat(T.log_lines 'irc', '\n'):find('socks password must not be empty', 1, true), 'reason logged')
@@ -1439,8 +1435,7 @@ T.case('secrets come from a command or a prompt', function()
             credentials = {{mechanism = 'password', username = 'op', password = {prompt = 'oper password'}}}},
     })}
     T.eq(fake.last(), nil, 'no connection while the command runs')
-    T.sleep(500)
-    local c = fake.last()
+    local c = T.wait_until(fake.last, 'a connection once the command ran')
     c:con()
     T.eq(c:take(), {'CAP LS 302', 'PASS s3cret', 'NICK me', 'USER me 0 * me'}, 'PASS from the command')
 
@@ -1536,7 +1531,7 @@ T.case('task timeouts, cancellation and DNS', function()
         results.dns2 = err == nil and addr ~= nil
     end)
 
-    T.sleep(300)
+    T.wait_until(function() return results.wait and results.dns2 ~= nil end, 'the timeout and the lookup')
     T.eq(results, {wait = 'timed out', dns2 = true},
         'timeout resumed with nil; canceled tasks never resumed')
     T.eq(next(HUB.tasks), nil, 'no tasks left')
@@ -2322,11 +2317,15 @@ T.case('the drain timer writes queued lines', function()
     local fake = boot {network('test', {rate_limit = {burst = 1, interval = 0.02}})}
     local c = fake.last()
     register(c)
-    T.sleep(200)
+    local function drained()
+        return not (rec().sendq and #rec().sendq.lines > 0)
+    end
+    T.wait_until(drained, 'registration drained')
     c:take()
     local send = T.require 'hub.net.send'
     for i = 1, 3 do send.send('test', 'PRIVMSG', '#c', 'm' .. i) end
-    T.sleep(200)
+    T.ok(not drained(), 'held back by the rate limit')
+    T.wait_until(drained, 'the queue drained')
     T.eq(c:take(), {'PRIVMSG #c m1', 'PRIVMSG #c m2', 'PRIVMSG #c m3'}, 'all sent, in order')
 end)
 
