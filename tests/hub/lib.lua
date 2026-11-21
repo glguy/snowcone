@@ -107,6 +107,63 @@ function T.reload(opts)
     return assert(loadfile(T.init))(opts)
 end
 
+--- A network's configuration for tests: no features unless extra names
+--- them, and short reconnect delays.
+---@param id string
+---@param extra table|nil fields to set or replace
+---@return table
+function T.network(id, extra)
+    local net = {
+        id = id,
+        server = {host = id .. '.test', port = 6667},
+        identity = {nick = 'me'},
+        reconnect = {min_delay = 1, max_delay = 8},
+        features = {},
+    }
+    for k, v in pairs(extra or {}) do net[k] = v end
+    return net
+end
+
+--- Boot hub with these networks on a fake transport (fake_transport.lua).
+---@param networks table[]
+---@param opts table|nil more boot options
+---@return table fake transport; fake.last() is the newest connection
+function T.boot_networks(networks, opts)
+    local fake = dofile(T.here .. '/fake_transport.lua').new()
+    opts = opts or {}
+    opts.transport = fake
+    opts.config = opts.config or {}
+    opts.config.networks = networks
+    T.boot(opts)
+    return fake
+end
+
+--- Register on a fake connection: CAP LS offering caps, an ACK for each
+--- CAP REQ the client sends, the welcome, ISUPPORT and the end of MOTD.
+---@param c table fake connection
+---@param opts {nick: string|nil, caps: string|nil, isupport: string|nil}|nil
+---@return string[] # the lines the client sent, taken
+function T.register(c, opts)
+    opts = opts or {}
+    local nick = opts.nick or 'me'
+    local sent = {}
+    local function take()
+        for _, line in ipairs(c:take()) do
+            table.insert(sent, line)
+            local req = line:match '^CAP REQ :?(.*)$'
+            if req then c:recv(':srv CAP ' .. nick .. ' ACK :' .. req) end
+        end
+    end
+    c:con()
+    c:recv(':srv CAP * LS :' .. (opts.caps or ''))
+    take()
+    c:recv(':srv 001 ' .. nick .. ' :Welcome')
+    c:recv(':srv 005 ' .. nick .. ' ' .. (opts.isupport or 'CHANTYPES=#') .. ' :are supported')
+    c:recv(':srv 376 ' .. nick .. ' :End of MOTD')
+    take()
+    return sent
+end
+
 --- Load a hub module from the current generation.
 function T.require(name)
     return HUB.current.gen.require(name)

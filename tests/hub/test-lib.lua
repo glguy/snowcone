@@ -170,6 +170,47 @@ T.case('prefilter strings take backslash escapes', function()
     T.ok(not matchdsl [[gecos 'it\'s']] {gecos = "it\\'s"}, 'not the backslash itself')
 end)
 
+T.case('prefilter queries: and binds tighter than or; not and parentheses', function()
+    T.boot()
+    local q = T.require 'hub.lib.matchdsl'
+    local function hits(query, entries)
+        local p, names = q(query), {}
+        for _, e in ipairs(entries) do
+            if p(e) then table.insert(names, e.nick) end
+        end
+        return names
+    end
+    local entries = {
+        {nick = 'a', user = 'u'}, {nick = 'b', user = 'u'}, {nick = 'b', user = 'v'}, {nick = 'c'},
+    }
+    T.eq(hits([[nick 'a' or nick 'b' and user 'u']], entries), {'a', 'b'}, 'a, or b with u')
+    T.eq(hits([[(nick 'a' or nick 'b') and user 'u']], entries), {'a', 'b'}, 'grouped')
+    T.eq(hits([[(nick 'a' or nick 'c') and not user 'u']], entries), {'c'}, 'not')
+    T.eq(hits([[not not nick 'c']], entries), {'c'}, 'not of not')
+    T.eq(hits([[nick 'a' or nick 'b' or nick 'c']], entries), {'a', 'b', 'b', 'c'}, 'a chain of or')
+    T.eq(hits([[user '']], entries), {'c'}, 'a missing field is empty')
+end)
+
+T.case('prefilter regexes are extended PCRE2, and I ignores case', function()
+    T.boot()
+    local q = T.require 'hub.lib.matchdsl'
+    T.ok(q [[gecos |^bot \d+$|]] {gecos = 'bot42'}, 'extended: a space in the pattern is ignored')
+    T.ok(not q [[gecos |^bot \d+$|]] {gecos = 'bot 42'}, 'so it matches no space')
+    T.ok(not q [[gecos |^bot\ \d+$|]] {gecos = 'BOT 42'}, 'case counts')
+    T.ok(q [[gecos |^bot\ \d+$|I]] {gecos = 'BOT 42'}, 'unless I')
+    T.ok(q [[ip |^192\.0\.2\.| and not host |example|]] {ip = '192.0.2.7', host = 'h.test'}, 'in a query')
+end)
+
+T.case('a prefilter query that does not parse says what it expected', function()
+    T.boot()
+    local q = T.require 'hub.lib.matchdsl'
+    T.raises('got `end-of-input` expected a pattern', q, 'nick')
+    T.raises('got bogus expected a pattern', q, [[bogus 'x']])
+    T.raises('got `end-of-input` expected `)`', q, [[(nick 'a']])
+    T.raises('got nick expected `end-of-input`', q, [[nick 'a' nick 'b']])
+    T.raises('got bad regex (', q, 'nick |(|')
+end)
+
 T.case('ratelimit allows a burst, then one line per interval', function()
     T.boot {}
     local ratelimit = T.require 'hub.lib.ratelimit'

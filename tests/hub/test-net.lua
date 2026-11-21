@@ -554,7 +554,21 @@ T.case('an erroneous nick during registration is a configuration error', functio
     T.eq(rec().target, 'idle', 'staying disconnected')
     T.eq(rec().reconnect_timer, nil, 'no reconnect')
     local lines = T.log_lines 'irc'
-    T.ok(lines[#lines]:find('the server refuses averylongnick: Erroneous Nickname', 1, true), lines[#lines])
+    T.ok(lines[#lines]:find('identity.nick: the server refuses averylongnick: Erroneous Nickname', 1, true),
+        lines[#lines])
+end)
+
+T.case('a /nick refused as erroneous during registration is forgotten', function()
+    local fake = boot {network('test')}
+    T.require 'hub.net.intent'.of(rec()).nick = 'bad!'
+    local c = fake.last()
+    c:con()
+    T.eq(c:take()[2], 'NICK bad!', 'registering with it')
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 432 * bad! :Erroneous Nickname'
+    T.eq(rec().intent.nick, nil, 'the next connection tries the configured nick')
+    local lines = T.log_lines 'irc'
+    T.ok(lines[#lines]:find('/nick: the server refuses bad!', 1, true), lines[#lines])
 end)
 
 T.case('a file secret drops its final line break; one inside stops registration', function()
@@ -1168,6 +1182,138 @@ T.case('behind a bouncer, its session\'s nick is left alone', function()
     T.eq(rec().irc.recover_nick, nil, 'stopped')
 end)
 
+T.case('a nick held during registration gets a temporary one, and is reclaimed', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    c:con()
+    c:take()
+    c:recv ':srv CAP * LS :'
+    c:take()
+    c:recv ':srv 437 * me :Nick/channel is temporarily unavailable'
+    T.ok(c:take()[1]:match '^NICK me%-%d+$', 'a temporary nick')
+    T.eq(rec().irc.recover_nick, 'me', 'the wanted one reclaimed later')
+end)
+
+T.case('without MONITOR, its holder quitting where we see it frees the nick', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    c:con()
+    c:take()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 433 * me :Nickname is already in use'
+    local temp = c:take()[2]:match '^NICK (.*)$'
+    c:recv(':srv 001 ' .. temp .. ' :Welcome')
+    c:recv(':srv 376 ' .. temp .. ' :End of MOTD')
+    c:recv(':' .. temp .. '!u@h JOIN #c')
+    c:recv ':srv 353 x = #c :me'
+    c:take()
+    c:recv ':me!u@h QUIT :Ping timeout'
+    T.eq(c:take(), {'NICK me'}, 'reclaimed')
+end)
+
+T.case('with reclaim_nick off, the wanted nick is remembered but never taken', function()
+    local fake = boot {network('test', {reclaim_nick = false})}
+    local c = fake.last()
+    c:con()
+    c:take()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 433 * me :Nickname is already in use'
+    local temp = c:take()[2]:match '^NICK (.*)$'
+    c:recv(':srv 001 ' .. temp .. ' :Welcome')
+    c:recv(':srv 005 ' .. temp .. ' CHANTYPES=# MONITOR=100 :are supported')
+    c:recv(':srv 376 ' .. temp .. ' :End of MOTD')
+    T.eq(c:take(), {'MODE ' .. temp}, 'no MONITOR')
+    T.eq({rec().irc.recover_nick, reclaim_task()}, {'me', nil}, 'remembered, with no task')
+    c:recv(':srv 731 ' .. temp .. ' :me')
+    T.eq(HUB.current.routes['net.reclaim_nick']('test'), false, 'a server notice takes nothing')
+    T.eq(c:take(), {}, 'never taken')
+end)
+
+T.case('a /nick held or refused as too fast is tried again later', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    local temp = on_temp_nick(c)
+    stop_clock()
+    T.command 'nick other'
+    c:take()
+    c:recv(':srv 437 ' .. temp .. ' other :Nick/channel is temporarily unavailable')
+    T.eq(c:take(), {'MONITOR + other'}, 'held: watched')
+    T.ok(rec().irc.reclaim.held_until, 'and held back')
+    fire_reclaim_timeout()
+    T.eq(c:take(), {'NICK other'}, 'tried again')
+
+    T.command 'nick third'
+    c:take()
+    c:recv(':srv 438 ' .. temp .. ' ' .. temp .. ' third :Nick change too fast. Please wait 20 seconds.')
+    T.eq(c:take(), {'MONITOR + third'}, 'too fast: watched')
+    T.eq(rec().irc.reclaim.held_until - T.require 'hub.runtime.clock'.now(), 21, 'held past the wait')
+end)
+
+T.case('a nick refused as erroneous while reclaiming is reclaimed no more', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    local temp = on_temp_nick(c)
+    c:recv(':srv 731 ' .. temp .. ' :me')
+    T.eq(c:take(), {'NICK me'}, 'tried')
+    c:recv(':srv 432 ' .. temp .. ' me :Erroneous Nickname')
+    T.eq(c:take(), {'MONITOR - me'}, 'unwatched')
+    T.eq({rec().irc.recover_nick, reclaim_task()}, {nil, nil}, 'not reclaimed')
+end)
+
+T.case('behind ZNC, too, the welcome nick is the session\'s', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :znc.in/self-message'
+    c:recv ':srv 001 me_ :Welcome'
+    c:recv ':srv 005 me_ CHANTYPES=# MONITOR=100 :are supported'
+    c:recv ':srv 376 me_ :End of MOTD'
+    T.eq(rec().irc.recover_nick, nil, 'kept')
+end)
+
+-- Drop the connection, reconnect and register; returns the JOIN lines
+local function rejoined(fake, c)
+    c:finish 'gone'
+    fire_reconnect 'test'
+    c = fake.last()
+    register(c)
+    local joins = {}
+    for _, line in ipairs(c:take()) do
+        if line:match '^JOIN ' then table.insert(joins, line) end
+    end
+    return joins
+end
+
+T.case('a wanted channel without a key of its own rejoins with the configured one', function()
+    local fake = boot {network('test', {buffers = {{name = '#k', key = 'cfgkey'}}})}
+    local c = fake.last()
+    register(c)
+    c:recv ':me!u@h JOIN #k'
+    T.eq(rejoined(fake, c), {'JOIN #k cfgkey'}, 'the configured key')
+end)
+
+T.case('a channel rejoins as the server last named it', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    c:recv ':me!u@h JOIN #Chan'
+    c:recv ':me!u@h JOIN #chan'
+    T.eq(rejoined(fake, c), {'JOIN #chan'}, 'its latest name')
+end)
+
+T.case('a key sent with a JOIN serves that JOIN only', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    local send = T.require 'hub.net.send'
+    send.send('test', 'JOIN', '#k', 'k1')
+    c:recv ':me!u@h JOIN #k'
+    c:recv ':me!u@h PART #k'
+    send.send('test', 'JOIN', '#k')
+    c:recv ':me!u@h JOIN #k'
+    T.eq(rejoined(fake, c), {'JOIN #k'}, 'no key left over from the first')
+end)
+
 T.case('a refused /nick leaves the wanted nick reclaimed', function()
     local fake = boot {network('test')}
     local c = fake.last()
@@ -1333,6 +1479,11 @@ T.case('batches are collected and emitted whole', function()
     T.eq(batches[1].params, {'#c'}, 'params')
     T.eq(#batches[1].messages, 2, 'messages')
     T.eq(#messages, 2, 'history: only the BATCH lines are individual messages')
+    T.eq(rec().irc.batches, {}, 'closed batches are forgotten')
+    c:recv ':srv BATCH +t draft/chathistory-targets'
+    c:recv '@batch=t :x!u@h PRIVMSG #c :not live'
+    c:recv ':srv BATCH -t'
+    T.eq(#messages, 4, 'a chathistory-targets batch is history too')
 end)
 
 -- A soju network list: network 1, named libera and connected
@@ -1355,6 +1506,8 @@ T.case('bouncer network updates set and remove attributes', function()
     T.eq(networks['1'], {name = 'libera'}, 'no value removes, with or without =')
     c:recv ':srv BOUNCER NETWORK 1 *'
     T.eq(networks['1'], nil, 'deleted')
+    c:recv ':srv BOUNCER NETWORK 2 :name=oftc'
+    T.eq(networks['2'], {name = 'oftc'}, 'a new one')
 end)
 
 T.case('bad bouncer network attributes are reported, not applied', function()
@@ -1484,6 +1637,75 @@ T.case('quit sends QUIT and exits when the server closes', function()
     T.eq(rec('a').phase, 'idle', 'closed')
     T.ok(HUB.shut_down, 'shut down')
     T.eq(rec('a').reconnect_timer, nil, 'no reconnect')
+end)
+
+T.case('/disconnect quits and stays down; /connect and /reconnect connect again', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    c:take()
+    T.command 'disconnect see you'
+    T.eq(c:take(), {'QUIT :see you'}, 'QUIT with the message')
+    T.eq({rec().phase, rec().target}, {'closing', 'idle'}, 'closing, to stay down')
+    c:finish 'closed'
+    T.eq(rec().phase, 'idle', 'down')
+    T.eq(rec().reconnect_timer, nil, 'and staying down')
+
+    T.command 'connect'
+    T.eq(#fake.conns, 2, 'connecting again')
+    c = fake.last()
+    register(c)
+    c:take()
+    T.command 'reconnect'
+    T.ok(c.closed, 'the connection dropped')
+    T.eq(#fake.conns, 3, 'and another made at once')
+    T.eq(rec().target, 'connected', 'to stay connected')
+end)
+
+T.case('a QUIT the server never answers closes the connection after its grace', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    T.command 'disconnect'
+    local r = rec()
+    T.ok(r.close_timer, 'waiting for the server')
+    T.require 'hub.runtime.timer'.cancel(r.close_timer)
+    HUB.current.routes['net.force_close']('test', r.attempt)
+    T.ok(c.closed, 'closed')
+    T.eq({r.phase, r.closed.kind, r.closed.text}, {'idle', 'local', 'quit timeout'}, 'why')
+end)
+
+T.case('/dump writes the console as client and server lines, tags escaped', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    register(c)
+    c:recv [[@msgid=x;note=a\sb\:c :srv NOTICE me :hello there]]
+    local file = os.tmpname()
+    T.cleanup(function() os.remove(file) end)
+    T.command('dump ' .. file)
+    local lines = {}
+    for line in io.lines(file) do table.insert(lines, line) end
+    T.eq(lines[1], 'C: CAP LS :302', 'oldest first, our lines as C:')
+    local last = lines[#lines]
+    T.ok(last:find('^S: @') and last:find('note=a\\sb\\:c', 1, true) and last:find('msgid=x', 1, true)
+        and last:find(' :srv NOTICE me :hello there$'), 'server lines as S:, tags as sent: ' .. last)
+    T.ok(table.concat(lines, '\n'):find('S: :srv 001 me :Welcome', 1, true), 'numerics as three digits')
+end)
+
+T.case('a secret command that fails is logged; PASS takes registration.username', function()
+    local fake = boot {network('test', {registration = {username = 'acct',
+        password = {command = 'sh', arguments = {'-c', 'echo pw'}}}})}
+    local c = T.wait_until(fake.last, 'a connection')
+    c:con()
+    T.eq(c:take()[2], 'PASS acct:pw', 'username:password')
+
+    fake = boot {network('test', {registration = {
+        password = {command = 'sh', arguments = {'-c', 'echo broken >&2; exit 3'}}}})}
+    c = T.wait_until(fake.last, 'a connection, the password having failed')
+    c:con()
+    T.eq(c:take(), {'CAP LS 302', 'NICK me', 'USER me 0 * me'}, 'registered without PASS')
+    T.ok(table.concat(T.log_lines 'irc', '\n'):find('Password resolution failed: command failed (3): broken', 1, true),
+        'and why')
 end)
 
 T.case('shutdown with a live connection does not reconnect', function()
@@ -1724,6 +1946,47 @@ end
 
 T.case('CHALLENGE with labeled-response', function() challenge_exchange(true) end)
 T.case('CHALLENGE without labeled-response', function() challenge_exchange(false) end)
+
+-- Start CHALLENGE on a registered network; returns the connection,
+-- its first CHALLENGE line taken
+local function challenge_started(labeled)
+    local fake = boot {network('test')}
+    local c = fake.last()
+    if labeled then register_labeled(c) else register(c) c:take() end
+    local pem = assert(io.open(here .. '/../../myopenssl/test/rsa.pem')):read 'a'
+    T.require 'hub.runtime.task'.spawn('challenge', {net = 'test'}, T.require 'hub.net.challenge',
+        {username = 'oper', key = pem})
+    c:take()
+    return c, myopenssl.read_pem(pem, true)
+end
+
+T.case('CHALLENGE stops at what the server says instead of a challenge', function()
+    local c = challenge_started(false)
+    c:recv ':srv 381 me :You are now an IRC operator'
+    T.eq(T.log_lines 'challenge', {'already oper'}, 'already oper')
+    T.eq(c:take(), {}, 'no response')
+
+    c = challenge_started(false)
+    c:recv ':srv 491 me :No O-lines for your host'
+    T.eq(T.log_lines 'challenge', {'host mismatch'}, 'host mismatch')
+    T.eq(c:take(), {}, 'no response')
+
+    c = challenge_started(true)
+    c:recv '@label=sc1 :srv ACK'
+    T.eq(T.log_lines 'challenge', {'no challenge from the server'}, 'a reply without a challenge')
+    T.eq(c:take(), {}, 'no response')
+end)
+
+T.case('CHALLENGE reports a response the server refuses', function()
+    local c, key = challenge_started(false)
+    local encoded = mybase64.to_base64(key:encrypt('secret', 'oaep'))
+    c:recv(':srv 740 me :' .. encoded)
+    c:recv ':srv 741 me :End of CHALLENGE'
+    T.ok(c:take()[1]:find '^CHALLENGE %+', 'responded')
+    c:recv ':srv 464 me :Password Incorrect'
+    T.eq(T.log_lines 'challenge', {'key mismatch'}, 'key mismatch')
+    T.eq(next(HUB.tasks), nil, 'finished')
+end)
 
 T.case('CHALLENGE on OFTC hybrid', function()
     local fake = boot {network('test', {ircd = 'oftc-hybrid'})}

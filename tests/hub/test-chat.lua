@@ -1709,6 +1709,42 @@ T.case('mac notifications group by network and buffer, with a plain subtitle', f
     T.eq(subtitle, 'test [afk]bob', 'starts with the network')
 end)
 
+-- Capture what a notifier writes to the terminal, until the case ends
+local function capture_stdout()
+    local written = {}
+    local stdout = io.stdout
+    -- luacheck: push ignore 122
+    io.stdout = {
+        write = function(_, ...) for _, v in ipairs {...} do table.insert(written, v) end end,
+        flush = function() end,
+    }
+    -- luacheck: pop
+    T.cleanup(function() io.stdout = stdout end) -- luacheck: ignore 122
+    return written
+end
+
+T.case('the bell rings once until the buffer is seen', function()
+    boot()
+    local written = capture_stdout()
+    local bell = T.require 'hub.features.notify.bell'
+    local handle = bell.notify(nil, 'bob', 'bob', 'hi')
+    bell.notify(handle, 'bob', 'bob', 'again')
+    T.eq(written, {'\x07'}, 'one bell')
+end)
+
+T.case('iTerm2 notifications carry no control characters of the message', function()
+    boot()
+    local written = capture_stdout()
+    local iterm2 = T.require 'hub.features.notify.iterm2'
+    local handle = iterm2.notify(nil, '#c', 'bob', 'hi\x07\x1b]0;owned\x07')
+    T.eq(#written, 1, 'one escape')
+    local text = written[1]
+    T.ok(text:find '^\x1b%]9;#c <bob> ' and text:find '\x07$', 'an OSC 9 sequence: ' .. text)
+    T.eq(select(2, text:gsub('[\x07\x1b]', '')), 2, 'only its own ESC and BEL')
+    iterm2.notify(handle, '#c', 'bob', 'again')
+    T.eq(#written, 1, 'once until seen')
+end)
+
 T.case('crypto commands write keys and print the services commands', function()
     boot()
     local dir = os.tmpname()

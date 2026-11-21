@@ -275,6 +275,64 @@ do
         expect(calls[1] and calls[1][1] == 'pem' and calls[1][4] == 'pw', 'ECDSA PEM decrypted with password')
         myopenssl = real_myopenssl
     end
+
+    ------------------------------------------------------------------------
+    -- The digest binding: hmac(data, key), as RFC 4231 case 1 shows
+
+    do
+        local sha256 = real_myopenssl.get_digest 'sha256'
+        local mac = sha256:hmac('Hi There', ('\x0b'):rep(20))
+        expect(mac:gsub('.', function(c) return string.format('%02x', c:byte()) end)
+            == 'b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7', 'HMAC-SHA256 vector')
+    end
+
+    ------------------------------------------------------------------------
+    -- ECDH-X25519-CHALLENGE: the response unmasks the server's challenge.
+    -- The server's side is worked out here from the mechanism's definition:
+    --   IKM = SHA256(shared || client public || server public)
+    --   PRK = HMAC-SHA256(key = salt, IKM)
+    --   OKM = HMAC-SHA256(key = PRK, "ECDH-X25519-CHALLENGE" 0x01)
+    --   masked = challenge XOR OKM
+
+    do
+        local ossl = real_myopenssl
+        local sha256 = ossl.get_digest 'sha256'
+        local client = ossl.gen_pkey 'X25519'
+        local server = ossl.gen_pkey 'X25519'
+        local client_pub, server_pub = client:export().pub, server:export().pub
+        local salt, challenge = ('s'):rep(32), ('c'):rep(31) .. 'C'
+
+        local shared = server:derive(ossl.read_raw(ossl.types.EVP_PKEY_X25519, false, client_pub))
+        local prk = sha256:hmac(sha256:digest(shared .. client_pub .. server_pub), salt)
+        local okm = sha256:hmac('ECDH-X25519-CHALLENGE\1', prk)
+        local masked = ossl.xor(challenge, okm)
+
+        local co = require 'hub.net.sasl.ecdh' ('admin', 'user', client)
+        local _, first = coroutine.resume(co)
+        expect(first == 'user\0admin', 'authcid, then NUL and authzid')
+        local ok, response = coroutine.resume(co, server_pub .. salt .. masked)
+        expect(ok and response == challenge, 'the response is the challenge')
+
+        co = require 'hub.net.sasl.ecdh' (nil, 'user', client)
+        _, first = coroutine.resume(co)
+        expect(first == 'user', 'no authzid')
+        ok = coroutine.resume(co, ('x'):rep(95))
+        expect(not ok, 'a server response of the wrong length fails')
+    end
+
+    ------------------------------------------------------------------------
+    -- ECDSA-NIST256P-CHALLENGE: the response is a signature of the challenge
+
+    do
+        local key = real_myopenssl.gen_pkey('EC', 'P-256')
+        local co = require 'hub.net.sasl.ecdsa' (nil, 'user', key)
+        local _, first = coroutine.resume(co)
+        expect(first == 'user', 'authcid')
+        local ok, signature = coroutine.resume(co, 'the challenge')
+        expect(ok and key:verify(signature, 'the challenge'), 'a signature the key verifies')
+        expect(not key:verify(signature, 'another challenge'), 'of that challenge only')
+    end
+
 end
 
 print('ok')
