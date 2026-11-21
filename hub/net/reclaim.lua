@@ -154,13 +154,14 @@ local function run(t, nick)
     end
 end
 
---- Reclaim a nick: record it, and once registered start the task. A
---- reclaim already under way for it carries on; one for another nick
---- stops first.
+--- Reclaim a nick: record it, as the server would take it, and once
+--- registered start the task. A reclaim already under way for it carries
+--- on; one for another nick stops first.
 ---@param rec hub.Network
 ---@param irc hub.Irc
 ---@param nick string
 function M.start(rec, irc, nick)
+    nick = irc_model.cut_nick(irc, nick)
     if irc.recover_nick and irc_model.fold(irc, irc.recover_nick) ~= irc_model.fold(irc, nick) then
         M.stop(rec, irc)
     end

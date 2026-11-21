@@ -174,9 +174,14 @@ return function(t)
     t:log('irc', 'registered as %s', irc.nick)
     t:emit('net.registered', {net = t.net, nick = irc.nick})
 
-    -- start waiting for our nickname
+    -- start waiting for our nickname: one taken during registration, or
+    -- the wanted one when the welcome put us on another. A bouncer
+    -- welcomes us on the nick its session has, which is its to keep.
     if irc.recover_nick then
         reclaim.start(rec, irc, irc.recover_nick)
+    elseif not handlers.on_wanted_nick(rec, irc) and not irc_model.behind_bouncer(irc) then
+        t:log('irc', 'registered as %s, not %s; reclaiming it', irc.nick, handlers.wanted_nick(rec))
+        reclaim.start(rec, irc, handlers.wanted_nick(rec))
     end
 
     -- before joining, so channels see us away from the start

@@ -1108,6 +1108,70 @@ T.case('a nick the server changes is reclaimed', function()
     T.eq(rec().irc.recover_nick, nil, 'nothing to reclaim')
 end)
 
+T.case('a nick the server cuts to NICKLEN is the one wanted', function()
+    local fake = boot {network('test', {identity = {nick = 'averyverylongnick'}})}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 001 averyvery :Welcome'
+    c:recv ':srv 005 averyvery CHANTYPES=# MONITOR=100 NICKLEN=9 :are supported'
+    c:recv ':srv 376 averyvery :End of MOTD'
+    T.eq(rec().irc.recover_nick, nil, 'a configured nick cut by the server is ours')
+    c:take()
+
+    T.command 'nick anotherlongnick'
+    c:recv ':averyvery!u@h NICK anotherlo'
+    T.eq(c:take(), {'NICK anotherlongnick'}, 'not reclaimed')
+    T.eq({rec().intent.nick, rec().irc.recover_nick}, {'anotherlo', nil}, 'wanted as cut')
+
+    c:recv ':anotherlo!u@h NICK Guest1'
+    T.eq(c:take(), {'MONITOR + anotherlo'}, 'reclaimed as cut')
+end)
+
+T.case('a welcome on another nick than asked reclaims the wanted one', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 001 me_ :Welcome'
+    c:recv ':srv 005 me_ CHANTYPES=# MONITOR=100 :are supported'
+    c:recv ':srv 376 me_ :End of MOTD'
+    T.eq(rec().irc.recover_nick, 'me', 'reclaiming')
+    local sent = c:take()
+    local monitored = false
+    for _, line in ipairs(sent) do monitored = monitored or line == 'MONITOR + me' end
+    T.ok(monitored, 'watched: ' .. table.concat(sent, ' | '))
+    c:recv ':srv 731 me_ :me'
+    T.eq(c:take(), {'NICK me'}, 'reclaimed')
+end)
+
+T.case('behind a bouncer, its session\'s nick is left alone', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    c:con()
+    c:recv ':srv CAP * LS :soju.im/bouncer-networks'
+    c:recv ':srv CAP me_ ACK :soju.im/bouncer-networks'
+    c:recv ':srv 001 me_ :Welcome'
+    c:recv ':srv 005 me_ CHANTYPES=# MONITOR=100 :are supported'
+    c:recv ':srv 376 me_ :End of MOTD'
+    T.eq(rec().irc.recover_nick, nil, 'the welcome nick kept')
+    c:take()
+
+    -- another client of the bouncer changes nick
+    c:recv ':me_!u@h NICK other'
+    T.eq(c:take(), {}, 'not undone')
+    T.eq(rec().irc.recover_nick, nil, 'nothing to reclaim')
+
+    -- our own /nick, refused for now, is still retried ...
+    T.command 'nick mine'
+    c:recv ':srv 433 other mine :Nickname is already in use'
+    T.eq(c:take(), {'NICK mine', 'MONITOR + mine'}, 'waiting for mine')
+    -- ... until another client picks a nick
+    c:recv ':other!u@h NICK theirs'
+    T.eq(c:take(), {'MONITOR - mine'}, 'no longer ours to reclaim')
+    T.eq(rec().irc.recover_nick, nil, 'stopped')
+end)
+
 T.case('a refused /nick leaves the wanted nick reclaimed', function()
     local fake = boot {network('test')}
     local c = fake.last()

@@ -362,6 +362,19 @@ end
 -- NICK of ours
 local max_nicks_sent <const> = 8
 
+--- A nick as the server takes it: servers cut a longer one to NICKLEN
+--- bytes rather than refuse it.
+---@param irc hub.Irc
+---@param nick string
+---@return string
+function M.cut_nick(irc, nick)
+    local len = math.tointeger(tonumber(irc.isupport.NICKLEN))
+    if len and len > 0 and #nick > len then
+        return nick:sub(1, len)
+    end
+    return nick
+end
+
 --- Note a NICK we sent, so that our nick changing to it is known to be
 --- our doing.
 ---@param irc hub.Irc
@@ -383,7 +396,7 @@ function M.take_nick_sent(irc, nick)
     local sent = irc.nicks_sent or {}
     local key = M.fold(irc, nick)
     for i = #sent, 1, -1 do
-        if M.fold(irc, sent[i]) == key then
+        if M.fold(irc, M.cut_nick(irc, sent[i])) == key then
             table.move(sent, i + 1, #sent + i, 1)
             return true
         end
@@ -880,6 +893,19 @@ function M.configure_caps(irc, list)
             irc.caps_wanted[name] = true
         end
     end
+end
+
+--- Whether we are connected through a bouncer, by the capabilities it
+--- offers (soju, ZNC). Its other clients share our session upstream, so
+--- a nick change we didn't ask for may be theirs.
+---@param irc hub.Irc
+---@return boolean
+function M.behind_bouncer(irc)
+    if irc.caps_available['soju.im/bouncer-networks'] then return true end
+    for cap in pairs(irc.caps_available) do
+        if cap:find('znc.in/', 1, true) == 1 then return true end
+    end
+    return false
 end
 
 ---@param irc hub.Irc

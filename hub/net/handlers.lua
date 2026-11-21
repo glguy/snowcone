@@ -183,26 +183,34 @@ end
 --- notices).
 M.reclaim_nick = reclaim.attempt
 
---- Change our nick at the user's word: the nick given becomes the wanted
---- one, here and on later connections, and is what reclaiming waits for
---- if it is taken.
+--- Change our nick at the user's word: the nick given, as the server
+--- takes it, becomes the wanted one, here and on later connections, and
+--- is what reclaiming waits for if it is taken.
 ---@param net string
 ---@param nick string
 function M.declare_nick(net, nick)
     local rec = HUB.state.nets[net]
-    intent.of(rec).nick = nick ~= rec.cfg.identity.nick and nick or nil
     local irc = rec.irc
+    local wanted = irc and irc_model.cut_nick(irc, nick) or nick
+    intent.of(rec).nick = wanted ~= rec.cfg.identity.nick and wanted or nil
     if irc then
         reclaim.stop(rec, irc)
     end
     send.send(net, 'NICK', nick)
 end
 
+--- Whether we are on the wanted nick, as the server takes it.
+---@param rec hub.Network
+---@param irc hub.Irc
+---@return boolean
+function M.on_wanted_nick(rec, irc)
+    return irc_model.is_me(irc, irc_model.cut_nick(irc, M.wanted_nick(rec)))
+end
+
 -- Reclaim the wanted nick when we aren't on it
 local function want_back(rec, irc)
-    local wanted = M.wanted_nick(rec)
-    if not irc_model.is_me(irc, wanted) then
-        reclaim.start(rec, irc, wanted)
+    if not M.on_wanted_nick(rec, irc) then
+        reclaim.start(rec, irc, M.wanted_nick(rec))
     end
 end
 
@@ -239,7 +247,7 @@ end
 -- net/registration.lua answers 433 and 437.
 local function nick_refused(rec, irc, msg)
     if not irc.welcomed or irc.recover_nick then return end
-    local wanted = irc_model.fold(irc, M.wanted_nick(rec))
+    local wanted = irc_model.fold(irc, irc_model.cut_nick(irc, M.wanted_nick(rec)))
     -- Solanum's 438 names our nick, then the one refused
     for i = 2, #msg - 1 do
         if irc_model.fold(irc, msg[i]) == wanted then
@@ -259,7 +267,8 @@ H[N.ERR_NICKTOOFAST] = nick_refused
 H[N.ERR_ERRONEUSNICKNAME] = function(rec, irc, msg)
     if not irc.welcomed then return end
     local wanted = intent.of(rec)
-    if wanted.nick and msg[2] and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, wanted.nick) then
+    if wanted.nick and msg[2]
+       and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, irc_model.cut_nick(irc, wanted.nick)) then
         wanted.nick = nil
         want_back(rec, irc)
     end
@@ -309,9 +318,15 @@ function H.NICK(rec, irc, msg)
         if irc.recover_nick and newkey == irc_model.fold(irc, irc.recover_nick) then
             reclaim.stop(rec, irc)
         elseif not asked and oldkey ~= newkey then
-            -- the server's doing: services, or a collision (RPL_SAVENICK)
-            log.add_net(rec.id, 'irc', 'nick changed to %s by the server', newnick)
-            want_back(rec, irc)
+            if irc_model.behind_bouncer(irc) then
+                -- perhaps another of the bouncer's clients: its nick to
+                -- choose, and one we were reclaiming is no longer ours to
+                reclaim.stop(rec, irc)
+            else
+                -- the server's doing: services, or a collision (RPL_SAVENICK)
+                log.add_net(rec.id, 'irc', 'nick changed to %s by the server', newnick)
+                want_back(rec, irc)
+            end
         end
     end
 

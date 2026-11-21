@@ -230,10 +230,16 @@ connected at once.
   text becomes the reason the connection ended.
 - **Nick recovery** (`net/reclaim.lua`): while we are registered on a
   nick other than the wanted one, a task exists to take it back, and
-  only then. It starts when registration ends on a temporary nick, when
-  a `/nick` is refused for now, and when the server changes our nick
-  without our asking (services, or a collision); it ends when we have
-  the nick or want another. The nick comes free by MONITOR, by its
+  only then. It starts when registration ends on another nick (a
+  temporary one, or the one a bouncer welcomes us on), when a `/nick` is
+  refused for now, and when the server changes our nick without our
+  asking (services, or a collision); it ends when we have the nick or
+  want another. Nicks are compared as the server takes them, cut to
+  NICKLEN, so a long nick the server shortens is the one wanted. Behind
+  a bouncer (soju or ZNC, by the capabilities it offers) its other
+  clients share the session, so the nick it welcomes us on is kept, and
+  a nick change we didn't ask for is theirs: it isn't undone, and it
+  ends a reclaim under way. The nick comes free by MONITOR, by its
   holder quitting or changing nick where we see it, or by a server
   notice. A refusal that holds for a while is tried again later: 437 and
   435 after a delay that doubles on the connection, 438 after the wait
