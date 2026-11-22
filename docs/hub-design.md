@@ -546,14 +546,23 @@ All tests run in snowcone without a UI, from CTest, with `luacheck` over
 
 - `tests/hub/lib.lua`: assertions, `T.boot`/`T.reload` (headless, strict,
   with an empty configuration unless given one), asynchronous cases with
-  `T.sleep`, and a watchdog that fails a case that never finishes.
+  `T.sleep`, and a watchdog that fails a run whose case never finishes.
+  Every case runs, and the run fails at the end if any did; each starts
+  from a fresh HUB, the previous case's tasks canceled and resources
+  closed. `T.cleanup` undoes what a case changed, pass or fail.
+  `T.wait_until` waits on a condition for what a test doesn't control (a
+  child process, a lookup); a test never sleeps for a fixed time to let
+  something happen.
+- `T.network`, `T.boot_networks` and `T.register` boot a network on the
+  fake transport and register it; `netlib.lua` and `viewlib.lua` hold the
+  helpers the network and UI tests share.
 - `T.command(text, net, target)` runs a command line headless, through
   `commands/run.lua`, on a named network and buffer.
 - `fake_transport.lua` stands in for `snowcone.connect`; tests play the
   server line by line.
 - `fake_ncurses.lua` lets the whole UI load and draw, so `test-views.lua`
-  renders every view after replaying real traffic and drives keys through
-  the native entry point. It has exactly the real module's names and
+  renders every view after replaying real traffic, and the UI's tests
+  drive keys through the native entry point. It has exactly the real module's names and
   raises an error for any other; `tests-terminal` checks the two match.
 - `tests-terminal` runs the client on a pseudo-terminal, keeping the
   screen with libvterm: it types bytes and checks the key, paste, mouse
@@ -568,6 +577,12 @@ All tests run in snowcone without a UI, from CTest, with `luacheck` over
   `tests/hub/tools/parse_snote.lua`. Fixtures never contain personal data.
 - `test-structure.lua` enforces layering, native API ownership and the
   event catalog.
+- Two tools measure the tests themselves. `tests/hub/tools/coverage.sh`
+  runs them all under luacov and lists each module's line coverage, worst
+  first. `tests/hub/tools/mutate.lua FILE...` comments out each line of
+  the modules named, in turn, and lists those no test notices: what they
+  do is unchecked, or unobservable. Coverage counts what runs; the
+  mutation score, what is checked.
 
 ## 11. Direction
 
