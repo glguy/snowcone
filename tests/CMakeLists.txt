@@ -66,6 +66,11 @@ add_test(NAME hub-test-snotice-no-pcre2
   COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/hub/test-snotice.lua")
 set_tests_properties(hub-test-snotice-no-pcre2 PROPERTIES TIMEOUT 30
   ENVIRONMENT HUB_TEST_HIDE=rex_pcre2)
+# prefilter regexes are refused without rex_pcre2
+add_test(NAME hub-test-lib-no-pcre2
+  COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/hub/test-lib.lua")
+set_tests_properties(hub-test-lib-no-pcre2 PROPERTIES TIMEOUT 30
+  ENVIRONMENT HUB_TEST_HIDE=rex_pcre2)
 # mention regexes fail the load without rex_pcre2
 add_test(NAME hub-test-config-no-pcre2
   COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/hub/test-config.lua")

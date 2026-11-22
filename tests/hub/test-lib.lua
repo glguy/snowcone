@@ -175,6 +175,10 @@ end)
 T.case('prefilter regexes are extended PCRE2, and I ignores case', function()
     T.boot()
     local q = T.require 'hub.lib.matchdsl'
+    if not pcall(require, 'rex_pcre2') then
+        T.raises('got bad regex (regular expressions need rex_pcre2) expected a pattern', q, 'gecos |x|')
+        return
+    end
     T.ok(q [[gecos |^bot \d+$|]] {gecos = 'bot42'}, 'extended: a space in the pattern is ignored')
     T.ok(not q [[gecos |^bot \d+$|]] {gecos = 'bot 42'}, 'so it matches no space')
     T.ok(not q [[gecos |^bot\ \d+$|]] {gecos = 'BOT 42'}, 'case counts')
