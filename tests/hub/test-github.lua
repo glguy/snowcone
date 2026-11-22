@@ -287,6 +287,7 @@ T.case('expired mutes are dropped', function()
     T.eq(staff(c, 'mute sender=glguy hours=0.0001'), {'NOTICE staffer :Added mute 1'}, 'a short mute')
     -- an hour later
     local time = os.time
+    ---@diagnostic disable-next-line: duplicate-set-field
     os.time = function(t) return t and time(t) or time() + 3600 end -- luacheck: ignore 122
     T.cleanup(function() os.time = time end) -- luacheck: ignore 122
     T.eq(deliver(listener, 'push', push()), 204, 'accepted')

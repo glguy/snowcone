@@ -141,8 +141,10 @@ function M.classify(chat, net, buffer, msg)
     end
     if decided[msg] ~= nil then return end
     local rule, i = first_rule(chat, net, buffer.name, msg)
+    ---@type hub.HideDecision|false
     local decision = false
     if rule then
+        ---@cast i integer
         decision = {hidden = rule.action ~= 'show', rule = i}
     elseif i ~= 'ours' and M.presence[msg.command] then
         decision = built_in

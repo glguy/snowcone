@@ -340,6 +340,22 @@ function Pkey:export() end
 ---@return string
 function Pkey:sign(msg) end
 
+---@param digest myopenssl.Digest|nil
+---@param msg string
+---@return string
+function Pkey:digest_sign(digest, msg) end
+
+---@param signature string
+---@param msg string
+---@return boolean
+function Pkey:verify(signature, msg) end
+
+---@param digest myopenssl.Digest|nil
+---@param signature string
+---@param msg string
+---@return boolean
+function Pkey:digest_verify(digest, signature, msg) end
+
 ---@param msg string
 ---@param padding 'oaep'|nil
 ---@return string

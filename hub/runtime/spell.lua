@@ -88,6 +88,7 @@ function M.activate()
     end
     local ok, h, info = pcall(function()
         local base = config.resolve_path(path.expanduser(cfg.dictionary))
+        ---@cast base string
         -- the files' shared name, should one of them be named
         base = base:gsub('%.dic$', ''):gsub('%.aff$', '')
         local personal = personal_path(cfg)

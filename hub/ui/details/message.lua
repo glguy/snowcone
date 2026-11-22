@@ -706,6 +706,7 @@ function M.render(ctx, win)
     win:waddstr '\n'
     local decision = buffer and chat.hide_decision(buffer, msg)
     if decision then
+        ---@cast buffer -nil
         draw.yellow(win)
         win:waddstr(string.format('%s in %s by %s\n', decision.hidden and 'hidden' or 'shown', scrub(buffer.name),
             decision.rule == 'built-in' and 'the built-in rule for joins, parts, quits and identity changes'
