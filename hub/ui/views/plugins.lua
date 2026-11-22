@@ -1,5 +1,6 @@
--- Loaded plugins and the views they added. A plugin that failed to start
--- says so, and its error is in the status view with every other.
+-- Loaded plugins and the views they added, each a jump to that view. A
+-- plugin that failed to start says so, with a jump to the status view,
+-- where its error is with every other.
 
 local control <const> = require 'hub.ui.control'
 local draw    <const> = require 'hub.ui.draw'
@@ -29,11 +30,11 @@ return {
                 draw.red(win)
                 win:waddstr ' failed '
                 draw.normal(win)
-                ctx.add_button(win, '[status]', function() control.set_view 'status' end)
+                ctx.add_button(win, '→status', function() control.set_view 'status' end, true)
             else
                 for _, id in ipairs(entry.views or {}) do
                     win:waddstr ' '
-                    ctx.add_button(win, '[' .. id .. ']', function() control.set_view(id) end)
+                    ctx.add_button(win, '→' .. id, function() control.set_view(id) end, true)
                 end
             end
             win:waddstr '\n'

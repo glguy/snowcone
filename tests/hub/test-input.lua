@@ -582,13 +582,13 @@ T.case('the formatting palette puts codes in at the cursor', function()
     T.eq(line(), '\x02\x03045 apples', 'two digits, so a typed digit stays text')
     T.ok(detail_text():find('at the cursor: bold, red', 1, true), 'the cursor is in bold red')
 
-    click '[background: default]'
+    click 'background: default'
     click ' blue '
     T.eq(line(), '\x02\x03045 apples\x0304,02', 'the background keeps the text color')
-    T.ok(detail_text():find('[text: red] [background: blue]', 1, true), 'the switch shows both')
+    T.ok(detail_text():find('[text: red|background: blue]', 1, true), 'the switch shows both')
     click ' green '
     T.eq(line(), '\x02\x03045 apples\x0304,03', 'picking again changes the code before the cursor')
-    click '[text: red]'
+    click 'text: red'
     click ' yellow '
     T.eq(line(), '\x02\x03045 apples\x0308,03', 'and keeps its background')
     key(0x1f) -- C-_
@@ -596,10 +596,10 @@ T.case('the formatting palette puts codes in at the cursor', function()
     T.eq(line(), '\x02\x03045 apples\x0304,02', 'each pick undoes alone')
     type_text ' x'
     click ' white '
-    click '[background: blue]'
+    click 'background: blue'
     click ' black '
     T.eq(line():sub(-14), '\x0304,02 x\x0300,01', 'text then background: one code')
-    click '[text: white]'
+    click 'text: white'
     key(-ncurses.KEY_HOME)
     key(-ncurses.KEY_RIGHT)
     type_text ',x'

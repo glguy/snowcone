@@ -221,16 +221,20 @@ function M.render(ctx, win)
     draw.blue(win)
     win:waddstr 'colors set: '
     draw.normal(win)
+    -- one control, a segment each, the one a pick sets lit
     local shown = {text = s.fg, background = s.bg}
+    local sep = '['
     for _, choice in ipairs {'text', 'background'} do
         local on = (choice == 'background') == background
         local color = shown[choice]
-        local label = string.format('[%s: %s]', choice, color and color_name(color) or 'default')
+        local label = string.format('%s: %s', choice, color and color_name(color) or 'default')
+        win:waddstr(sep)
         if on then draw.green(win) end
         ctx.add_button(win, label, function() detail.target = choice end, not on)
         draw.normal(win)
-        win:waddstr ' '
+        sep = '|'
     end
+    win:waddstr '] '
     ctx.add_button(win, '[default]', function() put_color(99, background) end, true)
     win:waddstr '\n'
 

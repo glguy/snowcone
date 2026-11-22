@@ -138,7 +138,7 @@ Some things to know:
   marked ▸, a message in a buffer or the console, or a channel name, or
   use `/whois`, `/whowas`, `/chaninfo`, `/quote` or `/eval`. It is as
   tall as its content, up to half the screen. Its rule has [CLOSE],
-  [BACK] after a click inside it, and [DISCARD], which also drops it from
+  ←BACK after a click inside it, and [DISCARD], which also drops it from
   the log lines that hold it.
 - While the pane is open, Esc closes it first (outside input modes), the
   paging keys and the wheel over it scroll it, and Left and Right scroll

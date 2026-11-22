@@ -368,7 +368,10 @@ or change stores themselves.
 state (scroll, filter, its own fields); `net`, the current network (the
 detail's for a kind); `id`; the size (`rows`, `cols`); and
 `add_button`/`add_click`, mouse regions rebuilt every frame
-(`ui/clicks.lua`). A status function also gets `ctx.fragment(win)`, which
+(`ui/clicks.lua`). A button that sets a mode or runs an action is in
+brackets, the choices of one setting a single control,
+`[summary|message|raw]`, with the one in effect lit; a button that goes
+somewhere else is plain with an arrow, `→console`, `←BACK`. A status function also gets `ctx.fragment(win)`, which
 starts each fragment it adds.
 
 ### The detail pane
@@ -376,7 +379,7 @@ starts each fragment it adds.
 One pane for the client shows one thing in full above the view.
 `state.ui.detail` is `{kind, net, data}`, and doubles as the kind's view
 state, so it holds the scroll and the kind's own fields; `detail_back` is
-the stack [BACK] returns through. `ui/details/init.lua` lists the kinds
+the stack ←BACK returns through. `ui/details/init.lua` lists the kinds
 and draws the pane's frame around them.
 
 A kind is a record:

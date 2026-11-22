@@ -1,13 +1,15 @@
 -- An IRC message in the detail pane, at one of three levels, which the
--- buttons at the top switch between: a summary of what it means, for a
--- command that has one; the message as the server sent it (tags, source,
--- our delivery and the server's receipt, command and arguments); and that
--- with its strings escaped. It opens at the summary when there is one.
--- [buffer], for a message a chat buffer holds, shows that buffer (the one
--- shown, when it is among them) scrolled to the message, highlighted;
--- [console], for one the network's console holds, shows it there. A line
--- under the buttons names the hide rule that decided the message in that
--- buffer (chat/hide.lua), when one did.
+-- control at the top, [summary|message|raw], switches between, the level
+-- shown in reverse video: a summary of what it means, for a command that
+-- has one; the message as the server sent it (tags, source, our delivery
+-- and the server's receipt, command and arguments); and that with its
+-- strings escaped. It opens at the summary when there is one.
+-- After it, the places the message can be shown, each marked with an
+-- arrow as a jump and not a mode: →buffer, for a message a chat buffer
+-- holds, shows that buffer (the one shown, when it is among them)
+-- scrolled to the message, highlighted; →console, for one the network's
+-- console holds, shows it there. A line under them names the hide rule
+-- that decided the message in that buffer (chat/hide.lua), when one did.
 -- Also the command colors and notice matching the console shares.
 
 local addircstr   <const> = require 'hub.ui.irc_formatting'
@@ -669,17 +671,23 @@ function M.render(ctx, win)
     local shown = M.level(detail)
     local summary = summary_of(ctx.net, msg)
 
+    -- the levels as one control, a segment each, the shown one lit
+    local sep = '['
     for _, level in ipairs(levels) do
         if level ~= 'summary' or summary then
-            ctx.add_button(win, '[' .. level .. ']', function() detail.level = level end, level ~= shown)
-            win:waddstr ' '
+            win:waddstr(sep)
+            ctx.add_button(win, level, function() detail.level = level end, level ~= shown)
+            sep = '|'
         end
     end
+    win:waddstr ']  '
+
+    -- the jumps, which leave the levels as they are
     local net = ctx.net
     local buffer = net and chat.holder(net, msg, control.talk_target(net))
     if buffer then
         local name = buffer.name
-        ctx.add_button(win, '[buffer]', function()
+        ctx.add_button(win, '→buffer', function()
             control.set_current_net(net)
             control.set_talk_target(net, name)
             control.set_view 'buffer'
@@ -689,7 +697,7 @@ function M.render(ctx, win)
     end
     local rec = net and HUB.state.nets[net]
     if rec and OrderedMap.find(rec.console, function(other) return other == msg end) then
-        ctx.add_button(win, '[console]', function()
+        ctx.add_button(win, '→console', function()
             control.set_current_net(net)
             control.set_view 'console'
             control.view_state 'console'.reveal = msg

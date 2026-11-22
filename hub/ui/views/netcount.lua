@@ -97,7 +97,7 @@ return {
         if y + 1 < ctx.rows and next(S.watches) then
             draw.green(win)
             win:wmove(y, 0)
-            win:waddstr 'Actions                Watch Hits Pattern'
+            win:waddstr 'Actions                  Watch Hits Pattern'
             y = y + 1
         end
 
@@ -111,10 +111,10 @@ return {
             toggle(ctx, win, watch, 'flash', '(F)', '(f)')
             draw.normal(win)
             win:waddstr ' '
-            ctx.add_button(win, '[show]', function()
+            ctx.add_button(win, '→cliconn', function()
                 control.set_filter('cliconn', watch.pattern)
                 control.set_view 'cliconn'
-            end)
+            end, true)
             win:waddstr(string.format(' %3d ', i))
             ;(dashboard.color(watch.color) or draw.red)(win)
             win:waddstr '◆'

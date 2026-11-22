@@ -1,5 +1,13 @@
 -- Click regions, rebuilt every frame, and the hit test for a click.
 --
+-- What a button does shows in how it looks. One that sets a mode, a
+-- setting or a choice, or runs an action, is in brackets: [+], [↻],
+-- [ 4h ]. Choices of one setting are one bracketed control with a
+-- segment each, [summary|message|raw], the one in effect in reverse
+-- video. One that goes somewhere else, another view, buffer or detail,
+-- is plain and starts with an arrow: →console, ←BACK, ↩. A name that
+-- shows its own thing (a nick, a channel, a network) is plain text.
+--
 -- The regions hold functions, so they live here and not in HUB.state;
 -- a new generation starts without them and rebuilds them on its first
 -- draw.

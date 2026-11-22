@@ -539,7 +539,7 @@ T.case('every failure is in the status view; /plugins says one failed and links 
                 end
             end
         end
-        T.eq(HUB.state.ui.view, 'status', '[status] goes there')
+        T.eq(HUB.state.ui.view, 'status', '→status goes there')
     end)
     os.remove(path.join(dir, 'nostart.lua'))
     if not ok then error(err, 0) end

@@ -29,14 +29,15 @@ T.case('the message detail shows its message in its buffer or the console', func
         local top = rows_of(detail_pad())[0]
         local at = top:find(button, 1, true)
         if not at then error('no button ' .. button .. ' in ' .. top) end
-        entry('on_mouse', 0, at, false)
+        -- a column past the button's first, counted in characters
+        entry('on_mouse', 0, utf8.len(top, 1, at), false)
         -- the scroll is worked out on the next frame
         HUB.current.routes['ui.draw']()
     end
 
     local buffer_vs = control.view_state 'buffer'
     buffer_vs.filter = 'filler'
-    click '[buffer]'
+    click '→buffer'
     T.eq({HUB.state.ui.view, control.talk_target 'test'}, {'buffer', '#chan'}, 'shows its buffer')
     T.eq(buffer_vs.filter, nil, 'the filter is cleared')
     T.ok(buffer_vs.scroll > 0, 'scrolled')
@@ -45,7 +46,7 @@ T.case('the message detail shows its message in its buffer or the console', func
 
     local console_vs = control.view_state 'console'
     console_vs.filter = 'carol'
-    click '[console]'
+    click '→console'
     T.eq(HUB.state.ui.view, 'console', 'shows the console')
     T.eq(console_vs.filter, nil, 'the console filter is cleared')
     T.ok(console_vs.scroll > 0, 'scrolled there too')
@@ -53,7 +54,7 @@ T.case('the message detail shows its message in its buffer or the console', func
     -- a message in neither has neither button
     control.open_detail('message', 'test', snowcone.parse_irc ':a!b@c PRIVMSG #x :hi')
     HUB.current.routes['ui.draw']()
-    T.eq(rows_of(detail_pad())[0]:match '^(.-)%s*$', '[summary] [message] [raw]', 'only the levels')
+    T.eq(rows_of(detail_pad())[0]:match '^(.-)%s*$', '[summary|message|raw]', 'only the levels')
     T.eq(T.log_lines 'error', {}, 'no errors')
 end)
 
@@ -141,7 +142,7 @@ T.case('the message detail decodes server notices', function()
     local detail = control.detail()
     T.eq(message.level(detail), 'summary', 'opens at the summary')
     local rows = rows_of(detail_pad())
-    T.eq(rows[0]:match '^(.-)%s*$', '[summary] [message] [raw] [console]', 'the level buttons, and one to show it in the console')
+    T.eq(rows[0]:match '^(.-)%s*$', '[summary|message|raw]  →console', 'the levels, and a jump to show it in the console')
     T.ok(has_row(rows, '^    sent: server notice, at '), 'a server notice')
     T.ok(has_row(rows, '^    name: connect$'), 'the parsed fields')
     T.ok(has_row(rows, '^    nick: n$'), 'in the summary column')
@@ -152,7 +153,7 @@ T.case('the message detail decodes server notices', function()
     T.eq(message.level(detail), 'message', 'the message level')
     HUB.current.routes['ui.draw']()
     T.ok(not has_row(rows_of(detail_pad()), 'name: connect'), 'without the parsed fields')
-    entry('on_mouse', 0, 21, false)
+    entry('on_mouse', 0, 18, false)
     T.eq(message.level(detail), 'raw', 'the raw level')
     HUB.current.routes['ui.draw']()
     T.ok(has_row(rows_of(detail_pad()), '^         2: "%*%*%* Notice'), 'escaped')
@@ -207,7 +208,7 @@ T.case('the message detail sums up a chat line', function()
     control.open_detail('message', 'test', snowcone.parse_irc ':alice!a@h AWAY :gone')
     HUB.current.routes['ui.draw']()
     T.eq(message.level(control.detail()), 'message', 'no summary')
-    T.eq(rows_of(detail_pad())[0]:match '^(.-)%s*$', '[message] [raw]', 'nor its button')
+    T.eq(rows_of(detail_pad())[0]:match '^(.-)%s*$', '[message|raw]', 'nor its segment')
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
@@ -780,20 +781,20 @@ T.case('a long reply draws the rows shown, all the way to its end', function()
     T.eq(control.detail().kind, 'message', 'inspected')
     T.eq(control.detail().data[5], 'u5000@h', 'the message on that row')
 
-    -- [BACK], on the rule beside [CLOSE], returns to the reply as it was
+    -- ←BACK, on the rule beside [CLOSE], returns to the reply as it was
     HUB.current.routes['ui.draw']()
     local rule, back
     for y, row in pairs(rows_of(detail_pad())) do
-        local at = row:find('[BACK]', 1, true)
+        local at = row:find('←BACK', 1, true)
         if at then rule, back = y, utf8.len(row:sub(1, at - 1)) end
     end
-    T.ok(rows_of(detail_pad())[rule]:find('[CLOSE]─[BACK]', 1, true), 'beside [CLOSE]')
+    T.ok(rows_of(detail_pad())[rule]:find('[CLOSE]─←BACK', 1, true), 'beside [CLOSE]')
     HUB.current.routes['ui.entry']('on_mouse', rule, back + 1, false)
     T.ok(control.detail() == detail, 'back to the reply')
     T.eq(detail.scroll, detail.max_scroll, 'scrolled as it was')
     T.eq(control.can_go_back(), false, 'nothing further back')
     HUB.current.routes['ui.draw']()
-    T.ok(not rows_of(pad)[detail.page + 1]:find('[BACK]', 1, true), 'so no [BACK]')
+    T.ok(not rows_of(pad)[detail.page + 1]:find('←BACK', 1, true), 'so no ←BACK')
     control.follow_detail('message', 'test', snowcone.parse_irc ':srv PING :x')
     control.open_detail('message', 'test', snowcone.parse_irc ':srv PING :y')
     T.eq(control.can_go_back(), false, 'opening from elsewhere starts afresh')

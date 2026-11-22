@@ -154,7 +154,7 @@ function M.render(detail, kind, pad)
     clicks.button(pad, '[CLOSE]', control.close_detail)
     if control.can_go_back() then
         pad:waddstr '─'
-        clicks.button(pad, '[BACK]', control.back_detail)
+        clicks.button(pad, '←BACK', control.back_detail, true)
     end
     -- the log keeps what its lines open until they roll off; this lets it
     -- go now
