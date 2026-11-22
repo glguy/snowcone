@@ -15,12 +15,11 @@
 --            goes when our PART comes back
 --   composing what we are writing and where, for our typing notices
 --            (chat/typing.lua)
---   monitoring [folded nick] = true: our MONITOR + awaiting its reply
---            (chat/monitor.lua)
 -- }
 --
 -- Sending: replies to CTCP requests (paced, except to staff), CHATHISTORY
--- (chat/history.lua) and MONITOR (chat/monitor.lua) for buffers, our
+-- (chat/history.lua) for buffers, MONITOR for private ones (through
+-- net/monitor.lua), our
 -- typing (TAGMSG, chat/typing.lua), and what the commands ask for, such
 -- as a channel's modes and topic (chat/channels.lua). PRIVMSG and NOTICE
 -- go out only from commands and talk mode. Bans, quiets and kicks go out
@@ -53,8 +52,8 @@ local history    <const> = require 'hub.features.chat.history'
 local intent     <const> = require 'hub.net.intent'
 local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
+local monitor    <const> = require 'hub.net.monitor'
 local message_text <const> = require 'hub.lib.message_text'
-local monitor    <const> = require 'hub.features.chat.monitor'
 local N          <const> = require 'hub.lib.numerics'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local ratelimit  <const> = require 'hub.lib.ratelimit'
@@ -95,7 +94,7 @@ function M.is_server(net, name)
 end
 
 --- What chat's parts (chat/typing.lua, history.lua, receipt.lua,
---- channels.lua, monitor.lua, config.lua) use of chat, which they are
+--- channels.lua, config.lua) use of chat, which they are
 --- passed since it requires them.
 ---@class hub.ChatLookup
 ---@field is_server fun(net: string, name: string): boolean
@@ -136,9 +135,6 @@ end
 ---@field closing table<string, true> channels /close parted, by folded name;
 --- for the current connection
 ---@field composing hub.ChatComposing|nil what we are writing and where
----@field monitoring table<string, true>|nil nicks we sent MONITOR + for and
---- have had no reply about, by folded nick; for the current connection
---- (chat/monitor.lua)
 ---@field history_bucket number|nil pacing of new buffers' history requests (lib/ratelimit)
 ---@field ctcp_bucket number|nil pacing of CTCP replies to non-staff (lib/ratelimit)
 ---@field casemapping string|nil what the keys are folded with: the
@@ -251,6 +247,20 @@ end
 ---@field hide table<hub.Message, hub.HideDecision|false>|nil how each
 --- message was classified (chat/hide.lua), weak-keyed; nil until one is
 
+-- A private buffer watches its nick's presence with MONITOR
+-- (net/monitor.lua, as 'chat') while it is open, by its current name.
+-- Server and channel buffers watch nothing.
+local function watches(net, irc, name)
+    return not irc_model.is_channel_name(irc, name) and not M.is_server(net, name)
+end
+
+local function watch(net, target)
+    local irc = model(net)
+    if irc and watches(net, irc, target) then
+        monitor.want(net, 'chat', target)
+    end
+end
+
 --- A buffer, created (and its history requested) when missing.
 ---@param net string
 ---@param target string
@@ -275,7 +285,7 @@ function M.open(net, target, before)
         history.request(M, net, target, before and 'BEFORE' or 'LATEST', before)
     end
     bus.emit('chat.buffer', {net = net, target = target, opened = true})
-    monitor.watch(M, net, target)
+    watch(net, target)
     return buffer
 end
 
@@ -299,9 +309,7 @@ function M.close(net, target)
         query(net, 'PART', target)
         C.closing[key] = true
     end
-    if irc then
-        monitor.unwatch(net, irc, target)
-    end
+    monitor.release(net, 'chat', target)
     -- not rejoined on the next connection, even when we couldn't part
     intent.left(HUB.state.nets[net], irc, target)
     drop(net, key, target)
@@ -663,11 +671,8 @@ function H.NICK(net, _, msg)
             C.buffers[old] = nil
             C.buffers[new] = buffer
             -- the buffer watches its nick by its new name
-            local irc = model(net)
-            if irc then
-                monitor.unwatch(net, irc, msg.nick)
-                monitor.watch(M, net, msg[1])
-            end
+            monitor.release(net, 'chat', msg.nick)
+            watch(net, msg[1])
         end
         add(net, msg[1], msg, false, false)
         -- what names the buffer elsewhere (the UI's shown buffer, notify)
@@ -711,11 +716,6 @@ end
 -- "<client> <channel> :<reason>": our line there was refused
 H[N.ERR_CANNOTSENDTOCHAN] = function(net, irc, msg)
     receipt.on_refusal(M, net, irc, msg)
-end
-
--- Replies to our MONITOR + (chat/monitor.lua), after the model's
-for _, n in ipairs {N.RPL_MONONLINE, N.RPL_MONOFFLINE, N.ERR_MONLISTFULL} do
-    H[n] = function(net, irc, msg) monitor.on_reply(M, net, irc, msg) end
 end
 
 -- Replies to LIST (chat/channels.lua)
@@ -764,17 +764,14 @@ local function on_registered(ev)
     local irc = model(net)
     ---@cast irc -nil registered, so connected
     history.after_registration(M, net)
-    monitor.after_registration(M, net, irc)
+    local nicks = {}
+    for _, buffer in pairs(M.get(net).buffers) do
+        if watches(net, irc, buffer.name) then
+            table.insert(nicks, buffer.name)
+        end
+    end
+    monitor.want_all(net, 'chat', nicks)
 end
-
-M.routes = {
-    -- a private buffer watches this nick (chat/monitor.lua), so MONITOR
-    -- must keep it
-    ['chat.monitors'] = function(net, nick)
-        local C = common.get_state(M.name, net)
-        return C ~= nil and C.buffers[M.fold(net, nick)] ~= nil
-    end,
-}
 
 function M.subscribe(sub)
     sub.on('irc.message', on_message)
@@ -787,7 +784,6 @@ function M.subscribe(sub)
         local C = M.get(ev.net)
         receipt.settle_all(C)
         typing.reset(C)
-        monitor.reset(C)
         C.closing = {}
     end)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)

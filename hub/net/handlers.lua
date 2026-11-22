@@ -17,6 +17,7 @@ local intent    <const> = require 'hub.net.intent'
 local irc_model <const> = require 'hub.net.irc'
 local ircd      <const> = require 'hub.net.ircd'
 local log       <const> = require 'hub.runtime.log'
+local monitor   <const> = require 'hub.net.monitor'
 local N         <const> = require 'hub.lib.numerics'
 local NH        <const> = require 'hub.lib.numerics_hybrid'
 local reclaim   <const> = require 'hub.net.reclaim'
@@ -217,9 +218,9 @@ end
 -- :<server> 730 <nick> :target[!user@host][,target[!user@host]]*
 H[N.RPL_MONONLINE] = function(rec, irc, msg)
     if not (irc.monitor and msg[2]) then return end
+    monitor.on_reply(rec.id, irc, msg)
     local nicks = {}
     for nick in msg[2]:gmatch '([^!,]+)[^,]*,?' do
-        irc_model.add_monitor(irc, nick, true)
         table.insert(nicks, nick)
     end
     log.add_net(rec.id, 'monitor', 'monitor online: %s', table.concat(nicks, ', '))
@@ -228,16 +229,18 @@ end
 -- :<server> 731 <nick> :target[,target2]*
 H[N.RPL_MONOFFLINE] = function(rec, irc, msg)
     if not (irc.monitor and msg[2]) then return end
+    monitor.on_reply(rec.id, irc, msg)
     local nicks = {}
     for nick in msg[2]:gmatch '([^!,]+)[^,]*,?' do
-        irc_model.add_monitor(irc, nick, false)
         table.insert(nicks, nick)
     end
     log.add_net(rec.id, 'monitor', 'monitor offline: %s', table.concat(nicks, ', '))
 end
 
-H[N.ERR_MONLISTFULL] = function(rec)
-    log.add_net(rec.id, 'monitor', 'monitor list full')
+-- :<server> 734 <nick> <limit> <targets> :Monitor list is full.
+H[N.ERR_MONLISTFULL] = function(rec, irc, msg)
+    monitor.on_reply(rec.id, irc, msg)
+    log.add_net(rec.id, 'monitor', 'monitor list full: %s', msg[3] or '')
 end
 
 -- A NICK for the wanted nick refused for now: it is taken (433), held

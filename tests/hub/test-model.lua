@@ -350,6 +350,8 @@ T.case('users are in view exactly while a channel or MONITOR keeps them', functi
     c:recv ':op!u@h KICK #b me :out'
     T.eq(in_view(irc), {}, 'no channel, no one')
 
+    local monitor = T.require 'hub.net.monitor'
+    monitor.want_all('test', 'test', {'carol', 'dave', 'zed'})
     c:recv ':srv 730 me :carol!c@h,dave!d@h'
     check_view(irc)
     T.eq(in_view(irc), {'CAROL', 'DAVE'}, 'online by MONITOR')
@@ -362,8 +364,10 @@ T.case('users are in view exactly while a channel or MONITOR keeps them', functi
     T.eq(irc.monitor.DAVE, {}, 'offline on MONITOR too')
 
     c:recv ':srv 730 me :dave!d@h'
-    T.require 'hub.net.irc'.del_monitor(irc, 'dave')
+    monitor.release('test', 'test', 'dave')
     T.eq(irc.users.DAVE, nil, 'unwatched')
+    c:recv ':srv 730 me :erin!e@h'
+    T.eq(irc.users.ERIN, nil, 'a nick not asked for is not followed')
     c:recv ':srv 730 me :zed!z@h'
     c:recv ':srv 005 me -MONITOR :are supported'
     T.eq(irc.users.ZED, nil, 'MONITOR withdrawn, no one online by it')
@@ -412,6 +416,7 @@ T.case('a monitored nick has an away state with extended-monitor', function()
     local c = fake.last()
     register_caps(c, 'away-notify extended-monitor', 'CHANTYPES=# MONITOR=100')
     local irc = assert(rec().irc)
+    T.require 'hub.net.monitor'.want('test', 'test', 'carol')
     c:recv ':srv 730 me :carol!c@h'
     T.eq(irc.users.CAROL.away, nil, 'unknown when online')
     c:recv ':carol!c@h AWAY :out'

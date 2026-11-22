@@ -94,10 +94,10 @@ T.case('/nick declares the wanted nick, here and on later connections', function
     T.eq(c:take(), {'MONITOR + me', 'MODE ' .. temp}, 'waiting for me')
 
     T.command 'nick other'
-    T.eq(c:take(), {'MONITOR - me', 'NICK other'}, 'me no longer wanted')
+    T.eq(c:take(), {'NICK other'}, 'me no longer wanted')
     c:recv(':' .. temp .. '!u@h NICK other')
     c:recv ':srv 731 other :me'
-    T.eq(c:take(), {}, 'me not reclaimed')
+    T.eq(c:take(), {'MONITOR - me'}, 'me not reclaimed, and unwatched once answered')
 
     -- taken: waited for
     T.command 'nick third'
@@ -288,7 +288,9 @@ T.case('behind a bouncer, its session\'s nick is left alone', function()
     T.eq(c:take(), {'NICK mine', 'MONITOR + mine'}, 'waiting for mine')
     -- ... until another client picks a nick
     c:recv ':other!u@h NICK theirs'
-    T.eq(c:take(), {'MONITOR - mine'}, 'no longer ours to reclaim')
+    T.eq(c:take(), {}, 'no longer ours to reclaim')
+    c:recv ':srv 731 theirs :mine'
+    T.eq(c:take(), {'MONITOR - mine'}, 'unwatched once answered')
     T.eq(rec().irc.recover_nick, nil, 'stopped')
 end)
 
@@ -388,10 +390,11 @@ T.case('a refused /nick leaves the wanted nick reclaimed', function()
 
     -- erroneous: the configured nick is wanted again
     T.command 'nick 1bad'
-    T.eq(c:take(), {'MONITOR - me', 'NICK 1bad'}, 'me no longer wanted')
+    T.eq(c:take(), {'NICK 1bad'}, 'me no longer wanted, its MONITOR + unanswered')
     c:recv(':srv 432 ' .. temp .. ' 1bad :Erroneous Nickname')
     T.eq(rec().intent.nick, nil, '/nick forgotten')
-    T.eq(c:take(), {'MONITOR + me'}, 'me wanted again')
+    T.eq(c:take(), {}, 'me wanted again, still asked for')
+    T.eq(T.require 'hub.net.monitor'.reasons(rec().irc, 'me'), {reclaim = true}, 'by the reclaim')
 
     -- banned in a channel: tried again later
     T.command 'nick other'
@@ -421,6 +424,82 @@ T.case('one nick coming free sends one NICK', function()
     c:recv(':srv 433 ' .. temp .. ' me :Nickname is already in use')
     c:recv(':srv 731 ' .. temp .. ' :me')
     T.eq(c:take(), {'NICK me'}, 'again after the reply')
+end)
+
+-- MONITOR shared with chat's private buffers (net/monitor.lua)
+
+T.case('a reclaim and a private buffer watch one nick, which stays watched while either does', function()
+    local fake = boot {network('test', {features = {'chat'}})}
+    local c = fake.last()
+    register(c, 'me', 'CHANTYPES=# MONITOR=100')
+    c:take()
+    stop_clock()
+    T.command 'talk other'
+    T.eq(c:take(), {'MONITOR + other'}, 'the buffer watches other')
+    c:recv ':srv 731 me :other'
+
+    -- held: the reclaim joins the buffer's MONITOR, which gets no new
+    -- reply, and the refusal that started it holds it back
+    T.command 'nick other'
+    c:recv ':srv 437 me other :Nick/channel is temporarily unavailable'
+    T.eq(c:take(), {'NICK other'}, 'no second MONITOR +, and no NICK while held')
+    T.eq(T.require 'hub.net.monitor'.reasons(rec().irc, 'other'), {chat = true, reclaim = true}, 'both watch it')
+    fire_reclaim_timeout()
+    T.eq(c:take(), {'NICK other'}, 'tried once the hold is over')
+
+    c:recv ':me!u@h NICK other'
+    T.eq(c:take(), {}, 'ours: the buffer still watches it')
+    T.command 'close other'
+    T.eq(c:take(), {'MONITOR - other'}, 'unwatched with its last reason')
+end)
+
+T.case('a reclaim stopped before its MONITOR reply leaves no stale entry behind', function()
+    local fake = boot {network('test', {features = {'chat'}})}
+    local c = fake.last()
+    local temp = on_temp_nick(c)
+    T.command 'nick other'
+    c:recv(':' .. temp .. '!u@h NICK other')
+    T.eq(c:take(), {'NICK other'}, 'me no longer wanted, its MONITOR + unanswered')
+    c:recv ':srv 731 other :me'
+    T.eq(c:take(), {'MONITOR - me'}, 'unwatched on the reply')
+    local irc_model = T.require 'hub.net.irc'
+    T.eq(irc_model.get_monitor(rec().irc, 'me'), nil, 'not in the model')
+    T.command 'talk me'
+    T.eq(c:take(), {'MONITOR + me'}, 'a buffer for it asks again')
+end)
+
+T.case('a reconnection watches the open buffers\' nicks again, with the reclaim', function()
+    local fake = boot {network('test', {features = {'chat'}})}
+    local c = fake.last()
+    register(c, 'me', 'CHANTYPES=# MONITOR=100')
+    T.command 'talk bob'
+    T.command 'talk me_away'
+    c:take()
+
+    T.require 'hub.net.manager'.reconnect 'test'
+    c = fake.last()
+    c:con()
+    c:take()
+    c:recv ':srv CAP * LS :'
+    c:recv ':srv 433 * me :Nickname is already in use'
+    local temp = T.ok(c:take()[2]:match '^NICK (me%-%d+)$', 'random nick')
+    T.command 'talk me'
+    c:recv(':srv 001 ' .. temp .. ' :Welcome')
+    c:recv(':srv 005 ' .. temp .. ' CHANTYPES=# MONITOR=100 :are supported')
+    c:recv(':srv 376 ' .. temp .. ' :End of MOTD')
+    local plus = {}
+    for _, line in ipairs(c:take()) do
+        local list = line:match '^MONITOR %+ (.*)$'
+        if list then table.insert(plus, list) end
+    end
+    T.eq(#plus, 1, 'one MONITOR +: ' .. table.concat(plus, ' | '))
+    local nicks = {}
+    for nick in plus[1]:gmatch '[^,]+' do nicks[nick] = true end
+    T.eq(nicks, {bob = true, me_away = true, me = true}, 'every private buffer, and the wanted nick')
+    T.eq(T.require 'hub.net.monitor'.reasons(rec().irc, 'me'), {chat = true, reclaim = true}, 'me for both')
+
+    c:recv(':srv 731 ' .. temp .. ' :me')
+    T.eq(c:take(), {'NICK me'}, 'the one reply reaches the reclaim')
 end)
 
 T.run()

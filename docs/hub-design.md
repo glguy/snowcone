@@ -244,6 +244,14 @@ connected at once.
   notice. A refusal that holds for a while is tried again later: 437 and
   435 after a delay that doubles on the connection, 438 after the wait
   the server names, sending nothing meanwhile.
+- **MONITOR** (`net/monitor.lua`): the one sender of MONITOR. A nick is
+  on the server's list while something has a reason to watch it (chat's
+  private buffers, the nick being reclaimed), and leaves with its last
+  reason, so those that watch don't know of one another. Reasons last
+  for the connection; each asks again once registered. A nick whose
+  last reason goes before the server answers its MONITOR + is taken off
+  on the answer, and one refused for a full list is asked for again when
+  another leaves. Only nicks asked for here are followed.
 - **Intent** (`rec.intent`, `net/intent.lua`): what any connection should
   become, kept across connections and changed only by what we do: the
   wanted nick, the channels we are in with their keys, and our away

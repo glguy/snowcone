@@ -1111,7 +1111,7 @@ T.case('/ctcp opens the target\'s buffer', function()
     c:take()
 end)
 
-T.case('a private buffer\'s MONITOR follows its nick, and spares the nick being reclaimed', function()
+T.case('a private buffer\'s MONITOR follows its nick, and spares a nick watched for another reason', function()
     local c = boot()
     T.command 'talk Carol'
     T.eq(c:take(), {'CHATHISTORY LATEST Carol * 50', 'MONITOR + Carol'}, 'watched')
@@ -1119,12 +1119,15 @@ T.case('a private buffer\'s MONITOR follows its nick, and spares the nick being 
     c:recv ':Carol!c@h NICK Caroline'
     T.eq(c:take(), {'MONITOR - Carol', 'MONITOR + Caroline'}, 'renamed')
 
-    HUB.state.nets.test.irc.recover_nick = 'wanted'
+    local monitor = T.require 'hub.net.monitor'
+    monitor.want('test', 'other', 'wanted')
     T.command 'talk wanted'
+    T.eq(c:take(), {'MONITOR + wanted', 'CHATHISTORY LATEST wanted * 50'}, 'asked for once')
     c:recv ':srv 731 me :wanted'
-    c:take()
     T.command 'close wanted'
-    T.eq(c:take(), {}, 'the reclaim keeps its MONITOR')
+    T.eq(c:take(), {}, 'the other reason keeps its MONITOR')
+    monitor.release('test', 'other', 'wanted')
+    T.eq(c:take(), {'MONITOR - wanted'}, 'until it goes too')
 end)
 
 T.case('a private buffer closed before its MONITOR reply unwatches on the reply', function()
@@ -1152,6 +1155,27 @@ T.case('a private buffer closed before its MONITOR reply unwatches on the reply'
     -- a nick chat didn't ask for is not chat's to unwatch
     c:recv ':srv 731 me :dave'
     T.eq(c:take(), {}, 'left alone')
+end)
+
+T.case('a nick refused for a full MONITOR list is asked for again when room is made', function()
+    local c = boot()
+    local irc_model = T.require 'hub.net.irc'
+    local irc = HUB.state.nets.test.irc
+    T.command 'talk alice'
+    T.command 'talk bob'
+    T.command 'talk carol'
+    c:take()
+    c:recv ':srv 730 me :alice!a@h'
+    c:recv ':srv 734 me 1 bob :Monitor list is full.'
+    c:recv ':srv 734 me 1 carol :Monitor list is full.'
+    T.eq(irc_model.get_monitor(irc, 'bob'), nil, 'bob not listed')
+    T.command 'close carol'
+    T.eq(c:take(), {}, 'carol, refused, needs no MONITOR -')
+
+    T.command 'close alice'
+    T.eq(c:take(), {'MONITOR - alice', 'MONITOR + bob'}, 'bob asked for in alice\'s place')
+    c:recv ':srv 731 me :bob'
+    T.ok(irc_model.get_monitor(irc, 'bob'), 'bob listed')
 end)
 
 T.case('history absorbs our unconfirmed lines instead of repeating them', function()

@@ -7,7 +7,8 @@
 -- or stop wanting it (M.stop), or when the connection ends. With
 -- `reclaim_nick` off the nick is still recorded, but never taken.
 --
--- The nick comes free when MONITOR reports it offline, when whoever holds
+-- The nick is watched with MONITOR while reclaiming (net/monitor.lua, as
+-- 'reclaim'). It comes free when MONITOR reports it offline, when whoever holds
 -- it quits or changes nick in a channel we share, or when a server notice
 -- says so (the net.reclaim_nick route, M.attempt). A refusal that only
 -- holds for a while is tried again later:
@@ -21,6 +22,7 @@
 
 local clock     <const> = require 'hub.runtime.clock'
 local irc_model <const> = require 'hub.net.irc'
+local monitor   <const> = require 'hub.net.monitor'
 local N         <const> = require 'hub.lib.numerics'
 local send      <const> = require 'hub.net.send'
 local task      <const> = require 'hub.runtime.task'
@@ -104,13 +106,17 @@ local function run(t, nick)
     local r = state(irc)
     local key = irc_model.fold(irc, nick)
 
-    -- its reply says whether the nick is free now
-    if irc_model.has_monitor(irc) then
-        t:send('MONITOR', '+', nick)
-    end
+    -- the reply says whether the nick is free now. A nick already watched
+    -- for another reason gets none: known to be offline, it is tried at
+    -- once, though only after any refusal that started this reclaim,
+    -- which comes to the first wait before its timeout can.
+    monitor.want(t.net, 'reclaim', nick)
+    local known = irc_model.get_monitor(irc, nick)
+    local first_ms = known and not known.user and 0 or nil
 
     while true do
-        local timeout_ms
+        local timeout_ms = first_ms
+        first_ms = nil
         if r.held_until then
             timeout_ms = math.max(0, math.ceil((r.held_until - clock.now()) * 1000))
         end
@@ -186,13 +192,7 @@ function M.stop(rec, irc)
         r.task = nil
         task.cancel(id)
     end
-    -- a chat buffer for the nick may still want it watched
-    local chat_monitors = HUB.current.routes['chat.monitors']
-    if chat_monitors and chat_monitors(rec.id, nick) then return end
-    if irc.monitor and rec.cfg.reclaim_nick and rec.phase == 'connected' then
-        send.send(rec.id, 'MONITOR', '-', nick)
-        irc_model.del_monitor(irc, nick)
-    end
+    monitor.release(rec.id, 'reclaim', nick)
 end
 
 return M

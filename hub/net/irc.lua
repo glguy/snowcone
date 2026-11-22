@@ -128,7 +128,10 @@ function M.new()
     ---@field partial_mode_list table<string, hub.ListEntry>|nil a list mode
     --- being received
     ---@field sasl_mechs table<string, true>|nil
-    ---@field monitor table<string, {user: hub.User|nil}>|nil by folded nick
+    ---@field monitor table<string, {user: hub.User|nil}>|nil by folded nick:
+    --- the presence of each nick on our MONITOR list
+    ---@field monitor_wants table<string, hub.MonitorWant>|nil by folded
+    --- nick: why we watch each nick, and what the server said (net/monitor.lua)
     ---@field max_chat_history integer|nil
     ---@field invex string|nil
     ---@field excepts string|nil
@@ -237,6 +240,7 @@ function isupport_logic.MONITOR(irc, arg)
     elseif irc.monitor then
         local old = irc.monitor
         irc.monitor = nil
+        irc.monitor_wants = nil
         for key in pairs(old) do
             M.settle(irc, key)
         end
