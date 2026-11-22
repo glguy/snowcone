@@ -176,6 +176,13 @@ T.case('requests are checked before anything is announced', function()
     T.eq(deliver(listener, 'push', body, 'nobody'), 401, 'unknown authid')
     T.eq(deliver(listener, 'push', body, 'other', 'other secret'), 403, 'authid not authorized for the project')
     T.eq(listener.cb('POST', '/notify/gh', body, {}), 400, 'missing headers')
+    local signature = 'sha256=' .. hex(sha256:hmac(body, SECRET))
+    T.eq(listener.cb('POST', '/notify/gh', body, {
+        ['x-github-event'] = '../push', ['x-github-delivery'] = 'd', ['x-hub-signature-256'] = signature,
+    }), 400, 'event that is not a name')
+    T.eq(listener.cb('POST', '/notify/gh', body, {
+        ['x-github-event'] = 'push', ['x-github-delivery'] = '../d', ['x-hub-signature-256'] = signature,
+    }), 400, 'delivery that is not a name')
     T.eq(listener.cb('GET', '/notify/gh', '', {}), 405, 'GET on notify')
     T.eq(listener.cb('GET', '/', '', {}), 302, 'root redirects')
     T.eq(listener.cb('GET', '/robots.txt', '', {}), 200, 'robots.txt')
@@ -249,6 +256,35 @@ T.case('long text is cut on a character boundary', function()
     T.ok(plain(line):find(string.rep('a', 98) .. '…', 1, true), 'cut before the split character')
 end)
 
+T.case('check suites name their branch, deploys count environments', function()
+    local c, listener = boot {
+        [REPO] = {
+            channel = '#rutile',
+            authorized = {gh = true},
+            events = {['check_suite:completed'] = true, deploy = true},
+            push_limit = 1,
+        },
+    }
+    c:take()
+    T.eq(deliver(listener, 'check_suite', payload {
+        action = 'completed',
+        check_suite = {
+            head_branch = 'main', head_sha = '0123456789abcdef', conclusion = 'success',
+            pull_requests = array {}, app = {name = 'CI'},
+        },
+    }), 204, 'check suite')
+    T.eq(plain_all(c:take()), {
+        'NOTICE #rutile :[Libera-Chat/rutile] Check suite CI for main 012345678: success',
+    }, 'the branch is named')
+
+    for _, case in ipairs {{'prod', '1 environment'}, {'prod dev', '2 environments'}, {'a b c', '3 environments'}} do
+        T.eq(deliver(listener, 'deploy', payload {environment = case[1]}), 204, 'deploy ' .. case[1])
+        T.eq(plain_all(c:take()), {
+            'NOTICE #rutile :[Libera-Chat/rutile] ' .. case[2] .. ' deployed: ' .. case[1],
+        }, case[2])
+    end
+end)
+
 T.case('mutes', function()
     local c, listener = boot()
     c:take()
@@ -256,6 +292,9 @@ T.case('mutes', function()
     T.eq(staff(c, 'mute issue=x'), {'NOTICE staffer :Bad issue: x'}, 'bad issue refused')
     T.eq(staff(c, 'mute bogus'), {'NOTICE staffer :Syntax error near: bogus'}, 'syntax error')
     T.eq(staff(c, 'mute'), {'NOTICE staffer :No criteria specified'}, 'no criteria')
+    T.eq(staff(c, 'mute pr=1 days=-1'), {'NOTICE staffer :Bad days: -1'}, 'negative days refused')
+    T.eq(staff(c, 'mute pr=1 hours=1e999'), {'NOTICE staffer :Bad hours: 1e999'}, 'infinite hours refused')
+    T.eq(staff(c, 'mute pr=1 days=1e308'), {'NOTICE staffer :Duration too long'}, 'overflowing days refused')
     T.eq(saved().mutes, {}, 'none of those saved')
 
     T.eq(staff(c, 'mute pr=12 days=1 hours=2'), {'NOTICE staffer :Added mute 1'}, 'mute a PR')
@@ -311,6 +350,14 @@ T.case('staff commands in private message', function()
         'push limit')
     T.eq(staff(c, 'set_push_limit ' .. REPO .. ' 50'), {'NOTICE staffer :limit argument out of bounds'}, 'bounds')
     T.ok(staff(c, 'help')[1]:find('Commands:', 1, true), 'help')
+
+    -- many short names: separators count toward the 400 limit
+    local lines = staff(c, 'list_events :')
+    T.ok(#lines > 1, 'split over lines')
+    for _, line in ipairs(lines) do
+        local text = line:match '^NOTICE staffer :(.*)$'
+        T.ok(#text <= 400, 'line within 400: ' .. #text)
+    end
 end)
 
 T.case('client commands save, join and check events', function()

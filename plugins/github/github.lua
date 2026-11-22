@@ -378,8 +378,8 @@ local formatters = {
         body.x_commit_id = format_commit_id(body.check_suite.head_sha)
         if top_pr then
             body.x_target = interpolate(top_pr, "PR #{#.number}")
-        elseif body.head_branch then
-            body.x_target = interpolate(body, '\x0302{.head_branch}\x0f')
+        elseif body.check_suite.head_branch then
+            body.x_target = interpolate(body, '\x0302{.check_suite.head_branch}\x0f')
         else
             body.x_target = 'commit'
         end
@@ -396,7 +396,7 @@ local formatters = {
 
     -- Special event for r10k deployments
     deploy = function(body)
-        local _, count = body.environment:gsub(" ", "")
+        local _, count = body.environment:gsub("%S+", "")
         body.x_count = count > 1 and (count .. " environments") or "1 environment"
         return {interpolate(body,
             common_prefix .. '{#.x_count} \x02\x0302deployed\x0f: \x02{.environment}\x02')}
@@ -556,6 +556,11 @@ local routes = {
             return reply_bad_request()
         end
 
+        -- The signature covers only the body, and these name the debug file
+        if not (event:match '^[%w_]+$' and delivery:match '^[%w-]+$') then
+            return reply_bad_request()
+        end
+
         local secret = config.credentials[notify_name]
         if not (secret and signature == 'sha256=' .. hexbytes(sha256:hmac(body, secret))) then
             return reply_unauthorized()
@@ -622,7 +627,7 @@ end
 local function keys_as_lines(tab, prefix, sep)
     local lines = {}
     local acc = {}
-    local n = 0
+    local n = 0 -- length of acc joined with separators
 
     if prefix then
         table.insert(acc, prefix)
@@ -630,12 +635,13 @@ local function keys_as_lines(tab, prefix, sep)
     end
 
     for name in tablex.sort(tab) do
-        if next(acc) and #name + 1 + n > 400 then
+        if next(acc) and n + 1 + #name > 400 then
             table.insert(lines, table.concat(acc, sep or ' '))
             acc = {}
             n = 0
         end
 
+        if next(acc) then n = n + 1 end
         table.insert(acc, name)
         n = n + #name
     end
@@ -803,13 +809,13 @@ local irc_commands = {
             k = k:lower()
             if 'days' == k then
                 local days = tonumber(v)
-                if not days then
+                if not (days and days >= 0 and days < math.huge) then
                     return {'Bad days: ' .. v}
                 end
                 seconds = seconds + days * 24 * 60 * 60
             elseif 'hours' == k then
                 local hours = tonumber(v)
-                if not hours then
+                if not (hours and hours >= 0 and hours < math.huge) then
                     return {'Bad hours: ' .. v}
                 end
                 seconds = seconds + hours * 60 * 60
@@ -839,6 +845,10 @@ local irc_commands = {
 
         if not next(mute.rule) then
             return {'No criteria specified'}
+        end
+
+        if seconds == math.huge then
+            return {'Duration too long'}
         end
 
         if seconds > 0 then
