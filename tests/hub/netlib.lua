@@ -44,10 +44,11 @@ return function(T)
     end
 
     -- Stop the clock for the current generation; returns a function that
-    -- moves it on by seconds
+    -- moves it on by seconds. It stops on a whole second, never before the
+    -- time it shows now, so whole seconds added to it are exact.
     local function stop_clock()
         local clock = T.require 'hub.runtime.clock'
-        local now = clock.now()
+        local now = math.ceil(clock.now()) + 0.0
         clock.now = function() return now end
         return function(seconds) now = now + seconds end
     end
