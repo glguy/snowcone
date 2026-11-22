@@ -1171,12 +1171,12 @@ T.case('Meta-H hides OFTC hybrid server notices in the console', function()
     T.ok(not text:find('Client connecting', 1, true), 'the notice hidden')
 end)
 
-T.case('/stats counts the stores and what their entries hold', function()
+T.case('/client counts the stores and what their entries hold', function()
     local c = boot()
     c:recv ':bob!b@h PRIVMSG me :hi'
     c:recv ':a.example NOTICE * :*** Notice -- op!o@staff.example{op} added global 60 min. K-Line for [*@192.0.2.9] [spam]'
     c:recv ':a.example NOTICE * :*** Notice -- Disconnecting K-Lined user n[~u@192.0.2.9] (*@192.0.2.9)'
-    T.require 'hub.ui.control'.set_view 'stats'
+    T.require 'hub.ui.control'.set_view 'client'
     HUB.current.routes['ui.draw']()
     local text = table.concat(rows_of(document_pad()), '\n', 0, document_pad().y)
     T.ok(text:find('ban nicks', 1, true), 'ban nicks counted')

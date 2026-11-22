@@ -9,7 +9,7 @@
 --                  reply_label, topic and predicate (wait_event), label
 --                  (prompt), timer, lookup (a dnslookup handle),
 --                  process (an execute handle), tty (true while the child
---                  has the terminal), wait_since (optional, for /stats),
+--                  has the terminal), wait_since (optional, for /client),
 --                  secrets (runtime/secrets.lua)
 --   wait kinds     irc, reply, event, sleep, dns, execute, prompt
 --   resume values  wait_irc    the message, or nil on timeout

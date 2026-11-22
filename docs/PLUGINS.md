@@ -368,7 +368,7 @@ Handlers run on the client's main loop and must not block. Anything that can rea
 
 ## Errors
 
-A plugin's errors stay with that plugin: the rest of the client and other plugins carry on. An error from its start function, a handler, a command, a view, a timer, a task or an HTTP handler goes to the status view, `/status`, like any other error in hub: category `error`, as `plugin <name> <where>: <message>`, and counted in `/stats`.
+A plugin's errors stay with that plugin: the rest of the client and other plugins carry on. An error from its start function, a handler, a command, a view, a timer, a task or an HTTP handler goes to the status view, `/status`, like any other error in hub: category `error`, as `plugin <name> <where>: <message>`, and counted in `/client`.
 
 | Failure | Result |
 |---|---|

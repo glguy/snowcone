@@ -349,6 +349,6 @@ what someone might otherwise undo, not the history of what changed.
   next message. Parting but keeping the buffer is rare enough to leave to
   `/quote part`. Our PART coming back drops the buffer again, in case a
   message reopened it first.
-- **`/stats`** is for working out what the client holds: counts only,
+- **`/client`** is for working out what the client holds: counts only,
   never byte estimates (Lua can't size a value, and shared messages would
   be counted twice), and no CLEAR buttons.

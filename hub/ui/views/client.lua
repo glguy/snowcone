@@ -118,8 +118,8 @@ local function store_rows()
 end
 
 return {
-    id = 'stats',
-    title = 'stats',
+    id = 'client',
+    title = 'client',
     scope = 'global',
     document = true,
 

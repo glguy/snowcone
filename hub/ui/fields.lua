@@ -1,4 +1,4 @@
--- Labeled fields for document views (/stats, /session): a green heading
+-- Labeled fields for document views (/client, /session): a green heading
 -- per section, a blue right-aligned label per row, and blue keys for the
 -- further values of a row. Lists show their first row and fold the rest
 -- behind a button.

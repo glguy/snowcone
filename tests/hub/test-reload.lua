@@ -285,7 +285,7 @@ return {routes = {
     T.eq(HUB.test_draws, 3, 'later callback draws the deferred change')
 end)
 
-T.case('reloads, errors and waits are tracked for /stats', function()
+T.case('reloads, errors and waits are tracked for /client', function()
     T.boot {
         modules = {'hub.test.bad'},
         overrides = {['hub.test.bad'] = "return {routes = {['test.bad'] = function() error 'kaboom' end}}"},

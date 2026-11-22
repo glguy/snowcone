@@ -124,8 +124,8 @@ Duplicate routes, commands or views fail the build.
 | `current` | replaced | The generation: routes, bus, commands, views, config, module cache. |
 | `boot` | yes | First-load options (ui, tick, strict, test transport...). |
 | `generation` | yes | Count of successful loads. |
-| `last_reload` | yes | Time and result of the last load, for `/stats`. |
-| `errors` | yes | Error counts, total and by origin, for `/stats`. |
+| `last_reload` | yes | Time and result of the last load, for `/client`. |
+| `errors` | yes | Error counts, total and by origin, for `/client`. |
 | `dirty`, `defer_draw` | yes | A draw is due; the current callback holds it back. |
 | `entry_installed` | yes | The `setmodule` entry is in place. |
 | `tty_suspended` | yes | How many children hold the terminal. |
@@ -437,8 +437,8 @@ command names another after its name (`/quote@network`).
 
 ### Scopes
 
-Three pages, three scopes of state: `/stats` is the client, `/session` a
-network across its connections, `/networks` the overview. `/stats` shows
+Three pages, three scopes of state: `/client` is the client, `/session` a
+network across its connections, `/networks` the overview. `/client` shows
 counts, never sizes.
 
 ### Status bar

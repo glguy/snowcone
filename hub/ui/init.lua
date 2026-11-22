@@ -319,7 +319,7 @@ local view_modules <const> = {
     require 'hub.ui.views.networks',
     require 'hub.ui.views.plugins',
     require 'hub.ui.views.session',
-    require 'hub.ui.views.stats',
+    require 'hub.ui.views.client',
     require 'hub.ui.views.status',
     require 'hub.ui.views.recent_conn',
     require 'hub.ui.views.server_load',

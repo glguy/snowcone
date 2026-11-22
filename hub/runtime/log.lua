@@ -121,7 +121,7 @@ function M.dismiss()
 end
 
 --- Count an error by where it came from (a route, a subscriber, a
---- command, a plugin), for /stats. The counts live in HUB, outside state.
+--- command, a plugin), for /client. The counts live in HUB, outside state.
 local function count_error(where)
     local errors = HUB.errors or {total = 0, by_origin = {}}
     HUB.errors = errors

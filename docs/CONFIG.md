@@ -575,7 +575,7 @@ A message is decided as it reaches its buffer, including from chat history. A QU
 
 | Field | Default | Meaning |
 |---|---|---|
-| `pattern` | | Required. A PCRE2 regular expression when `rex_pcre2` is installed, otherwise a Lua pattern. `/stats` shows which, under `filters`. A pattern without capital letters ignores case. One that doesn't compile fails the load, and so does a Lua pattern that repeats more than two items with `*`, `+` or `-`. |
+| `pattern` | | Required. A PCRE2 regular expression when `rex_pcre2` is installed, otherwise a Lua pattern. `/client` shows which, under `filters`. A pattern without capital letters ignores case. One that doesn't compile fails the load, and so does a Lua pattern that repeats more than two items with `*`, `+` or `-`. |
 | `color` | | The highlight color: `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan` or `white`. |
 | `beep` | `false` | Ring the bell on a match. |
 | `flash` | `false` | Flash the screen on a match. |
@@ -662,7 +662,7 @@ The store is opened with the credential's `password`, or the layer's `client_pas
 
 `/reload` (or SIGUSR1) reads the configuration file and the servers files again, and loads new code, without dropping connections.
 
-`/reload FILE` switches to another configuration file. A relative `FILE` is relative to the configuration directory, and `~` is expanded. Once it loads, every later `/reload` and SIGUSR1 reads it too, until another file is given. A file that fails to load isn't remembered. The configuration directory stays the same, and command-line overrides still apply. `/stats` shows the file in use under `code`.
+`/reload FILE` switches to another configuration file. A relative `FILE` is relative to the configuration directory, and `~` is expanded. Once it loads, every later `/reload` and SIGUSR1 reads it too, until another file is given. A file that fails to load isn't remembered. The configuration directory stays the same, and command-line overrides still apply. `/client` shows the file in use under `code`.
 
 - **Networks:**
   - A network added to the file connects if `autoconnect` allows.
@@ -670,4 +670,4 @@ The store is opened with the credential's `password`, or the layer's `client_pas
 - **Settings that apply at once:** `ircd` (except for the `snomask` modes, which are set when you become an operator), `features`, `reconnect`, `reclaim_nick`, `quit_message`, `snomask`, `oper`, `mention`, `watches`, `hide` (for messages that arrive afterwards), the `mention`, `activity`, `label` and `hidden` of `buffers`, the servers file and the top-level tables. Messages already received keep how they counted.
 - **Settings that wait for a new connection:** `join` and `key` in `buffers`; hub doesn't join or part channels on a reload. A change to `server`, `layers`, `websocket`, `identity`, `registration` or `sasl` marks the network `restart pending: /reconnect` in `/networks` and `/session` until you reconnect.
 
-A configuration that fails to load leaves the running one in place. The error is logged, hub switches to `/status` to show it, and `/stats` shows `last load failed` under `code`.
+A configuration that fails to load leaves the running one in place. The error is logged, hub switches to `/status` to show it, and `/client` shows `last load failed` under `code`.
