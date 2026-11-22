@@ -520,6 +520,140 @@ T.case('a WHO opens in the detail pane as a table', function()
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case('a STATS opens as tables by reply, read for what their fields mean, laid out once', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:take()
+    cmdline.execute 'stats L'
+    T.eq(c:take(), {'STATS L'}, 'sent')
+    c:recv ':srv 216 me K bad.example * ~u :spam|by alice'
+    c:recv ':srv 216 me K worse.example * * :flood'
+    c:recv ':srv 211 me hub.example 0 10 2 12 3 :3600 30 TS QS'
+    c:recv ':srv 249 me L :a line of text'
+    c:recv ':srv 219 me L :End of /STATS report'
+    local detail = control.detail()
+    T.eq({detail.kind, #detail.data.messages}, {'listing', 4}, 'shown')
+
+    local text = detail_text()
+    T.ok(text:find('STATS L (4 replies)', 1, true), 'the title')
+    T.ok(text:find('RPL_STATSKLINE 216  2', 1, true), 'a heading per reply, with its count')
+    T.ok(text:find('type   host          user reason oper reason', 1, true), 'its fields, the reasons apart')
+    T.ok(text:find('K-Line bad.example   ~u   spam   by alice', 1, true), 'the ban type by name')
+    T.ok(text:find('K-Line worse.example *    flood  -', 1, true), 'no oper reason is -')
+    T.ok(text:find('link        sendq sent msgs sent KiB recv msgs recv KiB open idle caps', 1, true),
+        'a link')
+    T.ok(text:find('hub.example 0     10        2        12        3        60m  30s  TS QS', 1, true),
+        'its times read out')
+    T.ok(text:find('a line of text', 1, true), 'text as text')
+
+    -- laid out once, and again only for a new filter
+    local view = detail.data.view
+    local layout = view.sections[1].table.layout
+    detail_text()
+    T.ok(detail.data.view == view and view.sections[1].table.layout == layout, 'kept')
+
+    control.set_filter('detail', 'worse')
+    text = detail_text()
+    T.ok(not text:find 'bad.example', 'filtered out')
+    T.ok(not text:find 'RPL_STATSLINKINFO', 'with the tables that have no match')
+    T.ok(text:find('1 of 4 replies match', 1, true), 'counted')
+    T.ok(view.sections[1].table.layout == layout, 'the layout kept')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
+T.case('an auth block reads out its flags, and MASKTRACE names the server', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:take()
+    cmdline.execute 'stats I'
+    c:take()
+    c:recv ':srv 215 me I spoofed.example <NULL> =%~u@*.example 0 users :Some block'
+    c:recv ':srv 219 me I :End of /STATS report'
+    local text = detail_text()
+    T.ok(text:find('~u@*.example spoof,need_sasl users spoofed.example', 1, true), 'flags, in order, and spoof')
+    T.ok(text:find('Some block', 1, true), 'the description')
+
+    T.require 'hub.features.oper'
+    local listing = T.require 'hub.features.listing'
+    T.require 'hub.runtime.task'.spawn('masktrace', {net = 'test'}, listing.masktrace, '*@h.example')
+    c:take()
+    c:recv ':srv 709 me User leaf.example bob b h.example 192.0.2.2 :Bob'
+    c:recv ':srv 709 me User leaf.example carol c h.example 0 :Carol'
+    c:recv ':srv 262 me srv.example :End of TRACE'
+    text = detail_text()
+    T.ok(text:find('type server       nick  user host      ip        realname', 1, true), 'server, not class')
+    T.ok(text:find('User leaf.example carol c    h.example -         Carol', 1, true), 'a hidden address is -')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
+T.case("OFTC hybrid's reasons have spaces about the |, and a reason may be the oper's alone", function()
+    local c = boot(nil, nil, 'oftc-hybrid')
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:take()
+    cmdline.execute 'stats k'
+    c:take()
+    c:recv ':srv 216 me K bad.example * ~u :spam | '
+    c:recv ':srv 216 me K worse.example * * :|only opers'
+    c:recv ':srv 219 me k :End of /STATS report'
+    T.eq(control.detail().kind, 'listing', 'shown')
+    local text = detail_text()
+    T.ok(text:find('K-Line bad.example   ~u   spam   -', 1, true), 'no oper reason')
+    T.ok(text:find('K-Line worse.example *    -      only opers', 1, true), 'only an oper reason')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
+T.case("a table's header stays at the top as its rows scroll under it", function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:recv ':srv 005 me WHOX :are supported'
+    c:take()
+    cmdline.execute 'who #chan %n'
+    c:take()
+    for i = 1, 100 do c:recv(string.format(':srv 354 me user%03d', i)) end
+    c:recv ':srv 315 me #chan :End of /WHO list.'
+    local detail = control.detail()
+    local function screen()
+        HUB.current.routes['ui.draw']()
+        return rows_of(detail_pad())
+    end
+
+    T.eq(screen()[0]:match '^%S+', 'nick', 'the header, at the top')
+    detail.scroll = 10
+    local rows = screen()
+    T.eq({rows[0]:match '^%S+', rows[1]:match '^%S+'}, {'nick', 'user010'}, 'pinned over the users scrolled')
+    detail.scroll = 1e9
+    rows = screen()
+    local shown = {}
+    for y = 0, #rows do
+        local word = rows[y]:match '^(user%d+)'
+        if word then table.insert(shown, word) end
+    end
+    T.eq({rows[0]:match '^%S+', shown[#shown]}, {'nick', 'user100'}, 'and the last user shows under it')
+
+    -- a listing pins the header of the table at the top
+    cmdline.execute 'trace'
+    c:take()
+    for i = 1, 60 do
+        c:recv(string.format(':srv 205 me User users u%02d[u@192.0.2.1] (192.0.2.1) 9 60', i))
+    end
+    c:recv ':srv 209 me Class users 60'
+    c:recv ':srv 262 me srv.example :End of TRACE'
+    detail = control.detail()
+    T.eq(detail.kind, 'listing', 'a listing')
+    detail.scroll = 20
+    rows = screen()
+    T.eq({rows[0]:match '^%S+', rows[1]:match '^%S+'}, {'class', 'users'}, "the users' header")
+    detail.scroll = 1e9
+    rows = screen()
+    T.ok(rows[0]:match '^class%s+client', "at the end, the users' header still pinned")
+    T.ok(has_row(rows, '^class users$') and has_row(rows, '^users 60$'), 'over the classes, with their own')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.case('a WHOIS opens in the detail pane, and from its status line', function()
     local c = boot()
     local control = T.require 'hub.ui.control'

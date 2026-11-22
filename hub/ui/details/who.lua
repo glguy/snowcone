@@ -2,15 +2,15 @@
 -- table with a row per user and a column per field the reply gave, read
 -- for what it means: the status's away, bot, operator and prefixes in
 -- their colors, the address with its organization, the idle time as a
--- duration, and "-" for a field the server left empty. The table is wide,
--- for Left and Right; the filter (Ctrl-S, /filter) shows only the users
--- with a field that matches.
+-- duration, and "-" for a field the server left empty (ui/table.lua,
+-- which keeps its layout on the hub.Who). The table is wide, for Left and
+-- Right; the filter (Ctrl-S, /filter) shows only the users with a field
+-- that matches.
 
-local addircstr <const> = require 'hub.ui.irc_formatting'
-local control   <const> = require 'hub.ui.control'
-local draw      <const> = require 'hub.ui.draw'
-local matching  <const> = require 'hub.lib.matching'
-local scrub     <const> = require 'hub.lib.scrub'
+local control <const> = require 'hub.ui.control'
+local draw    <const> = require 'hub.ui.draw'
+local scrub   <const> = require 'hub.lib.scrub'
+local tables  <const> = require 'hub.ui.table'
 
 local M = {kind = 'who', filter = true, wide = true}
 
@@ -34,10 +34,6 @@ function M.modes(detail)
     if w.opers_only then table.insert(modes, 'operators only') end
     if w.token then table.insert(modes, 'token ' .. scrub(w.token)) end
     return modes
-end
-
-local function width(text)
-    return utf8.len(text) or #text
 end
 
 -- The status's letters in their colors: G (away) yellow, the bot letter
@@ -69,10 +65,9 @@ local function nonzero_idle(row)
     if row.idle and row.idle > 0 then return draw.duration(row.idle) end
 end
 
---- The columns, in the order shown, by the WHOX letter that gives each.
---- text is what the cell shows, nil for "-"; paint, when there is one,
---- draws it in color at the same width. org isn't a field: it shows with
---- the address.
+--- The columns (ui/table.lua), in the order shown, by the WHOX letter
+--- that gives each; those of letters the reply didn't give are left out.
+--- org isn't a field: it shows with the address, when one has an org.
 local columns <const> = {
     {letter = 'n', header = 'nick', text = function(r) return r.nick end,
         paint = function(win, r)
@@ -86,7 +81,7 @@ local columns <const> = {
     {letter = 'u', header = 'user', text = function(r) return r.user end},
     {letter = 'h', header = 'host', text = function(r) return r.host end},
     {letter = 'i', header = 'ip', text = function(r) return r.ip end},
-    {letter = 'i', header = 'org', text = org_text},
+    {letter = 'i', header = 'org', text = org_text, optional = true},
     {letter = 's', header = 'server', text = function(r) return r.server end},
     {letter = 'd', header = 'hops', text = function(r) return r.hops and tostring(r.hops) end},
     {letter = 'l', header = 'idle', text = nonzero_idle},
@@ -99,102 +94,40 @@ local columns <const> = {
     {letter = 'o', header = 'oplevel', text = function(r)
         if r.oplevel == '999' then return 'op' end
     end},
-    -- last: it isn't padded, and its formatting is drawn
-    {letter = 'r', header = 'realname', text = function(r) return r.realname end,
-        paint = function(win, r) addircstr(win, r.realname) end},
+    {letter = 'r', header = 'realname', text = function(r) return r.realname end, formatted = true},
 }
 
--- What the filter matches: every field
-local function haystack(row)
-    local parts = {}
-    for _, col in ipairs(columns) do
-        local text = col.text(row)
-        if text then table.insert(parts, text) end
-    end
-    return table.concat(parts, ' ')
-end
-
---- The columns this reply shows and their widths: those of the fields it
---- gave, but org only when an address has one.
----@param w hub.Who
-local function layout(w)
-    local given = {}
-    for _, letter in ipairs(w.fields) do given[letter] = true end
-    local shown = {}
-    for _, col in ipairs(columns) do
-        if given[col.letter] then
-            local cell = 0
-            local any = false
-            for _, row in ipairs(w.rows) do
-                local text = col.text(row)
-                if text then
-                    any = true
-                    cell = math.max(cell, width(scrub(text)))
-                end
-            end
-            if col.header ~= 'org' or any then
-                table.insert(shown, {col = col, width = math.max(cell, width(col.header), 1)})
-            end
+--- The columns of the fields a reply gave, kept by its fields list.
+local by_fields <const> = setmetatable({}, {__mode = 'k'})
+local function columns_of(fields)
+    local cols = by_fields[fields]
+    if not cols then
+        local given = {}
+        for _, letter in ipairs(fields) do given[letter] = true end
+        cols = {}
+        for _, col in ipairs(columns) do
+            if given[col.letter] then table.insert(cols, col) end
         end
+        by_fields[fields] = cols
     end
-    return shown
-end
-
-local function draw_header(win, shown)
-    draw.blue(win)
-    for i, c in ipairs(shown) do
-        win:waddstr(c.col.header)
-        if i < #shown then win:waddstr(string.rep(' ', c.width - width(c.col.header) + 1)) end
-    end
-    draw.normal(win)
-end
-
-local function draw_user(win, shown, row)
-    for i, c in ipairs(shown) do
-        local text = c.col.text(row)
-        if text == nil then
-            draw.black(win)
-            win:waddstr '-'
-            draw.normal(win)
-            text = '-'
-        elseif c.col.paint then
-            c.col.paint(win, row)
-        else
-            win:waddstr(scrub(text))
-        end
-        if i < #shown then win:waddstr(string.rep(' ', c.width - width(scrub(text)) + 1)) end
-    end
+    return cols
 end
 
 -- One row each: the header, each user the filter shows (or a note when
--- there are none), and with a filter how many it shows
+-- there are none), and with a filter how many it shows. The header stays
+-- above the users scrolled under it.
 function M.rows(ctx)
     ---@type hub.Who
     local w = ctx.vs.data
     local pattern = control.filter(ctx.id)
-
-    -- the layout and the matches are kept with the detail: its reply
-    -- doesn't change
-    local vs = ctx.vs
-    if not vs.layout then vs.layout = layout(w) end
-    local shown = w.rows
-    if pattern then
-        if not (vs.matches and vs.matches.pattern == pattern) then
-            local list = {}
-            for _, row in ipairs(w.rows) do
-                if matching.safematch(haystack(row), pattern) then table.insert(list, row) end
-            end
-            vs.matches = {pattern = pattern, rows = list}
-        end
-        shown = vs.matches.rows
-    end
+    local layout, shown = tables.of(w, columns_of(w.fields), w.rows, pattern)
 
     local body = math.max(#shown, 1)
     return 1 + body + (pattern and 1 or 0), function(win, i)
         if i == 1 then
-            draw_header(win, vs.layout)
+            tables.draw_header(win, layout)
         elseif i <= 1 + #shown then
-            draw_user(win, vs.layout, shown[i - 1])
+            tables.draw_row(win, layout, shown[i - 1])
         elseif i == 2 and #shown == 0 then
             draw.yellow(win)
             win:waddstr(#w.rows == 0 and 'no users' or 'no user matches')
@@ -204,6 +137,10 @@ function M.rows(ctx)
             win:waddstr(string.format('%d of %d %s match', #shown, #w.rows,
                 #w.rows == 1 and 'user' or 'users'))
             draw.normal(win)
+        end
+    end, function(i)
+        if i > 1 and i <= 1 + #shown then
+            return function(win) tables.draw_header(win, layout) end
         end
     end
 end

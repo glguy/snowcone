@@ -13,7 +13,8 @@
 --   mins     minutes left, 0 meaning permanent
 --   line     the letter of a ban type (K, k, D, ...)
 --   reasons  a ban reason, and after a | the oper reason
---   paren    a value in parentheses
+--   addr     an address, maybe in parentheses; 0 (hidden from us) and
+--            255.255.255.255 (hidden, or none) mean the server won't say
 --
 -- The auth block reply (RPL_STATSILINE), whose fields depend on its flags,
 -- has a summary of its own; other replies not here, but for errors, have
@@ -22,6 +23,15 @@
 local N <const> = require 'hub.lib.numerics'
 
 local M = {}
+
+--- An address field's value (the addr kind), out of any parentheses;
+--- nil when the server won't say.
+---@param value string
+---@return string|nil
+function M.address(value)
+    local addr = value:match '^%((.*)%)$' or value
+    if addr ~= '' and addr ~= '0' and addr ~= '255.255.255.255' then return addr end
+end
 
 --- Ban types by the letter STATS, TESTLINE and the like give them.
 M.line_types = {
@@ -85,15 +95,15 @@ M.fields = {
     [N.RPL_TRACELINK] = {'-', 'version', 'to', 'via'},
     [N.RPL_TRACECONNECTING] = {'-', 'class', 'server'},
     [N.RPL_TRACEHANDSHAKE] = {'-', 'class', 'server'},
-    [N.RPL_TRACEUNKNOWN] = {'-', 'class', 'client', 'ip:paren', 'for:secs'},
-    [N.RPL_TRACEOPERATOR] = {'-', 'class', 'client', 'ip:paren', 'heard:secs', 'idle:secs'},
-    [N.RPL_TRACEUSER] = {'-', 'class', 'client', 'ip:paren', 'heard:secs', 'idle:secs'},
+    [N.RPL_TRACEUNKNOWN] = {'-', 'class', 'client', 'ip:addr', 'for:secs'},
+    [N.RPL_TRACEOPERATOR] = {'-', 'class', 'client', 'ip:addr', 'heard:secs', 'idle:secs'},
+    [N.RPL_TRACEUSER] = {'-', 'class', 'client', 'ip:addr', 'heard:secs', 'idle:secs'},
     [N.RPL_TRACESERVER] = {'-', 'class', 'servers', 'clients', 'server', 'by', 'heard:secs'},
     [N.RPL_TRACENEWTYPE] = {'-', '-', 'name'},
     [N.RPL_TRACECLASS] = {'-', 'class', 'users'},
     [N.RPL_ENDOFTRACE] = {'target', 'text:text'},
-    [N.RPL_ETRACEFULL] = {'type', 'class', 'nick', 'user', 'host', 'ip', 'caps:rest', 'realname:text'},
-    [N.RPL_ETRACE] = {'type', 'class', 'nick', 'user', 'host', 'ip', 'realname:text'},
+    [N.RPL_ETRACEFULL] = {'type', 'class', 'nick', 'user', 'host', 'ip:addr', 'caps:rest', 'realname:text'},
+    [N.RPL_ETRACE] = {'type', 'class', 'nick', 'user', 'host', 'ip:addr', 'realname:text'},
 
     [N.RPL_STATSCOMMANDS] = {'command', 'count', 'bytes', 'remote'},
     [N.RPL_STATSCLINE] = {'-', 'host', 'flags', 'server', 'port', 'class', 'certfp'},
@@ -112,6 +122,7 @@ M.fields = {
     [N.RPL_STATSXLINE] = {'type:line', 'hits', 'mask', 'reason:text'},
     [N.RPL_STATSULINE] = {'-', 'server', 'mask', 'flags'},
     [N.RPL_STATSCONN] = text,
+    [N.RPL_STATSDEBUG] = {'-', 'text:text'},
 
     [N.RPL_LUSERCLIENT] = text,
     [N.RPL_LUSEROP] = {'count', 'text:text'},
@@ -288,7 +299,7 @@ M.fields = {
     [N.ERR_MLOCKRESTRICTED] = {'channel', 'mode', 'mlock', 'text:text'},
     [N.ERR_INVALIDBAN] = {'channel', 'mode', 'mask', 'text:text'},
     [N.RPL_SCANMATCHED] = {'count', 'text:text'},
-    [N.RPL_SCANUMODES] = {'nick', 'user', 'host', 'ip', 'server', 'umodes', 'realname:text'},
+    [N.RPL_SCANUMODES] = {'nick', 'user', 'host', 'ip:addr', 'server', 'umodes', 'realname:text'},
 
     [N.RPL_LOGGEDIN] = {'mask', 'account', 'text:text'},
     [N.RPL_LOGGEDOUT] = {'mask', 'text:text'},

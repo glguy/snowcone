@@ -3,7 +3,6 @@
 
 local common   <const> = require 'hub.features.common'
 local config_schema <const> = require 'hub.runtime.config_schema'
-local control  <const> = require 'hub.ui.control'
 local draw     <const> = require 'hub.ui.draw'
 local loadavg  <const> = require 'hub.lib.loadavg'
 local oper     <const> = require 'hub.features.oper'
@@ -172,10 +171,7 @@ function M.action_bar(ctx, win, y)
         ctx.add_button(win, scrub(text), function() oper.commit(net) end)
         win:waddstr ' '
         draw.yellow(win)
-        ctx.add_button(win, '[ TRACE ]', function()
-            oper.trace(net)
-            control.set_view 'console'
-        end)
+        ctx.add_button(win, '[ TRACE ]', function() oper.trace(net) end)
     elseif staged and staged.action == 'unkline' and staged.mask then
         draw.green(win)
         ctx.add_button(win, '[ CANCEL UNKLINE ]', function()

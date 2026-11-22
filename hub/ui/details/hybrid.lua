@@ -40,14 +40,14 @@ M.fields = tablex.copy(solanum.fields)
 -- Solanum's numbers that hybrid doesn't send, or sends meaning another
 -- reply, without fields below
 for _, n in ipairs {8, 43, 270, 310, 325, 330, 335, 360, 378, 415, 416, 417,
-    435, 470, 477, 480, 484, 486, 489, 492, 517, 670, 671, 691, 707, 708, 709,
+    435, 470, 477, 480, 484, 486, 489, 492, 517, 670, 671, 691, 707,
     716, 718, 729, 730, 731, 732, 733, 734, 740, 741, 742, 743, 750, 751,
     900, 901, 902, 903, 904, 905, 906, 907, 908} do
     M.fields[n] = nil
 end
 
 tablex.update(M.fields, {
-    [NH.RPL_TRACECAPTURED] = {'-', 'class', 'client', 'ip:paren', 'heard:secs', 'idle:secs'},
+    [NH.RPL_TRACECAPTURED] = {'-', 'class', 'client', 'ip:addr', 'heard:secs', 'idle:secs'},
     [NH.RPL_STATSQLINE] = {'type:line', 'mask', 'reason:text'},
     [NH.RPL_STATSYLINE] = {'-', 'class', 'ping:secs', 'connfreq:secs', 'max', 'sendq', 'users', 'state'},
     [NH.RPL_STATSPLINE] = {'-', 'port', 'name', 'refs', 'flags', 'state:text'},
@@ -70,6 +70,10 @@ tablex.update(M.fields, {
     [NH.RPL_UMODEGMSG] = {'nick', 'text:text'},
     [NH.RPL_WHOISACTUALLY] = {'nick', 'address', 'text:text'},
     [NH.RPL_TESTMASK] = {'mask', 'local', 'remote', 'text:text'},
+    -- ETRACE without a host, or -full with the host and server the client
+    -- gave in its USER
+    [NH.RPL_ETRACE] = {'type', 'class', 'nick', 'user', 'ip:addr', 'realname:text'},
+    [NH.RPL_ETRACEFULL] = {'type', 'class', 'nick', 'user', 'ip:addr', 'USER host', 'USER server', 'realname:text'},
     [NH.RPL_ISCAPTURED] = {'nick', 'text:text'},
     [NH.RPL_ISUNCAPTURED] = {'nick', 'text:text'},
 })

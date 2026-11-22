@@ -64,6 +64,9 @@ local function meaning(net)
     return meanings[ircd.of(net)]
 end
 
+--- What a network's replies mean (ui/details/solanum.lua or hybrid.lua).
+M.meaning = meaning
+
 --- The body of a server notice on a network, without its header, or nil.
 ---@param net string|nil
 ---@param msg hub.Message
@@ -513,11 +516,12 @@ local function reply_field(ctx, win, label, kind, value)
         local name = meaning(ctx.net).line_types[value]
         line(ctx, win, label, {{name or scrub(value), draw.bold}})
     elseif kind == 'reasons' then
-        local public, private = value:match '^(.-)|(.*)$'
+        local public, private = value:match '^(.-)%s*|%s*(.*)$'
         formatted(ctx, win, label, public or value)
         if private and private ~= '' then formatted(ctx, win, 'oper why', private) end
-    elseif kind == 'paren' then
-        line(ctx, win, label, {{scrub(value:match '^%((.*)%)$' or value)}})
+    elseif kind == 'addr' then
+        local addr = solanum.address(value)
+        line(ctx, win, label, {{addr and scrub(addr) or '(hidden)'}})
     else
         line(ctx, win, label, {{scrub(value)}})
     end

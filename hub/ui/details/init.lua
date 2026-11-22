@@ -12,7 +12,9 @@
 -- it returns how many rows there are and a function draw(win, i) of the
 -- row i, drawn at the cursor, at the start of an empty row; only the rows
 -- shown are drawn, so the content costs nothing past them and has no
--- limit.
+-- limit. It may return a third, pinned(i): for the first row shown once
+-- scrolled, a function that draws the row to keep above it (a table's
+-- header), or nil. That row takes the pane's first row, over the rest.
 --
 -- A kind may also name the events that open it: `events` maps a topic to
 -- a function of the event that returns the detail's net and data. Private
@@ -40,6 +42,7 @@ for _, m in ipairs {
     require 'hub.ui.details.format',
     require 'hub.ui.details.jump',
     require 'hub.ui.details.keys',
+    require 'hub.ui.details.listing',
     require 'hub.ui.details.message',
     require 'hub.ui.details.reply',
     require 'hub.ui.details.value',
@@ -116,22 +119,36 @@ function M.render(detail, kind, pad)
     -- used counts the content's rows; the pad holds them from pad_top,
     -- and the rule goes on its row rule_row
     local used, rows, top, pad_top, rule_row
+    local last -- the last content row shown
     if kind.rows then
-        local draw_row
-        used, draw_row = kind.rows(ctx)
+        local draw_row, pinned
+        used, draw_row, pinned = kind.rows(ctx)
         rows = math.min(used, limit)
-        pads.set_paging(detail, used, rows)
+        -- a pinned row leaves one fewer for the content, which scrolls on
+        -- to show its last row under it
+        if rows < 2 or used <= rows then pinned = nil end
+        pads.set_paging(detail, used, pinned and rows - 1 or rows)
         top = detail.scroll
+        local pin = pinned and top > 0 and pinned(top + 1)
         -- the rows shown, then the rule with a row to spare for the cursor
         -- after the last column
         local h, w = ncurses.getmaxyx(pad)
         if h ~= rows + 2 or w ~= width then pad:wresize(rows + 2, width) end
         clicks.restart()
         pad:werase()
-        for i = 1, rows do
-            pad:wmove(i - 1, 0)
+        local y = 0
+        if pin then
+            pad:wmove(0, 0)
             draw.normal(pad)
-            draw_row(pad, top + i)
+            pin(pad)
+            y = 1
+        end
+        last = top
+        for i = top + 1, math.min(used, top + rows - y) do
+            pad:wmove(y, 0)
+            draw.normal(pad)
+            draw_row(pad, i)
+            y, last = y + 1, i
         end
         pad_top, rule_row = 0, rows
     else
@@ -181,7 +198,7 @@ function M.render(detail, kind, pad)
         table.insert(tags, {scrub(string.format('%q', filter)), draw.normal})
     end
     if detail.max_scroll > 0 then
-        table.insert(tags, {string.format(' rows %d-%d of %d', top + 1, top + rows, used), draw.normal})
+        table.insert(tags, {string.format(' rows %d-%d of %d', top + 1, last or top + rows, used), draw.normal})
     end
     if hscroll > 0 then
         table.insert(tags, {string.format(' cols +%d', hscroll), draw.normal})

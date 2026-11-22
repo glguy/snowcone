@@ -36,6 +36,7 @@ carry `net`, the network id.
 | `quote.sent` | `{net, reply}` /quote sent a labeled line; `reply` is a `hub.QuoteReply` filled in place when the reply comes; the UI shows it | commands/quote |
 | `chat.who` | `{net, who}` a WHO reply ended, as a `hub.Who`; the UI shows it | features/chat |
 | `chat.whois` | `{net, whois}` a WHOIS reply ended, as a `hub.Whois`; the UI shows it | features/chat |
+| `listing.ready` | `{net, listing}` a STATS, TRACE, ETRACE or MASKTRACE reply ended, as a `hub.Listing`; the UI shows it | features/listing |
 | `chat.whowas` | `{net, whowas}` a WHOWAS reply ended, as a `hub.Whowas`; the UI shows it | features/chat |
 | `eval.result` | `{value}` /eval returned values: `{code, n, ...}`, live; the UI shows them | commands/core |
 | `notify.alert` | `{net, kind, text, beep?, flash?, color?}` something wants attention; the UI and notify decide how | features (snotice watches) |

@@ -11,6 +11,7 @@
 
 local common     <const> = require 'hub.features.common'
 local ircd       <const> = require 'hub.net.ircd'
+local listing    <const> = require 'hub.features.listing'
 local log        <const> = require 'hub.runtime.log'
 local lookup     <const> = require 'hub.features.lookup'
 local masks      <const> = require 'hub.features.oper.masks'
@@ -292,14 +293,15 @@ function M.freeze_account(net)
     end
 end
 
---- MASKTRACE the staged mask, to see who it would hit.
+--- MASKTRACE the staged mask, to see who it would hit, in the detail
+--- pane.
 function M.trace(net)
     local staged = M.get(net).staged
     if staged and staged.mask then
         if ircd.hybrid(net) then
             log.add_net(net, 'oper', 'OFTC hybrid has no MASKTRACE')
         else
-            send.send(net, 'MASKTRACE', staged.mask)
+            task.spawn('masktrace', {net = net, owner = M.name}, listing.masktrace, staged.mask)
         end
     end
 end
@@ -446,9 +448,18 @@ M.commands = {
         end
         settings.tag = nil
     end),
-    oper_command('masktrace', '$g', 'mask', 'MASKTRACE a mask', function(ctx, mask)
+    oper_command('masktrace', '$g $R', '[nick!]user@host [realname]',
+        'MASKTRACE the users a mask matches, shown as a table',
+    function(ctx, mask, gecos)
         if ircd.hybrid(ctx.net) then error('OFTC hybrid has no MASKTRACE', 0) end
-        send.send(ctx.net, 'MASKTRACE', mask)
+        if not listing.masktrace_mask(mask) then error('not a [nick!]user@host mask: ' .. mask, 0) end
+        task.spawn('masktrace', {net = ctx.net, owner = M.name}, listing.masktrace, mask,
+            gecos ~= '' and gecos or nil)
+    end),
+    oper_command('etrace', '$R', '[-full|-v4|-v6|nick]', "ETRACE our server's users, or a nick, shown as a table",
+    function(ctx, arg)
+        if arg:find ' ' then error('one argument: ' .. arg, 0) end
+        task.spawn('etrace', {net = ctx.net, owner = M.name}, listing.etrace, arg ~= '' and arg or nil)
     end),
     oper_command('testline', '$g', 'mask', 'TESTLINE a mask', function(ctx, mask)
         send.send(ctx.net, 'TESTLINE', mask)

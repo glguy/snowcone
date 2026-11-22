@@ -220,7 +220,7 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 |---|---|---|
 | `chat` | | Chat buffers, talk mode, mentions, chat history, `/list` and the chat commands. |
 | `snotice` | | Parses server notices into the connection, exit, ban, channel and address-range views (cliconn, cliexit, connload, exitload, bans, channels, netcount), sets the snomask after opering, and runs watches. |
-| `oper` | `snotice` | The K-Line workflow (stage, test and send K-Lines, unklines and undlines), plus `/masktrace` and `/testline`. A staged K-Line is shown and sent from snotice's views. `/oper` doesn't need it. |
+| `oper` | `snotice` | The K-Line workflow (stage, test and send K-Lines, unklines and undlines), plus `/etrace`, `/masktrace` and `/testline`. A staged K-Line is shown and sent from snotice's views. `/oper` doesn't need it. |
 | `topology` | | Server populations from MAP, links from LINKS, versions, uptimes and DNS rotations, shown in the load views. With `snotice`, shedding and drain notices also update `/maintenance` as they happen. |
 
 An unknown feature name is an error, and so is a feature without the features it requires.

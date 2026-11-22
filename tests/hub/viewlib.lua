@@ -11,10 +11,11 @@ return function(T, here)
     fake_ncurses.install(150, 40)
     local ncurses = fake_ncurses.ncurses
 
-    local function boot(buffers, hide)
+    local function boot(buffers, hide, ircd)
         local fake = FakeTransport.new()
         T.boot {ui = true, transport = fake, config = {networks = {{
             id = 'test',
+            ircd = ircd,
             server = {host = 'test.example', port = 6667},
             identity = {nick = 'me'},
             servers_file = path.abspath(here .. '/fixtures/servers.toml'),

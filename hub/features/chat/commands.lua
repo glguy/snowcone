@@ -1,9 +1,10 @@
 -- Chat's commands: talking (/cmsg a private message shown in a channel),
--- buffers, channel information, WHO, WHOIS and WHOWAS, and our user modes; the
+-- buffers, channel information, WHO, WHOIS and WHOWAS, STATS and TRACE, and our user modes; the
 -- channel operator commands are in chat/modes.lua. Chat requires this module, so it passes itself in.
 
 local bus       <const> = require 'hub.runtime.bus'
 local irc_model <const> = require 'hub.net.irc'
+local listing   <const> = require 'hub.features.listing'
 local modes     <const> = require 'hub.features.chat.modes'
 local send      <const> = require 'hub.net.send'
 local task      <const> = require 'hub.runtime.task'
@@ -194,6 +195,19 @@ function M.commands(chat)
             bus.emit('chat.show_list', {net = ctx.net})
         end),
         who_command(chat),
+        chat.command('stats', '$g $R', 'letter [server]', "STATS a letter, of a server or ours, shown as tables",
+        function(ctx, letter, server)
+            -- the server takes the first byte, and names it in the end
+            if not letter:match '^%g$' then error('a STATS letter is one ASCII character: ' .. letter, 0) end
+            if server:find ' ' then error('one server: ' .. server, 0) end
+            task.spawn('stats', {net = ctx.net, owner = chat.name}, listing.stats, letter,
+                server ~= '' and server or nil)
+        end),
+        chat.command('trace', '$R', '[target]', 'TRACE a server or nick, or ours, shown as tables',
+        function(ctx, target)
+            if target:find ' ' then error('one target: ' .. target, 0) end
+            task.spawn('trace', {net = ctx.net, owner = chat.name}, listing.trace, target ~= '' and target or nil)
+        end),
         chat.command('whois', '$g', 'nick', 'WHOIS a nick, shown in the detail pane', function(ctx, nick)
             chat.whois(ctx.net, nick)
         end),

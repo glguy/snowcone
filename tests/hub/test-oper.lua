@@ -368,4 +368,185 @@ T.case('durations', function()
     T.eq(oper.get('test').settings.duration, '2d', '/duration')
 end)
 
+T.case('STATS gathers its replies until its letter ends, and keeps the errors the end follows', function()
+    local c = boot({'chat', 'snotice', 'oper'})
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'listing.ready', 'test', function(ev) table.insert(events, ev) end)
+    local function last(category) local l = T.log_lines(category) return l[#l] end
+
+    T.command 'stats k'
+    T.eq(c:take(), {'STATS k'}, 'sent')
+    c:recv ':srv 216 me k bad.example * ~u :spam|by alice'
+    c:recv ':srv 216 me k worse.example * * :flood'
+    c:recv ':srv 219 me k :End of /STATS report'
+    T.eq(#events, 1, 'emitted')
+    local l = events[1].listing
+    T.eq({l.kind, l.command, #l.messages, #l.errors}, {'stats', 'STATS k', 2, 0}, 'its replies')
+    T.eq(T.log_lines 'stats', {'STATS k: 2 replies'}, 'one line')
+
+    -- refused: the end follows the error
+    T.command 'stats z'
+    c:take()
+    c:recv ':srv 481 me :Permission Denied - You\'re not an IRC operator'
+    c:recv ':srv 219 me z :End of /STATS report'
+    T.eq({#events[2].listing.messages, #events[2].listing.errors}, {0, 1}, 'the error kept')
+    T.eq(last 'stats', 'STATS z: 0 replies, refused', 'said so')
+
+    -- disabled, and the end follows
+    T.command 'stats e'
+    c:take()
+    c:recv ':srv 517 me STATS e :This command has been administratively disabled'
+    c:recv ':srv 219 me e :End of /STATS report'
+    T.eq(#events[3].listing.errors, 1, 'disabled is kept')
+
+    -- another server's, which isn't there
+    T.command 'stats u far.example'
+    T.eq(c:take(), {'STATS u far.example'}, 'to a server')
+    c:recv ':srv 402 me other.example :No such server'
+    c:recv ':srv 402 me far.example :No such server'
+    T.eq(last 'stats', 'STATS u far.example: No such server', 'only its own error fails it')
+    T.eq(#events, 3, 'and opens nothing')
+
+    -- two at once without labels: the rows before another's end are its own
+    T.command 'stats K'
+    T.command 'stats o'
+    c:take()
+    c:recv ':srv 216 me K a.example * * :a'
+    c:recv ':srv 219 me K :End of /STATS report'
+    c:recv ':srv 243 me O *@* * alice admin -1'
+    c:recv ':srv 219 me o :End of /STATS report'
+    T.eq({#events[4].listing.messages, #events[5].listing.messages}, {1, 1}, 'each its own')
+    T.eq(events[5].listing.messages[1].command, 243, 'the O-line')
+
+    -- the same letter twice: each end goes to the first waiting
+    T.command 'stats q'
+    T.command 'stats q'
+    c:take()
+    c:recv ':srv 217 me q 1 first :x'
+    c:recv ':srv 219 me q :End of /STATS report'
+    c:recv ':srv 217 me q 1 second :x'
+    c:recv ':srv 219 me q :End of /STATS report'
+    T.eq({events[6].listing.messages[1][4], events[7].listing.messages[1][4]}, {'first', 'second'},
+        'in the order sent')
+
+    -- a server's answer is told from ours by its source, whichever comes first
+    T.command 'stats k far.example'
+    T.command 'stats k'
+    c:take()
+    c:recv ':srv 216 me k near.example * * :ours'
+    c:recv ':srv 219 me k :End of /STATS report'
+    c:recv ':far.example 216 me k remote.example * * :theirs'
+    c:recv ':far.example 219 me k :End of /STATS report'
+    T.eq({events[8].listing.command, events[8].listing.messages[1][3]}, {'STATS k', 'near.example'}, 'ours first')
+    T.eq({events[9].listing.command, events[9].listing.messages[1][3]}, {'STATS k far.example', 'remote.example'},
+        "then the server's")
+    T.eq(next(HUB.tasks), nil, 'finished')
+
+    T.command 'stats kk'
+    T.eq(c:take(), {}, 'a word is no letter')
+    T.ok(T.log_lines 'error'[1]:find 'one ASCII character', 'and says why')
+    T.command 'stats é'
+    T.eq(c:take(), {}, 'nor is a letter past ASCII, as the server names a byte')
+end)
+
+T.case('on OFTC hybrid, a STATS refused for load ends there', function()
+    local c = boot({'chat', 'snotice', 'oper'}, false, 'oftc-hybrid')
+    T.command 'stats k'
+    c:take()
+    c:recv ':srv 263 me STATS :Server load is temporarily too heavy. Please wait a while and try again.'
+    T.eq(T.log_lines 'stats', {'STATS k: Server load is temporarily too heavy. Please wait a while and try again.'},
+        'failed')
+    T.eq(next(HUB.tasks), nil, 'finished')
+end)
+
+T.case('TRACE, ETRACE and MASKTRACE end at RPL_ENDOFTRACE, each its own', function()
+    local c, oper = boot({'chat', 'snotice', 'oper'})
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'listing.ready', 'test', function(ev) table.insert(events, ev) end)
+    local function last(category) local l = T.log_lines(category) return l[#l] end
+
+    T.command 'trace'
+    T.eq(c:take(), {'TRACE'}, 'TRACE')
+    c:recv ':srv 204 me Oper opers alice[a@192.0.2.1] (192.0.2.1) 5 0'
+    c:recv ':srv 205 me User users bob[b@192.0.2.2] (192.0.2.2) 9 60'
+    c:recv ':srv 209 me Class users 1'
+    c:recv ':srv 262 me srv.example :End of TRACE'
+    T.eq(#events[1].listing.messages, 3, 'every row')
+
+    -- no such target: no end follows
+    T.command 'trace nowhere'
+    c:take()
+    c:recv ':srv 402 me nowhere :No such server'
+    T.eq(last 'trace', 'TRACE nowhere: No such server', 'failed')
+
+    -- an oper command's refusal isn't TRACE's
+    T.command 'trace'
+    c:take()
+    c:recv ':srv 481 me :Permission Denied'
+    c:recv ':srv 262 me srv.example :End of TRACE'
+    T.eq(#events, 2, 'still ended')
+
+    -- two traces at once: each end goes to the first waiting
+    T.command 'trace'
+    T.command 'etrace'
+    T.eq(c:take(), {'TRACE', 'ETRACE'}, 'both sent')
+    c:recv ':srv 205 me User users bob[b@192.0.2.2] (192.0.2.2) 9 60'
+    c:recv ':srv 262 me srv.example :End of TRACE'
+    c:recv ':srv 709 me User users bob b h.example 192.0.2.2 :Bob'
+    c:recv ':srv 262 me srv.example :End of TRACE'
+    T.eq({events[3].listing.kind, events[3].listing.messages[1].command}, {'trace', 205}, 'TRACE its own')
+    T.eq({events[4].listing.kind, events[4].listing.messages[1].command}, {'etrace', 709}, 'ETRACE its own')
+
+    T.command 'etrace -full'
+    T.eq(c:take(), {'ETRACE -full'}, 'ETRACE')
+    c:recv ':srv 708 me User users bob b h.example 192.0.2.2 cap-notify :Bob'
+    c:recv ':srv 262 me srv.example :End of TRACE'
+    T.eq(#events[5].listing.messages, 1, 'its row')
+
+    -- anything but its options is a nick
+    T.command 'etrace -ful'
+    c:take()
+    c:recv ':srv 401 me -ful :No such nick/channel'
+    T.eq(last 'etrace', 'ETRACE -ful: No such nick/channel', 'no such nick')
+
+    T.command 'masktrace *@h.example Bob*'
+    T.eq(c:take(), {'MASKTRACE *@h.example Bob*'}, 'MASKTRACE with a realname')
+    c:recv ':srv 709 me User leaf.example bob b h.example 192.0.2.2 :Bob'
+    c:recv ':srv 262 me srv.example :End of TRACE'
+    T.eq({#events[6].listing.messages, events[6].listing.relabel}, {1, {class = 'server'}}, 'the server in the class')
+
+    local listing = T.require 'hub.features.listing'
+    T.eq({listing.masktrace_mask 'n!u@h', listing.masktrace_mask 'u@h!x', listing.masktrace_mask '*!@h',
+        listing.masktrace_mask 'u@', listing.masktrace_mask 'nobody'}, {true, true, false, false, false},
+        'masks as the server splits them')
+    T.command 'masktrace nobody'
+    T.eq(c:take(), {}, 'a mask MASKTRACE refuses sends nothing')
+    T.ok(T.log_lines 'error'[1]:find('not a [nick!]user@host mask', 1, true), 'and says why')
+
+    -- the staged K-Line's trace opens the table too
+    oper.prepare_kline('test', 'n', '~u', 'h.example', '192.0.2.9')
+    c:take()
+    oper.trace('test')
+    T.eq(c:take(), {'MASKTRACE *@192.0.2.9'}, 'the staged mask')
+    c:recv ':srv 262 me srv.example :End of TRACE'
+    T.eq(#events, 7, 'shown')
+    for _, t in pairs(HUB.tasks) do T.ok(t.name ~= 'masktrace', 'finished') end
+end)
+
+T.case('with labeled-response a listing takes its own reply', function()
+    local c = boot({'chat', 'snotice', 'oper'}, true)
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'listing.ready', 'test', function(ev) table.insert(events, ev) end)
+    T.command 'trace'
+    local sent = c:take()[1]
+    local label = sent:match '^@label=([^ ]+) TRACE$'
+    T.ok(label, 'labeled')
+    c:recv('@label=' .. label .. ' :srv BATCH +b labeled-response')
+    c:recv '@batch=b :srv 205 me User users bob[b@192.0.2.2] (192.0.2.2) 9 60'
+    c:recv '@batch=b :srv 262 me srv.example :End of TRACE'
+    c:recv ':srv BATCH -b'
+    T.eq(#events[1].listing.messages, 1, 'its rows')
+    T.eq(next(HUB.tasks), nil, 'finished')
+end)
+
 T.run()
