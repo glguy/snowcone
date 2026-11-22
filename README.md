@@ -136,14 +136,14 @@ Some things to know:
   its modes, scroll position and filter.
 - The detail pane at the top shows one thing in full: click a log line
   marked ▸, a message in a buffer or the console, or a channel name, or
-  use `/whois`, `/whowas`, `/chaninfo`, `/quote` or `/eval`. It is as
+  use `/who`, `/whois`, `/whowas`, `/chaninfo`, `/quote` or `/eval`. It is as
   tall as its content, up to half the screen. Its rule has [CLOSE],
   ←BACK after a click inside it, and [DISCARD], which also drops it from
   the log lines that hold it.
 - While the pane is open, Esc closes it first (outside input modes), the
   paging keys and the wheel over it scroll it, and Left and Right scroll
-  a wide one (`/quote` replies, `/eval` values). Ctrl-S and `/filter`
-  filter the channel, `/quote` and WHOWAS panes instead of the view.
+  a wide one (`/quote` replies, `/eval` values, WHO tables). Ctrl-S and `/filter`
+  filter the channel, `/quote`, WHO and WHOWAS panes instead of the view.
 - Meta-P opens the formatting palette.
 
 Plugins are Lua files in `~/.config/snowcone/plugins/`, listed in

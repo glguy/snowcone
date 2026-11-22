@@ -1,5 +1,5 @@
 -- Chat's commands: talking (/cmsg a private message shown in a channel),
--- buffers, channel information, WHOIS and WHOWAS, and our user modes; the
+-- buffers, channel information, WHO, WHOIS and WHOWAS, and our user modes; the
 -- channel operator commands are in chat/modes.lua. Chat requires this module, so it passes itself in.
 
 local bus       <const> = require 'hub.runtime.bus'
@@ -7,6 +7,7 @@ local irc_model <const> = require 'hub.net.irc'
 local modes     <const> = require 'hub.features.chat.modes'
 local send      <const> = require 'hub.net.send'
 local task      <const> = require 'hub.runtime.task'
+local who       <const> = require 'hub.features.chat.who'
 local whowas    <const> = require 'hub.features.chat.whowas'
 
 local M = {}
@@ -36,6 +37,61 @@ local function close_command(chat)
         local starts = chat.name_matcher(ctx.net, seed)
         for _, buffer in pairs(chat.get(ctx.net).buffers) do
             if starts(buffer.name) then table.insert(t, buffer.name) end
+        end
+        return t
+    end
+    return cmd
+end
+
+local function who_command(chat)
+    local cmd = chat.command('who', '$g $R', 'mask [options]',
+        'WHO a channel, nick or mask; options are o for operators only, then a WHOX %format',
+    function(ctx, mask, options)
+        if options:find ' ' then error('options are one word: ' .. options, 0) end
+        -- a server without WHOX would answer a format with the plain
+        -- reply, not the one asked for, and reads a +flags or -flags
+        -- mask as a search whose end the task can't tell
+        local irc = model(ctx.net)
+        if irc and not irc.isupport.WHOX then
+            if select(2, who.parse_options(options)) then
+                error(ctx.net .. ' does not support WHOX formats', 0)
+            elseif mask:find '^[+-]' then
+                error(ctx.net .. ' reads ' .. mask .. ' as a search by flags; send it with /quote WHO', 0)
+            end
+        end
+        task.spawn('who', {net = ctx.net, owner = chat.name}, who.run, mask, options ~= '' and options or nil)
+    end)
+
+    -- Tab on the options offers formats for what a WHO is mostly for:
+    -- every field (bar the token and oplevel), who's who and addresses;
+    -- and o, alone or with every field, for operators only. The address is asked for only while
+    -- we're opered, as the server hides it from the rest, and the
+    -- channel not for a channel's WHO, as it would be the same on every
+    -- row. A server without WHOX takes o only after the mask 0.
+    function cmd.complete(ctx, before, seed)
+        local words = {}
+        for word in before:gmatch '%g+' do table.insert(words, word) end
+        if #words == 0 then return nil end -- the mask: nicks and channels
+        if #words > 1 then return {} end
+        local irc = model(ctx.net)
+        if not irc then return {} end
+        local mask = words[1]
+        local offered
+        if not irc.isupport.WHOX then
+            offered = mask == '0' and {'o'} or {}
+        else
+            local channel = irc_model.is_channel_name(irc, mask:match '^!(.+)$' or mask)
+            local function format(letters)
+                if channel then letters = letters:gsub('c', '') end
+                if not irc.mode.o then letters = letters:gsub('i', '') end
+                return '%' .. letters
+            end
+            local all = format 'cuihsnfdlar'
+            offered = {all, format 'cnfar', format 'nuihar', 'o', 'o' .. all}
+        end
+        local t = {}
+        for _, option in ipairs(offered) do
+            if option:sub(1, #seed) == seed then table.insert(t, option) end
         end
         return t
     end
@@ -137,6 +193,7 @@ function M.commands(chat)
             end
             bus.emit('chat.show_list', {net = ctx.net})
         end),
+        who_command(chat),
         chat.command('whois', '$g', 'nick', 'WHOIS a nick, shown in the detail pane', function(ctx, nick)
             chat.whois(ctx.net, nick)
         end),

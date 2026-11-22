@@ -180,6 +180,169 @@ T.case('whowas gathers every past entry, and reports failures', function()
     T.ok(T.log_lines 'error'[1]:find 'count must be a positive number', 'and says why')
 end)
 
+T.case('who reads its options as Solanum does', function()
+    boot()
+    local who = T.require 'hub.features.chat.who'
+    local function parse(options) return {who.parse_options(options)} end
+    T.eq(parse(nil), {false}, 'none')
+    T.eq(parse 'o', {true}, 'operators only')
+    T.eq(parse '%rnct,42', {false, {'t', 'c', 'n', 'r'}, '42'}, 'fields in reply order, and the token')
+    T.eq(parse 'o%na', {true, {'n', 'a'}}, 'o then a format; no t, no token')
+    T.eq(parse '%tn', {false, {'t', 'n'}, '0'}, 'a missing token is 0')
+    T.eq(parse '%tn,1234', {false, {'t', 'n'}, '0'}, 'as is one too long')
+    T.eq(parse '%xyz', {false}, 'no field letters is no format')
+end)
+
+T.case('who gathers a plain or WHOX reply, and reports failures', function()
+    local c = boot()
+    c:recv ':srv 005 me BOT=B PREFIX=(ov)@+ WHOX :are supported'
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'chat.who', 'test', function(ev) table.insert(events, ev) end)
+
+    T.command 'who #chan'
+    T.eq(c:take(), {'WHO #chan'}, 'one argument')
+    c:recv ':srv 352 me #chan ~a a.example srv.example alice H@ :0 Alice A'
+    c:recv ':srv 352 me #chan b b.example far.example bob GB*+ :2 Bob'
+    c:recv ':srv 315 me #chan :End of /WHO list.'
+    T.eq(#events, 1, 'emitted')
+    local w = events[1].who
+    T.eq(w.fields, {'c', 'u', 'h', 's', 'n', 'f', 'd', 'r'}, 'the fields of a 352')
+    local alice, bob = w.rows[1], w.rows[2]
+    T.eq({alice.nick, alice.user, alice.hops, alice.realname, alice.away, alice.bot, alice.oper, alice.prefixes},
+        {'alice', '~a', 0, 'Alice A', false, false, false, '@'}, 'alice')
+    T.eq({bob.server, bob.hops, bob.away, bob.bot, bob.oper, bob.prefixes},
+        {'far.example', 2, true, true, true, '+'}, 'bob: away, bot, oper and voiced')
+    T.eq(T.log_lines 'who', {'who #chan: 2 users'}, 'one line')
+    T.eq(next(HUB.tasks), nil, 'finished')
+
+    T.command 'who alice %tcuihsnfdlaor,42'
+    T.eq(c:take(), {'WHO alice %tcuihsnfdlaor,42'}, 'two arguments')
+    c:recv ':srv 354 me 696 x 192.0.2.1 x.example alice' -- another WHO's
+    c:recv ':srv 354 me 42 * ~a 255.255.255.255 a.example srv.example alice H 0 75 0 n/a :Alice A'
+    c:recv ':srv 315 me alice :End of /WHO list.'
+    w = events[2].who
+    T.eq(#w.rows, 1, 'only its own token')
+    alice = w.rows[1]
+    T.eq({alice.channel, alice.ip, alice.account, alice.idle, alice.oplevel, alice.realname, alice.token},
+        {nil, nil, nil, 75, 'n/a', 'Alice A', nil}, 'none is nil')
+    T.eq(w.token, '42', 'the token')
+
+    -- operspy: the end names the channel without its !
+    T.command 'who !#secret %na'
+    T.eq(c:take(), {'WHO !#secret %na'}, 'operspy')
+    c:recv ':srv 354 me carol acct'
+    c:recv ':srv 315 me #secret :End of /WHO list.'
+    T.eq(events[3].who.rows[1].account, 'acct', 'read without a token')
+
+    -- a mask's runs of * are collapsed in the end
+    T.command 'who **.example'
+    c:take()
+    c:recv ':srv 315 me *.example :End of /WHO list.'
+    T.eq(#events[4].who.rows, 0, 'ended, empty')
+
+    -- without operspy the ! stays in the mask, and in the end
+    T.command 'who !foo'
+    c:take()
+    c:recv ':srv 315 me !foo :End of /WHO list.'
+    T.eq(#events, 5, 'a ! mask as sent ends it')
+
+    -- two WHOs at once: the rows before the first's end are its own
+    T.command 'who #a'
+    T.command 'who #b'
+    T.eq(c:take(), {'WHO #a', 'WHO #b'}, 'both sent')
+    c:recv ':srv 352 me #a a a.example srv.example alice H :0 Alice'
+    c:recv ':srv 315 me #a :End of /WHO list.'
+    c:recv ':srv 352 me #b b b.example srv.example bob H :0 Bob'
+    c:recv ':srv 315 me #b :End of /WHO list.'
+    T.eq({events[6].who.mask, #events[6].who.rows, events[6].who.rows[1].nick}, {'#a', 1, 'alice'}, '#a its own')
+    T.eq({events[7].who.mask, #events[7].who.rows, events[7].who.rows[1].nick}, {'#b', 1, 'bob'}, '#b its own')
+
+    -- another WHO's 354s, before its end, aren't taken for rows of a
+    -- format without a token
+    local lookup = T.require 'hub.features.lookup'
+    local task = T.require 'hub.runtime.task'
+    task.spawn('lookup', {net = 'test'}, lookup, 'xnick')
+    T.command 'who #c %cnf'
+    T.eq(c:take(), {'WHO xnick %tuihn,696', 'WHO #c %cnf'}, 'both sent')
+    c:recv ':srv 354 me 696 ~x 192.0.2.1 x.example xnick'
+    c:recv ':srv 315 me xnick :End of /WHO list.'
+    c:recv ':srv 354 me #c carol H@'
+    c:recv ':srv 315 me #c :End of /WHO list.'
+    T.eq({#events[8].who.rows, events[8].who.rows[1].nick}, {1, 'carol'}, 'only its own')
+    T.eq(next(HUB.tasks), nil, 'both finished')
+
+    -- a server without WHOX ends a channel that doesn't exist this way
+    T.command 'who #nope'
+    c:take()
+    c:recv ':srv 403 me #nope :No such channel'
+    T.eq(T.log_lines 'who'[#T.log_lines 'who'], 'who #nope: no such channel', 'no such channel')
+    T.eq(next(HUB.tasks), nil, 'finished')
+
+    -- a server's limit of matches marks the WHO truncated: Solanum's,
+    -- then OFTC hybrid's
+    T.command 'who *.example'
+    c:take()
+    c:recv ':srv 352 me * a a.example srv.example alice H :0 Alice'
+    c:recv ':srv 416 me WHO :output too large, truncated'
+    c:recv ':srv 315 me *.example :End of /WHO list.'
+    T.eq({#events[9].who.rows, events[9].who.truncated}, {1, true}, 'truncated')
+    T.eq(T.log_lines 'who'[#T.log_lines 'who'], 'who *.example: 1 user, truncated', 'and says so')
+    T.command 'who 0'
+    c:take()
+    c:recv ':srv 523 me 500 :WHO search limit exceeded.'
+    c:recv ':srv 315 me * :End of /WHO list.'
+    T.eq(events[10].who.truncated, true, "OFTC's")
+    T.eq(T.require 'hub.ui.details.who'.modes {data = events[10].who}, {'truncated'}, 'shown on the rule')
+
+    T.command 'who #big o'
+    c:take()
+    c:recv ':srv 263 me WHO :Server load is temporarily too heavy.'
+    T.eq(T.log_lines 'who'[#T.log_lines 'who'], 'who #big failed: Server load is temporarily too heavy.', 'refused')
+    T.eq(#events, 10, 'failures open nothing')
+    T.eq(next(HUB.tasks), nil, 'finished')
+
+    T.command 'who alice %n extra'
+    T.eq(c:take(), {}, 'a third word sends nothing')
+    T.ok(T.log_lines 'error'[1]:find 'options are one word', 'and says why')
+
+    -- a format goes only to a server that says it has WHOX
+    c:recv ':srv 005 me -WHOX :are supported'
+    T.command 'who #chan %cnf'
+    T.eq(c:take(), {}, 'no WHOX, no format sent')
+    T.ok(T.log_lines 'error'[2]:find 'test does not support WHOX formats', 'and says why')
+    T.command 'who +n alice'
+    T.eq(c:take(), {}, 'nor a search by flags')
+    T.ok(T.log_lines 'error'[3]:find('reads +n as a search by flags', 1, true), 'and says why')
+
+    -- there o lists only operators with the mask 0
+    T.command 'who 0 o'
+    T.eq(c:take(), {'WHO 0 o'}, 'options without a format still go')
+    c:recv ':srv 315 me * :End of /WHO list.'
+    T.eq(events[#events].who.opers_only, true, 'operators only with 0')
+    T.command 'who #chan o'
+    c:take()
+    c:recv ':srv 315 me #chan :End of /WHO list.'
+    T.eq(events[#events].who.opers_only, false, 'not with a channel')
+end)
+
+T.case("Tab on who's options offers formats that fit the mask and our modes", function()
+    local c = boot()
+    c:recv ':srv 005 me WHOX :are supported'
+    T.eq(T.complete_args('who ', 'al'), nil, 'the mask: the default, nicks and channels')
+    T.eq(T.complete_args('who alice ', ''), {'%cuhsnfdlar', '%cnfar', '%nuhar', 'o', 'o%cuhsnfdlar'},
+        'no address while not opered')
+    T.eq(T.complete_args('who #chan ', ''), {'%uhsnfdlar', '%nfar', '%nuhar', 'o', 'o%uhsnfdlar'},
+        "no channel for a channel's WHO")
+    T.eq(T.complete_args('who !#chan ', 'o'), {'o', 'o%uhsnfdlar'}, 'operspy too, and the seed narrows')
+    c:recv ':me MODE me :+o'
+    T.eq(T.complete_args('who *.example ', '%n'), {'%nuihar'}, 'the address while opered')
+    T.eq(T.complete_args('who alice %cn ', ''), {}, 'nothing past the options')
+
+    c:recv ':srv 005 me -WHOX :are supported'
+    T.eq(T.complete_args('who 0 ', ''), {'o'}, 'without WHOX, o after 0')
+    T.eq(T.complete_args('who alice ', ''), {}, 'and nothing elsewhere')
+end)
+
 T.case("an error about a change in a channel shows in its buffer", function()
     local c, chat = boot()
     c:recv ':me!u@h JOIN #c'

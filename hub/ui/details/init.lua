@@ -43,6 +43,7 @@ for _, m in ipairs {
     require 'hub.ui.details.message',
     require 'hub.ui.details.reply',
     require 'hub.ui.details.value',
+    require 'hub.ui.details.who',
     require 'hub.ui.details.whois',
     require 'hub.ui.details.whowas',
 } do

@@ -57,13 +57,13 @@ USING HUB
   it in the detail pane, or a [+N more] button to expand a list.
 
   The detail pane opens above the view to show one thing in full: a
-  message, a /whois or /whowas reply, or a channel's topic, modes and
-  members (/chaninfo). Clicking a buffer's name in the status bar opens
-  a channel's information or a nick's /whois. A status line that starts
-  with ▸ opens what it summarizes. While the pane is open it takes the
-  scrolling keys; Esc or its [CLOSE] closes it, and [DISCARD] also drops
-  it from the status lines that would reopen it. The mouse wheel scrolls
-  the pane or the view, whichever it is over.
+  message, a /who table, a /whois or /whowas reply, or a channel's
+  topic, modes and members (/chaninfo). Clicking a buffer's name in the
+  status bar opens a channel's information or a nick's /whois. A status
+  line that starts with ▸ opens what it summarizes. While the pane is
+  open it takes the scrolling keys; Esc or its [CLOSE] closes it, and
+  [DISCARD] also drops it from the status lines that would reopen it.
+  The mouse wheel scrolls the pane or the view, whichever it is over.
 
 KEYS
   /            Type a command
@@ -72,7 +72,7 @@ KEYS
   T            Send a notice to the shown chat buffer
   n, p         Next and previous chat buffer, in the buffer view
   C-s          Filter the current view, or the detail pane when it shows
-               a /quote reply, a /whowas or a channel
+               a /quote reply, a /who, a /whowas or a channel
   Esc          Close the detail pane; else leave input, clear filters and
                scrolling
   C-n, C-p     Next and previous view of the rotation

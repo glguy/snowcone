@@ -494,6 +494,32 @@ T.case('a WHOWAS opens in the detail pane', function()
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case('a WHO opens in the detail pane as a table', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:recv ':srv 005 me BOT=B WHOX :are supported'
+    c:take()
+    cmdline.execute 'who #chan %tcuinfdlar,7'
+    T.eq(c:take(), {'WHO #chan %tcuinfdlar,7'}, 'sent')
+    c:recv ':srv 354 me 7 #chan ~a 255.255.255.255 alice H@ 0 0 acct :Alice A'
+    c:recv ':srv 354 me 7 #chan b 255.255.255.255 bob GB 1 300 0 :Bob'
+    c:recv ':srv 315 me #chan :End of /WHO list.'
+    local detail = control.detail()
+    T.eq({detail.kind, detail.net, #detail.data.rows}, {'who', 'test', 2}, 'shown')
+    local text = detail_text()
+    T.ok(text:find('nick  status channel user ip hops idle account realname', 1, true), 'a header per field given')
+    T.ok(text:find('alice H@     #chan   ~a   -  0    -    acct    Alice A', 1, true), 'none and 0 idle are -')
+    T.ok(text:find('bob   GB     #chan   b    -  1    5m   -       Bob', 1, true), 'idle as a duration')
+    T.ok(text:find('who #chan %tcuinfdlar,7 (2 users)', 1, true), 'the title')
+
+    control.set_filter('detail', 'Bob')
+    text = detail_text()
+    T.ok(not text:find 'alice H@', 'filtered out')
+    T.ok(text:find('1 of 2 users match', 1, true), 'counted')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.case('a WHOIS opens in the detail pane, and from its status line', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
