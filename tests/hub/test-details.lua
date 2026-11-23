@@ -910,6 +910,48 @@ T.case('a labeled /quote shows its reply batch in the detail pane', function()
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case("a /quote's reply shows as tables at [TABLE], and back at [RAW]", function()
+    local c = boot_labeled()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    control.set_view 'status'
+
+    cmdline.execute 'quote STATS k'
+    c:take()
+    T.ok(not detail_text():find('[TABLE]', 1, true), 'no button while waiting')
+    c:recv '@label=sc1 :srv BATCH +s labeled-response'
+    c:recv '@batch=s :srv 216 me K bad.example * ~u :spam|by alice'
+    c:recv '@batch=s :srv 219 me k :End of /STATS report'
+    c:recv '@batch=s :srv NOTICE me :a notice'
+    c:recv ':srv BATCH -s'
+
+    local function click(button)
+        HUB.current.routes['ui.draw']()
+        local top = rows_of(detail_pad())[0]
+        local at = top:find(button, 1, true)
+        if not at then error('no button ' .. button .. ' in ' .. top) end
+        HUB.current.routes['ui.entry']('on_mouse', 0, utf8.len(top, 1, at), false)
+    end
+    click '[TABLE]'
+    local text = detail_text()
+    T.ok(text:find('[RAW] >>> STATS k', 1, true), 'the line sent, and the way back')
+    T.ok(text:find('type   host        user reason oper reason', 1, true), 'a table per reply, by its fields')
+    T.ok(text:find('K-Line bad.example ~u   spam   by alice', 1, true), 'read as STATS reads it')
+    T.ok(text:find('RPL_ENDOFSTATS 219', 1, true), 'the end, a table of its own')
+    T.ok(text:find('NOTICE  1', 1, true) and text:find('me a notice', 1, true),
+        'a command, its arguments as text')
+
+    local reply = control.detail().data
+    local view = reply.view
+    detail_text()
+    T.ok(reply.view == view, 'the tables kept on the reply')
+
+    click '[RAW]'
+    text = detail_text()
+    T.ok(text:find('[TABLE] >>> STATS k', 1, true) and text:find('216 RPL_STATSKLINE K bad.example', 1, true), 'raw again')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.case('a long reply draws the rows shown, all the way to its end', function()
     local c = boot_labeled()
     local control = T.require 'hub.ui.control'

@@ -145,7 +145,9 @@ Some things to know:
   paging keys and the wheel over it scroll it, and Left and Right scroll
   a wide one (`/quote` replies, `/eval` values, the WHO, STATS and trace
   tables, whose headers stay at the top as their rows scroll). Ctrl-S and `/filter` filter the channel, `/quote`, WHO,
-  WHOWAS, STATS and trace panes instead of the view.
+  WHOWAS, STATS and trace panes instead of the view. A `/quote` reply's
+  [TABLE] shows it as those tables, a column per field, and [RAW] goes
+  back.
 - Meta-P opens the formatting palette.
 
 Plugins are Lua files in `~/.config/snowcone/plugins/`, listed in

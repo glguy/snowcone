@@ -18,6 +18,8 @@ local M = {}
 --- connection ended first
 ---@field messages hub.Message[] the labeled reply: a batch's messages, one
 --- message, or an ACK
+---@field view table|nil the UI's tables of the reply, worked out once
+--- (ui/details/listing.lua)
 
 -- How long a /quote waits for its labeled reply
 local quote_timeout <const> = 30000

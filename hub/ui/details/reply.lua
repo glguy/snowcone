@@ -2,10 +2,15 @@
 -- the detail pane: the line sent, then one row per reply message. Click a
 -- sender to inspect that message, as in a buffer or the console; [BACK]
 -- returns here, scrolled as it was. The filter (Ctrl-S, /filter) shows only the messages that match.
+--
+-- [TABLE] shows the reply as tables instead (ui/details/listing.lua), a
+-- table per kind of reply with a column per field, and [RAW] goes back;
+-- the detail keeps which, in vs.table, and the reply the tables.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
 local control   <const> = require 'hub.ui.control'
 local draw      <const> = require 'hub.ui.draw'
+local listing   <const> = require 'hub.ui.details.listing'
 local matching  <const> = require 'hub.lib.matching'
 local message   <const> = require 'hub.ui.details.message'
 local scrub     <const> = require 'hub.lib.scrub'
@@ -69,6 +74,31 @@ function M.rows(ctx)
     local state = state_text[reply.state]
     local pattern = control.filter(ctx.id)
 
+    -- the line sent, with the button that switches the view of its reply
+    local function draw_line(win)
+        if reply.messages[1] then
+            ctx.add_button(win, ctx.vs.table and '[RAW]' or '[TABLE]', function()
+                ctx.vs.table = not ctx.vs.table or nil
+            end)
+            win:waddstr ' '
+        end
+        draw.blue(win)
+        win:waddstr '>>> '
+        draw.normal(win)
+        win:waddstr(scrub(reply.line))
+    end
+    local function draw_state(win)
+        draw.yellow(win)
+        win:waddstr(state)
+        draw.normal(win)
+    end
+
+    if ctx.vs.table and reply.messages[1] then
+        local before = {{1, draw_line}}
+        if state then table.insert(before, {1, draw_state}) end
+        return listing.runs(ctx, {holder = reply, messages = reply.messages, before = before})
+    end
+
     local shown = reply.messages
     if pattern then
         -- the matches are kept with the detail, for this pattern and these
@@ -91,14 +121,9 @@ function M.rows(ctx)
     local head = state and 2 or 1
     return head + #shown + (pattern and 1 or 0), function(win, i)
         if i == 1 then
-            draw.blue(win)
-            win:waddstr '>>> '
-            draw.normal(win)
-            win:waddstr(scrub(reply.line))
+            draw_line(win)
         elseif i <= head then
-            draw.yellow(win)
-            win:waddstr(state)
-            draw.normal(win)
+            draw_state(win)
         elseif i <= head + #shown then
             draw_message(ctx, win, shown[i - head])
         else

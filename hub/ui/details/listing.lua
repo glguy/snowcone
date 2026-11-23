@@ -1,20 +1,21 @@
 -- A listing (hub.Listing, features/listing.lua: STATS, TRACE, ETRACE,
 -- MASKTRACE) in the detail pane: the errors the server gave, then a table
 -- (ui/table.lua) per kind of reply, in the order they first came, each
--- under its numeric and how many there are.
+-- under its numeric and how many there are. M.runs draws any replies so,
+-- as a /quote's table view does (ui/details/reply.lua).
 --
 -- A table's columns are the reply's fields as the network names them
 -- (ui/details/solanum.lua or hybrid.lua), its values read for what they
 -- mean: times as dates, seconds and minutes as durations, ban types by
 -- name, a reason apart from its oper reason, an address the server won't
--- give as "-". Auth blocks (STATS I) have
--- their flags read out, and links (STATS L) the times their last
--- argument holds. A reply the network doesn't name the fields of is one
--- column of text.
+-- give as "-". Auth blocks (STATS I) have their flags read out, and links
+-- (STATS L) the times their last argument holds. A reply the network
+-- doesn't name the fields of is one column of text: its arguments, after
+-- our nick for a numeric.
 --
 -- The rows, their cells and the tables are worked out once and kept on
--- the listing: a STATS can have tens of thousands of rows, and only those
--- shown are drawn. The filter (Ctrl-S, /filter) shows the rows with a
+-- the listing, for its list of messages: a STATS can have tens of
+-- thousands of rows, and only those shown are drawn. The filter (Ctrl-S, /filter) shows the rows with a
 -- cell that matches.
 
 local control <const> = require 'hub.ui.control'
@@ -184,9 +185,9 @@ special[N.RPL_STATSLINKINFO] = function()
 end
 
 -- A reply the network names no fields of: its arguments as text
-local function plain()
+local function plain(first)
     return {column(1, 'text', true)}, function(msg)
-        return {nonempty(table.concat(msg, ' ', 2))}
+        return {nonempty(table.concat(msg, ' ', first))}
     end
 end
 
@@ -196,36 +197,39 @@ end
 -- again by the code loaded
 local version <const> = {}
 
---- The listing's sections, worked out once: {numeric, name, columns,
---- rows}, a row the cells of a reply.
+--- The sections of messages, worked out once and kept on holder for
+--- those messages: {numeric, name, columns, rows}, a row the cells of a
+--- reply.
 ---@param net string|nil
----@param l hub.Listing
-local function sections_of(net, l)
-    local view = l.view
-    if view and view.version == version then return view.sections end
+---@param holder table
+---@param messages hub.Message[]
+---@param relabel table<string, string>|nil
+local function sections_of(net, holder, messages, relabel)
+    local view = holder.view
+    if view and view.version == version and view.messages == messages then return view.sections end
     local meant = message.meaning(net)
-    local sections, by_numeric = {}, {}
-    for _, msg in ipairs(l.messages) do
+    local sections, by_command = {}, {}
+    for _, msg in ipairs(messages) do
         local n = msg.command
-        local section = by_numeric[n]
+        local section = by_command[n]
         if not section then
             local make = special[n]
             local columns, convert
             if make then
                 columns, convert = make(meant)
             elseif meant.fields[n] then
-                columns, convert = by_fields(meant, meant.fields[n], l.relabel)
+                columns, convert = by_fields(meant, meant.fields[n], relabel)
             else
-                columns, convert = plain()
+                columns, convert = plain(type(n) == 'number' and 2 or 1)
             end
-            section = {numeric = n, name = message.numeric_name(net, n), columns = columns,
+            section = {command = n, name = message.numeric_name(net, n), columns = columns,
                 convert = convert, rows = {}}
-            by_numeric[n] = section
+            by_command[n] = section
             table.insert(sections, section)
         end
         table.insert(section.rows, section.convert(msg))
     end
-    l.view = {version = version, sections = sections}
+    holder.view = {version = version, messages = messages, sections = sections}
     return sections
 end
 
@@ -242,15 +246,21 @@ local function draw_error(ctx, win, msg)
     draw.normal(win)
 end
 
--- One row each: the errors, then for each section with rows shown a blank
--- row between, its heading, its header and its rows; a note when there
--- are no replies or none match; with a filter how many match. A section's
--- header stays above its rows scrolled under it.
-function M.rows(ctx)
-    ---@type hub.Listing
-    local l = ctx.vs.data
+--- The rows of messages as tables, for a kind's rows(ctx): rows given
+--- to go first, each {count, draw(win, j)}; the errors; then for each
+--- section with rows shown a blank row between, its heading, its header
+--- and its rows; a note when there are no replies or none match; with a
+--- filter how many match. A section's header stays above its rows
+--- scrolled under it. The tables are kept on holder.
+---@param ctx hub.ViewContext
+---@param opts {holder: table, messages: hub.Message[], errors: hub.Message[]|nil,
+--- relabel: table<string, string>|nil, before: table[]|nil}
+---@return integer count
+---@return fun(win: ncurses.Window, i: integer) draw
+---@return fun(i: integer): fun(win: ncurses.Window)|nil pinned
+function M.runs(ctx, opts)
     local pattern = control.filter(ctx.id)
-    local sections = sections_of(ctx.net, l)
+    local sections = sections_of(ctx.net, opts.holder, opts.messages, opts.relabel)
 
     -- the rows in runs, each {count, draw(win, j), layout}: a run of a
     -- section's rows has its layout, for the header to pin
@@ -258,7 +268,9 @@ function M.rows(ctx)
     local function run(count, f, layout)
         if count > 0 then table.insert(runs, {count, f, layout}) end
     end
-    run(#l.errors, function(win, j) draw_error(ctx, win, l.errors[j]) end)
+    for _, r in ipairs(opts.before or {}) do run(r[1], r[2]) end
+    local errors = opts.errors or {}
+    run(#errors, function(win, j) draw_error(ctx, win, errors[j]) end)
 
     local matched = 0
     for _, section in ipairs(sections) do
@@ -269,9 +281,9 @@ function M.rows(ctx)
             run(1, function(win)
                 draw.green(win)
                 draw.bold(win)
-                win:waddstr(scrub(section.name or tostring(section.numeric)))
+                win:waddstr(scrub(section.name or tostring(section.command)))
                 draw.normal(win)
-                win:waddstr(string.format(' %s', tostring(section.numeric)))
+                if section.name then win:waddstr(' ', tostring(section.command)) end
                 draw.black(win)
                 win:waddstr(pattern and string.format('  %d of %d', #shown, #section.rows)
                     or string.format('  %d', #section.rows))
@@ -282,7 +294,7 @@ function M.rows(ctx)
         end
     end
 
-    local total = #l.messages
+    local total = #opts.messages
     if matched == 0 then
         run(1, function(win)
             draw.yellow(win)
@@ -314,6 +326,12 @@ function M.rows(ctx)
             i = i - r[1]
         end
     end
+end
+
+function M.rows(ctx)
+    ---@type hub.Listing
+    local l = ctx.vs.data
+    return M.runs(ctx, {holder = l, messages = l.messages, errors = l.errors, relabel = l.relabel})
 end
 
 return M
