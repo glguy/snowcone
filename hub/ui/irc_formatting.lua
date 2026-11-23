@@ -76,14 +76,17 @@ return function(win, str, edit, wrap)
 
     -- Different colors that come out the same on this terminal show the
     -- background as the default; the same color sent for both is meant to
-    -- hide the text, and stays. 99 is the default too.
+    -- hide the text, and stays. 99 is the default too. On a window's base
+    -- (a band of color), text that comes out as the band's color is drawn
+    -- in the base's text color.
     local function set_colors(fore_override)
         local count = ncurses.COLORS
         local fore = fore_override
             or (foreground == nil or foreground == 99) and default or terminal(foreground, count)
-        local back = background == nil and base_back or terminal(background, count)
+        local back = (background == nil or background == 99) and base_back or terminal(background, count)
         if fore == back and foreground ~= background then
             back = base_back or -1
+            if fore == back then fore = base_fore end
         end
         ncurses.colorset(fore, back, win)
     end

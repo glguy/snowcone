@@ -125,7 +125,7 @@ In TOML, tables such as `[networks.server]` and `[[networks.layers]]` belong to 
 | Field | Default | Meaning |
 |---|---|---|
 | `profile` | `'all'` | The view rotation for Ctrl-N/Ctrl-P: `'dashboard'`, `'chat'` or `'all'`. `/profile` changes it until the configured value next changes. |
-| `theme` | `'modern'` | The status bar's colors: `'modern'` draws it as a band of dark gray on terminals of 256 colors or more; `'classic'` leaves it on the terminal's background. |
+| `theme` | `'modern'` | The look of the screen's chrome. `'modern'`, on terminals of 256 colors or more, draws the status bar and the detail pane's rule as bands of dark gray (the rule with ✕ to close at the left), buttons as chips of color, the choices of one setting as one control with the one in effect lit, table headers in a soft blue and muted text in gray. `'classic'`, as on terminals of fewer colors, keeps the status bar on the terminal's background, the rule a line with [CLOSE], buttons in brackets in reverse video, and ANSI colors. |
 | `separators` | `'powerline'` | The glyphs between the status bar's fragments: `'powerline'` triangles, `'rounded'` half circles or `'slant'` diagonals, which need a Powerline or Nerd font, or `'plain'`, which needs none. |
 
 ### `[mention]`

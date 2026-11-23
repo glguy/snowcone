@@ -206,15 +206,14 @@ function M.render(ctx, win)
     for _, style in ipairs(styles) do
         local name, code, show = style[1], style[2], style[3]
         fit(win, ctx.cols, #name + 3)
-        -- on at the cursor in yellow, and each in its own style
-        if s[name] then draw.yellow(win) end
+        -- each in its own style, lit when on at the cursor
         if show then show(win) end
-        ctx.add_button(win, '[' .. name .. ']', function() insert(code) end, true)
+        ctx.add_chip(win, name, function() insert(code) end, s[name] and 'accent' or nil)
         draw.normal(win)
         win:waddstr ' '
     end
     fit(win, ctx.cols, 7)
-    ctx.add_button(win, '[plain]', function() insert '\x0f' end, true)
+    ctx.add_chip(win, 'plain', function() insert '\x0f' end)
     win:waddstr '\n'
 
     -- what a color sets
@@ -234,7 +233,7 @@ function M.render(ctx, win)
     end
     ctx.add_segments(win, segments)
     win:waddstr ' '
-    ctx.add_button(win, '[default]', function() put_color(99, background) end, true)
+    ctx.add_chip(win, 'default', function() put_color(99, background) end)
     win:waddstr '\n'
 
     -- the 16 named colors, then the rest in their hue and gray rows

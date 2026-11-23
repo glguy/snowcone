@@ -45,6 +45,7 @@ local function toggle(ctx, win, watch, field, on, off)
     if watch[field] then
         ctx.add_chip(win, on, function() stores.set_watch_flag(watch, field, false) end, 'ok')
     else
+        draw.yellow(win) -- for the classic theme's neutral chip
         ctx.add_chip(win, off, function() stores.set_watch_flag(watch, field, true) end)
     end
 end
@@ -76,6 +77,7 @@ return {
             ctx.add_chip(win, 'x', function() stores.remove_tracker(ctx.net, name) end, 'danger')
             ctx.chip_gap(win)
             if vs.expanded[name] then
+                draw.yellow(win)
                 ctx.add_chip(win, '-', function() vs.expanded[name] = nil end)
                 for _, label in ipairs(sorted_keys(tracker, ordermask)) do
                     y = y + 1
@@ -85,6 +87,7 @@ return {
                     ctx.add_chip(win, 'x', function() stores.remove_tracker(ctx.net, name, label) end, 'danger')
                 end
             else
+                draw.green(win)
                 ctx.add_chip(win, '+', function() vs.expanded[name] = true end)
             end
             y = y + 1

@@ -769,6 +769,25 @@ T.case('chips and segments: padded when modern, capped when rounded, bracketed w
     T.eq(drawn({theme = 'classic', separators = 'rounded'}, pair), '[x] [y]', 'classic: a space, rounded or not')
 end)
 
+T.case('IRC colors on a band of color keep the band, and stay readable on it', function()
+    boot()
+    local draw = T.require 'hub.ui.draw'
+    local addircstr = T.require 'hub.ui.irc_formatting'
+    local colors = T.require 'hub.ui.colors'
+    local set = {}
+    rawset(ncurses, 'colorset', function(fore, back) table.insert(set, fore .. ',' .. back) end)
+    local win = ncurses.newwin(1, 40)
+    -- a band in the very color IRC 91 comes out as
+    local band = colors.irc(91, ncurses.COLORS)
+    draw.set_base(win, 200, band)
+    addircstr(win, '\x0391hidden\x0304,99reset')
+    rawset(ncurses, 'colorset', nil)
+    local seen = {}
+    for _, pair in ipairs(set) do seen[pair] = true end
+    T.ok(seen['200,' .. band] and not seen[band .. ',' .. band], 'the band\'s color drawn in its text color')
+    T.ok(seen[colors.irc(4, ncurses.COLORS) .. ',' .. band], 'a default background (99) is the band')
+end)
+
 T.case('the status bar names a few buffers with unseen messages, mentions first', function()
     local c = boot()
     local chat = T.require 'hub.features.chat'

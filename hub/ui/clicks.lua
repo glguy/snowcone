@@ -7,7 +7,9 @@
 -- (M.segments), the one in effect lit: [summary|message|raw] on the
 -- classic theme. One that goes somewhere else, another view, buffer or
 -- detail, is plain and starts with an arrow: →console, ←BACK, ↩. A name
--- that shows its own thing (a nick, a channel, a network) is plain text.
+-- that shows its own thing (a nick, a channel, a network) is plain text,
+-- and so is a swatch drawn as what it puts in (the formatting palette's
+-- colors).
 --
 -- The regions hold functions, so they live here and not in HUB.state;
 -- a new generation starts without them and rebuilds them on its first

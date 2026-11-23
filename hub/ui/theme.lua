@@ -106,7 +106,7 @@ end
 function M.chip(role)
     if not M.modern() then return nil end
     local count = ncurses.COLORS
-    local c = chip_rgb[role]
+    local c = chip_rgb[role] or chip_rgb.neutral
     return colors.rgb(c[2], count), colors.rgb(c[1], count)
 end
 

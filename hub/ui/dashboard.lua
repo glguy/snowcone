@@ -107,6 +107,8 @@ function M.action_bar(ctx, win, y)
     win:wmove(y, 0)
     draw.bold(win)
 
+    -- the colors set before neutral chips show on the classic theme
+    draw.yellow(win)
     local shown = vs.show_reasons or 'reason'
     ctx.add_chip(win, show_labels[shown], function(shifted)
         vs.show_reasons = show_cycle[shown][shifted and 2 or 1]
@@ -118,11 +120,13 @@ function M.action_bar(ctx, win, y)
         ctx.chip_gap(win)
     end
 
+    draw.cyan(win)
     ctx.add_chip(win, settings.duration, function(shifted)
         oper.cycle_duration(net, shifted)
     end)
     ctx.chip_gap(win)
 
+    draw.blue(win)
     ctx.add_chip(win, settings.trust_uname and '~' or '=', function()
         oper.toggle_trust(net)
     end)
@@ -133,6 +137,7 @@ function M.action_bar(ctx, win, y)
     end, settings.add_freeze and (settings.tag and 'danger' or 'warn') or nil)
     ctx.chip_gap(win)
 
+    draw.magenta(win)
     local reasons = oper.reasons(net)
     local reason = reasons[settings.reason] or reasons[1]
     ctx.add_chip(win, string.format('%-7s', reason.name), function(shifted)
@@ -147,6 +152,7 @@ function M.action_bar(ctx, win, y)
 
     local staged = O.staged
     if staged and staged.action == 'kline' then
+        draw.green(win)
         ctx.add_chip(win, 'CANCEL KLINE', function()
             oper.cancel(net)
             vs.highlight = nil
@@ -162,6 +168,7 @@ function M.action_bar(ctx, win, y)
         ctx.chip_gap(win)
         ctx.add_chip(win, 'TRACE', function() oper.trace(net) end, 'warn')
     elseif staged and staged.action == 'unkline' and staged.mask then
+        draw.green(win)
         ctx.add_chip(win, 'CANCEL UNKLINE', function()
             oper.cancel(net)
             vs.highlight = nil
@@ -170,6 +177,7 @@ function M.action_bar(ctx, win, y)
         ctx.add_chip(win, scrub(string.format('UNKLINE %s %s', staged.nick or '*', staged.mask)),
             function() oper.commit(net) end, 'warn')
     elseif staged and staged.action == 'undline' then
+        draw.green(win)
         ctx.add_chip(win, 'CANCEL UNDLINE', function() oper.cancel(net) end)
         ctx.chip_gap(win)
         ctx.add_chip(win, scrub(string.format('UNDLINE %s', staged.mask)),
