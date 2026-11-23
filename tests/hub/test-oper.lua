@@ -293,9 +293,9 @@ T.case('on OFTC hybrid, unlabeled TESTLINE ends at the auth block', function()
     T.eq(oper.get('test').staged, nil, 'no K-Line matches')
 end)
 
-T.case('on OFTC hybrid, kline_nick looks up with WHOIS', function()
+T.case('on OFTC hybrid, kline looks up with WHOIS', function()
     local c = boot(nil, false, 'oftc-hybrid')
-    T.command 'kline_nick Someone'
+    T.command 'kline Someone'
     T.eq(c:take(), {'WHOIS Someone'}, 'WHOIS, not WHOX')
     c:recv ':srv 311 me Someone ~s host.example * :Real'
     c:recv ':srv 338 me Someone 192.0.2.10 :actually using host'
@@ -313,17 +313,17 @@ T.case('staging without a connection logs instead of raising', function()
     T.eq(oper.get('test').staged, nil, 'an unkline without its mask is dropped')
 end)
 
-T.case('kline_nick looks up unknown users with WHO', function()
+T.case('kline looks up unknown users with WHO', function()
     local c = boot()
-    T.command 'kline_nick Someone'
+    T.command 'kline Someone'
     T.eq(c:take(), {'WHO Someone %tuihn,696'}, 'WHO')
     c:recv ':srv 354 me 696 ~s 192.0.2.10 host.example Someone'
     T.eq(c:take(), {'TESTMASK *@192.0.2.10'}, 'staged from WHO')
 end)
 
-T.case('kline_mask stages a mask as typed and counts it', function()
+T.case('kline stages a mask as typed and counts it', function()
     local c, oper = boot()
-    T.command 'kline_mask *@192.0.2.0/24'
+    T.command 'kline *@192.0.2.0/24'
     T.eq(c:take(), {'TESTMASK *@192.0.2.0/24'}, 'counted')
     c:recv ':srv 727 me 3 0 *!*@192.0.2.0/24 * :Local/remote clients match'
     local staged = oper.get('test').staged
@@ -334,17 +334,17 @@ T.case('kline_mask stages a mask as typed and counts it', function()
     local sent = c:take()
     T.ok(sent[1]:find('^KLINE %d+ %*@192%.0%.2%.0/24 :'), sent[1])
 
-    for _, bad in ipairs {'host.example', 'nick!u@h', 'u@h@h', '@h', 'u@'} do
-        T.command('kline_mask ' .. bad)
+    for _, bad in ipairs {'nick!u@h', 'u@h@h', '@h', 'u@'} do
+        T.command('kline ' .. bad)
         T.eq(oper.get('test').staged, nil, 'refused: ' .. bad)
     end
     T.eq(c:take(), {}, 'nothing sent for those')
 end)
 
-T.case('kline_nick without a connection says so', function()
+T.case('kline without a connection says so', function()
     local c = boot()
     c:finish 'reset'
-    T.command 'kline_nick Someone'
+    T.command 'kline Someone'
     local found
     for _, line in ipairs(T.log_lines()) do
         T.ok(not line:find 'attempt to index', 'no crash: ' .. line)

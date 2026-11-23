@@ -1273,7 +1273,7 @@ T.case('/help lists views as a row, then commands by group, and searches', funct
     T.ok(t:find('/whowas nick [count]', 1, true), 'usage, not the parser spec')
     T.ok(not t:find('$g', 1, true), 'no specs')
     T.ok(t:find('/addwatch', 1, true) < t:find('/delwatch', 1, true)
-        and t:find('/delwatch', 1, true) < t:find('/kline_nick', 1, true), 'related commands together')
+        and t:find('/delwatch', 1, true) < t:find('/kline', 1, true), 'related commands together')
 
     -- a view's name shows it
     local rows = rows_of(document_pad())

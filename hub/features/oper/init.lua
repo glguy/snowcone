@@ -429,18 +429,21 @@ end
 local oper_command <const> = common.net_command(M.name)
 
 M.commands = {
-    oper_command('kline_nick', '$g', 'nick', 'Stage a K-Line for a nick, looking it up if needed', function(ctx, nick)
+    oper_command('kline', '$g', 'nick|user@host',
+        'Stage a K-Line for a mask as typed, or for a nick, looking it up if needed',
+    function(ctx, target)
+        -- no nick has an @
+        if target:find '@' then
+            if not M.kline_mask(target) then error('not a user@host mask: ' .. target, 0) end
+            return M.stage_kline(ctx.net, target)
+        end
         local entry = common.enabled(ctx.net, 'snotice')
-            and OrderedMap.lookup(stores.get(ctx.net).users, nick)
+            and OrderedMap.lookup(stores.get(ctx.net).users, target)
         if entry then
             M.entry_to_kline(ctx.net, entry)
         else
-            task.spawn('kline lookup', {net = ctx.net, owner = M.name}, kline_lookup, nick)
+            task.spawn('kline lookup', {net = ctx.net, owner = M.name}, kline_lookup, target)
         end
-    end),
-    oper_command('kline_mask', '$g', 'user@host', 'Stage a K-Line for a mask as typed', function(ctx, mask)
-        if not M.kline_mask(mask) then error('not a user@host mask: ' .. mask, 0) end
-        M.stage_kline(ctx.net, mask)
     end),
     oper_command('duration', '$r', 'duration', 'Set the K-Line duration: 4h, 1d, 1w 2d ...', function(ctx, text)
         text = text:gsub(' +', '')
