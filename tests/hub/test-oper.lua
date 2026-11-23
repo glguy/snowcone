@@ -321,6 +321,26 @@ T.case('kline_nick looks up unknown users with WHO', function()
     T.eq(c:take(), {'TESTMASK *@192.0.2.10'}, 'staged from WHO')
 end)
 
+T.case('kline_mask stages a mask as typed and counts it', function()
+    local c, oper = boot()
+    T.command 'kline_mask *@192.0.2.0/24'
+    T.eq(c:take(), {'TESTMASK *@192.0.2.0/24'}, 'counted')
+    c:recv ':srv 727 me 3 0 *!*@192.0.2.0/24 * :Local/remote clients match'
+    local staged = oper.get('test').staged
+    T.eq({staged.action, staged.mask, staged.nick, staged.count}, {'kline', '*@192.0.2.0/24', nil, 3}, 'staged')
+    T.eq(oper.freeze_account('test'), nil, 'no user, no FREEZE')
+
+    oper.commit('test')
+    local sent = c:take()
+    T.ok(sent[1]:find('^KLINE %d+ %*@192%.0%.2%.0/24 :'), sent[1])
+
+    for _, bad in ipairs {'host.example', 'nick!u@h', 'u@h@h', '@h', 'u@'} do
+        T.command('kline_mask ' .. bad)
+        T.eq(oper.get('test').staged, nil, 'refused: ' .. bad)
+    end
+    T.eq(c:take(), {}, 'nothing sent for those')
+end)
+
 T.case('kline_nick without a connection says so', function()
     local c = boot()
     c:finish 'reset'

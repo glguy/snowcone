@@ -188,6 +188,25 @@ function M.prepare_kline(net, nick, user, host, ip)
     task.spawn('kline count', {net = net, owner = M.name}, count_matches, staged)
 end
 
+--- Whether a mask is one KLINE takes as typed: a user and a host about
+--- a single @, without a nick or spaces.
+---@param mask string
+---@return boolean
+function M.kline_mask(mask)
+    local user, host = mask:match '^([^@!%s]+)@([^@!%s]+)$'
+    return user ~= nil and host ~= nil
+end
+
+--- Stage a K-Line for a user@host mask as given, and ask how many users
+--- it matches. No user goes with it, so no FREEZE either.
+---@param net string
+---@param mask string
+function M.stage_kline(net, mask)
+    local staged = {action = 'kline', mask = mask}
+    M.get(net).staged = staged
+    task.spawn('kline count', {net = net, owner = M.name}, count_matches, staged)
+end
+
 --- Stage a K-Line for a connection entry from the notice stores.
 function M.entry_to_kline(net, entry)
     M.prepare_kline(net, entry.nick, entry.user, entry.host, entry.ip)
@@ -418,6 +437,10 @@ M.commands = {
         else
             task.spawn('kline lookup', {net = ctx.net, owner = M.name}, kline_lookup, nick)
         end
+    end),
+    oper_command('kline_mask', '$g', 'user@host', 'Stage a K-Line for a mask as typed', function(ctx, mask)
+        if not M.kline_mask(mask) then error('not a user@host mask: ' .. mask, 0) end
+        M.stage_kline(ctx.net, mask)
     end),
     oper_command('duration', '$r', 'duration', 'Set the K-Line duration: 4h, 1d, 1w 2d ...', function(ctx, text)
         text = text:gsub(' +', '')
