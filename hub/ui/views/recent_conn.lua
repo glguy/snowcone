@@ -1,7 +1,7 @@
 -- Recent connections (cliconn) and exits (cliexit).
 --
 -- Click a mask to stage a K-Line (or an unkline for a K-Lined user); click
--- a server to show only it. q shows live users, w exits, e both.
+-- a server to show only it. A ban staged from another view shows cliconn. q shows live users, w exits, e both.
 -- View state: scroll, filter, prefilter (a /prefilter query), server_filter,
 -- conn_filter, mark_filter, highlight, show_reasons.
 
@@ -206,9 +206,23 @@ local function make_view(id, title, store, tracker)
     }
 end
 
+-- The views that show the action bar, where a staged ban is sent
+local action_views <const> = {cliconn = true, cliexit = true, bans = true}
+
 return {
     make_view('cliconn', 'cliconn', 'users', 'conn'),
     make_view('cliexit', 'cliexit', 'exits', 'exit'),
+
+    -- a ban staged elsewhere, as by /kline, shows cliconn, where it's sent;
+    -- not for a network not shown, which cliconn wouldn't show it for
+    subscribe = function(sub)
+        sub.on('oper.staged', function(ev)
+            if ev.net == control.current_net() and common.enabled(ev.net, 'snotice')
+                and not action_views[HUB.state.ui.view] then
+                control.set_view 'cliconn'
+            end
+        end)
+    end,
 
     commands = {
         {

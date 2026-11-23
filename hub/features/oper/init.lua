@@ -9,6 +9,7 @@
 -- KLINE, UNKLINE, UNDLINE and NickServ FREEZE go out only from commit,
 -- which the UI calls when the operator confirms.
 
+local bus        <const> = require 'hub.runtime.bus'
 local common     <const> = require 'hub.features.common'
 local ircd       <const> = require 'hub.net.ircd'
 local listing    <const> = require 'hub.features.listing'
@@ -157,6 +158,14 @@ end
 
 -- Staging =============================================================
 
+-- Stage a ban, replacing what was staged, and say so for the UI
+---@param net string
+---@param staged hub.Staged
+local function stage(net, staged)
+    M.get(net).staged = staged
+    bus.emit('oper.staged', {net = net, action = staged.action})
+end
+
 -- Count the users a staged K-Line matches
 ---@param t hub.Task
 ---@param staged hub.Staged
@@ -184,7 +193,7 @@ function M.prepare_kline(net, nick, user, host, ip)
         return
     end
     local staged = {action = 'kline', mask = mask, nick = nick, user = user, host = host, ip = ip}
-    O.staged = staged
+    stage(net, staged)
     task.spawn('kline count', {net = net, owner = M.name}, count_matches, staged)
 end
 
@@ -203,7 +212,7 @@ end
 ---@param mask string
 function M.stage_kline(net, mask)
     local staged = {action = 'kline', mask = mask}
-    M.get(net).staged = staged
+    stage(net, staged)
     task.spawn('kline count', {net = net, owner = M.name}, count_matches, staged)
 end
 
@@ -215,14 +224,13 @@ end
 --- Stage removing the K-Line that hit a user; TESTKLINE (TESTLINE on
 --- OFTC hybrid) finds its mask.
 function M.entry_to_unkline(net, entry)
-    local O = M.get(net)
     if not entry.ip then
         log.add_net(net, 'unkline', 'no address known for %s', entry.nick)
         return
     end
     local probe = entry.user .. '@' .. entry.ip
     local staged = {action = 'unkline', nick = entry.nick}
-    O.staged = staged
+    stage(net, staged)
     task.spawn('unkline lookup', {net = net, owner = M.name}, function(t)
         -- unless replaced meanwhile
         local function drop(fmt)
@@ -257,7 +265,7 @@ end
 --- TESTLINE that one still matches it.
 function M.stage_unkline(net, mask)
     local staged = {action = 'unkline', mask = mask}
-    M.get(net).staged = staged
+    stage(net, staged)
     task.spawn('unkline check', {net = net, owner = M.name}, function(t)
         local replies = try_request(t, {N.RPL_NOTESTLINE, N.RPL_STATSILINE, N.RPL_TESTLINE},
             'TESTLINE', mask)
@@ -284,7 +292,7 @@ end
 
 --- Stage removing a D-Line by mask.
 function M.stage_undline(net, mask)
-    M.get(net).staged = {action = 'undline', mask = mask}
+    stage(net, {action = 'undline', mask = mask})
 end
 
 function M.cancel(net)

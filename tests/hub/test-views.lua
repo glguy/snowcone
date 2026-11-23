@@ -1144,6 +1144,24 @@ T.case('a staged K-Line turns the title red', function()
     T.eq(statusbar.title_color(), ncurses.COLOR_WHITE, 'only K-Lines')
 end)
 
+T.case('a ban staged from another view shows cliconn, where it is sent', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    local oper = T.require 'hub.features.oper'
+    control.set_view 'console'
+    cmdline.execute 'kline *@192.0.2.0/24'
+    T.eq(HUB.state.ui.view, 'cliconn', '/kline shows cliconn')
+
+    control.set_view 'bans'
+    oper.stage_undline('test', '198.51.100.0/24')
+    T.eq(HUB.state.ui.view, 'bans', 'a view with the action bar stays')
+
+    control.set_view 'console'
+    cmdline.execute 'kline nick!u@h'
+    T.eq(HUB.state.ui.view, 'console', 'nothing staged, nothing shown')
+end)
+
 T.case('Meta-H hides OFTC hybrid server notices in the console', function()
     local fake = FakeTransport.new()
     T.boot {ui = true, transport = fake, config = {networks = {{

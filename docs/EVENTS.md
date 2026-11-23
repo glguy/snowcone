@@ -26,6 +26,7 @@ carry `net`, the network id.
 | `snote` | `{net, name, server, time, timestamp, ...fields}` a parsed server notice | features/snotice |
 | `snote.<name>` | the same event, by notice name | features/snotice |
 | `topology.map` | `{net, population}` a MAP reply ended; population is `[server] = users` | features/topology |
+| `oper.staged` | `{net, action}` a K-Line, unkline or undline was staged, replacing what was | features/oper |
 | `chat.message` | `{net, target, msg, mention, activity, hidden}` a message added to a buffer; `hidden` when a hide rule hides it there, and then never a mention or activity | features/chat |
 | `chat.buffer` | `{net, target, opened}` a buffer opened or closed | features/chat |
 | `chat.rename` | `{net, from, to}` a private buffer follows its nick's change from `from` to `to` | features/chat |
