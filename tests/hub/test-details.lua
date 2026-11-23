@@ -910,7 +910,7 @@ T.case('a labeled /quote shows its reply batch in the detail pane', function()
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
-T.case("a /quote's reply shows as tables at [TABLE], and back at [RAW]", function()
+T.case("a /quote's reply shows as tables at [table|raw], and back again", function()
     local c = boot_labeled()
     local control = T.require 'hub.ui.control'
     local cmdline = T.require 'hub.ui.cmdline'
@@ -918,7 +918,7 @@ T.case("a /quote's reply shows as tables at [TABLE], and back at [RAW]", functio
 
     cmdline.execute 'quote STATS k'
     c:take()
-    T.ok(not detail_text():find('[TABLE]', 1, true), 'no button while waiting')
+    T.ok(not detail_text():find('table', 1, true), 'no control while waiting')
     c:recv '@label=sc1 :srv BATCH +s labeled-response'
     c:recv '@batch=s :srv 216 me K bad.example * ~u :spam|by alice'
     c:recv '@batch=s :srv 219 me k :End of /STATS report'
@@ -932,9 +932,10 @@ T.case("a /quote's reply shows as tables at [TABLE], and back at [RAW]", functio
         if not at then error('no button ' .. button .. ' in ' .. top) end
         HUB.current.routes['ui.entry']('on_mouse', 0, utf8.len(top, 1, at), false)
     end
-    click '[TABLE]'
+    T.ok(detail_text():find('[table|raw] >>> STATS k', 1, true), 'both views, raw lit')
+    click 'table'
     local text = detail_text()
-    T.ok(text:find('[RAW] >>> STATS k', 1, true), 'the line sent, and the way back')
+    T.ok(text:find('[table|raw] >>> STATS k', 1, true), 'the line sent, and the way back')
     T.ok(text:find('type   host        user reason oper reason', 1, true), 'a table per reply, by its fields')
     T.ok(text:find('K-Line bad.example ~u   spam   by alice', 1, true), 'read as STATS reads it')
     T.ok(text:find('RPL_ENDOFSTATS 219', 1, true), 'the end, a table of its own')
@@ -946,9 +947,10 @@ T.case("a /quote's reply shows as tables at [TABLE], and back at [RAW]", functio
     detail_text()
     T.ok(reply.view == view, 'the tables kept on the reply')
 
-    click '[RAW]'
+    click 'raw'
     text = detail_text()
-    T.ok(text:find('[TABLE] >>> STATS k', 1, true) and text:find('216 RPL_STATSKLINE K bad.example', 1, true), 'raw again')
+    T.ok(text:find('[table|raw] >>> STATS k', 1, true) and text:find('216 RPL_STATSKLINE K bad.example', 1, true),
+        'raw again')
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
@@ -1093,6 +1095,45 @@ T.case('[DISCARD] drops a detail from the log lines that hold it', function()
     HUB.current.routes['ui.entry']('on_mouse', rule, 10, false)
     T.ok(control.detail(), 'nothing there to click')
     T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
+T.case('the modern theme draws the rule as a band: close and title left, DISCARD right', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local log = T.require 'hub.runtime.log'
+    HUB.state.config.ui = {}
+    c:take()
+    T.require 'hub.ui.cmdline'.execute 'whois alice'
+    c:recv ':srv 311 me alice a h.example * :Alice'
+    c:recv ':srv 318 me alice :End of /WHOIS list.'
+    local data, kind = control.detail().data, control.detail().kind
+
+    HUB.current.routes['ui.draw']()
+    local band
+    for y = 0, detail_pad().h - 1 do
+        local row = fake_ncurses.row(detail_pad(), y)
+        if row:find('✕', 1, true) then band = row end
+    end
+    T.ok(band, 'a close button')
+    T.ok(not band:find('─', 1, true), 'no line')
+    T.ok(band:find('^  ✕  %S'), 'close first, then the title: ' .. band)
+    T.ok(band:find(' DISCARD  $'), 'DISCARD at the right: ' .. band)
+
+    -- the row of the band on the screen, found by clicking at a column
+    local function click_band(column)
+        for y = 0, tty_height - 2 do
+            HUB.current.routes['ui.entry']('on_mouse', y, column, false)
+            if not control.detail() then return y end
+        end
+    end
+
+    T.ok(click_band(2), 'close at the left')
+    T.ok(log.holds_detail(data), 'closed, not dropped')
+
+    control.open_detail(kind, 'test', data)
+    HUB.current.routes['ui.draw']()
+    T.ok(click_band(utf8.len(band, 1, band:find('DISCARD', 1, true))), 'DISCARD at the right')
+    T.ok(not log.holds_detail(data), 'closed and dropped')
 end)
 
 T.case('a long /quote line leaves room on the rule for the filter', function()

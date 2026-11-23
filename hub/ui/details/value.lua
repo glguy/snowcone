@@ -108,7 +108,7 @@ local function render_value(ctx, win, v, id, indent, ancestors)
 
     local vs = ctx.vs
     local open = vs.open[id]
-    ctx.add_button(win, open and '[-]' or '[+]', function() vs.open[id] = not open or nil end)
+    ctx.add_chip(win, open and '-' or '+', function() vs.open[id] = not open or nil end)
     win:waddstr(' ', scrub(safe_tostring(v)))
     draw.blue(win)
     win:waddstr(string.format(' %d %s\n', #keys, #keys == 1 and 'entry' or 'entries'))
@@ -128,7 +128,7 @@ local function render_value(ctx, win, v, id, indent, ancestors)
     ancestors[v] = nil
     if limit < #keys then
         win:waddstr(margin)
-        ctx.add_button(win, string.format('[+%d more]', #keys - limit), function() vs.all[id] = true end)
+        ctx.add_chip(win, string.format('+%d more', #keys - limit), function() vs.all[id] = true end)
         win:waddstr '\n'
     end
 end

@@ -31,6 +31,7 @@ local draw    <const> = require 'hub.ui.draw'
 local pads    <const> = require 'hub.ui.pads'
 local log     <const> = require 'hub.runtime.log'
 local scrub   <const> = require 'hub.lib.scrub'
+local theme   <const> = require 'hub.ui.theme'
 
 local M = {}
 
@@ -92,15 +93,117 @@ function M.context(detail, rows)
         cols = tty_width,
         add_click = clicks.add,
         add_button = clicks.button,
+        add_chip = clicks.chip,
+        add_segments = clicks.segments,
+        chip_gap = clicks.chip_gap,
     }
+end
+
+-- Text of tags, by columns
+local function tags_width(tags)
+    local n = 0
+    for _, tag in ipairs(tags) do n = n + (utf8.len(tag[1]) or #tag[1]) end
+    return n
+end
+
+-- The title cut to fit room columns
+local function fit_title(title, room)
+    room = math.max(1, room)
+    if (utf8.len(title) or #title) > room then
+        title = title:sub(1, (utf8.offset(title, room) or #title + 1) - 1) .. '…'
+    end
+    return title
+end
+
+local function draw_tags(pad, tags)
+    for _, tag in ipairs(tags) do
+        tag[2](pad)
+        pad:waddstr(tag[1])
+        draw.normal(pad)
+    end
+end
+
+-- The log keeps what its lines open until they roll off; DISCARD lets it
+-- go now
+local function discard(detail)
+    log.forget_detail(detail.data)
+    control.close_detail()
+end
+
+--- The pane's rule on the classic theme, at the cursor: a line with
+--- [CLOSE], ←BACK and [DISCARD], then the title, its tags and the scroll
+--- position.
+local function rule(pad, detail, title, tags, position)
+    draw.normal(pad)
+    pad:waddstr '─'
+    clicks.chip(pad, 'CLOSE', control.close_detail)
+    if control.can_go_back() then
+        pad:waddstr '─'
+        clicks.button(pad, '←BACK', control.back_detail, true)
+    end
+    if log.holds_detail(detail.data) then
+        pad:waddstr '─'
+        clicks.chip(pad, 'DISCARD', function() discard(detail) end)
+    end
+    pad:waddstr '─ '
+
+    local _, title_x = ncurses.getyx(pad)
+    title = fit_title(title, tty_width - title_x - tags_width(tags) - tags_width(position) - 1)
+    draw.bold(pad)
+    pad:waddstr(title)
+    draw.bold_(pad)
+    draw_tags(pad, tags)
+    draw_tags(pad, position)
+    pad:waddstr ' '
+    local _, x = ncurses.getyx(pad)
+    pad:waddstr(string.rep('─', math.max(0, tty_width - x)))
+end
+
+--- The pane's rule on the modern theme, at the cursor: a band of the
+--- status bar's colors with ✕ (to close), ← (to go back) and the title
+--- and its tags on the left, as a Mac window has them, and the scroll
+--- position and DISCARD on the right.
+local function band(pad, detail, title, tags, position)
+    local surface, text = theme.surface()
+    draw.set_base(pad, text, surface)
+    draw.normal(pad)
+    pad:waddstr ' '
+    clicks.chip(pad, '✕', control.close_detail)
+    pad:waddstr ' '
+    if control.can_go_back() then
+        clicks.button(pad, '←', control.back_detail, true)
+        pad:waddstr ' '
+    end
+
+    local held = log.holds_detail(detail.data)
+    local right = tags_width(position) + 1
+    if held then right = right + clicks.chip_width 'DISCARD' + 1 end
+
+    local _, title_x = ncurses.getyx(pad)
+    title = fit_title(title, tty_width - title_x - tags_width(tags) - right - 1)
+    draw.bold(pad)
+    pad:waddstr(title)
+    draw.bold_(pad)
+    draw_tags(pad, tags)
+
+    local _, x = ncurses.getyx(pad)
+    pad:waddstr(string.rep(' ', math.max(1, tty_width - right - x)))
+    draw_tags(pad, position)
+    pad:waddstr ' '
+    if held then
+        clicks.chip(pad, 'DISCARD', function() discard(detail) end)
+        pad:waddstr ' '
+    end
+    draw.set_base(pad)
+    draw.normal(pad)
 end
 
 --- Render the detail pane into `pad`, for the top of the screen: its
 --- content, up to half the screen and scrolled by the paging keys
 --- (sideways too, for a `wide` kind, whose rows don't wrap), over a rule
---- with [CLOSE], [BACK] when it followed a click from what it showed,
---- [DISCARD] when a log line holds it, its title, its modes,
---- its filter and the rows shown. Returns the rows it takes, and the
+--- (a band on the modern theme) with a close button, a back button when
+--- it followed a click from what it showed, DISCARD when a log line holds
+--- it, its title, its modes, its filter and the rows shown. Returns the rows it takes, and the
 --- refresh to do.
 ---@param detail hub.Detail
 ---@param kind table its renderer
@@ -165,28 +268,8 @@ function M.render(detail, kind, pad)
     end
     clicks.place(pad_top, rows, 0, hscroll)
 
-    -- the rule doesn't scroll sideways
-    pad:wmove(rule_row, 0)
-    draw.normal(pad)
-    pad:waddstr '─'
-    clicks.button(pad, '[CLOSE]', control.close_detail)
-    if control.can_go_back() then
-        pad:waddstr '─'
-        clicks.button(pad, '←BACK', control.back_detail, true)
-    end
-    -- the log keeps what its lines open until they roll off; this lets it
-    -- go now
-    if log.holds_detail(detail.data) then
-        pad:waddstr '─'
-        clicks.button(pad, '[DISCARD]', function()
-            log.forget_detail(detail.data)
-            control.close_detail()
-        end)
-    end
-    pad:waddstr '─ '
-
-    -- the tags after the title, each text and its color: the title is cut
-    -- to leave them room on the screen
+    -- the tags after the title, each text and its color, and the scroll
+    -- position: the title is cut to leave them room on the screen
     local tags = {}
     if detail.net then table.insert(tags, {' ' .. detail.net, draw.cyan}) end
     for _, mode in ipairs(kind.modes and kind.modes(detail) or {}) do
@@ -197,32 +280,22 @@ function M.render(detail, kind, pad)
         table.insert(tags, {' filter ', draw.yellow})
         table.insert(tags, {scrub(string.format('%q', filter)), draw.normal})
     end
+    local position = {}
     if detail.max_scroll > 0 then
-        table.insert(tags, {string.format(' rows %d-%d of %d', top + 1, last or top + rows, used), draw.normal})
+        table.insert(position, {string.format(' rows %d-%d of %d', top + 1, last or top + rows, used), draw.normal})
     end
     if hscroll > 0 then
-        table.insert(tags, {string.format(' cols +%d', hscroll), draw.normal})
+        table.insert(position, {string.format(' cols +%d', hscroll), draw.normal})
     end
-    local tags_width = 1
-    for _, tag in ipairs(tags) do tags_width = tags_width + (utf8.len(tag[1]) or #tag[1]) end
-
     local title = kind.title and kind.title(detail) or detail.kind
-    local _, title_x = ncurses.getyx(pad)
-    local room = math.max(1, tty_width - title_x - tags_width)
-    if (utf8.len(title) or #title) > room then
-        title = title:sub(1, (utf8.offset(title, room) or #title + 1) - 1) .. '…'
+
+    -- the rule doesn't scroll sideways
+    pad:wmove(rule_row, 0)
+    if theme.surface() then
+        band(pad, detail, title, tags, position)
+    else
+        rule(pad, detail, title, tags, position)
     end
-    draw.bold(pad)
-    pad:waddstr(title)
-    draw.bold_(pad)
-    for _, tag in ipairs(tags) do
-        tag[2](pad)
-        pad:waddstr(tag[1])
-        draw.normal(pad)
-    end
-    pad:waddstr ' '
-    local _, x = ncurses.getyx(pad)
-    pad:waddstr(string.rep('─', math.max(0, tty_width - x)))
     clicks.place(rule_row, 1, rows)
 
     return rows + 1, function()

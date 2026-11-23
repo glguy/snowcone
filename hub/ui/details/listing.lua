@@ -284,7 +284,7 @@ function M.runs(ctx, opts)
                 win:waddstr(scrub(section.name or tostring(section.command)))
                 draw.normal(win)
                 if section.name then win:waddstr(' ', tostring(section.command)) end
-                draw.black(win)
+                draw.muted(win)
                 win:waddstr(pattern and string.format('  %d of %d', #shown, #section.rows)
                     or string.format('  %d', #section.rows))
                 draw.normal(win)

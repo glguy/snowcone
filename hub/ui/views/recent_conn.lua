@@ -60,7 +60,7 @@ local function make_view(id, title, store, tracker)
             mask_color(win)
             win:waddstr(string.format(' %3d!', entry.filters))
         elseif entry.count then
-            if entry.count < 2 then draw.black(win) else draw.normal(win) end
+            if entry.count < 2 then draw.muted(win) else draw.normal(win) end
             win:waddstr(string.format(' %4d', entry.count))
         else
             win:waddstr '     '
@@ -79,11 +79,11 @@ local function make_view(id, title, store, tracker)
         win:wmove(y, 14)
         mask_color(win)
         win:waddstr(scrub(entry.nick))
-        draw.black(win)
+        draw.muted(win)
         win:waddstr '!'
         mask_color(win)
         win:waddstr(scrub(entry.user))
-        draw.black(win)
+        draw.muted(win)
         win:waddstr '@'
         mask_color(win)
         local maxwidth = 63 - #entry.nick - #entry.user

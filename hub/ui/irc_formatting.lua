@@ -63,7 +63,10 @@ return function(win, str, edit, wrap)
         wrapped = draw.wrapper(win, breaks, wrap.indent)
     end
 
-    local default = edit and edit.color or -1
+    -- the window's base colors stand for the default, so text drawn on a
+    -- band of color stays on it
+    local base_fore, base_back = draw.base(win)
+    local default = edit and edit.color or base_fore or -1
     local mark = edit and edit.mark
     local cut = edit and edit.cut
     local bad = edit and edit.bad or {}
@@ -78,9 +81,9 @@ return function(win, str, edit, wrap)
         local count = ncurses.COLORS
         local fore = fore_override
             or (foreground == nil or foreground == 99) and default or terminal(foreground, count)
-        local back = terminal(background, count)
+        local back = background == nil and base_back or terminal(background, count)
         if fore == back and foreground ~= background then
-            back = -1
+            back = base_back or -1
         end
         ncurses.colorset(fore, back, win)
     end

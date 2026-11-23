@@ -17,6 +17,7 @@ local draw      <const> = require 'hub.ui.draw'
 local matching  <const> = require 'hub.lib.matching'
 local scrub     <const> = require 'hub.lib.scrub'
 local strip     <const> = require 'hub.lib.strip_formatting'
+local theme     <const> = require 'hub.ui.theme'
 
 local M = {}
 
@@ -91,9 +92,16 @@ function M.of(holder, columns, rows, pattern)
     return t.layout, t.matches.rows
 end
 
---- Draw the header row.
+--- Draw the header row: bold in the heading color on the modern theme,
+--- blue on the classic.
 function M.draw_header(win, layout)
-    draw.blue(win)
+    local heading = theme.text 'heading'
+    if heading then
+        ncurses.colorset(heading, select(2, draw.base(win)), win)
+        draw.bold(win)
+    else
+        draw.blue(win)
+    end
     for i, c in ipairs(layout) do
         win:waddstr(c.col.header)
         if i < #layout then win:waddstr(string.rep(' ', c.width - width(c.col.header) + 1)) end
@@ -108,7 +116,7 @@ function M.draw_row(win, layout, row)
         local text = col.text(row)
         local used
         if text == nil then
-            draw.black(win)
+            draw.muted(win)
             win:waddstr '-'
             draw.normal(win)
             used = 1

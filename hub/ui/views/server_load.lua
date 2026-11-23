@@ -20,7 +20,7 @@ local function make_colors(values)
     local list = {}
     for _, v in pairs(values) do table.insert(list, v) end
     table.sort(list)
-    local assignment = {[''] = draw.black}
+    local assignment = {[''] = draw.muted}
     local i = 2
     for _, v in ipairs(list) do
         if not assignment[v] then
@@ -61,7 +61,7 @@ local function version_colors(versions)
         end
     end
     local count = ncurses.COLORS
-    local assignment = {[''] = draw.black}
+    local assignment = {[''] = draw.muted}
     for _, list in pairs(kinds) do
         table.sort(list, version_less)
         for i, v in ipairs(list) do

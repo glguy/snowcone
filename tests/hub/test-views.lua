@@ -707,6 +707,68 @@ T.case('the status bar shows the modes of the view as one fragment', function()
     T.ok(status_bar():find(' scroll 3,+16 ', 1, true), 'horizontal scroll')
 end)
 
+T.case('[ui] theme and separators choose the status bar band and glyphs', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    local powerline = utf8.char(0xE0B0)
+    control.set_view 'console'
+    HUB.state.config.ui = {}
+
+    local bar = status_bar()
+    T.eq(utf8.len(bar), tty_width, 'the band runs to the end of the row')
+    T.ok(bar:find(powerline, 1, true), 'triangles by default')
+
+    HUB.state.config.ui = {theme = 'classic', separators = 'plain'}
+    bar = status_bar()
+    T.ok(utf8.len(bar) < tty_width and not bar:find ' $', 'classic: no band')
+    T.ok(not bar:find(powerline, 1, true), 'plain: no font glyphs')
+    T.eq(T.require 'hub.ui.statusbar'.thin_separator, '│', 'plain: a bar between fragments of one background')
+end)
+
+T.case('chips and segments: padded when modern, capped when rounded, bracketed when classic', function()
+    boot()
+    local clicks = T.require 'hub.ui.clicks'
+    local cap_l, cap_r = utf8.char(0xE0B6), utf8.char(0xE0B4)
+    local hits = {}
+    local function drawn(ui, f)
+        HUB.state.config.ui = ui
+        local win = ncurses.newwin(1, 40)
+        clicks.reset()
+        f(win)
+        clicks.place(0, 1, 0)
+        return V.fake_ncurses.row(win, 0)
+    end
+    local function chip(win) clicks.chip(win, 'x', function() end) end
+    T.eq(drawn({}, chip), ' x ', 'modern: padded')
+    T.eq(drawn({separators = 'rounded'}, chip), cap_l .. 'x' .. cap_r, 'rounded: between caps')
+    T.eq(drawn({theme = 'classic'}, chip), '[x]', 'classic: in brackets')
+
+    local function segments(win)
+        clicks.segments(win, {
+            {label = 'a', action = function() table.insert(hits, 'a') end},
+            {label = 'b', on = true, action = function() table.insert(hits, 'b') end},
+        })
+    end
+    T.eq(drawn({}, segments), ' a  b ', 'modern: adjacent chips')
+    clicks.hit(0, 4, false)
+    T.eq(drawn({separators = 'rounded'}, segments), cap_l .. 'a  b' .. cap_r, 'rounded: caps at the ends')
+    clicks.hit(0, 0, false)
+    T.eq(drawn({theme = 'classic'}, segments), '[a|b]', 'classic: one bracketed control')
+    clicks.hit(0, 3, false)
+    clicks.hit(0, 0, false)
+    T.eq(hits, {'b', 'a', 'b'}, 'each segment clicks as its own, its brackets not')
+
+    local function pair(win)
+        clicks.chip(win, 'x', function() end)
+        clicks.chip_gap(win)
+        clicks.chip(win, 'y', function() end)
+    end
+    T.eq(drawn({}, pair), ' x   y ', 'modern: a space between chips')
+    T.eq(drawn({separators = 'rounded'}, pair), cap_l .. 'x' .. cap_r .. cap_l .. 'y' .. cap_r,
+        'rounded: the caps part them')
+    T.eq(drawn({theme = 'classic', separators = 'rounded'}, pair), '[x] [y]', 'classic: a space, rounded or not')
+end)
+
 T.case('the status bar names a few buffers with unseen messages, mentions first', function()
     local c = boot()
     local chat = T.require 'hub.features.chat'
@@ -724,7 +786,7 @@ T.case('the status bar names a few buffers with unseen messages, mentions first'
     c:recv ':carol!c@h PRIVMSG me :psst'
 
     local bar = status_bar()
-    T.ok(bar:find(' carol .- #b .- #c .- #d .- %+2$'),
+    T.ok(bar:find(' carol .- #b .- #c .- #d .- %+2 *$'),
         'the mention, then by name, then how many more')
     T.ok(not bar:find('#e', 1, true) and not bar:find('#f', 1, true), 'the rest only counted')
 end)
@@ -735,7 +797,7 @@ T.case('a list wraps under its value column, even when a word ends at the edge',
     -- 32 columns: the label takes 12, so four words and their spaces end
     -- in the last column, which moves the cursor to the next row
     local win = ncurses.newpad(10, 32)
-    local ctx = {cols = 32, vs = {expanded = {w = true}}, add_button = function(w, text) w:waddstr(text) end}
+    local ctx = {cols = 32, vs = {expanded = {w = true}}, add_chip = function(w, text) w:waddstr('[', text, ']') end}
     fields.label(win, 'words')
     fields.words(ctx, win, 'w', {'aaaa', 'bbbb', 'cccc', 'dddd', 'eeee', 'ffff', 'gggg', 'hhhh'})
     T.eq(fake_ncurses.row(win, 0), '     words: aaaa bbbb cccc ', 'the fourth word goes to the next row')
@@ -908,7 +970,7 @@ T.case('an expanded list indents every row, even after one that fills the width'
     local cols = fields.width + 2 + 3 * 5 - 1
     for _, n in ipairs {7, 8} do
         local win = ncurses.newpad(20, cols)
-        local ctx = {cols = cols, vs = {expanded = {t = true}}, add_button = function(w, text) w:waddstr(text) end}
+        local ctx = {cols = cols, vs = {expanded = {t = true}}, add_chip = function(w, text) w:waddstr('[', text, ']') end}
         local list = {}
         for i = 1, n do table.insert(list, string.rep(string.char(96 + i), 4)) end
         fields.label(win, 't')

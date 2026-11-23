@@ -37,14 +37,15 @@ local function render_entry(win, y, name, count, nested)
     win:waddstr '  '
 end
 
+-- The columns of a watch's chips, x then A, B and F, with spaces between
+local actions_width <const> = 15
+
 local function toggle(ctx, win, watch, field, on, off)
-    win:waddstr ' '
+    ctx.chip_gap(win)
     if watch[field] then
-        draw.green(win)
-        ctx.add_button(win, on, function() stores.set_watch_flag(watch, field, false) end)
+        ctx.add_chip(win, on, function() stores.set_watch_flag(watch, field, false) end, 'ok')
     else
-        draw.yellow(win)
-        ctx.add_button(win, off, function() stores.set_watch_flag(watch, field, true) end)
+        ctx.add_chip(win, off, function() stores.set_watch_flag(watch, field, true) end)
     end
 end
 
@@ -72,23 +73,19 @@ return {
             local tracker = S.net_trackers[name]
             draw.cyan(win)
             render_entry(win, y, name, nettrack.total(tracker))
-            draw.red(win)
-            ctx.add_button(win, '(x)', function() stores.remove_tracker(ctx.net, name) end)
-            win:waddstr ' '
+            ctx.add_chip(win, 'x', function() stores.remove_tracker(ctx.net, name) end, 'danger')
+            ctx.chip_gap(win)
             if vs.expanded[name] then
-                draw.yellow(win)
-                ctx.add_button(win, '(-)', function() vs.expanded[name] = nil end)
+                ctx.add_chip(win, '-', function() vs.expanded[name] = nil end)
                 for _, label in ipairs(sorted_keys(tracker, ordermask)) do
                     y = y + 1
                     if y + 1 >= ctx.rows then break end
                     draw.blue(win)
                     render_entry(win, y, label, tracker[label].count, true)
-                    draw.red(win)
-                    ctx.add_button(win, '(x)', function() stores.remove_tracker(ctx.net, name, label) end)
+                    ctx.add_chip(win, 'x', function() stores.remove_tracker(ctx.net, name, label) end, 'danger')
                 end
             else
-                draw.green(win)
-                ctx.add_button(win, '(+)', function() vs.expanded[name] = true end)
+                ctx.add_chip(win, '+', function() vs.expanded[name] = true end)
             end
             y = y + 1
         end
@@ -104,13 +101,14 @@ return {
         for i, watch in ipairs(S.watches) do
             if y + 1 >= ctx.rows then break end
             win:wmove(y, 0)
-            draw.red(win)
-            ctx.add_button(win, '(x)', function() stores.remove_watch(ctx.net, watch) end)
-            toggle(ctx, win, watch, 'active', '(A)', '(a)')
-            toggle(ctx, win, watch, 'beep', '(B)', '(b)')
-            toggle(ctx, win, watch, 'flash', '(F)', '(f)')
+            ctx.add_chip(win, 'x', function() stores.remove_watch(ctx.net, watch) end, 'danger')
+            toggle(ctx, win, watch, 'active', 'A', 'a')
+            toggle(ctx, win, watch, 'beep', 'B', 'b')
+            toggle(ctx, win, watch, 'flash', 'F', 'f')
             draw.normal(win)
-            win:waddstr ' '
+            -- the chips end at one column, gaps or none, under the header
+            local _, x = ncurses.getyx(win)
+            win:waddstr(string.rep(' ', math.max(1, actions_width + 1 - x)))
             ctx.add_button(win, '→cliconn', function()
                 control.set_filter('cliconn', watch.pattern)
                 control.set_view 'cliconn'

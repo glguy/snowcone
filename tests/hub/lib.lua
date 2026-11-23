@@ -96,6 +96,11 @@ function T.boot(opts)
     if opts.strict == nil then opts.strict = true end
     -- never the user's own configuration files
     if opts.config == nil then opts.config = {} end
+    -- buttons in brackets, as tests find them by their text; the modern
+    -- theme's tests ask for it
+    local ui = opts.config.ui or {}
+    opts.config.ui = ui
+    if ui.theme == nil then ui.theme = 'classic' end
     return assert(loadfile(T.init))(opts)
 end
 

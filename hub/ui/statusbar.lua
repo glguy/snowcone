@@ -9,6 +9,7 @@ local matching  <const> = require 'hub.lib.matching'
 local oper      <const> = require 'hub.features.oper'
 local scrub     <const> = require 'hub.lib.scrub'
 local spell     <const> = require 'hub.runtime.spell'
+local theme     <const> = require 'hub.ui.theme'
 
 local phase_palette <const> = {
     connected = ncurses.COLOR_GREEN,
@@ -32,21 +33,33 @@ function M.activity(net)
     return seen
 end
 
--- The separator between fragments of the bar (a Powerline triangle), and
--- its line version for fragments that share a background
-M.separator = utf8.char(0xE0B0)
-M.thin_separator = utf8.char(0xE0B1)
+-- The separator between fragments of the bar, and its line version for
+-- fragments that share a background, by ui.separators (ui/theme.lua): set
+-- at each draw
+M.separator = theme.glyph_sets.powerline.right
+M.thin_separator = theme.glyph_sets.powerline.right_thin
 
--- Background color of the fragment being drawn (nil for the terminal's)
+-- Background color of the fragment being drawn (nil for the terminal's),
+-- and the band's, with the color of text on it: the background of a
+-- fragment that has none of its own (nil without a band)
 local background
+local surface, surface_text
+
+--- Make bg the background the bar's text is drawn on: the window's base
+--- (draw.set_base), so views' colors keep it.
+local function set_background(win, bg)
+    background = bg
+    draw.set_base(win, bg == surface and surface_text or nil, bg)
+end
 
 --- Draw the separator from a region on background `from` into one on `to`
 --- (nil for the terminal's): a triangle in the old background on the new
 --- one, so the colors stay connected, or the line when they are the same.
 local function transition(win, from, to)
+    draw.set_base(win)
     draw.normal(win)
     if from == to then
-        ncurses.colorset(ncurses.COLOR_WHITE, to, win)
+        ncurses.colorset(to == surface and surface_text or ncurses.COLOR_WHITE, to, win)
         win:waddstr(M.thin_separator)
     elseif from then
         ncurses.colorset(from, to, win)
@@ -58,19 +71,20 @@ local function transition(win, from, to)
         draw.reversevideo(win)
         win:waddstr(M.separator)
     end
+    set_background(win, to)
     draw.normal(win)
-    background = to
 end
 
---- Start a new fragment of the status bar on background `bg` (nil for the
---- terminal's), padded on either side of the separator by a space in the
---- background of the fragment it belongs to.
+--- Start a new fragment of the status bar on background `bg` (the band's
+--- when not given), padded on either side of the separator by a space in
+--- the background of the fragment it belongs to.
+---@param win ncurses.Window
+---@param bg integer|nil
 function M.fragment(win, bg)
+    bg = bg or surface
     draw.normal(win)
-    ncurses.colorset(nil, background, win)
     win:waddstr ' '
     transition(win, background, bg)
-    ncurses.colorset(nil, bg, win)
     win:waddstr ' '
 end
 
@@ -84,20 +98,20 @@ local function draw_nets(win, ctx, titlecolor)
     for _, id in ipairs(control.net_ids()) do
         local rec = HUB.state.nets[id]
         local color = phase_palette[rec.phase] or ncurses.COLOR_YELLOW
-        local bg = id == current and color or nil
+        local bg = id == current and color or surface
         if first then
             transition(win, titlecolor, bg)
-            ncurses.colorset(nil, bg, win)
             win:waddstr ' '
             first = false
         else
             M.fragment(win, bg)
         end
 
-        if bg then
+        local lit = id == current
+        if lit then
             ncurses.colorset(ncurses.COLOR_BLACK, bg, win)
         else
-            ncurses.colorset(color, nil, win)
+            ncurses.colorset(color, bg, win)
         end
         local _, x1 = ncurses.getyx(win)
         win:waddstr(scrub(id))
@@ -108,17 +122,17 @@ local function draw_nets(win, ctx, titlecolor)
         -- current network, where the colors would vanish)
         local marker = M.activity(id)
         if marker then
-            if bg then
+            if lit then
                 ncurses.colorset(ncurses.COLOR_BLACK, bg, win)
                 draw.bold(win)
             else
-                ncurses.colorset(marker == 'mention' and ncurses.COLOR_MAGENTA or ncurses.COLOR_YELLOW, nil, win)
+                ncurses.colorset(marker == 'mention' and ncurses.COLOR_MAGENTA or ncurses.COLOR_YELLOW, bg, win)
             end
             win:waddstr(marker == 'mention' and '!' or '+')
         end
     end
     if first then
-        transition(win, titlecolor, nil)
+        transition(win, titlecolor, surface)
     end
     draw.normal(win)
 end
@@ -204,6 +218,11 @@ end
 ---@param view table the current view
 ---@param ctx hub.ViewContext of the current view
 function M.draw(win, textbox, layout, view, ctx)
+    local glyphs = theme.glyphs()
+    M.separator, M.thin_separator = glyphs.right, glyphs.right_thin
+    surface, surface_text = theme.surface()
+    set_background(win, nil)
+
     local titlecolor = M.title_color()
     local input = HUB.state.ui.input
     local mode = input.mode
@@ -299,8 +318,14 @@ function M.draw(win, textbox, layout, view, ctx)
             addircstr(win, last)
         end
 
-        -- close a colored last fragment onto the terminal's background
-        if background then
+        -- the band runs to the end of the row; without one, a colored
+        -- last fragment closes onto the terminal's background
+        if surface then
+            if background ~= surface then M.fragment(win) end
+            draw.normal(win)
+            local _, x = ncurses.getyx(win)
+            win:waddstr(string.rep(' ', math.max(0, tty_width - x)))
+        elseif background then
             M.fragment(win, nil)
         end
 

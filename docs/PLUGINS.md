@@ -217,7 +217,7 @@ api.view('seen', {
 | `scope` | `'net'` for a view of the current network. Default: `'global'`. |
 | `document` | True to draw the whole view into a pad and page it, rather than fill the screen. |
 
-`ctx` has `id`, `net` (the current network), `rows`, `cols`, `vs` (the view's own state, which keeps its fields across reloads), and `add_button(win, text, action)` and `add_click(y, lo, hi, action)` for mouse regions, rebuilt every frame. A view with an id already in use is reported as an error and not added. The [design document](hub-design.md#7-user-interface) has more on views.
+`ctx` has `id`, `net` (the current network), `rows`, `cols`, `vs` (the view's own state, which keeps its fields across reloads), and for mouse regions, rebuilt every frame: `add_chip(win, label, action, role)` for a button that runs an action (`role` is `'neutral'`, the default, `'accent'`, `'ok'`, `'warn'` or `'danger'`), `chip_gap(win)` between two chips side by side (a space, or none when rounded caps already part them), `add_segments(win, segments)` for the choices of one setting (each `{label, action, on}`, the one in effect `on`), `add_button(win, text, action, plain)` for any other text, and `add_click(y, lo, hi, action)`. A view with an id already in use is reported as an error and not added. The [design document](hub-design.md#7-user-interface) has more on views.
 
 `key` is an integer: a code point, the negated byte for Meta (`-string.byte 'a'` is Meta-A), or a negated `ncurses.KEY_` value (`-ncurses.KEY_LEFT`). A view sees keys before the global key map, so return true only for keys it uses.
 
@@ -270,7 +270,7 @@ api.detail('lastseen', {
     render = function(ctx, win)
         local data = ctx.vs.data
         win:waddstr(scrub(data.nick .. ' spoke in ' .. data.where) .. '\n')
-        ctx.add_button(win, '[forget]', function() seen[data.nick] = nil end)
+        ctx.add_chip(win, 'forget', function() seen[data.nick] = nil end)
     end,
 })
 

@@ -130,7 +130,7 @@ return {
         win:waddstr(_VERSION)
         key(win, 'memory')
         win:waddstr(pretty.number(collectgarbage 'count' * 1024, 'M'), ' ')
-        ctx.add_button(win, '[GC]', function() collectgarbage() end)
+        ctx.add_chip(win, 'GC', function() collectgarbage() end)
         key(win, 'up')
         win:waddstr(draw.duration(clock.uptime()))
         key(win, 'filters')

@@ -3,6 +3,7 @@
 
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local clock      <const> = require 'hub.runtime.clock'
+local theme      <const> = require 'hub.ui.theme'
 
 local M = {}
 
@@ -18,7 +19,33 @@ do
     local WA_REVERSE   <const> = ncurses.WA_REVERSE
     local WA_UNDERLINE <const> = ncurses.WA_UNDERLINE
 
-    function M.normal(w)        attrset(WA_NORMAL, 0, w)   end
+    -- A window's base colors, {fore, back}: what normal resets to and the
+    -- background the color setters keep, so text drawn on a band of color
+    -- (the status bar's) stays on it
+    local bases <const> = setmetatable({}, {__mode = 'k'})
+
+    --- Set the base colors of a window; nil fore is the terminal's
+    --- foreground, and nil back the terminal's colors for both.
+    ---@param w ncurses.Window
+    ---@param fore integer|nil
+    ---@param back integer|nil
+    function M.set_base(w, fore, back)
+        bases[w] = back and {fore or -1, back} or nil
+    end
+
+    --- A window's base colors, or nil for the terminal's.
+    ---@return integer|nil fore
+    ---@return integer|nil back
+    function M.base(w)
+        local b = w and bases[w]
+        if b then return b[1], b[2] end
+    end
+
+    function M.normal(w)
+        attrset(WA_NORMAL, 0, w)
+        local b = w and bases[w]
+        if b then colorset(b[1], b[2], w) end
+    end
     function M.bold(w)          attron(WA_BOLD, w)         end
     function M.bold_(w)         attroff(WA_BOLD, w)        end
     function M.italic(w)        attron(WA_ITALIC, w)       end
@@ -30,7 +57,17 @@ do
 
     for _, name in ipairs {'red', 'green', 'blue', 'cyan', 'black', 'magenta', 'yellow', 'white'} do
         local color <const> = ncurses['COLOR_' .. name:upper()]
-        M[name] = function(w) colorset(color, nil, w) end
+        M[name] = function(w)
+            local b = w and bases[w]
+            colorset(color, b and b[2], w)
+        end
+    end
+
+    --- Text that is there but not to be read first (an empty cell, a
+    --- separator): a soft gray on the modern theme, black on the classic.
+    function M.muted(w)
+        local b = w and bases[w]
+        colorset(theme.text 'muted' or ncurses.COLOR_BLACK, b and b[2], w)
     end
 end
 
@@ -314,9 +351,13 @@ function M.draw_rotation(win, vs, start, rows, data, show_entry, draw_entry)
         local y = start + i - 1
         win:wmove(y, 0)
         if entry == 'divider' then
+            -- the time in yellow, to find; the ruler after it muted on
+            -- the modern theme
             last_time = os.date '!%H:%M:%S' --[[@as string]]
             M.yellow(win)
-            win:waddstr(last_time, vs.scroll == 0 and divider_string or scrolled_divider_string)
+            win:waddstr(last_time)
+            if theme.modern() then M.muted(win) end
+            win:waddstr(vs.scroll == 0 and divider_string or scrolled_divider_string)
         elseif entry then
             M.normal(win)
             local time = entry.time

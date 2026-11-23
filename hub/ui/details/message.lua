@@ -676,15 +676,15 @@ function M.render(ctx, win)
     local summary = summary_of(ctx.net, msg)
 
     -- the levels as one control, a segment each, the shown one lit
-    local sep = '['
+    local segments = {}
     for _, level in ipairs(levels) do
         if level ~= 'summary' or summary then
-            win:waddstr(sep)
-            ctx.add_button(win, level, function() detail.level = level end, level ~= shown)
-            sep = '|'
+            table.insert(segments, {label = level, on = level == shown,
+                                    action = function() detail.level = level end})
         end
     end
-    win:waddstr ']  '
+    ctx.add_segments(win, segments)
+    win:waddstr '  '
 
     -- the jumps, which leave the levels as they are
     local net = ctx.net

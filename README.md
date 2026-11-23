@@ -138,15 +138,17 @@ Some things to know:
   marked ▸, a message in a buffer or the console, or a channel name, or
   use `/who`, `/whois`, `/whowas`, `/stats`, `/trace`, `/etrace`,
   `/masktrace`, `/chaninfo`, `/quote` or `/eval`. It is as tall as its
-  content, up to half the screen. Its rule has [CLOSE],
-  ←BACK after a click inside it, and [DISCARD], which also drops it from
-  the log lines that hold it.
+  content, up to half the screen. The band under it has ✕ to close it
+  at the left, ← to go back after a click inside it, its title, and at
+  the right DISCARD, which
+  also drops it from the log lines that hold it (with `[ui] theme =
+  'classic'`, a rule with [CLOSE], ←BACK and [DISCARD]).
 - While the pane is open, Esc closes it first (outside input modes), the
   paging keys and the wheel over it scroll it, and Left and Right scroll
   a wide one (`/quote` replies, `/eval` values, the WHO, STATS and trace
   tables, whose headers stay at the top as their rows scroll). Ctrl-S and `/filter` filter the channel, `/quote`, WHO,
   WHOWAS, STATS and trace panes instead of the view. A `/quote` reply's
-  [TABLE] shows it as those tables, a column per field, and [RAW] goes
+  `table` (of `table|raw`) shows it as those tables, a column per field, and `raw` goes
   back.
 - Meta-P opens the formatting palette.
 

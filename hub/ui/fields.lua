@@ -3,7 +3,8 @@
 -- further values of a row. Lists show their first row and fold the rest
 -- behind a button.
 
-local draw <const> = require 'hub.ui.draw'
+local clicks <const> = require 'hub.ui.clicks'
+local draw   <const> = require 'hub.ui.draw'
 
 local M = {}
 
@@ -79,7 +80,7 @@ function M.words(ctx, win, id, list, color_of)
     for _, word in ipairs(list) do total = total + word_width(word) + 1 end
     local folds = total >= ctx.cols
     -- room for the widest button
-    local reserve = folds and not expanded and width(string.format('[+%d more]', #list)) or 0
+    local reserve = folds and not expanded and clicks.chip_width(string.format('+%d more', #list)) or 0
 
     -- a word and its space must end before the last column: writing the
     -- last column moves the cursor to the start of the next row
@@ -87,7 +88,7 @@ function M.words(ctx, win, id, list, color_of)
         _, x = ncurses.getyx(win)
         if x + word_width(word) + 1 + reserve >= ctx.cols then
             if not expanded then
-                ctx.add_button(win, string.format('[+%d more]', #list - i + 1), toggle)
+                ctx.add_chip(win, string.format('+%d more', #list - i + 1), toggle)
                 break
             end
             win:waddstr('\n', indent)
@@ -97,7 +98,7 @@ function M.words(ctx, win, id, list, color_of)
         if color_of then color_of(win, text, i) end
         win:waddstr(text)
         if type(word) == 'table' then
-            draw.black(win)
+            draw.muted(win)
             win:waddstr '='
             draw.normal(win)
             if color_of then color_of(win, text, i) end
@@ -108,10 +109,10 @@ function M.words(ctx, win, id, list, color_of)
     end
     if folds and expanded then
         _, x = ncurses.getyx(win)
-        if x + width '[less]' + 1 > ctx.cols then
+        if x + clicks.chip_width 'less' + 1 > ctx.cols then
             win:waddstr('\n', indent)
         end
-        ctx.add_button(win, '[less]', toggle)
+        ctx.add_chip(win, 'less', toggle)
     end
     win:waddstr '\n'
 end

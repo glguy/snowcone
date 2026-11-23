@@ -3,8 +3,9 @@
 -- sender to inspect that message, as in a buffer or the console; [BACK]
 -- returns here, scrolled as it was. The filter (Ctrl-S, /filter) shows only the messages that match.
 --
--- [TABLE] shows the reply as tables instead (ui/details/listing.lua), a
--- table per kind of reply with a column per field, and [RAW] goes back;
+-- `table`, of the table|raw control, shows the reply as tables instead
+-- (ui/details/listing.lua), a table per kind of reply with a column per
+-- field, and `raw` goes back;
 -- the detail keeps which, in vs.table, and the reply the tables.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
@@ -74,12 +75,15 @@ function M.rows(ctx)
     local state = state_text[reply.state]
     local pattern = control.filter(ctx.id)
 
-    -- the line sent, with the button that switches the view of its reply
+    -- the line sent, after the views of its reply as one control, a
+    -- segment each, the shown one lit
     local function draw_line(win)
         if reply.messages[1] then
-            ctx.add_button(win, ctx.vs.table and '[RAW]' or '[TABLE]', function()
-                ctx.vs.table = not ctx.vs.table or nil
-            end)
+            local vs = ctx.vs
+            ctx.add_segments(win, {
+                {label = 'table', on = vs.table == true, action = function() vs.table = true end},
+                {label = 'raw', on = not vs.table, action = function() vs.table = nil end},
+            })
             win:waddstr ' '
         end
         draw.blue(win)

@@ -103,7 +103,9 @@ static int l_attrset(lua_State* const L)
     luaL_argcheck(L, 0 <= color && color < COLOR_PAIRS, 2, "out of range");
     WINDOW* const win = optwindow(L, 3);
 
-    if (ERR == wattr_set(win, a, color, NULL))
+    // the pair through opts, as pairs above 32767 don't fit the short
+    int pair = (int)color;
+    if (ERR == wattr_set(win, a, 0, &pair))
     {
         return luaL_error(L, "wattr_set: ncurses error");
     }

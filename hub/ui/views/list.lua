@@ -50,7 +50,7 @@ return {
         else
             win:waddstr('         channels: ', tostring(kept), ' ')
         end
-        ctx.add_button(win, '[↻]', function() chat.list(ctx.net) end)
+        ctx.add_chip(win, '↻', function() chat.list(ctx.net) end)
         draw.bold_(win)
 
         local pattern = control.filter(ctx.id)

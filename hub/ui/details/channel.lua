@@ -148,7 +148,7 @@ local function list_mode(ctx, win, channel, mode, pattern)
     label(win, list_names[mode] or ('+' .. mode))
     if not entries then
         win:waddstr 'not fetched '
-        ctx.add_button(win, '[↻]', function() chat.fetch_list(ctx.net, name, mode) end)
+        ctx.add_chip(win, '↻', function() chat.fetch_list(ctx.net, name, mode) end)
         win:waddstr '\n'
         return
     end
@@ -173,13 +173,13 @@ local function list_mode(ctx, win, channel, mode, pattern)
     local vs = ctx.vs
     local open = vs.open_lists and vs.open_lists[mode]
     if n > 0 then
-        ctx.add_button(win, open and '[-]' or '[+]', function()
+        ctx.add_chip(win, open and '-' or '+', function()
             vs.open_lists = vs.open_lists or {}
             vs.open_lists[mode] = not open or nil
         end)
-        win:waddstr ' '
+        ctx.chip_gap(win)
     end
-    ctx.add_button(win, '[↻]', function() chat.fetch_list(ctx.net, name, mode) end)
+    ctx.add_chip(win, '↻', function() chat.fetch_list(ctx.net, name, mode) end)
     win:waddstr '\n'
 
     -- a search shows what it finds, folded or not
@@ -187,7 +187,7 @@ local function list_mode(ctx, win, channel, mode, pattern)
     for _, entry in ipairs(sorted) do
         win:waddstr(string.rep(' ', fields.width + 2))
         local mask = entry.mask
-        ctx.add_button(win, '[x]', function() chat.unset_list(ctx.net, name, mode, mask) end)
+        ctx.add_chip(win, 'x', function() chat.unset_list(ctx.net, name, mode, mask) end, 'danger')
         win:waddstr ' '
         draw.red(win)
         win:waddstr(scrub(entry.mask))
@@ -214,7 +214,7 @@ function M.render(ctx, win)
     if not channel then
         if irc then
             win:waddstr 'Not in this channel: /talk to join it, or look without joining '
-            ctx.add_button(win, '[↻]', function() chat.channel_info(ctx.net, name) end)
+            ctx.add_chip(win, '↻', function() chat.channel_info(ctx.net, name) end)
             win:waddstr '\n'
         else
             win:waddstr 'Not connected\n'
@@ -240,7 +240,7 @@ function M.render(ctx, win)
         win:waddstr ' '
     end
     fetched(win, channel, 'topic')
-    ctx.add_button(win, '[↻]', function() chat.refresh_topic(ctx.net, name) end)
+    ctx.add_chip(win, '↻', function() chat.refresh_topic(ctx.net, name) end)
     win:waddstr '\n'
     if channel.topic_who then
         label(win, 'set by')
@@ -278,7 +278,7 @@ function M.render(ctx, win)
                 if type(word) == 'table' then
                     draw.cyan(win)
                     win:waddstr(word[1])
-                    draw.black(win)
+                    draw.muted(win)
                     win:waddstr '='
                     draw.normal(win)
                     win:waddstr(word[2], ' ')
@@ -293,7 +293,7 @@ function M.render(ctx, win)
         win:waddstr 'not known '
     end
     fetched(win, channel, 'modes')
-    ctx.add_button(win, '[↻]', function() chat.refresh_modes(ctx.net, name) end)
+    ctx.add_chip(win, '↻', function() chat.refresh_modes(ctx.net, name) end)
     win:waddstr '\n'
 
     if joined then

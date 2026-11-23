@@ -311,7 +311,9 @@ M.servers_file = table_ {
 --- The whole file.
 M.file = table_ {
     ui = table_ {
-        profile = {type = 'string', pattern = '^%l+$'},
+        profile    = {type = 'string', pattern = '^%l+$'},
+        theme      = {type = 'string', values = {modern = true, classic = true}},
+        separators = {type = 'string', values = {powerline = true, rounded = true, slant = true, plain = true}},
     },
     networks = array {type = 'table'}, -- each checked against M.network
     plugins = table_ {

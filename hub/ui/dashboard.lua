@@ -93,7 +93,7 @@ local show_cycle <const> = {
     ip = {'reason', 'asn'},
 }
 
-local show_labels <const> = {reason = '[ REASON ]', org = '[  ORG   ]', asn = '[  ASN   ]', ip = '[   IP   ]'}
+local show_labels <const> = {reason = 'REASON', org = ' ORG  ', asn = ' ASN  ', ip = '  IP  '}
 
 --- The bottom row of the connection and ban views: what the reason column
 --- shows, the ban settings, and the staged action with its buttons.
@@ -107,88 +107,73 @@ function M.action_bar(ctx, win, y)
     win:wmove(y, 0)
     draw.bold(win)
 
-    draw.yellow(win)
     local shown = vs.show_reasons or 'reason'
-    ctx.add_button(win, show_labels[shown], function(shifted)
+    ctx.add_chip(win, show_labels[shown], function(shifted)
         vs.show_reasons = show_cycle[shown][shifted and 2 or 1]
     end)
-    win:waddstr ' '
+    ctx.chip_gap(win)
 
     if vs.filter then
-        draw.blue(win)
-        ctx.add_button(win, '[ CLEAR FILTER ]', function() vs.filter = nil end)
-        win:waddstr ' '
+        ctx.add_chip(win, 'CLEAR FILTER', function() vs.filter = nil end, 'accent')
+        ctx.chip_gap(win)
     end
 
-    draw.cyan(win)
-    ctx.add_button(win, '[ ' .. settings.duration .. ' ]', function(shifted)
+    ctx.add_chip(win, settings.duration, function(shifted)
         oper.cycle_duration(net, shifted)
     end)
-    win:waddstr ' '
+    ctx.chip_gap(win)
 
-    draw.blue(win)
-    ctx.add_button(win, settings.trust_uname and '[ ~ ]' or '[ = ]', function()
+    ctx.add_chip(win, settings.trust_uname and '~' or '=', function()
         oper.toggle_trust(net)
     end)
-    win:waddstr ' '
+    ctx.chip_gap(win)
 
-    if settings.add_freeze then
-        if settings.tag then draw.red(win) else draw.yellow(win) end
-    end
-    ctx.add_button(win, settings.add_freeze and '[FR]' or '[  ]', function()
+    ctx.add_chip(win, settings.add_freeze and 'FR' or '  ', function()
         oper.toggle_freeze(net)
-    end)
-    win:waddstr ' '
+    end, settings.add_freeze and (settings.tag and 'danger' or 'warn') or nil)
+    ctx.chip_gap(win)
 
-    draw.magenta(win)
     local reasons = oper.reasons(net)
     local reason = reasons[settings.reason] or reasons[1]
-    ctx.add_button(win, string.format('[ %-7s ]', reason.name), function(shifted)
+    ctx.add_chip(win, string.format('%-7s', reason.name), function(shifted)
         oper.cycle_reason(net, shifted)
     end)
-    win:waddstr ' '
+    ctx.chip_gap(win)
 
-    ctx.add_button(win, string.format('[ %-7s ]', settings.tag or 'no tag'), function(shifted)
+    ctx.add_chip(win, string.format('%-7s', settings.tag or 'no tag'), function(shifted)
         oper.cycle_tag(net, shifted)
     end)
-    win:waddstr ' '
+    ctx.chip_gap(win)
 
     local staged = O.staged
     if staged and staged.action == 'kline' then
-        draw.green(win)
-        ctx.add_button(win, '[ CANCEL KLINE ]', function()
+        ctx.add_chip(win, 'CANCEL KLINE', function()
             oper.cancel(net)
             vs.highlight = nil
         end)
-        win:waddstr ' '
-        draw.red(win)
+        ctx.chip_gap(win)
         local freeze = oper.freeze_account(net)
-        local text = string.format('[ KLINE %s %s %s%s ]',
+        local text = string.format('KLINE %s %s %s%s',
             staged.count and tostring(staged.count) or '?',
             staged.nick or '*',
             staged.mask,
             freeze and ' FREEZE ' .. freeze or '')
-        ctx.add_button(win, scrub(text), function() oper.commit(net) end)
-        win:waddstr ' '
-        draw.yellow(win)
-        ctx.add_button(win, '[ TRACE ]', function() oper.trace(net) end)
+        ctx.add_chip(win, scrub(text), function() oper.commit(net) end, 'danger')
+        ctx.chip_gap(win)
+        ctx.add_chip(win, 'TRACE', function() oper.trace(net) end, 'warn')
     elseif staged and staged.action == 'unkline' and staged.mask then
-        draw.green(win)
-        ctx.add_button(win, '[ CANCEL UNKLINE ]', function()
+        ctx.add_chip(win, 'CANCEL UNKLINE', function()
             oper.cancel(net)
             vs.highlight = nil
         end)
-        win:waddstr ' '
-        draw.yellow(win)
-        ctx.add_button(win, scrub(string.format('[ UNKLINE %s %s ]', staged.nick or '*', staged.mask)),
-            function() oper.commit(net) end)
+        ctx.chip_gap(win)
+        ctx.add_chip(win, scrub(string.format('UNKLINE %s %s', staged.nick or '*', staged.mask)),
+            function() oper.commit(net) end, 'warn')
     elseif staged and staged.action == 'undline' then
-        draw.green(win)
-        ctx.add_button(win, '[ CANCEL UNDLINE ]', function() oper.cancel(net) end)
-        win:waddstr ' '
-        draw.yellow(win)
-        ctx.add_button(win, scrub(string.format('[ UNDLINE %s ]', staged.mask)),
-            function() oper.commit(net) end)
+        ctx.add_chip(win, 'CANCEL UNDLINE', function() oper.cancel(net) end)
+        ctx.chip_gap(win)
+        ctx.add_chip(win, scrub(string.format('UNDLINE %s', staged.mask)),
+            function() oper.commit(net) end, 'warn')
     end
 
     draw.normal(win)

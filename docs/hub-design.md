@@ -78,8 +78,8 @@ These hold everywhere. A change that breaks one needs a decision recorded in
   modules only when it needs that feature (`feature_requires`, section 5);
   notify, which follows chat's buffers, is the one other use. Helpers any
   feature may use sit at `features/*.lua`.
-- `ui` has tiers, each requiring only its own or lower: drawing primitives
-  and the editor; `control` (view selection, input modes, talk targets);
+- `ui` has tiers, each requiring only its own or lower: drawing primitives,
+  the theme and the editor; `control` (view selection, input modes, talk targets);
   views, detail kinds, the status bar and the command line; the key map;
   `ui/init.lua`.
 
@@ -367,12 +367,18 @@ or change stores themselves.
 `ctx` is what a view or detail kind draws with: `vs`, its persistent
 state (scroll, filter, its own fields); `net`, the current network (the
 detail's for a kind); `id`; the size (`rows`, `cols`); and
-`add_button`/`add_click`, mouse regions rebuilt every frame
-(`ui/clicks.lua`). A button that sets a mode or runs an action is in
-brackets, the choices of one setting a single control,
-`[summary|message|raw]`, with the one in effect lit; a button that goes
-somewhere else is plain with an arrow, `→console`, `←BACK`. A status function also gets `ctx.fragment(win)`, which
-starts each fragment it adds.
+`add_chip`/`add_segments`/`add_button`/`add_click`, mouse regions
+rebuilt every frame (`ui/clicks.lua`). A button that sets a mode or runs
+an action is a chip, `add_chip(win, label, action, role)`: the label on a
+color of its role (neutral, accent, ok, warn or danger) with the modern
+theme, or `[label]` in reverse video with the classic, two columns wider
+than the label either way. Between two chips side by side goes
+`chip_gap(win)`: a space, or none between rounded caps, which part them. The choices of one setting are a single
+control, `add_segments`, with the one in effect lit: `[summary|message|raw]`
+with the classic theme. A button that goes somewhere else is plain with
+an arrow, `add_button(win, '→console', action, true)`, `←BACK`. A status
+function also gets `ctx.fragment(win)`, which starts each fragment it
+adds.
 
 ### The detail pane
 
@@ -443,7 +449,12 @@ counts, never sizes.
 
 ### Status bar
 
-Fragments are divided by one separator, `statusbar.separator`. A view's
+Fragments are divided by one separator, `statusbar.separator`, a glyph
+chosen by `[ui] separators` (`ui/theme.lua`). With `[ui] theme` modern, on
+256 colors or more, the bar is a band of one background from end to end,
+and a fragment without a color of its own is on it: the band is the bar
+window's base color (`draw.set_base`), which the color setters and IRC
+formatting keep as the background. A view's
 `status` shows data; its `modes` shows only what alters it from its
 default. The bar adds the scroll position and the filter every view has,
 in the same fragment as the modes, shown only when one is on.

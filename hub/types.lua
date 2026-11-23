@@ -278,6 +278,11 @@ function ncurses.attroff(attrs, win) end
 ---@param win ncurses.Window|nil
 function ncurses.attrset(attrs, pair, win) end
 
+---@param win ncurses.Window|nil
+---@return integer attrs
+---@return integer pair
+function ncurses.attrget(win) end
+
 ---@param visibility integer
 ---@return integer previous
 function ncurses.cursset(visibility) end

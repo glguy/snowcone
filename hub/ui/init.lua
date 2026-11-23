@@ -75,6 +75,9 @@ end
 ---@field cols integer
 ---@field add_click fun(y: integer, lo: integer, hi: integer, action: fun())
 ---@field add_button fun(win: ncurses.Window, text: string, action: fun(), plain: boolean|nil)
+---@field add_chip fun(win: ncurses.Window, label: string, action: fun(), role: hub.ChipRole|nil)
+---@field add_segments fun(win: ncurses.Window, segments: {label: string, action: fun(), on: boolean|nil}[])
+---@field chip_gap fun(win: ncurses.Window) the gap between two chips side by side
 ---@field fragment fun(win: ncurses.Window, bg: integer|nil)|nil starts a fragment of the
 --- status bar, while a view draws its status (ui/statusbar.lua)
 
@@ -89,6 +92,9 @@ local function view_context(view)
         cols = tty_width,
         add_click = clicks.add,
         add_button = clicks.button,
+        add_chip = clicks.chip,
+        add_segments = clicks.segments,
+        chip_gap = clicks.chip_gap,
     }
 end
 
