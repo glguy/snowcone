@@ -1,6 +1,6 @@
--- Channel operator commands: /mode, quiets and bans, kickban, and op and
--- voice. They act on the shown channel; whether we may is the server's
--- to say.
+-- Channel operator commands: /mode, quiets and bans, kick and kickban,
+-- and op and voice. They act on the shown channel; whether we may is the
+-- server's to say.
 
 local ban_mask  <const> = require 'hub.features.chat.masks'
 local bus       <const> = require 'hub.runtime.bus'
@@ -357,6 +357,14 @@ M.commands = {
     mode_command(),
     ban_command('quiet', 'q', 'Quiet a mask, or a nick by its ban mask, in the shown channel'),
     ban_command('ban', 'b', 'Ban a mask, or a nick by its ban mask, from the shown channel'),
+    command('kick', '$g $T', 'nick [reason]', 'Kick a nick from the shown channel', function(ctx, nick, reason)
+        local channel = M.shown_channel(ctx)
+        if reason ~= '' then
+            send.send(ctx.net, 'KICK', channel, nick, reason)
+        else
+            send.send(ctx.net, 'KICK', channel, nick)
+        end
+    end),
     command('kickban', '$g $T', 'nick [reason]', 'Ban a nick from the shown channel and kick it',
     function(ctx, nick, reason)
         local channel = M.shown_channel(ctx)

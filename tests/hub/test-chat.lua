@@ -1783,7 +1783,7 @@ T.case('channel ban mask rules', function()
     T.eq(masks('~user', '255.255.255.255', 'host.example'), '*@host.example', 'address hidden')
 end)
 
-T.case('quiet, ban, kickban and their removal in the shown channel', function()
+T.case('quiet, ban, kick, kickban and their removal in the shown channel', function()
     local c = boot()
     c:recv ':me!u@h JOIN #chan'
     c:recv ':srv 353 me = #chan :@me bob'
@@ -1800,6 +1800,10 @@ T.case('quiet, ban, kickban and their removal in the shown channel', function()
     T.eq(c:take(), {'WHO Bob %tuihn,696'}, 'looked up')
     c:recv ':srv 354 me 696 ~b 255.255.255.255 unaffiliated/bob bob'
     T.eq(c:take(), {'MODE #chan +q *!*@unaffiliated/bob'}, 'quieted by cloak')
+
+    T.command('kick bob go away', nil, '#chan')
+    T.command('kick bob', nil, '#chan')
+    T.eq(c:take(), {'KICK #chan bob :go away', 'KICK #chan bob'}, 'kick, with no lookup')
 
     T.command('kickban bob go away', nil, '#chan')
     c:recv ':srv 354 me 696 b 192.0.2.5 host.example bob'
