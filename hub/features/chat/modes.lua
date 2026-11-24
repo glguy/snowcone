@@ -159,6 +159,79 @@ local function parse_modestring(irc, modestring)
     return changes
 end
 
+-- What a mode's argument is, for its placeholder; another mode's shows
+-- as the change, such as +j
+local argument_names <const> = {k = 'key', l = 'limit'}
+
+-- /mode's line as the network's modes read it: the modestring, red in the
+-- letters the network doesn't have and red whole without any letter,
+-- then a word for each change that takes an argument, and any words past
+-- those as one, red. Still to come, the modestring, then the arguments of
+-- the changes not yet given, by what they are: nick for a prefix mode,
+-- mask for a list. When every change sets a list, as +b does, and none is
+-- given yet, they are optional: alone they show it.
+local function mode_shape(ctx, rest, slot)
+    local words = {}
+    for lo, word in rest:gmatch '()([^ ]+)' do
+        table.insert(words, {lo = lo, hi = lo + #word - 1, word = word})
+    end
+    if not words[1] then return {words = {}, ghosts = {slot[1]}} end
+
+    local irc = model(ctx.net)
+    local shown = {}
+    if not irc then
+        for i, w in ipairs(words) do shown[i] = {lo = w.lo, hi = w.hi, ok = true} end
+        return {words = shown, ghosts = {}}
+    end
+
+    -- the modestring, in runs of letters known and not
+    local first = words[1]
+    local changes, sign, lists, letters = {}, '+', true, 0
+    for i = 1, #first.word do
+        local flag = first.word:sub(i, i)
+        local ok = true
+        if flag == '+' or flag == '-' then
+            sign = flag
+        else
+            letters = letters + 1
+            local takes = irc_model.mode_takes_arg(irc, sign, flag)
+            if takes == nil then
+                ok = false
+            elseif takes then
+                table.insert(changes, {sign, flag})
+            end
+            if not (sign == '+' and irc.modes_A:find(flag, 1, true)) then lists = false end
+        end
+        local last = shown[#shown]
+        if last and last.ok == ok then
+            last.hi = first.lo + i - 1
+        else
+            table.insert(shown, {lo = first.lo + i - 1, hi = first.lo + i - 1, ok = ok, final = true})
+        end
+    end
+    if letters == 0 then
+        shown = {{lo = first.lo, hi = first.hi, ok = false}}
+    end
+
+    -- the arguments, and those left over as one
+    for i = 2, math.min(#words, #changes + 1) do
+        table.insert(shown, {lo = words[i].lo, hi = words[i].hi, ok = true})
+    end
+    if #words > #changes + 1 then
+        table.insert(shown, {lo = words[#changes + 2].lo, hi = words[#words].hi, ok = false, final = true})
+    end
+
+    local ghosts = {}
+    for i = #words, #changes do
+        local s, flag = changes[i][1], changes[i][2]
+        local label = irc.mode_to_prefix[flag] and 'nick'
+            or irc.modes_A:find(flag, 1, true) and 'mask'
+            or argument_names[flag] or s .. flag
+        table.insert(ghosts, {label = label, optional = lists and #words == 1, repeats = false})
+    end
+    return {words = shown, ghosts = ghosts}
+end
+
 -- /mode: changes checked against the network's modes, or the modes shown
 local function mode_command(chat)
     local cmd = chat.command('mode', '$R', '[modes [arg...]]',
@@ -211,6 +284,8 @@ local function mode_command(chat)
         send_changes(ctx.net, irc, channel, changes)
         chat.refetch_observed(ctx.net, channel)
     end)
+
+    cmd.shape = mode_shape
 
     -- Tab on a change's argument offers what fits it: the channel's nicks
     -- for a prefix mode, a list's masks to unset (fetching a list not yet

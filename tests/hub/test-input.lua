@@ -726,6 +726,26 @@ T.case('a command line shows its command, arguments and what is still to type', 
     T.eq(look_of 'whois', 'warn[whois] | nick', 'a network command with no network')
 end)
 
+T.case('a /mode line shows an argument for each change that takes one', function()
+    local c = boot()
+    c:recv ':srv 005 me PREFIX=(ov)@+ CHANMODES=beIq,k,flj,imnpst :are supported'
+    T.eq(look_of 'mode', 'good[mode] | ?modes', 'the modes to come')
+    T.eq(look_of 'mode +ooo', 'good[mode] sep[ ] plain[+ooo] | nick nick nick', 'one each')
+    T.eq(look_of 'mode +oo a ', 'good[mode] sep[ ] plain[+oo] sep[ ] plain[a] sep[ ] nick', 'as they are given')
+    T.eq(look_of 'mode +ob-k alice', 'good[mode] sep[ ] plain[+ob-k] sep[ ] plain[alice] | mask key',
+        'by what each is')
+    T.eq(look_of 'mode +l-l+j', 'good[mode] sep[ ] plain[+l-l+j] | limit +j', 'a limit unset takes none')
+    T.eq(look_of 'mode +nt', 'good[mode] sep[ ] plain[+nt]', 'none')
+    T.eq(look_of 'mode +bq', 'good[mode] sep[ ] plain[+bq] | ?mask ?mask', 'lists to show, or to set')
+    T.eq(look_of 'mode +bq a', 'good[mode] sep[ ] plain[+bq] sep[ ] plain[a] | mask', 'set, once one is given')
+    T.eq(look_of 'mode +', 'good[mode] sep[ ] plain[+]', 'no letter yet')
+    T.eq(look_of 'mode +- ', 'good[mode] sep[ ] bad[+-] plain[ ]', 'nor after')
+    T.eq(look_of 'mode +f', 'good[mode] sep[ ] plain[+f] | +f', 'another mode as its change')
+    T.eq(look_of 'mode +nZt', 'good[mode] sep[ ] plain[+n] bad[Z] plain[t]', 'a letter the network lacks')
+    T.eq(look_of 'mode +o a b  c', 'good[mode] sep[ ] plain[+o] sep[ ] plain[a] sep[ ] bad[b  c]',
+        'arguments past the changes as one')
+end)
+
 T.case('a command line shows nothing wrong and nothing required to come just when Enter takes it', function()
     local c = boot()
     c:recv ':srv 005 me PREFIX=(ov)@+ CHANMODES=beIq,k,flj,imnpst :are supported'
@@ -757,6 +777,8 @@ T.case('a command line shows nothing wrong and nothing required to come just whe
         "addwatch '" .. bad_pattern .. "'", "addwatch bogus 'a'", 'addwatch filter', 'addwatch red',
         "addwatch 'a' 2", "addwatch 'open", "addwatch beep,red 'a'",
         'editwatch 1 red', "editwatch 1 'b' noflash", 'editwatch 1 bogus',
+        'mode +o a', 'mode +o', 'mode +bq', 'mode +bq a', 'mode +bq a b', 'mode +', 'mode +Z', 'mode +o a b',
+        'mode +nt', 'mode -l', 'mode +l 5', 'mode +k', 'mode -k x',
         'quote PRIVMSG #c :hi there', 'quote :src PRIVMSG x', 'quote @a=b PRIVMSG x :y', 'quote', 'quote @a=b',
         'quote A-B x', 'quote PRIV_MSG', 'quote @ X', 'quote @= X', 'quote @a;;b X', 'quote @a;b=c X',
         'quote X\tY', 'quote X \0Y',
