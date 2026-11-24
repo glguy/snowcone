@@ -38,7 +38,7 @@ local function draw_message(ctx, win, msg)
     -- message
     draw.yellow(win)
     local source = msg.source and msg.source:match '^[^.!]*' or ''
-    ctx.add_button(win, string.format('%-16.16s', scrub(source)), function()
+    ctx.add_button(win, string.format('%16.16s', scrub(source)), function()
         control.follow_detail('message', ctx.net, msg)
     end, true)
     draw.normal(win)
