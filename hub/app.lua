@@ -75,12 +75,15 @@ local function add_command(current, name, cmd)
         error(string.format('%s: command %s is already defined by %s',
             name, cmd.name, existing.owner), 0)
     end
+    local pattern, analyze = mkcommand(cmd.spec)
     current.commands[cmd.name] = {
         name = cmd.name,
         spec = cmd.spec,
         -- the arguments as /help shows them, such as 'nick [count]'
         usage = cmd.usage,
-        pattern = mkcommand(cmd.spec),
+        pattern = pattern,
+        -- analyze(args): what each part of the arguments is, as typed
+        analyze = analyze,
         fn = cmd.fn,
         -- complete(ctx, before, seed): Tab's candidates for an argument,
         -- or nil for the default

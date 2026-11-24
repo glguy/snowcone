@@ -16,6 +16,10 @@
 -- are ignored. A word is a run of bytes other than space, whatever the
 -- locale, so UTF-8 names come through whole. The arguments must fit the
 -- spec entirely: a word left over is an error, not dropped.
+--
+-- A compiled spec has two sides that walk the arguments the same way:
+-- the matcher, for running a command, and the analyzer, for showing a
+-- line while it is typed, which goes on past a word that doesn't fit.
 
 -- Check and convert one word for a kind; nil when it doesn't fit
 local word_kinds <const> = {
@@ -32,64 +36,129 @@ local word_kinds <const> = {
     end,
 }
 
---- Compile a spec into a matcher: matcher(args, params) fills params and
---- returns true when args fit the spec.
+--- One item of a spec: a literal word, or a kind of argument.
+---@class hub.SpecItem
+---@field literal string|nil the word the arguments must repeat
+---@field kind string|nil the letter after $
+---@field rest boolean|nil the rest of the line ($r or $R)
+
+--- An argument as typed, for the spec item at the same index.
+---@class hub.ArgWord
+---@field lo integer first byte, in the arguments
+---@field hi integer last byte
+---@field ok boolean it fits its item
+
+--- What the arguments of a line make of a spec. words[i] is the word for
+--- items[i]; the items after the last word are missing (a rest of the
+--- line typed empty has no word). Past the last item, leftover covers the
+--- text that fits none, from its first word to its last.
+---@class hub.ArgsAnalysis
+---@field items hub.SpecItem[] the spec's items, shared: not to be changed
+---@field words hub.ArgWord[]
+---@field leftover {lo: integer, hi: integer}|nil
+---@field ok boolean the arguments fit the spec entirely
+---@field params any[] the values, when ok
+
+--- The end of a word that starts at pos: the closing quote of a $q string
+--- and whether it closes one, or the byte before the next space. A $q
+--- string never closed runs to the end, as one still being typed.
+---@return integer hi, boolean closed
+local function word_end(args, pos, item)
+    if item.kind == 'q' then
+        local quote = args:sub(pos, pos)
+        if quote == '"' or quote == "'" then
+            local close = args:find(quote, pos + 1, true)
+            if not close then return #args, false end
+            local next_char = args:sub(close + 1, close + 1)
+            if next_char == '' or next_char == ' ' then return close, true end
+        end
+    end
+    return (args:find(' ', pos, true) or #args + 1) - 1, item.kind ~= 'q'
+end
+
+---@param items hub.SpecItem[]
+---@param args string
+---@return hub.ArgsAnalysis
+local function analyze(items, args)
+    local a = {items = items, words = {}, ok = true, params = {}}
+    local pos = args:match '^ *()'
+    for _, item in ipairs(items) do
+        if item.rest then
+            local value = args:sub(pos)
+            if value ~= '' then
+                table.insert(a.words, {lo = pos, hi = #args, ok = true})
+            elseif item.kind == 'r' then
+                a.ok = false
+            end
+            table.insert(a.params, value)
+            pos = #args + 1
+        elseif pos > #args then
+            a.ok = false
+            break
+        else
+            local hi, closed = word_end(args, pos, item)
+            local value
+            if not closed then
+                value = nil
+            elseif item.literal then
+                if args:sub(pos, hi) == item.literal then value = true end
+            elseif item.kind == 'q' then
+                value = args:sub(pos + 1, hi - 1)
+            else
+                value = word_kinds[item.kind](args:sub(pos, hi))
+            end
+            table.insert(a.words, {lo = pos, hi = hi, ok = value ~= nil})
+            if value == nil then
+                a.ok = false
+            elseif not item.literal then
+                table.insert(a.params, value)
+            end
+            pos = args:match('^ *()', hi + 1)
+        end
+    end
+    if pos <= #args then
+        a.leftover = {lo = pos, hi = args:match('^.*[^ ]()', pos) - 1}
+        a.ok = false
+    end
+    return a
+end
+
+--- Compile a spec into a matcher and an analyzer: matcher(args, params)
+--- fills params and returns true when args fit the spec; analyzer(args)
+--- tells what each part of args is.
 ---@param spec string
----@return fun(args: string, params: table): boolean
+---@return fun(args: string, params: table): boolean matcher
+---@return fun(args: string): hub.ArgsAnalysis analyzer
 return function(spec)
     local items = {}
     for token in spec:gmatch '[^ ]+' do
         local kind = token:match '^%$(.)$'
         if kind == nil then
             table.insert(items, {literal = token})
-        elseif word_kinds[kind] or kind == 'q' or kind == 'r' or kind == 'R' then
+        elseif word_kinds[kind] or kind == 'q' then
             table.insert(items, {kind = kind})
+        elseif kind == 'r' or kind == 'R' then
+            table.insert(items, {kind = kind, rest = true})
         else
             error('unknown spec type in ' .. spec .. ': ' .. token, 2)
         end
     end
     for i, item in ipairs(items) do
-        if (item.kind == 'r' or item.kind == 'R') and i < #items then
+        if item.rest and i < #items then
             error('rest of line before the end of ' .. spec, 2)
         end
     end
 
-    return function(args, params)
-        local pos = args:match '^ *()'
-        for _, item in ipairs(items) do
-            local value
-            if item.kind == 'r' or item.kind == 'R' then
-                value = args:sub(pos)
-                if item.kind == 'r' and value == '' then return false end
-                pos = #args + 1
-            else
-                local word, after
-                if item.kind == 'q' then
-                    local quote = args:sub(pos, pos)
-                    local close = (quote == '"' or quote == "'") and args:find(quote, pos + 1, true)
-                    if close then
-                        word, after = args:sub(pos + 1, close - 1), close + 1
-                    end
-                else
-                    word, after = args:match('^([^ ]+)()', pos)
-                end
-                if word == nil then return false end
-                -- a word ends at a space or the end
-                local next_char = args:sub(after, after)
-                if next_char ~= '' and next_char ~= ' ' then return false end
-
-                if item.literal then
-                    if word ~= item.literal then return false end
-                elseif item.kind == 'q' then
-                    value = word
-                else
-                    value = word_kinds[item.kind](word)
-                    if value == nil then return false end
-                end
-                pos = args:match('^ *()', after)
-            end
-            if value ~= nil then table.insert(params, value) end
-        end
-        return pos > #args
+    local function analyzer(args)
+        return analyze(items, args)
     end
+
+    local function matcher(args, params)
+        local a = analyze(items, args)
+        if not a.ok then return false end
+        table.move(a.params, 1, #a.params, #params + 1, params)
+        return true
+    end
+
+    return matcher, analyzer
 end

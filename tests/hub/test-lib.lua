@@ -132,6 +132,45 @@ T.case('command specs fit the whole line, word by word', function()
     T.ok(not pcall(mkcommand, '$z'), 'an unknown type refused')
 end)
 
+T.case('command specs tell what each part of a line being typed is', function()
+    T.boot {}
+    local mkcommand = T.require 'hub.lib.mkcommand'
+    local function analyze(spec, args)
+        local a = select(2, mkcommand(spec))(args)
+        local words = {}
+        for i, w in ipairs(a.words) do
+            words[i] = {args:sub(w.lo, w.hi), w.ok}
+        end
+        return {words = words, ok = a.ok,
+                leftover = a.leftover and args:sub(a.leftover.lo, a.leftover.hi)}
+    end
+
+    T.eq(analyze('$g $r', ''), {words = {}, ok = false}, 'nothing typed: every item missing')
+    T.eq(analyze('$g $r', 'alice '), {words = {{'alice', true}}, ok = false},
+        'a word, the text still missing')
+    T.eq(analyze('$g $r', '  alice  hi there '), {words = {{'alice', true}, {'hi there ', true}}, ok = true},
+        'the rest as typed, spaces and all')
+    T.eq(analyze('$g $R', 'alice'), {words = {{'alice', true}}, ok = true},
+        'an empty rest has no word')
+    T.eq(analyze('$i $g', 'x y'), {words = {{'x', false}, {'y', true}}, ok = false},
+        'a word that does not fit, and the next one after it')
+    T.eq(analyze('$g', 'a b  c '), {words = {{'a', true}}, ok = false, leftover = 'b  c'},
+        'what is left over, as one stretch without its trailing space')
+    T.eq(analyze('add $g', 'del x'), {words = {{'del', false}, {'x', true}}, ok = false},
+        'a literal that does not match')
+    T.eq(analyze('$q $g', '"two words" x'), {words = {{'"two words"', true}, {'x', true}}, ok = true},
+        'a quoted string, quotes included')
+    T.eq(analyze('$q $g', '"still typing'), {words = {{'"still typing', false}}, ok = false},
+        'an open quote runs to the end')
+    T.eq(analyze('$q $g', '"a"b c'), {words = {{'"a"b', false}, {'c', true}}, ok = false},
+        'a quote closed inside a word')
+    T.eq(analyze('$q', 'bare'), {words = {{'bare', false}}, ok = false}, 'no quotes')
+
+    local a = select(2, mkcommand('$g $i'))('a 7')
+    T.eq(a.params, {'a', 7}, 'the values, when it fits')
+    T.eq(a.items, {{kind = 'g'}, {kind = 'i'}}, 'and the items, for what is missing')
+end)
+
 T.case('a failed oneOf alternative leaves later errors their own path', function()
     T.boot {}
     local schema = T.require 'hub.lib.schema'
