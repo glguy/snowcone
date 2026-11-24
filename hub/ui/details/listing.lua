@@ -1,5 +1,5 @@
 -- A listing (hub.Listing, features/queries/listing.lua: STATS, TRACE, ETRACE,
--- MASKTRACE) in the detail pane: the errors the server gave, then a table
+-- MASKTRACE, CHANTRACE) in the detail pane: the errors the server gave, then a table
 -- (ui/table.lua) per kind of reply, in the order they first came, each
 -- under its numeric and how many there are. M.runs draws any replies so,
 -- as a /quote's table view does (ui/details/reply.lua).

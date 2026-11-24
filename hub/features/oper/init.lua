@@ -485,6 +485,13 @@ M.commands = {
     oper_command('testline', '$g', 'mask', 'TESTLINE a mask', function(ctx, mask)
         send.send(ctx.net, 'TESTLINE', mask)
     end),
+    oper_command('kill', '$g $T', 'nick [reason]', 'KILL a nick off the network', function(ctx, nick, reason)
+        if reason ~= '' then
+            send.send(ctx.net, 'KILL', nick, reason)
+        else
+            send.send(ctx.net, 'KILL', nick)
+        end
+    end),
 }
 
 return M

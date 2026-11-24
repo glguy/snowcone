@@ -195,7 +195,7 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 | Field | Default | Meaning |
 |---|---|---|
 | `id` | | Required. The network's name in the status bar, in `/net <id>` and in `@id` before a command, so keep it short. Letters, digits, `_`, `.` and `-`. Ids must be unique. |
-| `ircd` | `'solanum'` | The server software the network runs: `'solanum'` or `'oftc-hybrid'`. It decides how server notices are recognized and parsed, what numerics mean, how `snomask` is set, how CHALLENGE works and how MAP, TESTMASK and TESTLINE replies read. OFTC hybrid has no MASKTRACE or TESTKLINE, and its connection notices carry no account, so a K-Line can't freeze one. |
+| `ircd` | `'solanum'` | The server software the network runs: `'solanum'` or `'oftc-hybrid'`. It decides how server notices are recognized and parsed, what numerics mean, how `snomask` is set, how CHALLENGE works and how MAP, TESTMASK and TESTLINE replies read. OFTC hybrid has no MASKTRACE, CHANTRACE or TESTKLINE, and its connection notices carry no account, so a K-Line can't freeze one. |
 | `features` | all features | Which [features](#features) run on this network. |
 | `autoconnect` | `true` | Connect at startup, and after a reload that adds the network. With `false`, the network waits for `/connect`. |
 | `reconnect.min_delay` | `1` | Seconds before the first reconnect attempt; at least 0.1. |
@@ -216,13 +216,13 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 
 ### Features
 
-`features` lists what hub does on a network beyond keeping the connection and answering queries: `/who`, `/whois`, `/wii`, `/whowas`, `/stats`, `/trace`, `/etrace` and `/masktrace` work on every network. Leave it out to enable everything. Name only what you want, for example `features = ['chat']` for a network where you only chat.
+`features` lists what hub does on a network beyond keeping the connection and answering queries: `/who`, `/whois`, `/wii`, `/whowas`, `/stats`, `/trace`, `/etrace`, `/masktrace` and `/chantrace` work on every network. Leave it out to enable everything. Name only what you want, for example `features = ['chat']` for a network where you only chat.
 
 | Feature | Requires | What it does |
 |---|---|---|
 | `chat` | | Chat buffers, talk mode, mentions, chat history, `/list` and the chat commands. |
 | `snotice` | | Parses server notices into the connection, exit, ban, channel and address-range views (cliconn, cliexit, connload, exitload, bans, channels, netcount), sets the snomask after opering, and runs watches. |
-| `oper` | `snotice` | The K-Line workflow (stage, test and send K-Lines, unklines and undlines), plus `/testline`. A staged K-Line is shown and sent from snotice's views. `/oper` doesn't need it. |
+| `oper` | `snotice` | The K-Line workflow (stage, test and send K-Lines, unklines and undlines), plus `/testline` and `/kill`. A staged K-Line is shown and sent from snotice's views. `/oper` doesn't need it. |
 | `topology` | `snotice` | Server populations from MAP, links from LINKS, versions, uptimes and DNS rotations, shown in the load views. Shedding and drain notices update `/maintenance` as they happen. |
 
 An unknown feature name is an error, and so is a feature without the features it requires.

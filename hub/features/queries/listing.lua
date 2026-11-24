@@ -6,10 +6,12 @@
 --   M.trace(t, target)           TRACE, ending at RPL_ENDOFTRACE
 --   M.etrace(t, arg)             ETRACE, ending at RPL_ENDOFTRACE
 --   M.masktrace(t, mask, gecos)  MASKTRACE, ending at RPL_ENDOFTRACE
+--   M.chantrace(t, channel)      CHANTRACE, ending at RPL_ENDOFTRACE
 --
 -- Every reply but the end is kept, in order, except the errors: those
 -- that end a reply fail the task (no such server or nick, naming the
--- target; the command unknown or short of arguments, naming it; no
+-- target; for CHANTRACE, no such channel or not on it, naming the
+-- channel; the command unknown or short of arguments, naming it; no
 -- privileges for an oper command; OFTC hybrid's refusal of a STATS for
 -- load, which no end follows), and those the server follows with the end
 -- (a STATS refused for privileges, load, or as disabled; STATS's short of
@@ -32,13 +34,13 @@ local N         <const> = require 'hub.lib.numerics'
 
 --- A listing: what was asked, and the replies.
 ---@class hub.Listing
----@field kind 'stats'|'trace'|'etrace'|'masktrace'
+---@field kind 'stats'|'trace'|'etrace'|'masktrace'|'chantrace'
 ---@field command string as sent, with its arguments
 ---@field messages hub.Message[] the replies, in order
 ---@field errors hub.Message[] errors the server followed with the end
 ---@field relabel table<string, string>|nil field labels that mean
---- something else in this reply: MASKTRACE gives each user's server
---- where ETRACE gives the class
+--- something else in this reply: MASKTRACE and CHANTRACE give each
+--- user's server where ETRACE gives the class
 ---@field at integer epoch seconds when the end came
 ---@field view table|nil the UI's tables, worked out once (ui/details/listing.lua)
 
@@ -172,6 +174,16 @@ local function gather(t, spec)
         -- the oper commands; TRACE is anyone's
         fatal[N.ERR_NOPRIVILEGES] = any
     end
+    if spec.kind == 'chantrace' then
+        -- "<client> <channel> :No such channel", and the same for one
+        -- we aren't on: without the ! for an oper with operspy, with it
+        -- for anyone else, who has no ! to strip
+        local function is_channel(name)
+            return is_target(name) or is_target(name and '!' .. name)
+        end
+        fatal[N.ERR_NOSUCHCHANNEL] = is_channel
+        fatal[N.ERR_NOTONCHANNEL] = is_channel
+    end
 
     local commands = {[N.RPL_ENDOFSTATS] = true, [N.RPL_ENDOFTRACE] = true}
     for set in pairs {[spec.rows] = true, [fatal] = true, [noted] = true} do
@@ -282,6 +294,17 @@ end
 function M.masktrace(t, mask, gecos)
     trace_gather(t, {kind = 'masktrace', args = {'MASKTRACE', mask, gecos}, rows = etrace_rows,
         relabel = {class = 'server'}})
+end
+
+--- CHANTRACE the users of a channel: one we're on, or any with ! before
+--- its name (operspy). The end names our server, not the channel, so
+--- any end is taken. The errors name the channel as looked up: without
+--- the ! when we have operspy, with it when we don't.
+---@param t hub.Task
+---@param channel string
+function M.chantrace(t, channel)
+    gather(t, {kind = 'chantrace', args = {'CHANTRACE', channel}, target = channel,
+        rows = etrace_rows, key = 'trace', relabel = {class = 'server'}})
 end
 
 --- Whether a mask is one MASKTRACE takes: a user and a host about the

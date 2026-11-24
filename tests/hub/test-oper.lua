@@ -598,6 +598,57 @@ T.case('TRACE, ETRACE and MASKTRACE end at RPL_ENDOFTRACE, each its own', functi
     for _, t in pairs(HUB.tasks) do T.ok(t.name ~= 'masktrace', 'finished') end
 end)
 
+T.case('CHANTRACE lists a channel like MASKTRACE, and fails on its channel errors', function()
+    local c = boot({'chat', 'snotice', 'oper'})
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.listing', 'test', function(ev) table.insert(events, ev) end)
+
+    T.command 'chantrace #a'
+    T.eq(c:take(), {'CHANTRACE #a'}, 'sent')
+    c:recv ':srv 709 me User leaf.example bob b h.example 192.0.2.2 :Bob'
+    c:recv ':srv 709 me Oper srv.example alice a h.example 192.0.2.1 :Alice'
+    -- the end names our server, not the channel
+    c:recv ':srv 262 me srv.example :End of TRACE'
+    T.eq({events[1].listing.kind, #events[1].listing.messages, events[1].listing.relabel},
+        {'chantrace', 2, {class = 'server'}}, 'every user, the server in the class')
+
+    T.command 'chantrace !#b'
+    T.eq(c:take(), {'CHANTRACE !#b'}, 'operspy')
+    c:recv ':srv 403 me #b :No such channel'
+    T.eq(T.log_lines 'chantrace', {'CHANTRACE #a: 2 replies', 'CHANTRACE !#b: No such channel'},
+        'no such channel, named without the !')
+
+    -- without operspy the ! stays in the name looked up
+    T.command 'chantrace !#d'
+    c:take()
+    c:recv ':srv 403 me !#d :No such channel'
+    T.eq(T.log_lines 'chantrace'[3], 'CHANTRACE !#d: No such channel', 'no such channel, named with the !')
+
+    T.command 'chantrace #c'
+    c:take()
+    c:recv ':srv 442 me #c :You\'re not on that channel'
+    T.eq(T.log_lines 'chantrace'[4], "CHANTRACE #c: You're not on that channel", 'not on it')
+    T.eq(next(HUB.tasks), nil, 'finished')
+
+    T.command 'chantrace bob'
+    T.eq(c:take(), {}, 'a nick sends nothing')
+    T.ok(T.log_lines 'error'[1]:find('not a channel', 1, true), 'and says why')
+end)
+
+T.case('CHANTRACE is not on OFTC hybrid', function()
+    local c = boot({'chat', 'snotice', 'oper'}, false, 'oftc-hybrid')
+    T.command 'chantrace #a'
+    T.eq(c:take(), {}, 'nothing sent')
+    T.ok(T.log_lines 'error'[1]:find('no CHANTRACE', 1, true), 'said so')
+end)
+
+T.case('KILL sends a nick and its reason', function()
+    local c = boot({'chat', 'snotice', 'oper'})
+    T.command 'kill bob spamming the network'
+    T.command 'kill bob'
+    T.eq(c:take(), {'KILL bob :spamming the network', 'KILL bob'}, 'sent')
+end)
+
 T.case('with labeled-response a listing takes its own reply', function()
     local c = boot({'chat', 'snotice', 'oper'}, true)
     local events = {}

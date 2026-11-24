@@ -137,7 +137,7 @@ Some things to know:
 - The detail pane at the top shows one thing in full: click a log line
   marked ▸, a message in a buffer or the console, or a channel name, or
   use `/who`, `/whois`, `/whowas`, `/stats`, `/trace`, `/etrace`,
-  `/masktrace`, `/chaninfo`, `/quote` or `/eval`. It is as tall as its
+  `/masktrace`, `/chantrace`, `/chaninfo`, `/quote` or `/eval`. It is as tall as its
   content, up to half the screen. The band under it has ✕ to close it
   at the left, ← to go back after a click inside it, its title, and at
   the right DISCARD, which

@@ -5,7 +5,7 @@
 --   who.lua       WHO
 --   whois.lua     WHOIS
 --   whowas.lua    WHOWAS
---   listing.lua   STATS, TRACE, ETRACE, MASKTRACE
+--   listing.lua   STATS, TRACE, ETRACE, MASKTRACE, CHANTRACE
 --
 -- and, for features to ask on the way to something else:
 --
@@ -145,6 +145,16 @@ M.commands = {
         if not listing.masktrace_mask(mask) then error('not a [nick!]user@host mask: ' .. mask, 0) end
         task.spawn('masktrace', {net = ctx.net, owner = M.name}, listing.masktrace, mask,
             gecos ~= '' and gecos or nil)
+    end),
+    command('chantrace', '$g', '[!]channel',
+        "CHANTRACE a channel's users, shown as a table; ! for one we aren't on (operspy)",
+    function(ctx, channel)
+        if ircd.hybrid(ctx.net) then error('OFTC hybrid has no CHANTRACE', 0) end
+        local irc = model(ctx.net)
+        if irc and not irc_model.is_channel_name(irc, channel:match '^!(.+)$' or channel) then
+            error('not a channel: ' .. channel, 0)
+        end
+        task.spawn('chantrace', {net = ctx.net, owner = M.name}, listing.chantrace, channel)
     end),
     command('etrace', '$R', '[-full|-v4|-v6|nick]', "ETRACE our server's users, or a nick, shown as a table",
     function(ctx, arg)

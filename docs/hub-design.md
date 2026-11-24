@@ -325,7 +325,7 @@ save a check.
 | topology | Populations from MAP, links and upstream from LINKS, versions, uptimes, user shedding, DNS rotations. Asks for MAP and LINKS at registration, on becoming an operator and on netsplits and netjoins. |
 | oper | Libera ban masks; staging a K-Line, unkline or undline with a TESTMASK count; sending it only on confirmation; operator commands. |
 | chat | Buffers per network and target, routing (WALLOPS and broadcasts to the sender's buffer; our own lines never mentions or unseen), mentions, hide rules, typing notices, chat history, MONITOR for private buffers, paced CTCP replies, `/list`, quiets, bans and kicks with Libera channel ban masks. |
-| queries | WHO, WHOIS, WHOWAS, STATS, TRACE, ETRACE and MASKTRACE on every network, each shown in the detail pane; and the lookups features make for themselves: a user for a ban, TESTMASK counts, the organization of an address (always loaded; not per network). |
+| queries | WHO, WHOIS, WHOWAS, STATS, TRACE, ETRACE, MASKTRACE and CHANTRACE on every network, each shown in the detail pane; and the lookups features make for themselves: a user for a ban, TESTMASK counts, the organization of an address (always loaded; not per network). |
 | notify | Desktop or terminal notifications of mentions while the terminal is unfocused (always loaded; not per network). |
 | plugins | Not a feature but the plugin host, at this layer so that plugins see what features see: loads plugins into each generation (section 6). Always loaded. |
 
