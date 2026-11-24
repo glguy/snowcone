@@ -795,7 +795,9 @@ T.case('addresses sort by value, IPv4 before IPv6, in a WHO and a trace', functi
         HUB.current.routes['ui.draw']()
         local rows, out = rows_of(detail_pad()), {}
         for y = 0, #rows do
-            local word = rows[y]:match('^' .. string.rep('%S+%s+', index) .. '([%x:.]*[:.][%x:.]*)%s')
+            -- the address is in the last column, unpadded, without an org
+            local row = rows[y] .. ' '
+            local word = row:match('^' .. string.rep('%S+%s+', index) .. '([%x:.]*[:.][%x:.]*)%s')
             if word then table.insert(out, word) end
         end
         return out
