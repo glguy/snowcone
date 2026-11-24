@@ -7,6 +7,7 @@
 -- Right; click a column's header to sort by it; the filter (Ctrl-S,
 -- /filter) shows only the users with a field that matches.
 
+local address_key <const> = require 'hub.lib.address_key'
 local control <const> = require 'hub.ui.control'
 local draw    <const> = require 'hub.ui.draw'
 local scrub   <const> = require 'hub.lib.scrub'
@@ -80,7 +81,8 @@ local columns <const> = {
     {letter = 'c', header = 'channel', text = function(r) return r.channel end},
     {letter = 'u', header = 'user', text = function(r) return r.user end},
     {letter = 'h', header = 'host', text = function(r) return r.host end},
-    {letter = 'i', header = 'ip', text = function(r) return r.ip end},
+    {letter = 'i', header = 'ip', text = function(r) return r.ip end,
+        key = function(r) return address_key(r.ip) end},
     {letter = 'i', header = 'org', text = org_text, optional = true},
     {letter = 's', header = 'server', text = function(r) return r.server end},
     {letter = 'd', header = 'hops', text = function(r) return r.hops and tostring(r.hops) end},

@@ -13,10 +13,11 @@
 -- A column is {header, text(row), key(row), paint(win, row), formatted,
 -- optional}: text gives the cell's text, nil for none; paint, when there
 -- is one, draws it in color at the same width. A formatted column's text
--- has IRC formatting, drawn as such. key gives the number a cell sorts by,
--- for text that doesn't sort as what it means (a duration); without one,
--- or for nil, the text sorts, its runs of digits as numbers, after the
--- cells with keys. An optional column shows only when some row has a cell
+-- has IRC formatting, drawn as such. key gives what a cell sorts by,
+-- for text that doesn't sort as what it means: a number (a duration), or
+-- text in lowercase hex (lib/address_key.lua); without one, or for nil,
+-- the cell's text sorts, its runs of digits as numbers. Numbers come
+-- before text. An optional column shows only when some row has a cell
 -- in it. The last column shown isn't padded.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
@@ -94,8 +95,10 @@ local function sorted(col, rows, descending)
         local text = col.text(row)
         if text then
             local key = col.key and col.key(row)
-            if key then
+            if type(key) == 'number' then
                 numbers[row] = key
+            elseif key then
+                texts[row] = key
             else
                 texts[row] = natural(shown(col, text))
             end

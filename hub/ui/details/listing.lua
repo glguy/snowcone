@@ -18,6 +18,7 @@
 -- thousands of rows, and only those shown are drawn. The filter (Ctrl-S, /filter) shows the rows with a
 -- cell that matches. Click a column's header to sort its table by it.
 
+local address_key <const> = require 'hub.lib.address_key'
 local control <const> = require 'hub.ui.control'
 local draw    <const> = require 'hub.ui.draw'
 local ircd    <const> = require 'hub.net.ircd'
@@ -53,8 +54,12 @@ local function nonempty(value)
     if value ~= nil and value ~= '' then return value end
 end
 
--- The number a value of a field's kind sorts by, nil to sort as text
+-- What a value of a field's kind sorts by, nil to sort as text
 local function key_of(kind, value)
+    if kind == 'addr' then
+        local addr = replies.address(value)
+        return addr and address_key(addr)
+    end
     local n = tonumber(value)
     if kind == 'time' or kind == 'secs' then return n end
     -- 0 is permanent, which lasts longest

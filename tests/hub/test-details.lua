@@ -773,6 +773,61 @@ T.case("a table's sort doesn't depend on the locale, and its wide headers can be
     T.ok(not clicks.hit(1, 0, false), 'nothing past the edge')
 end)
 
+T.case('addresses sort by value, IPv4 before IPv6, in a WHO and a trace', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    local address_key = T.require 'hub.lib.address_key'
+    T.eq(address_key '192.0.2.1', '04c0000201', 'IPv4')
+    T.eq(address_key '2001:DB8::1', '0620010db8' .. string.rep('0', 23) .. '1', 'IPv6')
+    T.eq(address_key '0::1', address_key '::1', 'a zero before ::')
+    T.eq(address_key '::ffff:192.0.2.1', address_key '::ffff:c000:201', 'IPv4 in IPv6')
+    for _, bad in ipairs {'', 'h.example', '1.2.3', '1.2.3.256', '1:2', '1::2::3', ':1', '1:2:3:4:5:6:7::8', 'g::'} do
+        T.eq(address_key(bad), nil, 'not an address: ' .. bad)
+    end
+
+    local given = {'2a02:1::1', '192.0.2.1', '2001:db8::a', '10.0.0.1', '2001:db8::9', '2600:1::2', '255.255.255.255',
+        '2001:db8::10'}
+    local ascending = {'10.0.0.1', '192.0.2.1', '2001:db8::9', '2001:db8::a', '2001:db8::10', '2600:1::2', '2a02:1::1'}
+    local descending = {}
+    for i = #ascending, 1, -1 do table.insert(descending, ascending[i]) end
+    local function shown(index)
+        HUB.current.routes['ui.draw']()
+        local rows, out = rows_of(detail_pad()), {}
+        for y = 0, #rows do
+            local word = rows[y]:match('^' .. string.rep('%S+%s+', index) .. '([%x:.]*[:.][%x:.]*)%s')
+            if word then table.insert(out, word) end
+        end
+        return out
+    end
+
+    c:recv ':srv 005 me WHOX :are supported'
+    c:take()
+    cmdline.execute 'who #chan %ni'
+    c:take()
+    for i, addr in ipairs(given) do c:recv(string.format(':srv 354 me %s n%d', addr, i)) end
+    c:recv ':srv 315 me #chan :End of /WHO list.'
+    local who = control.detail().data
+    who.sort = {column = 2, descending = false}
+    T.eq(shown(1), ascending, 'a WHO')
+    who.sort = {column = 2, descending = true}
+    T.eq(shown(1), descending, 'reversed')
+
+    cmdline.execute 'etrace'
+    c:take()
+    for i, addr in ipairs(given) do
+        c:recv(string.format(':srv 709 me User users n%d u h.example %s :Real', i, addr))
+    end
+    c:recv ':srv 262 me srv.example :End of TRACE'
+    HUB.current.routes['ui.draw']()
+    local section = control.detail().data.view.sections[1]
+    section.sort = {column = 6, descending = false}
+    T.eq(shown(5), ascending, 'a trace')
+    section.sort = {column = 6, descending = true}
+    T.eq(shown(5), descending, 'reversed')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.case('a WHOIS opens in the detail pane, and from its status line', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
