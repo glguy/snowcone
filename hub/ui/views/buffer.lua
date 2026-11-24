@@ -43,6 +43,7 @@ local matching   <const> = require 'hub.lib.matching'
 local message_text <const> = require 'hub.lib.message_text'
 local ui_keys    <const> = require 'hub.ui.keys'
 local N          <const> = require 'hub.lib.numerics'
+local queries    <const> = require 'hub.features.queries'
 local scrub      <const> = require 'hub.lib.scrub'
 local strip_formatting <const> = require 'hub.lib.strip_formatting'
 local tty        <const> = require 'hub.runtime.tty'
@@ -476,7 +477,7 @@ return {
                         control.open_detail('channel', net, {name = name})
                     end)
                 else
-                    ctx.add_click(tty_height - 1, x1, x2, function() chat.whois(net, name) end)
+                    ctx.add_click(tty_height - 1, x1, x2, function() queries.whois(net, name) end)
                 end
             end
 

@@ -5,13 +5,13 @@
 
 local bus        <const> = require 'hub.runtime.bus'
 local common     <const> = require 'hub.features.common'
-local handlers   <const> = require 'hub.net.handlers'
-local ip_org     <const> = require 'hub.features.ip_org'
+local ip_org     <const> = require 'hub.features.queries.ip_org'
 local irc_model  <const> = require 'hub.net.irc'
 local loadavg    <const> = require 'hub.lib.loadavg'
 local matching   <const> = require 'hub.lib.matching'
 local nettrack   <const> = require 'hub.features.snotice.nettrack'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
+local reclaim    <const> = require 'hub.net.reclaim'
 
 local M = {}
 
@@ -120,7 +120,7 @@ local function maybe_reclaim(net, nick)
     local rec = HUB.state.nets[net]
     local irc = rec and rec.irc
     if irc and irc.recover_nick and irc_model.fold(irc, nick) == irc_model.fold(irc, irc.recover_nick) then
-        handlers.reclaim_nick(net)
+        reclaim.attempt(net)
     end
 end
 

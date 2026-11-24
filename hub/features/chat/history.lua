@@ -9,12 +9,13 @@
 -- after a reconnect. Messages a buffer already has are skipped.
 -- A private message a channel's history holds for its channel-context
 -- tag is marked as it is live (msg.context).
---
--- The functions take chat (features/chat), which requires this module.
 
+local buffers    <const> = require 'hub.features.chat.buffers'
 local common     <const> = require 'hub.features.common'
+local hide       <const> = require 'hub.features.chat.hide'
 local irc_model  <const> = require 'hub.net.irc'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
+local store      <const> = require 'hub.features.chat.store'
 
 local M = {}
 
@@ -23,17 +24,16 @@ local query <const> = common.sender 'chat'
 --- Ask for a buffer's history, when the server has it and we are
 --- registered: the messages BEFORE or the LATEST since `time` (a server
 --- time tag), or without one the latest. At most a buffer's worth.
----@param chat hub.ChatLookup
 ---@param net string
 ---@param name string the buffer's target
 ---@param subcommand 'BEFORE'|'LATEST'
 ---@param time string|nil
-function M.request(chat, net, name, subcommand, time)
+function M.request(net, name, subcommand, time)
     local rec = HUB.state.nets[net]
     local irc = rec and rec.irc
     if not (irc and irc_model.has_chathistory(irc)) then return end
     if rec.phase ~= 'connected' then return end
-    local amount = chat.buffer_size
+    local amount = store.buffer_size
     if irc.max_chat_history and irc.max_chat_history < amount then
         amount = irc.max_chat_history
     end
@@ -51,12 +51,11 @@ end
 
 --- After registration: the LATEST since the newest message of every
 --- buffer but those named for servers.
----@param chat hub.ChatLookup
 ---@param net string
-function M.after_registration(chat, net)
-    for _, buffer in pairs(chat.get(net).buffers) do
-        if not chat.is_server(net, buffer.name) then
-            M.request(chat, net, buffer.name, 'LATEST', newest_time(buffer))
+function M.after_registration(net)
+    for _, buffer in pairs(store.get(net).buffers) do
+        if not store.is_server(net, buffer.name) then
+            M.request(net, buffer.name, 'LATEST', newest_time(buffer))
         end
     end
 end
@@ -80,13 +79,12 @@ end
 --- `since`, skipping those it has. Our lines that no echo confirmed
 --- (no labeled-response) each absorb one copy from history, taking its
 --- msgid and time.
----@param chat hub.ChatLookup
 ---@param net string
 ---@param buffer hub.ChatBuffer
 ---@param messages hub.Message[]
 ---@param since number|nil clock.now() at registration
 ---@param irc hub.Irc|nil to know our nick
-function M.merge(chat, net, buffer, messages, since, irc)
+function M.merge(net, buffer, messages, since, irc)
     local older, newer, seen = {}, {}, {}
     local unconfirmed = {}
     for msg in OrderedMap.reveach(buffer.messages) do
@@ -102,7 +100,7 @@ function M.merge(chat, net, buffer, messages, since, irc)
     for _, msg in ipairs(messages) do
         local key = message_key(msg)
         local mine = irc and msg.nick and irc_model.is_me(irc, msg.nick) and unconfirmed[own_key(msg)]
-        if chat.discards(net, buffer.name, msg) then
+        if hide.discards(net, buffer.name, msg) then
             -- the hide rules discard it from history, as when it arrives
             seen[key] = true
         elseif mine and #mine > 0 then
@@ -122,20 +120,19 @@ function M.merge(chat, net, buffer, messages, since, irc)
     OrderedMap.reset(buffer.messages)
     for _, list in ipairs {older, newer} do
         for _, msg in ipairs(list) do
-            chat.insert(net, buffer, msg)
+            buffers.insert(net, buffer, msg)
         end
     end
 end
 
 --- A chathistory batch (irc.batch), merged into the buffer it is for.
----@param chat hub.ChatLookup
 ---@param ev table the irc.batch event
-function M.on_batch(chat, ev)
+function M.on_batch(ev)
     local rec = HUB.state.nets[ev.net]
     local irc = rec and rec.irc
-    local buffer = chat.buffer(ev.net, ev.params[1] or '')
+    local buffer = store.buffer(ev.net, ev.params[1] or '')
     if not (irc and buffer) then return end
-    local key = chat.fold(ev.net, buffer.name)
+    local key = store.fold(ev.net, buffer.name)
     for _, msg in ipairs(ev.messages) do
         if msg.command == 'PRIVMSG' or msg.command == 'NOTICE' then
             msg.statusmsg = irc_model.split_statusmsg(irc, msg[1])
@@ -145,12 +142,12 @@ function M.on_batch(chat, ev)
             -- buffer, since history can come before we rejoin.
             local context = not msg.statusmsg and msg[1] and not irc_model.is_channel_name(irc, msg[1])
                 and irc_model.channel_context_name(irc, msg.tags)
-            if context and chat.fold(ev.net, context) == key then
+            if context and store.fold(ev.net, context) == key then
                 msg.context = msg.nick and irc_model.is_me(irc, msg.nick) and '<' or '>'
             end
         end
     end
-    M.merge(chat, ev.net, buffer, ev.messages, rec.registered_at, irc)
+    M.merge(ev.net, buffer, ev.messages, rec.registered_at, irc)
 end
 
 return M

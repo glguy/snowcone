@@ -9,10 +9,10 @@
 local cap       <const> = require 'hub.net.cap'
 local clock     <const> = require 'hub.runtime.clock'
 local config    <const> = require 'hub.runtime.config'
-local handlers  <const> = require 'hub.net.handlers'
 local intent    <const> = require 'hub.net.intent'
 local irc_model <const> = require 'hub.net.irc'
 local N         <const> = require 'hub.lib.numerics'
+local own_nick  <const> = require 'hub.net.nick'
 local oper      <const> = require 'hub.net.oper'
 local reclaim   <const> = require 'hub.net.reclaim'
 local secrets   <const> = require 'hub.runtime.secrets'
@@ -140,7 +140,7 @@ return function(t)
         return
     end
 
-    local nick  = handlers.wanted_nick(rec)
+    local nick  = own_nick.wanted(rec)
     local user  = cfg.identity.user  or cfg.identity.nick
     local realname = cfg.identity.realname or cfg.identity.nick
 
@@ -179,9 +179,9 @@ return function(t)
     -- welcomes us on the nick its session has, which is its to keep.
     if irc.recover_nick then
         reclaim.start(rec, irc, irc.recover_nick)
-    elseif not handlers.on_wanted_nick(rec, irc) and not irc_model.behind_bouncer(irc) then
-        t:log('irc', 'registered as %s, not %s; reclaiming it', irc.nick, handlers.wanted_nick(rec))
-        reclaim.start(rec, irc, handlers.wanted_nick(rec))
+    elseif not own_nick.on_wanted(rec, irc) and not irc_model.behind_bouncer(irc) then
+        t:log('irc', 'registered as %s, not %s; reclaiming it', irc.nick, own_nick.wanted(rec))
+        reclaim.start(rec, irc, own_nick.wanted(rec))
     end
 
     -- before joining, so channels see us away from the start

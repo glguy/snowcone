@@ -1367,7 +1367,7 @@ T.case('/help lists views as a row, then commands by group, and searches', funct
     for line in t:gmatch '[^\n]+' do
         if line:match '^%u' and not line:match '^Commands' then table.insert(headings, line) end
     end
-    T.eq(headings, {'Views', 'Client', 'Connection', 'Chat', 'Server notices', 'Operator', 'Topology',
+    T.eq(headings, {'Views', 'Client', 'Connection', 'Queries', 'Chat', 'Server notices', 'Operator', 'Topology',
         'Services keys'}, 'groups in order')
     T.ok(t:find('/whowas nick [count]', 1, true), 'usage, not the parser spec')
     T.ok(not t:find('$g', 1, true), 'no specs')

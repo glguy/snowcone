@@ -1,6 +1,6 @@
 -- Command list, by group: the views as a row of names to click, then
--- the client's commands, the connection's, and each feature's and
--- plugin's, in the order their modules list them, each with its usage
+-- the client's commands, the connection's, queries, and each feature's
+-- and plugin's, in the order their modules list them, each with its usage
 -- and help. Ctrl-S searches names, usage and help as you type; Meta-A
 -- shows the commands of every feature, not just the current network's.
 
@@ -17,6 +17,7 @@ local scrub     <const> = require 'hub.lib.scrub'
 local group_order <const> = {
     {'client', 'Client'},
     {'connection', 'Connection'},
+    {'queries', 'Queries'},
     {'chat', 'Chat'},
     {'snotice', 'Server notices'},
     {'oper', 'Operator'},

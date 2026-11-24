@@ -1,4 +1,4 @@
--- A WHOWAS reply (hub.Whowas, features/chat/whowas.lua) in the detail
+-- A WHOWAS reply (hub.Whowas, features/queries/whowas.lua) in the detail
 -- pane: each past entry the server keeps, newest first. The filter
 -- (Ctrl-S, /filter) shows only the entries with a field that matches.
 
@@ -16,7 +16,7 @@ local key     <const> = fields.key
 local M = {kind = 'whowas', filter = true}
 
 M.events = {
-    ['chat.whowas'] = function(ev) return ev.net, ev.whowas end,
+    ['query.whowas'] = function(ev) return ev.net, ev.whowas end,
 }
 
 function M.title(detail)

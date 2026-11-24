@@ -7,18 +7,16 @@
 -- they are resolved at connect time by runtime/secrets.lua. A network's
 -- servers file is read here into `servers`; one that can't be read fails
 -- the load like the configuration file itself.
+--
+-- What only a feature knows how to check, such as chat's hide rules, it
+-- checks itself, in its check_config (app.lua).
 
-local app            <const> = require 'pl.app'
-local file           <const> = require 'pl.file'
-local path           <const> = require 'pl.path'
-local tablex         <const> = require 'pl.tablex'
-local casemap        <const> = require 'hub.lib.casemap'
-local channel_errors <const> = require 'hub.lib.channel_errors'
-local luapattern     <const> = require 'hub.lib.luapattern'
-local matching       <const> = require 'hub.lib.matching'
-local regex          <const> = require 'hub.lib.regex'
-local schema         <const> = require 'hub.lib.schema'
-local cschema        <const> = require 'hub.runtime.config_schema'
+local app     <const> = require 'pl.app'
+local file    <const> = require 'pl.file'
+local path    <const> = require 'pl.path'
+local tablex  <const> = require 'pl.tablex'
+local schema  <const> = require 'hub.lib.schema'
+local cschema <const> = require 'hub.runtime.config_schema'
 
 local M = {}
 
@@ -165,95 +163,6 @@ for _, name in ipairs(cschema.features) do
     all_features[name] = true
 end
 
--- Mention settings' patterns must be well formed, and their regexes
--- compile, so they need rex_pcre2
-local function check_mention(mention, where)
-    for i, pattern in ipairs(mention and mention.patterns or {}) do
-        local err = luapattern.check(pattern)
-        if err then
-            error(string.format('%s.patterns.%d: %s', where, i, err), 0)
-        end
-    end
-    for i, source in ipairs(mention and mention.regexes or {}) do
-        local err = regex.check(source)
-        if err then
-            error(string.format('%s.regexes.%d: %s', where, i, err), 0)
-        end
-    end
-end
-
--- The commands chat places in a buffer (features/chat), as a hide rule
--- names them: numerics by their digits
-local buffer_commands <const> = {
-    PRIVMSG = true, NOTICE = true, WALLOPS = true, OPERWALL = true,
-    JOIN = true, PART = true, KICK = true, TOPIC = true, MODE = true,
-    QUIT = true, NICK = true, ACCOUNT = true, CHGHOST = true,
-}
-for numeric in pairs(channel_errors) do
-    buffer_commands[tostring(numeric)] = true
-end
-
--- The matching fields of a hide rule
-local hide_fields <const> = {'buffer', 'nick', 'account', 'command', 'pattern', 'regex'}
-
--- What a nick or account can't hold: a rule's are matched exactly, so
--- one with these was meant as a mask or a glob, and never matches
-local not_in_name <const> = '[!@*?, ]'
-
--- Each hide rule's ([[networks.hide]], chat/hide.lua) matching fields
--- become lists. A rule must match on something, since it would otherwise
--- hide everything, and nothing in it may make it never match: an empty
--- list, a command no buffer holds, a nick or account no one can have, or
--- text to match with commands that have none. It takes a pattern or a
--- regex, not both, and those must compile.
-local function check_hide(net)
-    for n, rule in ipairs(net.hide or {}) do
-        local where = string.format('networks.%s.hide.%d', net.id, n)
-        local function fail(fmt, ...)
-            error(where .. string.format(fmt, ...), 0)
-        end
-        local any = false
-        for _, field in ipairs(hide_fields) do
-            if type(rule[field]) == 'string' then rule[field] = {rule[field]} end
-            if rule[field] then
-                any = true
-                if #rule[field] == 0 then fail('.%s: an empty list matches nothing', field) end
-            end
-        end
-        if not any then
-            fail ': matches every message; give it buffer, nick, account, command, pattern or regex'
-        end
-        if rule.pattern and rule.regex then fail ': a pattern or a regex, not both' end
-        for _, field in ipairs {'nick', 'account'} do
-            for i, name in ipairs(rule[field] or {}) do
-                if name:find(not_in_name) then
-                    fail('.%s.%d: %s is matched exactly, and no %s holds !, @, *, ?, a comma or a space',
-                        field, i, name, field)
-                end
-            end
-        end
-        local has_text = false
-        for i, command in ipairs(rule.command or {}) do
-            if not buffer_commands[command] then
-                fail('.command.%d: no buffer holds %s', i, command)
-            end
-            if command == 'PRIVMSG' or command == 'NOTICE' then has_text = true end
-        end
-        if rule.command and (rule.pattern or rule.regex) and not has_text then
-            fail ': a pattern or regex matches only PRIVMSG and NOTICE, which command leaves out'
-        end
-        for i, pattern in ipairs(rule.pattern or {}) do
-            local err = luapattern.check(pattern)
-            if err then fail('.pattern.%d: %s', i, err) end
-        end
-        for i, source in ipairs(rule.regex or {}) do
-            local err = regex.check(source)
-            if err then fail('.regex.%d: %s', i, err) end
-        end
-    end
-    net.hide = net.hide or {}
-end
-
 -- `i` names the network in errors until its id is known to be valid
 local function normalize_network(net, i)
     local label = type(net.id) == 'string' and net.id or tostring(i)
@@ -307,37 +216,7 @@ local function normalize_network(net, i)
         net.features = tablex.copy(all_features)
     end
 
-    -- names alike in ASCII case are alike in every casemapping
-    local names, labels = {}, {}
-    for n, buffer in ipairs(net.buffers or {}) do
-        local key = casemap.fold('ascii', buffer.name)
-        if names[key] then
-            error(string.format('networks.%s.buffers.%d: %s is already buffers.%d',
-                net.id, n, buffer.name, names[key]), 0)
-        end
-        names[key] = n
-        check_mention(buffer.mention, string.format('networks.%s.buffers.%d.mention', net.id, n))
-        local key_label = buffer.label
-        if key_label == true then
-            error(string.format('networks.%s.buffers.%d.label: a letter or digit, or false for none', net.id, n), 0)
-        elseif key_label then
-            if labels[key_label] then
-                error(string.format('networks.%s.buffers.%d.label: %s is already the label of buffers.%d',
-                    net.id, n, key_label, labels[key_label]), 0)
-            end
-            labels[key_label] = n
-        end
-    end
     net.buffers = net.buffers or {}
-    check_mention(net.mention, string.format('networks.%s.mention', net.id))
-    check_hide(net)
-    -- a watch's pattern is a filter pattern (lib/matching.lua)
-    for n, watch in ipairs(net.watches or {}) do
-        local err = matching.check(watch.pattern)
-        if err then
-            error(string.format('networks.%s.watches.%d.pattern: %s', net.id, n, err), 0)
-        end
-    end
 
     if net.autoconnect == nil then net.autoconnect = true end
     if net.reclaim_nick == nil then net.reclaim_nick = true end
@@ -390,7 +269,6 @@ end
 function M.normalize(raw)
     raw = tablex.deepcopy(raw)
     schema.check(cschema.file, raw, {})
-    check_mention(raw.mention, 'mention')
 
     local networks = {}
     local seen = {}

@@ -1,7 +1,8 @@
 -- Which messages are server notices on a network, and their parse, by
--- the network's ircd (net/ircd.lua). The snotice feature records the
--- answer on each message as it arrives (msg.snote), so the console and the
--- message detail show it as it was then, whatever our nick is now.
+-- the network's ircd (net/ircd.lua). The connection (net/manager.lua)
+-- records the answer on each message as it arrives (msg.snote), on every
+-- network, so the console and the message detail show it as it was then,
+-- whatever our nick is now.
 --
 -- Solanum sends a notice to * with a header, and its answer to our ban or
 -- unban to our nick without one. OFTC hybrid sends it to the
@@ -11,8 +12,8 @@
 
 local irc_model     <const> = require 'hub.net.irc'
 local ircd          <const> = require 'hub.net.ircd'
-local parse_hybrid  <const> = require 'hub.features.snotice.parse_hybrid'
-local parse_solanum <const> = require 'hub.features.snotice.parse_solanum'
+local parse_hybrid  <const> = require 'hub.net.snote.parse_hybrid'
+local parse_solanum <const> = require 'hub.net.snote.parse_solanum'
 
 local M = {}
 

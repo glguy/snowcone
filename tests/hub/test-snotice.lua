@@ -132,7 +132,7 @@ end
 
 T.case('connections, nick changes and exits', function()
     local c = boot {'snotice'}
-    T.require 'hub.features.ip_org'.set_impl(function(ip)
+    T.require 'hub.features.queries.ip_org'.set_impl(function(ip)
         if ip == '192.0.2.1' then return 'Example Org', 64496 end
     end)
     local OrderedMap = T.require 'hub.lib.OrderedMap'
@@ -154,7 +154,7 @@ T.case('connections, nick changes and exits', function()
 
     notice(c, 'a.example', 'Client connecting: Alice_ (~al@h.example) [192.0.2.1] {users} <*> [Alice A]')
     T.eq(OrderedMap.lookup(S.users, 'alice_').count, 2, 'reconnects counted')
-    T.require 'hub.features.ip_org'.set_impl(nil)
+    T.require 'hub.features.queries.ip_org'.set_impl(nil)
 end)
 
 T.case('the life of a K-Line', function()
@@ -340,7 +340,7 @@ end)
 
 T.case('an address the database rejects is unknown', function()
     local c = boot {'snotice'}
-    local ip_org = T.require 'hub.features.ip_org'
+    local ip_org = T.require 'hub.features.queries.ip_org'
     ip_org.set_impl(function() error 'bad address' end)
     notice(c, 'a.example', 'Client connecting: n (u@h) [1.2.3] {users} <*> [g]')
     ip_org.set_impl(nil)
@@ -584,6 +584,22 @@ T.case('an unknown ircd is refused', function()
     }}}})
     T.eq(ok, false, 'refused')
     T.ok(tostring(err):find('networks.test.ircd: unknown ircd unreal', 1, true), tostring(err))
+end)
+
+T.case('a server notice is marked on a network without snotice, before anything sees it', function()
+    local fake = T.boot_networks {T.network('test', {features = {'chat'}})}
+    local c = fake.last()
+    T.register(c)
+    local seen = {}
+    local bus = T.require 'hub.runtime.bus'
+    bus.on(HUB.current.bus, 'irc.message', 'test', function(ev) table.insert(seen, ev.msg.snote) end)
+    T.require 'hub.runtime.task'.spawn('test', {net = 'test'}, function(t)
+        table.insert(seen, t:wait_irc({NOTICE = true}, 1000).snote)
+    end)
+    c:recv ':srv NOTICE * :*** Notice -- something happened'
+    T.eq(seen, {'something happened', 'something happened'}, 'by the task, then the event')
+    c:recv ':alice!u@h NOTICE me :hello'
+    T.eq(seen[3], false, 'a notice from a user is none')
 end)
 
 T.run()

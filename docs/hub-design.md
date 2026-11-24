@@ -53,9 +53,10 @@ These hold everywhere. A change that breaks one needs a decision recorded in
   6  ui         terminal, views, the detail pane, input, key maps
   5  commands   running a command line; the client's own commands
   4  features   per-network features (snotice, topology, oper, chat),
-                notify, and the plugin host
+                queries, notify, and the plugin host
   3  net        connections, the protocol model and its handlers,
-                registration, sending, server software differences
+                registration, sending, server software differences,
+                reading server notices
   2  runtime    generations' machinery: loader, state, events, routes,
                 tasks, native handles, configuration, secrets, log, terminal
   1  lib        pure helpers with no state and no hub dependencies
@@ -76,8 +77,9 @@ These hold everywhere. A change that breaks one needs a decision recorded in
   `runtime/tty.lua`.
 - A feature's directory is private to it. A feature requires another's
   modules only when it needs that feature (`feature_requires`, section 5);
-  notify, which follows chat's buffers, is the one other use. Helpers any
-  feature may use sit at `features/*.lua`.
+  notify, which follows chat's buffers, is the one other use. What any
+  feature may use is `features/queries/`, which uses no feature, and the
+  helpers at `features/*.lua`.
 - `ui` has tiers, each requiring only its own or lower: drawing primitives,
   the theme and the editor; `control` (view selection, input modes, talk targets);
   views, detail kinds, the status bar and the command line; the key map;
@@ -110,6 +112,7 @@ A module may export:
 | `subscribe(sub)` | `sub.on(topic, fn)` on the generation's bus. |
 | `commands` | `{name, spec, usage, fn, help, scope, feature, group, complete}` entries: `spec` is for the parser, `usage` (`nick [count]`) for people; `fn(ctx, ...)` gets a `hub.CommandContext`, `net` plus what whoever ran the line adds (from the UI: `target`, the shown buffer, and `filter`, the cliconn view's); `group` (default: the feature) places it in `/help`; `complete(ctx, before, seed)`, optional, gives Tab's candidates for an argument, or nil for channels and nicks. `commands/run.lua` runs a line for a given origin, so commands run headless. |
 | `views` | View records (section 7). |
+| `check_config(cfg)` | Check and complete its part of a loaded configuration, before anything changes; raising fails the load. For what only the module knows, such as chat's hide rules; the schema has the rest. |
 | `activate(first)` | Runs once the generation is current. |
 
 Duplicate routes, commands or views fail the build.
@@ -188,7 +191,8 @@ every topic, and a test checks that every literal topic emitted is listed.
   to it; it is never ordered or compared.
 - Configuration: a TOML file — the one last given to `/reload`, else
   `--config=PATH`, else `hub.toml` in the snowcone config directory — with `KEY.PATH=value` overrides; validated
-  against `runtime/config_schema.lua`.
+  against `runtime/config_schema.lua`, then by each module's
+  `check_config`.
 - Secrets — a string, `{file}`, `{command, arguments}` or `{prompt}` — are
   resolved inside tasks when needed and never stored in state; the
   connect task resolves registration's and automatic SASL's with the
@@ -228,7 +232,8 @@ connected at once.
   wanted nick is reclaimed (below); a nick refused as erroneous, or a
   password refused (464), is a configuration error. A server's ERROR
   text becomes the reason the connection ended.
-- **Nick recovery** (`net/reclaim.lua`): while we are registered on a
+- **Nick recovery** (`net/reclaim.lua`; `net/nick.lua` says which nick is
+  wanted): while we are registered on a
   nick other than the wanted one, a task exists to take it back, and
   only then. It starts when registration ends on another nick (a
   temporary one, or the one a bouncer welcomes us on), when a `/nick` is
@@ -276,6 +281,10 @@ connected at once.
   MAP lines, WHOIS replies, CHALLENGE — is a table keyed by
   `ircd.of(net)`, or a branch, next to the code that uses it, in whichever
   layer that is; a new ircd is a new key in those tables.
+- **Server notices** are recognized and parsed by `net/snote`. The
+  connection records on each message, on every network and before tasks
+  and features see it, whether it is one (`msg.snote`); what to do with
+  them is the snotice feature's.
 - **Operator status** fires `irc.oper` when we become an operator, from
   RPL_YOUREOPER or a user mode `o` (a bouncer session that is already
   opered); a user mode `-o` clears `irc.oper`.
@@ -300,22 +309,24 @@ and only run, and only show, for networks that have it.
 A feature that needs another on the same network to do its job says so in
 `config_schema.feature_requires`, and configuration refuses a network that
 enables it alone, so every combination that loads is one that works. A
-feature that only does more with another (topology hears shedding notices
-when snotice is on) doesn't require it; it checks `common.enabled` and
-works either way. Add a requirement when a feature's results would be
-unreachable or wrong without the other, not to save a check.
+feature that only does more with another (snotice gives every server a
+load row when topology maps them) doesn't require it; it works either way,
+checking `common.enabled` where it must. Add a requirement when a
+feature's results would be unreachable or wrong without the other, not to
+save a check.
 
 | Feature | What it does |
 | --- | --- |
-| snotice | Parses server notices, keeps recent connections, exits, bans, new channels, per-second load trackers, address-range counts and watches; emits `snote` and `snote.<name>`. |
+| snotice | From server notices, keeps recent connections, exits, bans, new channels, per-second load trackers, address-range counts and watches; emits `snote` and `snote.<name>`. |
 | topology | Populations from MAP, links and upstream from LINKS, versions, uptimes, user shedding, DNS rotations. Asks for MAP and LINKS at registration, on becoming an operator and on netsplits and netjoins. |
 | oper | Libera ban masks; staging a K-Line, unkline or undline with a TESTMASK count; sending it only on confirmation; operator commands. |
 | chat | Buffers per network and target, routing (WALLOPS and broadcasts to the sender's buffer; our own lines never mentions or unseen), mentions, chat history, MONITOR for private buffers, paced CTCP replies, `/list`, quiets, bans and kicks with Libera channel ban masks. |
+| queries | WHO, WHOIS, WHOWAS, STATS, TRACE, ETRACE and MASKTRACE on every network, each shown in the detail pane; and the lookups features make for themselves: a user for a ban, TESTMASK counts, the organization of an address (always loaded; not per network). |
 | notify | Desktop or terminal notifications of mentions while the terminal is unfocused (always loaded; not per network). |
 | plugins | Not a feature but the plugin host, at this layer so that plugins see what features see: loads plugins into each generation (section 6). Always loaded. |
 
 Features send only queries on their own (MAP, LINKS, TESTMASK, CHATHISTORY,
-MONITOR, WHOIS, CTCP replies). Anything with an effect — bans, joins,
+MONITOR, WHO, WHOIS, WHOWAS, CTCP replies). Anything with an effect — bans, joins,
 messages — goes out only from a user action.
 
 ## 6. Plugins

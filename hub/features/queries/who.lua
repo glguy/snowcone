@@ -1,6 +1,6 @@
 -- A WHO run as a network task: who(t, mask, options). The users it lists
 -- are gathered into a hub.Who, logged as one line that opens it, and
--- emitted as chat.who for the UI to show.
+-- emitted as query.who for the UI to show.
 --
 -- options is WHO's second argument as typed: an o first lists only
 -- operators, and a % starts a WHOX format, its field letters then an
@@ -34,7 +34,7 @@
 -- refuses, so one fails every WHO pending.
 
 local bus       <const> = require 'hub.runtime.bus'
-local ip_org    <const> = require 'hub.features.ip_org'
+local ip_org    <const> = require 'hub.features.queries.ip_org'
 local irc_model <const> = require 'hub.net.irc'
 local log       <const> = require 'hub.runtime.log'
 local N         <const> = require 'hub.lib.numerics'
@@ -206,7 +206,7 @@ function M.run(t, mask, options)
             log.add_detail(t.net, 'who', {kind = 'who', data = w}, 'who %s%s: %d %s%s%s', mask,
                 options and options ~= '' and ' ' .. options or '', n, n == 1 and 'user' or 'users',
                 opers_only and ' (operators only)' or '', w.truncated and ', truncated' or '')
-            bus.emit('chat.who', {net = t.net, who = w})
+            bus.emit('query.who', {net = t.net, who = w})
             return true
         end,
         -- "<client> WHO :output too large, truncated" (Solanum) and

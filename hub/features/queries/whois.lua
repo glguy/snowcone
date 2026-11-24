@@ -1,6 +1,6 @@
 -- A WHOIS run as a network task: whois(t, nick, remote). The reply is
 -- gathered into a hub.Whois, logged as one line that opens it, and
--- emitted as chat.whois for the UI to show. OFTC hybrid's replies differ
+-- emitted as query.whois for the UI to show. OFTC hybrid's replies differ
 -- in places: 275 for TLS, 320 for the real host, 307, 308 and 309 for
 -- identified, admin and service, and no account.
 --
@@ -10,7 +10,7 @@
 -- A remote one goes to nick's server as WHOIS nick !nick.
 
 local bus       <const> = require 'hub.runtime.bus'
-local ip_org    <const> = require 'hub.features.ip_org'
+local ip_org    <const> = require 'hub.features.queries.ip_org'
 local irc_model <const> = require 'hub.net.irc'
 local ircd      <const> = require 'hub.net.ircd'
 local log       <const> = require 'hub.runtime.log'
@@ -112,7 +112,7 @@ return function(t, nick, remote)
             if w.bot then table.insert(notes, 'bot') end
             log.add_detail(t.net, 'whois', {kind = 'whois', data = w}, '%s!%s@%s %s',
                 w.nick, w.user or '?', w.host or '?', table.concat(notes, ', '))
-            bus.emit('chat.whois', {net = t.net, whois = w})
+            bus.emit('query.whois', {net = t.net, whois = w})
             return true
         end,
         [N.ERR_NOSUCHSERVER] = function() fail 'whois failed: no such server' return true end,

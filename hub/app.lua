@@ -7,6 +7,8 @@
 --   subscribe(sub)                   sub.on(topic, fn) on the new bus
 --   commands    sequence of {name, spec, usage, fn, help, scope, feature, group}
 --   views       sequence of view records (ui/init.lua)
+--   check_config(cfg)                check and complete its part of a loaded
+--                                    configuration; raising fails the load
 --   activate(first)                  runs once the generation is current
 
 local bus        <const> = require 'hub.runtime.bus'
@@ -34,15 +36,15 @@ local function module_names(opts)
         'hub.runtime.task',
         'hub.runtime.spell',
         'hub.net.send',
-        'hub.net.handlers',
         'hub.net.manager',
         'hub.features.common',
-        -- before chat: it marks server notices (msg.snote) on irc.message,
-        -- and chat leaves those it marked alone
+        'hub.features.queries',
         'hub.features.snotice',
         'hub.features.topology',
         'hub.features.oper',
         'hub.features.chat',
+        'hub.features.chat.commands',
+        'hub.features.chat.modes',
         'hub.features.notify',
         'hub.features.plugins',
     }
@@ -132,7 +134,8 @@ end
 ---@param opts hub.ReloadOptions
 ---@return hub.Current # ready for HUB.current
 function M.build(gen, opts)
-    -- read and validate first: a bad file leaves everything as it was.
+    -- read and validate first, the modules' own checks once they load: a
+    -- bad file leaves everything as it was.
     -- A file chosen by /reload replaces the configuration given at boot.
     local file <const> = opts.config_file or HUB.config_file
     local raw <const> = opts.config or (file == nil and HUB.boot.config or nil)
@@ -143,6 +146,13 @@ function M.build(gen, opts)
         table.insert(modules, {name = name, module = gen.require(name)})
     end
     table.insert(modules, {name = 'hub.app', module = M})
+
+    for _, entry in ipairs(modules) do
+        local m = entry.module
+        if type(m) == 'table' and m.check_config then
+            m.check_config(cfg)
+        end
+    end
 
     --- A generation as it runs: its modules and what they registered.
     ---@class hub.Current

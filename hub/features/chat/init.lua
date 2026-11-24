@@ -1,5 +1,14 @@
 -- Chat: buffers of messages per network and target, mentions and
--- history. Its commands are in chat/commands.lua and chat/modes.lua.
+-- history. This module routes messages to buffers, and is what the rest
+-- of hub uses; its commands, in chat/commands.lua and chat/modes.lua,
+-- build on it. Its parts, each requiring only those before it:
+--
+--   store.lua                           state, folding, finding buffers
+--   config.lua, hide.lua, typing.lua    settings, hide rules, typing
+--   buffers.lua                         what a buffer holds
+--   history.lua, receipt.lua            chat history, our own lines
+--   opening.lua                         opening and closing buffers
+--   channels.lua                        asking about channels, LIST
 --
 -- state.features.chat[net] = {
 --   buffers  [folded target] = {name, messages = OrderedMap, activity,
@@ -38,169 +47,85 @@
 -- in is shown in that channel's buffer, marked msg.context: '>' from the
 -- sender to us, '<' from us to the recipient. /cmsg sends one.
 
-local bus        <const> = require 'hub.runtime.bus'
-local casemap    <const> = require 'hub.lib.casemap'
-local channels   <const> = require 'hub.features.chat.channels'
-local clock      <const> = require 'hub.runtime.clock'
-local commands   <const> = require 'hub.features.chat.commands'
-local common     <const> = require 'hub.features.common'
-local config     <const> = require 'hub.features.chat.config'
-local channel_errors <const> = require 'hub.lib.channel_errors'
+local buffers        <const> = require 'hub.features.chat.buffers'
+local bus            <const> = require 'hub.runtime.bus'
+local casemap        <const> = require 'hub.lib.casemap'
+local channel_errors <const> = require 'hub.features.chat.channel_errors'
+local channels       <const> = require 'hub.features.chat.channels'
+local clock          <const> = require 'hub.runtime.clock'
+local common         <const> = require 'hub.features.common'
+local config         <const> = require 'hub.features.chat.config'
 local ctcp           <const> = require 'hub.features.chat.ctcp'
-local hide       <const> = require 'hub.features.chat.hide'
-local history    <const> = require 'hub.features.chat.history'
-local intent     <const> = require 'hub.net.intent'
-local irc_model  <const> = require 'hub.net.irc'
-local log        <const> = require 'hub.runtime.log'
-local monitor    <const> = require 'hub.net.monitor'
-local message_text <const> = require 'hub.lib.message_text'
-local N          <const> = require 'hub.lib.numerics'
-local OrderedMap <const> = require 'hub.lib.OrderedMap'
-local ratelimit  <const> = require 'hub.lib.ratelimit'
-local receipt    <const> = require 'hub.features.chat.receipt'
-local send       <const> = require 'hub.net.send'
-local task       <const> = require 'hub.runtime.task'
-local typing     <const> = require 'hub.features.chat.typing'
-local whois      <const> = require 'hub.features.chat.whois'
+local hide           <const> = require 'hub.features.chat.hide'
+local history        <const> = require 'hub.features.chat.history'
+local irc_model      <const> = require 'hub.net.irc'
+local log            <const> = require 'hub.runtime.log'
+local message_text   <const> = require 'hub.lib.message_text'
+local monitor        <const> = require 'hub.net.monitor'
+local N              <const> = require 'hub.lib.numerics'
+local opening        <const> = require 'hub.features.chat.opening'
+local OrderedMap     <const> = require 'hub.lib.OrderedMap'
+local ratelimit      <const> = require 'hub.lib.ratelimit'
+local receipt        <const> = require 'hub.features.chat.receipt'
+local send           <const> = require 'hub.net.send'
+local store          <const> = require 'hub.features.chat.store'
+local typing         <const> = require 'hub.features.chat.typing'
 
 local M = {}
 
 local query <const> = common.sender 'chat'
 
-M.name = 'chat'
-M.buffer_size = 1000
-M.list_size = 10000
--- History requests new buffers may make at once, and the seconds that
--- earn another
-M.history_burst = 10
-M.history_interval = 6
+-- What the UI, notify and chat's commands use of its parts
+
+M.name = store.name
+M.get = store.get
+M.fold = store.fold
+M.name_matcher = store.name_matcher
+M.buffer = store.buffer
+M.settings = config.settings
+
+M.open = opening.open
+M.close = opening.close
+
+M.look = buffers.look
+M.find = buffers.find
+M.newest = buffers.newest
+M.holder = buffers.holder
+M.next_buffer = buffers.next_buffer
+M.last_speaker = buffers.last_speaker
+
+M.hidden = hide.hidden
+M.hide_decision = hide.decision
+
+M.typing = typing.list
+
+M.channel_info = channels.channel_info
+M.refetch_observed = channels.refetch_observed
+M.refresh_modes = channels.refresh_modes
+M.refresh_topic = channels.refresh_topic
+M.fetch_list = channels.fetch_list
+M.unset_list = channels.unset_list
+M.list = channels.list
+
 -- CTCP replies to non-staff that may go at once, and the seconds that earn
 -- another; the burst stays below a typical rate limit's (5 lines)
 M.ctcp_burst = 2
 M.ctcp_interval = 20
 
---- A buffer named for a server, which sends WALLOPS and messages to
---- broadcast masks; such a buffer has no history, typing or MONITOR. A
---- buffer from before, named *wallops, is one too.
----@param net string
----@param name string
----@return boolean
-function M.is_server(net, name)
-    if name:sub(1, 1) == '*' then return true end
-    local rec = HUB.state.nets[net]
-    local irc = rec and rec.irc
-    local channel = irc and irc_model.is_channel_name(irc, name) or not irc and name:find '^[#&]'
-    return not channel and name:find('.', 1, true) ~= nil
-end
-
---- What chat's parts (chat/typing.lua, history.lua, receipt.lua,
---- channels.lua, config.lua) use of chat, which they are
---- passed since it requires them.
----@class hub.ChatLookup
----@field is_server fun(net: string, name: string): boolean
----@field buffer_size integer
----@field get fun(net: string): hub.ChatState
----@field fold fun(net: string, target: string): string
----@field buffer fun(net: string, target: string): hub.ChatBuffer|nil
----@field open fun(net: string, target: string): hub.ChatBuffer
----@field insert fun(net: string, buffer: hub.ChatBuffer, msg: hub.Message)
----@field discards fun(net: string, target: string, msg: hub.Message): boolean
----@field newest fun(buffer: hub.ChatBuffer): hub.Message|nil
-
---- What chat's commands (chat/commands.lua, modes.lua) use of chat.
----@class hub.Chat : hub.ChatLookup
----@field name string
----@field name_matcher fun(net: string, seed: string): fun(name: string): boolean
----@field command fun(name: string, spec: string, usage: string, help: string, fn: function): table
----@field talk fun(net: string, target: string)
----@field say fun(net: string, target: string, text: string)
----@field notice fun(net: string, target: string, text: string)
----@field close fun(net: string, target: string)
----@field channel_info fun(net: string, name: string)
----@field list fun(net: string, arg: string)
----@field whois fun(net: string, nick: string, remote: boolean|nil)
----@field refresh_modes fun(net: string, name: string)
----@field refresh_topic fun(net: string, name: string)
----@field refetch_observed fun(net: string, name: string)
----@field fetch_list fun(net: string, name: string, mode: string)
-
---- A network's chat, state.features.chat[net].
----@class hub.ChatState
----@field buffers table<string, hub.ChatBuffer> by folded target
----@field list hub.OrderedMap the last LIST reply
----@field listing true|nil while LIST replies arrive
----@field list_count integer|nil channels the last LIST replied with, kept or not
----@field pending table<string, table<string, {msg: hub.Message, buffer: hub.ChatBuffer|nil}>>
---- by label, then by folded target; for the current connection
----@field closing table<string, true> channels /close parted, by folded name;
---- for the current connection
----@field composing hub.ChatComposing|nil what we are writing and where
----@field history_bucket number|nil pacing of new buffers' history requests (lib/ratelimit)
----@field ctcp_bucket number|nil pacing of CTCP replies to non-staff (lib/ratelimit)
----@field casemapping string|nil what the keys are folded with: the
---- network's, as last announced; rfc1459 before any
-
----@return hub.ChatState
-local function new_state()
-    return {buffers = {}, list = OrderedMap.new(M.list_size), pending = {}, closing = {}}
-end
-
----@param net string
----@return hub.ChatState
-function M.get(net)
-    local C = common.net_state(M.name, net, new_state)
-    -- added after state from earlier code
-    C.pending = C.pending or {}
-    C.closing = C.closing or {}
-    return C
-end
-
-local function enabled(net)
-    return common.enabled(net, M.name)
-end
-
-local function model(net)
-    local rec = HUB.state.nets[net]
-    return rec and rec.irc
-end
-
---- Fold a target with the network's casemapping: the one the server
---- announced, or the one last announced while it hasn't (between
---- connections, and while registering), so keys stay the same.
-function M.fold(net, target)
-    local irc = model(net)
-    if irc and irc.isupport.CASEMAPPING ~= nil then
-        return irc_model.fold(irc, target)
-    end
-    local C = common.get_state(M.name, net)
-    return casemap.fold(C and C.casemapping or 'rfc1459', target)
-end
-
---- A test for names that start with seed, as the network folds them.
----@param net string
----@param seed string
----@return fun(name: string): boolean
-function M.name_matcher(net, seed)
-    local prefix = M.fold(net, seed)
-    return function(name)
-        return M.fold(net, name):sub(1, #prefix) == prefix
-    end
-end
-
 -- Fold the keys again after the server announces its casemapping. Buffers
 -- that come to fold alike merge into the one with more messages.
 local function refold(net)
-    local C = M.get(net)
-    local irc = model(net)
+    local C = store.get(net)
+    local irc = store.model(net)
     local casemapping = irc and irc.casemapping or 'rfc1459'
     if (C.casemapping or 'rfc1459') == casemapping then return end
     C.casemapping = casemapping
     local fold = function(s) return casemap.fold(casemapping, s) end
 
-    local buffers = {}
+    local merged = {}
     for _, buffer in pairs(C.buffers) do
         local key = fold(buffer.name)
-        local other = buffers[key]
+        local other = merged[key]
         if other then
             local keep, gone = other, buffer
             if OrderedMap.size(buffer.messages) > OrderedMap.size(other.messages) then
@@ -208,271 +133,35 @@ local function refold(net)
             end
             keep.activity = keep.activity + gone.activity
             keep.mention = keep.mention or gone.mention
-            buffers[key] = keep
+            merged[key] = keep
             log.add_net(net, 'chat', '%s and %s are one buffer now; %s keeps its messages',
                 keep.name, gone.name, keep.name)
         else
-            buffers[key] = buffer
+            merged[key] = buffer
         end
         typing.refold(buffer, fold)
     end
-    C.buffers = buffers
+    C.buffers = merged
     -- pending and closing belong to the connection, and the server names
     -- its casemapping before anything goes into them
-end
-
---- The configured settings of a buffer ([[networks.buffers]],
---- chat/config.lua), if any.
----@param net string
----@param target string
----@return hub.BufferSettings|nil
-function M.settings(net, target)
-    return config.settings(M, net, target)
-end
-
--- Buffers =============================================================
-
---- A buffer, if it exists.
-function M.buffer(net, target)
-    return M.get(net).buffers[M.fold(net, target)]
-end
-
----@class hub.ChatBuffer
----@field name string the target, as last seen
----@field messages hub.OrderedMap keyed by msgid, when there is one
----@field activity integer messages since it was last seen
----@field mention boolean
----@field typing table<string, hub.ChatTyping>|nil by folded nick; nil in
---- buffers from before typing was tracked (chat/typing.lua)
----@field hide table<hub.Message, hub.HideDecision|false>|nil how each
---- message was classified (chat/hide.lua), weak-keyed; nil until one is
-
--- A private buffer watches its nick's presence with MONITOR
--- (net/monitor.lua, as 'chat') while it is open, by its current name.
--- Server and channel buffers watch nothing.
-local function watches(net, irc, name)
-    return not irc_model.is_channel_name(irc, name) and not M.is_server(net, name)
-end
-
-local function watch(net, target)
-    local irc = model(net)
-    if irc and watches(net, irc, target) then
-        monitor.want(net, 'chat', target)
-    end
-end
-
---- A buffer, created (and its history requested) when missing.
----@param net string
----@param target string
----@param before string|nil server time of the message that opened it
----@return hub.ChatBuffer
-function M.open(net, target, before)
-    local C = M.get(net)
-    local key = M.fold(net, target)
-    local buffer = C.buffers[key]
-    if buffer then
-        buffer.name = target
-        return buffer
-    end
-    buffer = {name = target, messages = OrderedMap.new(M.buffer_size), activity = 0, mention = false}
-    C.buffers[key] = buffer
-    -- what came before the message that opened it, or the latest; a flood
-    -- of new senders gets a few such requests, not one each
-    local now = clock.now()
-    if not M.is_server(net, target)
-    and ratelimit.wait(C.history_bucket or now, now, M.history_burst, M.history_interval) == 0 then
-        C.history_bucket = ratelimit.take(C.history_bucket or now, now, M.history_interval)
-        history.request(M, net, target, before and 'BEFORE' or 'LATEST', before)
-    end
-    bus.emit('chat.buffer', {net = net, target = target, opened = true})
-    watch(net, target)
-    return buffer
-end
-
-local function drop(net, key, target)
-    M.get(net).buffers[key] = nil
-    -- a channel's snapshot lasts as long as its buffer
-    local irc = model(net)
-    if irc then irc_model.forget_observed(irc, target) end
-    bus.emit('chat.buffer', {net = net, target = target, opened = false})
-end
-
---- Forget a buffer: part its channel if we are in it, and stop
---- monitoring its nick.
-function M.close(net, target)
-    local C = M.get(net)
-    local key = M.fold(net, target)
-    local irc = model(net)
-    if irc and irc_model.get_channel(irc, target) then
-        -- our PART coming back would reopen the buffer, and so would a
-        -- message before it: H.PART drops the buffer again
-        query(net, 'PART', target)
-        C.closing[key] = true
-    end
-    monitor.release(net, 'chat', target)
-    -- not rejoined on the next connection, even when we couldn't part
-    intent.left(HUB.state.nets[net], irc, target)
-    drop(net, key, target)
-end
-
---- The buffer to move to from the one with folded name `from`: one with
---- a mention, else one with activity, else (unless `active`) any; among
---- equals the next by folded name after `from`, wrapping round, and
---- `from` itself last. Nil when there is none.
-function M.next_buffer(net, from, active)
-    local function rank(buffer)
-        if buffer.activity == 0 then return 0 end
-        return buffer.mention and 2 or 1
-    end
-    -- 0 after `from`, 1 wrapped round before it, 2 for `from` itself
-    local function lap(key)
-        return key > from and 0 or key < from and 1 or 2
-    end
-    local best, best_key
-    for key, buffer in pairs(M.get(net).buffers) do
-        if not active or buffer.activity > 0 then
-            local better = not best
-                or rank(buffer) > rank(best)
-                or rank(buffer) == rank(best)
-                   and (lap(key) < lap(best_key)
-                        or lap(key) == lap(best_key) and key < best_key)
-            if better then
-                best, best_key = buffer, key
-            end
-        end
-    end
-    return best
-end
-
---- Mark a buffer as seen.
-function M.look(buffer)
-    buffer.activity = 0
-    buffer.mention = false
-end
-
-local function msgid(msg)
-    return msg.tags and msg.tags.msgid
-end
-
--- A message is keyed by its msgid; ours, until its echo brings one, by
--- itself. Others are reached only by iteration. The hide rules classify
--- it first (chat/hide.lua), since the map asks the view's predicate
--- whether it is shown as it goes in.
-local function insert(net, buffer, msg)
-    hide.classify(M, net, buffer, msg)
-    local key = msgid(msg)
-    if key == nil and msg.receipt == 'awaiting' then key = msg end
-    OrderedMap.insert(buffer.messages, key, msg)
-end
-M.insert = insert -- for chat/history.lua and receipt.lua
-
---- Whether the hide rules hide a message in a buffer (chat/hide.lua).
-M.hidden = hide.hidden
-
---- Whether the hide rules discard a message bound for a buffer, which
---- is then neither opened nor added to (chat/hide.lua).
----@param net string
----@param target string
----@param msg hub.Message
----@return boolean
-function M.discards(net, target, msg)
-    return hide.discards(M, net, target, msg)
-end
-
---- How the hide rules classified a message in a buffer, or nil when
---- none decided (chat/hide.lua).
-M.hide_decision = hide.decision
-
---- The message with a msgid in a buffer, while the buffer holds it.
----@param buffer hub.ChatBuffer
----@param id string
----@return hub.Message|nil
-function M.find(buffer, id)
-    return OrderedMap.lookup(buffer.messages, id)
-end
-
---- The newest message in a buffer.
----@param buffer hub.ChatBuffer
----@return hub.Message|nil
-function M.newest(buffer)
-    return (OrderedMap.get(buffer.messages, OrderedMap.last(buffer.messages)))
-end
-
--- Whether a buffer holds a message: by its msgid when it has one, else
--- by searching
-local function holds(buffer, msg)
-    local id = msgid(msg)
-    if id and M.find(buffer, id) == msg then return true end
-    return OrderedMap.find(buffer.messages, function(other) return other == msg end) ~= nil
-end
-
---- A buffer of a network that holds a message: the one named `prefer`
---- when it does, else the first by name. Nil when none does.
----@param net string
----@param msg hub.Message
----@param prefer string|nil
----@return hub.ChatBuffer|nil
-function M.holder(net, msg, prefer)
-    if not enabled(net) then return nil end
-    local preferred = prefer and M.buffer(net, prefer)
-    if preferred and holds(preferred, msg) then return preferred end
-    local best, best_key
-    for key, buffer in pairs(M.get(net).buffers) do
-        if buffer ~= preferred and (not best_key or key < best_key) and holds(buffer, msg) then
-            best, best_key = buffer, key
-        end
-    end
-    return best
-end
-
---- Whom of some nicks spoke last in a buffer, not counting us.
----@generic T
----@param net string
----@param target string
----@param nicks table<string, T> by folded nick
----@return T|nil # the value of the nick found
-function M.last_speaker(net, target, nicks)
-    local buffer = enabled(net) and M.buffer(net, target)
-    if not buffer then return nil end
-    local irc = model(net)
-    for msg in OrderedMap.each(buffer.messages) do
-        if msg.nick and (msg.command == 'PRIVMSG' or msg.command == 'NOTICE') then
-            local found = nicks[M.fold(net, msg.nick)]
-            if found and not (irc and irc_model.is_me(irc, msg.nick)) then return found end
-        end
-    end
-    return nil
-end
-
--- Typing ============================================================
-
---- Seconds a typing entry lasts without being refreshed, by state.
-M.typing_timeout = typing.timeout
-
---- Who is typing in a buffer, the most recent change first.
----@param net string
----@param buffer hub.ChatBuffer
----@return hub.ChatTyping[]
-function M.typing(net, buffer)
-    return typing.list(M, net, buffer)
 end
 
 -- Place a message in a buffer, opening it if need be, unless the hide
 -- rules discard it; false when they do
 local function add(net, target, msg, mention, activity)
-    if hide.discards(M, net, target, msg) then return false end
-    local buffer = M.open(net, target, msg.tags and msg.tags.time)
-    local id = msgid(msg)
+    if hide.discards(net, target, msg) then return false end
+    local buffer = opening.open(net, target, msg.tags and msg.tags.time)
+    local id = buffers.msgid(msg)
     -- a message the buffer already has, from history or a bouncer
-    if id and M.find(buffer, id) then return true end
-    insert(net, buffer, msg)
+    if id and buffers.find(buffer, id) then return true end
+    buffers.insert(net, buffer, msg)
     -- a hidden message never counts; a buffer configured with activity =
     -- false is unseen only by mentions
     local hidden = hide.hidden(buffer, msg)
     if hidden then
         mention, activity = false, false
     elseif activity and not mention then
-        local settings = M.settings(net, target)
+        local settings = config.settings(net, target)
         if settings and settings.activity == false then activity = false end
     end
     if mention then
@@ -509,7 +198,7 @@ local function route_chat(net, irc, target, text, msg)
     end
 
     if irc_model.is_channel_name(irc, target) then
-        return add(net, target, msg, config.matches(config.mention(M, net, target), plain), true)
+        return add(net, target, msg, config.matches(config.mention(net, target), plain), true)
     end
 
     -- to us, to a broadcast mask ($$*.net), or to a nick we just left: in
@@ -520,7 +209,7 @@ local function route_chat(net, irc, target, text, msg)
     if sender then
         local buffer = context and nick and context or sender
         local ctcp_request = text:find '^\x01' and not text:find '^\x01ACTION'
-        local own = config.own_mention(M, net, buffer)
+        local own = config.own_mention(net, buffer)
         local mention = false
         if not ctcp_request then
             if own then
@@ -543,7 +232,7 @@ local function to_channels(net, names, msg)
 end
 
 local function to_user(net, nick, msg)
-    if nick and M.buffer(net, nick) then
+    if nick and store.buffer(net, nick) then
         add(net, nick, msg, false, false)
     end
 end
@@ -573,7 +262,7 @@ local function answer_ctcp(net, nick, staff, name, args)
     local response = h and h(args)
     if not response then return end
     if not staff then
-        local C = M.get(net)
+        local C = store.get(net)
         local now = clock.now()
         local bucket = C.ctcp_bucket or now
         if ratelimit.wait(bucket, now, M.ctcp_burst, M.ctcp_interval) > 0
@@ -603,8 +292,7 @@ function H.PRIVMSG(net, irc, msg)
 end
 
 function H.NOTICE(net, irc, msg)
-    -- server notices belong to the snotice feature, which marks them
-    -- before chat hears the message (app.lua)
+    -- server notices belong to the snotice feature (net/snote marks them)
     if msg[1] == '*' or msg.snote then return end
     local prefix, target = irc_model.split_statusmsg(irc, msg[1])
     msg.statusmsg = prefix
@@ -621,18 +309,18 @@ H.OPERWALL = H.WALLOPS
 
 function H.JOIN(net, irc, msg)
     if irc_model.is_me(irc, msg.nick) then
-        M.get(net).closing[M.fold(net, msg[1])] = nil
+        store.get(net).closing[store.fold(net, msg[1])] = nil
     end
     add(net, msg[1], msg, false, false)
 end
 
 function H.PART(net, irc, msg)
-    local C = M.get(net)
-    local key = M.fold(net, msg[1])
+    local C = store.get(net)
+    local key = store.fold(net, msg[1])
     if irc_model.is_me(irc, msg.nick) and C.closing[key] then
         C.closing[key] = nil
         local buffer = C.buffers[key]
-        if buffer then drop(net, key, buffer.name) end
+        if buffer then opening.drop(net, key, buffer.name) end
         return
     end
     add(net, msg[1], msg, false, false)
@@ -656,14 +344,14 @@ end
 
 function H.NICK(net, _, msg)
     to_channels(net, msg.channels or {}, msg)
-    local C = M.get(net)
-    local old = msg.nick and M.fold(net, msg.nick)
+    local C = store.get(net)
+    local old = msg.nick and store.fold(net, msg.nick)
     local buffer = old and C.buffers[old]
     if buffer then
-        local new = M.fold(net, msg[1])
+        local new = store.fold(net, msg[1])
         if new ~= old and C.buffers[new] then
             -- a buffer for the new nick exists: keep both, unrenamed
-            if not hide.discards(M, net, buffer.name, msg) then insert(net, buffer, msg) end
+            if not hide.discards(net, buffer.name, msg) then buffers.insert(net, buffer, msg) end
             return
         end
         buffer.name = msg[1]
@@ -672,7 +360,7 @@ function H.NICK(net, _, msg)
             C.buffers[new] = buffer
             -- the buffer watches its nick by its new name
             monitor.release(net, 'chat', msg.nick)
-            watch(net, msg[1])
+            opening.watch(net, msg[1])
         end
         add(net, msg[1], msg, false, false)
         -- what names the buffer elsewhere (the UI's shown buffer, notify)
@@ -690,12 +378,12 @@ H.ACCOUNT = user_change
 H.CHGHOST = user_change
 
 --- Errors about a channel, by numeric: which parameter names the
---- channel (lib/channel_errors.lua).
+--- channel (chat/channel_errors.lua).
 M.channel_errors = channel_errors
 
 local function channel_error(net, irc, msg)
     local channel = msg[M.channel_errors[msg.command]]
-    if channel and irc_model.is_channel_name(irc, channel) and M.buffer(net, channel) then
+    if channel and irc_model.is_channel_name(irc, channel) and store.buffer(net, channel) then
         add(net, channel, msg, false, false)
     end
 end
@@ -715,21 +403,21 @@ end
 
 -- "<client> <channel> :<reason>": our line there was refused
 H[N.ERR_CANNOTSENDTOCHAN] = function(net, irc, msg)
-    receipt.on_refusal(M, net, irc, msg)
+    receipt.on_refusal(net, irc, msg)
 end
 
 -- Replies to LIST (chat/channels.lua)
 for command, h in pairs(channels.handlers) do
-    H[command] = function(net, _, msg) h(M, net, msg) end
+    H[command] = function(net, _, msg) h(net, msg) end
 end
 
 local function on_message(ev)
-    if not enabled(ev.net) then return end
-    local irc = model(ev.net)
+    if not store.enabled(ev.net) then return end
+    local irc = store.model(ev.net)
     if not irc then return end
-    if receipt.on_reply(M, ev.net, irc, ev.msg) then return end
+    if receipt.on_reply(ev.net, irc, ev.msg) then return end
     -- first, while the buffers are as they were before the message
-    typing.handle(M, ev.net, irc, ev.msg)
+    typing.handle(ev.net, irc, ev.msg)
     local h = H[ev.msg.command]
     if h then
         h(ev.net, irc, ev.msg)
@@ -738,39 +426,39 @@ end
 
 -- Our own messages, shown where they went; a labeled one awaits its reply
 local function on_sent(ev)
-    if not enabled(ev.net) then return end
+    if not store.enabled(ev.net) then return end
     local msg = ev.msg
     if msg.command ~= 'PRIVMSG' and msg.command ~= 'NOTICE' then return end
-    local irc = model(ev.net)
+    local irc = store.model(ev.net)
     if not irc then return end
-    typing.on_sent(M, ev.net, msg)
-    receipt.on_sent(M, ev.net, irc, msg)
+    typing.on_sent(ev.net, msg)
+    receipt.on_sent(ev.net, irc, msg)
 end
 
 -- Chat history arrives in batches, and so does a reply to a line with
 -- several targets
 local function on_batch(ev)
-    if not enabled(ev.net) then return end
-    receipt.on_batch_end(M, ev.net, ev.label)
+    if not store.enabled(ev.net) then return end
+    receipt.on_batch_end(ev.net, ev.label)
     if ev.type ~= 'chathistory' then return end
-    history.on_batch(M, ev)
+    history.on_batch(ev)
 end
 
 -- After registration: history for the open buffers, and MONITOR for the
 -- private ones
 local function on_registered(ev)
     local net = ev.net
-    if not enabled(net) then return end
-    local irc = model(net)
-    ---@cast irc -nil registered, so connected
-    history.after_registration(M, net)
-    local nicks = {}
-    for _, buffer in pairs(M.get(net).buffers) do
-        if watches(net, irc, buffer.name) then
-            table.insert(nicks, buffer.name)
-        end
-    end
-    monitor.want_all(net, 'chat', nicks)
+    if not store.enabled(net) then return end
+    history.after_registration(net)
+    opening.watch_all(net)
+end
+
+--- Check chat's part of a configuration: mentions, buffers and hide
+--- rules, whose matching fields become lists.
+---@param cfg table
+function M.check_config(cfg)
+    config.check(cfg)
+    for _, net in ipairs(cfg.networks) do hide.check(net) end
 end
 
 function M.subscribe(sub)
@@ -780,15 +468,15 @@ function M.subscribe(sub)
     sub.on('net.registered', on_registered)
     -- labels start again on the next connection
     sub.on('net.closed', function(ev)
-        if not enabled(ev.net) then return end
-        local C = M.get(ev.net)
+        if not store.enabled(ev.net) then return end
+        local C = store.get(ev.net)
         receipt.settle_all(C)
         typing.reset(C)
         C.closing = {}
     end)
-    sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
+    sub.on('net.removed', function(ev) common.drop_state(store.name, ev.net) end)
     sub.on('irc.isupport', function(ev)
-        if ev.key == 'CASEMAPPING' and enabled(ev.net) then refold(ev.net) end
+        if ev.key == 'CASEMAPPING' and store.enabled(ev.net) then refold(ev.net) end
     end)
 end
 
@@ -796,8 +484,8 @@ end
 
 --- Open a buffer to talk in: join a channel we aren't in, monitor a nick.
 function M.talk(net, target)
-    local irc = model(net)
-    M.open(net, target)
+    local irc = store.model(net)
+    opening.open(net, target)
     if irc and HUB.state.nets[net].phase == 'connected' then
         if irc_model.is_channel_name(irc, target) then
             if not irc_model.get_channel(irc, target) then
@@ -833,52 +521,13 @@ M.action_overhead = #'\x01ACTION \x01'
 ---@param text string
 function M.compose(net, target, text)
     for id in pairs(HUB.state.nets) do
-        if id ~= net and enabled(id) then
-            typing.compose(M, id, nil, '')
+        if id ~= net and store.enabled(id) then
+            typing.compose(id, nil, '')
         end
     end
-    if net and enabled(net) then
-        typing.compose(M, net, target, text)
+    if net and store.enabled(net) then
+        typing.compose(net, target, text)
     end
 end
-
---- WHOIS a nick, on its server (with idle time) if `remote`; the reply
---- opens in the detail pane.
----@param net string
----@param nick string
----@param remote boolean|nil
-function M.whois(net, nick, remote)
-    task.spawn('whois', {net = net, owner = M.name}, whois, nick, remote or false)
-end
-
--- Channels (chat/channels.lua) ========================================
-
---- Ask for what a channel's information needs: for a joined channel its
---- modes when unknown, for another a snapshot and all that it holds.
-function M.channel_info(net, name) channels.channel_info(M, net, name) end
-
---- After a change we made in a channel we aren't in, ask again for its
---- snapshot.
-M.refetch_observed = channels.refetch_observed
-
---- Ask again for a channel's modes and creation time.
-function M.refresh_modes(net, name) channels.refresh_modes(M, net, name) end
-
---- Ask again for a channel's topic.
-function M.refresh_topic(net, name) channels.refresh_topic(M, net, name) end
-
---- Fetch a list mode of a channel, such as its bans (b) or quiets (q).
-function M.fetch_list(net, name, mode) channels.fetch_list(M, net, name, mode) end
-
---- Remove an entry from a list mode of a channel.
-M.unset_list = channels.unset_list
-
---- Fetch the channel list.
-function M.list(net, arg) channels.list(M, net, arg) end
-
--- Commands ============================================================
-
-M.command = common.net_command(M.name)
-M.commands = commands.commands(M)
 
 return M

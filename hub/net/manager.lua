@@ -19,6 +19,7 @@ local registration <const> = require 'hub.net.registration'
 local resources    <const> = require 'hub.runtime.resources'
 local secrets      <const> = require 'hub.runtime.secrets'
 local send         <const> = require 'hub.net.send'
+local snote        <const> = require 'hub.net.snote'
 local task         <const> = require 'hub.runtime.task'
 local timer        <const> = require 'hub.runtime.timer'
 local traceback    <const> = require 'hub.lib.traceback'
@@ -73,7 +74,7 @@ local M = {}
 --- as we knew: nil fields when we never learned them (net/handlers.lua)
 ---@field snote string|false|nil the text of a server notice without its
 --- header, or false for another message; nil until recorded on arrival
---- (features/snotice/notice.lua)
+--- (net/snote)
 ---@field statusmsg string|nil of a PRIVMSG or NOTICE, the STATUSMSG prefix
 --- its target had, the members it went to (features/chat)
 ---@field context '>'|'<'|nil of a private PRIVMSG or NOTICE shown in the
@@ -561,6 +562,12 @@ function events.MSG(rec, msg, flush)
     -- the handler may have ended the connection
     if nets()[id] ~= rec or rec.irc ~= irc then return end
     if open and open.replay then return end
+
+    -- before tasks and features see it, which may ask
+    local ok, err = xpcall(snote.record, traceback, id, msg)
+    if not ok then
+        dispatch.report('server notice', err)
+    end
 
     task.deliver_irc(id, msg)
     -- a labeled reply is one message (ACK when empty) or a batch; a label

@@ -1,15 +1,19 @@
 -- Channel operator commands: /mode, quiets and bans, kickban, and op and
 -- voice. They act on the shown channel; whether we may is the server's
--- to say. Chat requires this module, so it passes itself in.
+-- to say.
 
 local ban_mask  <const> = require 'hub.features.chat.masks'
 local bus       <const> = require 'hub.runtime.bus'
+local chat      <const> = require 'hub.features.chat'
+local common    <const> = require 'hub.features.common'
 local irc_model <const> = require 'hub.net.irc'
-local lookup    <const> = require 'hub.features.lookup'
+local lookup    <const> = require 'hub.features.queries.lookup'
 local send      <const> = require 'hub.net.send'
 local task      <const> = require 'hub.runtime.task'
 
 local M = {}
+
+local command <const> = common.net_command(chat.name)
 
 local function model(net)
     local rec = HUB.state.nets[net]
@@ -35,7 +39,7 @@ end
 -- Set or unset (change is +b, -q, ...) a list mode on the ban mask of a
 -- nick, looking it up first, and kick it when kick is a reason
 ---@param t hub.Task
-local function ban_nick(t, chat, channel, nick, change, kick)
+local function ban_nick(t, channel, nick, change, kick)
     local found, err = lookup(t, nick)
     if not found then return t:log('chat', '%s', err) end
     t:send('MODE', channel, change, '*!' .. ban_mask(found.user, found.ip, found.host))
@@ -48,27 +52,27 @@ local function ban_nick(t, chat, channel, nick, change, kick)
 end
 
 -- Set a list mode: a mask as given (an extban too), or a nick's ban mask
-local function ban_command(chat, name, mode, help)
-    return chat.command(name, '$g', 'mask|nick', help, function(ctx, arg)
+local function ban_command(name, mode, help)
+    return command(name, '$g', 'mask|nick', help, function(ctx, arg)
         local channel = M.shown_channel(ctx)
         if is_mask(arg) then
             send.send(ctx.net, 'MODE', channel, '+' .. mode, arg)
             chat.refetch_observed(ctx.net, channel)
         else
-            task.spawn(name, {net = ctx.net, owner = chat.name}, ban_nick, chat, channel, arg, '+' .. mode)
+            task.spawn(name, {net = ctx.net, owner = chat.name}, ban_nick, channel, arg, '+' .. mode)
         end
     end)
 end
 
 -- Unset a list mode: a mask as given, or a nick's ban mask
-local function unban_command(chat, name, mode, help)
-    local cmd = chat.command(name, '$g', 'mask|nick', help, function(ctx, arg)
+local function unban_command(name, mode, help)
+    local cmd = command(name, '$g', 'mask|nick', help, function(ctx, arg)
         local channel = M.shown_channel(ctx)
         if is_mask(arg) then
             send.send(ctx.net, 'MODE', channel, '-' .. mode, arg)
             chat.refetch_observed(ctx.net, channel)
         else
-            task.spawn(name, {net = ctx.net, owner = chat.name}, ban_nick, chat, channel, arg, '-' .. mode)
+            task.spawn(name, {net = ctx.net, owner = chat.name}, ban_nick, channel, arg, '-' .. mode)
         end
     end)
     -- Tab offers the list's masks and the channel's nicks; a list not yet
@@ -129,8 +133,8 @@ end
 
 -- Give (+o) or take (-o) a prefix mode for nicks in the shown channel, in
 -- as few MODE lines as the server's MODES allows; with no nicks, bare()
-local function prefix_command(chat, name, change, help, bare)
-    return chat.command(name, '$R', '[nick...]', help, function(ctx, args)
+local function prefix_command(name, change, help, bare)
+    return command(name, '$R', '[nick...]', help, function(ctx, args)
         local channel = M.shown_channel(ctx)
         local changes = {}
         local sign, mode = change:sub(1, 1), change:sub(2)
@@ -233,8 +237,8 @@ local function mode_shape(ctx, rest, slot)
 end
 
 -- /mode: changes checked against the network's modes, or the modes shown
-local function mode_command(chat)
-    local cmd = chat.command('mode', '$R', '[modes [arg...]]',
+local function mode_command()
+    local cmd = command('mode', '$R', '[modes [arg...]]',
         "Change the shown channel's modes, e.g. +nt-s or +k key; with none, or only list modes like +b, show them",
     function(ctx, args)
         local channel = M.shown_channel(ctx)
@@ -336,9 +340,9 @@ local function mode_command(chat)
 end
 
 -- Ask ChanServ (Atheme) for a prefix mode of our own
-local function from_chanserv(command)
+local function from_chanserv(request)
     return function(net, channel)
-        send.send(net, 'PRIVMSG', 'ChanServ', command .. ' ' .. channel)
+        send.send(net, 'PRIVMSG', 'ChanServ', request .. ' ' .. channel)
     end
 end
 
@@ -349,27 +353,23 @@ local function drop_own(change)
     end
 end
 
---- The commands, made for chat.
----@param chat hub.Chat
-function M.commands(chat)
-    return {
-        mode_command(chat),
-        ban_command(chat, 'quiet', 'q', 'Quiet a mask, or a nick by its ban mask, in the shown channel'),
-        ban_command(chat, 'ban', 'b', 'Ban a mask, or a nick by its ban mask, from the shown channel'),
-        chat.command('kickban', '$g $T', 'nick [reason]', 'Ban a nick from the shown channel and kick it',
-        function(ctx, nick, reason)
-            local channel = M.shown_channel(ctx)
-            task.spawn('kickban', {net = ctx.net, owner = chat.name}, ban_nick, chat, channel, nick, '+b', reason)
-        end),
-        unban_command(chat, 'unquiet', 'q', 'Unquiet a mask, or a nick by its ban mask, in the shown channel'),
-        unban_command(chat, 'unban', 'b', 'Unban a mask, or a nick by its ban mask, from the shown channel'),
-        prefix_command(chat, 'op', '+o', 'Op nicks in the shown channel, or ourselves through ChanServ',
-            from_chanserv 'OP'),
-        prefix_command(chat, 'deop', '-o', 'Deop nicks in the shown channel, or ourselves', drop_own '-o'),
-        prefix_command(chat, 'voice', '+v', 'Voice nicks in the shown channel, or ourselves through ChanServ',
-            from_chanserv 'VOICE'),
-        prefix_command(chat, 'devoice', '-v', 'Devoice nicks in the shown channel, or ourselves', drop_own '-v'),
-    }
-end
+M.commands = {
+    mode_command(),
+    ban_command('quiet', 'q', 'Quiet a mask, or a nick by its ban mask, in the shown channel'),
+    ban_command('ban', 'b', 'Ban a mask, or a nick by its ban mask, from the shown channel'),
+    command('kickban', '$g $T', 'nick [reason]', 'Ban a nick from the shown channel and kick it',
+    function(ctx, nick, reason)
+        local channel = M.shown_channel(ctx)
+        task.spawn('kickban', {net = ctx.net, owner = chat.name}, ban_nick, channel, nick, '+b', reason)
+    end),
+    unban_command('unquiet', 'q', 'Unquiet a mask, or a nick by its ban mask, in the shown channel'),
+    unban_command('unban', 'b', 'Unban a mask, or a nick by its ban mask, from the shown channel'),
+    prefix_command('op', '+o', 'Op nicks in the shown channel, or ourselves through ChanServ',
+        from_chanserv 'OP'),
+    prefix_command('deop', '-o', 'Deop nicks in the shown channel, or ourselves', drop_own '-o'),
+    prefix_command('voice', '+v', 'Voice nicks in the shown channel, or ourselves through ChanServ',
+        from_chanserv 'VOICE'),
+    prefix_command('devoice', '-v', 'Devoice nicks in the shown channel, or ourselves', drop_own '-v'),
+}
 
 return M

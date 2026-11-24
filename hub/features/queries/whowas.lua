@@ -1,9 +1,9 @@
 -- A WHOWAS run as a network task: whowas(t, nick, count). Every past
 -- entry the server keeps, or the newest count, is gathered into a hub.Whowas, logged as one line that
--- opens it, and emitted as chat.whowas for the UI to show.
+-- opens it, and emitted as query.whowas for the UI to show.
 
 local bus       <const> = require 'hub.runtime.bus'
-local ip_org    <const> = require 'hub.features.ip_org'
+local ip_org    <const> = require 'hub.features.queries.ip_org'
 local irc_model <const> = require 'hub.net.irc'
 local log       <const> = require 'hub.runtime.log'
 local N         <const> = require 'hub.lib.numerics'
@@ -68,7 +68,7 @@ return function(t, nick, count)
             log.add_detail(t.net, 'whowas', {kind = 'whowas', data = w}, '%s!%s@%s %s, %d %s',
                 last.nick, last.user or '?', last.host or '?', last.signoff or 'signoff unknown',
                 #w.entries, #w.entries == 1 and 'entry' or 'entries')
-            bus.emit('chat.whowas', {net = t.net, whowas = w})
+            bus.emit('query.whowas', {net = t.net, whowas = w})
             return true
         end,
     }

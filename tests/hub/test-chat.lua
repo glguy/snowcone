@@ -78,7 +78,7 @@ end)
 T.case('whois reports a refused remote whois', function()
     local c = boot()
     local task = T.require 'hub.runtime.task'
-    local whois = T.require 'hub.features.chat.whois'
+    local whois = T.require 'hub.features.queries.whois'
     task.spawn('whois', {net = 'test'}, whois, 'Nick', true)
     T.eq(c:take(), {'WHOIS Nick Nick'}, 'remote')
     c:recv ':srv 263 me WHOIS :Server load is temporarily too heavy.'
@@ -89,9 +89,9 @@ end)
 T.case('whois of !nick is an operspy whois of nick', function()
     local c = boot()
     local task = T.require 'hub.runtime.task'
-    local whois = T.require 'hub.features.chat.whois'
+    local whois = T.require 'hub.features.queries.whois'
     local seen = {}
-    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'chat.whois', 'test', function(ev) seen[#seen + 1] = ev.whois end)
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.whois', 'test', function(ev) seen[#seen + 1] = ev.whois end)
     task.spawn('whois', {net = 'test'}, whois, '!Nick')
     T.eq(c:take(), {'WHOIS !Nick'}, 'asked')
     c:recv ':srv 311 me Nick ~n h.example * :Real'
@@ -113,9 +113,9 @@ end)
 T.case('whois reads OFTC hybrid replies', function()
     local c = boot {ircd = 'oftc-hybrid'}
     local task = T.require 'hub.runtime.task'
-    local whois = T.require 'hub.features.chat.whois'
+    local whois = T.require 'hub.features.queries.whois'
     local seen = {}
-    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'chat.whois', 'test', function(ev) seen[#seen + 1] = ev.whois end)
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.whois', 'test', function(ev) seen[#seen + 1] = ev.whois end)
     task.spawn('whois', {net = 'test'}, whois, 'Nick')
     T.eq(c:take(), {'WHOIS Nick'}, 'asked')
     c:recv ':srv 311 me Nick ~n cloak.example * :Real'
@@ -132,9 +132,9 @@ end)
 T.case('whowas gathers every past entry, and reports failures', function()
     local c = boot()
     local task = T.require 'hub.runtime.task'
-    local whowas = T.require 'hub.features.chat.whowas'
+    local whowas = T.require 'hub.features.queries.whowas'
     local events = {}
-    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'chat.whowas', 'test', function(ev) table.insert(events, ev) end)
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.whowas', 'test', function(ev) table.insert(events, ev) end)
 
     task.spawn('whowas', {net = 'test'}, whowas, 'Old')
     T.eq(c:take(), {'WHOWAS Old'}, 'sent')
@@ -182,7 +182,7 @@ end)
 
 T.case('who reads its options as Solanum does', function()
     boot()
-    local who = T.require 'hub.features.chat.who'
+    local who = T.require 'hub.features.queries.who'
     local function parse(options) return {who.parse_options(options)} end
     T.eq(parse(nil), {false}, 'none')
     T.eq(parse 'o', {true}, 'operators only')
@@ -197,7 +197,7 @@ T.case('who gathers a plain or WHOX reply, and reports failures', function()
     local c = boot()
     c:recv ':srv 005 me BOT=B PREFIX=(ov)@+ WHOX :are supported'
     local events = {}
-    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'chat.who', 'test', function(ev) table.insert(events, ev) end)
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.who', 'test', function(ev) table.insert(events, ev) end)
 
     T.command 'who #chan'
     T.eq(c:take(), {'WHO #chan'}, 'one argument')
@@ -259,7 +259,7 @@ T.case('who gathers a plain or WHOX reply, and reports failures', function()
 
     -- another WHO's 354s, before its end, aren't taken for rows of a
     -- format without a token
-    local lookup = T.require 'hub.features.lookup'
+    local lookup = T.require 'hub.features.queries.lookup'
     local task = T.require 'hub.runtime.task'
     task.spawn('lookup', {net = 'test'}, lookup, 'xnick')
     T.command 'who #c %cnf'
@@ -1242,7 +1242,7 @@ T.case('a flood of new senders makes a few history requests, and CTCP requests a
     for _, line in ipairs(c:take()) do
         if line:match '^CHATHISTORY' then requests = requests + 1 end
     end
-    T.eq(requests, chat.history_burst, 'a burst of requests')
+    T.eq(requests, T.require 'hub.features.chat.opening'.history_burst, 'a burst of requests')
     c:recv ':bob!b@h PRIVMSG me :\x01VERSION\x01'
     T.eq(chat.buffer('test', 'bob').mention, false, 'VERSION is not a mention')
     c:recv ':carol!c@h PRIVMSG me :\x01ACTION waves\x01'
@@ -1349,7 +1349,7 @@ T.case('history absorbs our unconfirmed lines instead of repeating them', functi
     chat.say('test', '#c', 'hi')
     c:take()
     local history = T.require 'hub.features.chat.history'
-    history.after_registration(chat, 'test')
+    history.after_registration('test')
     T.eq(c:take(), {'CHATHISTORY LATEST #c timestamp=2026-01-01T00:00:01.000Z 50'},
         'LATEST from the newest server time, not from our lines')
 
@@ -1406,7 +1406,7 @@ T.case('history and MONITOR after registration', function()
     chat.open('test', '#c')
     chat.open('test', 'Bob')
     chat.open('test', '#t')
-    chat.insert('test', chat.buffer('test', '#t'),
+    T.require 'hub.features.chat.buffers'.insert('test', chat.buffer('test', '#t'),
         {command = 'PRIVMSG', tags = {time = '2026-01-01T00:00:09.000Z'}, '#t', 'last seen'})
     local c = fake.last()
     c:con()

@@ -35,6 +35,9 @@ local feature_uses <const> = {
     notify = {chat = true},
 }
 
+-- Always-loaded modules any feature may use, which use no feature's
+local shared_features <const> = {queries = true}
+
 -- Parts of HUB that only one layer reads or writes
 local hub_owner <const> = {
     ['HUB%.state%.ui'] = 'ui',
@@ -147,6 +150,7 @@ end)
 T.case('features use each other only as they require', function()
     local requires = dofile(path.join(root, 'runtime/config_schema.lua')).feature_requires
     local function allowed(mine, theirs)
+        if shared_features[theirs] then return true end
         if feature_uses[mine] and feature_uses[mine][theirs] then return true end
         for _, needed in ipairs(requires[mine] or {}) do
             if needed == theirs then return true end

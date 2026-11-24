@@ -1,4 +1,4 @@
--- A listing (hub.Listing, features/listing.lua: STATS, TRACE, ETRACE,
+-- A listing (hub.Listing, features/queries/listing.lua: STATS, TRACE, ETRACE,
 -- MASKTRACE) in the detail pane: the errors the server gave, then a table
 -- (ui/table.lua) per kind of reply, in the order they first came, each
 -- under its numeric and how many there are. M.runs draws any replies so,
@@ -29,7 +29,7 @@ local tables  <const> = require 'hub.ui.table'
 local M = {kind = 'listing', filter = true, wide = true}
 
 M.events = {
-    ['listing.ready'] = function(ev) return ev.net, ev.listing end,
+    ['query.listing'] = function(ev) return ev.net, ev.listing end,
 }
 
 function M.title(detail)

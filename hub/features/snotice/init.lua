@@ -1,6 +1,6 @@
--- Server notices: recognize them on networks with the
--- snotice feature, parse them, update the stores and emit `snote` and
--- `snote.<name>` with the network id.
+-- Server notices on networks with the snotice feature: update the stores
+-- from each (net/snote parses them) and emit `snote` and `snote.<name>`
+-- with the network id.
 
 local bus      <const> = require 'hub.runtime.bus'
 local common   <const> = require 'hub.features.common'
@@ -13,8 +13,9 @@ local matching <const> = require 'hub.lib.matching'
 local N        <const> = require 'hub.lib.numerics'
 local NH       <const> = require 'hub.lib.numerics_hybrid'
 local nettrack <const> = require 'hub.features.snotice.nettrack'
-local notice   <const> = require 'hub.features.snotice.notice'
+local snote    <const> = require 'hub.net.snote'
 local stores   <const> = require 'hub.features.snotice.stores'
+local testmask <const> = require 'hub.features.queries.testmask'
 
 local M = {}
 
@@ -32,7 +33,7 @@ M.default_snomask = {
 
 --- Parse a message into a notice event for a network, or nil.
 function M.parse(net, msg)
-    local ev = notice.parse(net, msg)
+    local ev = snote.parse(net, msg)
     if ev then
         ev.net = net
         ev.time = msg.time
@@ -65,34 +66,8 @@ replies[N.RPL_YOUREOPER] = function(net)
     end
 end
 
---- The users a TESTMASK reply counts, and the user@host mask it counted,
---- or nil for another reply. Solanum's has a nick and a realname too:
---- "<client> <local> <remote> <nick>!<user@host> <realname> :..." where
---- hybrid's is "<client> <user@host> <local> <remote> :...".
----@param net string
----@param msg hub.Message
----@return integer|nil, string|nil
-function M.testmask_count(net, msg)
-    local loc, rem, mask
-    if ircd.hybrid(net) then
-        if msg.command ~= NH.RPL_TESTMASK then return nil end
-        mask, loc, rem = msg[2], msg[3], msg[4]
-    else
-        if msg.command ~= N.RPL_TESTMASKGECOS or msg[5] ~= '*' then return nil end
-        loc, rem = msg[2], msg[3]
-        mask = msg[4] and msg[4]:match '^%*!(.*)$'
-    end
-    if not mask then return nil end
-    return (math.tointeger(loc) or 0) + (math.tointeger(rem) or 0), mask
-end
-
---- The numeric of a network's TESTMASK count.
-function M.testmask_numeric(net)
-    return ircd.hybrid(net) and NH.RPL_TESTMASK or N.RPL_TESTMASKGECOS
-end
-
 local function testmask_reply(net, msg)
-    local total, mask = M.testmask_count(net, msg)
+    local total, mask = testmask.count(net, msg)
     if not total then return end
     ---@cast mask -nil a count comes with the mask it counted
     if mask:sub(1, 2) == '*@' then
@@ -103,8 +78,6 @@ replies[N.RPL_TESTMASKGECOS] = testmask_reply
 replies[NH.RPL_TESTMASK] = testmask_reply
 
 local function on_message(ev)
-    -- every network's, so the console shows its notices as notices
-    notice.record(ev.net, ev.msg)
     if not common.enabled(ev.net, M.name) then return end
     local note = M.parse(ev.net, ev.msg)
     if note then
@@ -164,6 +137,20 @@ local function apply_servers(net)
                 elseif opered then
                     query(net, 'TESTMASK', '*@' .. label)
                 end
+            end
+        end
+    end
+end
+
+--- Check the watches of a configuration.
+---@param cfg table
+function M.check_config(cfg)
+    for _, net in ipairs(cfg.networks) do
+        -- a watch's pattern is a filter pattern (lib/matching.lua)
+        for n, watch in ipairs(net.watches or {}) do
+            local err = matching.check(watch.pattern)
+            if err then
+                error(string.format('networks.%s.watches.%d.pattern: %s', net.id, n, err), 0)
             end
         end
     end

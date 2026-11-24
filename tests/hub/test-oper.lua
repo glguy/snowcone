@@ -391,7 +391,7 @@ end)
 T.case('STATS gathers its replies until its letter ends, and keeps the errors the end follows', function()
     local c = boot({'chat', 'snotice', 'oper'})
     local events = {}
-    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'listing.ready', 'test', function(ev) table.insert(events, ev) end)
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.listing', 'test', function(ev) table.insert(events, ev) end)
     local function last(category) local l = T.log_lines(category) return l[#l] end
 
     T.command 'stats k'
@@ -469,6 +469,51 @@ T.case('STATS gathers its replies until its letter ends, and keeps the errors th
     T.eq(c:take(), {}, 'nor is a letter past ASCII, as the server names a byte')
 end)
 
+T.case('listings sent before and after a reload each get their own reply', function()
+    local c = boot {}
+    local events = {}
+    local function listen()
+        T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.listing', 'test', function(ev)
+            table.insert(events, ev.listing)
+        end)
+    end
+    T.command 'stats q'
+    T.command 'trace a.example'
+    T.command 'stats k far.example'
+    T.reload()
+    listen()
+    T.command 'stats q'
+    T.command 'trace b.example'
+    T.command 'stats k'
+    c:take()
+    c:recv ':srv 217 me q 1 first :x'
+    c:recv ':srv 219 me q :End of /STATS report'
+    c:recv ':srv 217 me q 1 second :x'
+    c:recv ':srv 219 me q :End of /STATS report'
+    c:recv ':srv 262 me b.example :End of TRACE'
+    c:recv ':srv 262 me a.example :End of TRACE'
+    c:recv ':srv 219 me k :End of /STATS report'
+    c:recv ':far.example 219 me k :End of /STATS report'
+    local commands = {}
+    for i, l in ipairs(events) do commands[i] = l.command end
+    T.eq(commands, {'STATS q', 'STATS q', 'TRACE b.example', 'TRACE a.example', 'STATS k', 'STATS k far.example'},
+        'each ended by its own')
+    T.eq({events[1].messages[1][4], events[2].messages[1][4]}, {'first', 'second'}, 'in the order sent')
+    T.eq(next(HUB.tasks), nil, 'finished')
+end)
+
+T.case('queries and our modes need no feature', function()
+    local c = boot {}
+    for _, line in ipairs {'whois bob', 'wii bob', 'who #a', 'whowas bob', 'stats k', 'trace', 'etrace',
+        'masktrace *@h.example', 'umode +i'}
+    do
+        T.command(line)
+    end
+    T.eq(c:take(), {'WHOIS bob', 'WHOIS bob bob', 'WHO #a', 'WHOWAS bob', 'STATS k', 'TRACE', 'ETRACE',
+        'MASKTRACE *@h.example', 'MODE me +i'}, 'sent')
+    T.eq(T.log_lines 'error', {}, 'none refused')
+end)
+
 T.case('on OFTC hybrid, a STATS refused for load ends there', function()
     local c = boot({'chat', 'snotice', 'oper'}, false, 'oftc-hybrid')
     T.command 'stats k'
@@ -482,7 +527,7 @@ end)
 T.case('TRACE, ETRACE and MASKTRACE end at RPL_ENDOFTRACE, each its own', function()
     local c, oper = boot({'chat', 'snotice', 'oper'})
     local events = {}
-    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'listing.ready', 'test', function(ev) table.insert(events, ev) end)
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.listing', 'test', function(ev) table.insert(events, ev) end)
     local function last(category) local l = T.log_lines(category) return l[#l] end
 
     T.command 'trace'
@@ -535,7 +580,7 @@ T.case('TRACE, ETRACE and MASKTRACE end at RPL_ENDOFTRACE, each its own', functi
     c:recv ':srv 262 me srv.example :End of TRACE'
     T.eq({#events[6].listing.messages, events[6].listing.relabel}, {1, {class = 'server'}}, 'the server in the class')
 
-    local listing = T.require 'hub.features.listing'
+    local listing = T.require 'hub.features.queries.listing'
     T.eq({listing.masktrace_mask 'n!u@h', listing.masktrace_mask 'u@h!x', listing.masktrace_mask '*!@h',
         listing.masktrace_mask 'u@', listing.masktrace_mask 'nobody'}, {true, true, false, false, false},
         'masks as the server splits them')
@@ -556,7 +601,7 @@ end)
 T.case('with labeled-response a listing takes its own reply', function()
     local c = boot({'chat', 'snotice', 'oper'}, true)
     local events = {}
-    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'listing.ready', 'test', function(ev) table.insert(events, ev) end)
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.listing', 'test', function(ev) table.insert(events, ev) end)
     T.command 'trace'
     local sent = c:take()[1]
     local label = sent:match '^@label=([^ ]+) TRACE$'

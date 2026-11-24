@@ -7,11 +7,11 @@
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local bus      <const> = require 'hub.runtime.bus'
 local config   <const> = require 'hub.runtime.config'
-local handlers <const> = require 'hub.net.handlers'
 local dispatch <const> = require 'hub.runtime.dispatch'
 local log      <const> = require 'hub.runtime.log'
 local manager  <const> = require 'hub.net.manager'
 local oper     <const> = require 'hub.net.oper'
+local own_nick <const> = require 'hub.net.nick'
 local quote    <const> = require 'hub.commands.quote'
 local irc_model <const> = require 'hub.net.irc'
 local sasl     <const> = require 'hub.net.sasl'
@@ -210,7 +210,22 @@ M.commands = {
         scope = 'net',
         help = 'Change nickname',
         fn = function(ctx, nick)
-            handlers.declare_nick(ctx.net, nick)
+            own_nick.declare(ctx.net, nick)
+        end,
+    },
+    {
+        name = 'umode',
+        spec = '$r',
+        usage = 'modes',
+        group = 'connection',
+        scope = 'net',
+        help = 'Change our user modes, e.g. +i-w',
+        fn = function(ctx, args)
+            local irc = HUB.state.nets[ctx.net].irc
+            if not irc then error('not connected', 0) end
+            local parts = {}
+            for word in args:gmatch '[^ ]+' do table.insert(parts, word) end
+            send.send(ctx.net, 'MODE', irc.nick, table.unpack(parts))
         end,
     },
     {

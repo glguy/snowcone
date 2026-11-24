@@ -12,16 +12,16 @@
 local bus        <const> = require 'hub.runtime.bus'
 local common     <const> = require 'hub.features.common'
 local ircd       <const> = require 'hub.net.ircd'
-local listing    <const> = require 'hub.features.listing'
+local listing    <const> = require 'hub.features.queries.listing'
 local log        <const> = require 'hub.runtime.log'
-local lookup     <const> = require 'hub.features.lookup'
+local lookup     <const> = require 'hub.features.queries.lookup'
 local masks      <const> = require 'hub.features.oper.masks'
 local N          <const> = require 'hub.lib.numerics'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local send       <const> = require 'hub.net.send'
-local snotice    <const> = require 'hub.features.snotice'
 local stores     <const> = require 'hub.features.snotice.stores'
 local task       <const> = require 'hub.runtime.task'
+local testmask   <const> = require 'hub.features.queries.testmask'
 
 local M = {}
 
@@ -171,10 +171,10 @@ end
 ---@param staged hub.Staged
 local function count_matches(t, staged)
     local mask = staged.mask
-    local replies = try_request(t, {snotice.testmask_numeric(t.net)}, 'TESTMASK', mask)
+    local replies = try_request(t, {testmask.numeric(t.net)}, 'TESTMASK', mask)
     if not replies then return end
     for msg in replies do
-        local count, counted = snotice.testmask_count(t.net, msg)
+        local count, counted = testmask.count(t.net, msg)
         if count and counted == mask then
             staged.count = count
             return
@@ -481,19 +481,6 @@ M.commands = {
             end
         end
         settings.tag = nil
-    end),
-    oper_command('masktrace', '$g $R', '[nick!]user@host [realname]',
-        'MASKTRACE the users a mask matches, shown as a table',
-    function(ctx, mask, gecos)
-        if ircd.hybrid(ctx.net) then error('OFTC hybrid has no MASKTRACE', 0) end
-        if not listing.masktrace_mask(mask) then error('not a [nick!]user@host mask: ' .. mask, 0) end
-        task.spawn('masktrace', {net = ctx.net, owner = M.name}, listing.masktrace, mask,
-            gecos ~= '' and gecos or nil)
-    end),
-    oper_command('etrace', '$R', '[-full|-v4|-v6|nick]', "ETRACE our server's users, or a nick, shown as a table",
-    function(ctx, arg)
-        if arg:find ' ' then error('one argument: ' .. arg, 0) end
-        task.spawn('etrace', {net = ctx.net, owner = M.name}, listing.etrace, arg ~= '' and arg or nil)
     end),
     oper_command('testline', '$g', 'mask', 'TESTLINE a mask', function(ctx, mask)
         send.send(ctx.net, 'TESTLINE', mask)

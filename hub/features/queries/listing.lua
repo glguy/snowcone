@@ -1,6 +1,6 @@
 -- Replies that list things, gathered as a network task into a
 -- hub.Listing, logged as one line that opens it, and emitted as
--- listing.ready for the UI to show as tables (ui/details/listing.lua):
+-- query.listing for the UI to show as tables (ui/details/listing.lua):
 --
 --   M.stats(t, letter, server)   STATS, ending at RPL_ENDOFSTATS for its letter
 --   M.trace(t, target)           TRACE, ending at RPL_ENDOFTRACE
@@ -24,6 +24,7 @@
 -- and are dropped.
 
 local bus       <const> = require 'hub.runtime.bus'
+local common    <const> = require 'hub.features.common'
 local irc_model <const> = require 'hub.net.irc'
 local ircd      <const> = require 'hub.net.ircd'
 local log       <const> = require 'hub.runtime.log'
@@ -59,17 +60,33 @@ local function end_key(msg)
     if msg.command == N.RPL_ENDOFTRACE then return 'trace' end
 end
 
--- Unlabeled listings waiting for their end, by network and key, in the
--- order sent: {id, accepts(msg)}; and which task each end went to
-local queues = {}
-local claims <const> = setmetatable({}, {__mode = 'k'})
+-- Unlabeled listings live in the queries state, as a task keeps its code
+-- across a reload and must share them with tasks of the new code.
+
+--- An unlabeled listing waiting for its end.
+---@class hub.ListingWait
+---@field id integer its task
+---@field field 'source'|2|nil the field of the end that must name `name`;
+--- nil takes any end
+---@field name string|nil folded
+
+--- A network's queries, state.features.queries[net].
+---@class hub.QueriesState
+---@field listings table<string, hub.ListingWait[]> by queue, in the order sent
+---@field claim {msg: hub.Message, id: integer|false}|nil the last end and
+--- the task it went to, for every task that sees it
+
+---@return hub.QueriesState
+local function new_state()
+    return {listings = {}}
+end
+
+local function get(net)
+    return common.net_state('queries', net, new_state)
+end
 
 local function queue(net, key)
-    local by_key = queues[net]
-    if not by_key then
-        by_key = {}
-        queues[net] = by_key
-    end
+    local by_key = get(net).listings
     local q = by_key[key]
     if not q then
         q = {}
@@ -90,28 +107,29 @@ end
 
 -- The task an end goes to: the first in its queue still running that
 -- takes it, worked out by the first task to see it; false for none
-local function owner(net, msg)
-    local id = claims[msg]
-    if id ~= nil then return id end
+local function owner(net, irc, msg)
+    local S = get(net)
+    if S.claim and S.claim.msg == msg then return S.claim.id end
     local q = queue(net, end_key(msg))
     for i = #q, 1, -1 do
         if not HUB.tasks[q[i].id] then table.remove(q, i) end
     end
-    id = false
+    local id = false
     for i, entry in ipairs(q) do
-        if entry.accepts(msg) then
+        local named = entry.field and msg[entry.field]
+        if not entry.field or named and irc_model.fold(irc, named) == entry.name then
             id = entry.id
             table.remove(q, i)
             break
         end
     end
-    claims[msg] = id
+    S.claim = {msg = msg, id = id}
     return id
 end
 
 ---@param t hub.Task
 ---@param spec {kind: string, args: string[], target: string|nil, rows: table<integer, true>,
---- key: string, accepts: fun(msg: hub.Message): boolean, from: (fun(msg: hub.Message): boolean)|nil,
+--- key: string, names: {field: 'source'|2, name: string}|nil, from: (fun(msg: hub.Message): boolean)|nil,
 --- relabel: table<string, string>|nil}
 local function gather(t, spec)
     local command = table.concat(spec.args, ' ')
@@ -162,10 +180,13 @@ local function gather(t, spec)
 
     -- with labels every end in the reply is ours
     local queued = irc ~= nil and not irc_model.has_labels(irc)
-    if queued then table.insert(queue(t.net, spec.key), {id = t.id, accepts = spec.accepts}) end
+    if queued then
+        local names = spec.names
+        table.insert(queue(t.net, spec.key), {id = t.id, field = names and names.field, name = names and names.name})
+    end
     local function mine(msg)
         if not queued then return end_key(msg) == spec.key end
-        return owner(t.net, msg) == t.id
+        return owner(t.net, irc, msg) == t.id
     end
 
     for msg in t:request(commands, 120000, first, table.unpack(spec.args, 2)) do
@@ -176,7 +197,7 @@ local function gather(t, spec)
                 l.at = os.time()
                 log.add_detail(t.net, spec.kind, {kind = 'listing', data = l}, '%s: %d %s%s', command, count,
                     count == 1 and 'reply' or 'replies', #l.errors > 0 and ', refused' or '')
-                bus.emit('listing.ready', {net = t.net, listing = l})
+                bus.emit('query.listing', {net = t.net, listing = l})
                 return
             elseif queued then
                 -- another listing's: what came before it was its own
@@ -204,10 +225,11 @@ function M.stats(t, letter, server)
     -- another server answers later than ours, so its replies are told by
     -- their source, when what was asked for is a server's name (a nick or
     -- a mask names none)
-    local from
+    local from, names
     local irc = HUB.state.nets[t.net] and HUB.state.nets[t.net].irc
     if irc and server and server:find '%.' and not server:find '[*?]' then
         local key = irc_model.fold(irc, server)
+        names = {field = 'source', name = key}
         from = function(msg) return msg.source ~= nil and irc_model.fold(irc, msg.source) == key end
     end
     gather(t, {
@@ -217,23 +239,18 @@ function M.stats(t, letter, server)
         rows = stats_rows,
         -- "<client> <letter> :End of /STATS report"
         key = 'stats ' .. letter,
-        accepts = from or function() return true end,
+        names = names,
         from = from,
     })
-end
-
--- An end a trace takes: any, or for a target, one naming it
-local function trace_accepts(irc, target)
-    if not target then return function() return true end end
-    return function(msg)
-        return msg[2] ~= nil and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, target)
-    end
 end
 
 local function trace_gather(t, spec)
     local irc = HUB.state.nets[t.net] and HUB.state.nets[t.net].irc
     spec.key = 'trace'
-    spec.accepts = irc and trace_accepts(irc, spec.target)
+    -- for a target, an end naming it; else any
+    if irc and spec.target then
+        spec.names = {field = 2, name = irc_model.fold(irc, spec.target)}
+    end
     gather(t, spec)
 end
 

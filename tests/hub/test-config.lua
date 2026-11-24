@@ -36,6 +36,17 @@ server = {host = 'test.example', port = 6667}
 identity = {nick = 'me'}
 ]==]
 
+-- Normalize a configuration and have every module check its part, as a
+-- load does
+local function check(raw)
+    local cfg = T.require 'hub.runtime.config'.normalize(raw)
+    for _, entry in ipairs(HUB.current.modules) do
+        local m = entry.module
+        if type(m) == 'table' and m.check_config then m.check_config(cfg) end
+    end
+    return cfg
+end
+
 T.case('--config names the file; overrides apply on top of it', function()
     local config = config_module()
     local dir = tempdir()
@@ -111,8 +122,7 @@ T.case('network defaults', function()
     T.eq(fake.last().host, 'irc.example.test', 'connects')
     T.eq(fake.last().layers[1].type, 'tls', 'layers')
 
-    local config = T.require 'hub.runtime.config'
-    local ok, err = pcall(config.normalize, {networks = {{
+    local ok, err = pcall(check, {networks = {{
         server = {host = 'irc.example.test', port = 6697},
         identity = {nick = 'n'},
     }}})
@@ -122,9 +132,8 @@ end)
 
 T.case('buffers are checked for repeated names and labels', function()
     T.boot()
-    local config = T.require 'hub.runtime.config'
     local function load(buffers)
-        return pcall(config.normalize, {networks = {network('x', {buffers = buffers})}})
+        return pcall(check, {networks = {network('x', {buffers = buffers})}})
     end
     T.ok(load {{name = '#a', label = 'a', activity = false, mention = {patterns = {}}}, {name = '#b', label = false, hidden = true}}, 'accepted')
     local ok, err = load {{name = '#a'}, {name = '#A'}}
@@ -141,9 +150,8 @@ end)
 
 T.case('hide rules are checked at load', function()
     T.boot()
-    local config = T.require 'hub.runtime.config'
     local function load(hide)
-        local ok, result = pcall(config.normalize, {networks = {network('x', {hide = hide})}})
+        local ok, result = pcall(check, {networks = {network('x', {hide = hide})}})
         return ok, ok and result.networks[1].hide or result
     end
     local ok, rules = load {{buffer = '#a', nick = {'b', 'c'}, pattern = '^x'}, {command = 'JOIN', action = 'show'}}
@@ -183,10 +191,9 @@ end)
 
 T.case('mention regexes are checked at load, and need rex_pcre2', function()
     T.boot()
-    local config = T.require 'hub.runtime.config'
     local regex = T.require 'hub.lib.regex'
     local function load(raw)
-        return pcall(config.normalize, raw)
+        return pcall(check, raw)
     end
     local buffered = {networks = {network('x', {buffers = {{name = '#a', mention = {regexes = {'ok'}}}}})}}
     local ok, err = load(buffered)
@@ -225,6 +232,24 @@ T.case('an invalid configuration on reload leaves the old one active', function(
     T.eq(ok, false, 'a feature without one it requires')
     T.ok(err:find('networks.x.features: oper requires snotice', 1, true), err)
     T.ok(T.reload {config = {networks = {network('x', {features = {'oper', 'snotice'}})}}}, 'with it')
+
+    -- what the modules check themselves (check_config)
+    for needle, net in pairs {
+        ['networks.x.hide.1: matches every message'] = network('x', {hide = {{action = 'hide'}}}),
+        ['networks.x.buffers.2: #A is already'] = network('x', {buffers = {{name = '#a'}, {name = '#A'}}}),
+        ['networks.x.mention.patterns.1: '] = network('x', {mention = {patterns = {'('}}}),
+        ['networks.x.watches.1.pattern: '] = network('x', {watches = {{pattern = '('}}}),
+    } do
+        local current = HUB.current
+        ok, err = T.reload {config = {networks = {net}}}
+        T.eq(ok, false, needle)
+        T.ok(err:find(needle, 1, true), err)
+        T.ok(HUB.current == current, 'the old generation kept')
+    end
+
+    ok, err = T.reload {config = {networks = {network('x', {features = {'topology'}})}}}
+    T.eq(ok, false, 'topology, which only snotice shows')
+    T.ok(err:find('networks.x.features: topology requires snotice', 1, true), err)
 end)
 
 T.case('every feature requirement names known features', function()
@@ -242,14 +267,13 @@ end)
 
 T.case('the schema accepts network settings in every form, and refuses what would break a line', function()
     T.boot()
-    local config = T.require 'hub.runtime.config'
-    T.ok(pcall(config.normalize, {networks = {{id = 'x', server = {host = 'h', port = 1}, identity = {nick = 'n'}}}}),
+    T.ok(pcall(check, {networks = {{id = 'x', server = {host = 'h', port = 1}, identity = {nick = 'n'}}}}),
         'baseline accepted')
-    T.ok(pcall(config.normalize, {networks = {{id = 'x', server = {path = '/p'}, identity = {nick = 'n'}}}}),
+    T.ok(pcall(check, {networks = {{id = 'x', server = {path = '/p'}, identity = {nick = 'n'}}}}),
         'a local socket accepted')
-    T.ok(pcall(config.normalize, {networks = {{id = 'x', server = {host = 'h', port = 1}, identity = {nick = 'n'},
+    T.ok(pcall(check, {networks = {{id = 'x', server = {host = 'h', port = 1}, identity = {nick = 'n'},
         rate_limit = {burst = 5, interval = 0.5}}}}), 'a rate limit accepted')
-    local ok, err = pcall(config.normalize, {networks = {{id = 'x', server = {host = 'h', port = 1},
+    local ok, err = pcall(check, {networks = {{id = 'x', server = {host = 'h', port = 1},
         identity = {nick = 'n'}, layers = {{type = 'http', host = 'p', port = 8080, username = 'a:b'}}}}})
     T.ok(not ok and err:find('expected no colon', 1, true), 'the reason is given: ' .. tostring(err))
     for _, good in ipairs {
@@ -273,7 +297,7 @@ T.case('the schema accepts network settings in every form, and refuses what woul
     } do
         local net = {id = 'x', server = {host = 'h', port = 1}, identity = {nick = 'n'}}
         for k, v in pairs(good) do net[k] = v end
-        T.ok(pcall(config.normalize, {networks = {net}}), 'accepted: ' .. require 'pl.pretty'.write(good, ''))
+        T.ok(pcall(check, {networks = {net}}), 'accepted: ' .. require 'pl.pretty'.write(good, ''))
     end
     for _, bad in ipairs {
         {identity = {nick = 'has space'}},
@@ -332,7 +356,7 @@ T.case('the schema accepts network settings in every form, and refuses what woul
     } do
         local net = {id = 'x', server = {host = 'h', port = 1}, identity = {nick = 'n'}}
         for k, v in pairs(bad) do net[k] = v end
-        T.ok(not pcall(config.normalize, {networks = {net}}), 'rejected: ' .. require 'pl.pretty'.write(bad, ''))
+        T.ok(not pcall(check, {networks = {net}}), 'rejected: ' .. require 'pl.pretty'.write(bad, ''))
     end
 end)
 

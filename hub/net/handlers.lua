@@ -20,6 +20,7 @@ local log       <const> = require 'hub.runtime.log'
 local monitor   <const> = require 'hub.net.monitor'
 local N         <const> = require 'hub.lib.numerics'
 local NH        <const> = require 'hub.lib.numerics_hybrid'
+local own_nick  <const> = require 'hub.net.nick'
 local reclaim   <const> = require 'hub.net.reclaim'
 local send      <const> = require 'hub.net.send'
 local tablex    <const> = require 'pl.tablex'
@@ -171,50 +172,6 @@ end
 -----------------------------------------------------------------------
 -- Monitor and nick recovery
 
---- The nick we want: the last one given to /nick, or else the configured
---- one. A configured nick that changes replaces a /nick.
----@param rec hub.Network
----@return string
-function M.wanted_nick(rec)
-    return intent.of(rec).nick or rec.cfg.identity.nick
-end
-
---- Try to take the wanted nick back (net/reclaim.lua). Also the route
---- net.reclaim_nick, for features that see the nick become free (server
---- notices).
-M.reclaim_nick = reclaim.attempt
-
---- Change our nick at the user's word: the nick given, as the server
---- takes it, becomes the wanted one, here and on later connections, and
---- is what reclaiming waits for if it is taken.
----@param net string
----@param nick string
-function M.declare_nick(net, nick)
-    local rec = HUB.state.nets[net]
-    local irc = rec.irc
-    local wanted = irc and irc_model.cut_nick(irc, nick) or nick
-    intent.of(rec).nick = wanted ~= rec.cfg.identity.nick and wanted or nil
-    if irc then
-        reclaim.stop(rec, irc)
-    end
-    send.send(net, 'NICK', nick)
-end
-
---- Whether we are on the wanted nick, as the server takes it.
----@param rec hub.Network
----@param irc hub.Irc
----@return boolean
-function M.on_wanted_nick(rec, irc)
-    return irc_model.is_me(irc, irc_model.cut_nick(irc, M.wanted_nick(rec)))
-end
-
--- Reclaim the wanted nick when we aren't on it
-local function want_back(rec, irc)
-    if not M.on_wanted_nick(rec, irc) then
-        reclaim.start(rec, irc, M.wanted_nick(rec))
-    end
-end
-
 -- :<server> 730 <nick> :target[!user@host][,target[!user@host]]*
 H[N.RPL_MONONLINE] = function(rec, irc, msg)
     if not (irc.monitor and msg[2]) then return end
@@ -250,11 +207,11 @@ end
 -- net/registration.lua answers 433 and 437.
 local function nick_refused(rec, irc, msg)
     if not irc.welcomed or irc.recover_nick then return end
-    local wanted = irc_model.fold(irc, irc_model.cut_nick(irc, M.wanted_nick(rec)))
+    local wanted = irc_model.fold(irc, irc_model.cut_nick(irc, own_nick.wanted(rec)))
     -- Solanum's 438 names our nick, then the one refused
     for i = 2, #msg - 1 do
         if irc_model.fold(irc, msg[i]) == wanted then
-            want_back(rec, irc)
+            own_nick.want_back(rec, irc)
             return
         end
     end
@@ -273,7 +230,7 @@ H[N.ERR_ERRONEUSNICKNAME] = function(rec, irc, msg)
     if wanted.nick and msg[2]
        and irc_model.fold(irc, msg[2]) == irc_model.fold(irc, irc_model.cut_nick(irc, wanted.nick)) then
         wanted.nick = nil
-        want_back(rec, irc)
+        own_nick.want_back(rec, irc)
     end
 end
 
@@ -328,7 +285,7 @@ function H.NICK(rec, irc, msg)
             else
                 -- the server's doing: services, or a collision (RPL_SAVENICK)
                 log.add_net(rec.id, 'irc', 'nick changed to %s by the server', newnick)
-                want_back(rec, irc)
+                own_nick.want_back(rec, irc)
             end
         end
     end
@@ -696,9 +653,5 @@ local by_ircd <const> = {
 function M.for_ircd(net)
     return by_ircd[ircd.of(net)]
 end
-
-M.routes = {
-    ['net.reclaim_nick'] = reclaim.attempt,
-}
 
 return M

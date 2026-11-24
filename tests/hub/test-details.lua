@@ -576,7 +576,7 @@ T.case('an auth block reads out its flags, and MASKTRACE names the server', func
     T.ok(text:find('Some block', 1, true), 'the description')
 
     T.require 'hub.features.oper'
-    local listing = T.require 'hub.features.listing'
+    local listing = T.require 'hub.features.queries.listing'
     T.require 'hub.runtime.task'.spawn('masktrace', {net = 'test'}, listing.masktrace, '*@h.example')
     c:take()
     c:recv ':srv 709 me User leaf.example bob b h.example 192.0.2.2 :Bob'
@@ -715,8 +715,8 @@ T.case('each event a detail kind names opens it, once, after a reload too', func
     local reply, whois, whowas, value = {}, {}, {}, {}
     for _, case in ipairs {
         {'quote.sent', {net = 'test', reply = reply}, 'reply', 'test', reply},
-        {'chat.whois', {net = 'test', whois = whois}, 'whois', 'test', whois},
-        {'chat.whowas', {net = 'test', whowas = whowas}, 'whowas', 'test', whowas},
+        {'query.whois', {net = 'test', whois = whois}, 'whois', 'test', whois},
+        {'query.whowas', {net = 'test', whowas = whowas}, 'whowas', 'test', whowas},
         {'eval.result', {value = value}, 'value', nil, value},
     } do
         local topic, ev, kind, net, data = case[1], case[2], case[3], case[4], case[5]

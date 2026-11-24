@@ -1,4 +1,4 @@
--- A WHOIS reply (hub.Whois, features/chat/whois.lua) in the detail pane.
+-- A WHOIS reply (hub.Whois, features/queries/whois.lua) in the detail pane.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
 local draw      <const> = require 'hub.ui.draw'
@@ -13,7 +13,7 @@ local words   <const> = fields.words
 local M = {kind = 'whois'}
 
 M.events = {
-    ['chat.whois'] = function(ev) return ev.net, ev.whois end,
+    ['query.whois'] = function(ev) return ev.net, ev.whois end,
 }
 
 function M.title(detail)

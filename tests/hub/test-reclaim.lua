@@ -200,7 +200,7 @@ T.case('a nick change refused as too fast waits as long as the server says', fun
     c:recv(':srv 438 ' .. temp .. ' ' .. temp .. ' me :Nick change too fast. Please wait 20 seconds.')
     T.eq(rec().irc.reclaim.held_until - T.require 'hub.runtime.clock'.now(), 21, 'held past the wait')
     advance(5)
-    T.eq(HUB.current.routes['net.reclaim_nick']('test'), false, 'a server notice waits too')
+    T.eq(T.require 'hub.net.reclaim'.attempt 'test', false, 'a server notice waits too')
     fire_reclaim_timeout()
     T.eq(c:take(), {'NICK me'}, 'tried again')
 end)
@@ -337,7 +337,7 @@ T.case('with reclaim_nick off, the wanted nick is remembered but never taken', f
     T.eq(c:take(), {'MODE ' .. temp}, 'no MONITOR')
     T.eq({rec().irc.recover_nick, reclaim_task()}, {'me', nil}, 'remembered, with no task')
     c:recv(':srv 731 ' .. temp .. ' :me')
-    T.eq(HUB.current.routes['net.reclaim_nick']('test'), false, 'a server notice takes nothing')
+    T.eq(T.require 'hub.net.reclaim'.attempt 'test', false, 'a server notice takes nothing')
     T.eq(c:take(), {}, 'never taken')
 end)
 

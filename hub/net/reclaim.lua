@@ -10,7 +10,7 @@
 -- The nick is watched with MONITOR while reclaiming (net/monitor.lua, as
 -- 'reclaim'). It comes free when MONITOR reports it offline, when whoever holds
 -- it quits or changes nick in a channel we share, or when a server notice
--- says so (the net.reclaim_nick route, M.attempt). A refusal that only
+-- says so (M.attempt, from features/snotice). A refusal that only
 -- holds for a while is tried again later:
 --   437  held: nick delay after a netsplit, or services' NICKDELAY; a
 --        delay that doubles with each refusal on the connection
@@ -65,8 +65,8 @@ local function names(irc, msg, nick)
 end
 
 --- Send NICK for the nick being reclaimed, unless reclaiming is off, the
---- server asked us to wait, or a NICK for it is still unanswered. Also a
---- route, for features that see the nick come free (server notices).
+--- server asked us to wait, or a NICK for it is still unanswered. Features
+--- that see the nick come free (server notices) call it too.
 ---@param net string
 ---@return boolean # whether a NICK went out
 function M.attempt(net)

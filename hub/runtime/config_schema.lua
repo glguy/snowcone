@@ -190,14 +190,14 @@ local sasl_schema <const> = table_ {
     }),
 }
 
--- Lua patterns and PCRE2 regular expressions; config.lua checks that the
--- regexes compile
+-- Lua patterns and PCRE2 regular expressions; chat/config.lua checks that
+-- they compile
 local mention_schema <const> = table_ {
     patterns = array {type = 'string'},
     regexes  = array {type = 'string'},
 }
 
--- Settings for the buffer of a channel or nick; config.lua checks that
+-- Settings for the buffer of a channel or nick; chat/config.lua checks that
 -- label isn't true, and that names and labels are not repeated
 local buffer_schema <const> = table_ {
     name     = {type = 'string', required = true, pattern = '^[^\n\r\x00 ,]+$'},
@@ -245,9 +245,10 @@ M.features = {'snotice', 'oper', 'topology', 'chat'}
 --- The features each feature needs on the same network; config.lua
 --- refuses a network that enables one without them. Only combinations
 --- that work are allowed: oper stages K-Lines that only snotice's views
---- show and send.
+--- show and send, and only its load views show topology.
 M.feature_requires = {
     oper = {'snotice'},
+    topology = {'snotice'},
 }
 
 --- The server software a network may run; config.lua checks `ircd`

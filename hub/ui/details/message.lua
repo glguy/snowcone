@@ -19,10 +19,10 @@ local draw        <const> = require 'hub.ui.draw'
 local hybrid      <const> = require 'hub.ui.details.hybrid'
 local irc_model   <const> = require 'hub.net.irc'
 local ircd        <const> = require 'hub.net.ircd'
-local notice      <const> = require 'hub.features.snotice.notice'
 local numerics    <const> = require 'hub.lib.numerics'
 local OrderedMap  <const> = require 'hub.lib.OrderedMap'
 local scrub       <const> = require 'hub.lib.scrub'
+local snote       <const> = require 'hub.net.snote'
 local solanum     <const> = require 'hub.ui.details.solanum'
 local tablex      <const> = require 'pl.tablex'
 
@@ -71,7 +71,7 @@ M.meaning = meaning
 ---@param net string|nil
 ---@param msg hub.Message
 function M.snotice_text(net, msg)
-    return notice.text(net, msg)
+    return snote.text(net, msg)
 end
 
 --- The parsed form of a server notice on a network (without the time,
@@ -79,7 +79,7 @@ end
 ---@param net string|nil
 ---@param msg hub.Message
 function M.decode(net, msg)
-    return notice.parse(net, msg)
+    return snote.parse(net, msg)
 end
 
 local escapes <const> = {

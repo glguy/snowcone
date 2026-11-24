@@ -1,4 +1,4 @@
--- A WHO reply (hub.Who, features/chat/who.lua) in the detail pane: a
+-- A WHO reply (hub.Who, features/queries/who.lua) in the detail pane: a
 -- table with a row per user and a column per field the reply gave, read
 -- for what it means: the status's away, bot, operator and prefixes in
 -- their colors, the address with its organization, the idle time as a
@@ -15,7 +15,7 @@ local tables  <const> = require 'hub.ui.table'
 local M = {kind = 'who', filter = true, wide = true}
 
 M.events = {
-    ['chat.who'] = function(ev) return ev.net, ev.who end,
+    ['query.who'] = function(ev) return ev.net, ev.who end,
 }
 
 function M.title(detail)

@@ -8,13 +8,13 @@
 -- error refusing a line (ERR_CANNOTSENDTOCHAN) still marks it 'rejected'.
 --
 -- Lines awaiting their reply live in C.pending (hub.ChatState). Chat
--- requires this module, so it passes itself in for folding, finding and
--- keying buffers, and calls on_reply on each message before anything
--- else.
+-- calls on_reply on each message before anything else.
 
+local buffers    <const> = require 'hub.features.chat.buffers'
 local irc_model  <const> = require 'hub.net.irc'
 local N          <const> = require 'hub.lib.numerics'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
+local store      <const> = require 'hub.features.chat.store'
 
 local M = {}
 
@@ -69,13 +69,12 @@ end
 --- A message of the reply to one of our labeled lines: an echo, ACK or
 --- error, alone or in a labeled batch. True for an echo, which is shown
 --- already.
----@param chat hub.ChatLookup
 ---@param net string
 ---@param irc hub.Irc
 ---@param msg hub.Message
 ---@return boolean
-function M.on_reply(chat, net, irc, msg)
-    local C = chat.get(net)
+function M.on_reply(net, irc, msg)
+    local C = store.get(net)
     ---@type string|nil, boolean
     local label, batched = msg.tags.label, false
     if label == nil then
@@ -91,13 +90,13 @@ function M.on_reply(chat, net, irc, msg)
         return false -- its end settles the reply (on_batch_end)
     elseif (command == 'PRIVMSG' or command == 'NOTICE') and irc_model.is_me(irc, msg.nick) then
         echo = true
-        local entry = msg[1] and entries[chat.fold(net, msg[1])]
+        local entry = msg[1] and entries[store.fold(net, msg[1])]
         if entry then received(entry, msg) end
     elseif command == 'ACK' then
         for _, entry in pairs(entries) do received(entry) end
     elseif refuses(command) then
         -- an error about one target (ERR_NOSUCHNICK), or about them all
-        local entry = msg[2] and entries[chat.fold(net, msg[2])]
+        local entry = msg[2] and entries[store.fold(net, msg[2])]
         local reason = msg[#msg]
         if entry then
             rejected(entry, reason)
@@ -115,14 +114,13 @@ end
 --- server refuses a line as it reads it, so the error is about the newest
 --- of ours in the target's buffer that it hasn't answered; one already
 --- refused is passed over, so a second error reaches the line before.
----@param chat hub.ChatLookup
 ---@param net string
 ---@param irc hub.Irc
 ---@param msg hub.Message
-function M.on_refusal(chat, net, irc, msg)
+function M.on_refusal(net, irc, msg)
     local batch = irc.batches[msg.tags.batch]
     if msg.tags.label or batch and batch.label then return end -- on_reply's
-    local buffer = msg[2] and chat.buffer(net, msg[2])
+    local buffer = msg[2] and store.buffer(net, msg[2])
     if not buffer then return end
     local messages = buffer.messages
     for k = OrderedMap.last(messages), OrderedMap.first(messages), -1 do
@@ -140,11 +138,10 @@ end
 
 --- Our own PRIVMSG or NOTICE (irc.sent), shown where it went; a labeled
 --- one awaits its reply.
----@param chat hub.ChatLookup
 ---@param net string
 ---@param irc hub.Irc
 ---@param msg hub.Message
-function M.on_sent(chat, net, irc, msg)
+function M.on_sent(net, irc, msg)
     if not msg[1] then return end
     local label = msg.tags.label
     local entries = {}
@@ -155,7 +152,7 @@ function M.on_sent(chat, net, irc, msg)
         -- a private message meant for a channel (channel-context) is
         -- shown there
         local context = not prefix and irc_model.channel_context(irc, name, msg.tags)
-        local buffer = chat.buffer(net, context or name)
+        local buffer = store.buffer(net, context or name)
         local copy = msg
         -- the console keeps the line as sent, and each target's echo
         -- brings its own msgid and text; each buffer's copy names only
@@ -176,23 +173,22 @@ function M.on_sent(chat, net, irc, msg)
         if label then
             copy.receipt = 'awaiting'
             -- without a buffer it is still awaited, so its echo is known
-            entries[chat.fold(net, target)] = {msg = copy, buffer = buffer}
+            entries[store.fold(net, target)] = {msg = copy, buffer = buffer}
         end
         if buffer then
-            chat.insert(net, buffer, copy)
+            buffers.insert(net, buffer, copy)
         end
     end
     if label then
-        chat.get(net).pending[label] = entries
+        store.get(net).pending[label] = entries
     end
 end
 
 --- A labeled batch (irc.batch) has ended: its reply is over.
----@param chat hub.ChatLookup
 ---@param net string
 ---@param label string|nil
-function M.on_batch_end(chat, net, label)
-    local C = chat.get(net)
+function M.on_batch_end(net, label)
+    local C = store.get(net)
     if label and C.pending[label] then
         settle(C, label)
     end

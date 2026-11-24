@@ -8,16 +8,15 @@
 -- channel (net/handlers.lua).
 --
 -- The channel list holds the newest of the last LIST's replies, at most
--- chat.list_size, in C.list, and C.list_count counts them all.
---
--- The functions that open a buffer or reach chat's state take chat
--- (features/chat), which requires this module.
+-- store.list_size, in C.list, and C.list_count counts them all.
 
 local common     <const> = require 'hub.features.common'
 local irc_model  <const> = require 'hub.net.irc'
 local N          <const> = require 'hub.lib.numerics'
+local opening    <const> = require 'hub.features.chat.opening'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local send       <const> = require 'hub.net.send'
+local store      <const> = require 'hub.features.chat.store'
 
 local M = {}
 
@@ -43,13 +42,12 @@ end
 -- Make sure a channel we aren't in has a snapshot, to take the replies to
 -- what we ask, and the buffer that keeps it. Nil for a joined channel, or
 -- with no registered connection.
----@param chat hub.ChatLookup
-local function observe(chat, net, name)
+local function observe(net, name)
     local irc = model(net)
     if not irc or HUB.state.nets[net].phase ~= 'connected' or irc_model.get_channel(irc, name) then
         return nil
     end
-    chat.open(net, name)
+    opening.open(net, name)
     return irc_model.observe_channel(irc, name)
 end
 
@@ -57,11 +55,10 @@ end
 --- the server didn't send on join: its modes and creation time (MODE),
 --- unless they are known. For another, a snapshot, in a buffer opened in
 --- the background, and all that it holds, again.
----@param chat hub.ChatLookup
 ---@param net string
 ---@param name string
-function M.channel_info(chat, net, name)
-    local observed = observe(chat, net, name)
+function M.channel_info(net, name)
+    local observed = observe(net, name)
     if observed then return refetch(net, observed) end
     local irc = model(net)
     local channel = irc and irc_model.get_channel(irc, name)
@@ -81,30 +78,27 @@ function M.refetch_observed(net, name)
 end
 
 --- Ask again for a channel's modes and creation time.
----@param chat hub.ChatLookup
 ---@param net string
 ---@param name string
-function M.refresh_modes(chat, net, name)
-    observe(chat, net, name)
+function M.refresh_modes(net, name)
+    observe(net, name)
     query(net, 'MODE', name)
 end
 
 --- Ask again for a channel's topic.
----@param chat hub.ChatLookup
 ---@param net string
 ---@param name string
-function M.refresh_topic(chat, net, name)
-    observe(chat, net, name)
+function M.refresh_topic(net, name)
+    observe(net, name)
     query(net, 'TOPIC', name)
 end
 
 --- Fetch a list mode of a channel, such as its bans (b) or quiets (q).
----@param chat hub.ChatLookup
 ---@param net string
 ---@param name string
 ---@param mode string
-function M.fetch_list(chat, net, name, mode)
-    observe(chat, net, name)
+function M.fetch_list(net, name, mode)
+    observe(net, name)
     query(net, 'MODE', name, '+' .. mode)
 end
 
@@ -121,11 +115,10 @@ end
 -- The channel list (LIST) =============================================
 
 --- Fetch the channel list, replacing the last one (C.list).
----@param chat hub.ChatLookup
 ---@param net string
 ---@param arg string|nil the server's LIST argument, such as a mask
-function M.list(chat, net, arg)
-    local C = chat.get(net)
+function M.list(net, arg)
+    local C = store.get(net)
     OrderedMap.reset(C.list)
     C.list_count = 0
     C.listing = true
@@ -140,9 +133,8 @@ end
 M.handlers = {}
 
 -- "<client> <channel> <client count> :<topic>"
----@param chat hub.ChatLookup
-M.handlers[N.RPL_LIST] = function(chat, net, msg)
-    local C = chat.get(net)
+M.handlers[N.RPL_LIST] = function(net, msg)
+    local C = store.get(net)
     if C.listing then
         -- the list keeps the newest list_size; how many came is shown
         C.list_count = (C.list_count or 0) + 1
@@ -156,9 +148,8 @@ M.handlers[N.RPL_LIST] = function(chat, net, msg)
     end
 end
 
----@param chat hub.ChatLookup
-M.handlers[N.RPL_LISTEND] = function(chat, net)
-    chat.get(net).listing = nil
+M.handlers[N.RPL_LISTEND] = function(net)
+    store.get(net).listing = nil
 end
 
 return M

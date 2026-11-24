@@ -1,8 +1,8 @@
 -- Errors about a channel, by numeric: which parameter names the
 -- channel. A JOIN refused, or a change we asked for there, is shown in
 -- the channel's buffer, which would otherwise show nothing happened.
--- Chat routes them (features/chat), and the hide rules' check knows them
--- as commands a buffer can hold (runtime/config.lua).
+-- Chat routes them, and the hide rules' check knows them as commands a
+-- buffer can hold (chat/hide.lua).
 
 local N <const> = require 'hub.lib.numerics'
 
