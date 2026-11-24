@@ -163,6 +163,8 @@ A spec is words separated by spaces. The arguments must fit it entirely. A word 
 | `$q` | A string in `'` or `"` quotes, without them. |
 | `$r` | The rest of the line, not empty. Last only. |
 | `$R` | The rest of the line, possibly empty. Last only. |
+| `$t` | Message text: the rest of the line, not empty. Last only. The input line shows it with its IRC formatting and checks its spelling. |
+| `$T` | Message text, possibly empty. Last only. |
 
 A line that doesn't fit logs `usage: /name <usage>` and `fn` isn't called. To report a problem from `fn`, raise an error without position information: `error('no such project', 0)`. See [Errors](#errors).
 

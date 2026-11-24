@@ -281,7 +281,7 @@ function M.commands(chat)
         mode_command(chat),
         ban_command(chat, 'quiet', 'q', 'Quiet a mask, or a nick by its ban mask, in the shown channel'),
         ban_command(chat, 'ban', 'b', 'Ban a mask, or a nick by its ban mask, from the shown channel'),
-        chat.command('kickban', '$g $R', 'nick [reason]', 'Ban a nick from the shown channel and kick it',
+        chat.command('kickban', '$g $T', 'nick [reason]', 'Ban a nick from the shown channel and kick it',
         function(ctx, nick, reason)
             local channel = M.shown_channel(ctx)
             task.spawn('kickban', {net = ctx.net, owner = chat.name}, ban_nick, chat, channel, nick, '+b', reason)

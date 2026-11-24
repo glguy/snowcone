@@ -120,9 +120,9 @@ function M.check(items, placeholders, dynamic)
         local item = items[i]
         local required
         for _, p in ipairs(slot) do required = required or not p.optional and p end
-        if item.kind == 'R' and not slot[1].optional then
+        if item.optional and not slot[1].optional then
             return 'an argument that may be empty shown as required: ' .. slot[1].label
-        elseif item.kind ~= 'R' and not required then
+        elseif not item.optional and not required then
             return 'a required argument shown as optional: ' .. slot[1].label
         elseif item.literal and slot[1].label ~= item.literal then
             return 'the word ' .. item.literal .. ' shown as ' .. slot[1].label

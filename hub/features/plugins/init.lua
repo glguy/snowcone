@@ -71,7 +71,7 @@ local timer_callbacks = {}
 
 -- Words for a spec's arguments, for a plugin command that gives no usage
 local spec_words <const> = {
-    g = 'word', r = 'text', R = '[text]', i = 'number', f = 'number',
+    g = 'word', r = 'text', R = '[text]', t = 'text', T = '[text]', i = 'number', f = 'number',
     v = 'name', q = "'text'", p = 'path',
 }
 local function spec_usage(spec)

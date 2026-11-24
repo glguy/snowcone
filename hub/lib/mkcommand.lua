@@ -11,11 +11,17 @@
 -- $q        a string in ' or " quotes, without them
 -- $r        the rest of the line, not empty; last only
 -- $R        the rest of the line, possibly empty; last only
+-- $t        message text: the rest of the line, not empty; last only
+-- $T        message text, possibly empty; last only
 --
 -- Arguments are separated by one or more spaces; spaces after the last
 -- are ignored. A word is a run of bytes other than space, whatever the
 -- locale, so UTF-8 names come through whole. The arguments must fit the
 -- spec entirely: a word left over is an error, not dropped.
+--
+-- Message text is matched as the rest of the line is; the input line
+-- shows it as it will be seen, formatting and all, and checks its
+-- spelling.
 --
 -- A compiled spec has two sides that walk the arguments the same way:
 -- the matcher, for running a command, and the analyzer, for showing a
@@ -40,7 +46,9 @@ local word_kinds <const> = {
 ---@class hub.SpecItem
 ---@field literal string|nil the word the arguments must repeat
 ---@field kind string|nil the letter after $
----@field rest boolean|nil the rest of the line ($r or $R)
+---@field rest boolean|nil the rest of the line ($r, $R, $t or $T)
+---@field optional boolean|nil a rest of the line that may be empty ($R or $T)
+---@field text boolean|nil message text ($t or $T)
 
 --- An argument as typed, for the spec item at the same index.
 ---@class hub.ArgWord
@@ -87,7 +95,7 @@ local function analyze(items, args)
             local value = args:sub(pos)
             if value ~= '' then
                 table.insert(a.words, {lo = pos, hi = #args, ok = true})
-            elseif item.kind == 'r' then
+            elseif not item.optional then
                 a.ok = false
             end
             table.insert(a.params, value)
@@ -137,8 +145,10 @@ return function(spec)
             table.insert(items, {literal = token})
         elseif word_kinds[kind] or kind == 'q' then
             table.insert(items, {kind = kind})
-        elseif kind == 'r' or kind == 'R' then
-            table.insert(items, {kind = kind, rest = true})
+        elseif kind == 'r' or kind == 'R' or kind == 't' or kind == 'T' then
+            local optional = kind == 'R' or kind == 'T' or nil
+            local text = kind == 't' or kind == 'T' or nil
+            table.insert(items, {kind = kind, rest = true, optional = optional, text = text})
         else
             error('unknown spec type in ' .. spec .. ': ' .. token, 2)
         end

@@ -97,7 +97,7 @@ M.commands = {
     },
     {
         name = 'disconnect',
-        spec = '$R',
+        spec = '$T',
         usage = '[message]',
         group = 'connection',
         scope = 'net',

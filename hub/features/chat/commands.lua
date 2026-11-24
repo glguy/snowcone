@@ -100,7 +100,7 @@ local function who_command(chat)
 end
 
 local function topic_command(chat)
-    local cmd = chat.command('topic', '$R', '[text]', "Set the shown channel's topic, or clear it",
+    local cmd = chat.command('topic', '$T', '[text]', "Set the shown channel's topic, or clear it",
     function(ctx, text)
         local channel = modes.shown_channel(ctx)
         send.send(ctx.net, 'TOPIC', channel, text)
@@ -141,15 +141,15 @@ function M.commands(chat)
         end),
         close_command(chat),
         -- each opens its targets' buffers, so the line shows there
-        chat.command('msg', '$g $r', 'target text', 'Send a message', function(ctx, target, text)
+        chat.command('msg', '$g $t', 'target text', 'Send a message', function(ctx, target, text)
             open_targets(chat, ctx.net, target)
             chat.say(ctx.net, target, text)
         end),
-        chat.command('notice', '$g $r', 'target text', 'Send a notice', function(ctx, target, text)
+        chat.command('notice', '$g $t', 'target text', 'Send a notice', function(ctx, target, text)
             open_targets(chat, ctx.net, target)
             chat.notice(ctx.net, target, text)
         end),
-        chat.command('cmsg', '$g $r', 'nick text',
+        chat.command('cmsg', '$g $t', 'nick text',
             "Send a message to a nick, shown to them in the shown channel (channel-context)",
         function(ctx, nick, text)
             local channel = modes.shown_channel(ctx)
