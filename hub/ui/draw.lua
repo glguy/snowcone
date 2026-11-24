@@ -15,6 +15,7 @@ do
 
     local WA_NORMAL    <const> = ncurses.WA_NORMAL
     local WA_BOLD      <const> = ncurses.WA_BOLD
+    local WA_DIM       <const> = ncurses.WA_DIM
     local WA_ITALIC    <const> = ncurses.WA_ITALIC
     local WA_REVERSE   <const> = ncurses.WA_REVERSE
     local WA_UNDERLINE <const> = ncurses.WA_UNDERLINE
@@ -48,6 +49,8 @@ do
     end
     function M.bold(w)          attron(WA_BOLD, w)         end
     function M.bold_(w)         attroff(WA_BOLD, w)        end
+    function M.dim(w)           attron(WA_DIM, w)          end
+    function M.dim_(w)          attroff(WA_DIM, w)         end
     function M.italic(w)        attron(WA_ITALIC, w)       end
     function M.italic_(w)       attroff(WA_ITALIC, w)      end
     function M.reversevideo(w)  attron(WA_REVERSE, w)      end

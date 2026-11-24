@@ -19,6 +19,7 @@ local state      <const> = require 'hub.runtime.state'
 local timer      <const> = require 'hub.runtime.timer'
 local task       <const> = require 'hub.runtime.task'
 local mkcommand  <const> = require 'hub.lib.mkcommand'
+local usage      <const> = require 'hub.lib.usage'
 local manager    <const> = require 'hub.net.manager'
 local plugins    <const> = require 'hub.features.plugins'
 
@@ -76,6 +77,23 @@ local function add_command(current, name, cmd)
             name, cmd.name, existing.owner), 0)
     end
     local pattern, analyze = mkcommand(cmd.spec)
+    -- the placeholders of the usage, or, when it doesn't fit the spec (a
+    -- plugin's can't be checked ahead), of the spec, so the input line
+    -- agrees with what the command takes
+    local items = analyze('').items
+    local function fitting(text)
+        if text ~= nil and type(text) ~= 'string' then return nil, 'not a string' end
+        local placeholders, err = usage.parse(text)
+        err = err or usage.check(items, placeholders, cmd.shape ~= nil)
+        if err then return nil, err end
+        return usage.align(items, placeholders)
+    end
+    local slots, unfit = fitting(cmd.usage)
+    if not slots then
+        log.add('commands', '%s: the usage of /%s does not fit its spec (%s); its placeholders come from the spec',
+            name, cmd.name, unfit)
+        slots = fitting(usage.of_spec(cmd.spec))
+    end
     current.commands[cmd.name] = {
         name = cmd.name,
         spec = cmd.spec,
@@ -84,10 +102,20 @@ local function add_command(current, name, cmd)
         pattern = pattern,
         -- analyze(args): what each part of the arguments is, as typed
         analyze = analyze,
+        -- each spec item's placeholders (lib/usage), or nil
+        slots = slots,
         fn = cmd.fn,
         -- complete(ctx, before, seed): Tab's candidates for an argument,
         -- or nil for the default
         complete = cmd.complete,
+        -- shape(ctx, rest, slot, before): for a spec ending in a rest of the line,
+        -- how the input line shows that rest (ui/cmdline), in place of
+        -- placeholders filled in order
+        shape = cmd.shape,
+        -- exists(ctx, i, word): whether the word for spec item i names
+        -- something there is, such as a watch by number; the input line
+        -- shows it red when not
+        exists = cmd.exists,
         help = cmd.help,
         scope = cmd.scope or 'global',
         feature = cmd.feature,

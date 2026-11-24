@@ -191,6 +191,9 @@ T.case('a usage is the placeholders of its words', function()
         return t
     end
     T.eq(labels(nil), {}, 'no usage, no placeholders')
+    T.eq(usage.parse '[@tags] command'[1].sign, '@', 'an optional word starting with a sign')
+    T.eq(usage.parse "['pattern'] [x]"[1].sign, nil, 'not a quote')
+    T.eq(usage.parse '@nick'[1].sign, nil, 'nor a required word')
     T.eq(labels 'target text', {'target', 'text'}, 'a word each')
     T.eq(labels 'nick [reason]', {'nick', '?reason'}, 'optional in brackets')
     T.eq(labels '[nick...]', {'?nick*'}, 'repeating')
@@ -198,8 +201,12 @@ T.case('a usage is the placeholders of its words', function()
     T.eq(labels '[a b] c', {'?a', '?b', 'c'}, 'brackets around words')
     T.eq(labels 'name address[/prefix]', {'name', 'address[/prefix]'}, 'brackets inside a word')
     T.eq(labels '[nick!]user@host [realname]', {'[nick!]user@host', '?realname'}, 'opening a word')
-    T.eq(labels "[id] 'pattern'|filter [no]beep", {'?id', "'pattern'|filter", '[no]beep'}, 'and alone')
+    T.eq(labels "[n] 'pattern'|filter [no]beep", {'?n', "'pattern'|filter", '[no]beep'}, 'and alone')
     T.eq(labels 'dashboard|chat|all', {'dashboard|chat|all'}, 'choices are one word')
+    T.eq(labels '[[no]beep]', {'?[no]beep'}, 'optional, with brackets of its own')
+    T.eq(usage.parse '[[no]beep] word'[1].sign, nil, 'a bracket is no sign')
+    T.eq(usage.parse '[-full|-v4|nick]'[1].sign, nil, 'nor one that not every choice starts with')
+    T.eq(usage.parse '[-a|-b] x'[1].sign, '-', 'but one that every choice does')
     T.ok(labels 'a [b' :find('unmatched [', 1, true), 'an open bracket')
     T.ok(labels 'a b]' :find('unmatched ]', 1, true), 'a stray close')
     T.ok(labels 'x[a b]y' :find('span a space', 1, true), 'a word with a space in its brackets')
@@ -215,7 +222,7 @@ T.case('placeholders line up with a spec and follow what is typed', function()
     end
     T.eq(check('$g $r', 'target text'), nil, 'one each')
     T.eq(check('', nil), nil, 'none')
-    T.eq(check('$r', '[@tags] command [arguments]', true), nil, 'a rest takes several')
+    T.eq(check('$r', '[@tags] command [arguments]'), nil, 'a rest takes several; a sign before required')
     T.eq(check('$R', '[modes [arg...]]'), nil, 'all optional')
     T.ok(check('$g', 'a b'):find 'more words', 'too many')
     T.ok(check('$g $g', 'a'):find 'fewer words', 'too few')
@@ -244,6 +251,11 @@ T.case('placeholders line up with a spec and follow what is typed', function()
     T.eq(pending('$R', '[nick...]', 'a b'), {'nick'}, 'a repeating one stays')
     T.eq(pending('$r', 'command [arguments]', 'PRIVMSG'), {'arguments'}, 'words in the rest')
     T.eq(pending('$r', 'command [arguments]', 'PRIVMSG #c :hi'), {}, 'the last takes the remainder')
+    local quote = '[@tags] command [arguments]'
+    T.eq(pending('$r', quote, ''), {'@tags', 'command', 'arguments'}, 'all, before any word')
+    T.eq(pending('$r', quote, 'PRIVMSG '), {'arguments'}, 'a word without the sign passes it by')
+    T.eq(pending('$r', quote, '@a=b '), {'command', 'arguments'}, 'one with the sign takes it')
+    T.eq(pending('$r', quote, '@a=b PRIVMSG'), {'arguments'}, 'and the next word the next')
 end)
 
 T.case('every command usage lines up with its spec', function()
@@ -252,16 +264,15 @@ T.case('every command usage lines up with its spec', function()
     local bad = {}
     for name, cmd in pairs(HUB.current.commands) do
         local placeholders, err = usage.parse(cmd.usage)
-        err = err or usage.check(cmd.analyze('').items, placeholders, cmd.placeholders ~= nil)
+        local items = cmd.analyze('').items
+        err = err or usage.check(items, placeholders, cmd.shape ~= nil)
+        if cmd.shape and not (items[#items] and items[#items].rest) then
+            err = 'a shape for a spec without a rest of the line'
+        end
         if err then bad[name] = err end
     end
-    -- these place an optional argument first, which needs placeholders
-    -- of their own
-    T.eq(bad, {
-        addwatch = "an optional argument before a required one: id",
-        quote = 'an optional argument before a required one: @tags',
-        spell = 'an optional argument before a required one: add',
-    }, 'usages')
+    T.eq(bad, {}, 'usages')
+    T.eq(T.log_lines 'commands', {}, 'none takes its placeholders from its spec')
 end)
 
 T.case('a failed oneOf alternative leaves later errors their own path', function()

@@ -134,7 +134,7 @@ local function prefix_command(chat, name, change, help, bare)
         local channel = M.shown_channel(ctx)
         local changes = {}
         local sign, mode = change:sub(1, 1), change:sub(2)
-        for nick in args:gmatch '%g+' do table.insert(changes, {sign, mode, nick}) end
+        for nick in args:gmatch '[^ ]+' do table.insert(changes, {sign, mode, nick}) end
         if not changes[1] then return bare(ctx.net, channel) end
         local irc = model(ctx.net)
         ---@cast irc -nil shown_channel needs it
@@ -168,7 +168,7 @@ local function mode_command(chat)
         local irc = model(ctx.net)
         ---@cast irc -nil shown_channel needs it
         local words = {}
-        for word in args:gmatch '%g+' do table.insert(words, word) end
+        for word in args:gmatch '[^ ]+' do table.insert(words, word) end
         local modestring = table.remove(words, 1)
         if not modestring then
             chat.refresh_modes(ctx.net, channel)
@@ -221,7 +221,7 @@ local function mode_command(chat)
         if not channel then return nil end
         ---@cast irc -nil the channel came from it
         local words = {}
-        for word in before:gmatch '%g+' do table.insert(words, word) end
+        for word in before:gmatch '[^ ]+' do table.insert(words, word) end
         if not words[1] then return nil end
         local ok, parsed = pcall(parse_modestring, irc, words[1])
         if not ok then return nil end

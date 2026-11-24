@@ -13,7 +13,7 @@ local M = {}
 ---@class hub.CommandContext
 ---@field net string|nil the network a net command acts on
 ---@field target string|nil the buffer shown for that network, if any
----@field filter string|nil the cliconn view's filter, for /addwatch
+---@field filter string|nil the cliconn view's filter, for /addwatch and /editwatch
 
 --- Where a command line comes from.
 ---@class hub.CommandOrigin
@@ -30,14 +30,34 @@ local function context(origin, net)
     return ctx
 end
 
+--- The parts of a command line (without the leading slash), with the
+--- byte each starts at.
+---@class hub.CommandLine
+---@field name string the command's name
+---@field name_lo integer
+---@field at string|nil the network it names, after an @: /quote@libera ...
+---@field at_lo integer|nil the byte after the @
+---@field args string the arguments, from the first byte after the spaces
+---@field args_lo integer
+
+---@param text string
+---@return hub.CommandLine
+function M.split(text)
+    local name_lo, word, args_lo, args = text:match '^ *()([^ ]*) *()(.*)$'
+    local name, at = word:match '^([^@]*)@(.*)$'
+    return {
+        name = name or word, name_lo = name_lo,
+        at = at, at_lo = at and name_lo + #name + 1,
+        args = args, args_lo = args_lo,
+    }
+end
+
 --- Parse and run one command line (without the leading slash).
 ---@param text string
 ---@param origin hub.CommandOrigin|nil
 function M.execute(text, origin)
-    local word, args = text:match '^ *([^ ]*) *(.*)$'
-    -- a net command may name its network: /quote@libera ...
-    local name, at = word:match '^([^@]*)@(.*)$'
-    name = name or word
+    local line = M.split(text)
+    local name, at, args = line.name, line.at, line.args
     local cmd = HUB.current.commands[name]
     if cmd == nil then
         log.add('error', 'unknown command: %s', name)
@@ -131,7 +151,7 @@ end
 ---@param origin hub.CommandOrigin|nil
 ---@return string[]|nil
 function M.complete_args(prefix, seed, origin)
-    local word, before = prefix:match '^ *(%g+) +(.*)$'
+    local word, before = prefix:match '^ *([^ ]+) +(.*)$'
     if not word then return nil end
     local name, at = word:match '^([^@]*)@(.*)$'
     local cmd = HUB.current.commands[name or word]

@@ -53,6 +53,17 @@ local chip_rgb <const> = {
     danger  = {0xe78284, dark_rgb},
 }
 
+-- The command line's words by role, by RGB and on the classic theme: a
+-- command that can be used, one that can't be here, and what is wrong.
+-- Its placeholders and the bars between arguments are muted, or dim on
+-- the classic theme.
+local command_rgb <const> = {good = 0xa6d189, warn = 0xe5c890, bad = 0xe78284}
+local classic_command <const> = {
+    good = ncurses.COLOR_GREEN,
+    warn = ncurses.COLOR_YELLOW,
+    bad  = ncurses.COLOR_RED,
+}
+
 -- Chips by role on the classic theme: the draw.lua color setter whose
 -- color is reversed, none for neutral, which keeps the color already set
 M.classic_chip = {
@@ -96,6 +107,14 @@ end
 function M.text(role)
     if not M.modern() then return nil end
     return colors.rgb(text_role_rgb[role], ncurses.COLORS)
+end
+
+--- The color of the command line's words of a role.
+---@param role 'good'|'warn'|'bad'
+---@return integer
+function M.command(role)
+    if not M.modern() then return classic_command[role] end
+    return colors.rgb(command_rgb[role], ncurses.COLORS)
 end
 
 --- The text and background of a chip of a role, or nil on the classic

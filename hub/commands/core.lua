@@ -36,6 +36,58 @@ local function summarize(v)
     return ok and text or '?'
 end
 
+-- Tags as IRC reads them: after the @, keys with or without =value,
+-- separated by ;
+local function good_tags(word)
+    for tag in (word:sub(2) .. ';'):gmatch '([^;]*);' do
+        if tag:match '^[^=]*' == '' then return false end
+    end
+    return true
+end
+
+-- /quote's line as IRC reads it: tags (a first word starting with @), the
+-- command, then its parameters, a word each, until one starting with :
+-- takes the rest of the line. Red: tags without a key, a command not of
+-- letters and digits, a source (:nick before the command), as /quote
+-- sends none, and a NUL anywhere. Still to come, the tags and the command
+-- until given, and parameters until there is one.
+local function quote_shape(_, rest, slot)
+    local words, pos = {}, 1
+    local command_at = rest:sub(1, 1) == '@' and 2 or 1
+    while true do
+        local lo = rest:match('^ *()', pos)
+        if lo > #rest then break end
+        local hi
+        if #words >= command_at and rest:sub(lo, lo) == ':' then
+            hi = #rest
+        else
+            hi = (rest:find(' ', lo, true) or #rest + 1) - 1
+        end
+        local word = rest:sub(lo, hi)
+        local ok, final = true, false
+        if word:find('\0', 1, true) then
+            ok, final = false, true
+        elseif #words + 1 < command_at then
+            ok = good_tags(word)
+        elseif #words + 1 == command_at then
+            final = word:sub(1, 1) == ':'
+            ok = not final and word:find '^%w+$' ~= nil
+        end
+        table.insert(words, {lo = lo, hi = hi, ok = ok, final = final})
+        pos = hi + 1
+    end
+    local tags, command, params = slot[1], slot[2], slot[3]
+    local ghosts
+    if not words[1] then
+        ghosts = {tags, command, params}
+    elseif #words < command_at then
+        ghosts = {command, params}
+    elseif #words == command_at then
+        ghosts = {params}
+    end
+    return {words = words, ghosts = ghosts or {}}
+end
+
 M.commands = {
     {
         name = 'reload',
@@ -123,7 +175,9 @@ M.commands = {
         group = 'connection',
         scope = 'net',
         help = 'Send an IRC command, checked; its labeled reply shows in the detail pane',
+        shape = quote_shape,
         fn = function(ctx, text)
+            if text:find('\0', 1, true) then error('a NUL byte cannot be sent', 0) end
             local msg = snowcone.parse_irc(text)
             if not msg then error('failed to parse IRC command', 0) end
             if msg.source then error('source not supported', 0) end
@@ -261,24 +315,15 @@ M.commands = {
     },
     {
         name = 'spell',
-        spec = '$R',
-        usage = '[add] word',
+        spec = '$g',
+        usage = 'word',
         group = 'client',
-        help = 'Check the spelling of a word, or add it to your personal word list',
-        fn = function(_, text)
+        help = 'Check the spelling of a word',
+        fn = function(_, word)
             if not spell.available() then
                 error(spell.unavailable_reason(), 0)
             end
-            local added = text:match '^add%s+(%S+)%s*$'
-            local word = added or text:match '^(%S+)%s*$'
-            if word == nil then
-                error('usage: /spell [add] word', 0)
-            end
-            if added then
-                local ok, err = spell.add(word)
-                if not ok then error(tostring(err), 0) end
-                log.add('spell', 'added %s to %s', word, spell.personal_path())
-            elseif not spell.checkable(word) then
+            if not spell.checkable(word) then
                 log.add('spell', "%s can't be checked with this dictionary", word)
             elseif spell.check(word) then
                 log.add('spell', '%s is spelled correctly', word)
@@ -286,6 +331,21 @@ M.commands = {
                 local t = spell.suggest(word)
                 log.add('spell', '%s: %s', word, t[1] and table.concat(t, ', ') or 'no suggestions')
             end
+        end,
+    },
+    {
+        name = 'spell_add',
+        spec = '$g',
+        usage = 'word',
+        group = 'client',
+        help = 'Add a word to your personal word list',
+        fn = function(_, word)
+            if not spell.available() then
+                error(spell.unavailable_reason(), 0)
+            end
+            local ok, err = spell.add(word)
+            if not ok then error(tostring(err), 0) end
+            log.add('spell', 'added %s to %s', word, spell.personal_path())
         end,
     },
     {

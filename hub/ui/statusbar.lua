@@ -1,6 +1,7 @@
 -- The bottom line: view name, input box or last log line.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
+local cmdline   <const> = require 'hub.ui.cmdline'
 local common    <const> = require 'hub.features.common'
 local control   <const> = require 'hub.ui.control'
 local draw      <const> = require 'hub.ui.draw'
@@ -210,6 +211,82 @@ local function misspelled(net, ed)
     return spell.misspelled_ranges(ed.before_cursor .. ed.at_cursor, control.names_here(net), typing)
 end
 
+-- The bar between a command's arguments
+local argument_bar <const> = '│'
+
+--- Draw a command line being typed as ui/cmdline sees it: its command,
+--- arguments and message text, then the placeholders of the arguments not
+--- yet typed. Returns the cursor's column.
+---@param win ncurses.Window
+---@param ed hub.Editor
+---@param color integer the input mode's color, for text as typed
+---@return integer
+local function draw_command(win, ed, color)
+    local text = ed.before_cursor .. ed.at_cursor
+    local cursor = #ed.before_cursor
+    local look = cmdline.decorate(text, cursor)
+    local _, back = draw.base(win)
+    local muted = theme.text 'muted'
+    local cursor_x
+
+    local function set(role)
+        draw.normal(win)
+        if role == 'good' or role == 'warn' or role == 'bad' then
+            ncurses.colorset(theme.command(role), back, win)
+        elseif role == 'sep' or role == 'ghost' then
+            ncurses.colorset(muted or color, back, win)
+            if not muted then draw.dim(win) end
+        else
+            ncurses.colorset(color, back, win)
+        end
+    end
+    local function here()
+        cursor_x = cursor_x or select(2, ncurses.getyx(win))
+    end
+    -- bytes lo to hi of the line, noting the cursor's column among them
+    local function put(lo, hi)
+        if cursor >= lo - 1 and cursor < hi then
+            win:waddstr(scrub(text:sub(lo, cursor)))
+            here()
+            win:waddstr(scrub(text:sub(cursor + 1, hi)))
+        else
+            win:waddstr(scrub(text:sub(lo, hi)))
+        end
+    end
+
+    for _, s in ipairs(look.spans) do
+        if s.role == 'text' then
+            -- as it will be seen, codes and all, and spell checked
+            local sub = text:sub(s.lo, s.hi)
+            local inside = cursor >= s.lo - 1 and cursor <= s.hi
+            local typing = (ed.state == 'insert' or ed.state == 'erase') and cursor + 2 - s.lo or nil
+            local bad = look.net and spell.available()
+                and spell.misspelled_ranges(sub, control.names_here(look.net), typing) or nil
+            local x = addircstr(win, sub, {mark = inside and cursor - s.lo + 1 or -1, color = color, bad = bad})
+            if inside then cursor_x = cursor_x or x end
+        elseif s.role == 'sep' then
+            set 'sep'
+            if cursor == s.lo - 1 then here() end
+            win:waddstr(argument_bar)
+            put(s.lo + 1, s.hi)
+        else
+            set(s.role)
+            put(s.lo, s.hi)
+        end
+    end
+    here()
+
+    for i, ghost in ipairs(look.ghosts) do
+        set 'ghost'
+        if i > 1 or look.ghost_sep then win:waddstr(argument_bar) end
+        if ghost.optional then draw.italic(win) end
+        win:waddstr(scrub(ghost.label), ghost.repeats and '…' or '')
+    end
+    draw.normal(win)
+    ---@cast cursor_x integer
+    return cursor_x
+end
+
 --- Draw the status bar.
 ---@param win ncurses.Window for the bar
 ---@param textbox ncurses.Window pad for the input text
@@ -273,6 +350,8 @@ function M.draw(win, textbox, layout, view, ctx)
             textbox:waddstr(scrub(ed.before_cursor))
             x1 = select(2, ncurses.getyx(textbox))
             textbox:waddstr(scrub(ed.at_cursor))
+        elseif mode == 'command' then
+            x1 = draw_command(textbox, ed, input_mode_color)
         else
             -- formatted as it will be seen, codes and all
             x1 = addircstr(textbox, ed.before_cursor .. ed.at_cursor,

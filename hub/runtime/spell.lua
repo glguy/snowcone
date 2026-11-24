@@ -1,6 +1,6 @@
 -- Spell checking with hunspell ([spell]): the words of a line worth
 -- checking, which of them are misspelled, suggestions, and a personal
--- word list that /spell add appends to.
+-- word list that /spell_add appends to.
 --
 -- Each generation opens the dictionary as it activates, closing the one
 -- before, so /reload re-reads the dictionary and the personal list and

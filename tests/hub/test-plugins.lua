@@ -42,6 +42,7 @@ return function(api)
     api.command('netgreet', '', function(ctx)
         api.net_task(ctx.net, 'greeter', function(t) t:send('PRIVMSG', 'x', 'hi from a net task') end)
     end, 'say hello on a network', nil, {net = true})
+    api.command('ask', '$g $g', function() end, 'a usage that does not fit', 'nick [reason]')
     api.view('goodview', {render = function() end})
     HUB.test_timer = api.timer(60000, function() end)
     HUB.test_task = api.task('waiter', function(t) t:sleep(60000) end).id
@@ -90,6 +91,17 @@ local function errors_by_name(plugins)
     end
     return result
 end
+
+T.case('a plugin usage that does not fit its spec gives way to the spec', function()
+    boot()
+    local cmd = HUB.current.commands.ask
+    T.eq(cmd.usage, 'nick [reason]', '/help shows it as given')
+    local labels = {}
+    for i, slot in ipairs(cmd.slots) do labels[i] = (slot[1].optional and '?' or '') .. slot[1].label end
+    T.eq(labels, {'word', 'word'}, 'the placeholders from the spec')
+    T.ok(table.concat(T.log_lines 'commands', '\n'):find('the usage of /ask does not fit its spec', 1, true),
+        'and the plugin told')
+end)
 
 T.case('plugins load, and failures stay with their plugin', function()
     local _, plugins = boot()

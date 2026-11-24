@@ -71,7 +71,7 @@ local function who_command(chat)
     -- row. A server without WHOX takes o only after the mask 0.
     function cmd.complete(ctx, before, seed)
         local words = {}
-        for word in before:gmatch '%g+' do table.insert(words, word) end
+        for word in before:gmatch '[^ ]+' do table.insert(words, word) end
         if #words == 0 then return nil end -- the mask: nicks and channels
         if #words > 1 then return {} end
         local irc = model(ctx.net)
@@ -227,7 +227,7 @@ function M.commands(chat)
             local irc = model(ctx.net)
             if not irc then error('not connected', 0) end
             local parts = {}
-            for word in args:gmatch '%S+' do table.insert(parts, word) end
+            for word in args:gmatch '[^ ]+' do table.insert(parts, word) end
             send.send(ctx.net, 'MODE', irc.nick, table.unpack(parts))
         end),
     }

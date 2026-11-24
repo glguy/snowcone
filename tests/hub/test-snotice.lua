@@ -306,6 +306,23 @@ T.case('a watch matches what the cliconn filter matches', function()
     T.eq({hits['^Real'], hits[ip]}, {1, 1}, 'gecos and IP alone')
 end)
 
+T.case('/editwatch changes a watch by number', function()
+    boot {'snotice'}
+    local S = stores()
+    T.command "addwatch 'one' red"
+    local n = #S.watches
+    T.command(string.format("editwatch %d beep 'uno'", n))
+    T.eq({S.watches[n].pattern, S.watches[n].color, S.watches[n].beep}, {'uno', 'red', true}, 'changed, the rest kept')
+    local errors = #T.log_lines 'error'
+    T.command(string.format('editwatch %d', n))
+    T.eq({#T.log_lines 'error', S.watches[n].pattern}, {errors, 'uno'}, 'none changes nothing')
+    T.command(string.format('editwatch %d', n + 1) .. ' red')
+    T.command "addwatch 2 'two'"
+    local lines = T.log_lines 'error'
+    T.eq({lines[#lines - 1], lines[#lines]},
+        {'editwatch: no such watch: ' .. (n + 1), 'addwatch: unexpected token: 2'}, 'refused')
+end)
+
 T.case('a watch is removed by identity, whatever its place now', function()
     boot {'snotice'}
     local S = stores()

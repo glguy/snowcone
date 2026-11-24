@@ -95,8 +95,8 @@ what someone might otherwise undo, not the history of what changed.
   reasons and snotice's ranges don't depend on that feature.
 - **Watches from configuration** are replaced on every load, keeping hit
   counts by pattern; watches added with `/addwatch` stay.
-  `/addwatch filter` takes the cliconn view's filter from `ctx.filter`,
-  which only the UI supplies.
+  `/addwatch filter` and `/editwatch n filter` take the cliconn view's
+  filter from `ctx.filter`, which only the UI supplies.
 
 - **The spell dictionary reopens on every activation** (runtime/spell.lua),
   closing the one before, rather than being kept while its paths stay the

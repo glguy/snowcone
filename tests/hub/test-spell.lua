@@ -223,7 +223,7 @@ T.case('/spell checks and adds words', function()
     boot(personal)
     T.command 'spell brwon'
     T.eq(T.log_lines 'spell', {'brwon: brown'}, 'suggestions')
-    T.command 'spell add snowcone'
+    T.command 'spell_add snowcone'
     local spell = T.require 'hub.runtime.spell'
     T.eq(spell.check 'snowcone', true, 'accepted at once')
     local f = assert(io.open(personal))
@@ -276,7 +276,7 @@ T.case('a dictionary that fails to open is tried again by /reload', function()
     os.remove(base .. '.dic')
 end)
 
-T.case('/spell add takes effect for every form of the word', function()
+T.case('/spell_add takes effect for every form of the word', function()
     local personal = os.tmpname()
     -- a hand-edited list without a final line break, with a byte order mark
     local f = assert(io.open(personal, 'w'))
@@ -286,14 +286,14 @@ T.case('/spell add takes effect for every form of the word', function()
     local spell = T.require 'hub.runtime.spell'
     T.eq(spell.check 'alpha', true, 'read without a line break or the mark')
     T.eq(spell.check 'Snowcone', false, 'judged first')
-    T.command 'spell add snowcone'
+    T.command 'spell_add snowcone'
     T.eq(spell.check 'Snowcone', true, 'capitalized, after adding')
-    T.command 'spell add snowcone'
+    T.command 'spell_add snowcone'
     f = assert(io.open(personal))
     T.eq(f:read 'a', '\xef\xbb\xbfalpha\nsnowcone\n', 'a line of its own, once')
     f:close()
     for _, word in ipairs {'bad\1word', 'foo,', 'abc1'} do
-        T.command('spell add ' .. word)
+        T.command('spell_add ' .. word)
         local errors = T.log_lines 'error'
         T.ok(errors[#errors] and errors[#errors]:find('sees whole', 1, true), 'refused: ' .. word)
     end
@@ -409,9 +409,9 @@ T.case('/spell says why it can\'t check', function()
     T.eq(spell.checkable 'café', false, 'not a Latin-1 word in UTF-8')
     T.command 'spell café'
     T.eq(T.log_lines 'spell', {"café can't be checked with this dictionary"}, 'not called correct')
-    T.command 'spell add café'
+    T.command 'spell_add café'
     local errors = T.log_lines 'error'
-    T.eq(errors[#errors], "spell: café can't be checked with this dictionary", 'nor added')
+    T.eq(errors[#errors], "spell_add: café can't be checked with this dictionary", 'nor added')
     T.eq(spell.misspelled 'the café teh', {spell.words 'the café teh'[3]}, 'only ASCII words judged')
     for _, ext in ipairs {'', '.aff', '.dic'} do os.remove(base .. ext) end
 end)

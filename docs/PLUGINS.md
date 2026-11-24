@@ -148,7 +148,7 @@ api.command(name, spec, fn, help, usage, opts)
 | `spec` | Its arguments, below. Required; use `''` for none. |
 | `fn` | Called as `fn(ctx, ...)` with the parsed arguments. |
 | `help` | The line in `/help`, where plugin commands are grouped by plugin. Default: `from plugin <name>`. |
-| `usage` | The arguments as people read them, such as `'nick [count]'`. Default: worked out from `spec`. |
+| `usage` | The arguments as people read them, such as `'nick [count]'`, shown by `/help` and as the input line's placeholders. Default: worked out from `spec`. |
 | `opts` | `{net = true}` makes it a [network command](#network-commands). |
 
 A spec is words separated by spaces. The arguments must fit it entirely. A word that doesn't start with `$` is a literal that the user has to type and `fn` doesn't get. The rest each give `fn` one argument:
@@ -165,6 +165,8 @@ A spec is words separated by spaces. The arguments must fit it entirely. A word 
 | `$R` | The rest of the line, possibly empty. Last only. |
 | `$t` | Message text: the rest of the line, not empty. Last only. The input line shows it with its IRC formatting and checks its spelling. |
 | `$T` | Message text, possibly empty. Last only. |
+
+A usage is words separated by spaces, one for each argument of the spec in order, a rest of the line taking all those left: `[word]` is optional, brackets around several words make each optional, and `word...` repeats, last only. Brackets inside a word, as in `address[/prefix]`, are part of it. An optional word starting with a sign, such as `[@tags]`, is taken only by an argument starting with it, so it may come before required ones. As you type the command, the input line shows the words of the arguments not yet given. A usage that doesn't fit the spec, such as one marking a `$g` optional, is logged when the plugin loads, and the placeholders come from the spec instead.
 
 A line that doesn't fit logs `usage: /name <usage>` and `fn` isn't called. To report a problem from `fn`, raise an error without position information: `error('no such project', 0)`. See [Errors](#errors).
 

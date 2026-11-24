@@ -49,6 +49,8 @@ local send      <const> = require 'hub.net.send'
 local task      <const> = require 'hub.runtime.task'
 local timer     <const> = require 'hub.runtime.timer'
 local traceback <const> = require 'hub.lib.traceback'
+-- lib/usage, named apart from api.command's usage
+local usage_of  <const> = require 'hub.lib.usage'
 
 local M = {}
 
@@ -68,16 +70,6 @@ local next_callback = 0
 
 -- The callback of each timer that hasn't fired, by the timer's id
 local timer_callbacks = {}
-
--- Words for a spec's arguments, for a plugin command that gives no usage
-local spec_words <const> = {
-    g = 'word', r = 'text', R = '[text]', t = 'text', T = '[text]', i = 'number', f = 'number',
-    v = 'name', q = "'text'", p = 'path',
-}
-local function spec_usage(spec)
-    if spec == nil or spec == '' then return nil end
-    return (spec:gsub('%$(.)', function(c) return spec_words[c] or '...' end))
-end
 
 local function owner(name)
     return 'plugin:' .. name
@@ -142,7 +134,7 @@ local function make_api(name, entry, current)
         guard(name, 'command ' .. command, current.add_command, owner(name), {
             name = command, spec = spec, fn = guarded(name, 'command ' .. command, fn),
             help = help or ('from plugin ' .. name),
-            usage = usage or spec_usage(spec),
+            usage = usage or usage_of.of_spec(spec),
             group = 'plugin ' .. name,
             scope = opts and opts.net and 'net' or nil,
         })

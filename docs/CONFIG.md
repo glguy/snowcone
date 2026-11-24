@@ -155,7 +155,7 @@ hunspell, and a hunspell dictionary.
 | Field | Default | Meaning |
 |---|---|---|
 | `dictionary` | | Required when the table is present. A hunspell dictionary without its extension: `'/usr/share/hunspell/en_US'` reads `en_US.aff` and `en_US.dic`; naming either file works too. A relative path is relative to the configuration file. |
-| `personal` | `words` in the configuration directory | Your own words, one per line, also accepted. `/spell add` appends to it. |
+| `personal` | `words` in the configuration directory | Your own words, one per line, also accepted. `/spell_add` appends to it. |
 
 While you talk (not in commands, filters or prompts), misspelled words are
 underlined in red. The word you are still typing isn't flagged. Words with
@@ -165,7 +165,7 @@ at the cursor, or else the last one before it, with each suggestion in
 turn, and then the word as it was. Ctrl-_ undoes the whole run. A word
 with formatting codes inside it is left for you to fix by hand.
 `/spell WORD` shows whether a word is spelled right and offers
-suggestions. `/spell add WORD` accepts it from now on.
+suggestions. `/spell_add WORD` accepts it from now on.
 
 A dictionary that isn't UTF-8 (many `en_US` files are ISO8859-1) checks
 only words written entirely in ASCII. Words in a script the dictionary
@@ -583,7 +583,7 @@ A message is decided as it reaches its buffer, including from chat history. A QU
 | `flash` | `false` | Flash the screen on a match. |
 | `active` | `true` | With `false`, the watch is listed but doesn't match. |
 
-The netcount view lists watches with their hit counts. Watches added with `/addwatch` are kept alongside configured ones. On reload, configured watches are replaced and keep their hit counts.
+The netcount view lists watches with their hit counts. `/addwatch 'pattern' [color] [[no]beep] [[no]flash]` adds a watch, its options in any order, and `/editwatch number` changes one: while you type it, the placeholders show the watch's settings. Watches added with `/addwatch` are kept alongside configured ones. On reload, configured watches are replaced and keep their hit counts.
 
 ### The servers file
 

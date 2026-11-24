@@ -6,6 +6,12 @@
 -- [word]        optional; brackets around several words make each optional
 -- word...       repeats; last only
 --
+-- An optional word whose label starts with a sign, as [@tags] does, is
+-- taken only by an argument starting with that sign; one that doesn't
+-- goes to the next word. Such a word may come before required ones. A
+-- label of choices (a|b) has a sign only when every choice starts with
+-- it, and a bracket is never one.
+--
 -- Brackets inside a word, as in address[/prefix] or [nick!]user@host, are
 -- part of its label: a bracket counts only when it opens a word and its
 -- match closes one.
@@ -20,6 +26,22 @@ local M = {}
 ---@field label string
 ---@field optional boolean
 ---@field repeats boolean
+---@field sign string|nil the sign an argument taking an optional one starts with
+
+-- Words for a spec's arguments, for a usage made from a spec
+local spec_words <const> = {
+    g = 'word', r = 'text', R = '[text]', t = 'text', T = '[text]', i = 'number', f = 'number',
+    v = 'name', q = "'text'", p = 'path',
+}
+
+--- A usage made from a spec (lib/mkcommand), its arguments by their kind
+--- and its literal words as themselves; nil for no arguments.
+---@param spec string
+---@return string|nil
+function M.of_spec(spec)
+    if spec == nil or spec == '' then return nil end
+    return (spec:gsub('%$(.)', function(c) return spec_words[c] or '...' end))
+end
 
 --- The placeholders of a usage, or nil and why it doesn't parse.
 ---@param usage string|nil
@@ -66,7 +88,11 @@ function M.parse(usage)
         if not label[1] then return end
         local text = table.concat(label)
         local base = text:match '^(.-)%.%.%.$'
-        table.insert(placeholders, {label = base or text, optional = optional, repeats = base ~= nil})
+        local sign = optional and text:match '^[^%w\'"%[]' or nil
+        for choice in text:gmatch '[^|]+' do
+            if sign and choice:sub(1, 1) ~= sign then sign = nil end
+        end
+        table.insert(placeholders, {label = base or text, optional = optional, repeats = base ~= nil, sign = sign})
         label, optional = {}, false
     end
     for i = 1, #usage do
@@ -134,7 +160,7 @@ function M.check(items, placeholders, dynamic)
             return 'a repeating argument before the last: ' .. p.label
         end
         if p.optional then
-            seen_optional = p
+            if not p.sign then seen_optional = p end
         elseif seen_optional and not dynamic then
             return 'an optional argument before a required one: ' .. seen_optional.label
         end
@@ -154,9 +180,16 @@ function M.pending(slots, analysis, args)
     local n = #analysis.words
     local last = analysis.words[n]
     if last and analysis.items[n].rest then
-        local slot, typed = slots[n], 0
-        for _ in args:sub(last.lo, last.hi):gmatch '[^ ]+' do typed = typed + 1 end
-        for k = typed + 1, #slot do table.insert(shown, slot[k]) end
+        -- each word takes the next placeholder, past optional ones whose
+        -- sign it doesn't start with
+        local slot, k = slots[n], 1
+        for word in args:sub(last.lo, last.hi):gmatch '[^ ]+' do
+            while k < #slot and slot[k].sign and word:sub(1, #slot[k].sign) ~= slot[k].sign do
+                k = k + 1
+            end
+            k = k + 1
+        end
+        for j = k, #slot do table.insert(shown, slot[j]) end
         if not shown[1] and slot[#slot].repeats then table.insert(shown, slot[#slot]) end
     end
     if not analysis.leftover then
