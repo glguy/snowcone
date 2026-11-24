@@ -171,6 +171,92 @@ T.case('command specs tell what each part of a line being typed is', function()
     T.eq(a.items, {{kind = 'g'}, {kind = 'i'}}, 'and the items, for what is missing')
 end)
 
+T.case('a usage is the placeholders of its words', function()
+    T.boot {}
+    local usage = T.require 'hub.lib.usage'
+    local function labels(text)
+        local ps, err = usage.parse(text)
+        if not ps then return err end
+        local t = {}
+        for i, p in ipairs(ps) do
+            t[i] = (p.optional and '?' or '') .. p.label .. (p.repeats and '*' or '')
+        end
+        return t
+    end
+    T.eq(labels(nil), {}, 'no usage, no placeholders')
+    T.eq(labels 'target text', {'target', 'text'}, 'a word each')
+    T.eq(labels 'nick [reason]', {'nick', '?reason'}, 'optional in brackets')
+    T.eq(labels '[nick...]', {'?nick*'}, 'repeating')
+    T.eq(labels '[modes [arg...]]', {'?modes', '?arg*'}, 'brackets around brackets')
+    T.eq(labels '[a b] c', {'?a', '?b', 'c'}, 'brackets around words')
+    T.eq(labels 'name address[/prefix]', {'name', 'address[/prefix]'}, 'brackets inside a word')
+    T.eq(labels '[nick!]user@host [realname]', {'[nick!]user@host', '?realname'}, 'opening a word')
+    T.eq(labels "[id] 'pattern'|filter [no]beep", {'?id', "'pattern'|filter", '[no]beep'}, 'and alone')
+    T.eq(labels 'dashboard|chat|all', {'dashboard|chat|all'}, 'choices are one word')
+    T.ok(labels 'a [b' :find('unmatched [', 1, true), 'an open bracket')
+    T.ok(labels 'a b]' :find('unmatched ]', 1, true), 'a stray close')
+    T.ok(labels 'x[a b]y' :find('span a space', 1, true), 'a word with a space in its brackets')
+end)
+
+T.case('placeholders line up with a spec and follow what is typed', function()
+    T.boot {}
+    local mkcommand = T.require 'hub.lib.mkcommand'
+    local usage = T.require 'hub.lib.usage'
+    local function check(spec, text, dynamic)
+        local _, analyze = mkcommand(spec)
+        return usage.check(analyze('').items, assert(usage.parse(text)), dynamic)
+    end
+    T.eq(check('$g $r', 'target text'), nil, 'one each')
+    T.eq(check('', nil), nil, 'none')
+    T.eq(check('$r', '[@tags] command [arguments]', true), nil, 'a rest takes several')
+    T.eq(check('$R', '[modes [arg...]]'), nil, 'all optional')
+    T.ok(check('$g', 'a b'):find 'more words', 'too many')
+    T.ok(check('$g $g', 'a'):find 'fewer words', 'too few')
+    T.ok(check('$R', nil):find 'nothing for the rest', 'a rest with none')
+    T.ok(check('$g $R', 'nick reason'):find 'shown as required', 'an empty rest must look optional')
+    T.ok(check('$g', '[nick]'):find 'shown as optional', 'and a word required')
+    T.ok(check('add $g', 'del word'):find 'the word add', 'a literal as itself')
+    T.ok(check('$R', '[nick...] [x]'):find 'repeating argument before', 'repeats last only')
+    T.ok(check('$R', '[add] word'):find 'optional argument before a required', 'out of order')
+    T.eq(check('$R', '[add] word', true), nil, 'unless the command places them itself')
+
+    local function pending(spec, text, args)
+        local _, analyze = mkcommand(spec)
+        local a = analyze(args)
+        local slots = assert(usage.align(a.items, assert(usage.parse(text))))
+        local t = {}
+        for i, p in ipairs(usage.pending(slots, a, args)) do t[i] = p.label end
+        return t
+    end
+    T.eq(pending('$g $r', 'target text', ''), {'target', 'text'}, 'nothing typed')
+    T.eq(pending('$g $r', 'target text', 'bo'), {'text'}, 'a word being typed fills its place')
+    T.eq(pending('$g $r', 'target text', 'bob hi there'), {}, 'the text takes many words')
+    T.eq(pending('$i $g', 'n word', 'x'), {'word'}, 'a word that does not fit still fills its place')
+    T.eq(pending('$g', 'nick', 'a b'), {}, 'nothing past what is left over')
+    T.eq(pending('$g $R', 'nick [reason]', 'bob'), {'reason'}, 'an empty rest')
+    T.eq(pending('$R', '[nick...]', 'a b'), {'nick'}, 'a repeating one stays')
+    T.eq(pending('$r', 'command [arguments]', 'PRIVMSG'), {'arguments'}, 'words in the rest')
+    T.eq(pending('$r', 'command [arguments]', 'PRIVMSG #c :hi'), {}, 'the last takes the remainder')
+end)
+
+T.case('every command usage lines up with its spec', function()
+    T.boot {}
+    local usage = T.require 'hub.lib.usage'
+    local bad = {}
+    for name, cmd in pairs(HUB.current.commands) do
+        local placeholders, err = usage.parse(cmd.usage)
+        err = err or usage.check(cmd.analyze('').items, placeholders, cmd.placeholders ~= nil)
+        if err then bad[name] = err end
+    end
+    -- these place an optional argument first, which needs placeholders
+    -- of their own
+    T.eq(bad, {
+        addwatch = "an optional argument before a required one: id",
+        quote = 'an optional argument before a required one: @tags',
+        spell = 'an optional argument before a required one: add',
+    }, 'usages')
+end)
+
 T.case('a failed oneOf alternative leaves later errors their own path', function()
     T.boot {}
     local schema = T.require 'hub.lib.schema'
