@@ -9,11 +9,12 @@
 -- the detail keeps which, in vs.table, and the reply the tables.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
+local command_color <const> = require 'hub.ui.command_color'
 local control   <const> = require 'hub.ui.control'
 local draw      <const> = require 'hub.ui.draw'
+local ircd          <const> = require 'hub.net.ircd'
 local listing   <const> = require 'hub.ui.details.listing'
 local matching  <const> = require 'hub.lib.matching'
-local message   <const> = require 'hub.ui.details.message'
 local scrub     <const> = require 'hub.lib.scrub'
 
 local M = {kind = 'reply', filter = true, wide = true}
@@ -43,10 +44,10 @@ local function draw_message(ctx, win, msg)
     draw.normal(win)
     win:waddstr ' '
 
-    local color = message.color(ctx.net, msg.command)
+    local color = command_color(ctx.net, msg.command)
     if color then color(win) end
     draw.bold(win)
-    local name = message.numeric_name(ctx.net, msg.command)
+    local name = ircd.numeric_name(ctx.net, msg.command)
     win:waddstr(scrub(tostring(msg.command)) .. (name and ' ' .. name or ''))
     draw.normal(win)
 
@@ -61,7 +62,7 @@ end
 -- What the filter matches: the source, the command and its numeric
 -- name, and the arguments
 local function haystack(net, msg)
-    local name = message.numeric_name(net, msg.command)
+    local name = ircd.numeric_name(net, msg.command)
     local parts = {msg.source or '', tostring(msg.command), name or ''}
     for _, arg in ipairs(msg) do table.insert(parts, arg) end
     return table.concat(parts, ' ')

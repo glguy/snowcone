@@ -13,12 +13,13 @@ local detail_text = V.detail_text
 T.case('the message detail shows its message in its buffer or the console', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local chat = T.require 'hub.features.chat'
     c:recv ':me!u@h JOIN #chan'
     c:recv '@msgid=target :alice!a@h PRIVMSG #chan :the target'
     for i = 1, 60 do c:recv(':bob!b@h PRIVMSG #chan :filler ' .. i) end
     c:recv ':carol!c@h PRIVMSG me :elsewhere'
-    control.set_talk_target('test', 'carol')
+    talk.set_target('test', 'carol')
     control.set_view 'channels'
     local msg = chat.find(chat.buffer('test', '#chan'), 'target')
     control.open_detail('message', 'test', msg)
@@ -38,7 +39,7 @@ T.case('the message detail shows its message in its buffer or the console', func
     local buffer_vs = control.view_state 'buffer'
     buffer_vs.filter = 'filler'
     click '→buffer'
-    T.eq({HUB.state.ui.view, control.talk_target 'test'}, {'buffer', '#chan'}, 'shows its buffer')
+    T.eq({HUB.state.ui.view, talk.target 'test'}, {'buffer', '#chan'}, 'shows its buffer')
     T.eq(buffer_vs.filter, nil, 'the filter is cleared')
     T.ok(buffer_vs.scroll > 0, 'scrolled')
     T.ok(buffer_vs.highlight == msg, 'highlighted')
@@ -110,17 +111,17 @@ T.case('the message detail reads OFTC hybrid replies and notices', function()
     end
     local rows, msg = summary ':srv 728 me victim :Is UnCaptured.'
     expect(rows, {'^   reply: RPL_ISUNCAPTURED %(728%) to me, at '})
-    T.eq(message.color('test', msg.command), nil, 'not an error')
+    T.eq(T.require 'hub.ui.command_color'('test', msg.command), nil, 'not an error')
 
     local _, snote = summary ':a.example NOTICE me :Client connecting: n (~u@h.example) [192.0.2.1] {users} [Real]'
-    local note = message.decode('test', snote)
+    local note = T.require 'hub.net.snote'.parse('test', snote)
     T.eq({note.name, note.nick, note.ip, note.server}, {'connect', 'n', '192.0.2.1', 'a.example'}, 'decoded')
-    T.eq(message.snotice_text('test', snote), 'Client connecting: n (~u@h.example) [192.0.2.1] {users} [Real]', 'no header')
+    T.eq(T.require 'hub.net.snote'.text('test', snote), 'Client connecting: n (~u@h.example) [192.0.2.1] {users} [Real]', 'no header')
 
     -- recorded as it arrived: still a notice after our nick changes
     c:recv ':me!u@h NICK newme'
-    T.eq(message.snotice_text('test', snote), 'Client connecting: n (~u@h.example) [192.0.2.1] {users} [Real]', 'kept')
-    T.eq(message.decode('test', snote).nick, 'n', 'still decoded')
+    T.eq(T.require 'hub.net.snote'.text('test', snote), 'Client connecting: n (~u@h.example) [192.0.2.1] {users} [Real]', 'kept')
+    T.eq(T.require 'hub.net.snote'.parse('test', snote).nick, 'n', 'still decoded')
     local _, later = summary ':a.example NOTICE me :Client connecting: x (~u@h.example) [192.0.2.1] {users} [X]'
     T.eq(later.snote, false, 'to the old nick: not ours')
 end)
@@ -131,9 +132,9 @@ T.case('the message detail decodes server notices', function()
     c:recv(line)
     local msg = T.require 'hub.lib.OrderedMap'.lookup(HUB.state.nets.test.console, true)
     local message = T.require 'hub.ui.details.message'
-    local note = message.decode('test', msg)
+    local note = T.require 'hub.net.snote'.parse('test', msg)
     T.eq({note.name, note.nick, note.ip, note.server}, {'connect', 'n', '192.0.2.1', 'gold.example'}, 'decoded')
-    T.eq(message.decode('test', snowcone.parse_irc ':srv 001 me :Welcome'), nil, 'not a notice')
+    T.eq(T.require 'hub.net.snote'.parse('test', snowcone.parse_irc ':srv 001 me :Welcome'), nil, 'not a notice')
 
     local control = T.require 'hub.ui.control'
     control.set_view 'console'
@@ -457,9 +458,10 @@ end)
 T.case('clicking a buffer sender inspects the message in place', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     c:recv ':me!u@h JOIN #chan'
     c:recv ':alice!a@h PRIVMSG #chan :hello'
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
     control.set_view 'buffer'
     HUB.current.routes['ui.draw']()
     local inspected = {}
@@ -691,8 +693,9 @@ end)
 T.case("a query's nick in the status bar opens its WHOIS", function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     c:take()
-    control.set_talk_target('test', 'alice')
+    talk.set_target('test', 'alice')
     control.set_view 'buffer'
     HUB.current.routes['ui.draw']()
     for x = 0, tty_width - 1 do
@@ -1284,6 +1287,7 @@ end)
 T.case('channel information: topic, modes, members and lists, live', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local cmdline = T.require 'hub.ui.cmdline'
     c:recv ':srv 005 me CHANMODES=eIbq,k,flj,mnst PREFIX=(ov)@+ :are supported'
     c:recv ':me!u@h JOIN #chan'
@@ -1291,7 +1295,7 @@ T.case('channel information: topic, modes, members and lists, live', function()
     c:recv ':srv 333 me #chan alice!a@h 1700000000'
     c:recv ':srv 353 me = #chan :@me +bob alice carol'
     c:take()
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
 
     cmdline.execute 'chaninfo'
     T.eq(c:take(), {'MODE #chan'}, 'asks for the modes it lacks')
@@ -1400,8 +1404,9 @@ T.case('a topic is not fetched, none, or set', function()
     local c = boot()
     local cmdline = T.require 'hub.ui.cmdline'
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     c:recv ':me!u@h JOIN #chan'
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
     cmdline.execute 'chaninfo'
     T.ok(detail_text():find('topic: not fetched [↻]', 1, true), 'before the join is done')
     c:recv ':srv 366 me #chan :End of /NAMES list.'
@@ -1438,13 +1443,14 @@ T.case('channel information for a channel we are not in is a snapshot', function
     local chat = T.require 'hub.features.chat'
     local cmdline = T.require 'hub.ui.cmdline'
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local irc_model = T.require 'hub.net.irc'
     local irc = HUB.state.nets.test.irc
     c:recv ':srv 005 me CHANMODES=eIbq,k,flj,mnst PREFIX=(ov)@+ :are supported'
     c:recv ':me!u@h JOIN #home'
     c:recv ':srv 366 me #home :End of /NAMES list.'
     c:take()
-    control.set_talk_target('test', '#home')
+    talk.set_target('test', '#home')
 
     -- replies for a channel nobody asked about aren't kept
     c:recv ':srv 324 me #other +nt'
@@ -1454,7 +1460,7 @@ T.case('channel information for a channel we are not in is a snapshot', function
     cmdline.execute 'chaninfo #Ext'
     T.eq(c:take(), {'MODE #Ext', 'TOPIC #Ext'}, 'asks for modes and topic')
     T.ok(chat.buffer('test', '#ext'), 'a buffer')
-    T.eq(control.talk_target('test'), '#home', 'focus stays')
+    T.eq(talk.target('test'), '#home', 'focus stays')
     T.eq(irc_model.get_channel(irc, '#ext'), nil, 'not joined')
     T.eq({control.detail().kind, control.detail().data.name}, {'channel', '#Ext'}, 'shown')
     local text = detail_text()

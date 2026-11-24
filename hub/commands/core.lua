@@ -139,12 +139,7 @@ M.commands = {
         scope = 'net',
         help = 'Connect the network, and keep it connected',
         fn = function(ctx)
-            local rec = HUB.state.nets[ctx.net]
-            if rec.phase == 'idle' then
-                manager.connect(ctx.net)
-            else
-                rec.target = 'connected'
-            end
+            manager.connect(ctx.net)
         end,
     },
     {

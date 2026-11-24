@@ -12,6 +12,7 @@ local pads      <const> = require 'hub.ui.pads'
 local spell     <const> = require 'hub.runtime.spell'
 local dispatch  <const> = require 'hub.runtime.dispatch'
 local log       <const> = require 'hub.runtime.log'
+local talk      <const> = require 'hub.ui.talk'
 local tty       <const> = require 'hub.runtime.tty'
 
 local ctrl <const>, meta <const> = keys.ctrl, keys.meta
@@ -48,8 +49,8 @@ local function talk_with(say)
     local ed = control.editor()
     local text = editor.content(ed)
     local net = control.current_net()
-    local target = net and control.talk_target(net)
-    local over = net and select(2, control.overflow(net, HUB.state.ui.input.mode, text))
+    local target = net and talk.target(net)
+    local over = net and select(2, talk.overflow(net, HUB.state.ui.input.mode, text))
     if over then
         log.add('error', 'not sent: the line is too long by %d %s', over, over == 1 and 'byte' or 'bytes')
         return
@@ -65,7 +66,7 @@ local function talk_with(say)
         return
     end
     ---@cast net -nil there is a target only with a network
-    local ok, err = pcall(say, net, (control.statusmsg(net) or '') .. target, text)
+    local ok, err = pcall(say, net, (talk.statusmsg(net) or '') .. target, text)
     if not ok then
         log.add('error', '%s', err)
     end
@@ -92,7 +93,7 @@ local function names_like(seed)
     for _, channel in pairs(irc.channels) do
         if starts(channel.name) then table.insert(t, channel.name) end
     end
-    local target = control.talk_target(net)
+    local target = talk.target(net)
     local channel = target and irc_model.is_channel_name(irc, target) and irc_model.get_channel(irc, target)
     if channel then
         for _, member in pairs(channel.members) do
@@ -120,7 +121,7 @@ local function name_cycle(t, dir)
     table.sort(t, function(a, b) return folded[a] < folded[b] end)
     local index = {}
     for i, name in ipairs(t) do index[folded[name]] = i end
-    local target = control.talk_target(net)
+    local target = talk.target(net)
     return target and chat.last_speaker(net, target, index) or cycle_end(t, dir), t
 end
 
@@ -142,9 +143,9 @@ end
 -- cursor, or else the last one before it, as the line underlines them
 local function do_spell(dir)
     local net = control.current_net()
-    if not (net and control.talk_modes[HUB.state.ui.input.mode]) then return end
+    if not (net and talk.modes[HUB.state.ui.input.mode]) then return end
     editor.replace_word(control.editor(), dir, function(line, at)
-        local w = spell.pick(line, at, control.names_here(net))
+        local w = spell.pick(line, at, talk.names_here(net))
         if not w then return end
         -- where the codes would go in a different word is a guess
         if line:sub(w.lo, w.hi) ~= w.word then
@@ -335,10 +336,10 @@ M.global = {
     [meta 'a'] = function()
         local net = control.current_net()
         if not (net and common.enabled(net, 'chat')) then return end
-        local current = control.talk_target(net)
+        local current = talk.target(net)
         local best = chat.next_buffer(net, current and chat.fold(net, current) or '', true)
         if best then
-            control.set_talk_target(net, best.name)
+            talk.set_target(net, best.name)
             control.set_view 'buffer'
         end
     end,
@@ -350,8 +351,8 @@ M.global = {
         local vs = control.view_state 'buffer'
         local previous = vs.previous and vs.previous[net]
         if HUB.state.ui.view == 'buffer' and previous then
-            control.set_talk_target(net, previous)
-        elseif control.talk_target(net) then
+            talk.set_target(net, previous)
+        elseif talk.target(net) then
             control.set_view 'buffer'
         end
     end,

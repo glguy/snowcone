@@ -4,13 +4,14 @@
 
 local control <const> = require 'hub.ui.control'
 local run     <const> = require 'hub.commands.run'
+local talk    <const> = require 'hub.ui.talk'
 local usage   <const> = require 'hub.lib.usage'
 
 local M = {}
 
 ---@param ctx hub.CommandContext
 local function context(ctx)
-    ctx.target = ctx.net and control.talk_target(ctx.net)
+    ctx.target = ctx.net and talk.target(ctx.net)
     ctx.filter = control.filter 'cliconn'
 end
 

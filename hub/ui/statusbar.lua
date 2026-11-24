@@ -10,6 +10,7 @@ local matching  <const> = require 'hub.lib.matching'
 local oper      <const> = require 'hub.features.oper'
 local scrub     <const> = require 'hub.lib.scrub'
 local spell     <const> = require 'hub.runtime.spell'
+local talk      <const> = require 'hub.ui.talk'
 local theme     <const> = require 'hub.ui.theme'
 
 local phase_palette <const> = {
@@ -208,7 +209,7 @@ end
 local function misspelled(net, ed)
     if not spell.available() then return nil end
     local typing = (ed.state == 'insert' or ed.state == 'erase') and #ed.before_cursor + 1 or nil
-    return spell.misspelled_ranges(ed.before_cursor .. ed.at_cursor, control.names_here(net), typing)
+    return spell.misspelled_ranges(ed.before_cursor .. ed.at_cursor, talk.names_here(net), typing)
 end
 
 -- The bar between a command's arguments
@@ -261,7 +262,7 @@ local function draw_command(win, ed, color)
             local inside = cursor >= s.lo - 1 and cursor <= s.hi
             local typing = (ed.state == 'insert' or ed.state == 'erase') and cursor + 2 - s.lo or nil
             local bad = look.net and spell.available()
-                and spell.misspelled_ranges(sub, control.names_here(look.net), typing) or nil
+                and spell.misspelled_ranges(sub, talk.names_here(look.net), typing) or nil
             local x = addircstr(win, sub, {mark = inside and cursor - s.lo + 1 or -1, color = color, bad = bad})
             if inside then cursor_x = cursor_x or x end
         elseif s.role == 'sep' then
@@ -317,11 +318,11 @@ function M.draw(win, textbox, layout, view, ctx)
         -- shows by how much, for when its cut is scrolled out of the
         -- input line
         ncurses.colorset(ncurses.COLOR_WHITE, input_mode_color, win)
-        local net = control.talk_modes[mode] and control.current_net()
-        local prefix = net and control.statusmsg(net)
+        local net = talk.modes[mode] and control.current_net()
+        local prefix = net and talk.statusmsg(net)
         local cut, over
         if net then
-            cut, over = control.overflow(net, mode, ed.before_cursor .. ed.at_cursor)
+            cut, over = talk.overflow(net, mode, ed.before_cursor .. ed.at_cursor)
         end
         win:waddstr(' ', mode, ' ', prefix and prefix .. ' ' or '', over and '-' .. over .. ' ' or '')
         transition(win, input_mode_color, nil)

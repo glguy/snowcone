@@ -386,11 +386,13 @@ local function connect_body(t, attempt)
     registration(t)
 end
 
---- Start connecting an idle network.
+--- Connect a network and keep it connected: an idle one starts now, and
+--- one on its way down comes back.
 function M.connect(id)
     local rec = get(id)
     if rec.phase ~= 'idle' then
-        error('network ' .. id .. ' is already ' .. rec.phase, 2)
+        rec.target = 'connected'
+        return
     end
     cancel_timer(rec, 'reconnect_timer')
     rec.target = 'connected'

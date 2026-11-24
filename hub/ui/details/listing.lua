@@ -5,7 +5,7 @@
 -- as a /quote's table view does (ui/details/reply.lua).
 --
 -- A table's columns are the reply's fields as the network names them
--- (ui/details/solanum.lua or hybrid.lua), its values read for what they
+-- (net/replies/solanum.lua or hybrid.lua), its values read for what they
 -- mean: times as dates, seconds and minutes as durations, ban types by
 -- name, a reason apart from its oper reason, an address the server won't
 -- give as "-". Auth blocks (STATS I) have their flags read out, and links
@@ -20,10 +20,10 @@
 
 local control <const> = require 'hub.ui.control'
 local draw    <const> = require 'hub.ui.draw'
-local message <const> = require 'hub.ui.details.message'
+local ircd    <const> = require 'hub.net.ircd'
 local N       <const> = require 'hub.lib.numerics'
+local replies <const> = require 'hub.net.replies'
 local scrub   <const> = require 'hub.lib.scrub'
-local solanum <const> = require 'hub.ui.details.solanum'
 local tables  <const> = require 'hub.ui.table'
 
 local M = {kind = 'listing', filter = true, wide = true}
@@ -58,7 +58,7 @@ local function cell_of(meant, kind, value)
     if kind == 'secs' and n then return draw.duration(n) end
     if kind == 'mins' and n then return n == 0 and 'permanent' or draw.duration(n * 60) end
     if kind == 'line' then return meant.line_types[value] or value end
-    if kind == 'addr' then return solanum.address(value) end
+    if kind == 'addr' then return replies.address(value) end
     return value
 end
 
@@ -207,7 +207,7 @@ local version <const> = {}
 local function sections_of(net, holder, messages, relabel)
     local view = holder.view
     if view and view.version == version and view.messages == messages then return view.sections end
-    local meant = message.meaning(net)
+    local meant = replies.of(net)
     local sections, by_command = {}, {}
     for _, msg in ipairs(messages) do
         local n = msg.command
@@ -222,7 +222,7 @@ local function sections_of(net, holder, messages, relabel)
             else
                 columns, convert = plain(type(n) == 'number' and 2 or 1)
             end
-            section = {command = n, name = message.numeric_name(net, n), columns = columns,
+            section = {command = n, name = ircd.numeric_name(net, n), columns = columns,
                 convert = convert, rows = {}}
             by_command[n] = section
             table.insert(sections, section)
@@ -239,7 +239,7 @@ end
 -- command refused), and its text
 local function draw_error(ctx, win, msg)
     draw.red(win)
-    local name = message.numeric_name(ctx.net, msg.command)
+    local name = ircd.numeric_name(ctx.net, msg.command)
     win:waddstr(scrub(name or tostring(msg.command)), ':')
     for i = 2, #msg - 1 do win:waddstr(' ', scrub(msg[i])) end
     if #msg > 1 then win:waddstr(' ', scrub(msg[#msg])) end

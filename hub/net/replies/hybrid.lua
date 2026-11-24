@@ -1,10 +1,10 @@
 -- What OFTC hybrid's numeric replies mean, for their summaries in the
 -- message detail (ui/details/message.lua). Most have Solanum's arguments
--- (ui/details/solanum.lua, which documents the field kinds); these are
+-- (net/replies/solanum.lua, which documents the field kinds); these are
 -- where hybrid's numbers or arguments differ.
 
 local NH      <const> = require 'hub.lib.numerics_hybrid'
-local solanum <const> = require 'hub.ui.details.solanum'
+local solanum <const> = require 'hub.net.replies.solanum'
 local tablex  <const> = require 'pl.tablex'
 
 local M = {}

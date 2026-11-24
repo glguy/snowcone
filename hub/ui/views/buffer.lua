@@ -41,6 +41,7 @@ local irc_model  <const> = require 'hub.net.irc'
 local log        <const> = require 'hub.runtime.log'
 local matching   <const> = require 'hub.lib.matching'
 local message_text <const> = require 'hub.lib.message_text'
+local talk             <const> = require 'hub.ui.talk'
 local ui_keys    <const> = require 'hub.ui.keys'
 local N          <const> = require 'hub.lib.numerics'
 local queries    <const> = require 'hub.features.queries'
@@ -269,7 +270,7 @@ local function step_buffer(ctx, forward)
     local net = ctx.net
     local names = sorted_names(net)
     if #names == 0 then return end
-    local current = control.talk_target(net)
+    local current = talk.target(net)
     local key = current and chat.fold(net, current)
     local index
     for i, entry in ipairs(names) do
@@ -280,12 +281,12 @@ local function step_buffer(ctx, forward)
     else
         index = 1
     end
-    control.set_talk_target(net, names[index][2])
+    talk.set_target(net, names[index][2])
 end
 
 local function current_buffer(ctx)
     if not (ctx.net and common.enabled(ctx.net, 'chat')) then return nil end
-    local target = control.talk_target(ctx.net)
+    local target = talk.target(ctx.net)
     return target and chat.buffer(ctx.net, target), target
 end
 
@@ -318,7 +319,7 @@ local keys = {
     [meta_ctrl 'k'] = function(ctx)
         -- a line being typed stays with the buffer it was meant for
         if HUB.state.ui.input.mode then return end
-        local target = control.talk_target(ctx.net)
+        local target = talk.target(ctx.net)
         if target then chat.close(ctx.net, target) end
     end,
 }
@@ -327,15 +328,15 @@ local keys = {
 local function toggle_statusmsg(ctx, prefix)
     local net = ctx.net
     local irc = HUB.state.nets[net].irc
-    local target = control.talk_target(net)
+    local target = talk.target(net)
     if not (irc and target and irc_model.is_channel_name(irc, target)) then
         log.add('error', 'only a channel takes %s', prefix)
     elseif not irc.statusmsg:find(prefix, 1, true) then
         log.add('error', '%s does not take %s (STATUSMSG)', net, prefix)
-    elseif control.statusmsg(net) == prefix then
-        control.set_statusmsg(net, nil)
+    elseif talk.statusmsg(net) == prefix then
+        talk.set_statusmsg(net, nil)
     else
-        control.set_statusmsg(net, prefix)
+        talk.set_statusmsg(net, prefix)
     end
 end
 
@@ -359,9 +360,9 @@ return {
             return
         end
         -- with none chosen, show the one Meta-A would, else the first
-        if not control.talk_target(ctx.net) then
+        if not talk.target(ctx.net) then
             local best = chat.next_buffer(ctx.net, '')
-            if best then control.set_talk_target(ctx.net, best.name) end
+            if best then talk.set_target(ctx.net, best.name) end
         end
         local buffer, target = current_buffer(ctx)
         if not buffer then
@@ -406,7 +407,7 @@ return {
     reset = function(vs)
         vs.highlight = nil
         local net = control.current_net()
-        if net then control.set_statusmsg(net, nil) end
+        if net then talk.set_statusmsg(net, nil) end
     end,
 
     modes = function(ctx)
@@ -415,7 +416,7 @@ return {
     end,
 
     terminal_title = function(ctx)
-        return ctx.net and control.talk_target(ctx.net)
+        return ctx.net and talk.target(ctx.net)
     end,
 
     keypress = function(ctx, key)
@@ -436,11 +437,11 @@ return {
         if not (net and common.enabled(net, 'chat')) then return end
         local rec = HUB.state.nets[net]
         local irc = rec.irc
-        local target = control.talk_target(net)
+        local target = talk.target(net)
 
         if target then
             ctx.fragment(win)
-            local prefix = control.statusmsg(net)
+            local prefix = talk.statusmsg(net)
             if prefix then
                 draw.red(win)
                 win:waddstr(prefix)
@@ -514,7 +515,7 @@ return {
             win:waddstr(scrub(name))
             local _, x2 = ncurses.getyx(win)
             ctx.add_click(tty_height - 1, x1, x2, function()
-                control.set_talk_target(net, name)
+                talk.set_target(net, name)
             end)
         end
         if #active > active_shown then
@@ -533,18 +534,18 @@ return {
     subscribe = function(sub)
         sub.on('chat.focus', function(ev)
             control.set_current_net(ev.net)
-            control.set_talk_target(ev.net, ev.target)
+            talk.set_target(ev.net, ev.target)
             control.set_view 'buffer'
         end)
         -- a private buffer renamed with its nick stays shown
         sub.on('chat.rename', function(ev)
-            control.rename_target(ev.net, ev.from, ev.to)
+            talk.rename(ev.net, ev.from, ev.to)
         end)
         -- a forwarded JOIN takes the buffer we were joining to where we went
         sub.on('chat.forward', function(ev)
-            local current = control.talk_target(ev.net)
+            local current = talk.target(ev.net)
             if current and chat.fold(ev.net, current) == chat.fold(ev.net, ev.from) then
-                control.set_talk_target(ev.net, ev.to)
+                talk.set_target(ev.net, ev.to)
             end
         end)
         -- closing the shown buffer moves to one with a mention, else back
@@ -562,15 +563,15 @@ return {
                 vs.previous[net] = nil
             end
             -- reopened, it sends to the whole channel
-            control.set_statusmsg(net, nil, ev.target)
-            local current = control.talk_target(net)
+            talk.set_statusmsg(net, nil, ev.target)
+            local current = talk.target(net)
             if current and chat.fold(net, current) == key then
                 local best = chat.next_buffer(net, key, true)
                 if not (best and best.mention) then
                     best = previous and chat.buffer(net, previous)
                         or best or chat.next_buffer(net, key)
                 end
-                control.set_talk_target(net, best and best.name)
+                talk.set_target(net, best and best.name)
                 if best and previous and chat.fold(net, previous) == chat.fold(net, best.name) then
                     previous = nil
                 end

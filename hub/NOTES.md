@@ -15,9 +15,9 @@ what someone might otherwise undo, not the history of what changed.
 - **Globals fail at load time.** Each generation's environment reads
   through to `_G` and raises on assignment, so an accidental global is
   caught without luacheck.
-- **`ui/control.lua`** holds view selection, input mode and talk targets
-  so key handlers, the command line and the renderer share them without a
-  require cycle.
+- **`ui/control.lua`** holds view selection and input mode, and
+  `ui/talk.lua` the shown buffers, so key handlers, the command line and
+  the renderer share them without a require cycle.
 - **No state versions or migrations.** `init_state` only adds, and that
   has been enough. A change that must reshape existing state needs a
   decision first.

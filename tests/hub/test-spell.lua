@@ -69,7 +69,7 @@ end
 
 local function words_of(text)
     local t = {}
-    for _, w in ipairs(T.require 'hub.runtime.spell'.words(text)) do
+    for _, w in ipairs(T.require 'hub.lib.words'(text)) do
         table.insert(t, w.word)
         T.eq(text:sub(w.lo, w.hi), w.word, 'range of ' .. w.word)
     end
@@ -99,7 +99,7 @@ T.case('color parameters are read as the input line draws them', function()
     local strip = T.require 'hub.lib.strip_formatting'
     for _, text in ipairs {'\x04Becoming', '\x0312,3abc\x04abcdefdef', '\x03,abc'} do
         local shown = strip(text)
-        for _, w in ipairs(T.require 'hub.runtime.spell'.words(text)) do
+        for _, w in ipairs(T.require 'hub.lib.words'(text)) do
             T.ok(shown:find(w.word, 1, true), w.word .. ' is shown in ' .. shown)
             T.ok(not w.word:find '%c', w.word .. ' has no controls')
         end
@@ -343,7 +343,7 @@ T.case('formatting inside a word leaves it one word', function()
     local spell = T.require 'hub.runtime.spell'
     local function check(text, words, ranges, what)
         local got = {}
-        for _, w in ipairs(spell.words(text)) do table.insert(got, w.word) end
+        for _, w in ipairs(T.require 'hub.lib.words'(text)) do table.insert(got, w.word) end
         T.eq(got, words, what)
         local bad = {}
         for _, r in ipairs(spell.misspelled_ranges(text)) do table.insert(bad, text:sub(r.lo, r.hi)) end
@@ -412,7 +412,7 @@ T.case('/spell says why it can\'t check', function()
     T.command 'spell_add café'
     local errors = T.log_lines 'error'
     T.eq(errors[#errors], "spell_add: café can't be checked with this dictionary", 'nor added')
-    T.eq(spell.misspelled 'the café teh', {spell.words 'the café teh'[3]}, 'only ASCII words judged')
+    T.eq(spell.misspelled 'the café teh', {T.require 'hub.lib.words' 'the café teh'[3]}, 'only ASCII words judged')
     for _, ext in ipairs {'', '.aff', '.dic'} do os.remove(base .. ext) end
 end)
 

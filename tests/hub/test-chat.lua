@@ -1523,6 +1523,7 @@ end)
 T.case('topic sets and clears, and Tab offers the current one to edit', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     control.init_state(HUB.state)
     local cmdline = T.require 'hub.ui.cmdline'
     local editor = T.require 'hub.ui.editor'
@@ -1531,7 +1532,7 @@ T.case('topic sets and clears, and Tab offers the current one to edit', function
     c:recv ':srv 332 me #chan :old topic'
     c:recv ':srv 353 me = #chan :@me bob'
     c:take()
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
 
     cmdline.execute 'topic new topic'
     T.eq(c:take(), {'TOPIC #chan :new topic'}, 'set')
@@ -1638,13 +1639,14 @@ end)
 T.case('Tab after unban offers the ban list, fetching it first', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     control.init_state(HUB.state)
     local editor = T.require 'hub.ui.editor'
     local keymap = T.require 'hub.ui.keymap'
     c:recv ':me!u@h JOIN #chan'
     c:recv ':srv 353 me = #chan :@me bob'
     c:take()
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
 
     local input = HUB.state.ui.input
     input.mode = 'command'
@@ -1682,11 +1684,12 @@ end)
 -- Tab and Shift-Tab on a line in talk mode, on the shown buffer #chan
 local function talk_tab()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     control.init_state(HUB.state)
     local editor = T.require 'hub.ui.editor'
     local keymap = T.require 'hub.ui.keymap'
     local keys = T.require 'hub.ui.keys'
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
     local input = HUB.state.ui.input
     input.mode = 'talk'
     local function press(key)

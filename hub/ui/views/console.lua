@@ -8,13 +8,14 @@
 -- to scroll to on the next frame; ui/details/message.lua's [console]).
 
 local addircstr     <const> = require 'hub.ui.irc_formatting'
+local command_color <const> = require 'hub.ui.command_color'
 local control       <const> = require 'hub.ui.control'
 local draw          <const> = require 'hub.ui.draw'
 local matching      <const> = require 'hub.lib.matching'
-local message       <const> = require 'hub.ui.details.message'
 local meta          <const> = require 'hub.ui.keys'.meta
 local OrderedMap    <const> = require 'hub.lib.OrderedMap'
 local scrub         <const> = require 'hub.lib.scrub'
+local snote         <const> = require 'hub.net.snote'
 
 -- The source column, a button that inspects the message; blank, but
 -- still a button, for a message without a source
@@ -48,7 +49,7 @@ local function render_msg(ctx, win, net, msg)
 
     source_button(ctx, win, msg, inspect, plain)
 
-    local snote_text = message.snotice_text(net, msg)
+    local snote_text = snote.text(net, msg)
     if snote_text ~= nil then
         draw.magenta(win)
         draw.bold(win)
@@ -61,7 +62,7 @@ local function render_msg(ctx, win, net, msg)
         return
     end
 
-    local color = message.color(net, msg.command)
+    local color = command_color(net, msg.command)
     if color then color(win) end
     draw.bold(win)
     win:waddstr(string.format('%4.4s', msg.command))
@@ -90,7 +91,7 @@ local squelch_commands <const> = {
 -- server sends them (OFTC hybrid's go to our nick)
 local function snow(net, msg)
     return msg.command == 'NOTICE' and msg[1] == '*'
-        or message.snotice_text(net, msg) ~= nil
+        or snote.text(net, msg) ~= nil
         or squelch_commands[msg.command] ~= nil
 end
 

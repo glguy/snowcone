@@ -66,12 +66,13 @@ These hold everywhere. A change that breaks one needs a decision recorded in
 - `lib` requires nothing else from hub and doesn't touch `HUB`.
 - Only `ui` touches `ncurses`. Only `net` calls `snowcone.connect`. Only
   `runtime` calls `newtimer`, `dnslookup`, `execute`, `setmodule`,
-  `catch_signals`, `stop_input`, `start_input`, `set_title` and
-  `write_private`; other
+  `catch_signals`, `stop_input`, `start_input`, `set_title`,
+  `write_private` and `myhunspell.open`; other
   layers use its wrappers, so every handle is tracked.
 - A lower layer reaches upward only through a route name
   (`dispatch.route 'app.quit'`) or an event.
-- A layer's part of `HUB.state` is its own: only `ui` reads `state.ui`.
+- A layer's part of `HUB.state` is its own to change; higher layers read
+  it, such as `state.nets`. `state.ui` is `ui`'s alone.
   What a lower layer needs from the UI arrives as an argument, such as a
   command's `ctx`, or lives in the lower layer, such as terminal focus in
   `runtime/tty.lua`.
@@ -81,7 +82,8 @@ These hold everywhere. A change that breaks one needs a decision recorded in
   feature may use is `features/queries/`, which uses no feature, and the
   helpers at `features/*.lua`.
 - `ui` has tiers, each requiring only its own or lower: drawing primitives,
-  the theme and the editor; `control` (view selection, input modes, talk targets);
+  the theme, tables and the editor; `control` (view selection, input modes) and
+  `talk` (the shown buffers);
   views, detail kinds, the status bar and the command line; the key map;
   `ui/init.lua`.
 
@@ -110,7 +112,7 @@ A module may export:
 | `init_state(S)` | Create its part of `HUB.state` if missing. Runs on every load, so it is idempotent and only adds. |
 | `routes` | `[name] = function`, targets for trampolines and late calls. |
 | `subscribe(sub)` | `sub.on(topic, fn)` on the generation's bus. |
-| `commands` | `{name, spec, usage, fn, help, scope, feature, group, complete}` entries: `spec` is for the parser, `usage` (`nick [count]`) for people; `fn(ctx, ...)` gets a `hub.CommandContext`, `net` plus what whoever ran the line adds (from the UI: `target`, the shown buffer, and `filter`, the cliconn view's); `group` (default: the feature) places it in `/help`; `complete(ctx, before, seed)`, optional, gives Tab's candidates for an argument, or nil for channels and nicks. `commands/run.lua` runs a line for a given origin, so commands run headless. |
+| `commands` | `{name, spec, usage, fn, help, scope, feature, group, complete, shape, exists}` entries: `spec` is for the parser, `usage` (`nick [count]`) for people; `fn(ctx, ...)` gets a `hub.CommandContext`, `net` plus what whoever ran the line adds (from the UI: `target`, the shown buffer, and `filter`, the cliconn view's); `group` (default: the feature) places it in `/help`; `complete(ctx, before, seed)`, optional, gives Tab's candidates for an argument, or nil for channels and nicks; `shape(ctx, rest, slot, before)`, optional, gives the words and placeholders of a spec's rest of the line as the input line shows them; `exists(ctx, i, word)`, optional, says whether a word names something there is. `commands/run.lua` runs a line for a given origin, so commands run headless. |
 | `views` | View records (section 7). |
 | `check_config(cfg)` | Check and complete its part of a loaded configuration, before anything changes; raising fails the load. For what only the module knows, such as chat's hide rules; the schema has the rest. |
 | `activate(first)` | Runs once the generation is current. |
@@ -125,6 +127,7 @@ Duplicate routes, commands or views fail the build.
 | `resources` | yes | Native handles by id: `{kind, owner, handle, finalizer}`. |
 | `tasks` | yes | Live tasks by id. |
 | `current` | replaced | The generation: routes, bus, commands, views, config, module cache. |
+| `config_file` | yes | The configuration file last given to `/reload`. |
 | `boot` | yes | First-load options (ui, tick, strict, test transport...). |
 | `generation` | yes | Count of successful loads. |
 | `last_reload` | yes | Time and result of the last load, for `/client`. |
@@ -140,7 +143,8 @@ Duplicate routes, commands or views fail the build.
 
 `HUB.state` holds `config` (the active configuration), `nets` (section 4),
 `features[name][net]` (per-network feature state), `ui` (view states, input,
-current network), `log`, `console_all` and `clock`.
+current network), `log`, `log_last` (the last log line, until dismissed),
+`console_all`, `spell` (the open dictionary) and `clock`.
 
 ### Routes, dispatch and drawing
 
@@ -320,14 +324,14 @@ save a check.
 | snotice | From server notices, keeps recent connections, exits, bans, new channels, per-second load trackers, address-range counts and watches; emits `snote` and `snote.<name>`. |
 | topology | Populations from MAP, links and upstream from LINKS, versions, uptimes, user shedding, DNS rotations. Asks for MAP and LINKS at registration, on becoming an operator and on netsplits and netjoins. |
 | oper | Libera ban masks; staging a K-Line, unkline or undline with a TESTMASK count; sending it only on confirmation; operator commands. |
-| chat | Buffers per network and target, routing (WALLOPS and broadcasts to the sender's buffer; our own lines never mentions or unseen), mentions, chat history, MONITOR for private buffers, paced CTCP replies, `/list`, quiets, bans and kicks with Libera channel ban masks. |
+| chat | Buffers per network and target, routing (WALLOPS and broadcasts to the sender's buffer; our own lines never mentions or unseen), mentions, hide rules, typing notices, chat history, MONITOR for private buffers, paced CTCP replies, `/list`, quiets, bans and kicks with Libera channel ban masks. |
 | queries | WHO, WHOIS, WHOWAS, STATS, TRACE, ETRACE and MASKTRACE on every network, each shown in the detail pane; and the lookups features make for themselves: a user for a ban, TESTMASK counts, the organization of an address (always loaded; not per network). |
 | notify | Desktop or terminal notifications of mentions while the terminal is unfocused (always loaded; not per network). |
 | plugins | Not a feature but the plugin host, at this layer so that plugins see what features see: loads plugins into each generation (section 6). Always loaded. |
 
 Features send only queries on their own (MAP, LINKS, TESTMASK, CHATHISTORY,
-MONITOR, WHO, WHOIS, WHOWAS, CTCP replies). Anything with an effect — bans, joins,
-messages — goes out only from a user action.
+MONITOR, WHO, WHOIS, WHOWAS, CTCP replies) and typing notices. Anything
+with an effect — bans, joins, messages — goes out only from a user action.
 
 ## 6. Plugins
 

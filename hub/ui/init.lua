@@ -13,6 +13,7 @@ local editor    <const> = require 'hub.ui.editor'
 local keymap    <const> = require 'hub.ui.keymap'
 local pads      <const> = require 'hub.ui.pads'
 local statusbar <const> = require 'hub.ui.statusbar'
+local talk      <const> = require 'hub.ui.talk'
 local termtitle <const> = require 'hub.ui.termtitle'
 local dispatch  <const> = require 'hub.runtime.dispatch'
 local log       <const> = require 'hub.runtime.log'
@@ -202,8 +203,8 @@ local function compose()
     local input = HUB.state.ui.input
     local ed = input.editor
     local net = typing_modes[input.mode] and control.current_net() or nil
-    if net and control.statusmsg(net) then net = nil end
-    local target = net and control.talk_target(net)
+    if net and talk.statusmsg(net) then net = nil end
+    local target = net and talk.target(net)
     chat.compose(net, target, target and editor.typed(ed) and editor.content(ed) or '')
 end
 

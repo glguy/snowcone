@@ -14,73 +14,21 @@
 
 local addircstr   <const> = require 'hub.ui.irc_formatting'
 local chat        <const> = require 'hub.features.chat'
+local command_color <const> = require 'hub.ui.command_color'
 local control     <const> = require 'hub.ui.control'
 local draw        <const> = require 'hub.ui.draw'
-local hybrid      <const> = require 'hub.ui.details.hybrid'
 local irc_model   <const> = require 'hub.net.irc'
 local ircd        <const> = require 'hub.net.ircd'
 local numerics    <const> = require 'hub.lib.numerics'
 local OrderedMap  <const> = require 'hub.lib.OrderedMap'
+local replies     <const> = require 'hub.net.replies'
 local scrub       <const> = require 'hub.lib.scrub'
 local snote       <const> = require 'hub.net.snote'
-local solanum     <const> = require 'hub.ui.details.solanum'
+local solanum     <const> = require 'hub.net.replies.solanum'
 local tablex      <const> = require 'pl.tablex'
+local talk        <const> = require 'hub.ui.talk'
 
 local M = {kind = 'message'}
-
---- Colors of commands; errors are red.
-M.palette = {
-    PRIVMSG = draw.blue,
-    NOTICE = draw.cyan,
-    JOIN = draw.green,
-    PART = draw.yellow,
-    QUIT = draw.magenta,
-}
-
---- The name of a numeric on a network, or nil.
----@param net string|nil
----@param command string|integer
----@return string|nil
-function M.numeric_name(net, command)
-    return ircd.numeric_names(net)[command]
-end
-
---- The color of a command on a network, or nil.
----@param net string|nil
----@param command string|integer
-function M.color(net, command)
-    local name = M.numeric_name(net, command)
-    if name and name:sub(1, 4) == 'ERR_' then return draw.red end
-    return M.palette[command]
-end
-
--- What a network's replies mean: ui/details/solanum.lua or hybrid.lua
-local meanings <const> = {
-    [ircd.SOLANUM] = solanum,
-    [ircd.HYBRID] = hybrid,
-}
-
-local function meaning(net)
-    return meanings[ircd.of(net)]
-end
-
---- What a network's replies mean (ui/details/solanum.lua or hybrid.lua).
-M.meaning = meaning
-
---- The body of a server notice on a network, without its header, or nil.
----@param net string|nil
----@param msg hub.Message
-function M.snotice_text(net, msg)
-    return snote.text(net, msg)
-end
-
---- The parsed form of a server notice on a network (without the time,
---- which the message shows), or nil for any other message.
----@param net string|nil
----@param msg hub.Message
-function M.decode(net, msg)
-    return snote.parse(net, msg)
-end
 
 local escapes <const> = {
     ['"'] = '\\"',
@@ -103,7 +51,7 @@ end
 
 function M.title(detail)
     local msg = detail.data
-    local name = M.numeric_name(detail.net, msg.command)
+    local name = ircd.numeric_name(detail.net, msg.command)
     return string.format('message %s%s', scrub(tostring(msg.command)), name and ' ' .. name or '')
 end
 
@@ -476,7 +424,7 @@ end
 -- A server notice: what the parser made of it
 local function snotice_summary(ctx, win, msg)
     line(ctx, win, 'sent', stamped({{'server notice'}}, msg))
-    local note = M.decode(ctx.net, msg)
+    local note = snote.parse(ctx.net, msg)
     line(ctx, win, 'name', {{note and note.name or '?', draw.magenta}})
     for k, v in tablex.sort(note or {}) do
         if k ~= 'name' then line(ctx, win, k, {{scrub(tostring(v))}}) end
@@ -486,7 +434,7 @@ end
 -- The first line of a numeric's summary: its name and number, whom it
 -- is to and when; red for an error
 local function reply_header(ctx, win, msg)
-    local name = M.numeric_name(ctx.net, msg.command)
+    local name = ircd.numeric_name(ctx.net, msg.command)
     local failed = name and name:sub(1, 4) == 'ERR_'
     local reply = (name or 'numeric') .. string.format(' (%03d)', msg.command)
     if msg[1] then reply = reply .. ' to ' .. scrub(msg[1]) end
@@ -501,7 +449,7 @@ local function error_summary(ctx, win, msg)
     if #msg > 1 then formatted(ctx, win, 'text', msg[#msg]) end
 end
 
--- A reply's argument, by the kind its field gives it (ui/details/solanum.lua)
+-- A reply's argument, by the kind its field gives it (net/replies/solanum.lua)
 local function reply_field(ctx, win, label, kind, value)
     local n = tonumber(value)
     if kind == 'text' then
@@ -513,25 +461,25 @@ local function reply_field(ctx, win, label, kind, value)
     elseif kind == 'mins' and n then
         line(ctx, win, label, {n == 0 and {'permanent'} or {draw.duration(n * 60) .. ' left'}})
     elseif kind == 'line' then
-        local name = meaning(ctx.net).line_types[value]
+        local name = replies.of(ctx.net).line_types[value]
         line(ctx, win, label, {{name or scrub(value), draw.bold}})
     elseif kind == 'reasons' then
         local public, private = value:match '^(.-)%s*|%s*(.*)$'
         formatted(ctx, win, label, public or value)
         if private and private ~= '' then formatted(ctx, win, 'oper why', private) end
     elseif kind == 'addr' then
-        local addr = solanum.address(value)
+        local addr = replies.address(value)
         line(ctx, win, label, {{addr and scrub(addr) or '(hidden)'}})
     else
         line(ctx, win, label, {{scrub(value)}})
     end
 end
 
--- A reply with fields (ui/details/solanum.lua): each argument after the
+-- A reply with fields (net/replies/solanum.lua): each argument after the
 -- target under its label, and any the fields don't name after them
 local function reply_summary(ctx, win, msg)
     reply_header(ctx, win, msg)
-    local fields = meaning(ctx.net).fields[msg.command]
+    local fields = replies.of(ctx.net).fields[msg.command]
     local i = 2
     for k, field_spec in ipairs(fields) do
         local label, kind = field_spec:match '^(.-):(%a+)$'
@@ -557,7 +505,7 @@ end
 -- <sigils><user>@<host> <port> <class> :<description>
 summaries[numerics.RPL_STATSILINE] = function(ctx, win, msg)
     local name, password, mask, port, class = msg[3], msg[4], msg[5] or '', msg[6], msg[7]
-    local meant = meaning(ctx.net)
+    local meant = replies.of(ctx.net)
 
     -- the flags are the sigils before the user, which the network's
     -- auth_flags name
@@ -589,10 +537,10 @@ end
 
 -- The summary of a message, or nil
 local function summary_of(net, msg)
-    if M.snotice_text(net, msg) then return snotice_summary end
+    if snote.text(net, msg) then return snotice_summary end
     if summaries[msg.command] then return summaries[msg.command] end
-    if meaning(net).fields[msg.command] then return reply_summary end
-    local name = M.numeric_name(net, msg.command)
+    if replies.of(net).fields[msg.command] then return reply_summary end
+    local name = ircd.numeric_name(net, msg.command)
     if name and name:sub(1, 4) == 'ERR_' then return error_summary end
 end
 
@@ -631,13 +579,13 @@ local function message_level(net, win, msg, show_raw)
     end
 
     field(win, 'command')
-    local cmd_color = M.color(net, msg.command)
+    local cmd_color = command_color(net, msg.command)
     if cmd_color then cmd_color(win) end
     draw.bold(win)
     win:waddstr(scrub(tostring(msg.command)))
     draw.bold_(win)
     if not show_raw then
-        local name = M.numeric_name(net, msg.command)
+        local name = ircd.numeric_name(net, msg.command)
         if name then
             win:waddstr(' - ', name)
         end
@@ -688,12 +636,12 @@ function M.render(ctx, win)
 
     -- the jumps, which leave the levels as they are
     local net = ctx.net
-    local buffer = net and chat.holder(net, msg, control.talk_target(net))
+    local buffer = net and chat.holder(net, msg, talk.target(net))
     if buffer then
         local name = buffer.name
         ctx.add_button(win, '→buffer', function()
             control.set_current_net(net)
-            control.set_talk_target(net, name)
+            talk.set_target(net, name)
             control.set_view 'buffer'
             control.view_state 'buffer'.reveal = msg
         end, true)

@@ -35,7 +35,8 @@ T.case('every view draws after real traffic', function()
     HUB.current.routes['app.tick']()
 
     local control = T.require 'hub.ui.control'
-    control.set_talk_target('test', '#chan')
+    local talk = T.require 'hub.ui.talk'
+    talk.set_target('test', '#chan')
     local ids = {}
     for id in pairs(HUB.current.views) do table.insert(ids, id) end
     table.sort(ids)
@@ -211,6 +212,7 @@ T.case('closing the shown buffer moves to a mention, back, activity, then the ne
     local c = boot()
     local chat = T.require 'hub.features.chat'
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local cmdline = T.require 'hub.ui.cmdline'
     for _, chan in ipairs {'#a', '#b', '#c', '#d'} do
         c:recv(':me!u@h JOIN ' .. chan)
@@ -218,7 +220,7 @@ T.case('closing the shown buffer moves to a mention, back, activity, then the ne
     for _, chan in ipairs {'#a', '#b', '#c', '#d'} do
         chat.look(chat.buffer('test', chan))
     end
-    local function shown() return control.talk_target 'test' end
+    local function shown() return talk.target 'test' end
     local function close() cmdline.execute 'close' end
 
     cmdline.execute 'talk #b'
@@ -253,6 +255,7 @@ end)
 T.case('closing a query visited with Meta-A goes back to the channel', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local cmdline = T.require 'hub.ui.cmdline'
     c:recv ':me!u@h JOIN #chan'
     c:recv ':me!u@h JOIN #busy'
@@ -261,12 +264,12 @@ T.case('closing a query visited with Meta-A goes back to the channel', function(
 
     c:recv ':bob!b@h PRIVMSG me :got a minute?'
     key(-string.byte 'a')
-    T.eq(control.talk_target 'test', 'bob', 'to the query')
+    T.eq(talk.target 'test', 'bob', 'to the query')
     HUB.current.routes['ui.draw']()
     c:recv ':alice!a@h PRIVMSG #busy :chatter'
     c:recv ':alice!a@h PRIVMSG #chan :chatter'
     cmdline.execute 'close'
-    T.eq(control.talk_target 'test', '#chan', 'back where I was')
+    T.eq(talk.target 'test', '#chan', 'back where I was')
 end)
 
 T.case('views follow their events once, after a reload too', function()
@@ -274,6 +277,7 @@ T.case('views follow their events once, after a reload too', function()
     T.ok(T.reload(), 'reloaded')
     local bus = T.require 'hub.runtime.bus'
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local cmdline = T.require 'hub.ui.cmdline'
     for _, topic in ipairs {'chat.focus', 'chat.buffer', 'chat.show_list'} do
         local n = 0
@@ -287,20 +291,21 @@ T.case('views follow their events once, after a reload too', function()
     c:recv ':me!u@h JOIN #b'
     control.set_view 'console'
     cmdline.execute 'talk #a'
-    T.eq({HUB.state.ui.view, control.talk_target 'test'}, {'buffer', '#a'}, '/talk shows the buffer')
+    T.eq({HUB.state.ui.view, talk.target 'test'}, {'buffer', '#a'}, '/talk shows the buffer')
     bus.emit('chat.show_list', {net = 'test'})
     T.eq(HUB.state.ui.view, 'list', 'the list')
     cmdline.execute 'close'
-    T.eq(control.talk_target 'test', '#b', 'closing the shown buffer moves on')
+    T.eq(talk.target 'test', '#b', 'closing the shown buffer moves on')
 end)
 
 T.case('the shown buffer is marked seen only while the terminal has focus', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local chat = T.require 'hub.features.chat'
     local tty = T.require 'hub.runtime.tty'
     c:recv ':bob!b@h PRIVMSG me :first'
-    control.set_talk_target('test', 'bob')
+    talk.set_target('test', 'bob')
     control.set_view 'buffer'
     HUB.current.routes['ui.draw']()
     local buffer = chat.buffer('test', 'bob')
@@ -318,6 +323,7 @@ end)
 T.case('the terminal title names the view and marks unseen chat', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local tty = T.require 'hub.runtime.tty'
     local function draw()
         HUB.current.routes['ui.draw']()
@@ -329,7 +335,7 @@ T.case('the terminal title names the view and marks unseen chat', function()
 
     c:recv ':me!u@h JOIN #chan'
     c:recv ':bob!b@h PRIVMSG me :hi'
-    control.set_talk_target('test', 'bob')
+    talk.set_target('test', 'bob')
     control.set_view 'buffer'
     T.eq(draw(), 'snowcone - test bob', 'the buffer view by its target')
 
@@ -341,7 +347,7 @@ T.case('the terminal title names the view and marks unseen chat', function()
     tty.set_focus(true)
     T.eq(draw(), '+ snowcone - test bob', 'the shown buffer is seen, the channel is not')
 
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
     T.eq(draw(), 'snowcone - test #chan', 'all seen')
 end)
 
@@ -479,23 +485,25 @@ end
 T.case('a shown query follows its nick, and Meta-S still goes back', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local cmdline = T.require 'hub.ui.cmdline'
     c:recv ':me!u@h JOIN #chan'
     c:recv ':bob!b@h PRIVMSG me :hi'
     cmdline.execute 'talk #chan'
     cmdline.execute 'talk bob'
     c:recv ':bob!b@h NICK zed'
-    T.eq(control.talk_target 'test', 'zed', 'still shown')
+    T.eq(talk.target 'test', 'zed', 'still shown')
     T.ok(status_bar():find('zed', 1, true), 'by its new name')
     key(-string.byte 's')
-    T.eq(control.talk_target 'test', '#chan', 'back')
+    T.eq(talk.target 'test', '#chan', 'back')
     key(-string.byte 's')
-    T.eq(control.talk_target 'test', 'zed', 'and back to it by its new name')
+    T.eq(talk.target 'test', 'zed', 'and back to it by its new name')
 end)
 
 T.case('j lists the buffers to jump to by labels they keep', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local cmdline = T.require 'hub.ui.cmdline'
     for _, chan in ipairs {'#a', '#b', '#c'} do
         c:recv(':me!u@h JOIN ' .. chan)
@@ -529,7 +537,7 @@ T.case('j lists the buffers to jump to by labels they keep', function()
 
     -- a label jumps there and closes the pane
     key(string.byte '3')
-    T.eq({control.detail(), control.talk_target 'test', HUB.state.ui.view}, {nil, 'zed', 'buffer'}, 'jumped')
+    T.eq({control.detail(), talk.target 'test', HUB.state.ui.view}, {nil, 'zed', 'buffer'}, 'jumped')
 
     -- the columns are as wide as their widest names
     control.open_detail('jump', 'test', {})
@@ -547,6 +555,7 @@ T.case('configured buffers keep their labels, have none, or are left out of the 
         {name = '#nolabel', label = false}, {name = '#hidden', hidden = true},
     }
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     for _, chan in ipairs {'#a', '#hidden', '#nolabel', '#pinned'} do
         c:recv(':me!u@h JOIN ' .. chan)
     end
@@ -565,12 +574,12 @@ T.case('configured buffers keep their labels, have none, or are left out of the 
     T.ok(has_row(rows, '1 #later'), table.concat(rows, '\n', 0, #rows))
 
     key(string.byte '0')
-    T.eq(control.talk_target 'test', '#pinned', 'jumped by the configured label')
+    T.eq(talk.target 'test', '#pinned', 'jumped by the configured label')
 
     -- a hidden buffer isn't shown, but its label, 3 after #a's, works
     control.open_detail('jump', 'test', {})
     key(string.byte '3')
-    T.eq({control.detail(), control.talk_target 'test'}, {nil, '#hidden'}, 'jumped to the hidden buffer')
+    T.eq({control.detail(), talk.target 'test'}, {nil, '#hidden'}, 'jumped to the hidden buffer')
     T.eq(T.log_lines 'error', {}, 'no errors')
 end)
 
@@ -645,11 +654,12 @@ end)
 T.case('the status bar names the two who last started typing', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local clock = T.require 'hub.runtime.clock'
     local now = clock.now()
     clock.now = function() return now end
     c:recv ':me!u@h JOIN #chan'
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
     control.set_view 'buffer'
     T.ok(not status_bar():find('…', 1, true), 'nobody typing')
 
@@ -672,22 +682,23 @@ end)
 T.case('the buffer view with none chosen shows one with activity, else the first', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     c:recv ':me!u@h JOIN #a'
     c:recv ':me!u@h JOIN #b'
     c:recv ':me!u@h JOIN #c'
     c:recv ':alice!a@h PRIVMSG #b :hello'
-    T.eq(control.talk_target 'test', nil, 'joining chooses none')
+    T.eq(talk.target 'test', nil, 'joining chooses none')
     control.set_view 'buffer'
     HUB.current.routes['ui.draw']()
-    T.eq(control.talk_target 'test', '#b', 'the one with activity')
+    T.eq(talk.target 'test', '#b', 'the one with activity')
 
-    control.set_talk_target('test', nil)
+    talk.set_target('test', nil)
     HUB.current.routes['ui.draw']()
-    T.eq(control.talk_target 'test', '#a', 'with none active, the first by name')
+    T.eq(talk.target 'test', '#a', 'with none active, the first by name')
 
-    control.set_talk_target('test', '#gone')
+    talk.set_target('test', '#gone')
     HUB.current.routes['ui.draw']()
-    T.eq(control.talk_target 'test', '#gone', 'one chosen is kept, open or not')
+    T.eq(talk.target 'test', '#gone', 'one chosen is kept, open or not')
 end)
 
 T.case('the status bar shows the modes of the view as one fragment', function()
@@ -862,6 +873,7 @@ end)
 T.case('clicking a channel in the list talks there', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local cmdline = T.require 'hub.ui.cmdline'
     cmdline.execute 'list'
     c:recv ':srv 322 me #lobby 12 :come in'
@@ -887,7 +899,7 @@ T.case('clicking a channel in the list talks there', function()
             break
         end
     end
-    T.eq({HUB.state.ui.view, control.talk_target 'test'}, {'buffer', '#lobby'}, 'its buffer is shown')
+    T.eq({HUB.state.ui.view, talk.target 'test'}, {'buffer', '#lobby'}, 'its buffer is shown')
     T.eq(c:take(), {'JOIN #lobby'}, 'and joined')
 end)
 
@@ -1016,10 +1028,11 @@ end)
 T.case('a private message shown in a channel is marked > after its sender, ours < after its recipient', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     c:recv ':me!u@h JOIN #chan'
     c:recv '@+draft/channel-context=#chan :alice!a@h PRIVMSG me :psst'
     c:recv '@+draft/channel-context=#chan :me!u@h PRIVMSG bob :back'
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
     control.set_view 'buffer'
     HUB.current.routes['ui.draw']()
     local rows = {}
@@ -1064,6 +1077,7 @@ T.case('hide rules leave messages out of the buffer view until Meta-H shows them
     })
     local chat = T.require 'hub.features.chat'
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     c:recv ':me!u@h JOIN #audit'
     c:recv ':me!u@h JOIN #small'
     c:recv ':OperServ!s@services PRIVMSG #audit :KLINE:EXPIRE: \x02*@192.0.2.1\x02'
@@ -1073,7 +1087,7 @@ T.case('hide rules leave messages out of the buffer view until Meta-H shows them
     c:recv ':alice!a@h JOIN #small'
     T.eq(chat.buffer('test', '#audit').activity, 1, 'only the shown message counts')
 
-    control.set_talk_target('test', '#audit')
+    talk.set_target('test', '#audit')
     control.set_view 'buffer'
     T.ok(on_main 'KLINE:ADD:', 'a message no rule hides')
     T.ok(not on_main '192.0.2.1', 'hidden, bold in the text')
@@ -1087,10 +1101,10 @@ T.case('hide rules leave messages out of the buffer view until Meta-H shows them
     T.ok(status_bar():find('show', 1, true), 'the mode reads show')
 
     -- each buffer keeps its own
-    control.set_talk_target('test', '#small')
+    talk.set_target('test', '#small')
     T.ok(not status_bar():find('show', 1, true), 'another buffer hides')
     T.ok(on_main 'alice', "a show rule overrides the built-in one")
-    control.set_talk_target('test', '#audit')
+    talk.set_target('test', '#audit')
     T.ok(on_main '192.0.2.1', 'kept while switching')
     key(-string.byte 'h')
     T.ok(not on_main '192.0.2.1', 'hidden again')
@@ -1125,12 +1139,13 @@ end)
 T.case('a click on a reply scrolls to the message it answers, until Esc', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     c:recv ':me!u@h JOIN #chan'
     c:recv '@msgid=parent :alice!a@h PRIVMSG #chan :the question'
     for i = 1, 60 do c:recv(':bob!b@h PRIVMSG #chan :filler ' .. i) end
     c:recv '@+reply=parent :carol!c@h PRIVMSG #chan :the answer'
     c:recv '@+reply=gone :carol!c@h PRIVMSG #chan :about something old'
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
     control.set_view 'buffer'
     local vs = control.view_state 'buffer'
 
@@ -1312,6 +1327,7 @@ end
 T.case('nicks known to be away are in italics: members and a private target', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local cmdline = T.require 'hub.ui.cmdline'
     c:recv ':srv CAP me ACK :away-notify'
     c:recv ':me!u@h JOIN #chan'
@@ -1321,14 +1337,14 @@ T.case('nicks known to be away are in italics: members and a private target', fu
     c:recv ':carol!c@h AWAY :out'
     c:recv ':srv 306 me :You have been marked as being away'
     c:take()
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
 
     cmdline.execute 'chaninfo'
     c:take()
     HUB.current.routes['ui.draw']()
     T.eq(italics_of(detail_pad()), {'me', 'alice', 'carol', 'me'}, 'us, then the away members')
 
-    control.set_talk_target('test', 'carol')
+    talk.set_target('test', 'carol')
     control.set_view 'buffer'
     T.ok(status_bar():find('carol', 1, true), 'carol named')
     local bar
@@ -1448,16 +1464,17 @@ end)
 T.case('a forwarded JOIN shows the buffer forwarded to', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     c:take()
     T.require 'hub.ui.cmdline'.execute 'talk #angularjs'
     T.eq(c:take(), {'JOIN #angularjs'}, 'joins')
     c:recv ':srv 470 me #angularjs #angular :Forwarding to another channel'
     c:recv ':me!u@h JOIN #angular'
-    T.eq(control.talk_target 'test', '#angular', 'followed')
+    T.eq(talk.target 'test', '#angular', 'followed')
     HUB.current.routes['ui.draw']()
     T.eq(T.log_lines 'error', {}, 'drawn')
     key(-string.byte 's')
-    T.eq(control.talk_target 'test', '#angularjs', 'Meta-S goes back')
+    T.eq(talk.target 'test', '#angularjs', 'Meta-S goes back')
     HUB.current.routes['ui.draw']()
 end)
 

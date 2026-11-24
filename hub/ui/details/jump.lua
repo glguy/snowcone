@@ -21,6 +21,7 @@ local common  <const> = require 'hub.features.common'
 local control <const> = require 'hub.ui.control'
 local draw    <const> = require 'hub.ui.draw'
 local scrub   <const> = require 'hub.lib.scrub'
+local talk    <const> = require 'hub.ui.talk'
 
 local M = {kind = 'jump'}
 
@@ -94,7 +95,7 @@ end
 local function jump(net, name)
     control.close_detail()
     control.set_current_net(net)
-    control.set_talk_target(net, name)
+    talk.set_target(net, name)
     control.set_view 'buffer'
 end
 
@@ -144,7 +145,7 @@ function M.render(ctx, win)
         return
     end
 
-    local current = control.talk_target(net)
+    local current = talk.target(net)
     current = current and chat.fold(net, current)
     local ahead = chat.next_buffer(net, current or '', true)
     local back = HUB.state.ui.view == 'buffer' and control.view_state 'buffer'.previous

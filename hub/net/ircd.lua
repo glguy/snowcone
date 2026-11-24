@@ -36,11 +36,12 @@ for ircd, t in pairs(by_ircd) do
     names_by_ircd[ircd] = names
 end
 
---- Names of a network's numerics, by number.
+--- The name of a numeric on a network, or nil.
 ---@param net string|nil
----@return table<integer, string>
-function M.numeric_names(net)
-    return names_by_ircd[M.of(net)]
+---@param command string|integer
+---@return string|nil
+function M.numeric_name(net, command)
+    return names_by_ircd[M.of(net)][command]
 end
 
 return M

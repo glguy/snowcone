@@ -29,6 +29,7 @@ end)
 T.case('keys reach input modes, views and commands', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     c:recv ':me!u@h JOIN #chan'
     c:take()
 
@@ -37,7 +38,7 @@ T.case('keys reach input modes, views and commands', function()
     type_text 'talk #chan'
     key(13)
     T.eq(HUB.state.ui.view, 'buffer', 'talk shows the buffer')
-    T.eq(control.talk_target 'test', '#chan', 'target')
+    T.eq(talk.target 'test', '#chan', 'target')
 
     -- talk mode sends to the shown buffer
     key(string.byte 't')
@@ -107,13 +108,13 @@ T.case('keys reach input modes, views and commands', function()
     c:recv ':bob!b@h PRIVMSG me :ping'
     control.set_view 'console'
     key(-string.byte 'a')
-    T.eq({HUB.state.ui.view, control.talk_target 'test'}, {'buffer', 'bob'}, 'jumped')
+    T.eq({HUB.state.ui.view, talk.target 'test'}, {'buffer', 'bob'}, 'jumped')
 
     -- n steps through buffers in the buffer view, and C-n still steps views
     key(string.byte 'n')
-    T.eq(control.talk_target 'test', '#chan', 'next buffer')
+    T.eq(talk.target 'test', '#chan', 'next buffer')
     key(string.byte 'p')
-    T.eq(control.talk_target 'test', 'bob', 'previous buffer')
+    T.eq(talk.target 'test', 'bob', 'previous buffer')
     key(0x1f & string.byte 'N')
     T.ok(HUB.state.ui.view ~= 'buffer', 'C-n leaves the buffer view')
     control.set_view 'buffer'
@@ -121,7 +122,7 @@ T.case('keys reach input modes, views and commands', function()
     -- Meta-H shows the hidden messages of the buffer shown, and again
     -- hides them
     c:recv ':carol!c@h JOIN #chan'
-    local chan = T.require 'hub.features.chat'.buffer('test', control.talk_target 'test')
+    local chan = T.require 'hub.features.chat'.buffer('test', talk.target 'test')
     key(-string.byte 'h')
     T.eq(control.view_state 'buffer'.showing[chan], true, 'showing')
     HUB.current.routes['ui.draw']()
@@ -139,34 +140,35 @@ T.case('Meta-C-k closes the shown buffer, except while typing', function()
     local c = boot()
     local chat = T.require 'hub.features.chat'
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local editor = T.require 'hub.ui.editor'
     local ctrl_k <const> = 0x1f & string.byte 'K'
     c:recv ':me!u@h JOIN #a'
     c:recv ':me!u@h JOIN #b'
     control.set_view 'buffer'
-    control.set_talk_target('test', '#a')
+    talk.set_target('test', '#a')
     c:take()
 
     key(ctrl_k)
-    T.eq(control.talk_target 'test', '#a', 'C-k alone keeps the buffer')
+    T.eq(talk.target 'test', '#a', 'C-k alone keeps the buffer')
     T.eq(c:take(), {}, 'C-k alone sends nothing')
 
     key(-ctrl_k)
     T.eq(c:take(), {'PART #a'}, 'parts the channel')
     T.eq(chat.buffer('test', '#a'), nil, 'the buffer is gone')
-    T.eq(control.talk_target 'test', '#b', 'moves on')
+    T.eq(talk.target 'test', '#b', 'moves on')
 
     -- in an input mode the line stays with its buffer
     key(string.byte 't')
     type_text 'hello'
     key(-ctrl_k)
     T.eq(editor.content(control.editor()), 'hello', 'keeps the line')
-    T.eq(control.talk_target 'test', '#b', 'keeps the buffer')
+    T.eq(talk.target 'test', '#b', 'keeps the buffer')
     T.eq(c:take(), {}, 'nothing sent')
     key(0x1f & string.byte 'G')
 
     key(-ctrl_k)
-    T.eq(control.talk_target 'test', nil, 'none left')
+    T.eq(talk.target 'test', nil, 'none left')
     c:take()
     key(-ctrl_k)
     T.eq(c:take(), {}, 'with no buffer it does nothing')
@@ -223,10 +225,11 @@ T.case('talk and action modes tell the buffer we are typing; quiet talk mode doe
     c:recv ':me!u@h JOIN #chan'
     c:take()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local clock = T.require 'hub.runtime.clock'
     local now = clock.now()
     clock.now = function() return now end
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
     control.set_view 'buffer'
     -- What the second's tick sends, but for its lag check's PING
     local function tick()
@@ -303,12 +306,13 @@ T.case('@ and + toggle sending to STATUSMSG, per buffer, until Esc', function()
     c:recv ':bob!b@h PRIVMSG me :hi'
     c:take()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local chat = T.require 'hub.features.chat'
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
     control.set_view 'buffer'
 
     key(string.byte '@')
-    T.eq(control.statusmsg 'test', '@', 'on')
+    T.eq(talk.statusmsg 'test', '@', 'on')
     T.ok(status_bar():find(' @#chan ', 1, true), 'before the name')
     key(string.byte 't')
     type_text 'ops only'
@@ -321,35 +325,35 @@ T.case('@ and + toggle sending to STATUSMSG, per buffer, until Esc', function()
     local OrderedMap = T.require 'hub.lib.OrderedMap'
     local echo = OrderedMap.get(buffer.messages, OrderedMap.last(buffer.messages))
     T.eq(echo.statusmsg, '@', 'shown in the channel, marked')
-    T.eq(control.statusmsg 'test', '@', 'kept after a line')
+    T.eq(talk.statusmsg 'test', '@', 'kept after a line')
 
     key(string.byte '+')
-    T.eq(control.statusmsg 'test', '@', 'a prefix the server lacks is refused')
+    T.eq(talk.statusmsg 'test', '@', 'a prefix the server lacks is refused')
     T.eq(#T.log_lines 'error', 1, 'with an error')
 
-    control.set_talk_target('test', 'bob')
-    T.eq(control.statusmsg 'test', nil, 'each buffer has its own')
+    talk.set_target('test', 'bob')
+    T.eq(talk.statusmsg 'test', nil, 'each buffer has its own')
     key(string.byte '@')
-    T.eq(control.statusmsg 'test', nil, 'a query takes none')
-    control.set_talk_target('test', '#chan')
-    T.eq(control.statusmsg 'test', '@', 'back in the channel, still on')
+    T.eq(talk.statusmsg 'test', nil, 'a query takes none')
+    talk.set_target('test', '#chan')
+    T.eq(talk.statusmsg 'test', '@', 'back in the channel, still on')
 
     key(string.byte '@')
-    T.eq(control.statusmsg 'test', nil, 'toggled off')
+    T.eq(talk.statusmsg 'test', nil, 'toggled off')
     key(string.byte '@')
     key(string.byte 't')
     key(0x1f & string.byte 'G')
-    T.eq(control.statusmsg 'test', '@', 'C-g leaves the input mode but keeps it')
+    T.eq(talk.statusmsg 'test', '@', 'C-g leaves the input mode but keeps it')
     key(string.byte 't')
     key(0x1b)
-    T.eq({HUB.state.ui.input.mode, control.statusmsg 'test'}, {nil, nil}, 'Esc leaves the mode and clears it')
+    T.eq({HUB.state.ui.input.mode, talk.statusmsg 'test'}, {nil, nil}, 'Esc leaves the mode and clears it')
     T.ok(not status_bar():find('@#chan', 1, true), 'and the name is plain')
 
     key(string.byte '@')
     chat.close('test', '#chan')
     chat.open('test', '#chan')
-    control.set_talk_target('test', '#chan')
-    T.eq(control.statusmsg 'test', nil, 'closing a buffer forgets it')
+    talk.set_target('test', '#chan')
+    T.eq(talk.statusmsg 'test', nil, 'closing a buffer forgets it')
 end)
 
 T.case('pastes go to the editor up to a newline; an oversized one is reported', function()
@@ -422,6 +426,7 @@ end)
 T.case('a line too long for the server to relay whole shows where it is cut', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local editor = T.require 'hub.ui.editor'
     local function input_rows()
         HUB.current.routes['ui.draw']()
@@ -444,7 +449,7 @@ T.case('a line too long for the server to relay whole shows where it is cut', fu
     -- :me!u@h PRIVMSG #chan :\r\n is 25 bytes of the 50
     c:recv ':srv 005 me LINELEN=50 :are supported'
     c:recv ':me!u@h JOIN #chan'
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
     control.set_view 'buffer'
     local function x(n) return string.rep('x', n) end
 
@@ -467,10 +472,10 @@ T.case('a line too long for the server to relay whole shows where it is cut', fu
     T.eq(line, x(24) .. '|é', 'a character the cut would break goes whole')
     T.ok(bar:find(' talk -1 ', 1, true), 'and the count is of bytes')
 
-    control.set_statusmsg('test', '@')
+    talk.set_statusmsg('test', '@')
     _, line = typed('talk', x(25))
     T.eq(line, x(24) .. '|x', 'a STATUSMSG prefix goes out too')
-    control.set_statusmsg('test', nil)
+    talk.set_statusmsg('test', nil)
 
     -- what the server says of our mask moves the cut
     c:recv ':me!u@h CHGHOST user host'
@@ -498,11 +503,12 @@ end)
 T.case('Enter leaves a line too long to reach others whole, unsent', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local editor = T.require 'hub.ui.editor'
     local OrderedMap = T.require 'hub.lib.OrderedMap'
     c:recv ':srv 005 me LINELEN=50 :are supported'
     c:recv ':me!u@h JOIN #chan'
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
     control.set_view 'buffer'
     c:take()
 
@@ -534,7 +540,7 @@ T.case('Enter leaves a line too long to reach others whole, unsent', function()
     T.eq(HUB.state.ui.input.mode, nil, 'and the mode ends')
 
     -- nothing to measure against, so the send's own rules apply
-    control.set_talk_target('test', nil)
+    talk.set_target('test', nil)
     local ed = enter('talk', long)
     T.eq(HUB.state.ui.input.mode, nil, 'without a buffer the line is not held')
     T.eq(editor.content(ed), '', 'as before')
@@ -553,9 +559,10 @@ end)
 T.case('the formatting palette puts codes in at the cursor', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local editor = T.require 'hub.ui.editor'
     c:recv ':me!u@h JOIN #chan'
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
     control.set_view 'buffer'
 
     key(-string.byte 'p')
@@ -751,8 +758,9 @@ T.case('a command line shows nothing wrong and nothing required to come just whe
     c:recv ':srv 005 me PREFIX=(ov)@+ CHANMODES=beIq,k,flj,imnpst :are supported'
     c:recv ':me!u@h JOIN #chan'
     local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
     local cmdline = T.require 'hub.ui.cmdline'
-    control.set_talk_target('test', '#chan')
+    talk.set_target('test', '#chan')
     local bad_pattern = T.require 'hub.lib.matching'.kind == 'pcre2' and '(' or '[a'
     T.command "addwatch 'one'"
 
