@@ -149,7 +149,8 @@ Some things to know:
   tables, whose headers stay at the top as their rows scroll). Ctrl-S and `/filter` filter the channel, `/quote`, WHO,
   WHOWAS, STATS and trace panes instead of the view. A `/quote` reply's
   `table` (of `table|raw`) shows it as those tables, a column per field, and `raw` goes
-  back.
+  back. Click a column's header in any of these tables to sort by it, again
+  to reverse, and once more for the order received.
 - Meta-P opens the formatting palette.
 
 Plugins are Lua files in `~/.config/snowcone/plugins/`, listed in

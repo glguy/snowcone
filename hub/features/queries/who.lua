@@ -72,6 +72,7 @@ local NH        <const> = require 'hub.lib.numerics_hybrid'
 ---@field rows hub.WhoRow[]
 ---@field truncated boolean the server stopped at its limit of matches
 ---@field at integer epoch seconds when the reply came
+---@field sort {column: integer, descending: boolean}|nil what its table is sorted by (ui/table.lua)
 
 --- WHOX field letters in the order a 354 gives them, and their names in
 --- a hub.WhoRow.

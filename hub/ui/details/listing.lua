@@ -16,7 +16,7 @@
 -- The rows, their cells and the tables are worked out once and kept on
 -- the listing, for its list of messages: a STATS can have tens of
 -- thousands of rows, and only those shown are drawn. The filter (Ctrl-S, /filter) shows the rows with a
--- cell that matches.
+-- cell that matches. Click a column's header to sort its table by it.
 
 local control <const> = require 'hub.ui.control'
 local draw    <const> = require 'hub.ui.draw'
@@ -41,14 +41,24 @@ end
 
 -- Cells ==============================================================
 
--- A column whose cells are the i-th of a row's
+-- A column whose cells are the i-th of a row's, sorted by the i-th of its
+-- keys when it has one
 local function column(i, header, formatted, optional)
-    return {header = header, text = function(cells) return cells[i] end, formatted = formatted,
-        optional = optional}
+    return {header = header, text = function(cells) return cells[i] end,
+        key = function(cells) return cells.keys and cells.keys[i] end,
+        formatted = formatted, optional = optional}
 end
 
 local function nonempty(value)
     if value ~= nil and value ~= '' then return value end
+end
+
+-- The number a value of a field's kind sorts by, nil to sort as text
+local function key_of(kind, value)
+    local n = tonumber(value)
+    if kind == 'time' or kind == 'secs' then return n end
+    -- 0 is permanent, which lasts longest
+    if kind == 'mins' then return n == 0 and math.huge or n end
 end
 
 -- A value of a field's kind, as its cell shows it
@@ -110,6 +120,11 @@ local function by_fields(meant, fields, relabel)
                     c = c + 2
                 else
                     cells[c] = value and cell_of(meant, kind, value)
+                    local sort_key = value and key_of(kind, value)
+                    if sort_key then
+                        cells.keys = cells.keys or {}
+                        cells.keys[c] = sort_key
+                    end
                     c = c + 1
                 end
             end
@@ -180,6 +195,7 @@ special[N.RPL_STATSLINKINFO] = function()
             open and draw.duration(open) or nonempty(msg[8]),
             idle and draw.duration(idle),
             caps ~= '-' and nonempty(caps) or nil,
+            keys = {[7] = tonumber(open), [8] = tonumber(idle)},
         }
     end
 end
@@ -207,6 +223,11 @@ local version <const> = {}
 local function sections_of(net, holder, messages, relabel)
     local view = holder.view
     if view and view.version == version and view.messages == messages then return view.sections end
+    -- what the tables were sorted by stays
+    local sorts = {}
+    for _, section in ipairs(view and view.sections or {}) do
+        sorts[section.command] = section.sort
+    end
     local meant = replies.of(net)
     local sections, by_command = {}, {}
     for _, msg in ipairs(messages) do
@@ -223,7 +244,7 @@ local function sections_of(net, holder, messages, relabel)
                 columns, convert = plain(type(n) == 'number' and 2 or 1)
             end
             section = {command = n, name = ircd.numeric_name(net, n), columns = columns,
-                convert = convert, rows = {}}
+                convert = convert, rows = {}, sort = sorts[n]}
             by_command[n] = section
             table.insert(sections, section)
         end
@@ -262,11 +283,11 @@ function M.runs(ctx, opts)
     local pattern = control.filter(ctx.id)
     local sections = sections_of(ctx.net, opts.holder, opts.messages, opts.relabel)
 
-    -- the rows in runs, each {count, draw(win, j), layout}: a run of a
-    -- section's rows has its layout, for the header to pin
+    -- the rows in runs, each {count, draw(win, j), layout, section}: a run
+    -- of a section's rows has the last two, for the header to pin
     local runs = {}
-    local function run(count, f, layout)
-        if count > 0 then table.insert(runs, {count, f, layout}) end
+    local function run(count, f, layout, section)
+        if count > 0 then table.insert(runs, {count, f, layout, section}) end
     end
     for _, r in ipairs(opts.before or {}) do run(r[1], r[2]) end
     local errors = opts.errors or {}
@@ -289,8 +310,8 @@ function M.runs(ctx, opts)
                     or string.format('  %d', #section.rows))
                 draw.normal(win)
             end)
-            run(1, function(win) tables.draw_header(win, layout) end)
-            run(#shown, function(win, j) tables.draw_row(win, layout, shown[j]) end, layout)
+            run(1, function(win) tables.draw_header(win, layout, section) end)
+            run(#shown, function(win, j) tables.draw_row(win, layout, shown[j]) end, layout, section)
         end
     end
 
@@ -320,8 +341,8 @@ function M.runs(ctx, opts)
     end, function(i)
         for _, r in ipairs(runs) do
             if i <= r[1] then
-                local layout = r[3]
-                return layout and function(win) tables.draw_header(win, layout) end
+                local layout, section = r[3], r[4]
+                return layout and function(win) tables.draw_header(win, layout, section) end
             end
             i = i - r[1]
         end

@@ -656,6 +656,123 @@ T.case("a table's header stays at the top as its rows scroll under it", function
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case("a click on a table's header sorts by the column, then reverses, then restores the order", function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    local entry = HUB.current.routes['ui.entry']
+    local function screen()
+        HUB.current.routes['ui.draw']()
+        return rows_of(detail_pad())
+    end
+    local function click(header)
+        local rows = screen()
+        for y = 0, #rows do
+            local at = rows[y]:find(header, 1, true)
+            if at then
+                entry('on_mouse', y, utf8.len(rows[y], 1, at) - 1, false)
+                return
+            end
+        end
+        error('no header ' .. header)
+    end
+    local function column(pattern)
+        local out, rows = {}, screen()
+        for y = 0, #rows do
+            local word = rows[y]:match(pattern)
+            if word then table.insert(out, word) end
+        end
+        return out
+    end
+
+    c:recv ':srv 005 me WHOX :are supported'
+    c:take()
+    cmdline.execute 'who #chan %nl'
+    c:take()
+    for _, u in ipairs {'n10 300', 'N2 90000', 'n1 0', 'n3 45'} do c:recv(':srv 354 me ' .. u) end
+    c:recv ':srv 315 me #chan :End of /WHO list.'
+    local nicks = '^([nN]%d+) '
+    T.eq(column(nicks), {'n10', 'N2', 'n1', 'n3'}, 'as received')
+    click 'nick'
+    T.eq(column(nicks), {'n1', 'N2', 'n3', 'n10'}, 'without case, digits as numbers')
+    T.ok(screen()[0]:find('nick▲idle', 1, true), 'marked, with the columns in place')
+    click 'nick'
+    T.eq(column(nicks), {'n10', 'n3', 'N2', 'n1'}, 'reversed')
+    T.ok(screen()[0]:find('nick▼idle', 1, true), 'marked')
+    control.set_filter('detail', '[N3]')
+    T.eq(column(nicks), {'n3', 'N2'}, 'a filter keeps the order')
+    click 'nick'
+    T.eq(column(nicks), {'N2', 'n3'}, 'and follows it')
+    control.set_filter('detail', nil)
+    T.eq(column(nicks), {'n10', 'N2', 'n1', 'n3'}, 'as received again')
+    click 'idle'
+    T.eq(column(nicks), {'n3', 'n10', 'N2', 'n1'}, 'durations by length, none last')
+    click 'idle'
+    T.eq(column(nicks), {'N2', 'n10', 'n3', 'n1'}, 'none last reversed, too')
+
+    -- the pinned header sorts too, and each of a reply's tables by itself
+    cmdline.execute 'trace'
+    c:take()
+    for i = 1, 60 do
+        c:recv(string.format(':srv 205 me User users u%02d[u@192.0.2.1] (192.0.2.1) 9 60', i))
+    end
+    c:recv ':srv 209 me Class zzz 60'
+    c:recv ':srv 209 me Class aaa 60'
+    c:recv ':srv 262 me srv.example :End of TRACE'
+    local detail = control.detail()
+    detail.scroll = 20
+    click 'client'
+    click 'client'
+    local users = column '^users%s+(u%d%d)'
+    T.ok(users[1] > users[2], 'reversed from the pinned header')
+    detail.scroll = 1e9
+    T.eq(column '^(%l+)%s+60%s*$', {'zzz', 'aaa'}, 'the classes unsorted')
+
+    -- the choice outlives the tables being worked out again, as on reload
+    detail.data.view.version = nil
+    detail.scroll = 20
+    users = column '^users%s+(u%d%d)'
+    T.ok(users[1] > users[2], 'still sorted')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
+T.case("a table's sort doesn't depend on the locale, and its wide headers can be clicked", function()
+    boot()
+    local tables = T.require 'hub.ui.table'
+    local columns = {{header = 'a', text = function(r) return r[1] end}}
+    local function order(texts)
+        local rows = {}
+        for i, text in ipairs(texts) do rows[i] = {text} end
+        local _, shown = tables.of({sort = {column = 1, descending = false}}, columns, rows)
+        local out = {}
+        for i, row in ipairs(shown) do out[i] = row[1] end
+        return out
+    end
+    local n21, n20 = '1' .. string.rep('0', 21), '9' .. string.rep('0', 20)
+    local before = os.setlocale(nil)
+    for _, locale in ipairs {'C', 'en_US.UTF-8', 'C.UTF-8'} do
+        if os.setlocale(locale) then
+            local got = order {'日本', '\xff', 'Иван', n21, 'bob', 'É', n20, 'Alice', 'анна', 'b\xe9'}
+            os.setlocale(before)
+            T.eq(got, {n20, n21, 'Alice', 'bob', 'b\xe9', 'É', 'Иван', 'анна', '日本', '\xff'}, locale)
+        end
+    end
+
+    -- a last column that runs past the window's edge
+    local clicks = T.require 'hub.ui.clicks'
+    local win = ncurses.newpad(2, 40)
+    local holder = {}
+    local wide = {{header = 'a', text = function(r) return r[1] end}, {header = 'b', text = function(r) return r[2] end},
+        {header = 'c', text = function(r) return r[1] end}}
+    local layout = tables.of(holder, wide, {{string.rep('x', 20), string.rep('y', 60)}})
+    clicks.reset()
+    tables.draw_header(win, layout, holder)
+    clicks.place(0, 2, 0)
+    T.ok(clicks.hit(0, 21, false), 'clickable')
+    T.eq(holder.sort, {column = 2, descending = false}, 'sorts')
+    T.ok(not clicks.hit(1, 0, false), 'nothing past the edge')
+end)
+
 T.case('a WHOIS opens in the detail pane, and from its status line', function()
     local c = boot()
     local control = T.require 'hub.ui.control'

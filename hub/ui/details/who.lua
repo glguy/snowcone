@@ -4,8 +4,8 @@
 -- their colors, the address with its organization, the idle time as a
 -- duration, and "-" for a field the server left empty (ui/table.lua,
 -- which keeps its layout on the hub.Who). The table is wide, for Left and
--- Right; the filter (Ctrl-S, /filter) shows only the users with a field
--- that matches.
+-- Right; click a column's header to sort by it; the filter (Ctrl-S,
+-- /filter) shows only the users with a field that matches.
 
 local control <const> = require 'hub.ui.control'
 local draw    <const> = require 'hub.ui.draw'
@@ -84,7 +84,7 @@ local columns <const> = {
     {letter = 'i', header = 'org', text = org_text, optional = true},
     {letter = 's', header = 'server', text = function(r) return r.server end},
     {letter = 'd', header = 'hops', text = function(r) return r.hops and tostring(r.hops) end},
-    {letter = 'l', header = 'idle', text = nonzero_idle},
+    {letter = 'l', header = 'idle', text = nonzero_idle, key = function(r) return r.idle end},
     {letter = 'a', header = 'account', text = function(r) return r.account end,
         paint = function(win, r)
             draw.cyan(win)
@@ -125,7 +125,7 @@ function M.rows(ctx)
     local body = math.max(#shown, 1)
     return 1 + body + (pattern and 1 or 0), function(win, i)
         if i == 1 then
-            tables.draw_header(win, layout)
+            tables.draw_header(win, layout, w)
         elseif i <= 1 + #shown then
             tables.draw_row(win, layout, shown[i - 1])
         elseif i == 2 and #shown == 0 then
@@ -140,7 +140,7 @@ function M.rows(ctx)
         end
     end, function(i)
         if i > 1 and i <= 1 + #shown then
-            return function(win) tables.draw_header(win, layout) end
+            return function(win) tables.draw_header(win, layout, w) end
         end
     end
 end
