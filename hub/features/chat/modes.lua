@@ -357,7 +357,7 @@ M.commands = {
     mode_command(),
     ban_command('quiet', 'q', 'Quiet a mask, or a nick by its ban mask, in the shown channel'),
     ban_command('ban', 'b', 'Ban a mask, or a nick by its ban mask, from the shown channel'),
-    command('kick', '$g $T', 'nick [reason]', 'Kick a nick from the shown channel', function(ctx, nick, reason)
+    command('kick', '$a $T', 'nick [reason]', 'Kick a nick from the shown channel', function(ctx, nick, reason)
         local channel = M.shown_channel(ctx)
         if reason ~= '' then
             send.send(ctx.net, 'KICK', channel, nick, reason)
@@ -365,7 +365,7 @@ M.commands = {
             send.send(ctx.net, 'KICK', channel, nick)
         end
     end),
-    command('kickban', '$g $T', 'nick [reason]', 'Ban a nick from the shown channel and kick it',
+    command('kickban', '$a $T', 'nick [reason]', 'Ban a nick from the shown channel and kick it',
     function(ctx, nick, reason)
         local channel = M.shown_channel(ctx)
         task.spawn('kickban', {net = ctx.net, owner = chat.name}, ban_nick, channel, nick, '+b', reason)

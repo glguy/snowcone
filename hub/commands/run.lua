@@ -4,6 +4,7 @@
 -- a test or plugin may name them outright.
 
 local common    <const> = require 'hub.features.common'
+local irc_param <const> = require 'hub.lib.irc_param'
 local log       <const> = require 'hub.runtime.log'
 local traceback <const> = require 'hub.lib.traceback'
 
@@ -89,6 +90,14 @@ function M.execute(text, origin)
 
     local params = {}
     if not cmd.pattern(args, params) then
+        -- a word that can't go where it would is said outright
+        local a = cmd.analyze(args)
+        for i, w in ipairs(a.words) do
+            if not w.ok and a.items[i].kind == 'a' then
+                log.add('error', '/%s: %s', name, irc_param.not_middle(args:sub(w.lo, w.hi)))
+                return
+            end
+        end
         if cmd.usage then
             log.add('error', 'usage: /%s %s', name, cmd.usage)
         else

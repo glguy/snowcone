@@ -50,7 +50,7 @@ function M.whois(net, nick, remote)
 end
 
 local function who_command()
-    local cmd = command('who', '$g $R', 'mask [options]',
+    local cmd = command('who', '$a $R', 'mask [options]',
         'WHO a channel, nick or mask; options are o for operators only, then a WHOX %format',
     function(ctx, mask, options)
         if options:find ' ' then error('options are one word: ' .. options, 0) end
@@ -110,7 +110,7 @@ end
 
 M.commands = {
     who_command(),
-    command('stats', '$g $R', 'letter [server]', "STATS a letter, of a server or ours, shown as tables",
+    command('stats', '$a $R', 'letter [server]', "STATS a letter, of a server or ours, shown as tables",
     function(ctx, letter, server)
         -- the server takes the first byte, and names it in the end
         if not letter:match '^%g$' then error('a STATS letter is one ASCII character: ' .. letter, 0) end
@@ -126,10 +126,10 @@ M.commands = {
     command('whois', '$g', 'nick', 'WHOIS a nick, shown in the detail pane', function(ctx, nick)
         M.whois(ctx.net, nick)
     end),
-    command('wii', '$g', 'nick', 'WHOIS a nick on its server (with idle time)', function(ctx, nick)
+    command('wii', '$a', 'nick', 'WHOIS a nick on its server (with idle time)', function(ctx, nick)
         M.whois(ctx.net, nick, true)
     end),
-    command('whowas', '$g $R', 'nick [count]', 'WHOWAS a nick, at most count entries',
+    command('whowas', '$a $R', 'nick [count]', 'WHOWAS a nick, at most count entries',
     function(ctx, nick, count)
         local n
         if count ~= '' then
@@ -138,7 +138,7 @@ M.commands = {
         end
         task.spawn('whowas', {net = ctx.net, owner = M.name}, whowas, nick, n)
     end),
-    command('masktrace', '$g $R', '[nick!]user@host [realname]',
+    command('masktrace', '$a $R', '[nick!]user@host [realname]',
         'MASKTRACE the users a mask matches, shown as a table',
     function(ctx, mask, gecos)
         if ircd.hybrid(ctx.net) then error('OFTC hybrid has no MASKTRACE', 0) end

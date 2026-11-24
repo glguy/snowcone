@@ -25,6 +25,7 @@ local log        <const> = require 'hub.runtime.log'
 local resources  <const> = require 'hub.runtime.resources'
 local timer      <const> = require 'hub.runtime.timer'
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
+local irc_param  <const> = require 'hub.lib.irc_param'
 local ratelimit  <const> = require 'hub.lib.ratelimit'
 
 local M = {}
@@ -95,9 +96,9 @@ function M.build(cmd, ...)
         end
 
         -- Only the last argument can be empty, start with : or hold a space
-        if string.find(part, '[\x00\r\n]') then
+        if irc_param.prohibited(part) then
             error('prohibited character in command argument', 0)
-        elseif not string.find(part, '^[^ :][^ ]*$') then
+        elseif not irc_param.middle(part) then
             if i ~= n then
                 -- often a word the user typed
                 error(string.format(

@@ -437,7 +437,7 @@ end
 local oper_command <const> = common.net_command(M.name)
 
 M.commands = {
-    oper_command('kline', '$g', 'nick|user@host',
+    oper_command('kline', '$a', 'nick|user@host',
         'Stage a K-Line for a mask as typed, or for a nick, looking it up if needed',
     function(ctx, target)
         -- no nick has an @
@@ -485,7 +485,7 @@ M.commands = {
     oper_command('testline', '$g', 'mask', 'TESTLINE a mask', function(ctx, mask)
         send.send(ctx.net, 'TESTLINE', mask)
     end),
-    oper_command('kill', '$g $T', 'nick [reason]', 'KILL a nick off the network', function(ctx, nick, reason)
+    oper_command('kill', '$a $T', 'nick [reason]', 'KILL a nick off the network', function(ctx, nick, reason)
         if reason ~= '' then
             send.send(ctx.net, 'KILL', nick, reason)
         else

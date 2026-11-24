@@ -1801,6 +1801,11 @@ T.case('quiet, ban, kick, kickban and their removal in the shown channel', funct
     c:recv ':srv 354 me 696 ~b 255.255.255.255 unaffiliated/bob bob'
     T.eq(c:take(), {'MODE #chan +q *!*@unaffiliated/bob'}, 'quieted by cloak')
 
+    T.command('kick :bob go away', nil, '#chan')
+    T.eq(c:take(), {}, 'a nick before the reason starting with ":" sends nothing')
+    local errors = T.log_lines 'error'
+    T.eq(errors[#errors], '/kick: :bob can\'t start with ":" before the last parameter', 'and says why')
+
     T.command('kick bob go away', nil, '#chan')
     T.command('kick bob', nil, '#chan')
     T.eq(c:take(), {'KICK #chan bob :go away', 'KICK #chan bob'}, 'kick, with no lookup')

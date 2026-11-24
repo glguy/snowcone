@@ -42,6 +42,7 @@ local function module_names(opts)
         'hub.features.snotice',
         'hub.features.topology',
         'hub.features.oper',
+        'hub.features.oper.lines',
         'hub.features.chat',
         'hub.features.chat.commands',
         'hub.features.chat.modes',

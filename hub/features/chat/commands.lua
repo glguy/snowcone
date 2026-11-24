@@ -83,15 +83,15 @@ M.commands = {
     end),
     close_command(),
     -- each opens its targets' buffers, so the line shows there
-    command('msg', '$g $t', 'target text', 'Send a message', function(ctx, target, text)
+    command('msg', '$a $t', 'target text', 'Send a message', function(ctx, target, text)
         open_targets(ctx.net, target)
         chat.say(ctx.net, target, text)
     end),
-    command('notice', '$g $t', 'target text', 'Send a notice', function(ctx, target, text)
+    command('notice', '$a $t', 'target text', 'Send a notice', function(ctx, target, text)
         open_targets(ctx.net, target)
         chat.notice(ctx.net, target, text)
     end),
-    command('cmsg', '$g $t', 'nick text',
+    command('cmsg', '$a $t', 'nick text',
         "Send a message to a nick, shown to them in the shown channel (channel-context)",
     function(ctx, nick, text)
         local channel = modes.shown_channel(ctx)
@@ -111,7 +111,7 @@ M.commands = {
         end
         send.send_tagged(ctx.net, {[irc_model.channel_context_tag] = channel}, 'PRIVMSG', nick, text)
     end),
-    command('ctcp', '$g $r', 'target request', 'Send a CTCP request', function(ctx, target, text)
+    command('ctcp', '$a $r', 'target request', 'Send a CTCP request', function(ctx, target, text)
         open_targets(ctx.net, target)
         send.send(ctx.net, 'PRIVMSG', target, '\x01' .. text .. '\x01')
     end),

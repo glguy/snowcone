@@ -30,7 +30,7 @@ local M = {}
 
 -- Words for a spec's arguments, for a usage made from a spec
 local spec_words <const> = {
-    g = 'word', r = 'text', R = '[text]', t = 'text', T = '[text]', i = 'number', f = 'number',
+    g = 'word', a = 'word', r = 'text', R = '[text]', t = 'text', T = '[text]', i = 'number', f = 'number',
     v = 'name', q = "'text'", p = 'path',
 }
 

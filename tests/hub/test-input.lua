@@ -658,6 +658,8 @@ T.case('a command line shows its command, arguments and what is still to type', 
         'spaces are one bar; message text as typed')
     T.eq(look_of '  msg', 'plain[  ] good[msg] | target text', 'spaces before')
     T.eq(look_of 'kickban bob', 'good[kickban] sep[ ] plain[bob] | ?reason', 'optional')
+    T.eq(look_of 'msg :bob hi', 'good[msg] sep[ ] bad[:bob] sep[ ] text[hi]', 'a word before the last parameter')
+    T.eq(look_of 'msg :bob', 'good[msg] sep[ ] plain[:bob] | text', 'plain while typed')
     T.eq(look_of 'op a b', 'good[op] sep[ ] plain[a b] | ?nick*', 'repeating, in a rest')
     T.eq(look_of 'op a ', 'good[op] sep[ ] plain[a ] ?nick*', 'a space ending a rest, no bar')
     T.eq(look_of 'quote', 'good[quote] | ?@tags command ?arguments', 'a raw line to come')
@@ -879,6 +881,32 @@ T.case('a command line is drawn with bars and dim placeholders', function()
         'the cursor where two words touch')
     T.eq({drawn 'quote PRIVMSG '}, {'quote│PRIVMSG│arguments', 14, {'arguments'}}, 'a placeholder after a space')
     T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
+T.case('the ban commands show their line as the server reads it', function()
+    boot()
+    T.eq(look_of 'dline', 'good[dline] | ?duration address[/prefix] ?ON ?server ?reason', 'all to come')
+    T.eq(look_of 'dline 1d', 'good[dline] sep[ ] plain[1d] | address[/prefix] ?ON ?server ?reason',
+        'a first word that is a duration')
+    T.eq(look_of 'dline 192.0.2.0/33 ON', 'good[dline] sep[ ] bad[192.0.2.0/33] sep[ ] plain[ON] | server ?reason',
+        'a prefix past the address; after ON its server')
+    T.eq(look_of 'dline 1d 192.0.2.0/24 on irc.* go away',
+        'good[dline] sep[ ] plain[1d] sep[ ] plain[192.0.2.0/24] sep[ ] plain[on] sep[ ] plain[irc.*] sep[ ] text[go away]',
+        'ON in any case, and the reason as text')
+    T.eq(look_of 'resv 30 #x', 'good[resv] sep[ ] plain[30] sep[ ] plain[#x] | ?ON ?server reason', 'a reason needed')
+    T.eq(look_of 'unkline *@h on s extra',
+        'good[unkline] sep[ ] plain[*@h] sep[ ] plain[on] sep[ ] plain[s] sep[ ] bad[extra]', 'no reason to take')
+    T.eq(look_of 'unkline nobody x', 'good[unkline] sep[ ] bad[nobody] sep[ ] bad[x]',
+        'not a mask, and a word that is not ON')
+    T.eq(look_of 'xline :foo bar', 'good[xline] sep[ ] bad[:foo] sep[ ] text[bar]', 'a ":" before the last parameter')
+    T.eq(look_of 'unkline ::1 ON s', 'good[unkline] sep[ ] plain[::1] sep[ ] plain[ON] sep[ ] plain[s]',
+        'but a host alone goes as *@host')
+end)
+
+T.case('on OFTC hybrid a ban command reads a duration as minutes', function()
+    boot(nil, nil, 'oftc-hybrid')
+    T.eq(look_of 'resv 60 #x', 'good[resv] sep[ ] plain[60] sep[ ] plain[#x] | ?ON ?server reason', 'minutes')
+    T.eq(look_of 'resv 1d #x', 'good[resv] sep[ ] plain[1d] sep[ ] text[#x]', '1d the target, and the rest the reason')
 end)
 
 T.run()

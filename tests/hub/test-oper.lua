@@ -635,6 +635,108 @@ T.case('CHANTRACE lists a channel like MASKTRACE, and fails on its channel error
     T.ok(T.log_lines 'error'[1]:find('not a channel', 1, true), 'and says why')
 end)
 
+T.case('the ban commands send their lines as the server reads them', function()
+    local c = boot({'chat', 'snotice', 'oper'})
+    for _, line in ipairs {
+        'unkline *@192.0.2.1', 'unkline ~u@h.example ON leaf.*',
+        'dline 192.0.2.0/24', 'dline 1d12h 2001:db8::/32 on leaf.* proxy | open proxy',
+        'undline 192.0.2.0/24 ON leaf.*',
+        'xline 1w *bot\\s* spam bots', 'xline *bot* ON',
+        'unxline *bot* ON leaf.*',
+        'resv 60 #spam no', 'unresv #spam',
+        'wallops hello all', 'operwall hello opers',
+    } do
+        T.command(line)
+    end
+    T.eq(c:take(), {
+        'UNKLINE *@192.0.2.1', 'UNKLINE ~u@h.example ON leaf.*',
+        'DLINE 192.0.2.0/24', 'DLINE 1d12h 2001:db8::/32 ON leaf.* :proxy | open proxy',
+        'UNDLINE 192.0.2.0/24 ON leaf.*',
+        'XLINE 1w *bot\\s* :spam bots', 'XLINE *bot* ON',
+        'UNXLINE *bot* ON leaf.*',
+        'RESV 60 #spam no', 'UNRESV #spam',
+        'WALLOPS :hello all', 'OPERWALL :hello opers',
+    }, 'sent')
+    T.eq(T.log_lines 'error', {}, 'none refused')
+
+    -- what the server would refuse with only a notice
+    for _, line in ipairs {
+        'unkline nobody', 'dline 1d', 'dline host.example', 'dline 192.0.2.0/33', 'dline ::1',
+        'undline 192.0.2.*', 'xline *bot*', 'resv 30 #x', 'unxline *bot* ON', 'unresv #a #b',
+    } do
+        T.command(line)
+    end
+    T.eq(c:take(), {}, 'nothing sent')
+    T.eq(T.log_lines 'error', {
+        'unkline: not a user@host or host: nobody',
+        'dline: no target after the duration 1d',
+        'dline: not an address[/prefix]: host.example',
+        'dline: a prefix past the address: 192.0.2.0/33',
+        'dline: an address can\'t start with ":": ::1',
+        'undline: not an address[/prefix]: 192.0.2.*',
+        'xline: XLINE needs a reason',
+        'resv: RESV needs a reason',
+        'unxline: no server after ON',
+        'unresv: more than UNRESV takes: #b',
+    }, 'each says why')
+
+    local lines = T.require 'hub.features.oper.lines'
+    T.eq({lines.solanum_duration '30', lines.solanum_duration '1d12h', lines.solanum_duration '2w3',
+        lines.solanum_duration '1d12', lines.solanum_duration '1y', lines.solanum_duration '-5',
+        lines.solanum_duration 'd'}, {true, true, true, true, false, false, false}, 'durations as valid_temp_time reads them')
+end)
+
+T.case('the ban commands send what can go, and refuse a ":" before the last parameter', function()
+    local c = boot({'chat', 'snotice', 'oper'})
+    for _, line in ipairs {
+        'unkline ::1', 'unkline ::1 ON leaf.*', 'unkline u@::1 ON leaf.*',
+        'undline ::1', 'undline 192.0.2.0/33', 'dline 192.0.2.1 ON', 'dline 192.0.2.1 ON leaf.*',
+    } do
+        T.command(line)
+    end
+    T.eq(c:take(), {
+        'UNKLINE *@::1', 'UNKLINE *@::1 ON leaf.*', 'UNKLINE u@::1 ON leaf.*',
+        'UNDLINE :::1', 'UNDLINE 192.0.2.0/33', 'DLINE 192.0.2.1 ON', 'DLINE 192.0.2.1 ON leaf.*',
+    }, 'a host alone as *@host before ON; a prefix past the address is UNDLINE\'s to clamp; ON alone the reason')
+    T.eq(T.log_lines 'error', {}, 'none refused')
+
+    for _, line in ipairs {
+        'undline ::1 ON leaf.*', 'xline :foo bar', 'resv :x r', 'dline 192.0.2.1 ON :s r', 'unresv #a ON :s x',
+        'wallops', 'wallops  ',
+    } do
+        T.command(line)
+    end
+    T.eq(c:take(), {}, 'nothing sent')
+    local errors = T.log_lines 'error'
+    T.eq({table.unpack(errors, 1, 5)}, {
+        'undline: ::1 can\'t start with ":" before the last parameter',
+        'xline: :foo can\'t start with ":" before the last parameter',
+        'resv: :x can\'t start with ":" before the last parameter',
+        'dline: :s can\'t start with ":" before the last parameter',
+        'unresv: more than UNRESV takes: x',
+    }, 'each says why')
+    T.eq(#errors, 7, 'and wallops needs its text')
+    T.ok(errors[6]:find('wallops', 1, true) and errors[7]:find('wallops', 1, true), 'twice')
+
+    local lines = T.require 'hub.features.oper.lines'
+    local cases = {
+        {'192.0.2.0/24', true, 'ip'}, {'192.0.2.0/33', true, 'error'}, {'192.0.2.0/33', false, 'ip'},
+        {'192.0.2.0/24x', true, 'error'}, {'192.0.2.0/', true, 'host'}, {'192.0.2.0/x', false, 'host'},
+        {'2001:db8::/128', true, 'ip'}, {'2001:db8::/129', true, 'error'}, {'192.0.2.*', true, 'host'},
+        {'host.example', true, 'host'}, {'nodots', true, 'host'}, {'::1', true, 'ip'},
+    }
+    for _, case in ipairs(cases) do
+        T.eq(lines.netmask(case[1], case[2]), case[3], case[1] .. (case[2] and ' strict' or ' lax'))
+    end
+end)
+
+T.case('on OFTC hybrid a duration is minutes', function()
+    local c = boot({'chat', 'snotice', 'oper'}, false, 'oftc-hybrid')
+    T.command 'resv 60 #spam no'
+    T.command 'resv 1d #spam no'
+    T.eq(c:take(), {'RESV 60 #spam no', 'RESV 1d :#spam no'}, '1d is the target')
+end)
+
 T.case('CHANTRACE is not on OFTC hybrid', function()
     local c = boot({'chat', 'snotice', 'oper'}, false, 'oftc-hybrid')
     T.command 'chantrace #a'

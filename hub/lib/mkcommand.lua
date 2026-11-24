@@ -4,6 +4,8 @@
 -- arguments must repeat, or one of:
 --
 -- $g        a word: anything up to a space
+-- $a        a word sent before a line's last IRC parameter, so not
+--           starting with : (lib/irc_param)
 -- $p        a path name, as a word
 -- $v        an identifier (ASCII letters, digits and _, not starting with a digit)
 -- $i        an integer that fits one, optionally signed
@@ -27,9 +29,12 @@
 -- the matcher, for running a command, and the analyzer, for showing a
 -- line while it is typed, which goes on past a word that doesn't fit.
 
+local irc_param <const> = require 'hub.lib.irc_param'
+
 -- Check and convert one word for a kind; nil when it doesn't fit
 local word_kinds <const> = {
     g = function(w) return w end,
+    a = function(w) return irc_param.middle(w) and w or nil end,
     p = function(w) return w end,
     v = function(w) return w:match '^[A-Za-z_][A-Za-z0-9_]*$' end,
     i = function(w)

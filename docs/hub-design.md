@@ -323,7 +323,7 @@ save a check.
 | --- | --- |
 | snotice | From server notices, keeps recent connections, exits, bans, new channels, per-second load trackers, address-range counts and watches; emits `snote` and `snote.<name>`. |
 | topology | Populations from MAP, links and upstream from LINKS, versions, uptimes, user shedding, DNS rotations. Asks for MAP and LINKS at registration, on becoming an operator and on netsplits and netjoins. |
-| oper | Libera ban masks; staging a K-Line, unkline or undline with a TESTMASK count; sending it only on confirmation; operator commands. |
+| oper | Libera ban masks; staging a K-Line, unkline or undline with a TESTMASK count; sending it only on confirmation; operator commands, among them the bans as typed (unkline, D-Lines, X-Lines, RESVs) and wallops. |
 | chat | Buffers per network and target, routing (WALLOPS and broadcasts to the sender's buffer; our own lines never mentions or unseen), mentions, hide rules, typing notices, chat history, MONITOR for private buffers, paced CTCP replies, `/list`, quiets, bans and kicks with Libera channel ban masks. |
 | queries | WHO, WHOIS, WHOWAS, STATS, TRACE, ETRACE, MASKTRACE and CHANTRACE on every network, each shown in the detail pane; and the lookups features make for themselves: a user for a ban, TESTMASK counts, the organization of an address (always loaded; not per network). |
 | notify | Desktop or terminal notifications of mentions while the terminal is unfocused (always loaded; not per network). |

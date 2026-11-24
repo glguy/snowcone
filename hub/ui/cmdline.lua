@@ -83,9 +83,10 @@ end
 --- rest's placeholders, lib/usage) or of its own. Words that touch show
 --- as one, so a word can be red in part. A word that doesn't fit is
 --- plain while the cursor is in it, unless final: no more typing at its
---- end would make it fit.
+--- end would make it fit. A word that is text is shown as message text,
+--- as a rest of the line that is ($t, $T) shows every word.
 ---@class hub.CommandShape
----@field words {lo: integer, hi: integer, ok: boolean, final: boolean|nil}[]
+---@field words {lo: integer, hi: integer, ok: boolean, final: boolean|nil, text: boolean|nil}[]
 ---@field ghosts hub.Placeholder[]
 
 ---@param text string the line, without the leading slash
@@ -183,7 +184,7 @@ function M.decorate(text, cursor)
         local shape = cmd.shape(ctx, rest, cmd.slots and cmd.slots[n] or {}, before)
         for _, p in ipairs(shape.words) do
             local lo, hi = p.lo + base, p.hi + base
-            local role = a.items[n].text and 'text' or 'plain'
+            local role = (a.items[n].text or p.text) and 'text' or 'plain'
             if not p.ok and (p.final or not typing(lo, hi)) then role = 'bad' end
             table.insert(pieces, {lo = lo, hi = hi, role = role})
         end
