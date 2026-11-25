@@ -78,17 +78,19 @@ auto l_send_irc(lua_State* const L) -> int
     }
 }
 
+// Not a lambda in pushirc: GCC 12 can't convert boundary<> of a local lambda
+auto l_gc_irc(lua_State* const L) -> int
+{
+    auto const w = check_udata<std::weak_ptr<connection>>(L, 1);
+    std::destroy_at(w);
+    return 0;
+}
+
 auto pushirc(lua_State* const L, std::weak_ptr<connection> const irc) -> void
 {
     auto const w = new_udata<std::weak_ptr<connection>>(L, 1, [L] {
-        auto constexpr l_gc = [](lua_State* const L) -> int {
-            auto const w = check_udata<std::weak_ptr<connection>>(L, 1);
-            std::destroy_at(w);
-            return 0;
-        };
-
         luaL_Reg const MT[]{
-            {"__gc", boundary<l_gc>},
+            {"__gc", boundary<l_gc_irc>},
             {},
         };
         luaL_setfuncs(L, MT, 0);
