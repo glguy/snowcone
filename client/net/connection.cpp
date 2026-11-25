@@ -107,7 +107,7 @@ auto peer_fingerprint(SSL const* const ssl) -> std::string
     if (not cert)
     {
         // Only possible for anonymous ciphers, which aren't enabled
-        throw std::runtime_error{"TLS peer sent no certificate"};
+        throw std::runtime_error{"server sent no certificate"};
     }
 
     unsigned char* der = nullptr;
@@ -260,7 +260,7 @@ auto connect_layer(ConnectContext& ctx, TlsLayer& tls_layer) -> boost::asio::awa
         if (0 != SSL_set_alpn_protos(tls.native_handle(), protos.data(), protos.size()))
         {
             // not documented to set an error code
-            throw std::runtime_error{"SSL_set_alpn_protos"};
+            throw std::runtime_error{"could not set the ALPN protocols"};
         }
     }
 
@@ -293,7 +293,7 @@ auto connect_layer(ConnectContext& ctx, TlsLayer& tls_layer) -> boost::asio::awa
         if (1 != SSL_set_tlsext_host_name(tls.native_handle(), sni->c_str()))
         {
             // not documented to set an error code
-            throw std::runtime_error{"SSL_set_tlsext_host_name"};
+            throw std::runtime_error{"could not set the server name"};
         }
     }
 
@@ -418,11 +418,11 @@ auto connect_layer(ConnectContext& ctx, WebSocketLayer& layer) -> boost::asio::a
     }
     if (subprotocol.empty())
     {
-        throw std::runtime_error{"WebSocket server chose no IRC subprotocol"};
+        throw std::runtime_error{"server chose no IRC subprotocol"};
     }
     if (not was_offered)
     {
-        throw std::runtime_error{"WebSocket server chose unrequested subprotocol " + std::string{subprotocol}};
+        throw std::runtime_error{"server chose unrequested subprotocol " + std::string{subprotocol}};
     }
 
     if (subprotocol == websocket::binary_subprotocol)
@@ -441,6 +441,40 @@ auto host_port(std::string const& host, std::uint16_t const port) -> std::string
     // Hostnames can't contain ':', so this is an IPv6 literal
     auto const is_ipv6 = host.find(':') != std::string::npos;
     return (is_ipv6 ? "[" + host + "]" : host) + ":" + std::to_string(port);
+}
+
+// Names the step that establishes a layer. Shown to the user, so it leaves
+// out credentials and the WebSocket path, which can hold a token.
+
+auto describe_layer(IpLayer const& layer) -> std::string
+{
+    return "connecting to " + host_port(layer.host, layer.port);
+}
+
+auto describe_layer(LocalLayer const& layer) -> std::string
+{
+    return "connecting to " + layer.path;
+}
+
+auto describe_layer(TlsLayer const& layer) -> std::string
+{
+    auto const& name = layer.verify.empty() ? layer.sni : layer.verify;
+    return name.empty() ? "TLS" : "TLS with " + name;
+}
+
+auto describe_layer(SocksLayer const& layer) -> std::string
+{
+    return "SOCKS proxy to " + host_port(layer.host, layer.port);
+}
+
+auto describe_layer(HttpLayer const& layer) -> std::string
+{
+    return "HTTP proxy to " + host_port(layer.host, layer.port);
+}
+
+auto describe_layer(WebSocketLayer const& layer) -> std::string
+{
+    return "WebSocket with " + layer.host;
 }
 
 // Text for the user once a layer is established
@@ -476,37 +510,6 @@ auto describe_established(LayerInfo const&, WebSocketLayer const& layer) -> std:
 }
 
 } // namespace
-
-auto describe_layer(IpLayer const& layer) -> std::string
-{
-    return "connecting to " + host_port(layer.host, layer.port);
-}
-
-auto describe_layer(LocalLayer const& layer) -> std::string
-{
-    return "connecting to " + layer.path;
-}
-
-auto describe_layer(TlsLayer const& layer) -> std::string
-{
-    auto const& name = layer.verify.empty() ? layer.sni : layer.verify;
-    return name.empty() ? "TLS" : "TLS with " + name;
-}
-
-auto describe_layer(SocksLayer const& layer) -> std::string
-{
-    return "SOCKS proxy to " + host_port(layer.host, layer.port);
-}
-
-auto describe_layer(HttpLayer const& layer) -> std::string
-{
-    return "HTTP proxy to " + host_port(layer.host, layer.port);
-}
-
-auto describe_layer(WebSocketLayer const& layer) -> std::string
-{
-    return "WebSocket with " + layer.host;
-}
 
 auto tls_names::verification(std::string const& host) -> std::string
 {
@@ -591,6 +594,10 @@ auto connection::connect(
         catch (boost::system::system_error const& e)
         {
             throw connection_error{e.code(), describe_layer(layer) + ": " + describe_error(e.code())};
+        }
+        catch (std::runtime_error const& e)
+        {
+            throw std::runtime_error{describe_layer(layer) + ": " + e.what()};
         }
         throw_if_closed();
         info.layer = position++;

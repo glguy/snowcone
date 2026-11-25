@@ -47,6 +47,8 @@ local M = {}
 ---@field lag_sent number|nil when lag_token was sent
 ---@field irc hub.Irc|nil protocol model (net/irc.lua), nil when idle
 ---@field established table<integer, snowcone.LayerInfo> of the current attempt, by layer
+---@field pins table<integer, string> lowercase hex keys the current attempt's
+--- TLS layers must present, by layer
 ---@field transport string|nil description of the current connection's layers
 ---@field step string|nil what a connecting network is doing now
 ---@field registered_at number|nil clock when registration finished
@@ -346,6 +348,15 @@ local function connect_body(t, attempt)
     local rec = nets()[id]
     local cfg = rec.cfg
 
+    -- rec.cfg may change before the layers connect
+    local pins = {}
+    for i, layer in ipairs(cfg.layers) do
+        if layer.type == 'tls' and layer.pin then
+            pins[i] = layer.pin:lower()
+        end
+    end
+    rec.pins = pins
+
     local ok, layers = pcall(build_layers, t, cfg.layers, cfg.websocket)
     if not ok then
         return failed(id, attempt, 'config', layers)
@@ -482,10 +493,10 @@ local events = {}
 -- Give up if layer i has a pin that the key it got doesn't match; no key
 -- counts as a mismatch. Returns true when it gave up.
 local function check_pin(rec, i)
-    local layer = rec.cfg.layers[i]
-    if not layer or layer.type ~= 'tls' or not layer.pin then return false end
+    local pin = rec.pins[i]
+    if not pin then return false end
     local info = rec.established[i]
-    if info and info.key == layer.pin:lower() then return false end
+    if info and info.key == pin then return false end
     -- like any configuration problem, retrying won't fix it
     M.give_up(rec.id, string.format('layers[%d]: TLS key %s does not match pin',
         i, info and info.key or '(unknown)'))
@@ -507,7 +518,8 @@ local function describe_transport(established)
     for i = 0, #established do
         local info = established[i]
         if info then
-            table.insert(words, transport_text[info.type](info))
+            local describe = transport_text[info.type]
+            table.insert(words, describe and describe(info) or info.type)
         end
     end
     return table.concat(words, ' ')
@@ -528,8 +540,8 @@ end
 
 function events.CON(rec)
     rec.step = nil
-    -- Again, so a PROGRESS that was lost or failed can't skip a pin
-    for i in ipairs(rec.cfg.layers) do
+    -- Again, so a lost PROGRESS can't skip a pin
+    for i in pairs(rec.pins) do
         if check_pin(rec, i) then return end
     end
     rec.transport = describe_transport(rec.established)
@@ -635,7 +647,17 @@ local function on_event(id, attempt, ev, ...)
     if rec == nil or rec.attempt ~= attempt or rec.conn == nil then
         return -- stale: from an attempt that already ended
     end
-    events[ev](rec, ...)
+    if ev ~= 'PROGRESS' and ev ~= 'CON' then
+        return events[ev](rec, ...)
+    end
+    -- these check pins, so a failure ends the connection
+    local ok, err = xpcall(events[ev], traceback, rec, ...)
+    if not ok then
+        if nets()[id] == rec and rec.attempt == attempt then
+            M.finish(id, 'stream', 'internal error while connecting')
+        end
+        dispatch.report('connection event ' .. ev, err)
+    end
 end
 
 -- Liveness ===========================================================
@@ -692,6 +714,8 @@ local function new_record(net)
         target = net.autoconnect and 'connected' or 'idle',
         phase = 'idle',
         attempt = 0,
+        established = {},
+        pins = {},
         since = clock.now(),
         backoff = net.reconnect.min_delay,
         restart_pending = false,

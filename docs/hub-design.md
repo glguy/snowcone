@@ -562,7 +562,7 @@ hub relies on these parts of the `snowcone` table (see `client/`):
 
 | Function | Contract |
 | --- | --- |
-| `connect(host, port, layers, cb)` | Handle with `send` and `close`; `cb` gets `CON`, then `MSG` (message, flush), then `END`. Bad layers raise. Dropping the handle doesn't end the session. |
+| `connect(host, port, layers, cb)` | Handle with `send` and `close`; `cb` gets `PROGRESS` (`start`, text; `done`, text, info) for each layer, `CON`, then `MSG` (message, flush), then `END`. Bad layers raise. Dropping the handle doesn't end the session. |
 | `newtimer()` | `start(ms, fn)`, `cancel()`; a collected timer never fires. |
 | `dnslookup(name, fn)` | `fn(err)` or `fn(nil, addr...)`. Returns a handle whose `cancel()` keeps `fn` from running; dropping the handle doesn't cancel. |
 | `execute(cmd, args, fn, opts?)` | `fn(code, stdout, stderr)` or `fn(nil, err)`. Options: `input` (without it the child has the terminal), `group` (own process group, needs `input`), `max_output` (per stream, 16 MiB default; past it the child is killed). Returns a handle whose `cancel()` kills the child (or its group) and keeps `fn` from running; dropping the handle doesn't cancel. |

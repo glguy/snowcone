@@ -232,6 +232,48 @@ T.case('a pin whose layer was never reported fails at CON', function()
     T.eq(rec().phase, 'idle', 'checked afresh')
 end)
 
+T.case('a reload while connecting keeps the pins the attempt began with', function()
+    local tls_a = {type = 'tls', pin = pin_a}
+    local socks = {type = 'socks', host = 'p', port = 1080}
+    local function change(layers)
+        local cfg = T.require('pl.tablex').deepcopy(rec().cfg)
+        cfg.layers = layers
+        manager().apply_config {networks = {cfg}}
+    end
+
+    local fake = boot {network('test', {layers = {tls_a, socks}})}
+    change {socks}
+    fake.last():progress('done', 'TLS', {layer = 1, type = 'tls', key = pin_b})
+    T.ok(fake.last().closed, 'a dropped pin still counts')
+
+    fake = boot {network('test', {layers = {tls_a}})}
+    change {{type = 'tls', pin = pin_b}}
+    fake.last():con {{type = 'tls', key = pin_a}}
+    T.eq(rec().phase, 'registering', 'a new pin waits for the next connection')
+end)
+
+T.case('a connection event that raises ends the connection', function()
+    for _, ev in ipairs {'PROGRESS', 'CON'} do
+        local fake = boot {network('test')}
+        local c = fake.last()
+        rec().pins = nil -- raises in the pin check
+        pcall(function()
+            if ev == 'CON' then c:con() else c:progress('done', 'x', {layer = 1, type = 'http'}) end
+        end)
+        T.ok(c.closed, ev .. ' closed it')
+        T.eq(rec().phase, 'idle', ev .. ' not connected')
+        T.ok(rec().reconnect_timer, ev .. ' retries')
+    end
+end)
+
+T.case('nothing can be sent before the connection is established', function()
+    local fake = boot {network('test')}
+    local send = T.require 'hub.net.send'
+    T.ok(not pcall(send.send, 'test', 'PRIVMSG', 'NickServ', 'identify x'), 'refused')
+    T.ok(not send.ready 'test', 'not ready')
+    T.eq(fake.last():take(), {}, 'nothing sent')
+end)
+
 T.case('each pin is checked against its own TLS layer', function()
     local layers = {
         {type = 'tls', pin = pin_a},

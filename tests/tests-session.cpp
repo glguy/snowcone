@@ -153,8 +153,10 @@ local function log(s) events[#events + 1] = s end
 
 auto const quiet_connect = R"lua(
 function connect(host, port, layers, cb)
+  local connected
   return connect_raw(host, port, layers, function(ev, ...)
-    if ev ~= 'PROGRESS' then return cb(ev, ...) end
+    if ev ~= 'PROGRESS' then connected = true; return cb(ev, ...) end
+    if connected then log('late PROGRESS') end
   end)
 end
 )lua";
@@ -394,7 +396,7 @@ end)
         [](Sock sock, auto) {
             write_then(sock, "PING :a\r\nPING :b\r\n", [sock] { sock->close(); });
         },
-        "CON,MSG:PING,MSG:PING,END:connection closed by server",
+        "CON,MSG:PING,MSG:PING,END:connection closed",
         any,
     });
 
@@ -502,6 +504,38 @@ end)
         "start:SOCKS proxy to irc.example:6667,"
         "END:SOCKS proxy to irc.example:6667: server rejected authentication methods",
         any,
+    });
+
+    // A timer runs inside the event loop, where a session could start at once
+    ok &= run({
+        "no callback before connect returns, inside the event loop",
+        R"lua(
+local timer = newtimer()
+timer:start(0, function()
+  local conn
+  conn = connect_raw('127.0.0.1', port, {}, function(ev)
+    if ev == 'PROGRESS' then log(conn and 'handle' or 'no handle'); conn:close() else log(ev) end
+  end)
+end)
+)lua",
+        nullptr,
+        "handle,END",
+        any,
+    });
+
+    // The server never answers, so the SOCKS layer is under way at the close
+    ok &= run({
+        "close from outside while a layer connects",
+        R"lua(
+local timer = newtimer()
+conn = connect_raw('127.0.0.1', port, {{type = 'socks', host = 'h', port = 1}}, function(ev, a, b)
+  log(ev .. ':' .. tostring(a))
+  if a == 'start' and b:find 'SOCKS' then timer:start(50, function() conn:close() end) end
+end)
+)lua",
+        [](Sock sock, auto seen) { read_until_end(sock, seen); },
+        "PROGRESS:start,PROGRESS:done,PROGRESS:start,END:nil",
+        [](Observed const& o) { return o.server_saw_end; },
     });
 
     for (auto const step : {"start", "done"})

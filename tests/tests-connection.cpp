@@ -641,9 +641,9 @@ TEST(Connection, CancelingConnectBeforeItStartsAbortsConnect)
 
 TEST(Errors, DescribeLeavesOutInternals)
 {
-    EXPECT_EQ(describe_error(asio::error::eof), "connection closed by server");
+    EXPECT_EQ(describe_error(asio::error::eof), "connection closed");
     EXPECT_EQ(describe_error(asio::error::host_not_found), "host name not found");
-    EXPECT_EQ(describe_error(asio::ssl::error::stream_truncated), "connection closed without TLS shutdown");
+    EXPECT_EQ(describe_error(asio::ssl::error::stream_truncated), "connection closed unexpectedly");
     EXPECT_EQ(describe_error(socks5::make_error_code(socks5::SocksErrc::HostUnreachable)), "host unreachable");
 
     static constexpr boost::source_location location = BOOST_CURRENT_LOCATION;
@@ -657,13 +657,45 @@ TEST(Errors, DescribeLeavesOutInternals)
     EXPECT_EQ(describe_error(tls), "certificate verify failed");
 }
 
-TEST(Errors, LayerDescriptions)
+/// The text reported as the last layer starts, where the connection is closed
+auto last_start_text(Settings settings) -> std::string
 {
-    EXPECT_EQ(describe_layer(IpLayer{"::1", 6667}), "connecting to [::1]:6667");
-    EXPECT_EQ(describe_layer(LocalLayer{"/tmp/irc"}), "connecting to /tmp/irc");
-    EXPECT_EQ(describe_layer(TlsLayer{.verify = "", .sni = "name"}), "TLS with name");
-    EXPECT_EQ(describe_layer(TlsLayer{}), "TLS");
-    EXPECT_EQ(describe_layer(WebSocketLayer{.host = "h:443", .path = "/?token=secret"}), "WebSocket with h:443");
+    asio::io_context io;
+    auto conn = connection::create(io);
+    auto remaining = settings.layers.size() + 1;
+    std::string last;
+    auto result = asio::co_spawn(
+        io,
+        conn->connect(std::move(settings), [&](std::string const& text, LayerInfo const* const established) {
+            if (not established && --remaining == 0)
+            {
+                last = text;
+                conn->close();
+            }
+        }),
+        asio::use_future
+    );
+    io.run_for(std::chrono::seconds{10});
+    EXPECT_TRUE(io.stopped()) << "timed out";
+    return last;
+}
+
+TEST(Errors, StartTextNamesTheLayer)
+{
+    EXPECT_EQ(last_start_text({.base = IpLayer{"::1", 6667}, .layers = {}}), "connecting to [::1]:6667");
+    EXPECT_EQ(last_start_text({.base = LocalLayer{"/tmp/irc"}, .layers = {}}), "connecting to /tmp/irc");
+
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io); // the backlog is enough
+    auto const over_tcp = [&](AnyLayer layer) {
+        auto settings = settings_for(acceptor);
+        settings.layers.push_back(std::move(layer));
+        return last_start_text(std::move(settings));
+    };
+    EXPECT_EQ(over_tcp(TlsLayer{.verify = "", .sni = "name"}), "TLS with name");
+    EXPECT_EQ(over_tcp(TlsLayer{}), "TLS");
+    EXPECT_EQ(over_tcp(HttpLayer{"::1", 80, socks5::UsernamePasswordCredential{"u", "secret"}}), "HTTP proxy to [::1]:80");
+    EXPECT_EQ(over_tcp(WebSocketLayer{.host = "h:443", .path = "/?token=secret"}), "WebSocket with h:443");
 }
 
 TEST(Errors, ProxyRefusalNamesTheProxyLayer)
@@ -992,7 +1024,7 @@ TEST(WebSocket, NoSubprotocolFailsTheConnection)
     );
     ASSERT_TRUE(run_briefly(io)) << "timed out";
 
-    EXPECT_EQ(client_result.get(), "WebSocket server chose no IRC subprotocol");
+    EXPECT_EQ(client_result.get(), "WebSocket with h: server chose no IRC subprotocol");
 }
 
 TEST(WebSocket, UnrequestedSubprotocolFailsTheConnection)
@@ -1009,7 +1041,7 @@ TEST(WebSocket, UnrequestedSubprotocolFailsTheConnection)
     );
     ASSERT_TRUE(run_briefly(io)) << "timed out";
 
-    EXPECT_EQ(client_result.get(), "WebSocket server chose unrequested subprotocol chat");
+    EXPECT_EQ(client_result.get(), "WebSocket with h: server chose unrequested subprotocol chat");
 }
 
 TEST(WebSocket, ClosingCancelsPendingRead)
@@ -1166,7 +1198,7 @@ TEST(WebSocket, SubprotocolNotOfferedFailsTheConnection)
     );
     ASSERT_TRUE(run_briefly(io)) << "timed out";
 
-    EXPECT_EQ(client_result.get(), "WebSocket server chose unrequested subprotocol binary.ircv3.net");
+    EXPECT_EQ(client_result.get(), "WebSocket with h: server chose unrequested subprotocol binary.ircv3.net");
 }
 
 auto refusing_http_server(tcp::acceptor& acceptor) -> asio::awaitable<void>
@@ -1439,6 +1471,13 @@ TEST(Tls, FingerprintIsSha256OfSubjectPublicKeyInfo)
     EXPECT_EQ(outcome.info.layer, 1u);
     EXPECT_EQ(outcome.info.type, "tls");
     EXPECT_EQ(outcome.info.key, spki_sha256(tls_fixture().server_key.get()));
+}
+
+TEST(Tls, FailureWithoutACodeNamesTheLayer)
+{
+    auto const outcome = tls_connect({.verify = "", .sni = std::string(256, 'a')});
+    EXPECT_TRUE(outcome.client.ends_with(": could not set the server name")) << outcome.client;
+    EXPECT_TRUE(outcome.client.starts_with("error: TLS with aaa")) << outcome.client;
 }
 
 TEST(Tls, ClosingOnceEstablishedSendsNothingToTheNextLayer)

@@ -227,7 +227,7 @@ end
 --- A line sent now would be written at once, not queued.
 function M.ready(net)
     local rec = HUB.state.nets[net]
-    if not (rec and rec.conn) then return false end
+    if not (rec and rec.conn) or rec.phase == 'connecting' then return false end
     local q = queue(rec)
     return not q.lines[1] and wait(rec, q) == 0
 end
@@ -237,7 +237,8 @@ end
 local function connection(net)
     local rec = HUB.state.nets[net]
     local conn = rec and rec.conn and resources.get(rec.conn)
-    if not conn then
+    -- while connecting, the server's key may not have been checked yet
+    if not conn or rec.phase == 'connecting' then
         error('network not connected: ' .. tostring(net), 0)
     end
     return rec, conn

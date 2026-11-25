@@ -10,13 +10,14 @@ auto describe_error(boost::system::error_code const& ec) -> std::string
 {
     namespace error = boost::asio::error;
 
+    // Any party may have closed it, such as a proxy, so none is named
     if (ec == error::eof || ec == boost::beast::http::error::end_of_stream)
     {
-        return "connection closed by server";
+        return "connection closed";
     }
     if (ec == boost::asio::ssl::error::stream_truncated)
     {
-        return "connection closed without TLS shutdown";
+        return "connection closed unexpectedly";
     }
     if (ec == error::connection_refused)
     {
@@ -24,7 +25,7 @@ auto describe_error(boost::system::error_code const& ec) -> std::string
     }
     if (ec == error::connection_reset)
     {
-        return "connection reset by server";
+        return "connection reset";
     }
     if (ec == error::timed_out)
     {
