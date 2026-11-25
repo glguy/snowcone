@@ -130,6 +130,26 @@ auto get_nonempty_line(LineBuffer& buff) -> char*
     return nullptr;
 }
 
+/// Push a table of what establishing a layer found out
+auto push_layer_info(lua_State* const L, LayerInfo const& info) -> void
+{
+    lua_createtable(L, 0, 3);
+    lua_pushinteger(L, static_cast<lua_Integer>(info.layer));
+    lua_setfield(L, -2, "layer");
+
+    auto const field = [L](char const* const name, std::string_view const value) {
+        if (not value.empty())
+        {
+            push_string(L, value);
+            lua_setfield(L, -2, name);
+        }
+    };
+    field("type", info.type);
+    field("endpoint", info.endpoint);
+    field("key", info.key);
+    field("subprotocol", info.subprotocol);
+}
+
 /// Connect, then read messages from the stream and invoke the Lua callback.
 ///
 /// Lua may close the connection at any time: from a callback, or from outside
@@ -159,17 +179,22 @@ auto run_session(
     }
 
     // Connect and invoke the callback function:
-    // cb("PROGRESS", step, text)
-    // cb("CON", fingerprint)
+    // cb("PROGRESS", "start", text)
+    // cb("PROGRESS", "done", text, info)
+    // cb("CON")
     {
-        auto const progress = [L, irc_cb](ConnectStep const step, std::string const& text) {
+        auto const progress = [L, irc_cb](std::string const& text, LayerInfo const* const established) {
             lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
             push_string(L, "PROGRESS"sv);
-            push_string(L, step == ConnectStep::started ? "start"sv : "done"sv);
+            push_string(L, established ? "done"sv : "start"sv);
             push_string(L, text);
-            safecall(L, "connect progress"sv, 3);
+            if (established)
+            {
+                push_layer_info(L, *established);
+            }
+            safecall(L, "connect progress"sv, established ? 4 : 3);
         };
-        auto const fingerprint = co_await irc->connect(std::move(settings), progress);
+        co_await irc->connect(std::move(settings), progress);
         if (irc->closed())
         {
             co_return;
@@ -177,8 +202,7 @@ auto run_session(
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
         push_string(L, "CON"sv);
-        push_string(L, fingerprint);
-        safecall(L, "successful connect"sv, 2);
+        safecall(L, "successful connect"sv, 1);
 
         if (irc->closed())
         {
@@ -614,17 +638,25 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
  * connection is started.
  *
  * Callback events:
- * - cb("PROGRESS", step, text): `step` is "start" or "done", for the TCP or
- *   local connection and then each layer in turn; `text` is for the user
- * - cb("CON", fingerprint)
+ * - cb("PROGRESS", "start", text), then cb("PROGRESS", "done", text, info),
+ *   for the TCP or local connection and then each layer in turn. `text` is
+ *   for the user. `info` has `layer`, 0 for the first and then the index in
+ *   `layers`; `type`, "tcp", "local" or the layer's type; and
+ *   - tcp, socks: `endpoint`, the address connected to, or that the proxy
+ *     reported
+ *   - tls: `key`, the SHA-256 of the server's public key in lowercase hex
+ *   - websocket: `subprotocol`, absent when the server chose none
+ *   Closing the connection in a "done" callback keeps the next layer from
+ *   sending anything.
+ * - cb("CON")
  * - cb("MSG", ircmsg, redraw)
  * - cb("END", error_message)
  *
  * error_message is nil when the session ended because the connection was
  * closed locally.
  *
- * Callback sequence: PROGRESS* (CON MSG*)? END. Nothing but END is delivered after the
- * callback that closed the connection returns.
+ * Callback sequence: PROGRESS* (CON MSG*)? END. Nothing but END is delivered
+ * after the callback that closed the connection returns.
  *
  * The returned handle has methods send(line) and close(). Each returns true,
  * or nil and "connection closed" once the connection has been closed, by

@@ -21,7 +21,7 @@ T.case('registration with CAP and SASL PLAIN', function()
     T.eq({c.host, c.port}, {'test.test', 6667}, 'address')
     T.eq(rec().phase, 'connecting', 'phase before CON')
 
-    c:con 'tls=TLSv1.3 fp=abc'
+    c:con()
     T.eq(rec().phase, 'registering', 'phase after CON')
     T.eq(c:take(), {'CAP LS 302', 'NICK me', 'USER me 0 * me'}, 'opening')
 

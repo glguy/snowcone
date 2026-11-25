@@ -33,19 +33,21 @@ T.case('progress is logged, and the current step kept until connected', function
     local c = fake.last()
     c:progress('start', 'connecting to irc:6697')
     T.eq(rec().step, 'connecting to irc:6697', 'step')
-    c:progress('done', 'connected to 192.0.2.1:6697')
+    c:progress('done', 'TCP connected to 192.0.2.1:6697', {layer = 0, type = 'tcp', endpoint = '192.0.2.1:6697'})
     c:progress('start', 'TLS with irc 100%')
     T.eq(rec().step, 'TLS with irc 100%', 'next step')
-    c:progress('done', 'TLS with irc 100% established')
+    c:progress('done', 'TLS with irc 100% established', {layer = 1, type = 'tls', key = 'ab'})
     local found = {}
     for _, line in ipairs(T.log_lines 'irc') do
         if line:find('established', 1, true) or line:find('connected to', 1, true) then
             table.insert(found, line)
         end
     end
-    T.eq(#found, 2, 'finished steps are logged')
+    T.eq(found, {'TCP connected to 192.0.2.1:6697', 'TLS with irc 100% established'}, 'finished steps are logged, once')
     c:con()
     T.eq(rec().step, nil, 'cleared once connected')
+    T.eq(T.log_lines('irc')[#T.log_lines 'irc'], 'TLS with irc 100% established', 'the last step ends the log')
+    T.eq(rec().transport, 'tcp=192.0.2.1:6697 tls=ab', 'described')
 
     c:finish 'gone'
     fire_reconnect 'test'
@@ -192,11 +194,42 @@ local pin_b <const> = string.rep('b', 64)
 
 T.case('a TLS key that fails its pin is not retried', function()
     local fake = boot {network('test', {layers = {{type = 'tls', pin = pin_a}}})}
-    fake.last():con('tcp=192.0.2.1:6697 tls=' .. pin_b)
+    fake.last():con {{type = 'tls', key = pin_b}}
     T.eq(rec().phase, 'idle', 'dropped')
     T.eq(rec().target, 'idle', 'target dropped to idle')
     T.ok(not rec().reconnect_timer, 'no retry')
-    T.eq(T.log_lines('irc')[#T.log_lines 'irc'], 'disconnected: layers[1]: TLS key does not match pin', 'logged')
+    T.eq(T.log_lines('irc')[#T.log_lines 'irc'], 'disconnected: layers[1]: TLS key ' .. pin_b .. ' does not match pin', 'logged')
+end)
+
+T.case('a failed pin closes as soon as its layer is established', function()
+    local fake = boot {network('test', {layers = {
+        {type = 'tls', pin = pin_a},
+        {type = 'socks', host = 'p', port = 1080},
+    }})}
+    local c = fake.last()
+    c:progress('done', 'connected', {layer = 0, type = 'tcp', endpoint = '192.0.2.1:443'})
+    T.ok(not c.closed, 'still connecting')
+    c:progress('done', 'TLS', {layer = 1, type = 'tls', key = pin_b})
+    T.ok(c.closed, 'closed before the next layer')
+    T.eq(rec().target, 'idle', 'not retried')
+end)
+
+T.case('a pin whose layer was never reported fails at CON', function()
+    local fake = boot {network('test', {layers = {{type = 'tls', pin = pin_a}}})}
+    local c = fake.last()
+    c:con()
+    T.ok(c.closed, 'closed')
+    T.eq(rec().phase, 'idle', 'not registering')
+    T.eq(c:take(), {}, 'nothing sent')
+
+    -- nor does an earlier attempt's key count for a later one
+    fake = boot {network('test', {layers = {{type = 'tls', pin = pin_a}}})}
+    fake.last():con {{type = 'tls', key = pin_a}}
+    T.eq(rec().phase, 'registering', 'matched')
+    fake.last():finish 'gone'
+    fire_reconnect 'test'
+    fake.last():con()
+    T.eq(rec().phase, 'idle', 'checked afresh')
 end)
 
 T.case('each pin is checked against its own TLS layer', function()
@@ -206,12 +239,12 @@ T.case('each pin is checked against its own TLS layer', function()
         {type = 'tls', pin = string.upper(pin_b)},
     }
     local fake = boot {network('test', {layers = layers})}
-    fake.last():con('tcp=192.0.2.1:443 tls=' .. pin_a .. ' socks=p:1080 tls=' .. pin_b)
+    fake.last():con {{type = 'tls', key = pin_a}, {type = 'socks', endpoint = 'p:1080'}, {type = 'tls', key = pin_b}}
     T.eq(rec().phase, 'registering', 'both pins match, in any case')
 
     fake = boot {network('test', {layers = layers})}
-    fake.last():con('tcp=192.0.2.1:443 tls=' .. pin_b .. ' socks=p:1080 tls=' .. pin_a)
-    T.eq(T.log_lines('irc')[#T.log_lines 'irc'], 'disconnected: layers[1]: TLS key does not match pin',
+    fake.last():con {{type = 'tls', key = pin_b}, {type = 'socks', endpoint = 'p:1080'}, {type = 'tls', key = pin_a}}
+    T.eq(T.log_lines('irc')[#T.log_lines 'irc'], 'disconnected: layers[1]: TLS key ' .. pin_b .. ' does not match pin',
         'the keys in the wrong order fail')
 end)
 

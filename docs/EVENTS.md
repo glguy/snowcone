@@ -13,7 +13,7 @@ carry `net`, the network id.
 | `task.prompt` | `{task, label, net?}` a task waits for a secret; answer with `task.answer(task, text)` | runtime/task |
 | `task.canceled` | `{task, name, net?}` a task was canceled; a prompt it asked goes | runtime/task |
 | `net.state` | `{net, phase, prev, reason?, kind?}` on every phase change; `reason` and `kind` when a connection ended (as for `net.closed`) | net/manager |
-| `net.connected` | `{net, fingerprint}` transport is up, registration starts | net/manager |
+| `net.connected` | `{net, transport}` transport, as described, is up, registration starts | net/manager |
 | `net.registered` | `{net, nick}` end of MOTD after welcome | net/registration |
 | `net.closed` | `{net, reason, kind}` an attempt ended: `reason` is the text logged, `kind` one of `local` (we ended it), `config` (stays down), `banned` (465; retries after `reconnect.max_delay`), `refused`, `timeout`, `stream`, `server` (the server's ERROR) | net/manager |
 | `net.removed` | `{net}` a network left the configuration and its record is gone; drop its feature state | net/manager |

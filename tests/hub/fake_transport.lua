@@ -3,7 +3,8 @@
 --   local fake = FakeTransport.new()
 --   T.boot {transport = fake, config = ...}
 --   local c = fake.last()
---   c:con('fp')                      -- connection established
+--   c:con()                          -- connection established
+--   c:con {{type = 'tls', key = k}}  -- after these layers, from 1
 --   c:recv ':srv 001 me :Welcome'    -- a line from the server
 --   c:take()                         -- lines sent since the last take
 --   c:finish('reset')                -- connection ended
@@ -28,11 +29,15 @@ function M.new()
             c.closed = true
         end
 
-        function c:progress(step, text)
-            self.cb('PROGRESS', step, text)
+        function c:progress(step, text, info)
+            self.cb('PROGRESS', step, text, info)
         end
-        function c:con(fingerprint)
-            self.cb('CON', fingerprint or 'tls=TLSv1.3 fp')
+        function c:con(layers)
+            for i, info in ipairs(layers or {}) do
+                info.layer = i
+                self:progress('done', info.type, info)
+            end
+            self.cb('CON')
         end
         --- Deliver one line; flush is false for all but the last of a read.
         function c:recv(line, flush)

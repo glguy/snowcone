@@ -10,10 +10,8 @@
 #include <boost/beast/websocket/error.hpp>
 #include <boost/beast/websocket/rfc6455.hpp>
 #include <boost/beast/websocket/stream_base.hpp>
-#include <boost/io/ios_state.hpp>
 
 #include <algorithm>
-#include <iomanip>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -90,13 +88,20 @@ namespace {
     throw connection_error{ec, std::string{prefix} + ": " + describe_error(ec)};
 }
 
+auto endpoint_text(boost::asio::ip::tcp::endpoint const& endpoint) -> std::string
+{
+    std::ostringstream os;
+    os << endpoint;
+    return os.str();
+}
+
 /**
- * @brief Write the SHA-256 digest of the peer's DER SubjectPublicKeyInfo
+ * @brief The SHA-256 digest, in lowercase hex, of the peer's DER SubjectPublicKeyInfo
  *
  * This matches common pinning tools, for example
  * `openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | sha256sum`.
  */
-auto peer_fingerprint(std::ostream& os, SSL const* const ssl) -> void
+auto peer_fingerprint(SSL const* const ssl) -> std::string
 {
     auto const cert = SSL_get0_peer_certificate(ssl);
     if (not cert)
@@ -120,14 +125,14 @@ auto peer_fingerprint(std::ostream& os, SSL const* const ssl) -> void
         openssl_error("EVP_Digest");
     }
 
-    boost::io::ios_flags_saver const saver{os};
-
-    // Server fingerprint representation
-    os << std::hex << std::setfill('0');
+    auto constexpr digits = "0123456789abcdef";
+    std::string result;
     for (unsigned i = 0; i < md_len; i++)
     {
-        os << std::setw(2) << int{md[i]};
+        result += digits[md[i] >> 4];
+        result += digits[md[i] & 0xf];
     }
+    return result;
 }
 
 /**
@@ -175,15 +180,9 @@ struct ConnectContext
 
     /// Aborts the TCP connection attempts when the connection is closed
     happy_eyeballs::CancellationSource& close_cancellation;
-
-    /// Fingerprint string builder
-    std::ostream& os;
-
-    /// Address that the IP layer connected to
-    boost::asio::ip::tcp::endpoint endpoint{};
 };
 
-auto connect_layer(ConnectContext& ctx, IpLayer& layer) -> boost::asio::awaitable<void>
+auto connect_layer(ConnectContext& ctx, IpLayer& layer) -> boost::asio::awaitable<LayerInfo>
 {
     auto& socket = ctx.stream.reset_ip();
     auto const endpoint = co_await happy_eyeballs::async_connect(
@@ -192,16 +191,15 @@ auto connect_layer(ConnectContext& ctx, IpLayer& layer) -> boost::asio::awaitabl
         std::to_string(layer.port),
         ctx.close_cancellation
     );
-    ctx.endpoint = endpoint;
-    ctx.os << "tcp=" << endpoint;
 
     // The socket was opened close-on-exec by happy_eyeballs.
     boost::system::error_code ignored;
     socket.set_option(boost::asio::ip::tcp::no_delay{true}, ignored);
     set_buffer_size(socket, connection::irc_buffer_size);
+    co_return LayerInfo{.type = "tcp", .endpoint = endpoint_text(endpoint)};
 }
 
-auto connect_layer(ConnectContext& ctx, LocalLayer& layer) -> boost::asio::awaitable<void>
+auto connect_layer(ConnectContext& ctx, LocalLayer& layer) -> boost::asio::awaitable<LayerInfo>
 {
     auto& socket = ctx.stream.reset_local();
 
@@ -215,14 +213,13 @@ auto connect_layer(ConnectContext& ctx, LocalLayer& layer) -> boost::asio::await
 
     boost::asio::local::stream_protocol::endpoint entry{layer.path};
     co_await socket.async_connect(entry, boost::asio::use_awaitable);
-    ctx.os << "local";
     set_buffer_size(socket, connection::irc_buffer_size);
+    co_return LayerInfo{.type = "local"};
 }
 
-auto connect_layer(ConnectContext& ctx, TlsLayer& tls_layer) -> boost::asio::awaitable<void>
+auto connect_layer(ConnectContext& ctx, TlsLayer& tls_layer) -> boost::asio::awaitable<LayerInfo>
 {
     auto& stream = ctx.stream;
-    auto& os = ctx.os;
 
     boost::asio::ssl::context ssl_context{boost::asio::ssl::context::method::tls_client};
     ssl_context.set_default_verify_paths();
@@ -315,7 +312,7 @@ auto connect_layer(ConnectContext& ctx, TlsLayer& tls_layer) -> boost::asio::awa
         throw boost::system::system_error{handshake_error};
     }
 
-    peer_fingerprint(os << " tls=", tls.native_handle());
+    co_return LayerInfo{.type = "tls", .key = peer_fingerprint(tls.native_handle())};
 }
 
 /// IP literals are sent to the proxy as addresses rather than as domain names
@@ -337,29 +334,29 @@ auto socks_host(std::string const& host) -> socks5::Host
     return address;
 }
 
-auto connect_layer(ConnectContext& ctx, SocksLayer& socks_layer) -> boost::asio::awaitable<void>
+auto connect_layer(ConnectContext& ctx, SocksLayer& socks_layer) -> boost::asio::awaitable<LayerInfo>
 {
-    ctx.os << " socks="
-       << co_await socks5::async_connect(
-              ctx.stream,
-              socks_host(socks_layer.host), socks_layer.port,
-              std::move(socks_layer.auth),
-              boost::asio::use_awaitable
-          );
+    auto const endpoint = co_await socks5::async_connect(
+        ctx.stream,
+        socks_host(socks_layer.host), socks_layer.port,
+        std::move(socks_layer.auth),
+        boost::asio::use_awaitable
+    );
+    co_return LayerInfo{.type = "socks", .endpoint = endpoint_text(endpoint)};
 }
 
-auto connect_layer(ConnectContext& ctx, HttpLayer& http_layer) -> boost::asio::awaitable<void>
+auto connect_layer(ConnectContext& ctx, HttpLayer& http_layer) -> boost::asio::awaitable<LayerInfo>
 {
-    ctx.os << " http";
     co_await httpconnect::async_connect(
         ctx.stream,
         http_layer.host, http_layer.port,
         std::move(http_layer.auth),
         boost::asio::use_awaitable
     );
+    co_return LayerInfo{.type = "http"};
 }
 
-auto connect_layer(ConnectContext& ctx, WebSocketLayer& layer) -> boost::asio::awaitable<void>
+auto connect_layer(ConnectContext& ctx, WebSocketLayer& layer) -> boost::asio::awaitable<LayerInfo>
 {
     namespace http = boost::beast::http;
     namespace ws = boost::beast::websocket;
@@ -417,8 +414,7 @@ auto connect_layer(ConnectContext& ctx, WebSocketLayer& layer) -> boost::asio::a
     if (subprotocol.empty() && layer.subprotocols.empty())
     {
         ws_stream.text(true);
-        ctx.os << " ws=none";
-        co_return;
+        co_return LayerInfo{.type = "websocket"};
     }
     if (subprotocol.empty())
     {
@@ -437,7 +433,7 @@ auto connect_layer(ConnectContext& ctx, WebSocketLayer& layer) -> boost::asio::a
     {
         ws_stream.text(true);
     }
-    ctx.os << " ws=" << subprotocol;
+    co_return LayerInfo{.type = "websocket", .subprotocol = std::string{subprotocol}};
 }
 
 auto host_port(std::string const& host, std::uint16_t const port) -> std::string
@@ -449,34 +445,32 @@ auto host_port(std::string const& host, std::uint16_t const port) -> std::string
 
 // Text for the user once a layer is established
 
-auto describe_established(ConnectContext const& ctx, IpLayer const&) -> std::string
+auto describe_established(LayerInfo const& info, IpLayer const&) -> std::string
 {
-    std::ostringstream os;
-    os << "connected to " << ctx.endpoint;
-    return os.str();
+    return "TCP connected to " + info.endpoint;
 }
 
-auto describe_established(ConnectContext const&, LocalLayer const& layer) -> std::string
+auto describe_established(LayerInfo const&, LocalLayer const& layer) -> std::string
 {
-    return "connected to " + layer.path;
+    return "socket connected to " + layer.path;
 }
 
-auto describe_established(ConnectContext const&, TlsLayer const& layer) -> std::string
+auto describe_established(LayerInfo const&, TlsLayer const& layer) -> std::string
 {
     return describe_layer(layer) + " established";
 }
 
-auto describe_established(ConnectContext const&, SocksLayer const& layer) -> std::string
+auto describe_established(LayerInfo const&, SocksLayer const& layer) -> std::string
 {
     return "SOCKS proxy connected to " + host_port(layer.host, layer.port);
 }
 
-auto describe_established(ConnectContext const&, HttpLayer const& layer) -> std::string
+auto describe_established(LayerInfo const&, HttpLayer const& layer) -> std::string
 {
     return "HTTP proxy connected to " + host_port(layer.host, layer.port);
 }
 
-auto describe_established(ConnectContext const&, WebSocketLayer const& layer) -> std::string
+auto describe_established(LayerInfo const&, WebSocketLayer const& layer) -> std::string
 {
     return describe_layer(layer) + " established";
 }
@@ -554,7 +548,7 @@ auto tls_names::resolve(
 auto connection::connect(
     Settings settings,
     Progress progress
-) -> boost::asio::awaitable<std::string>
+) -> boost::asio::awaitable<void>
 {
     if (closed_)
     {
@@ -573,21 +567,22 @@ auto connection::connect(
         }
     };
 
-    std::ostringstream os;
-    ConnectContext ctx{stream_, connect_cancellation_, os};
-    auto const report = [&](ConnectStep const step, std::string const& text) {
+    ConnectContext ctx{stream_, connect_cancellation_};
+    auto const report = [&](std::string const& text, LayerInfo const* const established) {
         if (progress)
         {
-            progress(step, text);
+            progress(text, established);
             throw_if_closed();
         }
     };
 
+    std::size_t position = 0;
     auto const connect_one = [&](auto& layer) -> boost::asio::awaitable<void> {
-        report(ConnectStep::started, describe_layer(layer));
+        report(describe_layer(layer), nullptr);
+        LayerInfo info;
         try
         {
-            co_await connect_layer(ctx, layer);
+            info = co_await connect_layer(ctx, layer);
         }
         catch (connection_error const& e)
         {
@@ -598,7 +593,8 @@ auto connection::connect(
             throw connection_error{e.code(), describe_layer(layer) + ": " + describe_error(e.code())};
         }
         throw_if_closed();
-        report(ConnectStep::finished, describe_established(ctx, layer));
+        info.layer = position++;
+        report(describe_established(info, layer), &info);
     };
 
     co_await std::visit(connect_one, settings.base);
@@ -613,6 +609,4 @@ auto connection::connect(
     {
         write_actual();
     }
-
-    co_return os.str();
 }

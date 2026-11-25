@@ -46,7 +46,8 @@ local M = {}
 ---@field lag_token string|nil the PING argument awaiting its PONG
 ---@field lag_sent number|nil when lag_token was sent
 ---@field irc hub.Irc|nil protocol model (net/irc.lua), nil when idle
----@field fingerprint string|nil of the current connection
+---@field established table<integer, snowcone.LayerInfo> of the current attempt, by layer
+---@field transport string|nil description of the current connection's layers
 ---@field step string|nil what a connecting network is doing now
 ---@field registered_at number|nil clock when registration finished
 ---@field intent hub.Intent what any connection should become (net/intent.lua)
@@ -399,7 +400,8 @@ function M.connect(id)
     cancel_timer(rec, 'reconnect_timer')
     rec.target = 'connected'
     rec.attempt = rec.attempt + 1
-    rec.fingerprint = nil
+    rec.established = {}
+    rec.transport = nil
     rec.restart_pending = false
     M.set_phase(id, 'resolving_secrets')
     task.spawn('connect', {net = id, owner = 'net'}, connect_body, rec.attempt)
@@ -477,47 +479,63 @@ end
 
 local events = {}
 
--- The index in `layers` of the first TLS layer whose pin doesn't match
--- the key it got. The description has a tls= entry per TLS layer, in order.
-local function unpinned(layers, description)
-    local keys = {}
-    for key in description:gmatch ' tls=(%x+)' do
-        table.insert(keys, key)
-    end
-    local n = 0
-    for i, layer in ipairs(layers) do
-        if layer.type == 'tls' then
-            n = n + 1
-            if layer.pin and layer.pin:lower() ~= keys[n] then
-                return i
-            end
-        end
-    end
+-- Give up if layer i has a pin that the key it got doesn't match; no key
+-- counts as a mismatch. Returns true when it gave up.
+local function check_pin(rec, i)
+    local layer = rec.cfg.layers[i]
+    if not layer or layer.type ~= 'tls' or not layer.pin then return false end
+    local info = rec.established[i]
+    if info and info.key == layer.pin:lower() then return false end
+    -- like any configuration problem, retrying won't fix it
+    M.give_up(rec.id, string.format('layers[%d]: TLS key %s does not match pin',
+        i, info and info.key or '(unknown)'))
+    return true
 end
 
-function events.PROGRESS(rec, step, text)
+local transport_text <const> = {
+    tcp = function(info) return 'tcp=' .. info.endpoint end,
+    ['local'] = function() return 'local' end,
+    tls = function(info) return 'tls=' .. info.key end,
+    socks = function(info) return 'socks=' .. info.endpoint end,
+    http = function() return 'http' end,
+    websocket = function(info) return 'ws=' .. (info.subprotocol or 'none') end,
+}
+
+-- The established layers on one line, for /session
+local function describe_transport(established)
+    local words = {}
+    for i = 0, #established do
+        local info = established[i]
+        if info then
+            table.insert(words, transport_text[info.type](info))
+        end
+    end
+    return table.concat(words, ' ')
+end
+
+-- Pins are checked as each layer is established: closing here keeps the
+-- next layer from sending anything, such as a proxy's password.
+function events.PROGRESS(rec, step, text, info)
     if step == 'start' then
         rec.step = text
         dispatch.dirty()
-    else
-        log.add_net(rec.id, 'irc', '%s', text)
-    end
-end
-
-function events.CON(rec, fingerprint)
-    rec.step = nil
-    rec.fingerprint = fingerprint
-    log.add_net(rec.id, 'irc', 'connected: %s', fingerprint)
-
-    local i = unpinned(rec.cfg.layers, fingerprint)
-    if i then
-        -- like any configuration problem, retrying won't fix it
-        M.give_up(rec.id, string.format('layers[%d]: TLS key does not match pin', i))
         return
     end
+    rec.established[info.layer] = info
+    if check_pin(rec, info.layer) then return end
+    log.add_net(rec.id, 'irc', '%s', text)
+end
+
+function events.CON(rec)
+    rec.step = nil
+    -- Again, so a PROGRESS that was lost or failed can't skip a pin
+    for i in ipairs(rec.cfg.layers) do
+        if check_pin(rec, i) then return end
+    end
+    rec.transport = describe_transport(rec.established)
 
     M.set_phase(rec.id, 'registering')
-    bus.emit('net.connected', {net = rec.id, fingerprint = fingerprint})
+    bus.emit('net.connected', {net = rec.id, transport = rec.transport})
 end
 
 -- Commands whose source is always a user

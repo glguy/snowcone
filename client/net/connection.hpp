@@ -133,11 +133,19 @@ namespace tls_names {
     ) -> Names;
 }
 
-/// A step of connecting, reported as it happens
-enum class ConnectStep
+/// What establishing a layer found out
+struct LayerInfo
 {
-    started,
-    finished,
+    /// 0 for the base, then the layers from 1
+    std::size_t layer = 0;
+    /// tcp, local, tls, socks, http or websocket
+    std::string_view type{};
+    /// tcp: the address connected to; socks: the address the proxy reported
+    std::string endpoint{};
+    /// tls: SHA-256 of the server's public key, in lowercase hex
+    std::string key{};
+    /// websocket: the subprotocol chosen, empty for none
+    std::string subprotocol{};
 };
 
 class connection final : public std::enable_shared_from_this<connection>
@@ -158,9 +166,10 @@ private:
     std::vector<char> send_;
 
 public:
-    /// Told of each layer's steps, with text for the user. It may close the
-    /// connection, and then it isn't called again.
-    using Progress = std::function<void(ConnectStep, std::string const&)>;
+    /// Told as each layer starts and, with what was found out, as it is
+    /// established; the text is for the user. It may close the connection:
+    /// then it isn't called again, and no later layer sends anything.
+    using Progress = std::function<void(std::string const& text, LayerInfo const* established)>;
 
     connection(boost::asio::io_context&);
 
@@ -211,10 +220,9 @@ public:
      * 
      * @param settings Parameters needed to establish a text stream with the server.
      * @param progress Called as each layer starts and finishes; may be empty
-     * @return Space-separated, key=value pairs describing the connection
      * @throws connection_error naming the layer that failed
      */
-    auto connect(Settings settings, Progress progress = {}) -> boost::asio::awaitable<std::string>;
+    auto connect(Settings settings, Progress progress = {}) -> boost::asio::awaitable<void>;
 
 private:
     // There's data now, actually write it

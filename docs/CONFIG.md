@@ -293,7 +293,7 @@ Notes:
 - Over `server.path`, with no proxy layer before the TLS layer, there is no host to default to. `verify_host` is then required (a hostname, or `''`), and connecting without it fails.
 - `sni_host` defaults to `verify_host` when that is set and non-empty, and otherwise to the same host. Set both only when they must differ. IP addresses are never sent as a server name, and `sni_host = ''` sends none.
 - `alpn`: each name is 1 to 255 bytes, for example `alpn = ['irc']`. By default no ALPN is sent, because some servers and proxies refuse a handshake that offers only protocols they don't speak. Set it for a front end that routes by ALPN. Use `['http/1.1']` on a TLS layer that wraps an HTTPS proxy.
-- `pin` is 64 hex digits, in either case: the SHA-256 of the server's DER-encoded public key (SubjectPublicKeyInfo). If the server presents a different key, the connection is dropped with a message naming the layer, and not retried: the network stays idle until you fix the configuration and `/connect`. The pin is checked as well as `verify_host`, not instead of it. The value is the same as the layer's `tls=` in `/session`, and as:
+- `pin` is 64 hex digits, in either case: the SHA-256 of the server's DER-encoded public key (SubjectPublicKeyInfo). If the server presents a different key, the connection is dropped, before anything is sent over that layer, with a message naming the layer, and not retried: the network stays idle until you fix the configuration and `/connect`. The pin is checked as well as `verify_host`, not instead of it. The value is the same as the layer's `tls=` in `/session`, and as:
 
   ```sh
   openssl s_client -connect irc.example.net:6697 </dev/null | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | sha256sum

@@ -79,8 +79,16 @@ function Listener:close() end
 ---@field SIGTSTP integer
 snowcone = {}
 
---- Callback events: ('PROGRESS', 'start'|'done', text) as each layer
---- connects, ('CON', fingerprint), ('MSG', message, redraw) and
+--- What establishing a layer found out.
+---@class snowcone.LayerInfo
+---@field layer integer 0 for the base connection, then the index in layers
+---@field type 'tcp'|'local'|'tls'|'socks'|'http'|'websocket'
+---@field endpoint string|nil tcp: address connected to; socks: as the proxy reported
+---@field key string|nil tls: SHA-256 of the server's public key, lowercase hex
+---@field subprotocol string|nil websocket: nil when the server chose none
+
+--- Callback events: ('PROGRESS', 'start', text) and ('PROGRESS', 'done',
+--- text, info) as each layer connects, ('CON'), ('MSG', message, redraw) and
 --- ('END', error), where error is nil after a local close.
 ---@param host string socket path when port is 0
 ---@param port integer

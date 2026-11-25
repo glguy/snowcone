@@ -819,11 +819,11 @@ auto websocket_settings(tcp::acceptor const& acceptor, WebSocketLayer layer) -> 
     return settings;
 }
 
-/// What the client got: the connection description, every byte read, the
+/// What the client got: the WebSocket layer's subprotocol, every byte read, the
 /// error that ended reading, and the stream's account of why
 struct WsGot
 {
-    std::string description;
+    std::string subprotocol;
     std::string received;
     boost::system::error_code end;
     std::string close_reason;
@@ -845,7 +845,12 @@ auto websocket_client(
 ) -> asio::awaitable<WsGot>
 {
     WsGot got;
-    got.description = co_await conn->connect(std::move(settings));
+    co_await conn->connect(std::move(settings), [&](std::string const&, LayerInfo const* const info) {
+        if (info && info->type == "websocket")
+        {
+            got.subprotocol = info->subprotocol;
+        }
+    });
     for (auto const& line : lines)
     {
         conn->write(line);
@@ -892,7 +897,7 @@ TEST(WebSocket, SendsLinesAsMessagesAndReadsMessagesAsLines)
 
     auto const got = client_result.get();
     auto const seen = server_result.get();
-    EXPECT_TRUE(got.description.ends_with(" ws=binary.ircv3.net")) << got.description;
+    EXPECT_EQ(got.subprotocol, "binary.ircv3.net");
     EXPECT_EQ(got.received, ":s 001 n :welcome\nPONG \xff\n");
     EXPECT_EQ(got.end, ws::error::closed);
     EXPECT_EQ(got.close_reason, "WebSocket closed by the server with code 1000");
@@ -921,7 +926,7 @@ TEST(WebSocket, TextSubprotocolSendsTextMessages)
 
     auto const got = client_result.get();
     auto const seen = server_result.get();
-    EXPECT_TRUE(got.description.ends_with(" ws=text.ircv3.net")) << got.description;
+    EXPECT_EQ(got.subprotocol, "text.ircv3.net");
     EXPECT_EQ(got.received, "PONG\n");
     EXPECT_EQ(seen.origin, "");
     EXPECT_EQ(seen.messages, (std::vector<std::string>{"PING"}));
@@ -1120,7 +1125,7 @@ TEST(WebSocket, OfferingNoSubprotocolUsesText)
 
     auto const got = client_result.get();
     auto const seen = server_result.get();
-    EXPECT_TRUE(got.description.ends_with(" ws=none")) << got.description;
+    EXPECT_EQ(got.subprotocol, "");
     EXPECT_EQ(got.received, "PONG\n");
     EXPECT_EQ(seen.protocols, "");
     EXPECT_EQ(seen.messages, (std::vector<std::string>{"PING"}));
@@ -1142,7 +1147,7 @@ TEST(WebSocket, OffersOnlyTheGivenSubprotocols)
     );
     ASSERT_TRUE(run_briefly(io)) << "timed out";
 
-    EXPECT_TRUE(client_result.get().description.ends_with(" ws=text.ircv3.net"));
+    EXPECT_EQ(client_result.get().subprotocol, "text.ircv3.net");
     EXPECT_EQ(server_result.get().protocols, "text.ircv3.net");
 }
 
@@ -1352,7 +1357,8 @@ auto spki_sha256(EVP_PKEY* const key) -> std::string
 
 struct TlsOutcome
 {
-    std::string client; // the connect result, or "error: " and the message
+    std::string client; // "connected", or "error: " and the message
+    LayerInfo info; // of the TLS layer
     std::optional<std::string> server_sni;
     std::optional<std::string> server_alpn; // the encoded list the client offered
 };
@@ -1395,7 +1401,13 @@ auto tls_connect(X509* const cert, EVP_PKEY* const key, TlsLayer tls) -> TlsOutc
     asio::co_spawn(io, [&]() -> asio::awaitable<void> {
         try
         {
-            outcome.client = co_await conn->connect(std::move(settings));
+            co_await conn->connect(std::move(settings), [&](std::string const&, LayerInfo const* const info) {
+                if (info)
+                {
+                    outcome.info = *info;
+                }
+            });
+            outcome.client = "connected";
         }
         catch (std::exception const& e)
         {
@@ -1424,8 +1436,62 @@ TEST(Tls, VerifiesHostname)
 TEST(Tls, FingerprintIsSha256OfSubjectPublicKeyInfo)
 {
     auto const outcome = tls_connect({.verify = "irc.example", .sni = ""});
-    auto const want = " tls=" + spki_sha256(tls_fixture().server_key.get());
-    EXPECT_TRUE(outcome.client.ends_with(want)) << outcome.client;
+    EXPECT_EQ(outcome.info.layer, 1u);
+    EXPECT_EQ(outcome.info.type, "tls");
+    EXPECT_EQ(outcome.info.key, spki_sha256(tls_fixture().server_key.get()));
+}
+
+TEST(Tls, ClosingOnceEstablishedSendsNothingToTheNextLayer)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+    auto& f = tls_fixture();
+
+    asio::ssl::context server_ctx{asio::ssl::context::tls_server};
+    SSL_CTX_use_certificate(server_ctx.native_handle(), f.server.get());
+    SSL_CTX_use_PrivateKey(server_ctx.native_handle(), f.server_key.get());
+
+    bool handshook = false;
+    std::size_t received = 0;
+    asio::co_spawn(io, [&]() -> asio::awaitable<void> {
+        asio::ssl::stream<tcp::socket> stream{co_await asio::this_coro::executor, server_ctx};
+        co_await acceptor.async_accept(stream.next_layer(), asio::use_awaitable);
+        co_await stream.async_handshake(stream.server, asio::use_awaitable);
+        handshook = true;
+        std::array<char, 64> buffer{};
+        auto const [error, n] = co_await stream.async_read_some(
+            asio::buffer(buffer), asio::as_tuple(asio::use_awaitable));
+        received = n;
+    }, asio::detached);
+
+    auto settings = settings_for(acceptor);
+    settings.layers.emplace_back(TlsLayer{.verify = "irc.example", .sni = ""});
+    settings.layers.emplace_back(SocksLayer{"irc.example", 6667, socks5::UsernamePasswordCredential{"u", "secret"}});
+    auto result = asio::co_spawn(
+        io,
+        conn->connect(std::move(settings), [&](std::string const&, LayerInfo const* const info) {
+            if (info && info->type == "tls")
+            {
+                conn->close();
+            }
+        }),
+        asio::use_future
+    );
+    io.run_for(std::chrono::seconds{10});
+    ASSERT_TRUE(io.stopped()) << "timed out";
+
+    try
+    {
+        result.get();
+        FAIL() << "connect should fail after close";
+    }
+    catch (boost::system::system_error const& error)
+    {
+        EXPECT_EQ(error.code(), asio::error::operation_aborted);
+    }
+    EXPECT_TRUE(handshook);
+    EXPECT_EQ(received, 0u);
 }
 
 TEST(Tls, ReportsHostnameMismatch)

@@ -67,7 +67,7 @@ return {
                 win:waddstr(scrub(rec.closed.text))
                 draw.normal(win)
             else
-                win:waddstr(scrub(rec.step or rec.fingerprint or '-'))
+                win:waddstr(scrub(rec.step or rec.transport or '-'))
             end
 
             if rec.restart_pending then

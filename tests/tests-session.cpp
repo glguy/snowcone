@@ -498,7 +498,7 @@ conn = connect_raw('127.0.0.1', port, {{type = 'socks', host = 'irc.example', po
 end)
 )lua",
         [](Sock sock, auto) { read_then_refuse_socks(sock); },
-        "start:connecting to 127.0.0.1:PORT,done:connected to 127.0.0.1:PORT,"
+        "start:connecting to 127.0.0.1:PORT,done:TCP connected to 127.0.0.1:PORT,"
         "start:SOCKS proxy to irc.example:6667,"
         "END:SOCKS proxy to irc.example:6667: server rejected authentication methods",
         any,
@@ -544,7 +544,7 @@ end)
         "websocket carries lines as messages",
         R"lua(
 conn = connect('127.0.0.1', port, {{type = 'websocket', path = '/irc'}}, function(ev, a)
-  if ev == 'CON' then log('CON:' .. a:match('ws=.*'))
+  if ev == 'CON' then log('CON')
   elseif ev == 'MSG' then log('MSG:' .. a.command .. ':' .. a[1]); conn:send('PONG :' .. a[1] .. '\r\n')
   else log('END:' .. a:match('code %d+')) end
 end)
@@ -572,7 +572,7 @@ end)
                 co_await stream.async_close(ws::close_code::normal, asio::use_awaitable);
             }, asio::detached);
         },
-        "CON:ws=binary.ircv3.net,MSG:PING:a,END:code 1000",
+        "CON,MSG:PING:a,END:code 1000",
         [](Observed const& o) {
             return o.received.starts_with("127.0.0.1:") && o.received.ends_with(" /irc PONG :a");
         },
