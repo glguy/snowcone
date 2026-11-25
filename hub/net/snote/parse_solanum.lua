@@ -22,6 +22,25 @@ local ban_kinds <const> = {
 
 -- luacheck: ignore 631
 return function(server, str)
+
+    do
+        local kind, nick, user, host, ip, mask =
+            string.match(str, '^Rejecting (%S+)d user (%S+)%[([^@ ]+)@(%S+)%] %[(%S*)%] %((.*)%)$')
+        if nick then
+            if ip == '0' then ip = nil end
+            return {
+                name = 'rejected',
+                server = server,
+                nick = nick,
+                user = user,
+                host = host,
+                mask = mask,
+                ip = ip,
+                kind = string.lower(kind), -- k-line, x-line
+            }
+        end
+    end
+
     do
         local nick, user, host, ip, class, account, gecos =
             string.match(str, '^Client connecting: (%S+) %(([^@ ]+)@([^) ]+)%) %[([^%] ]*)%] {([^} ]*)} <([^> ]*)> %[(.*)%]$')
@@ -240,24 +259,6 @@ return function(server, str)
                 oper = oper,
                 kind = string.lower(kind),
                 mask = mask,
-            }
-        end
-    end
-
-    do
-        local kind, nick, user, host, ip, mask =
-            string.match(str, '^Rejecting (%S+)d user (%S+)%[([^@ ]+)@(%S+)%] %[(%S*)%] %((.*)%)$')
-        if nick then
-            if ip == '0' then ip = nil end
-            return {
-                name = 'rejected',
-                server = server,
-                nick = nick,
-                user = user,
-                host = host,
-                mask = mask,
-                ip = ip,
-                kind = string.lower(kind), -- k-line, x-line
             }
         end
     end
