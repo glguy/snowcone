@@ -60,13 +60,14 @@ return {
                 rec.lag and string.format('%.3f', rec.lag) or '-',
                 queued > 0 and queued or '-',
                 irc and irc.nick and scrub(irc.nick) or '-'))
-            -- a network that is down says why, in place of its transport
+            -- a network that is down says why, in place of its transport;
+            -- one that is connecting shows its current step
             if rec.closed and not rec.conn then
                 draw.red(win)
                 win:waddstr(scrub(rec.closed.text))
                 draw.normal(win)
             else
-                win:waddstr(scrub(rec.fingerprint or '-'))
+                win:waddstr(scrub(rec.step or rec.fingerprint or '-'))
             end
 
             if rec.restart_pending then

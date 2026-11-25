@@ -28,6 +28,9 @@ function M.new()
             c.closed = true
         end
 
+        function c:progress(step, text)
+            self.cb('PROGRESS', step, text)
+        end
         function c:con(fingerprint)
             self.cb('CON', fingerprint or 'tls=TLSv1.3 fp')
         end

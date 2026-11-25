@@ -137,9 +137,26 @@ auto write_then(Sock sock, std::string data, std::function<void()> next) -> void
     asio::async_write(*sock, asio::buffer(*text), [sock, text, next = std::move(next)](auto, auto) { next(); });
 }
 
+// Reads the client's method offer and accepts none of them
+void read_then_refuse_socks(Sock sock)
+{
+    auto buf = std::make_shared<std::array<char, 3>>();
+    asio::async_read(*sock, asio::buffer(*buf), [sock, buf](boost::system::error_code, std::size_t) {
+        write_then(sock, std::string{"\x05\xff", 2}, [sock] {});
+    });
+}
+
 auto const prelude = R"lua(
 events = {}
 local function log(s) events[#events + 1] = s end
+)lua";
+
+auto const quiet_connect = R"lua(
+function connect(host, port, layers, cb)
+  return connect_raw(host, port, layers, function(ev, ...)
+    if ev ~= 'PROGRESS' then return cb(ev, ...) end
+  end)
+end
 )lua";
 
 auto run(Scenario const& s) -> bool
@@ -172,7 +189,10 @@ auto run(Scenario const& s) -> bool
     lua_pushinteger(L, port);
     lua_setglobal(L, "port");
 
-    auto const script = std::string{prelude} + s.lua;
+    // Most scenarios aren't about progress; those that are use connect_raw
+    lua_getglobal(L, "connect");
+    lua_setglobal(L, "connect_raw");
+    auto const script = std::string{prelude} + quiet_connect + s.lua;
     if (luaL_dostring(L, script.c_str()) != LUA_OK)
     {
         std::cerr << s.name << ": script error: " << lua_tostring(L, -1) << "\n";
@@ -467,6 +487,42 @@ end)
         "CON,END,send:nil:connection closed",
         any,
     });
+
+    ok &= run({
+        "progress names each layer, after connect returns",
+        R"lua(
+conn = connect_raw('127.0.0.1', port, {{type = 'socks', host = 'irc.example', port = 6667}}, function(ev, a, b)
+  assert(conn, 'called back before connect returned')
+  if ev == 'PROGRESS' then log(a .. ':' .. (b:gsub(':' .. port .. '$', ':PORT')))
+  else log(ev .. ':' .. tostring(a)) end
+end)
+)lua",
+        [](Sock sock, auto) { read_then_refuse_socks(sock); },
+        "start:connecting to 127.0.0.1:PORT,done:connected to 127.0.0.1:PORT,"
+        "start:SOCKS proxy to irc.example:6667,"
+        "END:SOCKS proxy to irc.example:6667: server rejected authentication methods",
+        any,
+    });
+
+    for (auto const step : {"start", "done"})
+    {
+        auto const at_start = step == std::string_view{"start"};
+        // Closed at the start, nothing connects and there is no server side
+        auto server = [](Sock sock, auto seen) { read_until_end(sock, seen); };
+        auto const lua = std::string{"local last = '"} + step + R"lua('
+conn = connect_raw('127.0.0.1', port, {}, function(ev, a)
+  log(ev == 'CON' and ev or ev .. ':' .. tostring(a))
+  if a == last then conn:close() end
+end)
+)lua";
+        ok &= run({
+            "close inside PROGRESS gets a clean end",
+            lua.c_str(),
+            at_start ? decltype(Scenario::server){} : server,
+            at_start ? "PROGRESS:start,END:nil" : "PROGRESS:start,PROGRESS:done,END:nil",
+            any,
+        });
+    }
 
     ok &= close_with_completion_queued();
 

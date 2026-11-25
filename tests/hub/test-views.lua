@@ -952,6 +952,18 @@ T.case('a network that is down says why in /session and /networks', function()
     T.eq(T.log_lines 'error', {}, 'no errors')
 end)
 
+T.case('a connecting network shows its step in /session and /networks', function()
+    boot()
+    local control = T.require 'hub.ui.control'
+    HUB.state.nets.test.step = 'TLS with irc.example'
+    for _, view in ipairs {'session', 'networks'} do
+        control.set_view(view)
+        HUB.current.routes['ui.draw']()
+        local text = table.concat(rows_of(document_pad()), '\n')
+        T.ok(text:find('TLS with irc.example', 1, true), view .. ' shows the step')
+    end
+end)
+
 T.case('session lists show one row and expand on a click', function()
     local c = boot()
     local tokens = {}

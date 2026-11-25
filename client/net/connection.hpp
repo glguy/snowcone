@@ -133,6 +133,13 @@ namespace tls_names {
     ) -> Names;
 }
 
+/// A step of connecting, reported as it happens
+enum class ConnectStep
+{
+    started,
+    finished,
+};
+
 class connection final : public std::enable_shared_from_this<connection>
 {
 public:
@@ -151,6 +158,10 @@ private:
     std::vector<char> send_;
 
 public:
+    /// Told of each layer's steps, with text for the user. It may close the
+    /// connection, and then it isn't called again.
+    using Progress = std::function<void(ConnectStep, std::string const&)>;
+
     connection(boost::asio::io_context&);
 
     auto operator=(connection const&) -> connection& = delete;
@@ -199,10 +210,11 @@ public:
      * @brief Initiate a connection to the IRC server
      * 
      * @param settings Parameters needed to establish a text stream with the server.
+     * @param progress Called as each layer starts and finishes; may be empty
      * @return Space-separated, key=value pairs describing the connection
      * @throws connection_error naming the layer that failed
      */
-    auto connect(Settings settings) -> boost::asio::awaitable<std::string>;
+    auto connect(Settings settings, Progress progress = {}) -> boost::asio::awaitable<std::string>;
 
 private:
     // There's data now, actually write it

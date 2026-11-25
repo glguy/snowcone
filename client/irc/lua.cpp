@@ -151,10 +151,25 @@ auto run_session(
     Settings settings
 ) -> boost::asio::awaitable<void>
 {
+    // Never call back before l_start_irc has returned the handle
+    co_await boost::asio::post(boost::asio::use_awaitable);
+    if (irc->closed())
+    {
+        co_return;
+    }
+
     // Connect and invoke the callback function:
+    // cb("PROGRESS", step, text)
     // cb("CON", fingerprint)
     {
-        auto const fingerprint = co_await irc->connect(std::move(settings));
+        auto const progress = [L, irc_cb](ConnectStep const step, std::string const& text) {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
+            push_string(L, "PROGRESS"sv);
+            push_string(L, step == ConnectStep::started ? "start"sv : "done"sv);
+            push_string(L, text);
+            safecall(L, "connect progress"sv, 3);
+        };
+        auto const fingerprint = co_await irc->connect(std::move(settings), progress);
         if (irc->closed())
         {
             co_return;
@@ -599,6 +614,8 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
  * connection is started.
  *
  * Callback events:
+ * - cb("PROGRESS", step, text): `step` is "start" or "done", for the TCP or
+ *   local connection and then each layer in turn; `text` is for the user
  * - cb("CON", fingerprint)
  * - cb("MSG", ircmsg, redraw)
  * - cb("END", error_message)
@@ -606,7 +623,7 @@ auto validate_layers(lua_State* const L, int const layers, lua_Integer const lay
  * error_message is nil when the session ended because the connection was
  * closed locally.
  *
- * Callback sequence: (CON MSG*)? END. No CON or MSG is delivered after the
+ * Callback sequence: PROGRESS* (CON MSG*)? END. Nothing but END is delivered after the
  * callback that closed the connection returns.
  *
  * The returned handle has methods send(line) and close(). Each returns true,

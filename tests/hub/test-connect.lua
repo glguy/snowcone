@@ -28,6 +28,37 @@ T.case("the server's ERROR is the reason the connection ended", function()
     T.ok(rec().reconnect_timer, 'still reconnects')
 end)
 
+T.case('progress is logged, and the current step kept until connected', function()
+    local fake = boot {network('test')}
+    local c = fake.last()
+    c:progress('start', 'connecting to irc:6697')
+    T.eq(rec().step, 'connecting to irc:6697', 'step')
+    c:progress('done', 'connected to 192.0.2.1:6697')
+    c:progress('start', 'TLS with irc 100%')
+    T.eq(rec().step, 'TLS with irc 100%', 'next step')
+    c:progress('done', 'TLS with irc 100% established')
+    local found = {}
+    for _, line in ipairs(T.log_lines 'irc') do
+        if line:find('established', 1, true) or line:find('connected to', 1, true) then
+            table.insert(found, line)
+        end
+    end
+    T.eq(#found, 2, 'finished steps are logged')
+    c:con()
+    T.eq(rec().step, nil, 'cleared once connected')
+
+    c:finish 'gone'
+    fire_reconnect 'test'
+    local second = fake.last()
+    second:progress('start', 'connecting to irc:6697')
+    c:progress('start', 'stale')
+    T.eq(rec().step, 'connecting to irc:6697', 'an earlier attempt is ignored')
+    local closed = record 'net.closed'
+    HUB.current.routes['net.check_liveness'](rec().since + 61)
+    T.eq(closed[1].reason, 'connect timeout: connecting to irc:6697', 'a timeout names the step')
+    T.eq(rec().step, nil, 'cleared when the attempt ends')
+end)
+
 T.case('a ban waits the longest delay, and a stable session resets it', function()
     local fake = boot {network('test')}
     local c = fake.last()

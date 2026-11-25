@@ -47,6 +47,7 @@ local M = {}
 ---@field lag_sent number|nil when lag_token was sent
 ---@field irc hub.Irc|nil protocol model (net/irc.lua), nil when idle
 ---@field fingerprint string|nil of the current connection
+---@field step string|nil what a connecting network is doing now
 ---@field registered_at number|nil clock when registration finished
 ---@field intent hub.Intent what any connection should become (net/intent.lua)
 ---@field close_timer integer|nil resource id while waiting for the server to
@@ -298,6 +299,7 @@ function M.finish(id, kind, text)
 
     local registered_for = rec.registered_at and clock.now() - rec.registered_at
     rec.irc = nil
+    rec.step = nil
     rec.registered_at = nil
     rec.lag_token = nil
 
@@ -493,7 +495,17 @@ local function unpinned(layers, description)
     end
 end
 
+function events.PROGRESS(rec, step, text)
+    if step == 'start' then
+        rec.step = text
+        dispatch.dirty()
+    else
+        log.add_net(rec.id, 'irc', '%s', text)
+    end
+end
+
 function events.CON(rec, fingerprint)
+    rec.step = nil
     rec.fingerprint = fingerprint
     log.add_net(rec.id, 'irc', 'connected: %s', fingerprint)
 
@@ -631,7 +643,8 @@ function M.check_liveness(now)
             local phase = rec.phase
             if phase == 'connecting' then
                 if now - rec.since >= M.connect_timeout then
-                    M.finish(id, 'timeout', 'connect timeout')
+                    M.finish(id, 'timeout',
+                        rec.step and 'connect timeout: ' .. rec.step or 'connect timeout')
                 end
             elseif phase == 'registering' or phase == 'connected' then
                 local silent = now - rec.liveness

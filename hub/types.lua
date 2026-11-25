@@ -79,12 +79,13 @@ function Listener:close() end
 ---@field SIGTSTP integer
 snowcone = {}
 
---- Callback events: ('CON', fingerprint), ('MSG', message, redraw) and
+--- Callback events: ('PROGRESS', 'start'|'done', text) as each layer
+--- connects, ('CON', fingerprint), ('MSG', message, redraw) and
 --- ('END', error), where error is nil after a local close.
 ---@param host string socket path when port is 0
 ---@param port integer
 ---@param layers snowcone.Layer[]
----@param callback fun(event: 'CON'|'MSG'|'END', ...)
+---@param callback fun(event: 'PROGRESS'|'CON'|'MSG'|'END', ...)
 ---@return snowcone.Connection
 function snowcone.connect(host, port, layers, callback) end
 

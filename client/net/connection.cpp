@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -177,6 +178,9 @@ struct ConnectContext
 
     /// Fingerprint string builder
     std::ostream& os;
+
+    /// Address that the IP layer connected to
+    boost::asio::ip::tcp::endpoint endpoint{};
 };
 
 auto connect_layer(ConnectContext& ctx, IpLayer& layer) -> boost::asio::awaitable<void>
@@ -188,6 +192,7 @@ auto connect_layer(ConnectContext& ctx, IpLayer& layer) -> boost::asio::awaitabl
         std::to_string(layer.port),
         ctx.close_cancellation
     );
+    ctx.endpoint = endpoint;
     ctx.os << "tcp=" << endpoint;
 
     // The socket was opened close-on-exec by happy_eyeballs.
@@ -442,6 +447,40 @@ auto host_port(std::string const& host, std::uint16_t const port) -> std::string
     return (is_ipv6 ? "[" + host + "]" : host) + ":" + std::to_string(port);
 }
 
+// Text for the user once a layer is established
+
+auto describe_established(ConnectContext const& ctx, IpLayer const&) -> std::string
+{
+    std::ostringstream os;
+    os << "connected to " << ctx.endpoint;
+    return os.str();
+}
+
+auto describe_established(ConnectContext const&, LocalLayer const& layer) -> std::string
+{
+    return "connected to " + layer.path;
+}
+
+auto describe_established(ConnectContext const&, TlsLayer const& layer) -> std::string
+{
+    return describe_layer(layer) + " established";
+}
+
+auto describe_established(ConnectContext const&, SocksLayer const& layer) -> std::string
+{
+    return "SOCKS proxy connected to " + host_port(layer.host, layer.port);
+}
+
+auto describe_established(ConnectContext const&, HttpLayer const& layer) -> std::string
+{
+    return "HTTP proxy connected to " + host_port(layer.host, layer.port);
+}
+
+auto describe_established(ConnectContext const&, WebSocketLayer const& layer) -> std::string
+{
+    return describe_layer(layer) + " established";
+}
+
 } // namespace
 
 auto describe_layer(IpLayer const& layer) -> std::string
@@ -513,7 +552,8 @@ auto tls_names::resolve(
 }
 
 auto connection::connect(
-    Settings settings
+    Settings settings,
+    Progress progress
 ) -> boost::asio::awaitable<std::string>
 {
     if (closed_)
@@ -535,7 +575,16 @@ auto connection::connect(
 
     std::ostringstream os;
     ConnectContext ctx{stream_, connect_cancellation_, os};
-    auto const connect_one = [&ctx](auto& layer) -> boost::asio::awaitable<void> {
+    auto const report = [&](ConnectStep const step, std::string const& text) {
+        if (progress)
+        {
+            progress(step, text);
+            throw_if_closed();
+        }
+    };
+
+    auto const connect_one = [&](auto& layer) -> boost::asio::awaitable<void> {
+        report(ConnectStep::started, describe_layer(layer));
         try
         {
             co_await connect_layer(ctx, layer);
@@ -548,15 +597,15 @@ auto connection::connect(
         {
             throw connection_error{e.code(), describe_layer(layer) + ": " + describe_error(e.code())};
         }
+        throw_if_closed();
+        report(ConnectStep::finished, describe_established(ctx, layer));
     };
 
     co_await std::visit(connect_one, settings.base);
-    throw_if_closed();
 
     for (auto& layer : settings.layers)
     {
         co_await std::visit(connect_one, layer);
-        throw_if_closed();
     }
 
     connected_ = true;

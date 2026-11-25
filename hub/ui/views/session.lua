@@ -143,7 +143,7 @@ local function render_connection(ctx, win, rec, now)
     win:waddstr(rec.liveness and draw.duration(now - rec.liveness) or '-', '\n')
 
     label(win, 'transport')
-    win:waddstr(scrub(rec.fingerprint or '-'), '\n')
+    win:waddstr(scrub(rec.step or rec.fingerprint or '-'), '\n')
 
     if not irc then return end
 
