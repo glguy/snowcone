@@ -1426,7 +1426,8 @@ end)
 T.case('CTCP replies to anyone are paced, and to staff are not', function()
     local c, chat = boot()
     local clock = T.require 'hub.runtime.clock'
-    local now = clock.now()
+    -- a whole number, as the pacing of requests at one time is exact on it
+    local now = math.floor(clock.now())
     clock.now = function() return now end
     local function notices()
         local list = {}
