@@ -35,7 +35,12 @@ COPY . .
 ARG SANITIZE=OFF
 RUN cmake -S . -B /build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSNOWCONE_SANITIZE=${SANITIZE} \
  && cmake --build /build
+# not as root, who can read the files the tests make unreadable; ctest
+# writes its log in Testing
+RUN useradd --create-home tester && mkdir -p /build/Testing && chown -R tester /build/Testing
+USER tester
 RUN UBSAN_OPTIONS=print_stacktrace=1 ctest --test-dir /build --output-on-failure
+USER root
 # a sanitized build is for testing only
 RUN if [ "${SANITIZE}" = OFF ]; then cd /build && cpack; fi
 
