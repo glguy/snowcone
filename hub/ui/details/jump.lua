@@ -147,7 +147,7 @@ function M.render(ctx, win)
 
     local current = talk.target(net)
     current = current and chat.fold(net, current)
-    local ahead = chat.next_buffer(net, current or '', true)
+    local ahead = talk.next_active(net)
     local back = HUB.state.ui.view == 'buffer' and control.view_state 'buffer'.previous
     back = back and back[net]
     back = back and chat.buffer(net, back)

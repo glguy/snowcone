@@ -425,11 +425,46 @@ T.case('lines from one read draw once', function()
     local c = fake.last()
     register(c)
     HUB.test_draws = 0
+    -- nothing drawn lately or held
+    HUB.drawn_at, HUB.draw_timer = nil, nil
     c:recv(':x!u@h PRIVMSG me :one', false)
     c:recv(':x!u@h PRIVMSG me :two', false)
     T.eq(HUB.test_draws, 0, 'no draw mid-read')
     c:recv(':x!u@h PRIVMSG me :three', true)
     T.eq(HUB.test_draws, 1, 'one draw at the end of the read')
+end)
+
+T.case('reads draw once per interval, other changes at once', function()
+    local fake = boot({network('test')}, {
+        modules = {'hub.test.screen'},
+        overrides = {['hub.test.screen'] =
+            "return {routes = {['ui.draw'] = function() HUB.test_draws = (HUB.test_draws or 0) + 1 end, ['test.nothing'] = function() end}}"},
+    })
+    local c = fake.last()
+    register(c)
+    local pace = T.require 'hub.runtime.pace'
+    local dispatch = T.require 'hub.runtime.dispatch'
+    -- nothing drawn lately or held, and a hold lasts an interval
+    local function start(interval)
+        T.require 'hub.runtime.timer'.cancel(HUB.draw_timer)
+        pace.interval = interval
+        HUB.drawn_at, HUB.draw_timer = nil, nil
+        HUB.test_draws = 0
+    end
+
+    start(60)
+    for _ = 1, 5 do c:recv ':x!u@h PRIVMSG me :hi' end
+    T.eq(HUB.test_draws, 1, 'the first read draws, the rest are held')
+    -- another callback draws them, whatever it does
+    dispatch.trampoline 'test.nothing' ()
+    T.eq(HUB.test_draws, 2, 'drawn by another callback')
+
+    start(60)
+    c:recv ':x!u@h PRIVMSG me :hi'
+    pace.interval = 0.5
+    c:recv ':x!u@h PRIVMSG me :hi'
+    T.wait_until(function() return HUB.test_draws == 2 end, 'the timer draws')
+    T.eq(HUB.dirty, false, 'nothing left to draw')
 end)
 
 T.case('reload applies configuration changes per network', function()

@@ -6,6 +6,7 @@
 -- client reports an uncaught error by leaving curses mode, so they are
 -- logged here instead.
 
+local clock     <const> = require 'hub.runtime.clock'
 local scrub     <const> = require 'hub.lib.scrub'
 local traceback <const> = require 'hub.lib.traceback'
 
@@ -84,6 +85,7 @@ function M.flush()
         if draw then
             HUB.dirty = false
             local ok, err = xpcall(draw, traceback)
+            HUB.drawn_at = clock.now()
             if not ok then M.report('ui.draw', err) end
         else
             HUB.dirty = false
@@ -99,7 +101,8 @@ end
 --- Skip the draw at the end of the current native callback. The screen
 --- stays dirty, so the next callback that doesn't defer draws it. The
 --- connection callback defers for every MSG whose flush flag is false, so a
---- burst of lines from one read draws once.
+--- burst of lines from one read draws once, and runtime/pace.lua limits how
+--- often reads draw.
 function M.defer_draw()
     HUB.defer_draw = true
 end

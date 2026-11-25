@@ -198,6 +198,7 @@ T.case('Meta-$ replaces only the underlined word', function()
     c:recv ':me!u@h JOIN #chan'
     control.set_view 'buffer'
     c:recv ':srv 353 me = #chan :@me brwon'
+    HUB.current.routes['ui.draw']()
     local function fix(text)
         key(0x1f & string.byte 'E')
         key(0x1f & string.byte 'U')

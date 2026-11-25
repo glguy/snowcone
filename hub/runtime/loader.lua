@@ -129,6 +129,8 @@ end
 ---@field tty_title string|nil the window title last written
 ---@field dirty boolean|nil the screen needs drawing
 ---@field defer_draw boolean|nil
+---@field drawn_at number|nil clock when the screen was last drawn
+---@field draw_timer integer|nil resource id of the timer for a held draw
 ---@field entry_installed boolean|nil
 ---@field errors {total: integer, by_origin: table<string, integer>}|nil
 ---@field last_reload {at: integer, ok: boolean, error: string|nil}|nil

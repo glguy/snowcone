@@ -336,8 +336,7 @@ M.global = {
     [meta 'a'] = function()
         local net = control.current_net()
         if not (net and common.enabled(net, 'chat')) then return end
-        local current = talk.target(net)
-        local best = chat.next_buffer(net, current and chat.fold(net, current) or '', true)
+        local best = talk.next_active(net)
         if best then
             talk.set_target(net, best.name)
             control.set_view 'buffer'

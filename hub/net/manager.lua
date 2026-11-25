@@ -15,6 +15,7 @@ local intent       <const> = require 'hub.net.intent'
 local irc_model    <const> = require 'hub.net.irc'
 local log          <const> = require 'hub.runtime.log'
 local OrderedMap   <const> = require 'hub.lib.OrderedMap'
+local pace         <const> = require 'hub.runtime.pace'
 local registration <const> = require 'hub.net.registration'
 local resources    <const> = require 'hub.runtime.resources'
 local secrets      <const> = require 'hub.runtime.secrets'
@@ -557,7 +558,9 @@ local user_commands <const> = {
 }
 
 function events.MSG(rec, msg, flush)
-    if not flush then
+    if flush then
+        pace.hold()
+    else
         dispatch.defer_draw()
     end
 

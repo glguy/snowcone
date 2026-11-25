@@ -272,6 +272,31 @@ T.case('closing a query visited with Meta-A goes back to the channel', function(
     T.eq(talk.target 'test', '#chan', 'back where I was')
 end)
 
+T.case('Meta-A leaves the shown buffer, its activity not drawn yet', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
+    local cmdline = T.require 'hub.ui.cmdline'
+    T.require 'hub.runtime.pace'.interval = 60
+    c:recv ':me!u@h JOIN #busy'
+    cmdline.execute 'talk bob'
+    HUB.current.routes['ui.draw']()
+    HUB.drawn_at = T.require 'hub.runtime.clock'.now()
+
+    c:recv ':alice!a@h PRIVMSG #busy :chatter'
+    c:recv ':bob!b@h PRIVMSG me :hello'
+    local bob = T.require 'hub.features.chat'.buffer('test', 'bob')
+    T.eq(bob.mention, true, 'not drawn yet')
+    key(-string.byte 'a')
+    T.eq(talk.target 'test', '#busy', 'to the other buffer')
+
+    -- from another view, the mention goes first, in the target too
+    talk.set_target('test', 'bob')
+    control.set_view 'console'
+    key(-string.byte 'a')
+    T.eq({HUB.state.ui.view, talk.target 'test'}, {'buffer', 'bob'}, 'to the mention')
+end)
+
 T.case('views follow their events once, after a reload too', function()
     local c = boot()
     T.ok(T.reload(), 'reloaded')

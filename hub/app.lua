@@ -33,6 +33,7 @@ local function module_names(opts)
         'hub.runtime.clock',
         'hub.runtime.log',
         'hub.runtime.timer',
+        'hub.runtime.pace',
         'hub.runtime.task',
         'hub.runtime.spell',
         'hub.net.send',

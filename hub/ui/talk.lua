@@ -48,6 +48,17 @@ function M.set_target(net, target)
     dispatch.dirty()
 end
 
+--- The buffer with activity to move to on a network (Meta-A), or nil.
+--- Not the one on screen, which can have activity still to be drawn.
+---@param net string
+---@return hub.ChatBuffer|nil
+function M.next_active(net)
+    local target = M.target(net)
+    local from = target and chat.fold(net, target)
+    local shown = HUB.state.ui.view == 'buffer' and from or nil
+    return chat.next_buffer(net, from or '', true, shown)
+end
+
 --- Follow a buffer's rename (chat.rename): the shown and previous buffers
 --- that named it by its old name name it by its new one. Unlike a move to
 --- another buffer, it changes nothing Meta-S goes back to.

@@ -28,7 +28,9 @@ what someone might otherwise undo, not the history of what changed.
   actions, so they live in `ui/clicks.lua`, rebuilt every frame.
 - **One draw per burst.** The screen is not redrawn per inbound message:
   code that changes what is shown calls `dispatch.dirty()`, and the
-  connection defers drawing until the line that ends a read.
+  connection defers drawing until the line that ends a read. Reads draw
+  at most once per interval (`runtime/pace.lua`); keys and timers draw at
+  once.
 - **Commands run below the UI.** `commands/run.lua` parses and runs a
   line for a `hub.CommandOrigin`: the default network, and a function
   that adds to the context what only the caller knows. The UI adds the

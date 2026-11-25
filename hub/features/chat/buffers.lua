@@ -11,8 +11,13 @@ local M = {}
 --- The buffer to move to from the one with folded name `from`: one with
 --- a mention, else one with activity, else (unless `active`) any; among
 --- equals the next by folded name after `from`, wrapping round, and
---- `from` itself last. Nil when there is none.
-function M.next_buffer(net, from, active)
+--- `from` itself last. Never the one with folded name `except`. Nil when
+--- there is none.
+---@param net string
+---@param from string
+---@param active boolean|nil
+---@param except string|nil
+function M.next_buffer(net, from, active, except)
     local function rank(buffer)
         if buffer.activity == 0 then return 0 end
         return buffer.mention and 2 or 1
@@ -23,7 +28,7 @@ function M.next_buffer(net, from, active)
     end
     local best, best_key
     for key, buffer in pairs(store.get(net).buffers) do
-        if not active or buffer.activity > 0 then
+        if key ~= except and (not active or buffer.activity > 0) then
             local better = not best
                 or rank(buffer) > rank(best)
                 or rank(buffer) == rank(best)
