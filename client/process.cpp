@@ -2,6 +2,7 @@
 
 #include "app.hpp"
 #include "boundary.hpp"
+#include "net/errors.hpp"
 #include "safecall.hpp"
 #include "strings.hpp"
 #include "userdata.hpp"
@@ -164,7 +165,7 @@ struct Exec
             else if (error_code_)
             {
                 luaL_pushfail(L);
-                push_string(L, error_code_.what());
+                push_string(L, describe_error(error_code_));
                 safecall(L, "process failure callback", 2);
             }
             else

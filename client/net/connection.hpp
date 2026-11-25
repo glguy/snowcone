@@ -90,6 +90,16 @@ struct LocalLayer {
 
 using AnyLayer = std::variant<TlsLayer, SocksLayer, HttpLayer, WebSocketLayer>;
 
+/// Names the step that establishes a layer, such as "TLS with irc.example".
+/// Shown to the user, so it leaves out credentials and the WebSocket path,
+/// which can hold a token.
+auto describe_layer(IpLayer const&) -> std::string;
+auto describe_layer(LocalLayer const&) -> std::string;
+auto describe_layer(TlsLayer const&) -> std::string;
+auto describe_layer(SocksLayer const&) -> std::string;
+auto describe_layer(HttpLayer const&) -> std::string;
+auto describe_layer(WebSocketLayer const&) -> std::string;
+
 struct Settings
 {
     std::variant<IpLayer, LocalLayer> base;
@@ -190,6 +200,7 @@ public:
      * 
      * @param settings Parameters needed to establish a text stream with the server.
      * @return Space-separated, key=value pairs describing the connection
+     * @throws connection_error naming the layer that failed
      */
     auto connect(Settings settings) -> boost::asio::awaitable<std::string>;
 

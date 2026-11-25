@@ -368,13 +368,13 @@ int main()
         "messages then peer closes",
         R"lua(
 conn = connect('127.0.0.1', port, {}, function(ev, a, b)
-  if ev == 'MSG' then log('MSG:' .. a.command) else log(ev .. (ev == 'END' and (':' .. tostring(a):sub(1, 11)) or '')) end
+  if ev == 'MSG' then log('MSG:' .. a.command) else log(ev .. (ev == 'END' and (':' .. tostring(a)) or '')) end
 end)
 )lua",
         [](Sock sock, auto) {
             write_then(sock, "PING :a\r\nPING :b\r\n", [sock] { sock->close(); });
         },
-        "CON,MSG:PING,MSG:PING,END:End of file",
+        "CON,MSG:PING,MSG:PING,END:connection closed by server",
         any,
     });
 

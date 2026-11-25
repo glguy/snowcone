@@ -2,6 +2,7 @@
 #include "../app.hpp"
 #include "../boundary.hpp"
 #include "../net/connection.hpp"
+#include "../net/errors.hpp"
 #include "../net/httpconnect.hpp"
 #include "../net/linebuffer.hpp"
 #include "../safecall.hpp"
@@ -193,7 +194,7 @@ auto run_session(
             {
                 throw boost::system::system_error{read_error};
             }
-            throw boost::system::system_error{read_error, reason};
+            throw connection_error{read_error, reason};
         }
         buff.commit(n);
         for (auto line = get_nonempty_line(buff); nullptr != line; /* empty */)
@@ -829,6 +830,14 @@ auto l_start_irc(lua_State* const L) -> int
                     std::rethrow_exception(e);
                 }
                 lua_pushnil(L); // ended without error (closed locally)
+            }
+            catch (connection_error const& ex)
+            {
+                push_string(L, ex.what());
+            }
+            catch (boost::system::system_error const& ex)
+            {
+                push_string(L, describe_error(ex.code()));
             }
             catch (std::exception const& ex)
             {

@@ -1,6 +1,7 @@
 #include "connection.hpp"
 
 #include "cloexec.hpp"
+#include "errors.hpp"
 
 #include <gtest/gtest.h>
 
@@ -638,11 +639,69 @@ TEST(Connection, CancelingConnectBeforeItStartsAbortsConnect)
     }
 }
 
+TEST(Errors, DescribeLeavesOutInternals)
+{
+    EXPECT_EQ(describe_error(asio::error::eof), "connection closed by server");
+    EXPECT_EQ(describe_error(asio::error::host_not_found), "host name not found");
+    EXPECT_EQ(describe_error(asio::ssl::error::stream_truncated), "connection closed without TLS shutdown");
+    EXPECT_EQ(describe_error(socks5::make_error_code(socks5::SocksErrc::HostUnreachable)), "host unreachable");
+
+    static constexpr boost::source_location location = BOOST_CURRENT_LOCATION;
+    boost::system::error_code const unknown{EACCES, boost::system::system_category(), &location};
+    EXPECT_EQ(describe_error(unknown), unknown.message());
+
+    OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, nullptr);
+    boost::system::error_code const tls{
+        static_cast<int>(ERR_PACK(ERR_LIB_SSL, 0, SSL_R_CERTIFICATE_VERIFY_FAILED)),
+        asio::error::get_ssl_category()};
+    EXPECT_EQ(describe_error(tls), "certificate verify failed");
+}
+
+TEST(Errors, LayerDescriptions)
+{
+    EXPECT_EQ(describe_layer(IpLayer{"::1", 6667}), "connecting to [::1]:6667");
+    EXPECT_EQ(describe_layer(LocalLayer{"/tmp/irc"}), "connecting to /tmp/irc");
+    EXPECT_EQ(describe_layer(TlsLayer{.verify = "", .sni = "name"}), "TLS with name");
+    EXPECT_EQ(describe_layer(TlsLayer{}), "TLS");
+    EXPECT_EQ(describe_layer(WebSocketLayer{.host = "h:443", .path = "/?token=secret"}), "WebSocket with h:443");
+}
+
+TEST(Errors, ProxyRefusalNamesTheProxyLayer)
+{
+    asio::io_context io;
+    auto acceptor = loopback_acceptor(io);
+    auto conn = connection::create(io);
+    auto settings = settings_for(acceptor);
+    settings.layers.emplace_back(SocksLayer{"irc.example", 6667, socks5::NoCredential{}});
+
+    asio::co_spawn(io, [&]() -> asio::awaitable<void> {
+        tcp::socket socket{io};
+        co_await acceptor.async_accept(socket, asio::use_awaitable);
+        std::array<char, 3> greeting{};
+        co_await asio::async_read(socket, asio::buffer(greeting), asio::use_awaitable);
+        co_await asio::async_write(socket, asio::buffer("\x05\xff", 2), asio::use_awaitable);
+    }, asio::detached);
+    auto result = asio::co_spawn(io, conn->connect(std::move(settings)), asio::use_future);
+    io.run();
+
+    try
+    {
+        static_cast<void>(result.get());
+        FAIL() << "connect should fail when the proxy refuses";
+    }
+    catch (boost::system::system_error const& error)
+    {
+        EXPECT_EQ(error.code(), socks5::make_error_code(socks5::SocksErrc::NoAcceptableMethods));
+        EXPECT_STREQ(error.what(), "SOCKS proxy to irc.example:6667: server rejected authentication methods");
+    }
+}
+
 TEST(Connection, RefusedConnectReportsError)
 {
     asio::io_context io;
     auto acceptor = loopback_acceptor(io);
     auto settings = settings_for(acceptor);
+    auto const port = acceptor.local_endpoint().port();
     boost::system::error_code close_error;
     acceptor.close(close_error);
     ASSERT_FALSE(close_error);
@@ -659,6 +718,7 @@ TEST(Connection, RefusedConnectReportsError)
     catch (boost::system::system_error const& error)
     {
         EXPECT_EQ(error.code(), asio::error::connection_refused);
+        EXPECT_EQ(error.what(), "connecting to 127.0.0.1:" + std::to_string(port) + ": connection refused");
     }
 }
 
@@ -1021,7 +1081,7 @@ TEST(WebSocket, HangupDuringHandshakeHasNoHttpStatus)
 
     auto const message = client_result.get();
     EXPECT_NE(message, "connected");
-    EXPECT_FALSE(message.starts_with("HTTP")) << message;
+    EXPECT_EQ(message.find("HTTP "), std::string::npos) << message;
 }
 
 TEST(WebSocket, ClosingDuringHandshakeAbortsConnect)
@@ -1041,7 +1101,7 @@ TEST(WebSocket, ClosingDuringHandshakeAbortsConnect)
 
     auto const message = client_result.get();
     EXPECT_NE(message, "connected");
-    EXPECT_FALSE(message.starts_with("HTTP")) << message;
+    EXPECT_EQ(message.find("HTTP "), std::string::npos) << message;
 }
 
 TEST(WebSocket, OfferingNoSubprotocolUsesText)
@@ -1129,7 +1189,7 @@ TEST(WebSocket, RefusalReportsHttpStatus)
     ASSERT_TRUE(run_briefly(io)) << "timed out";
 
     auto const message = client_result.get();
-    EXPECT_TRUE(message.starts_with("HTTP 404")) << message;
+    EXPECT_EQ(message, "WebSocket with h: HTTP 404");
     server_result.get();
 }
 
@@ -1391,7 +1451,9 @@ TEST(Tls, ReportsUntrustedCertificate)
 {
     auto& f = tls_fixture();
     auto const outcome = tls_connect(f.rogue.get(), f.rogue_key.get(), {.verify = "irc.example", .sni = ""});
-    EXPECT_NE(outcome.client.find("self-signed"), std::string::npos) << outcome.client;
+    EXPECT_TRUE(outcome.client.starts_with("error: TLS with irc.example: self-signed") ||
+                outcome.client.starts_with("error: TLS with irc.example: self signed")) << outcome.client;
+    EXPECT_EQ(outcome.client.find('['), std::string::npos) << outcome.client;
 }
 
 TEST(Tls, EmptyVerifyAcceptsAnyCertificate)

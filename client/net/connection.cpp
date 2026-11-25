@@ -1,6 +1,7 @@
 #include "connection.hpp"
 
 #include "cloexec.hpp"
+#include "errors.hpp"
 #include "httpconnect.hpp"
 #include "socks5.hpp"
 #include "websocket.hpp"
@@ -61,7 +62,7 @@ auto connection::close() -> void
 namespace {
 
 /**
- * @brief Throws a boost::system::system_error for the failed OpenSSL call.
+ * @brief Throws a connection_error for the failed OpenSSL call.
  *
  * Reports the most recently queued OpenSSL error, the one the failed call
  * added, then clears the queue so nothing stale is reported later. A call
@@ -69,7 +70,7 @@ namespace {
  * rather than as error 0.
  *
  * @param prefix Name of the failed call
- * @throws boost::system::system_error Always
+ * @throws connection_error Always, unless nothing was queued
  */
 [[noreturn]] auto openssl_error(char const* const prefix) -> void
 {
@@ -85,7 +86,7 @@ namespace {
         static_cast<int>(code),
         boost::asio::error::get_ssl_category()
     };
-    throw boost::system::system_error{ec, prefix};
+    throw connection_error{ec, std::string{prefix} + ": " + describe_error(ec)};
 }
 
 /**
@@ -204,7 +205,7 @@ auto connect_layer(ConnectContext& ctx, LocalLayer& layer) -> boost::asio::await
     open_cloexec(socket, boost::asio::local::stream_protocol{}, open_error);
     if (open_error)
     {
-        throw boost::system::system_error{open_error, "socket"};
+        throw boost::system::system_error{open_error};
     }
 
     boost::asio::local::stream_protocol::endpoint entry{layer.path};
@@ -304,7 +305,7 @@ auto connect_layer(ConnectContext& ctx, TlsLayer& tls_layer) -> boost::asio::awa
         auto const result = SSL_get_verify_result(tls.native_handle());
         if (not tls_layer.verify.empty() && result != X509_V_OK)
         {
-            throw boost::system::system_error{handshake_error, X509_verify_cert_error_string(result)};
+            throw connection_error{handshake_error, X509_verify_cert_error_string(result)};
         }
         throw boost::system::system_error{handshake_error};
     }
@@ -398,7 +399,7 @@ auto connect_layer(ConnectContext& ctx, WebSocketLayer& layer) -> boost::asio::a
         // Only a refusal has a response to report the status of
         if (handshake_error == ws::error::upgrade_declined)
         {
-            throw boost::system::system_error{handshake_error, "HTTP " + std::to_string(response.result_int())};
+            throw connection_error{handshake_error, "HTTP " + std::to_string(response.result_int())};
         }
         throw boost::system::system_error{handshake_error};
     }
@@ -434,7 +435,45 @@ auto connect_layer(ConnectContext& ctx, WebSocketLayer& layer) -> boost::asio::a
     ctx.os << " ws=" << subprotocol;
 }
 
+auto host_port(std::string const& host, std::uint16_t const port) -> std::string
+{
+    // Hostnames can't contain ':', so this is an IPv6 literal
+    auto const is_ipv6 = host.find(':') != std::string::npos;
+    return (is_ipv6 ? "[" + host + "]" : host) + ":" + std::to_string(port);
+}
+
 } // namespace
+
+auto describe_layer(IpLayer const& layer) -> std::string
+{
+    return "connecting to " + host_port(layer.host, layer.port);
+}
+
+auto describe_layer(LocalLayer const& layer) -> std::string
+{
+    return "connecting to " + layer.path;
+}
+
+auto describe_layer(TlsLayer const& layer) -> std::string
+{
+    auto const& name = layer.verify.empty() ? layer.sni : layer.verify;
+    return name.empty() ? "TLS" : "TLS with " + name;
+}
+
+auto describe_layer(SocksLayer const& layer) -> std::string
+{
+    return "SOCKS proxy to " + host_port(layer.host, layer.port);
+}
+
+auto describe_layer(HttpLayer const& layer) -> std::string
+{
+    return "HTTP proxy to " + host_port(layer.host, layer.port);
+}
+
+auto describe_layer(WebSocketLayer const& layer) -> std::string
+{
+    return "WebSocket with " + layer.host;
+}
 
 auto tls_names::verification(std::string const& host) -> std::string
 {
@@ -496,7 +535,20 @@ auto connection::connect(
 
     std::ostringstream os;
     ConnectContext ctx{stream_, connect_cancellation_, os};
-    auto const connect_one = [&ctx](auto& layer) { return connect_layer(ctx, layer); };
+    auto const connect_one = [&ctx](auto& layer) -> boost::asio::awaitable<void> {
+        try
+        {
+            co_await connect_layer(ctx, layer);
+        }
+        catch (connection_error const& e)
+        {
+            throw connection_error{e.code(), describe_layer(layer) + ": " + e.what()};
+        }
+        catch (boost::system::system_error const& e)
+        {
+            throw connection_error{e.code(), describe_layer(layer) + ": " + describe_error(e.code())};
+        }
+    };
 
     co_await std::visit(connect_one, settings.base);
     throw_if_closed();
