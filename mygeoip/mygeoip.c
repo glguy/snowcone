@@ -20,6 +20,42 @@ static GeoIP* check_db(lua_State* L)
     return *geoip;
 }
 
+/// The editions libGeoIP 1.6.12 looks up names in, by IPv4 address
+/// (_get_name_gl) and by IPv6 address (_get_name_v6_gl). For any other, it
+/// prints "Invalid database type" to stdout, over the screen, so the
+/// methods check first.
+static int const v4_name_editions[] = {
+    GEOIP_ORG_EDITION, GEOIP_ISP_EDITION, GEOIP_DOMAIN_EDITION,
+    GEOIP_ASNUM_EDITION, GEOIP_ACCURACYRADIUS_EDITION,
+    GEOIP_NETSPEED_EDITION_REV1, GEOIP_USERTYPE_EDITION,
+    GEOIP_REGISTRAR_EDITION, GEOIP_LOCATIONA_EDITION, GEOIP_CITYCONF_EDITION,
+    GEOIP_COUNTRYCONF_EDITION, GEOIP_REGIONCONF_EDITION,
+    GEOIP_POSTALCONF_EDITION,
+};
+static int const v6_name_editions[] = {
+    GEOIP_ORG_EDITION_V6, GEOIP_ISP_EDITION_V6, GEOIP_DOMAIN_EDITION_V6,
+    GEOIP_ASNUM_EDITION_V6, GEOIP_ACCURACYRADIUS_EDITION_V6,
+    GEOIP_NETSPEED_EDITION_REV1_V6, GEOIP_USERTYPE_EDITION_V6,
+    GEOIP_REGISTRAR_EDITION_V6, GEOIP_LOCATIONA_EDITION_V6,
+};
+
+/// The open database in argument 1, if its edition is one of the n in
+/// editions; raises "<method>: wrong database edition" otherwise.
+static GeoIP* check_db_edition(lua_State* L, char const* method, int const* editions, size_t n)
+{
+    GeoIP* geoip = check_db(L);
+    int const edition = GeoIP_database_edition(geoip);
+    for (size_t i = 0; i < n; i++)
+    {
+        if (editions[i] == edition)
+        {
+            return geoip;
+        }
+    }
+    luaL_error(L, "%s: wrong database edition", method);
+    return NULL;
+}
+
 /// __gc and __close: frees the database of any edition and nulls the
 /// pointer, so a repeated call is a no-op.
 static int close_db(lua_State* L)
@@ -54,10 +90,12 @@ static int open_db(lua_State* L)
 }
 
 /// db:get_name_by_addr(addr) --> string|nil: name for a dotted IPv4
-/// address; nil when there is no entry. Raises on a closed db.
+/// address; nil when there is no entry. An unparsable address looks up
+/// 0.0.0.0. Raises on a closed db, or one whose edition has no IPv4 names.
 static int get_name_by_addr(lua_State* L)
 {
-    GeoIP* geoip = check_db(L);
+    GeoIP* geoip = check_db_edition(L, "get_name_by_addr", v4_name_editions,
+                                    sizeof v4_name_editions / sizeof *v4_name_editions);
     char const* addr = luaL_checkstring(L, 2);
     GeoIPLookup gl = {0};
     char* org = GeoIP_name_by_addr_gl(geoip, addr, &gl);
@@ -66,11 +104,13 @@ static int get_name_by_addr(lua_State* L)
     return 1;
 }
 
-/// db:get_name_by_addr_v6(addr) --> string|nil: name for an IPv6 address
-/// in a V6 edition; nil when there is no entry. Raises on a closed db.
+/// db:get_name_by_addr_v6(addr) --> string|nil: name for an IPv6 address;
+/// nil when there is no entry. Raises on a closed db, or one whose edition
+/// has no IPv6 names.
 static int get_name_by_addr_v6(lua_State* L)
 {
-    GeoIP* geoip = check_db(L);
+    GeoIP* geoip = check_db_edition(L, "get_name_by_addr_v6", v6_name_editions,
+                                    sizeof v6_name_editions / sizeof *v6_name_editions);
     char const* addr = luaL_checkstring(L, 2);
     GeoIPLookup gl = {0};
     char* org = GeoIP_name_by_addr_v6_gl(geoip, addr, &gl);

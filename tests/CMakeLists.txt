@@ -47,11 +47,13 @@ endif()
 
 # Lua tests run inside the real client, without a UI: snowcone exits once
 # the test has no work left, and nonzero after any uncaught Lua error.
-foreach(name test-dnslookup test-escape test-execute test-print test-sasl test-scram test-strings)
+foreach(name test-dnslookup test-escape test-execute test-geoip test-print test-sasl test-scram test-strings)
   add_test(NAME ${name}
     COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/${name}.lua")
   set_tests_properties(${name} PROPERTIES TIMEOUT 30)
 endforeach()
+# mygeoip needs snowcone built with libGeoIP, and skips without it
+set_tests_properties(test-geoip PROPERTIES SKIP_RETURN_CODE 77)
 
 # hub's tests share tests/hub/lib.lua and load hub from the source tree
 foreach(name test-reload test-structure test-lib test-config test-connect test-registration test-reclaim test-tasks

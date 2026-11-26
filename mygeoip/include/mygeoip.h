@@ -22,7 +22,9 @@ struct lua_State;
  * that isn't an integer naming one of libGeoIP's editions is an argument
  * error.
  *
- * db methods (both return nil when there is no entry for the address):
+ * db methods (both return nil when there is no entry for the address, and
+ * raise "<method>: wrong database edition" for an edition libGeoIP has no
+ * such names in, rather than let it print over the screen):
  * * get_name_by_addr(addr): name for an IPv4 address in a non-V6 edition
  * * get_name_by_addr_v6(addr): name for an IPv6 address in a V6 edition
  *
