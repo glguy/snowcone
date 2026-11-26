@@ -9,13 +9,13 @@ local FakeTransport = dofile(here .. '/fake_transport.lua')
 -- for the keymap, which Tab completion goes through
 dofile(here .. '/fake_ncurses.lua').install()
 
-local function boot(extra, global)
+local function boot(extra, global, overrides)
     local fake = FakeTransport.new()
     local net = {id = 'test', server = {host = 'test.example', port = 6667}, identity = {nick = 'me'}}
     for k, v in pairs(extra or {}) do net[k] = v end
     local config = {networks = {net}}
     for k, v in pairs(global or {}) do config[k] = v end
-    T.boot {transport = fake, config = config}
+    T.boot {transport = fake, config = config, overrides = overrides}
     local c = fake.last()
     c:con()
     c:recv ':srv CAP * LS :draft/chathistory'
@@ -1846,18 +1846,18 @@ T.case('quiet, ban, kick, kickban and their removal in the shown channel', funct
 end)
 
 T.case('mentions notify once until seen, and dismiss', function()
-    local c, chat = boot(nil, {notifications = {backend = 'test'}})
-    -- a backend that records what it was asked
+    -- a bell backend that records what it was asked
     local calls = {}
-    HUB.current.gen.loaded['hub.features.notify.test'] = {
+    local recorder = {
         notify = function(previous, target, nick, text, net, key)
             table.insert(calls, {'notify', previous or false, target, nick, text, net, key})
             return previous or 'handle'
         end,
         dismiss = function(handle) table.insert(calls, {'dismiss', handle}) end,
     }
+    local c, chat = boot(nil, {notifications = {backend = 'bell'}},
+        {['hub.features.notify.bell'] = function() return recorder end})
     local notify = T.require 'hub.features.notify'
-    notify.register_backend('test', 'hub.features.notify.test')
     local tty = T.require 'hub.runtime.tty'
     tty.set_focus(false)
 

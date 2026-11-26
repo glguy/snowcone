@@ -262,6 +262,22 @@ T.case('an invalid configuration on reload leaves the old one active', function(
     ok, err = T.reload {config = {networks = {network('x', {features = {'topology'}})}}}
     T.eq(ok, false, 'topology, which only snotice shows')
     T.ok(err:find('networks.x.features: topology requires snotice', 1, true), err)
+
+    -- names the client knows, not only words
+    ok, err = T.reload {config = {ui = {profile = 'dashbaord'}}}
+    T.eq(ok, false, 'an unknown profile')
+    T.ok(err:find('ui.profile must be one of all, chat, dashboard, not dashbaord', 1, true), err)
+    ok, err = T.reload {config = {notifications = {backend = 'growl'}}}
+    T.eq(ok, false, 'an unknown notification backend')
+    T.ok(err:find('notifications.backend: unknown backend growl (known: bell, iterm2, mac)', 1, true), err)
+end)
+
+T.case('the profiles configuration takes are the view rotations', function()
+    T.boot()
+    local values = T.require 'hub.runtime.config_schema'.file.fields.ui.fields.profile.values
+    local profiles = T.require 'hub.ui.control'.profiles
+    for name in pairs(values) do T.ok(profiles[name], 'a rotation: ' .. name) end
+    for name in pairs(profiles) do T.ok(values[name], 'configurable: ' .. name) end
 end)
 
 T.case('every feature requirement names known features', function()

@@ -312,7 +312,8 @@ M.servers_file = table_ {
 --- The whole file.
 M.file = table_ {
     ui = table_ {
-        profile    = {type = 'string', pattern = '^%l+$'},
+        -- the view rotations of ui/control.lua, which a test keeps in step
+        profile    = {type = 'string', values = {dashboard = true, chat = true, all = true}},
         theme      = {type = 'string', values = {modern = true, classic = true}},
         separators = {type = 'string', values = {powerline = true, rounded = true, slant = true, plain = true}},
     },

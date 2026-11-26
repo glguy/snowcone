@@ -17,20 +17,27 @@ local M = {}
 
 M.name = 'notify'
 
--- Backend modules by name
-local backends = {
+-- Backend modules by name. A backend has
+-- notify(previous, target, nick, text, net, key) -> handle and
+-- dismiss(handle); text comes without its IRC formatting or an action's
+-- CTCP framing (lib/message_text.lua), and key is the target folded,
+-- which with net names the buffer.
+M.backends = {
     bell = 'hub.features.notify.bell',
     mac = 'hub.features.notify.mac',
     iterm2 = 'hub.features.notify.iterm2',
 }
 
---- Make another backend module available by name. A backend has
---- notify(previous, target, nick, text, net, key) -> handle and
---- dismiss(handle); text comes without its IRC formatting or an action's
---- CTCP framing (lib/message_text.lua), and key is the target folded,
---- which with net names the buffer.
-function M.register_backend(name, module)
-    backends[name] = module
+--- Refuse a backend there is none of, rather than notifying nobody.
+function M.check_config(cfg)
+    local name = cfg.notifications and cfg.notifications.backend
+    if name and not M.backends[name] then
+        local names = {}
+        for known in pairs(M.backends) do table.insert(names, known) end
+        table.sort(names)
+        error(string.format('notifications.backend: unknown backend %s (known: %s)',
+            name, table.concat(names, ', ')), 0)
+    end
 end
 
 ---@class hub.NotifyState
@@ -46,10 +53,8 @@ local function backend()
     local cfg = HUB.state.config and HUB.state.config.notifications
     local name = cfg and cfg.backend
     if not name then return nil end
-    local module = backends[name]
-    if module then
-        return HUB.current.gen.require(module)
-    end
+    -- check_config refused any other name
+    return HUB.current.gen.require(M.backends[name])
 end
 
 local function muted(net)
