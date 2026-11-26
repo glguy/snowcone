@@ -667,8 +667,9 @@ auto start_httpd(lua_State* const L) -> int
     auto const host = check_c_string(L, 1);
     auto const service = check_c_string(L, 2);
     lua_settop(L, 3);
-    auto cb = LuaRef::create(L);
 
+    // The userdata first, empty: a memory error making it can't leak the
+    // callback's reference, and its __gc ignores an empty listener
     auto& httpd = *new_udata<std::shared_ptr<Listener>>(L, 0, [L] {
         luaL_setfuncs(L, MT, 0);
         luaL_newlibtable(L, M);
@@ -679,13 +680,11 @@ auto start_httpd(lua_State* const L) -> int
         lua_setfield(L, -2, "__metatable");
     });
 
-    std::construct_at(
-        &httpd,
-        std::make_shared<Listener>(
-            App::from_lua(L)->get_context(),
-            std::move(cb)
-        )
-    );
+    std::construct_at(&httpd);
+
+    lua_pushvalue(L, 3);
+    auto cb = LuaRef::create(L);
+    httpd = std::make_shared<Listener>(App::from_lua(L)->get_context(), std::move(cb));
     httpd->run(host, service);
     return 1;
 }

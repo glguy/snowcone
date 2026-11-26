@@ -9,7 +9,8 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <stdexcept>
+#include <cstdio>
+#include <exception>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -104,16 +105,17 @@ auto describe(std::vector<toml::error_info> const& errors) -> std::string
     return result;
 }
 
-/// Push value converted to Lua (see l_parse_toml). Throws std::runtime_error
-/// on a date or time, naming its position and type, or when the Lua stack
-/// can't grow; values pushed before the throw are left on the stack.
-auto push_toml(lua_State* const L, toml::value const& value) -> void
+/// Push value converted to Lua (see l_parse_toml). Returns null, or the
+/// value it couldn't convert: a date or time, or a table or array nested
+/// past the room on the Lua stack. Values pushed before are left on the
+/// stack. Nothing here needs destroying, so a Lua error can unwind it.
+auto push_toml(lua_State* const L, toml::value const& value) -> toml::value const*
 {
     // Each level of nesting holds its table, and for a TOML table the key
     // being set, on the stack
     if (not lua_checkstack(L, 3))
     {
-        throw std::runtime_error{"toml nesting too deep"};
+        return &value;
     }
 
     switch (value.type()) {
@@ -123,10 +125,13 @@ auto push_toml(lua_State* const L, toml::value const& value) -> void
             lua_Integer i = 1;
             for (auto& x : array)
             {
-                push_toml(L, x);
+                if (auto const unconverted = push_toml(L, x))
+                {
+                    return unconverted;
+                }
                 lua_rawseti(L, -2, i++);
             }
-            break;
+            return nullptr;
         }
 
         case toml::value_t::table: {
@@ -135,40 +140,63 @@ auto push_toml(lua_State* const L, toml::value const& value) -> void
             for (auto& [k, v] : table)
             {
                 lua_pushlstring(L, k.data(), k.length());
-                push_toml(L, v);
+                if (auto const unconverted = push_toml(L, v))
+                {
+                    return unconverted;
+                }
                 lua_settable(L, -3);
             }
-            break;
+            return nullptr;
         }
 
-        case toml::value_t::boolean: {
-            auto const & boolean = value.as_boolean();
-            lua_pushboolean(L, boolean);
-            break;
-        }
+        case toml::value_t::boolean:
+            lua_pushboolean(L, value.as_boolean());
+            return nullptr;
 
-        case toml::value_t::floating: {
-            auto const & floating = value.as_floating();
-            lua_pushnumber(L, floating);
-            break;
-        }
+        case toml::value_t::floating:
+            lua_pushnumber(L, value.as_floating());
+            return nullptr;
 
-        case toml::value_t::integer: {
-            auto const & integer = value.as_integer();
-            lua_pushinteger(L, integer);
-            break;
-        }
+        case toml::value_t::integer:
+            lua_pushinteger(L, value.as_integer());
+            return nullptr;
 
         case toml::value_t::string: {
             auto const & string = value.as_string();
             lua_pushlstring(L, string.data(), string.size());
-            break;
+            return nullptr;
         }
 
         default:
-            throw std::runtime_error{
-                position(value.location()) + ": " + toml::to_string(value.type()) + " values are not supported"};
+            return &value;
     }
+}
+
+/// Why push_toml couldn't convert value
+auto unconverted_message(toml::value const& value) -> std::string
+{
+    if (value.is_array() || value.is_table())
+    {
+        return "toml nesting too deep";
+    }
+    return position(value.location()) + ": " + toml::to_string(value.type()) + " values are not supported";
+}
+
+/// A document to convert, and what of it push_toml couldn't convert
+struct Conversion
+{
+    toml::value const* document;
+    toml::value const* unconverted;
+};
+
+/// Lua function: convert the Conversion that the light userdata at 1
+/// points to, and return the value. l_parse_toml runs it in protected mode,
+/// so a memory error can't skip the destructors of the C++ objects it holds.
+auto convert(lua_State* const L) -> int
+{
+    auto& conversion = *static_cast<Conversion*>(lua_touserdata(L, 1));
+    conversion.unconverted = push_toml(L, *conversion.document);
+    return 1;
 }
 
 } // namespace
@@ -177,21 +205,49 @@ auto mytoml::l_parse_toml(lua_State* const L) -> int
 {
     std::size_t len;
     auto const src = luaL_checklstring(L, 1, &len);
+
+    // Lua calls that can raise come after every C++ object here is gone,
+    // or run in protected mode: the error message is copied out to push
+    char message[2048];
+    auto const set_message = [&message](std::string const& text) {
+        std::snprintf(message, sizeof message, "%s", text.c_str());
+    };
+    auto status = LUA_OK;
     try
     {
         auto const result = toml::try_parse(
             std::vector<unsigned char>(src, src + len), "", toml::spec::v(1, 1, 0));
         if (result.is_err())
         {
-            throw std::runtime_error{describe(result.as_err())};
+            set_message(describe(result.as_err()));
         }
-        push_toml(L, result.as_ok());
-        return 1;
+        else
+        {
+            Conversion conversion{&result.as_ok(), nullptr};
+            lua_pushcfunction(L, convert);
+            lua_pushlightuserdata(L, &conversion);
+            status = lua_pcall(L, 1, 1, 0);
+            if (status == LUA_OK)
+            {
+                if (nullptr == conversion.unconverted)
+                {
+                    return 1;
+                }
+                lua_pop(L, 1); // what was converted
+                set_message(unconverted_message(*conversion.unconverted));
+            }
+        }
     }
     catch (std::exception const& err)
     {
-        luaL_pushfail(L);
-        lua_pushstring(L, err.what());
-        return 2;
+        set_message(err.what());
     }
+
+    if (status != LUA_OK)
+    {
+        return lua_error(L); // the conversion's error, on top
+    }
+    luaL_pushfail(L);
+    lua_pushstring(L, message);
+    return 2;
 }
