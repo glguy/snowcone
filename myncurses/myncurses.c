@@ -1,3 +1,7 @@
+// Lua binding for ncurses: the module's functions and constants. Functions
+// taking an optional window use stdscr when it is nil or absent, and raise
+// "<name>: ncurses error" when ncurses fails, unless noted.
+
 #define _XOPEN_SOURCE 600
 
 #include "myncurses.h"
@@ -11,6 +15,7 @@
 
 #include <stdlib.h>
 
+// Lua: erase([win]). Blanks the window.
 static int l_erase(lua_State* const L)
 {
     WINDOW* const win = optwindow(L, 1);
@@ -22,6 +27,8 @@ static int l_erase(lua_State* const L)
     return 0;
 }
 
+// Lua: clear([win]). As erase, and the terminal is cleared on the next
+// refresh.
 static int l_clear(lua_State* const L)
 {
     WINDOW* const win = optwindow(L, 1);
@@ -33,6 +40,7 @@ static int l_clear(lua_State* const L)
     return 0;
 }
 
+// Lua: refresh([win]). Shows the window on the terminal.
 static int l_refresh(lua_State* const L)
 {
     WINDOW* const win = optwindow(L, 1);
@@ -41,9 +49,12 @@ static int l_refresh(lua_State* const L)
     {
         return luaL_error(L, "refresh: ncurses error");
     }
+    colorpairs_next_frame();
     return 0;
 }
 
+// Lua: noutrefresh([win]). Copies the window to the virtual screen, for
+// doupdate to show; raises "wnoutrefresh: ncurses error".
 static int l_noutrefresh(lua_State* const L)
 {
     WINDOW* const win = optwindow(L, 1);
@@ -55,9 +66,21 @@ static int l_noutrefresh(lua_State* const L)
     return 0;
 }
 
+// The WA_* attributes at arg, which must fit attr_t: raises an argument
+// error rather than let a value wrap
+static attr_t checkattrs(lua_State* const L, int const arg)
+{
+    lua_Integer const a = luaL_checkinteger(L, arg);
+    luaL_argcheck(L, 0 <= a && (lua_Unsigned)a <= (attr_t)-1, arg, "out of range");
+    return (attr_t)a;
+}
+
+// Lua: attron(attrs, [win]). Turns on the WA_* attributes in attrs; raises
+// an argument error when attrs doesn't fit attr_t, and "wattr_on: ncurses
+// error".
 static int l_attron(lua_State* const L)
 {
-    lua_Integer const a = luaL_checkinteger(L, 1);
+    attr_t const a = checkattrs(L, 1);
     WINDOW* const win = optwindow(L, 2);
 
     if (ERR == wattr_on(win, a, NULL))
@@ -67,9 +90,12 @@ static int l_attron(lua_State* const L)
     return 0;
 }
 
+// Lua: attroff(attrs, [win]). Turns off the WA_* attributes in attrs;
+// raises an argument error when attrs doesn't fit attr_t, and "wattr_off:
+// ncurses error".
 static int l_attroff(lua_State* const L)
 {
-    lua_Integer const a = luaL_checkinteger(L, 1);
+    attr_t const a = checkattrs(L, 1);
     WINDOW* const win = optwindow(L, 2);
 
     if (ERR == wattr_off(win, a, NULL))
@@ -79,6 +105,8 @@ static int l_attroff(lua_State* const L)
     return 0;
 }
 
+// Lua: attrget([win]) -> attrs, pair. The window's attributes and color
+// pair, for attrset to restore; raises "wattr_get: ncurses error".
 static int l_attrget(lua_State* const L)
 {
     WINDOW* const win = optwindow(L, 1);
@@ -96,9 +124,12 @@ static int l_attrget(lua_State* const L)
     return 2;
 }
 
+// Lua: attrset(attrs, pair, [win]). Sets the attributes and color pair, as
+// attrget returns them; attrs must fit attr_t and pair be 0 to
+// COLOR_PAIRS - 1. Raises "wattr_set: ncurses error".
 static int l_attrset(lua_State* const L)
 {
-    int const a = luaL_checkinteger(L, 1);
+    attr_t const a = checkattrs(L, 1);
     lua_Integer const color = luaL_checkinteger(L, 2);
     luaL_argcheck(L, 0 <= color && color < COLOR_PAIRS, 2, "out of range");
     WINDOW* const win = optwindow(L, 3);
@@ -112,6 +143,8 @@ static int l_attrset(lua_State* const L)
     return 0;
 }
 
+// Lua: addstr(...). Writes each string argument in turn at stdscr's
+// cursor, ignoring ncurses errors.
 static int l_addstr(lua_State* const L)
 {
     int const n = lua_gettop(L);
@@ -124,6 +157,9 @@ static int l_addstr(lua_State* const L)
     return 0;
 }
 
+// Lua: mvaddstr(y, x, ...). Moves stdscr's cursor and writes each string
+// argument in turn, ignoring ncurses errors. Does nothing, not even check
+// the strings, when (y, x) is outside stdscr.
 static int l_mvaddstr(lua_State* const L)
 {
     lua_Integer const y = luaL_checkinteger(L, 1);
@@ -155,6 +191,7 @@ static int l_mvaddstr(lua_State* const L)
     return 0;
 }
 
+// Lua: getyx([win]) -> y, x. The window's cursor, 0-based.
 static int l_getyx(lua_State* const L)
 {
     WINDOW* const win = optwindow(L, 1);
@@ -166,6 +203,7 @@ static int l_getyx(lua_State* const L)
     return 2;
 }
 
+// Lua: getmaxyx([win]) -> lines, columns. The window's size.
 static int l_getmaxyx(lua_State* const L)
 {
     WINDOW* const win = optwindow(L, 1);
@@ -177,15 +215,21 @@ static int l_getmaxyx(lua_State* const L)
     return 2;
 }
 
+// Lua: doupdate(). Shows the virtual screen on the terminal.
 static int l_doupdate(lua_State* const L)
 {
     if (ERR == doupdate())
     {
         return luaL_error(L, "doupdate: ncurses error");
     }
+    colorpairs_next_frame();
     return 0;
 }
 
+// Lua: colorset([fore], [back], [win]). Sets the window's colors, each -1
+// (the default, when nil or absent) to COLORS - 1, with a pair from
+// colorpairs_get; when no pair can be had, the colors are the defaults
+// without error. Raises "color_set: ncurses error".
 static int l_colorset(lua_State* const L)
 {
     lua_Integer const fore = luaL_optinteger(L, 1, -1);
@@ -207,6 +251,8 @@ static int l_colorset(lua_State* const L)
     return 0;
 }
 
+// Lua: move(y, x, [win]). Moves the cursor, 0-based; raises "move" when
+// that is outside the window.
 static int l_move(lua_State* const L)
 {
     int const y = checkint(L, 1);
@@ -219,6 +265,9 @@ static int l_move(lua_State* const L)
     return 0;
 }
 
+// Lua: cursset(visibility) -> previous. Cursor visibility: 0 invisible,
+// 1 normal, 2 very visible. Raises "curs_set: invalid argument" when the
+// value or the terminal doesn't allow it.
 static int l_cursset(lua_State* const L)
 {
     int const visibility = checkint(L, 1);
@@ -231,18 +280,21 @@ static int l_cursset(lua_State* const L)
     return 1;
 }
 
+// Lua: flash(). Flashes the screen, or beeps if the terminal can't.
 static int l_flash(lua_State* const L)
 {
     flash();
     return 0;
 }
 
+// Lua: beep(). Beeps, or flashes the screen if the terminal can't.
 static int l_beep(lua_State* const L)
 {
     beep();
     return 0;
 }
 
+// Functions of the module table
 static luaL_Reg lib[] = {
     {"addstr", l_addstr},
     {"mvaddstr", l_mvaddstr},
@@ -281,6 +333,8 @@ void l_ncurses_resize(lua_State* const L)
     lua_setglobal(L, "tty_height");
 }
 
+// CCR(n, v) sets field n of the table on top of the stack to the integer v;
+// CC(s) names the field after the constant s, CF(i) as "KEY_F<i>".
 #define LCURSES__SPLICE(_s, _t) _s##_t
 #define LCURSES_SPLICE(_s, _t) LCURSES__SPLICE(_s, _t)
 #define LCURSES__STR(_s) #_s

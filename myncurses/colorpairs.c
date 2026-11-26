@@ -1,3 +1,6 @@
+// Color pairs from our own table, sized to the screen, so that colors
+// arriving in sorted order can't make every redraw slow; see below.
+
 #include "colorpairs.h"
 
 #include <ncurses.h>
@@ -14,8 +17,16 @@ enum
 
 // Pairs 1 to limit, each with its colors, threaded on a list from most to
 // least recently used. Index 0 is the list's head: pair 0 is the
-// terminal's defaults and never defined here. A screen redraws in full,
-// so the pairs it uses are always more recent than any redefined.
+// terminal's defaults and never defined here.
+//
+// A screen redraws in full between updates, so only the pairs the frame
+// being drawn has used must keep their colors; each pair records the last
+// frame that used it. The limit starts at PAIRS_PER_ROW for each row of
+// the screen. When the least recently used pair is from this frame, so is
+// every pair, and the limit grows rather than recolor a cell this frame
+// drew: a pad drawn with more rows than the screen, or rows of many colors,
+// can need more. Only once the terminal's pairs run out does a frame
+// recolor its own cells.
 //
 // The limit also bounds the tree in which ncurses keeps the pairs
 // defined. Where tsearch doesn't balance it (macOS), colors arriving in
@@ -38,15 +49,20 @@ static struct
     int* back;
     int* prev;
     int* next;
+    unsigned* frame_used; // the frame that last used each pair
+    unsigned frame;       // the frame being drawn
     int failed; // couldn't allocate: always pair 0
 } t;
 
+// Fibonacci hash of the two colors: the top bits of the product, as a slot
 static uint32_t home(int const fore, int const back)
 {
     uint64_t const key = (uint64_t)(uint32_t)fore << 32 | (uint32_t)back;
     return (uint32_t)((key * UINT64_C(0x9e3779b97f4a7c15)) >> t.shift);
 }
 
+// Allocates the table on first use; 1 when it is ready, 0 when the terminal
+// has no pairs to give or allocation failed (then never tried again).
 static int setup(void)
 {
     if (t.slots != NULL)
@@ -71,13 +87,15 @@ static int setup(void)
     t.back = malloc(count * sizeof *t.back);
     t.prev = malloc(count * sizeof *t.prev);
     t.next = malloc(count * sizeof *t.next);
-    if (!t.slots || !t.fore || !t.back || !t.prev || !t.next)
+    t.frame_used = malloc(count * sizeof *t.frame_used);
+    if (!t.slots || !t.fore || !t.back || !t.prev || !t.next || !t.frame_used)
     {
         free(t.slots);
         free(t.fore);
         free(t.back);
         free(t.prev);
         free(t.next);
+        free(t.frame_used);
         t.slots = NULL;
         t.failed = 1;
         return 0;
@@ -92,7 +110,7 @@ static int setup(void)
     return 1;
 }
 
-// Up to the screen's needs, within the pairs the terminal has
+// Up to the screen's rows' needs, within the pairs the terminal has
 static void update_limit(void)
 {
     long const wanted = (long)PAIRS_PER_ROW * (LINES > 0 ? LINES : 1);
@@ -103,6 +121,7 @@ static void update_limit(void)
     }
 }
 
+// Takes the pair off the list, leaving its neighbors linked
 static void unlink_pair(int const pair)
 {
     t.next[t.prev[pair]] = t.next[pair];
@@ -143,6 +162,8 @@ static uint32_t find(int const fore, int const back)
     }
 }
 
+// Records the pair's colors and puts it in the hash table, where those
+// colors must not already be
 static void insert(int const pair, int const fore, int const back)
 {
     t.fore[pair] = fore;
@@ -150,6 +171,7 @@ static void insert(int const pair, int const fore, int const back)
     t.slots[find(fore, back)] = pair;
 }
 
+// Takes the pair out of the hash table, by its recorded colors
 static void remove_pair(int const pair)
 {
     uint32_t gap = find(t.fore[pair], t.back[pair]);
@@ -181,10 +203,17 @@ int colorpairs_get(int const fore, int const back)
     {
         unlink_pair(found);
         push_front(found);
+        t.frame_used[found] = t.frame;
         return found;
     }
 
     update_limit();
+    // every pair is this frame's: redefining one would recolor what it drew
+    if (t.used == t.limit && t.limit < t.count - 1 && t.frame_used[t.prev[0]] == t.frame)
+    {
+        t.limit++;
+    }
+
     int pair;
     int const fresh = t.used < t.limit;
     if (fresh)
@@ -215,5 +244,11 @@ int colorpairs_get(int const fore, int const back)
 
     insert(pair, fore, back);
     push_front(pair);
+    t.frame_used[pair] = t.frame;
     return pair;
+}
+
+void colorpairs_next_frame(void)
+{
+    t.frame++;
 }

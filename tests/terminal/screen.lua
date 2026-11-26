@@ -6,10 +6,11 @@
 --       try to set the window title meanwhile
 --   z   suspend, as hub's ^Z does
 --   t   set the window title, with a control character to drop
+--   p   show the top of a pad of more color pairs than a screen's worth
 --   ^D  shut down
 --
 -- Events on descriptor 3: ready, drawn <width> <height>, stopped, started,
--- titled
+-- titled, padded
 
 local out = assert(io.open('/dev/fd/3', 'w'))
 out:setvbuf 'line'
@@ -56,6 +57,22 @@ snowcone.setmodule(function(event, ...)
             end)
         elseif key == string.byte 'z' then
             snowcone.raise(snowcone.SIGTSTP)
+        elseif key == string.byte 'p' then
+            -- a pad of 30 rows by 200 columns, each cell its own pair: more
+            -- than one frame of a 24-row screen is given (200 a row), shown
+            -- from its top, which was drawn first
+            local pad = ncurses.newpad(30, 200)
+            for y = 0, 29 do
+                for x = 0, 199 do
+                    local k = y * 200 + x
+                    ncurses.colorset(k % 256, k // 256, pad)
+                    pad:waddstr('x')
+                end
+            end
+            ncurses.erase()
+            ncurses.refresh()
+            pad:prefresh(0, 0, 0, 0, tty_height - 1, tty_width - 1)
+            emit 'padded'
         elseif key == string.byte 't' then
             snowcone.set_title 'screen\a test'
             emit 'titled'

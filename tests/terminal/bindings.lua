@@ -127,6 +127,23 @@ check('attributes and colors', function()
     raises(ncurses.colorset, math.mininteger)
     raises(ncurses.attrset, 0, 1 << 16) -- a color pair is a short
     ncurses.attrset(ncurses.WA_NORMAL, 0)
+
+    -- WA_ITALIC is the top bit of attr_t: it round-trips, and values that
+    -- don't fit attr_t raise rather than wrap
+    ncurses.attrset(ncurses.WA_ITALIC | ncurses.WA_BOLD, 0)
+    local italic = ncurses.attrget()
+    equal(italic & (ncurses.WA_ITALIC | ncurses.WA_BOLD), ncurses.WA_ITALIC | ncurses.WA_BOLD)
+    ncurses.attroff(ncurses.WA_ITALIC)
+    equal(ncurses.attrget() & ncurses.WA_ITALIC, 0)
+    ncurses.attron(ncurses.WA_ITALIC)
+    equal(ncurses.attrget() & ncurses.WA_ITALIC, ncurses.WA_ITALIC)
+    for _, f in ipairs {ncurses.attron, ncurses.attroff} do
+        raises(f, -1)
+        raises(f, 1 << 40)
+    end
+    raises(ncurses.attrset, -1, 0)
+    raises(ncurses.attrset, 1 << 40, 0)
+    ncurses.attrset(ncurses.WA_NORMAL, 0)
 end)
 
 check('cursor visibility', function()
