@@ -11,7 +11,10 @@ local prepared = stringprep(str, profile)
 `profile` is any libidn profile name, such as `'SASLprep'`
 ([RFC 4013](https://datatracker.ietf.org/doc/html/rfc4013)) or `'trace'`.
 Strings are prepared as queries: unassigned code points are allowed.
+snowcone also installs the module as the global `mystringprep`, which is
+`nil` when it was built without libidn.
 
 It raises "stringprep failed: ..." when the input is rejected, for example
 for a prohibited character or invalid UTF-8, or when the profile is unknown.
-A string containing a NUL byte is rejected, because libidn takes C strings.
+A string containing a NUL byte is rejected with an argument error, because
+libidn takes C strings.

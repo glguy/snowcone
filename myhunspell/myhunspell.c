@@ -1,3 +1,8 @@
+// Lua binding to libhunspell: open a dictionary from its .aff and .dic
+// files, check words, suggest spellings, and add words to the open
+// dictionary. Words are passed to hunspell as bytes, unconverted, so they
+// must already be in the dictionary's encoding (see encoding()).
+
 #include "myhunspell.h"
 
 #include <hunspell.h>
@@ -15,8 +20,8 @@
 static char const* handle_type_name = "Hunhandle*";
 static char const* suggestions_type_name = "myhunspell.suggestions";
 
-// Raise a message as it is, without the caller's position: these are
-// shown to the user as they are
+// Raises the formatted message as it is, without the caller's position:
+// these are shown to the user as they are. Never returns.
 static int fail(lua_State* L, char const* fmt, ...)
 {
     va_list ap;
@@ -26,6 +31,8 @@ static int fail(lua_State* L, char const* fmt, ...)
     return lua_error(L);
 }
 
+// The open handle at argument 1; raises an argument error if it isn't a
+// handle, and an error if it has been closed.
 static Hunhandle* check_handle(lua_State* L)
 {
     Hunhandle** h = luaL_checkudata(L, 1, handle_type_name);
@@ -34,8 +41,9 @@ static Hunhandle* check_handle(lua_State* L)
     return *h;
 }
 
-// A word or path as hunspell takes it: a C string, so a NUL can't hide
-// a tail
+// The string at argument arg, as hunspell takes a word or path: a C
+// string, so one with an embedded NUL raises an argument error rather than
+// hiding its tail.
 static char const* check_word(lua_State* L, int arg)
 {
     size_t len;
@@ -44,6 +52,8 @@ static char const* check_word(lua_State* L, int arg)
     return word;
 }
 
+// Lua: handle:close(), also __gc and __close. Destroys the hunspell
+// handle; closing again does nothing, and other methods then raise.
 static int close_handle(lua_State* L)
 {
     Hunhandle** h = luaL_checkudata(L, 1, handle_type_name);
@@ -59,6 +69,9 @@ static int close_handle(lua_State* L)
 // opens an empty one, with complaints on stderr, over the screen. So the
 // files are checked first: regular files that can be read, the .dic
 // starting with its word count.
+//
+// Raises "<path>: <reason>" unless path names a regular file this process
+// can open for reading.
 static void check_regular(lua_State* L, char const* path)
 {
     struct stat st;
@@ -72,6 +85,9 @@ static void check_regular(lua_State* L, char const* path)
     fclose(f);
 }
 
+// Raises "<path>: not a hunspell dictionary (no word count)" unless the
+// file's first line (after any UTF-8 byte order mark) starts with a
+// positive integer; raises "<path>: <reason>" if it can't be opened.
 static void check_dic(lua_State* L, char const* path)
 {
     FILE* f = fopen(path, "r");
@@ -89,6 +105,11 @@ static void check_dic(lua_State* L, char const* path)
         fail(L, "%s: not a hunspell dictionary (no word count)", path);
 }
 
+// Lua: open(aff, dic) -> handle
+// Opens the dictionary from the paths of its affix and word files. Raises
+// with an unpositioned "<path>: <reason>" message when either file is
+// missing, unreadable, or not a regular file, or the .dic has no word
+// count. The handle is closed by close(), __close, or __gc.
 static int open_handle(lua_State* L)
 {
     char const* aff = check_word(L, 1);
@@ -97,7 +118,8 @@ static int open_handle(lua_State* L)
     check_regular(L, dic);
     check_dic(L, dic);
 
-    // the userdata comes first so a failed create leaves nothing to leak
+    // the userdata comes first so that, should allocating it raise, no
+    // hunspell handle has been made yet to leak
     Hunhandle** ptr = lua_newuserdatauv(L, sizeof *ptr, 0);
     *ptr = NULL;
     luaL_setmetatable(L, handle_type_name);
@@ -107,6 +129,8 @@ static int open_handle(lua_State* L)
     return 1;
 }
 
+// Lua: handle:spell(word) -> boolean
+// Whether the dictionary accepts word.
 static int spell(lua_State* L)
 {
     Hunhandle* h = check_handle(L);
@@ -115,7 +139,8 @@ static int spell(lua_State* L)
     return 1;
 }
 
-// Hunspell's list of suggestions, freed when suggest returns or raises
+// Hunspell's list of suggestions, freed when suggest returns or raises:
+// suggest marks it to-be-closed. h is the handle the list came from.
 struct suggestions
 {
     Hunhandle* h;
@@ -123,6 +148,8 @@ struct suggestions
     int n;
 };
 
+// __gc and __close of a suggestions list: frees it with the handle it came
+// from, once.
 static int free_suggestions(lua_State* L)
 {
     struct suggestions* s = luaL_checkudata(L, 1, suggestions_type_name);
@@ -134,6 +161,9 @@ static int free_suggestions(lua_State* L)
     return 0;
 }
 
+// Lua: handle:suggest(word) -> {string...}
+// Hunspell's suggested spellings for word, best first; an empty table when
+// it has none.
 static int suggest(lua_State* L)
 {
     Hunhandle* h = check_handle(L);
@@ -156,6 +186,9 @@ static int suggest(lua_State* L)
     return 1;
 }
 
+// Lua: handle:add(word)
+// Accepts word, with no affixes, until the handle is closed; the
+// dictionary's files are not changed.
 static int add(lua_State* L)
 {
     Hunhandle* h = check_handle(L);
@@ -164,6 +197,9 @@ static int add(lua_State* L)
     return 0;
 }
 
+// Lua: handle:encoding() -> string
+// The dictionary's encoding as its .aff names it (SET), such as "UTF-8" or
+// "ISO8859-1", the spelling hunspell defaults to.
 static int encoding(lua_State* L)
 {
     Hunhandle* h = check_handle(L);
@@ -172,11 +208,13 @@ static int encoding(lua_State* L)
     return 1;
 }
 
+// Module functions
 static luaL_Reg M[] = {
     {"open", open_handle},
     {0},
 };
 
+// Methods of a hunspell handle
 static luaL_Reg HandleM[] = {
     {"spell", spell},
     {"suggest", suggest},

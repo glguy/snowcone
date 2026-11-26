@@ -1,3 +1,6 @@
+// Lua binding to libidn's stringprep (RFC 3454), used to apply SASLprep
+// and trace to SASL credentials.
+
 #include "mystringprep.h"
 
 #include <lauxlib.h>
@@ -9,6 +12,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Lua: stringprep(str, profile) -> string
+// Prepares str with the named libidn profile (e.g. 'SASLprep', 'trace')
+// with no flags, so unassigned code points are allowed (query semantics).
+// Raises an argument error if str contains a NUL byte, and raises
+// "stringprep failed: <reason>" for any libidn failure, such as a
+// prohibited character, a bidi violation, invalid UTF-8, or an unknown
+// profile.
 static int l_stringprep(lua_State* const L)
 {
     size_t len;

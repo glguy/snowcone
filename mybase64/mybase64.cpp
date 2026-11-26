@@ -1,3 +1,8 @@
+/**
+ * @file mybase64.cpp
+ * @brief Lua bindings for the base64 library
+ *
+ */
 #include "mybase64.hpp"
 
 #include "base64.hpp"
@@ -18,6 +23,7 @@ namespace {
  * Characters outside the Base64 alphabet, including '=', are skipped.
  * On success, it pushes the decoded string onto the Lua stack.
  * On failure (a dangling final character), it pushes fail (nil).
+ * Raises a Lua error if the argument is not a string or number.
  *
  * param:     string input   Base64-encoded string to decode
  * return:    string|nil     decoded string, or fail on invalid input
@@ -52,7 +58,8 @@ auto l_from_base64(lua_State* const L) -> int
  * @brief Lua binding for Base64 encoding.
  *
  * Encodes the given string into Base64 format.
- * On success, it pushes the Base64-encoded string onto the Lua stack.
+ * Pushes the padded Base64-encoded string onto the Lua stack.
+ * Raises a Lua error if the argument is not a string or number.
  *
  * param:     string input   input string to encode
  * return:    string output  Base64-encoded string

@@ -1,3 +1,9 @@
+/**
+ * @file parse_toml.cpp
+ * @brief parse_toml: TOML text to Lua values, with error messages that
+ * give positions but not the text of the file
+ *
+ */
 #include "parse_toml.hpp"
 #include "toml.hpp"
 
@@ -16,17 +22,19 @@ extern "C" {
 
 namespace {
 
-// A syntax error reports this many problems at most; the later ones are
-// usually consequences of the first.
+// An error message lists this many problems at most, then counts the rest;
+// the later ones are usually consequences of the first.
 constexpr std::size_t max_reported_errors = 5;
 
+/// "line L, column C" for the start of location, both counted from 1
 auto position(toml::source_location const& location) -> std::string
 {
     return "line " + std::to_string(location.first_line_number())
         + ", column " + std::to_string(location.first_column_number());
 }
 
-// "toml::parse_array: missing bracket" becomes "missing bracket"
+/// Drop the leading "toml::function:" from an error title, if present:
+/// "toml::parse_array: missing bracket" becomes "missing bracket"
 auto strip_function_name(std::string_view title) -> std::string_view
 {
     if (title.starts_with("toml::")) {
@@ -39,8 +47,10 @@ auto strip_function_name(std::string_view title) -> std::string_view
     return title;
 }
 
-// Only positions and the library's own words: toml::format_error would quote
-// the source line, and configuration files can hold secrets.
+/// One error as a single line: its first position and title, then each
+/// position with its note. Only positions and the library's own words:
+/// toml::format_error would quote the source line, and configuration files
+/// can hold secrets.
 auto describe(toml::error_info const& error) -> std::string
 {
     std::string result;
@@ -65,6 +75,8 @@ auto describe(toml::error_info const& error) -> std::string
     return result;
 }
 
+/// All errors, one per line, skipping a line that repeats the one before.
+/// After max_reported_errors lines, the rest are counted: "and N more".
 auto describe(std::vector<toml::error_info> const& errors) -> std::string
 {
     std::string result;
@@ -92,9 +104,13 @@ auto describe(std::vector<toml::error_info> const& errors) -> std::string
     return result;
 }
 
+/// Push value converted to Lua (see l_parse_toml). Throws std::runtime_error
+/// on a date or time, naming its position and type, or when the Lua stack
+/// can't grow; values pushed before the throw are left on the stack.
 auto push_toml(lua_State* const L, toml::value const& value) -> void
 {
-    // Each level of nesting holds a table and a key on the stack
+    // Each level of nesting holds its table, and for a TOML table the key
+    // being set, on the stack
     if (not lua_checkstack(L, 3))
     {
         throw std::runtime_error{"toml nesting too deep"};
