@@ -121,8 +121,8 @@ local function decode_status(irc, row)
     local status = row.status
     if not status then return end
     row.away = status:sub(1, 1) == 'G'
-    local bot_letter = irc.isupport.BOT
-    if type(bot_letter) ~= 'string' or #bot_letter ~= 1 then bot_letter = nil end
+    local bot = irc.isupport.BOT
+    local bot_letter = type(bot) == 'string' and #bot == 1 and bot or nil
     local prefixes = {}
     for c in status:sub(2):gmatch '.' do
         if c == bot_letter then

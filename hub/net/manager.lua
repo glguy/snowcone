@@ -609,6 +609,7 @@ function events.MSG(rec, msg, flush)
     -- before tasks and features see it, which may ask
     local ok, err = xpcall(snote.record, traceback, id, msg)
     if not ok then
+        ---@cast err string the traceback, not snote.record's result
         dispatch.report('server notice', err)
     end
 
