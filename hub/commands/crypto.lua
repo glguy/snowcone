@@ -57,7 +57,9 @@ local function cert_fingerprint(x509)
     return table.concat(fp)
 end
 
--- The key identifier of a public key: SHA-1 of its DER encoding
+-- The key identifier of a public key, as RFC 5280 4.2.1.2 method (1)
+-- makes it: SHA-1 of the subjectPublicKey bit string's value, which for
+-- the ED25519 keys made here is the raw key in export().pub, not DER
 local function mk_key_id(pkey)
     return myopenssl.get_digest 'sha1':digest(pkey:export().pub)
 end

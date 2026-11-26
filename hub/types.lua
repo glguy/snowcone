@@ -167,12 +167,13 @@ function snowcone.time() end
 ---@param signal integer
 function snowcone.raise(signal) end
 
---- Signals SIGINT, SIGTERM and SIGHUP go to the module's on_signal.
+--- Signals SIGINT, SIGTERM and SIGHUP go to the module as 'on_signal'.
 ---@param on boolean
 function snowcone.catch_signals(on) end
 
---- The table whose callbacks the client calls.
----@param module any
+--- The function the client calls for every event, as module(name, ...);
+--- nil unregisters it.
+---@param module fun(name: string, ...)|nil
 function snowcone.setmodule(module) end
 
 --- Take over the terminal and define ncurses, tty_width and tty_height.
@@ -239,10 +240,14 @@ function Window:prefresh(pminrow, pmincol, sminrow, smincol, smaxrow, smaxcol) e
 ---@field COLOR_DEFAULT integer
 ---@field COLORS integer 2^24 for direct color, where a color is 0xRRGGBB
 ---@field WA_NORMAL integer
----@field WA_BOLD integer
----@field WA_ITALIC integer
----@field WA_REVERSE integer
+---@field WA_STANDOUT integer
 ---@field WA_UNDERLINE integer
+---@field WA_REVERSE integer
+---@field WA_BLINK integer
+---@field WA_DIM integer
+---@field WA_BOLD integer
+---@field WA_ALTCHARSET integer
+---@field WA_ITALIC integer
 ---@field [string] integer KEY_* codes
 ncurses = {}
 
@@ -305,6 +310,27 @@ function ncurses.clear(win) end
 ---@param win ncurses.Window|nil
 function ncurses.noutrefresh(win) end
 
+--- Copy the window to the terminal at once.
+---@param win ncurses.Window|nil
+function ncurses.refresh(win) end
+
+--- Move the cursor; raises when (y, x) is outside the window.
+---@param y integer
+---@param x integer
+---@param win ncurses.Window|nil
+function ncurses.move(y, x, win) end
+
+--- Write each string at stdscr's cursor, ignoring ncurses errors.
+---@param ... string
+function ncurses.addstr(...) end
+
+--- Move stdscr's cursor and write each string, ignoring ncurses errors;
+--- does nothing when (y, x) is outside stdscr.
+---@param y integer
+---@param x integer
+---@param ... string
+function ncurses.mvaddstr(y, x, ...) end
+
 function ncurses.doupdate() end
 function ncurses.beep() end
 function ncurses.flash() end
@@ -334,6 +360,7 @@ function Digest:size() end
 ---@return string
 function Digest:pbkdf2(password, salt, iterations, keylen) end
 
+--- Also compares with ==, < and <=. // and % truncate toward zero.
 ---@class myopenssl.Bignum
 ---@operator add(myopenssl.Bignum): myopenssl.Bignum
 ---@operator sub(myopenssl.Bignum): myopenssl.Bignum
@@ -341,7 +368,22 @@ function Digest:pbkdf2(password, salt, iterations, keylen) end
 ---@operator idiv(myopenssl.Bignum): myopenssl.Bignum
 ---@operator mod(myopenssl.Bignum): myopenssl.Bignum
 ---@operator pow(myopenssl.Bignum): myopenssl.Bignum
+---@operator shl(integer): myopenssl.Bignum
+---@operator shr(integer): myopenssl.Bignum
 ---@operator unm: myopenssl.Bignum
+local Bignum = {}
+
+--- The quotient and remainder, both truncated toward zero.
+---@param divisor myopenssl.Bignum
+---@return myopenssl.Bignum quotient
+---@return myopenssl.Bignum remainder
+function Bignum:div_mod(divisor) end
+
+--- (self ^ exponent) mod modulus.
+---@param exponent myopenssl.Bignum
+---@param modulus myopenssl.Bignum
+---@return myopenssl.Bignum
+function Bignum:mod_exp(exponent, modulus) end
 
 ---@class myopenssl.Pkey
 local Pkey = {}
@@ -490,9 +532,16 @@ function myopenssl.new_x509() end
 ---@return myopenssl.X509
 function myopenssl.read_x509(pem, password) end
 
----@param n integer
+---@param n integer 0 to 2^31 - 1
+---@param private boolean|nil use OpenSSL's generator for private keys
 ---@return string bytes
-function myopenssl.rand(n) end
+function myopenssl.rand(n, private) end
+
+--- A bignum is returned as is; anything else is converted with tostring
+--- and must be a whole decimal integer, or raises "bad bignum string".
+---@param value myopenssl.Bignum|integer|string
+---@return myopenssl.Bignum
+function myopenssl.bignum(value) end
 
 ---@param a string
 ---@param b string
@@ -508,8 +557,10 @@ mybase64 = {}
 ---@return string
 function mybase64.to_base64(s) end
 
+--- Characters outside the alphabet, '=' among them, are skipped, so
+--- most text that isn't Base64 still decodes.
 ---@param s string
----@return string|nil nil when s is not base64
+---@return string|nil nil only when one alphabet character is left over
 function mybase64.from_base64(s) end
 
 ---@class mytoml.lib
@@ -579,7 +630,9 @@ function HunspellHandle:close() end
 ---@class myhunspell.lib
 local myhunspell_lib = {}
 
---- Open a dictionary; raises when a file can't be read.
+--- Open a dictionary. Raises when a file can't be read or isn't a regular
+--- file, when the .dic's first line isn't a word count, or when a path
+--- holds a NUL.
 ---@param aff string
 ---@param dic string
 ---@return myhunspell.Handle
