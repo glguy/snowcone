@@ -24,12 +24,15 @@ class connection_error final : public boost::system::system_error
     std::runtime_error text_;
 
 public:
+    /// @param ec The underlying error, kept for code()
+    /// @param text The complete message for what()
     connection_error(boost::system::error_code const& ec, std::string const& text)
         : system_error{ec}
         , text_{text}
     {
     }
 
+    /// The user-facing text, not system_error's composed message
     auto what() const noexcept -> char const* override
     {
         return text_.what();

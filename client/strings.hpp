@@ -103,6 +103,7 @@ inline auto to_string_view(lua_State* L, int const idx) -> std::optional<std::st
  */
 inline auto write_escaped(std::FILE* const out, std::string_view const str) -> void
 {
+    // Whether there is a UTF-8 continuation byte at i
     auto const is_cont = [&](std::size_t const i) {
         return i < str.size() && (static_cast<unsigned char>(str[i]) & 0xc0) == 0x80;
     };

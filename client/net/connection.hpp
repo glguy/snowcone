@@ -29,7 +29,9 @@ class Ref {
     struct Deleter { auto operator()(T * const ptr) -> void { Free(ptr); }};
     std::unique_ptr<T, Deleter> obj;
 public:
+    /// Holds nothing
     Ref() = default;
+    /// Take a new reference to t, which may be null
     explicit Ref(T* t) : obj{t}
     {
         if (t)
@@ -40,6 +42,7 @@ public:
             assert(ok == 1);
         }
     }
+    /// The object, still owned by this Ref; null if empty
     auto get() const noexcept -> T* { return obj.get(); }
 };
 
@@ -55,12 +58,14 @@ struct TlsLayer {
     std::vector<std::string> alpn;
 };
 
+/// A SOCKS5 proxy tunnel to host:port, set up over the stream so far
 struct SocksLayer {
     std::string host;
     std::uint16_t port;
     socks5::Auth auth;
 };
 
+/// An HTTP CONNECT proxy tunnel to host:port, set up over the stream so far
 struct HttpLayer {
     std::string host;
     std::uint16_t port;
@@ -79,11 +84,13 @@ struct WebSocketLayer {
     std::vector<std::string> subprotocols{websocket::binary_subprotocol, websocket::text_subprotocol};
 };
 
+/// The base connection: TCP to host:port, resolved with happy eyeballs
 struct IpLayer {
     std::string host;
     std::uint16_t port;
 };
 
+/// The base connection: a Unix domain socket at path
 struct LocalLayer {
     std::string path;
 };
@@ -138,6 +145,8 @@ struct LayerInfo
     std::string subprotocol{};
 };
 
+/// One IRC connection: the stream through its layers, and the outgoing
+/// bytes queued until it is connected
 class connection final : public std::enable_shared_from_this<connection>
 {
 public:
@@ -161,6 +170,8 @@ public:
     /// then it isn't called again, and no later layer sends anything.
     using Progress = std::function<void(std::string const& text, LayerInfo const* established)>;
 
+    /// An unconnected connection; use create(), since writes need
+    /// shared_from_this
     connection(boost::asio::io_context&);
 
     auto operator=(connection const&) -> connection& = delete;
@@ -168,11 +179,13 @@ public:
     connection(connection const&) = delete;
     connection(connection&&) = delete;
 
+    /// A new, unconnected connection on io_context
     auto static create(boost::asio::io_context& io_context) -> std::shared_ptr<connection>
     {
         return std::make_shared<connection>(io_context);
     }
 
+    /// The stream for reading, once connect() has returned
     auto get_stream() -> Stream&
     {
         return stream_;
@@ -181,6 +194,11 @@ public:
     // Queue messages for writing
     /**
      * @brief Write a message to the output stream
+     *
+     * The bytes are queued and sent once connect() has finished, in order
+     * with every earlier write. Nothing is queued after close(), and an
+     * empty message is ignored. A write error is not reported; it stops
+     * sending until the next write.
      *
      * @param msg The string to write including any needed line-terminators
      */
@@ -211,11 +229,14 @@ public:
      * @param settings Parameters needed to establish a text stream with the server.
      * @param progress Called as each layer starts and finishes; may be empty
      * @throws connection_error when a layer fails with an error code, else
-     * std::runtime_error; either way what() starts by naming the layer
+     * std::runtime_error; either way what() starts by naming the layer. If
+     * the connection is or becomes closed, throws boost::system::system_error
+     * with operation_aborted instead.
      */
     auto connect(Settings settings, Progress progress = {}) -> boost::asio::awaitable<void>;
 
 private:
-    // There's data now, actually write it
+    /// Move the queued bytes into sending_ and write them; on success, any
+    /// bytes queued meanwhile are written next
     auto write_actual() -> void;
 };

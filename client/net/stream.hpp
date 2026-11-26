@@ -10,19 +10,27 @@
 
 namespace websocket { class LineStream; }
 
+/// The type-erased interface of one concrete stream (socket, TLS, WebSocket)
 class StreamBase
 {
 public:
     using Sig = void(boost::system::error_code, std::size_t);
     virtual ~StreamBase() = default;
+    /// Read some bytes into buffers, completing with the count read
     virtual auto async_read_some(std::vector<boost::asio::mutable_buffer> buffers, boost::asio::any_completion_handler<Sig> handler) -> void = 0;
+    /// Write some bytes from buffers, completing with the count accepted
     virtual auto async_write_some(std::vector<boost::asio::const_buffer> buffers, boost::asio::any_completion_handler<Sig> handler) -> void = 0;
+    /// Close abruptly, without any protocol shutdown; pending operations
+    /// complete with an error
     virtual auto close() -> void = 0;
 
     /// Why the peer ended the stream, when the protocol says; otherwise empty
     virtual auto close_reason() const -> std::string { return {}; }
 };
 
+/// A handle to the current outermost stream of a connection. Copies share
+/// the same StreamBase; a reset or upgrade replaces this handle's with a new
+/// one, which for an upgrade wraps a copy of the old handle.
 class Stream
 {
 private:
@@ -36,38 +44,42 @@ public:
     /// @brief Type of the lowest layer of this stream
     using lowest_layer_type = Stream;
 
+    /// An empty stream: reads and writes need a reset first (they must not be
+    /// started on an empty one); close does nothing
     Stream(boost::asio::io_context& io_context)
         : io_context{&io_context}
         , self{}
     {
     }
 
-    /// @brief Reset stream to a plain TCP socket
+    /// @brief Reset stream to a new, unopened TCP socket, dropping this
+    /// handle's previous stream
     /// @return Reference to internal socket object
     auto reset_ip() -> boost::asio::ip::tcp::socket&;
 
-    /// @brief Reset stream to a plain local (Unix domain) socket
+    /// @brief Reset stream to a new, unopened local (Unix domain) socket,
+    /// dropping this handle's previous stream
     /// @return Reference to internal socket object
     auto reset_local() -> boost::asio::local::stream_protocol::socket&;
 
-    /// @brief Upgrade a plain TCP socket into a TLS stream.
-    /// @param ctx TLS context used for handshake
-    /// @return Reference to internal stream object
+    /// @brief Wrap the current stream (any socket or proxy tunnel) in TLS.
+    /// @param ctx TLS context to configure the new SSL object from
+    /// @return Reference to internal stream object, before its handshake
     auto upgrade(boost::asio::ssl::context& ctx) -> boost::asio::ssl::stream<Stream>&;
 
     /// @brief Upgrade the stream into a WebSocket carrying IRC lines.
     /// @return Reference to internal stream object, before its handshake
     auto upgrade_websocket() -> websocket::LineStream&;
 
-    /// @brief Get underlying basic socket
-    /// @return Reference to underlying socket
+    /// @brief This stream, as Asio's lowest layer (for ssl::stream)
+    /// @return Reference to this Stream, not to a socket
     auto lowest_layer() -> lowest_layer_type&
     {
         return *this;
     }
 
-    /// @brief Get underlying basic socket
-    /// @return Reference to underlying socket
+    /// @brief This stream, as Asio's lowest layer (for ssl::stream)
+    /// @return Reference to this Stream, not to a socket
     auto lowest_layer() const -> lowest_layer_type const&
     {
         return *this;
@@ -142,7 +154,7 @@ public:
         );
     }
 
-    /// @brief Tear down the network stream
+    /// @brief Tear down the network stream abruptly; does nothing if empty
     auto close() -> void
     {
         if (self)

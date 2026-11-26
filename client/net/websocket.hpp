@@ -18,8 +18,12 @@ inline auto beast_close_socket(Stream& stream) -> void
     stream.close();
 }
 
+/// Beast's synchronous teardown for a Stream: an abrupt close that always
+/// succeeds
 auto teardown(boost::beast::role_type, Stream& stream, boost::system::error_code& ec) -> void;
 
+/// Beast's asynchronous teardown for a Stream: an abrupt close, then the
+/// handler is posted with success
 template <typename TeardownHandler>
 auto async_teardown(boost::beast::role_type, Stream& stream, TeardownHandler&& handler) -> void
 {
@@ -68,6 +72,8 @@ class LineStream
     struct WriteOp;
 
 public:
+    /// A WebSocket over next, which must be connected; the handshake is the
+    /// caller's, through ws()
     explicit LineStream(Stream next);
 
     /// The WebSocket, for the handshake
@@ -76,11 +82,16 @@ public:
         return ws_;
     }
 
+    /// Copy buffered message bytes into buffers, first reading a message
+    /// when none are buffered. Never completes inline.
     auto async_read_some(
         std::vector<boost::asio::mutable_buffer> buffers,
         boost::asio::any_completion_handler<StreamBase::Sig> handler
     ) -> void;
 
+    /// Accept all of buffers, then send each complete line now held as a
+    /// message, completing with the bytes accepted once they are sent or with
+    /// the first send error. Never completes inline.
     auto async_write_some(
         std::vector<boost::asio::const_buffer> buffers,
         boost::asio::any_completion_handler<StreamBase::Sig> handler

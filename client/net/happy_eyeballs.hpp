@@ -48,6 +48,8 @@ public:
         signal_.slot().clear();
     }
 
+    /// Record type (unless none) and pass it to the registered handler, if
+    /// any. Safe from any thread.
     auto emit(boost::asio::cancellation_type type) -> void
     {
         std::lock_guard lock{mutex_};

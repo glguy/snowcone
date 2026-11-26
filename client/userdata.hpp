@@ -23,12 +23,16 @@ extern char const* const udata_name;
 /**
  * @brief Push a new userdata onto the stack
  *
- * The metatable is only created the first time and is cached afterward
+ * The metatable is created the first time and cached in the registry under
+ * udata_name<T> afterward. The userdata is left on top of the stack. Raises
+ * a Lua error if allocation fails.
  *
- * @tparam T Allocate enough space to point to this type
+ * @tparam T Allocate space for one T; it is not constructed, so the caller
+ * constructs it (std::construct_at) before anything can finalize it
  * @param L Lua State
  * @param nuvalue Number of uservalues
- * @param push_metatable Metatable initialization callback
+ * @param push_metatable Called only when the metatable is new, with it on
+ * top of the stack, to fill it in
  * @return T* Pointer to allocated space
  */
 template <typename T>
@@ -49,7 +53,8 @@ T* new_udata(lua_State* const L, int const nuvalue, std::invocable auto push_met
 /**
  * @brief Retrieve pointer to allocation from a userdata
  *
- * This function raises a Lua error on failure
+ * This function raises a Lua error unless the value at ud is a userdata
+ * with udata_name<T>'s metatable
  *
  * @tparam T Type of allocation
  * @param L Lua State

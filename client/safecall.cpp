@@ -22,6 +22,7 @@ auto safecall_failures() -> int
 
 int safecall(lua_State* const L, std::string_view const location, int const args)
 {
+    // Message handler: the error as text (any error object), with a traceback
     lua_pushcfunction(L, [](auto const L) {
         auto const msg = luaL_tolstring(L, 1, nullptr);
         luaL_traceback(L, L, msg, 1);

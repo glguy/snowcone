@@ -24,6 +24,8 @@ struct IoContext : boost::asio::io_context
     using boost::asio::execution_context::shutdown;
 };
 
+/// The process's event loop, Lua state and terminal. Exactly one exists; Lua
+/// finds it through App::from_lua.
 class App
 {
     IoContext io_context;
@@ -45,10 +47,20 @@ class App
     bool catch_signals = false; // SIGINT, SIGTERM and SIGHUP go to on_signal
 
 public:
+    /// Create the io_context and the Lua state, registering this App in the
+    /// state's registry. Nothing is loaded yet: see prepare_globals and
+    /// reload. Calls fatal() if the Lua state can't be allocated.
+    /// @param filename The main Lua file; must outlive the App
     App(char const* filename);
     ~App();
 
+    /// The App that created L (or L's main thread); null if there is none
     static auto from_lua(lua_State*) -> App*;
+
+    /// Run the event loop until it has no work left, starting the UI's
+    /// coroutines if start_ui() ran during loading. With a UI there is always
+    /// work until shutdown(); a script ends once its last resource finishes.
+    /// An exception escaping a top-level coroutine propagates out of it.
     auto startup() -> void;
     auto shutdown() -> void;
     /// Load and run the main file. Returns whether it loaded; an error while
@@ -56,16 +68,19 @@ public:
     /// safecall_failures(), which makes the exit status a failure.
     auto reload() -> bool;
 
+    /// The event loop every I/O object should use
     auto get_context() -> boost::asio::io_context&
     {
         return io_context;
     }
 
+    /// The main Lua thread, where callbacks run
     auto get_lua() const -> lua_State*
     {
         return L;
     }
 
+    /// Whether start_ui() has taken the terminal; stays true after shutdown()
     auto has_ui() const -> bool
     {
         return ui;
@@ -77,15 +92,15 @@ public:
     /// nothing if the UI is already up, or after shutdown().
     auto start_ui() -> void;
 
-    /// Start reading the terminal. Does nothing if input is already running,
-    /// or after shutdown(). A resize that arrived while input was stopped is
-    /// handled once the caller returns to the event loop.
+    /// Start reading the terminal. Does nothing without a UI, if input is
+    /// already running, or after shutdown(). A resize that arrived while input
+    /// was stopped is handled once the caller returns to the event loop.
     auto start_input() -> void;
 
     /// Stop reading the terminal and leave curses mode, for example to hand
     /// the tty to a child process. Takes effect at once, even from inside an
     /// input callback: no further key is read or delivered. Does nothing
-    /// after shutdown().
+    /// without a UI, while input is stopped, or after shutdown().
     auto stop_input() -> void;
 
     /// Set the terminal's window title and icon name (OSC 0), which some
@@ -121,10 +136,17 @@ public:
 
 private:
     auto signal_thread() -> boost::asio::awaitable<void>;
+    /// Read keys while input is running, decoding bracketed pastes, mouse
+    /// and focus events, Alt-modified keys and multibyte characters, and
+    /// deliver them to Lua (on_keyboard, on_paste, on_mouse, on_wheel).
+    /// Returns once generation is no longer current or after shutdown().
     auto stdin_thread(unsigned generation) -> boost::asio::awaitable<void>;
+    /// Have curses pick up the new terminal size, update tty_width and
+    /// tty_height, and call on_resize
     auto resize() -> void;
     auto suspend() -> void;
     auto terminate_signal(int sig) -> void;
+    /// Start a stdin_thread for a new input generation, retiring any old one
     auto spawn_reader() -> void;
     auto spawn_ui() -> void;
 };

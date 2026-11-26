@@ -7,6 +7,8 @@
 #include <cstring>
 #include <iostream>
 
+/// snowcone PROGRAM [ARGS]: run a Lua program ("hub" names the installed
+/// one). Exits with failure if it can't load or any Lua error was reported.
 auto main(int argc, char const* argv[]) -> int
 {
     if (argc < 2)
