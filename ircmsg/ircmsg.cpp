@@ -1,5 +1,6 @@
 #include <cstring>
 #include <optional>
+#include <ostream>
 
 #include "ircmsg.hpp"
 
@@ -180,11 +181,19 @@ auto parse_irc_message(char* const msg) -> ircmsg
     return out;
 }
 
+auto irc_error_message(irc_error_code const code) noexcept -> char const*
+{
+    switch (code) {
+    case irc_error_code::MISSING_TAG:
+        return "irc parse error: missing tag";
+    case irc_error_code::MISSING_COMMAND:
+        return "irc parse error: missing command";
+    default:
+        return "irc parse error: unknown error";
+    }
+}
+
 auto operator<<(std::ostream& out, irc_error_code const code) -> std::ostream&
 {
-    switch(code) {
-        case irc_error_code::MISSING_COMMAND: out << "MISSING COMMAND"; return out;
-        case irc_error_code::MISSING_TAG: out << "MISSING TAG"; return out;
-        default: return out;
-    }
+    return out << irc_error_message(code);
 }

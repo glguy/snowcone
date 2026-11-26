@@ -8,7 +8,8 @@
  * unchanged.
  */
 
-#include <iostream>
+#include <exception>
+#include <iosfwd>
 #include <string_view>
 #include <vector>
 
@@ -46,8 +47,11 @@ enum class irc_error_code {
     MISSING_COMMAND, ///< no command word after the tags and source
 };
 
-/// @brief Write the error code's name (e.g. "MISSING TAG"); writes nothing
-/// for an unknown value
+/// @brief Static human-readable message for code (e.g. "irc parse error:
+/// missing tag"); never null
+auto irc_error_message(irc_error_code code) noexcept -> char const*;
+
+/// @brief Write the error code's message, as irc_error_message gives it
 auto operator<<(std::ostream& out, irc_error_code) -> std::ostream&;
 
 /// @brief Exception thrown by the parsers on malformed input
@@ -55,19 +59,12 @@ struct irc_parse_error final : public std::exception {
     irc_error_code code;
 
     /// @brief Construct an error carrying the given reason
-    irc_parse_error(irc_error_code code) : code(code) {}
+    explicit irc_parse_error(irc_error_code code) : code(code) {}
 
-    /// @brief Static human-readable message for code; never null
+    /// @brief The code's message, from irc_error_message
     auto what() const noexcept -> char const* override
     {
-        switch (code) {
-        case irc_error_code::MISSING_TAG:
-            return "irc parse error: missing tag";
-        case irc_error_code::MISSING_COMMAND:
-            return "irc parse error: missing command";
-        default:
-            return "irc parse error: unknown error";
-        }
+        return irc_error_message(code);
     }
 };
 
@@ -103,8 +100,9 @@ auto parse_irc_message(char* msg) -> ircmsg;
  * The input is the ';'-separated tag list without its leading '@'.
  * Values are unescaped; keys are not. Duplicate keys are all kept, in order.
  *
- * @param msg null-terminated character buffer with raw IRC tags; must
- *            not be nullptr.
+ * @param msg null-terminated, writable character buffer with raw IRC
+ *            tags. It must be a valid pointer: nullptr, like any other
+ *            invalid pointer, is undefined behavior.
  * @return parsed IRC tags vector, in input order
  * @throw irc_parse_error MISSING_TAG when any tag has an empty key, which
  *        includes an empty input and a trailing ';'
