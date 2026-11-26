@@ -81,6 +81,10 @@ check('mvaddstr outside the screen does nothing', function()
     local y, x = ncurses.getyx()
     equal(y, 0)
     equal(x, 0)
+    -- its arguments are checked all the same
+    raises(ncurses.mvaddstr, -1, 0, {})
+    raises(ncurses.mvaddstr, 0, 0, 'x', {})
+    raises(function() ncurses.move(-1, 0) end)
 end)
 
 check('attributes and colors', function()

@@ -187,12 +187,14 @@ static luaL_Reg const Methods[] = {
     {0}
 };
 
-// Pushes a new WINDOW userdata owning win, creating the metatable on first
-// use.
-void pushwindow(lua_State* const L, WINDOW* const win)
+// Pushes a new, empty WINDOW userdata, creating the metatable on first
+// use, and returns its slot: a window stored there is owned by the
+// userdata. Pushed before the window is made, so a memory error can't leak
+// it; empty, it reads as deleted.
+static WINDOW** pushwindow(lua_State* const L)
 {
-    WINDOW** const uptr = lua_newuserdatauv(L, sizeof win, 0);
-    *uptr = win;
+    WINDOW** const uptr = lua_newuserdatauv(L, sizeof *uptr, 0);
+    *uptr = NULL;
 
     if (luaL_newmetatable(L, window_name))
     {
@@ -202,6 +204,7 @@ void pushwindow(lua_State* const L, WINDOW* const win)
         lua_setfield(L, -2, "__index");
     }
     lua_setmetatable(L, -2);
+    return uptr;
 }
 
 int l_newwin(lua_State* const L)
@@ -211,14 +214,12 @@ int l_newwin(lua_State* const L)
     int const begin_y = checkint(L, 3);
     int const begin_x = checkint(L, 4);
 
-    WINDOW* const result = newwin(nlines, ncols, begin_y, begin_x);
-
-    if (NULL == result)
+    WINDOW** const slot = pushwindow(L);
+    *slot = newwin(nlines, ncols, begin_y, begin_x);
+    if (NULL == *slot)
     {
         return luaL_error(L, "newwin: ncurses error");
     }
-
-    pushwindow(L, result);
     return 1;
 }
 
@@ -227,13 +228,11 @@ int l_newpad(lua_State* const L)
     int const nlines = checkint(L, 1);
     int const ncols = checkint(L, 2);
 
-    WINDOW* const result = newpad(nlines, ncols);
-
-    if (NULL == result)
+    WINDOW** const slot = pushwindow(L);
+    *slot = newpad(nlines, ncols);
+    if (NULL == *slot)
     {
         return luaL_error(L, "newpad: ncurses error");
     }
-
-    pushwindow(L, result);
     return 1;
 }

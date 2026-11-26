@@ -54,14 +54,14 @@ static int l_refresh(lua_State* const L)
 }
 
 // Lua: noutrefresh([win]). Copies the window to the virtual screen, for
-// doupdate to show; raises "wnoutrefresh: ncurses error".
+// doupdate to show; raises "noutrefresh: ncurses error".
 static int l_noutrefresh(lua_State* const L)
 {
     WINDOW* const win = optwindow(L, 1);
 
     if (ERR == wnoutrefresh(win))
     {
-        return luaL_error(L, "wnoutrefresh: ncurses error");
+        return luaL_error(L, "noutrefresh: ncurses error");
     }
     return 0;
 }
@@ -76,7 +76,7 @@ static attr_t checkattrs(lua_State* const L, int const arg)
 }
 
 // Lua: attron(attrs, [win]). Turns on the WA_* attributes in attrs; raises
-// an argument error when attrs doesn't fit attr_t, and "wattr_on: ncurses
+// an argument error when attrs doesn't fit attr_t, and "attron: ncurses
 // error".
 static int l_attron(lua_State* const L)
 {
@@ -85,13 +85,13 @@ static int l_attron(lua_State* const L)
 
     if (ERR == wattr_on(win, a, NULL))
     {
-        return luaL_error(L, "wattr_on: ncurses error");
+        return luaL_error(L, "attron: ncurses error");
     }
     return 0;
 }
 
 // Lua: attroff(attrs, [win]). Turns off the WA_* attributes in attrs;
-// raises an argument error when attrs doesn't fit attr_t, and "wattr_off:
+// raises an argument error when attrs doesn't fit attr_t, and "attroff:
 // ncurses error".
 static int l_attroff(lua_State* const L)
 {
@@ -100,13 +100,13 @@ static int l_attroff(lua_State* const L)
 
     if (ERR == wattr_off(win, a, NULL))
     {
-        return luaL_error(L, "wattr_off: ncurses error");
+        return luaL_error(L, "attroff: ncurses error");
     }
     return 0;
 }
 
 // Lua: attrget([win]) -> attrs, pair. The window's attributes and color
-// pair, for attrset to restore; raises "wattr_get: ncurses error".
+// pair, for attrset to restore; raises "attrget: ncurses error".
 static int l_attrget(lua_State* const L)
 {
     WINDOW* const win = optwindow(L, 1);
@@ -116,7 +116,7 @@ static int l_attrget(lua_State* const L)
     int colorpair;
     if (ERR == wattr_get(win, &attrs, &short_pair, &colorpair))
     {
-        return luaL_error(L, "wattr_get: ncurses error");
+        return luaL_error(L, "attrget: ncurses error");
     }
 
     lua_pushinteger(L, attrs);
@@ -126,7 +126,7 @@ static int l_attrget(lua_State* const L)
 
 // Lua: attrset(attrs, pair, [win]). Sets the attributes and color pair, as
 // attrget returns them; attrs must fit attr_t and pair be 0 to
-// COLOR_PAIRS - 1. Raises "wattr_set: ncurses error".
+// COLOR_PAIRS - 1. Raises "attrset: ncurses error".
 static int l_attrset(lua_State* const L)
 {
     attr_t const a = checkattrs(L, 1);
@@ -138,7 +138,7 @@ static int l_attrset(lua_State* const L)
     int pair = (int)color;
     if (ERR == wattr_set(win, a, 0, &pair))
     {
-        return luaL_error(L, "wattr_set: ncurses error");
+        return luaL_error(L, "attrset: ncurses error");
     }
     return 0;
 }
@@ -158,35 +158,31 @@ static int l_addstr(lua_State* const L)
 }
 
 // Lua: mvaddstr(y, x, ...). Moves stdscr's cursor and writes each string
-// argument in turn, ignoring ncurses errors. Does nothing, not even check
-// the strings, when (y, x) is outside stdscr.
+// argument in turn, ignoring ncurses errors. Does nothing, once the
+// arguments are checked, when (y, x) is outside stdscr.
 static int l_mvaddstr(lua_State* const L)
 {
     lua_Integer const y = luaL_checkinteger(L, 1);
     lua_Integer const x = luaL_checkinteger(L, 2);
-    size_t len;
     int const n = lua_gettop(L);
+    for (int i = 3; i <= n; i++)
+    {
+        luaL_checkstring(L, i);
+    }
 
     int wy, wx;
     getmaxyx(stdscr, wy, wx);
-
-    if (0 <= y && 0 <= x && y < wy && x < wx)
+    if (y < 0 || x < 0 || y >= wy || x >= wx)
     {
-        if (n < 3)
-        {
-            move(y, x);
-        }
-        else
-        {
-            char const* const str = luaL_checklstring(L, 3, &len);
-            mvaddnstr(y, x, str, len);
+        return 0;
+    }
 
-            for (int i = 4; i <= n; i++)
-            {
-                char const* const str = luaL_checklstring(L, i, &len);
-                addnstr(str, len);
-            }
-        }
+    move((int)y, (int)x);
+    for (int i = 3; i <= n; i++)
+    {
+        size_t len;
+        char const* const str = lua_tolstring(L, i, &len);
+        addnstr(str, len);
     }
     return 0;
 }
@@ -229,7 +225,7 @@ static int l_doupdate(lua_State* const L)
 // Lua: colorset([fore], [back], [win]). Sets the window's colors, each -1
 // (the default, when nil or absent) to COLORS - 1, with a pair from
 // colorpairs_get; when no pair can be had, the colors are the defaults
-// without error. Raises "color_set: ncurses error".
+// without error. Raises "colorset: ncurses error".
 static int l_colorset(lua_State* const L)
 {
     lua_Integer const fore = luaL_optinteger(L, 1, -1);
@@ -245,14 +241,14 @@ static int l_colorset(lua_State* const L)
     // the pair through opts, as pairs above 32767 don't fit the short
     if (ERR == wcolor_set(win, 0, &pair))
     {
-        return luaL_error(L, "color_set: ncurses error");
+        return luaL_error(L, "colorset: ncurses error");
     }
 
     return 0;
 }
 
-// Lua: move(y, x, [win]). Moves the cursor, 0-based; raises "move" when
-// that is outside the window.
+// Lua: move(y, x, [win]). Moves the cursor, 0-based; raises "move: ncurses
+// error" when that is outside the window.
 static int l_move(lua_State* const L)
 {
     int const y = checkint(L, 1);
@@ -260,13 +256,13 @@ static int l_move(lua_State* const L)
     WINDOW* const win = optwindow(L, 3);
     if (ERR == wmove(win, y, x))
     {
-        return luaL_error(L, "move");
+        return luaL_error(L, "move: ncurses error");
     }
     return 0;
 }
 
 // Lua: cursset(visibility) -> previous. Cursor visibility: 0 invisible,
-// 1 normal, 2 very visible. Raises "curs_set: invalid argument" when the
+// 1 normal, 2 very visible. Raises "cursset: ncurses error" when the
 // value or the terminal doesn't allow it.
 static int l_cursset(lua_State* const L)
 {
@@ -274,7 +270,7 @@ static int l_cursset(lua_State* const L)
     int previous = curs_set(visibility);
     if (previous == ERR)
     {
-        return luaL_error(L, "curs_set: invalid argument");
+        return luaL_error(L, "cursset: ncurses error");
     }
     lua_pushinteger(L, previous);
     return 1;
