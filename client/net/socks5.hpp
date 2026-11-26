@@ -14,9 +14,14 @@
 
 namespace socks5 {
 
+/// Errors of a SOCKS5 connect: the server's reply codes and the client's
+/// own protocol checks (SocksErrc)
 struct SocksErrCategory : boost::system::error_category
 {
+    /// "socks5"
     char const* name() const noexcept override;
+    /// A description of the SocksErrc value; "(unrecognized error)" for any
+    /// other value
     std::string message(int) const override;
 };
 
@@ -44,6 +49,7 @@ enum class SocksErrc : int
     PasswordTooLong,
 };
 
+/// The error_code for a SocksErrc, in theSocksErrCategory
 auto make_error_code(SocksErrc) -> boost::system::error_code;
 
 /// Either a hostname or an address. Hostnames are resolved locally on the proxy server
@@ -55,6 +61,7 @@ namespace detail {
         {  T::READ } -> std::convertible_to<std::size_t>;
     };
 
+    /// A visitor made of several lambdas, one per alternative
     template <class... Ts>
     struct overloaded : Ts...
     {
@@ -138,14 +145,14 @@ namespace detail {
         {
         };
 
-        /// @brief intermediate completion callback
+        /// @brief intermediate completion callback: completes with the error
+        /// if the last read or write failed, else runs the state's step
         /// @tparam Self type of enclosing intermediate completion handler
         /// @tparam State protocol state tag type
         /// @param self enclosing intermediate completion handler
         /// @param state protocol state tag value
         /// @param error error code of read/write operation
-        /// @param size bytes read or written
-        /// @param
+        /// @param size bytes read or written (unused)
         template <typename Self, typename State = Start>
         auto operator()(
             Self& self,
@@ -164,9 +171,9 @@ namespace detail {
             }
         }
 
-        /// @brief Write the buffer to the socket and then read N bytes back into the buffer
+        /// @brief Write the buffer to the socket and then read Next::READ
+        /// bytes back into the buffer
         /// @tparam Next state to resume after read
-        /// @tparam N number of bytes to read
         /// @tparam Self type of enclosing intermediate completion handler
         /// @param self enclosing intermediate completion handler
         template <RecvState Next, typename Self>
@@ -190,6 +197,8 @@ namespace detail {
             self.complete(make_error_code(err), {});
         }
 
+        /// @brief Append thing to the buffer after a one-byte length; the
+        /// caller ensures it is under 256 bytes
         inline auto push_size_prefixed(std::ranges::sized_range auto const& thing) -> void
         requires true
         {
@@ -201,10 +210,10 @@ namespace detail {
             buffer_.insert(end(buffer_), begin(thing), end(thing));
         }
 
-        /// @brief Encode the given host into the end of the buffer
-        /// @param host host to encode
-        /// @param buffer target to push bytes onto
-        /// @return true for success and false for failure
+        /// @brief Encode the target host (address type and address) at the
+        /// end of the buffer. A hostname must already be checked to be
+        /// under 256 bytes.
+        /// @throws std::logic_error for an address neither v4 nor v6
         auto push_host() -> void
         {
             std::visit(overloaded {
@@ -244,7 +253,6 @@ namespace detail {
         /// @tparam Self type of enclosing intermediate completion handler
         /// @tparam Next state to transition to after read
         /// @param self enclosing intermediate completion handler
-        /// @param state protocol state tag
         template <typename Self, RecvState Next>
         auto step(Self& self, Sent<Next>) -> void
         {
@@ -257,7 +265,8 @@ namespace detail {
             );
         }
 
-        // Send hello and offer authentication methods
+        /// Check the lengths that must fit in a byte, then send hello
+        /// offering the one authentication method the credentials call for
         template <typename Self>
         auto step(Self& self, Start) -> void
         {
@@ -290,7 +299,8 @@ namespace detail {
             transact<HelloRecvd>(self);
         }
 
-        // Send TCP connection request for the domain name and port
+        /// Check the server's choice of method, then authenticate or send
+        /// the connect request
         template <typename Self>
         auto step(Self& self, HelloRecvd) -> void
         {
@@ -343,6 +353,7 @@ namespace detail {
             transact<AuthRecvd>(self);
         }
 
+        /// Check the authentication status, then send the connect request
         template <typename Self>
         auto step(Self& self, AuthRecvd) -> void
         {
@@ -366,6 +377,7 @@ namespace detail {
             send_connect(self);
         }
 
+        /// @brief Send the CONNECT request for the target host and port
         template <typename Self>
         auto send_connect(Self& self) -> void
         {
@@ -385,7 +397,8 @@ namespace detail {
             transact<ReplyRecvd>(self);
         }
 
-        // Waiting on the remaining variable-sized address portion of the response
+        /// Check the reply's version, code and reserved byte, then read the
+        /// bound address it carries. A domain-name address is rejected.
         template <typename Self>
         auto step(Self& self, ReplyRecvd) -> void
         {
@@ -420,7 +433,7 @@ namespace detail {
             }
         }
 
-        // Protocol complete! Return the client's remote endpoint
+        /// Protocol complete! Return the bound address the proxy reported
         template <typename Self>
         void step(Self& self, FinishIpv4)
         {
@@ -431,7 +444,7 @@ namespace detail {
             self.complete({}, {boost::asio::ip::address_v4{bytes}, port});
         }
 
-        // Protocol complete! Return the client's remote endpoint
+        /// Protocol complete! Return the bound address the proxy reported
         template <typename Self>
         void step(Self& self, FinishIpv6)
         {
@@ -442,6 +455,7 @@ namespace detail {
             self.complete({}, {boost::asio::ip::address_v6{bytes}, port});
         }
 
+        /// The method the credentials call for: none, or username/password
         auto method_wanted() const -> AuthMethod
         {
             return std::visit(
@@ -460,10 +474,13 @@ using Signature = void(boost::system::error_code, boost::asio::ip::tcp::endpoint
 
 /// @brief Asynchronous SOCKS5 connection request
 /// @tparam AsyncStream Type of socket
-/// @tparam CompletionToken Token accepting: error_code, address, port
+/// @tparam CompletionToken Token accepting: error_code, and the tcp::endpoint
+/// the proxy reported as bound for the connection
 /// @param socket Established connection to SOCKS5 server
 /// @param host Connection target host
 /// @param port Connection target port
+/// @param auth Credentials, or NoCredential; a username or password of 256
+/// bytes or more fails with UsernameTooLong or PasswordTooLong
 /// @param token Completion token
 /// @return Behavior determined by completion token type
 template <

@@ -1,7 +1,18 @@
+/***
+X.509 certificate object, from myopenssl.new_x509 or read_x509
+
+Setters modify the certificate in place and return nothing. Closing (or
+collecting) a certificate frees it, and later use raises "x509 already
+closed".
+
+@classmod x509
+*/
+
 #include "x509.hpp"
 #include "digest.hpp"
 #include "errors.hpp"
 #include "invoke.hpp"
+#include "owned.hpp"
 #include "pkey.hpp"
 
 extern "C" {
@@ -24,6 +35,7 @@ extern "C" {
 
 namespace myopenssl {
 
+/// Registry name of the x509 metatable
 static char const x509_name[] = "X509*";
 
 auto check_x509(lua_State* const L, int const arg) -> X509*
@@ -41,6 +53,11 @@ auto test_x509(lua_State* const L, int const arg) -> X509*
 
 namespace {
 
+    using Bio = Owned<BIO, BIO_free_all>;
+    using Utf8 = Owned<unsigned char, openssl_free<unsigned char>>;
+
+    /// __gc and __close: free the certificate and mark the userdata closed.
+    /// Safe to run again on a closed certificate.
     auto l_gc(lua_State* const L) -> int
     {
         // don't use check_x509 to allow for nullptr case
@@ -50,15 +67,22 @@ namespace {
         return 0;
     }
 
+    /// X509 metamethods, registered without the dispatch boundary
     luaL_Reg const X509MT[]{
         {"__gc", l_gc},
         {"__close", l_gc},
         {}
     };
 
+    /// A new ASN1_TIME parsed from str (YYMMDDHHMMSSZ or YYYYMMDDHHMMSSZ);
+    /// the caller frees it. Raises an OpenSSL error on a bad string.
     auto to_ASN1_TIME(lua_State* const L, char const* const str) -> ASN1_TIME*
     {
         auto const asnTime = ASN1_TIME_new();
+        if (nullptr == asnTime)
+        {
+            openssl_failure(L, "ASN1_TIME_new");
+        }
         if (0 == ASN1_TIME_set_string_X509(asnTime, str))
         {
             ASN1_TIME_free(asnTime);
@@ -92,6 +116,8 @@ namespace {
 
     /// Builds a name from a list of {field, value} pairs, in list order.
     /// The field is a short name (CN), long name (commonName) or dotted OID.
+    /// The caller frees the result. Raises on a malformed list, or an
+    /// OpenSSL error (e.g. an unknown field) after freeing what it built.
     auto to_X509_NAME(lua_State* const L, int const arg) -> X509_NAME*
     {
         luaL_checktype(L, arg, LUA_TTABLE);
@@ -114,7 +140,7 @@ namespace {
             std::size_t len;
             if (nullptr == name_entry(L, arg, i, len).first)
             {
-                luaL_error(L, "bad argument #%d (name entry %d must be {field, value} strings)", arg, static_cast<int>(i));
+                luaL_argerror(L, arg, lua_pushfstring(L, "name entry %d must be {field, value} strings", static_cast<int>(i)));
             }
         }
 
@@ -137,7 +163,8 @@ namespace {
     }
 
     /// Pushes the field of a name entry: its short name, or the dotted OID
-    /// when OpenSSL has no name for it
+    /// when OpenSSL has no name for it. Raises an OpenSSL error if the OID
+    /// can't be printed.
     auto push_field(lua_State* const L, ASN1_OBJECT const* const object) -> void
     {
         auto const nid = OBJ_obj2nid(object);
@@ -161,6 +188,7 @@ namespace {
         luaL_pushresultsize(&B, len);
     }
 
+    /// Bit positions in the keyUsage extension (RFC 5280 4.2.1.3)
     enum class KeyUsage
     {
         DigitalSignature = 0,
@@ -174,6 +202,8 @@ namespace {
         DecipherOnly = 8,
     };
 
+    /// Add a critical keyUsage extension with the given bits. Raises an
+    /// OpenSSL error on failure, including when x509 already has one.
     auto add_key_usage(
         lua_State* const L,
         X509* const x509,
@@ -206,7 +236,9 @@ namespace {
         }
     }
 
-    // Allow client authentication extended key usage
+    /// Add a critical extendedKeyUsage extension allowing just the purpose
+    /// nid. Raises an OpenSSL error on failure, including when x509 already
+    /// has one.
     auto add_extended_key_usage(lua_State* const L, X509* const x509, int nid) -> void
     {
         auto const usage = EXTENDED_KEY_USAGE_new();
@@ -234,7 +266,14 @@ namespace {
     @type x509
     */
 
+    /// X509 methods, the metatable's __index
     luaL_Reg const X509Methods[]{
+        /***
+        Set the version number
+        @function x509:set_version
+        @tparam integer version zero-based: myopenssl.X509_VERSION_3 for v3
+        @raise openssl error on failure
+        */
         {"set_version", [](auto const L) {
              auto const x509 = check_x509(L, 1);
              auto const version = luaL_checkinteger(L, 2);
@@ -244,6 +283,12 @@ namespace {
              }
              return 0;
          }},
+        /***
+        Set the subject public key
+        @function x509:set_pubkey
+        @tparam pkey pkey key whose public part to use
+        @raise openssl error on failure
+        */
         {"set_pubkey", [](auto const L) {
              auto const x509 = check_x509(L, 1);
              auto const pkey = check_pkey(L, 2);
@@ -254,16 +299,29 @@ namespace {
              }
              return 0;
          }},
+        /***
+        Get the subject public key
+        @function x509:get_pubkey
+        @treturn pkey public key
+        @raise openssl error on failure, such as when none is set
+        */
         {"get_pubkey", [](auto const L) {
              auto const x509 = check_x509(L, 1);
-             auto const pkey = X509_get_pubkey(x509);
+             auto& pkey = push_evp_pkey(L);
+             pkey = X509_get_pubkey(x509);
              if (nullptr == pkey)
              {
                  openssl_failure(L, "X509_get_pubkey");
              }
-             push_evp_pkey(L, pkey);
              return 1;
          }},
+        /***
+        Sign the certificate
+        @function x509:sign
+        @tparam pkey pkey issuer's private key
+        @tparam[opt] digest digest digest to use; nil for ED25519 and ED448
+        @raise openssl error on failure
+        */
         {"sign", [](auto const L) {
              auto const x509 = check_x509(L, 1);
              auto const pkey = check_pkey(L, 2);
@@ -275,6 +333,13 @@ namespace {
              }
              return 0;
          }},
+        /***
+        Digest of the certificate's DER encoding
+        @function x509:fingerprint
+        @tparam digest digest
+        @treturn string raw digest bytes
+        @raise openssl error on failure
+        */
         {"fingerprint", [](auto const L) {
              auto const x509 = check_x509(L, 1);
              auto const md = check_digest(L, 2);
@@ -290,30 +355,50 @@ namespace {
              luaL_pushresultsize(&B, len);
              return 1;
          }},
+        /***
+        Encode the certificate in PEM format
+        @function x509:export
+        @treturn string PEM text
+        @raise openssl error on failure
+        */
         {"export", [](auto const L) {
              auto const x509 = check_x509(L, 1);
-             auto const bio = BIO_new(BIO_s_mem());
+             auto& bio = Bio::push(L);
+             bio = BIO_new(BIO_s_mem());
              if (nullptr == bio)
              {
                  openssl_failure(L, "BIO_new");
              }
              if (0 == PEM_write_bio_X509(bio, x509))
              {
-                 BIO_free_all(bio);
                  openssl_failure(L, "PEM_write_bio_X509");
              }
              char* data;
              auto const len = BIO_get_mem_data(bio, &data);
              lua_pushlstring(L, data, len);
-             BIO_free_all(bio);
+             Bio::reset(bio);
              return 1;
          }},
+        /***
+        Set the serial number
+        @function x509:set_serialNumber
+        @tparam integer number
+        @raise openssl error on failure
+        */
         {"set_serialNumber", [](auto const L) {
              auto const x509 = check_x509(L, 1);
              auto const number = luaL_checkinteger(L, 2);
 
              auto const asnNumber = ASN1_INTEGER_new();
-             ASN1_INTEGER_set_int64(asnNumber, number);
+             if (nullptr == asnNumber)
+             {
+                 openssl_failure(L, "ASN1_INTEGER_new");
+             }
+             if (0 == ASN1_INTEGER_set_int64(asnNumber, number))
+             {
+                 ASN1_INTEGER_free(asnNumber);
+                 openssl_failure(L, "ASN1_INTEGER_set_int64");
+             }
              auto const result = X509_set_serialNumber(x509, asnNumber);
              ASN1_INTEGER_free(asnNumber);
 
@@ -323,6 +408,12 @@ namespace {
              }
              return 0;
          }},
+        /***
+        Set the start of the validity period
+        @function x509:set_notBefore
+        @tparam string time UTC time as YYMMDDHHMMSSZ or YYYYMMDDHHMMSSZ
+        @raise openssl error on a bad time or failure
+        */
         {"set_notBefore", [](auto const L) {
              auto const x509 = check_x509(L, 1);
              auto const timeStr = luaL_checkstring(L, 2);
@@ -337,6 +428,12 @@ namespace {
              }
              return 0;
          }},
+        /***
+        Set the end of the validity period
+        @function x509:set_notAfter
+        @tparam string time UTC time as YYMMDDHHMMSSZ or YYYYMMDDHHMMSSZ
+        @raise openssl error on a bad time or failure
+        */
         {"set_notAfter", [](auto const L) {
              auto const x509 = check_x509(L, 1);
              auto const timeStr = luaL_checkstring(L, 2);
@@ -397,6 +494,7 @@ namespace {
         @treturn {{string,string},...} list of {field, value} pairs in
         certificate order; a field is its short name, or a dotted OID when
         OpenSSL has no name for it
+        @raise openssl error on failure
         */
         {"get_subjectName", [](auto const L) {
              auto const x509 = check_x509(L, 1);
@@ -416,17 +514,18 @@ namespace {
                  auto const object = X509_NAME_ENTRY_get_object(entry);
                  auto const data = X509_NAME_ENTRY_get_data(entry);
 
-                 unsigned char* utf8;
+                 // {field, value}, in certificate order
+                 lua_createtable(L, 2, 0);
+
+                 auto& utf8 = Utf8::push(L);
                  auto const length = ASN1_STRING_to_UTF8(&utf8, data);
                  if (length < 0)
                  {
                      openssl_failure(L, "ASN1_STRING_to_UTF8");
                  }
-
-                 // {field, value}, in certificate order
-                 lua_createtable(L, 2, 0);
                  lua_pushlstring(L, reinterpret_cast<char const*>(utf8), length);
-                 OPENSSL_free(utf8);
+                 Utf8::reset(utf8);
+                 lua_remove(L, -2); // the empty box
                  lua_rawseti(L, -2, 2);
                  push_field(L, object);
                  lua_rawseti(L, -2, 1);
@@ -435,6 +534,12 @@ namespace {
 
              return 1;
          }},
+        /***
+        Add a critical basicConstraints extension
+        @function x509:add_caConstraint
+        @tparam boolean ca whether the subject is a CA (no path length limit)
+        @raise openssl error on failure, including when already present
+        */
         {"add_caConstraint", [](auto const L) {
              auto const x509 = check_x509(L, 1);
              auto const cA = lua_toboolean(L, 2);
@@ -448,22 +553,43 @@ namespace {
              }
              return 0;
          }},
+        /***
+        Add critical keyUsage (digitalSignature, keyAgreement) and
+        extendedKeyUsage (clientAuth) extensions
+        @function x509:add_clientUsageConstraint
+        @raise openssl error on failure, including when either is already
+        present (so it can't be combined with add_serverUsageConstraint)
+        */
         {"add_clientUsageConstraint", [](auto const L) {
              auto const x509 = check_x509(L, 1);
              add_key_usage(L, x509, {KeyUsage::DigitalSignature, KeyUsage::KeyAgreement});
              add_extended_key_usage(L, x509, NID_client_auth);
              return 0;
          }},
+        /***
+        Add critical keyUsage (digitalSignature, keyEncipherment,
+        keyAgreement) and extendedKeyUsage (serverAuth) extensions
+        @function x509:add_serverUsageConstraint
+        @raise openssl error on failure, including when either is already
+        present (so it can't be combined with add_clientUsageConstraint)
+        */
         {"add_serverUsageConstraint", [](auto const L) {
              auto const x509 = check_x509(L, 1);
              add_key_usage(L, x509, {KeyUsage::DigitalSignature, KeyUsage::KeyEncipherment, KeyUsage::KeyAgreement});
              add_extended_key_usage(L, x509, NID_server_auth);
              return 0;
          }},
+        /***
+        Add a non-critical subjectKeyIdentifier extension
+        @function x509:add_subjectKeyIdentifier
+        @tparam string identifier raw key identifier bytes
+        @raise openssl error on failure, including when already present
+        */
         {"add_subjectKeyIdentifier", [](auto const L) {
              auto const x509 = check_x509(L, 1);
              std::size_t len;
              auto const bytes = luaL_checklstring(L, 2, &len);
+             luaL_argcheck(L, len <= INT_MAX, 2, "too long");
 
              auto const key_identifier = ASN1_OCTET_STRING_new();
              if (nullptr == key_identifier)
@@ -471,7 +597,7 @@ namespace {
                  openssl_failure(L, "ASN1_OCTET_STRING_new");
              }
 
-             if (0 == ASN1_OCTET_STRING_set(key_identifier, reinterpret_cast<unsigned char const*>(bytes), len))
+             if (0 == ASN1_OCTET_STRING_set(key_identifier, reinterpret_cast<unsigned char const*>(bytes), static_cast<int>(len)))
              {
                  ASN1_OCTET_STRING_free(key_identifier);
                  openssl_failure(L, "ASN1_OCTET_STRING_set");
@@ -486,10 +612,18 @@ namespace {
              }
              return 0;
          }},
+        /***
+        Add a non-critical authorityKeyIdentifier extension holding just a
+        key identifier
+        @function x509:add_authorityKeyIdentifier
+        @tparam string identifier raw key identifier bytes
+        @raise openssl error on failure, including when already present
+        */
         {"add_authorityKeyIdentifier", [](auto const L) {
              auto const x509 = check_x509(L, 1);
              std::size_t len;
              auto const bytes = luaL_checklstring(L, 2, &len);
+             luaL_argcheck(L, len <= INT_MAX, 2, "too long");
 
              AUTHORITY_KEYID auth{.keyid = ASN1_OCTET_STRING_new()};
              if (nullptr == auth.keyid)
@@ -497,7 +631,7 @@ namespace {
                  openssl_failure(L, "ASN1_OCTET_STRING_new");
              }
 
-             if (0 == ASN1_OCTET_STRING_set(auth.keyid, reinterpret_cast<unsigned char const*>(bytes), len))
+             if (0 == ASN1_OCTET_STRING_set(auth.keyid, reinterpret_cast<unsigned char const*>(bytes), static_cast<int>(len)))
              {
                  ASN1_OCTET_STRING_free(auth.keyid);
                  openssl_failure(L, "ASN1_OCTET_STRING_set");
@@ -515,9 +649,13 @@ namespace {
         {}
     };
 
-    auto push_x509(lua_State* const L, X509* x509) -> void
+    /// Push an empty x509 userdata and return its slot. A certificate stored
+    /// there is owned by the userdata (freed by its __gc or __close), so
+    /// store a new one there before anything else can raise.
+    auto push_x509(lua_State* const L) -> X509*&
     {
-        *static_cast<X509**>(lua_newuserdatauv(L, sizeof x509, 0)) = x509;
+        auto& x509 = *static_cast<X509**>(lua_newuserdatauv(L, sizeof(X509*), 0));
+        x509 = nullptr;
         if (luaL_newmetatable(L, x509_name))
         {
             setfuncs(L, X509MT);
@@ -527,21 +665,20 @@ namespace {
             lua_setfield(L, -2, "__index");
         }
         lua_setmetatable(L, -2);
+        return x509;
     }
 
 } // namespace
 
 auto l_new_x509(lua_State* const L) -> int
 {
-    if (auto const x509 = X509_new())
-    {
-        push_x509(L, x509);
-        return 1;
-    }
-    else
+    auto& x509 = push_x509(L);
+    x509 = X509_new();
+    if (nullptr == x509)
     {
         openssl_failure(L, "X509_new");
     }
+    return 1;
 }
 
 auto l_read_x509(lua_State* const L) -> int
@@ -560,23 +697,26 @@ auto l_read_x509(lua_State* const L) -> int
         return pass_len;
     };
 
-    auto const bio = BIO_new_mem_buf(key, key_len);
+    luaL_argcheck(L, key_len <= INT_MAX, 1, "too long");
+
+    auto& x509 = push_x509(L);
+    auto& bio = Bio::push(L);
+    bio = BIO_new_mem_buf(key, static_cast<int>(key_len));
     if (nullptr == bio)
     {
         openssl_failure(L, "BIO_new_mem_buf");
     }
 
     using Invoker = Invoke<decltype(cb)>;
-    auto const x509 = PEM_read_bio_X509(bio, nullptr, Invoker::invoke, Invoker::prep(cb));
-
-    BIO_free_all(bio);
+    x509 = PEM_read_bio_X509(bio, nullptr, Invoker::invoke, Invoker::prep(cb));
+    Bio::reset(bio);
 
     if (nullptr == x509)
     {
         openssl_failure(L, "PEM_read_bio_X509");
     }
 
-    push_x509(L, x509);
+    lua_pop(L, 1); // the empty BIO box
     return 1;
 }
 

@@ -379,33 +379,35 @@ T.case('overrides reach any setting, with TOML values', function()
     end
 end)
 
+-- The error for TOML that must not parse
+local function toml_error(text, what)
+    local value, err = mytoml.parse_toml(text)
+    T.eq(value, nil, what)
+    return assert(err, what)
+end
+
 T.case('TOML errors give positions, not the text of the file', function()
-    local value, err = mytoml.parse_toml('a = 1\npassword = "hunter2\n')
-    T.eq(value, nil, 'rejected')
+    local err = toml_error('a = 1\npassword = "hunter2\n', 'rejected')
     T.ok(err:find('line 2, column', 1, true), err)
     T.ok(not err:find('hunter2', 1, true), err)
     T.ok(not err:find('parse_toml', 1, true), err)
     T.ok(not err:find('toml::', 1, true), err)
 
     -- a type TOML has and Lua doesn't
-    value, err = mytoml.parse_toml('a = 1\nb = 1979-05-27\n')
-    T.eq(value, nil, 'date rejected')
+    err = toml_error('a = 1\nb = 1979-05-27\n', 'date rejected')
     T.ok(err:find('line 2, column 5: local_date', 1, true), err)
 
     -- many mistakes make a bounded message
-    value, err = mytoml.parse_toml(string.rep('x\n', 100))
-    T.eq(value, nil, 'all rejected')
+    err = toml_error(string.rep('x\n', 100), 'all rejected')
     T.ok(err:find('and %d+ more$'), err)
     T.eq(select(2, err:gsub('\n', '')), 5, 'five errors and the count')
 
     -- each error is one line, though this one's note holds a line break
-    value, err = mytoml.parse_toml('[a] b = 1\n')
-    T.eq(value, nil, 'text after a table rejected')
+    err = toml_error('[a] b = 1\n', 'text after a table rejected')
     T.ok(not err:find '%c', err)
 
     -- one mistake reported at two levels of nesting reads once
-    value, err = mytoml.parse_toml('a = [\n[1 [ # c\n]]\n]\n')
-    T.eq(value, nil, 'nesting rejected')
+    err = toml_error('a = [\n[1 [ # c\n]]\n]\n', 'nesting rejected')
     local first, second = err:match '^([^\n]*)\n([^\n]*)'
     T.ok(first and first ~= second, err)
 end)
@@ -431,7 +433,7 @@ T.case('TOML floats out of range', function()
     T.eq(v('-1e999'), nil, 'too large and negative')
     T.eq(v('1.8e308'), nil, 'just too large')
 
-    local _, err = mytoml.parse_toml('v = 1e999')
+    local err = toml_error('v = 1e999', 'too large')
     T.ok(err:find('too large', 1, true), err)
 end)
 

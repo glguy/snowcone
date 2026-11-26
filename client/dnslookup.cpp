@@ -19,14 +19,15 @@ namespace {
 using Resolver = boost::asio::ip::tcp::resolver;
 
 /// One lookup, owned by its completion handler. While armed, the callback
-/// is kept in the registry under this object's address. It is not a LuaRef:
-/// the io_context destroys a handler still queued only after lua_close, and
-/// that destruction must not touch the state.
+/// is kept in the registry under this object's address. It is not a LuaRef,
+/// so destroying the handler that owns it never touches the state, however
+/// late that happens.
 struct Lookup
 {
     Resolver resolver;
     bool armed = true;
 
+    /// An armed lookup; the caller stores the callback and starts the resolve
     explicit Lookup(boost::asio::io_context& context)
         : resolver{context}
     {
@@ -68,9 +69,9 @@ auto l_gc(lua_State* const L) -> int
     return 0;
 }
 
-/// Drop the callback so it never runs. A getaddrinfo already running can't
-/// be interrupted (REVIEW.md F-022), but its result is discarded. Does
-/// nothing once the lookup has finished or been canceled.
+/// handle:cancel(): drop the callback so it never runs. A getaddrinfo
+/// already running can't be interrupted, but its result is discarded. Does
+/// nothing once the lookup has finished or been canceled. Returns nothing.
 auto l_cancel(lua_State* const L) -> int
 {
     if (auto const lookup = check_udata<Handle>(L, 1)->lookup.lock())

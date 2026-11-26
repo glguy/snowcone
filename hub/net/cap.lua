@@ -170,17 +170,17 @@ end
 ---@param msg hub.Message
 ---@param spawn fun(name: string, fn: fun(t: hub.Task, ...), ...) starts a task on the network
 function M.on_cap(irc, msg, spawn)
-    local sub = msg[2]
+    local sub, caps = msg[2], msg[3] or ''
     if sub == 'ACK' then
-        irc_model.ack_caps(irc, msg[3])
+        irc_model.ack_caps(irc, caps)
     elseif sub == 'DEL' then
-        irc_model.del_caps(irc, msg[3])
+        irc_model.del_caps(irc, caps)
         if irc.welcomed then
             spawn('cap negotiation', M.drop_unsatisfied)
         end
     elseif sub == 'NEW' then
         local offered = {}
-        for cap in pairs(irc_model.add_caps(irc, msg[3])) do
+        for cap in pairs(irc_model.add_caps(irc, caps)) do
             table.insert(offered, cap)
         end
         local req = wanted(irc, offered)

@@ -2,14 +2,16 @@
 /**
  * @file timer.hpp
  * @author Eric Mertens (emertens@gmail.com)
- * @brief Asyncronous timer objects
+ * @brief Asynchronous timer objects
  *
  */
 
 struct lua_State;
 
 /**
- * @brief Construct a new timer
+ * @brief Lua binding: newtimer() --> timer
+ *
+ * Returns a new, idle timer.
  *
  * Lua object methods:
  * * start(milliseconds, callback): replaces any wait in progress; the

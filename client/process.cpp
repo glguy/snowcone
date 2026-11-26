@@ -57,6 +57,8 @@ struct ChildSetup
 {
     bool group;
 
+    /// Runs in the child; an error returned here fails the launch instead
+    /// of exec'ing
     template <typename Launcher, typename Path>
     auto on_exec_setup(Launcher&, Path const&, char const* const*) -> boost::system::error_code
     {
@@ -74,8 +76,8 @@ struct ChildSetup
 
 /// One child process, owned by its pending operations. While armed, the
 /// callback is kept in the registry under this object's address. It is not
-/// a LuaRef: the io_context destroys handlers still queued only after
-/// lua_close, and that destruction must not touch the state.
+/// a LuaRef, so destroying the last handler that owns it never touches the
+/// state, however late that happens.
 struct Exec
 {
     lua_State* L; // main thread
@@ -100,6 +102,8 @@ struct Exec
     boost::system::error_code error_code_;
     std::string failure_; // why stop() was called, when not canceled
 
+    /// An armed process not yet started; four operations are counted with
+    /// input (the stdin write) and three without
     Exec(lua_State* const L, boost::asio::io_context& io_context, std::optional<std::string> input, bool const group, std::size_t const max_output)
         : L{L}
         , stdin_{io_context}
@@ -142,6 +146,8 @@ struct Exec
         stderr_.close(ignored);
     }
 
+    /// Record why the process failed, keeping the first reason given, and
+    /// stop() it
     auto fail(std::string message) -> void
     {
         if (failure_.empty())
@@ -151,6 +157,9 @@ struct Exec
         stop();
     }
 
+    /// Count one operation as finished. After the last, an armed process
+    /// calls back: callback(nil, reason) after a failure, else
+    /// callback(exit_code, stdout, stderr).
     auto complete() -> void
     {
         if (--stage_ == 0 && armed)
@@ -204,6 +213,9 @@ struct Handle
     std::weak_ptr<Exec> exec;
 };
 
+/// Launch the child (looking file up in PATH when it has no directory) and
+/// start the stdin write, the output reads and the exit wait. A launch error
+/// is reported through a posted complete(), never inline.
 auto start(std::shared_ptr<Exec> const& self, boost::asio::io_context& io_context, process::filesystem::path file, std::vector<std::string> const& args, bool const has_input) -> void
 {
     if (not file.has_parent_path())
@@ -288,9 +300,9 @@ auto l_gc(lua_State* const L) -> int
     return 0;
 }
 
-/// Drop the callback so it never runs, kill the child (its group when
-/// started with group), and stop reading its output. Does nothing once the
-/// process has finished or been canceled.
+/// handle:cancel(): drop the callback so it never runs, kill the child (its
+/// group when started with group), and stop reading its output. Does
+/// nothing once the process has finished or been canceled. Returns nothing.
 auto l_cancel(lua_State* const L) -> int
 {
     if (auto const exec = check_udata<Handle>(L, 1)->exec.lock())
@@ -358,7 +370,8 @@ auto l_execute(lua_State* const L) -> int
         lua_pushnil(L);
         while (lua_next(L, 4))
         {
-            auto const key = lua_type(L, -2) == LUA_TSTRING ? std::string_view{lua_tostring(L, -2)} : std::string_view{};
+            // with its length, so a NUL in a key can't truncate it to a known one
+            auto const key = to_string_view(L, -2).value_or(std::string_view{});
             if (key == "input")
             {
                 luaL_argcheck(L, lua_type(L, -1) == LUA_TSTRING, 4, "input must be a string");

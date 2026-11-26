@@ -17,8 +17,9 @@ extern "C" {
  * @class LuaRef
  * @brief Manages a reference to a Lua object stored in the Lua registry.
  *
- * This class encapsulates a reference to a Lua object, ensuring proper
- * reference counting and cleanup. It supports move and copy semantics.
+ * Each LuaRef owns its own registry slot, released when it is destroyed;
+ * copying takes a new slot for the same object. The Lua state must still be
+ * open when a LuaRef holding a reference is destroyed.
  * A moved-from LuaRef holds nothing: it may only be destroyed or assigned to.
  */
 class LuaRef

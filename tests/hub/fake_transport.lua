@@ -15,10 +15,6 @@ function M.new()
     local fake = {conns = {}}
 
     function fake.connect(host, port, layers, cb)
-        if fake.refuse then
-            return nil, fake.refuse
-        end
-
         local c = {host = host, port = port, layers = layers, cb = cb, sent = {}, closed = false}
         local handle = {}
         function handle:send(raw)

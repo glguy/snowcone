@@ -1,6 +1,9 @@
 /***
 myopenssl module
 
+Functions raise Lua errors on failure. An OpenSSL failure's message names
+the failing call, followed by OpenSSL's queued errors, one per line.
+
 @module myopenssl
 */
 
@@ -31,15 +34,15 @@ extern "C" {
 Get a digest object by name
 
 @function get_digest
-@tparam string name
+@tparam string name OpenSSL digest name, such as "sha256"
 @treturn digest digest
-@raise openssl error on failure
+@raise "unknown digest 'name'" when OpenSSL has no such digest
 */
 
 /***
 Read a key from raw bytes.
 @function read_raw
-@tparam int type Type of key (constants stored on myopenssl module)
+@tparam int type Type of key (constants in the myopenssl.types table)
 @tparam bool private true for private key
 @tparam string bytes raw key bytes
 @treturn pkey parsed key
@@ -49,11 +52,65 @@ Read a key from raw bytes.
 /***
 Read a key from PEM format.
 
-@function read_pkey
+@function read_pem
 @tparam string PEM PEM encoded key
-@tparam bool private true for private key
-@tparam[opt] string password PEM decryption password
+@tparam bool private true for private key, false for a public key
+@tparam[opt] string password PEM decryption password (default empty)
 @treturn pkey parsed key
+@raise openssl error on failure, including a wrong password
+*/
+
+/***
+Generate a new key.
+
+@function gen_pkey
+@tparam string type "RSA", "EC", "X25519", "X448", "ED25519", "ED448" or "SM2"
+@tparam[opt] integer|string arg RSA: key size in bits (required); EC: curve
+name such as "P-256" (required); other types: unused
+@treturn pkey new private key
+@raise on an unknown type, or openssl error on failure
+*/
+
+/***
+Load a key from an OpenSSL store, such as a file path or `file:` URI.
+Returns the first key of the requested kind; items that fail to decode
+are skipped.
+
+@function pkey_from_store
+@tparam string name store URI or path
+@tparam bool private true for a private key, false for a public key
+@tparam[opt] string password decryption password (default empty)
+@treturn pkey key
+@raise openssl error when the store can't be opened, or "no private key
+found in 'name'" (or public) followed by any queued OpenSSL errors, such
+as a wrong password
+*/
+
+/***
+Make an arbitrary precision integer.
+
+@function bignum
+@tparam bignum|integer|string value a bignum is returned as-is; anything
+else is converted with tostring and must be a whole decimal integer
+@treturn bignum
+@raise "bad bignum string" when the text isn't a decimal integer
+*/
+
+/***
+Make a new, empty certificate.
+
+@function new_x509
+@treturn x509
+@raise openssl error on failure
+*/
+
+/***
+Read a certificate from PEM format.
+
+@function read_x509
+@tparam string PEM PEM encoded certificate
+@tparam[opt] string password PEM password (default empty)
+@treturn x509 parsed certificate
 @raise openssl error on failure
 */
 
@@ -67,15 +124,23 @@ Types for use with read_raw
 @field EVP_PKEY_ED448 ED448 type
 */
 
+/***
+Version number for x509:set_version meaning X.509 v3 (its value is 2)
+
+@field X509_VERSION_3
+*/
+
 namespace {
 
 /***
 Generate random bytes
 
 @function rand
-@tparam integer length number of bytes to generate
-@tparam boolean private generation is for a private key
+@tparam integer length number of bytes to generate, 0 to INT_MAX
+@tparam[opt] boolean private generation is for a private key (uses
+OpenSSL's private generator)
 @treturn string random bytes
+@raise openssl error on failure
 */
 auto l_rand(lua_State* const L) -> int
 {
@@ -97,19 +162,15 @@ auto l_rand(lua_State* const L) -> int
 }
 
 
-/**
- * @brief XORs two Lua strings and returns the result as a new string.
- *
- * Expects two string arguments on the Lua stack. The function performs a byte-wise XOR
- * of the two input strings. The shorter string is padded out with zero bytes.
- *
- * param:   string input1
- * param:   string input2
- * return:  string input1 xor input2
- *
- * @param L Lua state
- * @return int 1 on success
- */
+/***
+Byte-wise XOR of two strings. The shorter string is padded out with zero
+bytes, so the result has the longer one's length.
+
+@function xor
+@tparam string input1
+@tparam string input2
+@treturn string input1 xor input2
+*/
 auto l_xor(lua_State* const L) -> int
 {
     std::size_t l1, l2;

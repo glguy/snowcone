@@ -1,4 +1,8 @@
+// WINDOW userdata: a box holding a WINDOW*, set to NULL once the window is
+// deleted, with the window methods as its __index.
+
 #include "window.h"
+#include "colorpairs.h"
 
 #include <lauxlib.h>
 #include <lua.h>
@@ -7,6 +11,7 @@
 
 #include <limits.h>
 
+// Registry name of the WINDOW userdata metatable
 static char const window_name[] = "WINDOW*";
 
 int checkint(lua_State* const L, int const arg)
@@ -29,6 +34,9 @@ WINDOW* optwindow(lua_State* const L, int const arg)
     return luaL_opt(L, checkwindow, arg, stdscr);
 }
 
+// Lua: win:delwin(), also __gc and __close. Deletes the window; deleting
+// again does nothing, and other uses then raise an argument error. Raises
+// "delwin: ncurses error" if ncurses refuses, leaving the window live.
 static int l_delwin(lua_State* const L)
 {
     WINDOW** const uptr = luaL_checkudata(L, 1, window_name);
@@ -49,6 +57,9 @@ static int l_delwin(lua_State* const L)
     return 0;
 }
 
+// Lua: pad:prefresh(pminrow, pmincol, sminrow, smincol, smaxrow, smaxcol)
+// Copies the pad, from (pminrow, pmincol), to that screen rectangle and
+// updates the terminal. Raises "prefresh: ncurses error" on failure.
 static int l_prefresh(lua_State* const L)
 {
     WINDOW* const win = checkwindow(L, 1);
@@ -63,9 +74,13 @@ static int l_prefresh(lua_State* const L)
     {
         return luaL_error(L, "prefresh: ncurses error");
     }
+    colorpairs_next_frame();
     return 0;
 }
 
+// Lua: pad:pnoutrefresh(pminrow, pmincol, sminrow, smincol, smaxrow, smaxcol)
+// As prefresh, but only to the virtual screen; doupdate shows it. Raises
+// "pnoutrefresh: ncurses error" on failure.
 static int l_pnoutrefresh(lua_State* const L)
 {
     WINDOW* const win = checkwindow(L, 1);
@@ -83,6 +98,8 @@ static int l_pnoutrefresh(lua_State* const L)
     return 0;
 }
 
+// Lua: win:wresize(lines, columns). Raises "wresize: ncurses error" on
+// failure.
 static int l_wresize(lua_State* const L)
 {
     WINDOW* const win = checkwindow(L, 1);
@@ -95,6 +112,8 @@ static int l_wresize(lua_State* const L)
     return 0;
 }
 
+// Lua: win:wmove(y, x). Moves the cursor, 0-based; raises "wmove: ncurses
+// error" when that is outside the window.
 static int l_wmove(lua_State* const L)
 {
     WINDOW* const win = checkwindow(L, 1);
@@ -107,6 +126,8 @@ static int l_wmove(lua_State* const L)
     return 0;
 }
 
+// Lua: win:werase(). Blanks the window. Raises "werase: ncurses error" on
+// failure.
 static int l_werase(lua_State* const L)
 {
     WINDOW* const win = checkwindow(L, 1);
@@ -117,6 +138,8 @@ static int l_werase(lua_State* const L)
     return 0;
 }
 
+// Lua: win:wclear(). As werase, and the terminal is cleared on the next
+// refresh. Raises "wclear: ncurses error" on failure.
 static int l_wclear(lua_State* const L)
 {
     WINDOW* const win = checkwindow(L, 1);
@@ -127,6 +150,8 @@ static int l_wclear(lua_State* const L)
     return 0;
 }
 
+// Lua: win:waddstr(...). Writes each string argument in turn at the cursor,
+// ignoring ncurses errors, so text past the window's end is dropped.
 static int l_waddstr(lua_State* const L)
 {
     WINDOW* const win = checkwindow(L, 1);
@@ -142,12 +167,14 @@ static int l_waddstr(lua_State* const L)
     return 0;
 }
 
+// Metamethods of the WINDOW userdata
 static luaL_Reg const MT[] = {
     {"__gc", l_delwin},
     {"__close", l_delwin},
     {0}
 };
 
+// Methods of the WINDOW userdata, its __index
 static luaL_Reg const Methods[] = {
     {"delwin", l_delwin},
     {"wresize", l_wresize},
@@ -160,10 +187,14 @@ static luaL_Reg const Methods[] = {
     {0}
 };
 
-void pushwindow(lua_State* const L, WINDOW* const win)
+// Pushes a new, empty WINDOW userdata, creating the metatable on first
+// use, and returns its slot: a window stored there is owned by the
+// userdata. Pushed before the window is made, so a memory error can't leak
+// it; empty, it reads as deleted.
+static WINDOW** pushwindow(lua_State* const L)
 {
-    WINDOW** const uptr = lua_newuserdatauv(L, sizeof win, 0);
-    *uptr = win;
+    WINDOW** const uptr = lua_newuserdatauv(L, sizeof *uptr, 0);
+    *uptr = NULL;
 
     if (luaL_newmetatable(L, window_name))
     {
@@ -173,6 +204,7 @@ void pushwindow(lua_State* const L, WINDOW* const win)
         lua_setfield(L, -2, "__index");
     }
     lua_setmetatable(L, -2);
+    return uptr;
 }
 
 int l_newwin(lua_State* const L)
@@ -182,14 +214,12 @@ int l_newwin(lua_State* const L)
     int const begin_y = checkint(L, 3);
     int const begin_x = checkint(L, 4);
 
-    WINDOW* const result = newwin(nlines, ncols, begin_y, begin_x);
-
-    if (NULL == result)
+    WINDOW** const slot = pushwindow(L);
+    *slot = newwin(nlines, ncols, begin_y, begin_x);
+    if (NULL == *slot)
     {
         return luaL_error(L, "newwin: ncurses error");
     }
-
-    pushwindow(L, result);
     return 1;
 }
 
@@ -198,13 +228,11 @@ int l_newpad(lua_State* const L)
     int const nlines = checkint(L, 1);
     int const ncols = checkint(L, 2);
 
-    WINDOW* const result = newpad(nlines, ncols);
-
-    if (NULL == result)
+    WINDOW** const slot = pushwindow(L);
+    *slot = newpad(nlines, ncols);
+    if (NULL == *slot)
     {
         return luaL_error(L, "newpad: ncurses error");
     }
-
-    pushwindow(L, result);
     return 1;
 }

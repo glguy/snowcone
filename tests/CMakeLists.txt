@@ -9,6 +9,10 @@ add_executable(tests-base64 tests-base64.cpp)
 target_link_libraries(tests-base64 PRIVATE mybase64 GTest::gmock GTest::gtest_main)
 gtest_discover_tests(tests-base64)
 
+add_executable(tests-strings tests-strings.cpp)
+target_link_libraries(tests-strings PRIVATE snowcone_bindings GTest::gtest_main)
+gtest_discover_tests(tests-strings)
+
 add_executable(tests-connection tests-connection.cpp)
 target_link_libraries(tests-connection PRIVATE snowcone_net GTest::gtest_main)
 gtest_discover_tests(tests-connection)
@@ -43,11 +47,13 @@ endif()
 
 # Lua tests run inside the real client, without a UI: snowcone exits once
 # the test has no work left, and nonzero after any uncaught Lua error.
-foreach(name test-dnslookup test-escape test-execute test-print test-sasl test-scram test-strings)
+foreach(name test-dnslookup test-escape test-execute test-geoip test-print test-sasl test-scram test-strings)
   add_test(NAME ${name}
     COMMAND snowcone "${CMAKE_CURRENT_SOURCE_DIR}/${name}.lua")
   set_tests_properties(${name} PROPERTIES TIMEOUT 30)
 endforeach()
+# mygeoip needs snowcone built with libGeoIP, and skips without it
+set_tests_properties(test-geoip PROPERTIES SKIP_RETURN_CODE 77)
 
 # hub's tests share tests/hub/lib.lua and load hub from the source tree
 foreach(name test-reload test-structure test-lib test-config test-connect test-registration test-reclaim test-tasks

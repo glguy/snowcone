@@ -1,3 +1,5 @@
+// Base64 encoder and decoder; the API contract is documented in base64.hpp.
+
 #include "base64.hpp"
 
 #include <array>
@@ -10,6 +12,7 @@ namespace base64 {
 
 namespace {
 
+    /// Base64 digits in value order: index 0..63 maps to its character.
     constexpr auto alphabet = std::array<char, 64>{
         'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
         'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
@@ -17,6 +20,8 @@ namespace {
         'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'
     };
 
+    /// Inverse of alphabet indexed by unsigned byte: the digit value, or -1
+    /// for bytes outside the alphabet.
     constexpr auto alphabet_values = []() constexpr -> std::array<std::int8_t, 256> {
         std::array<std::int8_t, 256> result;
         result.fill(-1);
@@ -109,4 +114,25 @@ auto decode(std::string_view const input, char* output) -> char*
     return output;
 }
 
-} // namespace
+auto valid(std::string_view const input) -> bool
+{
+    if (input.size() % 4 != 0)
+    {
+        return false;
+    }
+    auto body = input;
+    for (int i = 0; i < 2 && body.ends_with('='); i++)
+    {
+        body.remove_suffix(1);
+    }
+    for (auto const c : body)
+    {
+        if (alphabet_values[static_cast<unsigned char>(c)] == -1)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace base64

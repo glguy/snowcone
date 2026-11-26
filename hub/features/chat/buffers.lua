@@ -64,6 +64,7 @@ end
 ---@param msg hub.Message
 function M.insert(net, buffer, msg)
     hide.classify(net, buffer, msg)
+    ---@type string|hub.Message|nil
     local key = M.msgid(msg)
     if key == nil and msg.receipt == 'awaiting' then key = msg end
     OrderedMap.insert(buffer.messages, key, msg)

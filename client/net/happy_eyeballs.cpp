@@ -54,6 +54,8 @@ auto post_cancel(asio::strand<asio::any_io_executor> const& strand, std::weak_pt
     });
 }
 
+/// The state of one happy_eyeballs::async_connect (RFC 8305), owned by its
+/// pending operations. Everything but start() runs on strand_.
 template <typename Handler>
 struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>>
 {
@@ -87,6 +89,7 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
     std::size_t timer_generation_ = 0;
     std::size_t resolution_timer_generation_ = 0;
 
+    /// Nothing starts until start()
     ConnectOperation(
         tcp::socket& socket,
         Handler handler,
@@ -109,6 +112,8 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
     {
     }
 
+    /// Hook up the caller's cancellation slot, then continue on the strand.
+    /// Must be called on the caller's executor, owned by a shared_ptr.
     auto start() -> void
     {
         std::weak_ptr<ConnectOperation> weak = this->shared_from_this();
@@ -132,6 +137,8 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
         });
     }
 
+    /// Hook up close_cancellation, finishing at once if it already fired,
+    /// then start the AAAA and A queries
     auto start_on_strand() -> void
     {
         std::weak_ptr<ConnectOperation> weak = this->shared_from_this();
@@ -169,6 +176,8 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
         );
     }
 
+    /// Record one family's answer (dropping v4-mapped addresses from the
+    /// AAAA answer), then start an attempt now or schedule one
     auto resolved(
         bool const ipv6,
         boost::system::error_code const error,
@@ -218,11 +227,14 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
         }
     }
 
+    /// Whether any address is left to try
     auto has_endpoints() const -> bool
     {
         return not ipv4_endpoints_.empty() || not ipv6_endpoints_.empty();
     }
 
+    /// Take the next address, alternating families and falling back to the
+    /// other family when the preferred one has none left
     auto take_endpoint() -> std::optional<tcp::endpoint>
     {
         auto& preferred = prefer_ipv6_ ? ipv6_endpoints_ : ipv4_endpoints_;
@@ -239,6 +251,10 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
         return endpoint;
     }
 
+    /// Start a connection attempt to the next address, unless the first
+    /// attempt should wait the resolution delay for AAAA answers. With no
+    /// address left and nothing pending, finish with the best failure.
+    /// Schedules the next attempt while more may come.
     auto start_next() -> void
     {
         if (done_)
@@ -318,6 +334,8 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
         }
     }
 
+    /// Start the next attempt after attempt_delay unless something starts
+    /// one sooner; a stale wait (older generation) does nothing
     auto schedule_next() -> void
     {
         auto const generation = ++timer_generation_;
@@ -338,6 +356,7 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
         });
     }
 
+    /// Give AAAA answers resolution_delay to arrive before trying IPv4
     auto schedule_resolution_delay() -> void
     {
         auto const generation = ++resolution_timer_generation_;
@@ -355,6 +374,8 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
         });
     }
 
+    /// Finish with the winner on success; otherwise record the family's
+    /// first error, drop the attempt and move on
     auto attempt_finished(
         std::shared_ptr<tcp::socket> const& attempt,
         tcp::endpoint const& endpoint,
@@ -391,6 +412,7 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
         }
     }
 
+    /// The connect error to report, if any attempt failed
     auto connect_failure() const -> boost::system::error_code
     {
         if (ipv6_connect_error_ && ipv4_connect_error_)
@@ -404,6 +426,8 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
         return ipv6_connect_error_ ? ipv6_connect_error_ : ipv4_connect_error_;
     }
 
+    /// Finish with the most informative error: a connect error, then a real
+    /// resolver failure, then "no records", then host_not_found
     auto finish_failure() -> void
     {
         if (auto const error = connect_failure())
@@ -432,11 +456,15 @@ struct ConnectOperation : std::enable_shared_from_this<ConnectOperation<Handler>
         }
     }
 
+    /// Finish with operation_aborted
     auto cancel() -> void
     {
         finish(asio::error::operation_aborted);
     }
 
+    /// Complete once: stop every resolve, timer and losing attempt, then
+    /// post the handler, moving a winner into the caller's socket just
+    /// before it runs. Later calls do nothing.
     auto finish(
         boost::system::error_code const error,
         std::shared_ptr<tcp::socket> const& winner = {},

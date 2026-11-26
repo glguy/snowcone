@@ -242,6 +242,7 @@ auto handle_request(
 
 //------------------------------------------------------------------------------
 
+/// Report a failed I/O step to Lua as cb(nil, what, message)
 void fail(LuaRef const& cb, beast::error_code const ec, char const* const what)
 {
     report(cb, what, ec.message());
@@ -250,6 +251,8 @@ void fail(LuaRef const& cb, beast::error_code const ec, char const* const what)
 /// GitHub caps webhook payloads at 25 MB; Beast's default limit is 1 MiB.
 constexpr std::uint64_t max_body_size = 25 * 1024 * 1024;
 
+/// One accepted connection, serving requests one at a time with keep-alive.
+/// Owned by its pending operations; the listener holds only a weak_ptr.
 class Session : public std::enable_shared_from_this<Session>
 {
     beast::tcp_stream stream_;
@@ -259,12 +262,15 @@ class Session : public std::enable_shared_from_this<Session>
     bool closed_ = false; // set by close(); later completions return quietly
 
 public:
+    /// @param socket The accepted connection
+    /// @param cb The Lua handler, called for each request and error
     Session(tcp::socket&& socket, LuaRef&& cb)
         : stream_{std::move(socket)}
         , cb_{std::move(cb)}
     {
     }
 
+    /// Start reading the first request, on the session's strand
     auto run() -> void
     {
         // We need to be executing within a strand to perform async operations
@@ -285,6 +291,7 @@ public:
         }
     }
 
+    /// Read the next request with a fresh parser, allowing 30 s for it
     auto do_read() -> void
     {
         if (closed_)
@@ -299,6 +306,9 @@ public:
         http::async_read(stream_, buffer_, *parser_, beast::bind_front_handler(&Session::on_read, shared_from_this()));
     }
 
+    /// Answer a request, or report a read error (answering a body or header
+    /// limit with 413 or 431). A peer's close, or an idle keep-alive timeout,
+    /// ends the session without a report.
     auto on_read(
         beast::error_code const ec,
         std::size_t
@@ -348,6 +358,7 @@ public:
         }
     }
 
+    /// A plain-text error response that closes the connection
     auto limit_response(http::status const status) const -> http::response<http::string_body>
     {
         http::response<http::string_body> res{status, parser_->get().version()};
@@ -359,6 +370,7 @@ public:
         return res;
     }
 
+    /// Write a response, allowing 30 s, then continue with on_write
     auto send_response(http::message_generator&& msg) -> void
     {
         auto const keep_alive = msg.keep_alive();
@@ -374,6 +386,8 @@ public:
         );
     }
 
+    /// Read the next request after a keep-alive response; otherwise close
+    /// gracefully. A write error is reported and ends the session.
     auto on_write(
         bool const keep_alive,
         beast::error_code const ec,
@@ -400,6 +414,7 @@ public:
         do_read();
     }
 
+    /// Shut down the sending side, telling the peer no more responses come
     auto do_close() -> void
     {
         beast::error_code ec;
@@ -420,6 +435,7 @@ class Listener : public std::enable_shared_from_this<Listener>
         tcp::acceptor acceptor;
         net::steady_timer retry; // backoff after an accept error
 
+        /// An unopened acceptor and its retry timer, both on executor
         explicit Acceptor(net::strand<net::io_context::executor_type> const& executor)
             : acceptor{executor}
             , retry{executor}
@@ -435,6 +451,8 @@ class Listener : public std::enable_shared_from_this<Listener>
     bool closed_ = false; // set by close(); later completions return quietly
 
 public:
+    /// @param ioc The event loop for the acceptors and sessions
+    /// @param cb The Lua handler, shared with every session
     Listener(
         net::io_context& ioc,
         LuaRef&& cb
@@ -446,6 +464,9 @@ public:
     {
     }
 
+    /// Open, bind and listen on every resolved address and start accepting.
+    /// The first failure is reported and stops binding the addresses after
+    /// it; acceptors already listening keep running.
     auto on_resolve(beast::error_code ec, tcp::resolver::results_type const results) -> void
     {
         // A close() during the resolve must not bind
@@ -500,7 +521,8 @@ public:
         }
     }
 
-    // Start accepting incoming connections
+    /// Resolve host and service as passive (listening) addresses, then bind
+    /// them in on_resolve. Errors are reported through the handler.
     auto run(std::string_view const host, std::string_view const service) -> void
     {
         resolver_.async_resolve(host, service, tcp::resolver::flags::passive,
@@ -538,6 +560,7 @@ public:
     }
 
 private:
+    /// Accept the next connection on entry
     auto do_accept(Acceptor& entry) -> void
     {
         // The new connection gets its own strand
@@ -547,6 +570,9 @@ private:
         );
     }
 
+    /// Start a session for the new connection and accept again. An error is
+    /// reported; accepting resumes at once after an aborted connection and
+    /// after accept_retry_delay otherwise.
     auto on_accept(Acceptor& entry, beast::error_code const ec, tcp::socket socket) -> void
     {
         if (closed_)
@@ -580,6 +606,7 @@ private:
         do_accept(entry);
     }
 
+    /// Accept again once the retry delay has passed, unless closed meanwhile
     auto on_retry(Acceptor& entry, beast::error_code const ec) -> void
     {
         if (not closed_ and not ec)
@@ -596,19 +623,31 @@ char const* const udata_name<std::shared_ptr<Listener>> = "listener";
 
 namespace {
 
+/// listener:close(): stop listening and drop every open connection. Safe to
+/// repeat, and does nothing on a finalized listener. Returns nothing.
 auto l_listener_close(lua_State* const L) -> int
 {
     auto& l = *check_udata<std::shared_ptr<Listener>>(L, 1);
-    l->close();
+    if (l)
+    {
+        l->close();
+    }
     return 0;
 }
 
+/// __gc: close the listener and release the userdata's shared_ptr. The
+/// empty shared_ptr owns nothing, so leaving it undestroyed is harmless,
+/// and a listener used after this (resurrected, or reached through a weak
+/// table) is already closed.
 auto l_listener_gc(lua_State* const L) -> int
 {
     // Unreachable from Lua means nothing could close it later
-    auto const l = check_udata<std::shared_ptr<Listener>>(L, 1);
-    (*l)->close();
-    std::destroy_at(l);
+    auto& l = *check_udata<std::shared_ptr<Listener>>(L, 1);
+    if (l)
+    {
+        l->close();
+        l.reset();
+    }
     return 0;
 }
 
@@ -628,22 +667,24 @@ auto start_httpd(lua_State* const L) -> int
     auto const host = check_c_string(L, 1);
     auto const service = check_c_string(L, 2);
     lua_settop(L, 3);
-    auto cb = LuaRef::create(L);
 
+    // The userdata first, empty: a memory error making it can't leak the
+    // callback's reference, and its __gc ignores an empty listener
     auto& httpd = *new_udata<std::shared_ptr<Listener>>(L, 0, [L] {
         luaL_setfuncs(L, MT, 0);
         luaL_newlibtable(L, M);
         luaL_setfuncs(L, M, 0);
         lua_setfield(L, -2, "__index");
+        // Keep __gc out of reach of Lua code
+        lua_pushboolean(L, false);
+        lua_setfield(L, -2, "__metatable");
     });
 
-    std::construct_at(
-        &httpd,
-        std::make_shared<Listener>(
-            App::from_lua(L)->get_context(),
-            std::move(cb)
-        )
-    );
+    std::construct_at(&httpd);
+
+    lua_pushvalue(L, 3);
+    auto cb = LuaRef::create(L);
+    httpd = std::make_shared<Listener>(App::from_lua(L)->get_context(), std::move(cb));
     httpd->run(host, service);
     return 1;
 }

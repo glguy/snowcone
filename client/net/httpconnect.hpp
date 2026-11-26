@@ -13,20 +13,26 @@
 
 namespace httpconnect {
 
+/// The Proxy-Authorization value for HTTP Basic authentication:
+/// "Basic " followed by base64 of "username:password"
 auto encode_basic_auth(socks5::UsernamePasswordCredential const& auth) -> std::string;
 
 using Signature = void(boost::system::error_code);
 namespace http = boost::beast::http;
 
+/// Errors whose value is the HTTP status of a refused CONNECT
 struct HttpErrCategory : boost::system::error_category
 {
+    /// "httpconnect"
     char const* name() const noexcept override;
+    /// "HTTP " and the status code
     std::string message(int) const override;
 };
 
 extern HttpErrCategory const theHttpErrCategory;
 
 namespace detail {
+    /// The error_code for an HTTP status, in theHttpErrCategory
     auto make_http_error(int status) -> boost::system::error_code;
 
     /// host:port in authority-form; IPv6 literals are bracketed, and a zone
@@ -38,17 +44,19 @@ namespace detail {
 constexpr std::size_t max_response_size = 8 * 1024;
 
 // Storing this in a unique_ptr ensures that moving around the composite action
-// doesn't relocated the fields. This is important at a minimum because req
-// merely points to target
+// doesn't relocate the fields. This is important because the write in
+// progress refers to req, and the read in progress to response_bytes.
 struct State
 {
-    /// @brief Target hostname
+    /// @brief Target authority, host:port
     std::string target;
     http::request<http::empty_body> req;
     std::string response_bytes;
     socks5::Auth auth;
 };
 
+/// The composed operation of async_connect: Start sends the CONNECT request,
+/// ReqSent reads the response header, RspRecv checks its status
 template <typename AsyncStream>
 struct HttpConnectImpl
 {
@@ -68,6 +76,8 @@ struct HttpConnectImpl
     {
     };
 
+    /// Complete with the error if the last write or read failed, else run
+    /// the step for state
     template <typename Self, typename State = Start>
     auto operator()(
         Self& self,
@@ -86,6 +96,8 @@ struct HttpConnectImpl
         }
     }
 
+    /// Send the CONNECT request, with Proxy-Authorization when there are
+    /// credentials
     template <typename Self>
     auto step(Self& self, Start) -> void
     {
@@ -103,6 +115,8 @@ struct HttpConnectImpl
         http::async_write(stream_, req, std::bind_front(std::move(self), ReqSent{}));
     }
 
+    /// Read the response one byte at a time through its blank line, so no
+    /// byte after the header is consumed from the tunnel
     template <typename Self>
     auto step(Self& self, ReqSent) -> void
     {
@@ -123,6 +137,8 @@ struct HttpConnectImpl
         );
     }
 
+    /// Parse the header and complete: success for a 2xx status, an
+    /// HttpErrCategory error for any other, or the parse error
     template <typename Self>
     auto step(Self& self, RspRecv) -> void
     {
@@ -146,6 +162,13 @@ struct HttpConnectImpl
     }
 };
 
+/// @brief Open a tunnel to host:port through an HTTP proxy with CONNECT
+/// @param socket Established connection to the proxy
+/// @param host Target host; an IPv6 literal is bracketed in the request
+/// @param port Target port
+/// @param auth Credentials for Basic authentication, or NoCredential
+/// @param token Completion token accepting an error_code
+/// @return Behavior determined by completion token type
 template <
     typename AsyncStream,
     boost::asio::completion_token_for<Signature> CompletionToken>

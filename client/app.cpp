@@ -35,7 +35,7 @@ namespace {
 /// escape sequences would only pollute stdout.
 bool uses_terminal = false;
 
-/// The names on_signal receives
+/// The names on_signal receives; "?" for any other signal
 auto sigabbrev(int const sig) -> char const*
 {
     switch (sig)
@@ -47,6 +47,8 @@ auto sigabbrev(int const sig) -> char const*
     }
 }
 
+/// Leave curses mode and turn off bracketed paste and focus reporting, if
+/// start_ui() ever took the terminal. Safe to repeat, and allocates nothing.
 auto restore_terminal() -> void
 {
     if (uses_terminal)
@@ -150,6 +152,7 @@ auto App::from_lua(lua_State* const L) -> App*
 
 namespace {
 
+/// A left click: on_mouse(y, x, shifted)
 auto do_mouse(lua_State* const L, int const y, int const x, bool const shifted) -> void
 {
     lua_pushinteger(L, y);
@@ -158,7 +161,7 @@ auto do_mouse(lua_State* const L, int const y, int const x, bool const shifted) 
     lua_callback(L, "on_mouse", 3);
 }
 
-// delta is 1 for the wheel turned up, -1 for down
+/// A wheel notch: on_wheel(y, x, delta), delta 1 for up and -1 for down
 auto do_wheel(lua_State* const L, int const y, int const x, int const delta) -> void
 {
     lua_pushinteger(L, y);
@@ -167,6 +170,8 @@ auto do_wheel(lua_State* const L, int const y, int const x, int const delta) -> 
     lua_callback(L, "on_wheel", 3);
 }
 
+/// A key: on_keyboard(key). Without a working callback, ^C raises SIGINT so
+/// the program can still be interrupted.
 auto do_keyboard(lua_State* const L, long const key) -> void
 {
     lua_pushinteger(L, key);
@@ -178,6 +183,7 @@ auto do_keyboard(lua_State* const L, long const key) -> void
     }
 }
 
+/// A complete bracketed paste: on_paste(text)
 auto do_paste(lua_State* const L, std::string_view const paste) -> void
 {
     push_string(L, paste);
@@ -210,12 +216,14 @@ struct PasteMode
     std::size_t size = 0; // bytes received, the end marker included
     bool discarding = false;
 
+    /// A paste began: read raw bytes until its end marker
     auto start() -> void
     {
         on = true;
         keypad(stdscr, FALSE);
     }
 
+    /// The paste was delivered or dropped: forget it and decode keys again
     auto stop() -> void
     {
         on = false;
@@ -225,6 +233,7 @@ struct PasteMode
         keypad(stdscr, TRUE);
     }
 
+    /// Restores keypad mode if the reader ends mid-paste
     ~PasteMode()
     {
         if (on)
@@ -519,11 +528,10 @@ auto App::set_title(std::string_view const title) -> void
     std::fflush(stdout);
 }
 
-/// Runs until the event loop has no work left. Interactive mode always has
-/// work until shutdown(); a script ends once its last resource finishes.
 /// SIGINT, SIGTERM or SIGHUP: Lua's, if it asked for them. Otherwise, as
 /// ncurses' handler did, restore the terminal and take the default action.
-/// While a child has the terminal, a ^C there was meant for the child.
+/// While a child has the terminal, a ^C there was meant for the child, so
+/// SIGINT is ignored while input is stopped.
 auto App::terminate_signal(int const sig) -> void
 {
     if (sig == SIGINT && not input_running)

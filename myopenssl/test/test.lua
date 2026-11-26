@@ -98,4 +98,66 @@ assert(priv:decrypt(priv:encrypt('hi', 'oaep'), 'oaep') == 'hi')
 fails("no private key found in 'test/encrsa.pem'", myopenssl.pkey_from_store, 'test/encrsa.pem', true, 'wrong')
 assert(myopenssl.pkey_from_store('test/encrsa.pem', true, 'password'))
 
+-- An EC key has signed integer parameters, which OSSL_PARAM_get_BN takes
+-- only from OpenSSL 3.2
+do
+    local ec = myopenssl.gen_pkey('EC', 'P-256')
+    local params = ec:export()
+    assert(#params.pub == 65, #params.pub)
+    assert(params.priv and tostring(params.priv):find '^%d+$')
+    for _, v in pairs(params) do
+        assert(type(v) == 'string' or tostring(v):find '^%-?%d+$', tostring(v))
+    end
+end
+
+-- Negation and tostring of results made inside the library
+assert(tostring(-seven) == '-7')
+assert(tostring(-(-seven)) == '7')
+local q, r = myopenssl.bignum(-7):div_mod(myopenssl.bignum(2))
+assert(tostring(q) == '-3' and tostring(r) == '-1')
+
+-- The argument number counts from after self in a method call
+fails('bad argument #1', function() x509:set_subjectName{{'CN', 'a'}, {'O'}} end)
+
+-- A key or certificate read back is usable
+do
+    local cert = myopenssl.new_x509()
+    cert:set_pubkey(ed)
+    cert:set_serialNumber(1)
+    cert:set_notBefore '20260101000000Z'
+    cert:set_notAfter '20270101000000Z'
+    cert:set_subjectName{{'CN', 'test'}}
+    cert:set_issuerName{{'CN', 'test'}}
+    cert:sign(ed)
+    local copy = myopenssl.read_x509(cert:export())
+    assert(copy:get_pubkey():export().pub == ed:export().pub)
+    assert(copy:get_subjectName()[1][2] == 'test')
+end
+
+-- A malformed signature is false for every key type, not an error
+do
+    local ec = myopenssl.gen_pkey('EC', 'P-256')
+    local sha256 = myopenssl.get_digest 'sha256'
+    local sig = ec:digest_sign(sha256, 'msg')
+    assert(ec:digest_verify(sha256, sig, 'msg'))
+    assert(ec:digest_verify(sha256, sig, 'other') == false)
+    for _, bad in ipairs {'', 'not DER', string.rep('\0', 72)} do
+        assert(ec:digest_verify(sha256, bad, 'msg') == false, bad)
+        assert(ec:verify(bad, sha256:digest 'msg') == false, bad)
+    end
+    assert(ec:verify(ec:sign(sha256:digest 'msg'), sha256:digest 'msg'))
+    assert(ed:digest_verify(nil, 'short', 'msg') == false)
+    -- the failures leave nothing queued for the next error
+    local _, err = pcall(myopenssl.get_digest, 'nope')
+    assert(not err:find '\n', err)
+end
+
+-- OpenSSL's errors follow the message, one per line, and are drained
+do
+    local read, why = pcall(myopenssl.read_pem, 'not a key', false)
+    assert(not read and why:find '^OpenSSL error in PEM_read_bio_PUBKEY\n', why)
+    local _, again = pcall(myopenssl.get_digest, 'nope')
+    assert(not again:find '\n', again)
+end
+
 print 'ok'

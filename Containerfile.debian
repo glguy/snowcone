@@ -23,7 +23,7 @@ RUN apt-get update \
         build-essential cmake ninja-build pkg-config git ca-certificates \
         dpkg-dev file \
         liblua5.4-dev libssl-dev libncurses-dev libboost-dev \
-        libidn-dev libgeoip-dev libhunspell-dev \
+        libidn-dev libgeoip-dev geoip-database libhunspell-dev \
         lua-penlight lua-rex-pcre2 lua-mmdb lua-json \
         libgtest-dev libgmock-dev libvterm-dev lua-check curl \
  && rm -rf /var/lib/apt/lists/*

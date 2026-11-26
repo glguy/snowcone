@@ -69,7 +69,8 @@ namespace {
  * rather than as error 0.
  *
  * @param prefix Name of the failed call
- * @throws connection_error Always, unless nothing was queued
+ * @throws connection_error Always, or std::runtime_error when nothing was
+ * queued
  */
 [[noreturn]] auto openssl_error(char const* const prefix) -> void
 {
@@ -88,6 +89,7 @@ namespace {
     throw connection_error{ec, std::string{prefix} + ": " + describe_error(ec)};
 }
 
+/// address:port, with an IPv6 address bracketed
 auto endpoint_text(boost::asio::ip::tcp::endpoint const& endpoint) -> std::string
 {
     std::ostringstream os;
@@ -182,6 +184,8 @@ struct ConnectContext
     happy_eyeballs::CancellationSource& close_cancellation;
 };
 
+/// Reset the stream to TCP and connect to the host with happy eyeballs,
+/// then set TCP_NODELAY and the buffer sizes
 auto connect_layer(ConnectContext& ctx, IpLayer& layer) -> boost::asio::awaitable<LayerInfo>
 {
     auto& socket = ctx.stream.reset_ip();
@@ -199,6 +203,7 @@ auto connect_layer(ConnectContext& ctx, IpLayer& layer) -> boost::asio::awaitabl
     co_return LayerInfo{.type = "tcp", .endpoint = endpoint_text(endpoint)};
 }
 
+/// Reset the stream to a Unix domain socket and connect to the path
 auto connect_layer(ConnectContext& ctx, LocalLayer& layer) -> boost::asio::awaitable<LayerInfo>
 {
     auto& socket = ctx.stream.reset_local();
@@ -217,6 +222,11 @@ auto connect_layer(ConnectContext& ctx, LocalLayer& layer) -> boost::asio::await
     co_return LayerInfo{.type = "local"};
 }
 
+/// Wrap the stream in TLS 1.2 or later and handshake: with the client
+/// certificate and ALPN when given, verifying the server against `verify`
+/// unless it is empty, and sending `sni` when it is a hostname. A failed
+/// verification is reported by its reason. Returns the server key's
+/// fingerprint.
 auto connect_layer(ConnectContext& ctx, TlsLayer& tls_layer) -> boost::asio::awaitable<LayerInfo>
 {
     auto& stream = ctx.stream;
@@ -334,6 +344,8 @@ auto socks_host(std::string const& host) -> socks5::Host
     return address;
 }
 
+/// Ask the SOCKS5 proxy at the end of the stream for a tunnel to the layer's
+/// host and port. Returns the bound address the proxy reported.
 auto connect_layer(ConnectContext& ctx, SocksLayer& socks_layer) -> boost::asio::awaitable<LayerInfo>
 {
     auto const endpoint = co_await socks5::async_connect(
@@ -345,6 +357,8 @@ auto connect_layer(ConnectContext& ctx, SocksLayer& socks_layer) -> boost::asio:
     co_return LayerInfo{.type = "socks", .endpoint = endpoint_text(endpoint)};
 }
 
+/// Ask the HTTP proxy at the end of the stream for a tunnel to the layer's
+/// host and port with CONNECT
 auto connect_layer(ConnectContext& ctx, HttpLayer& http_layer) -> boost::asio::awaitable<LayerInfo>
 {
     co_await httpconnect::async_connect(
@@ -356,6 +370,10 @@ auto connect_layer(ConnectContext& ctx, HttpLayer& http_layer) -> boost::asio::a
     co_return LayerInfo{.type = "http"};
 }
 
+/// Upgrade the stream to a WebSocket and handshake, offering the layer's
+/// subprotocols, then switch to binary or text frames for the one chosen.
+/// Fails if the server declines, or chooses none or one not offered (none
+/// is accepted only when none was offered).
 auto connect_layer(ConnectContext& ctx, WebSocketLayer& layer) -> boost::asio::awaitable<LayerInfo>
 {
     namespace http = boost::beast::http;
@@ -436,6 +454,7 @@ auto connect_layer(ConnectContext& ctx, WebSocketLayer& layer) -> boost::asio::a
     co_return LayerInfo{.type = "websocket", .subprotocol = std::string{subprotocol}};
 }
 
+/// host:port for display, with an IPv6 literal bracketed
 auto host_port(std::string const& host, std::uint16_t const port) -> std::string
 {
     // Hostnames can't contain ':', so this is an IPv6 literal
@@ -443,9 +462,9 @@ auto host_port(std::string const& host, std::uint16_t const port) -> std::string
     return (is_ipv6 ? "[" + host + "]" : host) + ":" + std::to_string(port);
 }
 
-// Names the step that establishes a layer. Shown to the user, so it leaves
-// out credentials and the WebSocket path, which can hold a token.
-
+/// Names the step that establishes a layer (each overload below). Shown to
+/// the user, so it leaves out credentials and the WebSocket path, which can
+/// hold a token.
 auto describe_layer(IpLayer const& layer) -> std::string
 {
     return "connecting to " + host_port(layer.host, layer.port);
@@ -477,8 +496,7 @@ auto describe_layer(WebSocketLayer const& layer) -> std::string
     return "WebSocket with " + layer.host;
 }
 
-// Text for the user once a layer is established
-
+/// Text for the user once a layer is established (each overload below)
 auto describe_established(LayerInfo const& info, IpLayer const&) -> std::string
 {
     return "TCP connected to " + info.endpoint;
@@ -539,6 +557,7 @@ auto tls_names::resolve(
     std::string_view const host
 ) -> Names
 {
+    // Whether a non-empty name was given
     auto const named = [](std::optional<std::string_view> const name) {
         return name && not name->empty();
     };
@@ -571,6 +590,7 @@ auto connection::connect(
     };
 
     ConnectContext ctx{stream_, connect_cancellation_};
+    // Tell progress, if any, then stop if it closed the connection
     auto const report = [&](std::string const& text, LayerInfo const* const established) {
         if (progress)
         {
@@ -580,6 +600,7 @@ auto connection::connect(
     };
 
     std::size_t position = 0;
+    // Establish one layer, naming it in any failure, and report it
     auto const connect_one = [&](auto& layer) -> boost::asio::awaitable<void> {
         report(describe_layer(layer), nullptr);
         LayerInfo info;

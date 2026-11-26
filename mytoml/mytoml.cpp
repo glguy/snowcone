@@ -1,3 +1,8 @@
+/**
+ * @file mytoml.cpp
+ * @brief The mytoml module table
+ *
+ */
 #include "mytoml.hpp"
 #include "parse_toml.hpp"
 
@@ -6,6 +11,7 @@ extern "C" {
 #include <lua.h>
 }
 
+/// Functions in the module table
 static const luaL_Reg M[] {
     {"parse_toml", mytoml::l_parse_toml},
     {}

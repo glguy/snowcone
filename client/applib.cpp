@@ -22,6 +22,10 @@ extern "C" {
 #include <lualib.h>
 }
 
+#ifdef GEOIP_FOUND
+#include "mygeoip.h"
+#endif
+
 #ifdef LIBIDN_FOUND
 #include "mystringprep.h"
 #endif
@@ -127,6 +131,8 @@ auto l_raise(lua_State* const L) -> int
     return 0;
 }
 
+/// setmodule(module): register the value lua_callback calls for every event,
+/// as module(name, ...). nil, or no argument, unregisters it. Returns nothing.
 auto l_setmodule(lua_State* const L) -> int
 {
     lua_settop(L, 1);
@@ -344,12 +350,17 @@ auto l_parse_irc(lua_State* const L) -> int
     }
 }
 
+/// start_input(): resume reading the terminal after stop_input(). Does
+/// nothing without a UI, after shutdown(), or while input is running.
 auto l_start_input(lua_State* const L) -> int
 {
     App::from_lua(L)->start_input();
     return 0;
 }
 
+/// stop_input(): stop reading the terminal and leave curses mode, for
+/// example to hand the tty to a child. Does nothing without a UI, after
+/// shutdown(), or while input is stopped.
 auto l_stop_input(lua_State* const L) -> int
 {
     App::from_lua(L)->stop_input();
@@ -408,6 +419,7 @@ auto l_write_private(lua_State* const L) -> int
     auto const path = check_c_string(L, 1).data();
     auto const content = check_string_view(L, 2);
 
+    // Return nil and "path: reason" for errno value e
     auto const fail = [L, path](int const e) -> int {
         luaL_pushfail(L);
         lua_pushfstring(L, "%s: %s", path, strerror(e));
@@ -471,6 +483,9 @@ luaL_Reg const applib_module[] = {
     {}
 };
 
+/// Replacement for the global print: joins its arguments with tabs, using
+/// __tostring and __name as the standard print does. Without a UI it writes
+/// the line to stdout; with one it passes the string to lua_callback "print".
 auto l_print(lua_State* const L) -> int
 {
     auto const n = lua_gettop(L); /* number of arguments */
@@ -509,15 +524,6 @@ auto l_print(lua_State* const L) -> int
 
 } // end of lua support namespace
 
-/**
- * @brief Invoke the logic callback hook from the logic module.
- * 
- * @param L Lua state
- * @param key name of callback; passed as first function argument to the callback
- * @param args number of arguments on the stack to use a function arguments
- * @return true on successful call
- * @return false on callback failure or no callback found
- */
 auto lua_callback(lua_State* const L, char const* const key, int args) -> bool
 {
     auto const module_ty = lua_rawgetp(L, LUA_REGISTRYINDEX, &logic_module);
@@ -547,6 +553,11 @@ auto prepare_globals(lua_State* const L, int const argc, char const* const* cons
 
     luaL_requiref(L, "mytoml", luaopen_mytoml, 1);
     lua_pop(L, 1);
+
+#ifdef GEOIP_FOUND
+    luaL_requiref(L, "mygeoip", luaopen_mygeoip, 1);
+    lua_pop(L, 1);
+#endif
 
 #ifdef LIBIDN_FOUND
     luaL_requiref(L, "mystringprep", luaopen_mystringprep, 1);

@@ -167,9 +167,10 @@ end)
 
 T.case('a refused connection retries; a configuration error does not', function()
     local fake = boot({network('test')}, {})
-    fake.refuse = 'connection refused'
     fake.last():finish 'reset'
     fire_reconnect 'test'
+    -- a refusal ends the attempt like any other stream error
+    fake.last():finish 'connection refused'
     T.eq(rec().phase, 'idle', 'idle after refusal')
     T.ok(rec().reconnect_timer, 'retry scheduled')
 

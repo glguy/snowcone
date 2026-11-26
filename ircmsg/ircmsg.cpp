@@ -1,9 +1,13 @@
 #include <cstring>
 #include <optional>
+#include <ostream>
 
 #include "ircmsg.hpp"
 
 namespace {
+/// @brief Destructive tokenizer over a mutable null-terminated string
+///
+/// Tokens are terminated in place by overwriting the separating space.
 class parser {
     /// @brief Remaining unparsed string
     char* msg_;
@@ -11,13 +15,15 @@ class parser {
     /// @brief Sentinel used for parsers constructed with nullptr
     inline static char empty[1];
 
-    /// @brief Drop leading spaces
+    /// @brief Advance past any spaces (only ' ') at the cursor
     inline void trim() {
         while (*msg_ == ' ') msg_++;
     }
 
 public:
     /// @brief Construct new parser from a mutable borrow of a null-terminated string
+    ///
+    /// Leading spaces are skipped. A nullptr is treated as an empty string.
     parser(char* const msg) : msg_{msg} {
         if (msg_ == nullptr) {
             msg_ = empty;
@@ -26,11 +32,16 @@ public:
         }
     }
 
+    /// @brief Not copyable: copies would share and both mutate one buffer
     parser(parser const&) = delete;
+    /// @brief Not copy-assignable; see the deleted copy constructor
     auto operator=(parser const&) -> parser& = delete;
 
     /// @brief Consume and return the next space-separated token
-    /// @return Null-terminated string
+    ///
+    /// Overwrites the following space with a terminator and skips any
+    /// further spaces. At the cursor's end, or on a space, returns "".
+    /// @return Null-terminated string inside the parsed buffer
     char* word() {
         auto const start = msg_;
         while (*msg_ != '\0' && *msg_ != ' ') msg_++;
@@ -58,8 +69,8 @@ public:
         return *msg_ == '\0';
     }
 
-    /// @brief Return remaining unparsed string
-    /// @return Null-terminated string
+    /// @brief Return remaining unparsed string without consuming it
+    /// @return Null-terminated string inside the parsed buffer
     char const* peek() const {
         return msg_;
     }
@@ -78,7 +89,9 @@ public:
 /// - "\\s": ' '
 ///
 /// When any other escape sequence is used the leading '\\'
-/// is just dropped.
+/// is just dropped (so "\\\\" gives '\\'), and a lone trailing '\\'
+/// is dropped entirely. The unescaped value is never longer than the
+/// input, so it is written over the input; bytes after it are left stale.
 ///
 /// @param val The escaped, null-terminated value
 /// @return The view of the processed value
@@ -135,15 +148,6 @@ auto parse_irc_tags(char* str) -> std::vector<irctag>
     return tags;
 }
 
-/// @brief In-place parsing of IRC message
-///
-/// This implementation reuses the storage of the raw message
-/// being parsed. The resulting ircmsg is comprised of
-/// string_view values that point back into the original
-/// allocation.
-///
-/// @param msg The raw IRC message to parse
-/// @return ircmsg pointing into the input buffer
 auto parse_irc_message(char* const msg) -> ircmsg
 {
     parser p {msg};
@@ -177,11 +181,19 @@ auto parse_irc_message(char* const msg) -> ircmsg
     return out;
 }
 
+auto irc_error_message(irc_error_code const code) noexcept -> char const*
+{
+    switch (code) {
+    case irc_error_code::MISSING_TAG:
+        return "irc parse error: missing tag";
+    case irc_error_code::MISSING_COMMAND:
+        return "irc parse error: missing command";
+    default:
+        return "irc parse error: unknown error";
+    }
+}
+
 auto operator<<(std::ostream& out, irc_error_code const code) -> std::ostream&
 {
-    switch(code) {
-        case irc_error_code::MISSING_COMMAND: out << "MISSING COMMAND"; return out;
-        case irc_error_code::MISSING_TAG: out << "MISSING TAG"; return out;
-        default: return out;
-    }
+    return out << irc_error_message(code);
 }

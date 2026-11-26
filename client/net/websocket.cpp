@@ -1,4 +1,5 @@
 #include "websocket.hpp"
+#include "utf8.hpp"
 
 #include <string_view>
 #include <utility>
@@ -12,57 +13,6 @@ auto teardown(boost::beast::role_type, Stream& stream, boost::system::error_code
 namespace websocket {
 
 namespace {
-
-/// The length of the valid UTF-8 sequence that `s` starts with, or 0 if it
-/// doesn't start with one: an overlong form, a surrogate, a code point past
-/// U+10FFFF, or a sequence cut short
-auto utf8_sequence_length(std::string_view const s) -> std::size_t
-{
-    auto const byte = [s](std::size_t const i) { return static_cast<unsigned char>(s[i]); };
-    auto const lead = byte(0);
-    if (lead < 0x80)
-    {
-        return 1;
-    }
-
-    // The range of the second byte narrows for the leads that would
-    // otherwise allow the forms that aren't valid
-    std::size_t length = 0;
-    unsigned char low = 0x80, high = 0xbf;
-    if (0xc2 <= lead && lead <= 0xdf)
-    {
-        length = 2;
-    }
-    else if (0xe0 <= lead && lead <= 0xef)
-    {
-        length = 3;
-        if (lead == 0xe0) low = 0xa0; // overlong
-        if (lead == 0xed) high = 0x9f; // surrogate
-    }
-    else if (0xf0 <= lead && lead <= 0xf4)
-    {
-        length = 4;
-        if (lead == 0xf0) low = 0x90; // overlong
-        if (lead == 0xf4) high = 0x8f; // past U+10FFFF
-    }
-    else
-    {
-        return 0;
-    }
-
-    if (s.size() < length || byte(1) < low || high < byte(1))
-    {
-        return 0;
-    }
-    for (std::size_t i = 2; i < length; i++)
-    {
-        if ((byte(i) & 0xc0) != 0x80)
-        {
-            return 0;
-        }
-    }
-    return length;
-}
 
 /// The length of the longest prefix of `s` that is valid UTF-8
 auto valid_utf8_prefix(std::string_view const s) -> std::size_t
@@ -112,12 +62,16 @@ LineStream::LineStream(Stream next)
 {
 }
 
+/// The composed operation of async_read_some: Start reads a message only
+/// when none is buffered, Received appends its "\n", and either way the
+/// buffered bytes are then copied out
 struct LineStream::ReadOp
 {
     LineStream& stream;
     std::vector<boost::asio::mutable_buffer> buffers;
     enum class Step { Start, Received, Ready } step = Step::Start;
 
+    /// Run the next step, on initiation and as each read completes
     template <typename Self>
     auto operator()(Self& self, boost::system::error_code const error = {}, std::size_t = 0) -> void
     {
@@ -157,6 +111,9 @@ struct LineStream::ReadOp
     }
 };
 
+/// The composed operation of async_write_some: Start appends the buffers to
+/// out_, then each complete line is sent as a message in turn (Sent), and
+/// the operation completes when no complete line is left
 struct LineStream::WriteOp
 {
     LineStream& stream;
@@ -166,6 +123,7 @@ struct LineStream::WriteOp
     std::size_t in_flight = 0;
     enum class Step { Start, Sent, Done } step = Step::Start;
 
+    /// Run the next step, on initiation and as each message is sent
     template <typename Self>
     auto operator()(Self& self, boost::system::error_code const error = {}, std::size_t = 0) -> void
     {

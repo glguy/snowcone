@@ -778,6 +778,32 @@ TEST_F(Screen, Draws)
     finish(term);
 }
 
+// A pad drawn in one frame with more pairs than the screen's rows are given
+// keeps the colors of the rows shown, though they were drawn first
+TEST_F(Screen, PadKeepsItsColors)
+{
+    term.send("p");
+    expect_events(term, {"padded"});
+    ASSERT_TRUE(term.wait_until([&] { return term.row(23).starts_with("xxxx"); })) << term.screen();
+    std::string wrong;
+    for (int y = 0; y < 24; ++y)
+    {
+        for (int x = 0; x < 80; ++x)
+        {
+            auto const k = y * 200 + x;
+            auto const cell = term.cell(y, x);
+            auto const fore_ok = VTERM_COLOR_IS_INDEXED(&cell.fg) && cell.fg.indexed.idx == k % 256;
+            auto const back_ok = VTERM_COLOR_IS_INDEXED(&cell.bg) && cell.bg.indexed.idx == k / 256;
+            if (not fore_ok || not back_ok)
+            {
+                wrong += " " + std::to_string(y) + "," + std::to_string(x);
+            }
+        }
+    }
+    EXPECT_EQ("", wrong);
+    finish(term);
+}
+
 TEST_F(Screen, WideCharacters)
 {
     EXPECT_EQ("wide: \u00e9\u20ac\U0001f600\u6f22\u5b57|", term.row(2));

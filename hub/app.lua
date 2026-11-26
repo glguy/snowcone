@@ -88,7 +88,8 @@ local function add_command(current, name, cmd)
     local function fitting(text)
         if text ~= nil and type(text) ~= 'string' then return nil, 'not a string' end
         local placeholders, err = usage.parse(text)
-        err = err or usage.check(items, placeholders, cmd.shape ~= nil)
+        if not placeholders then return nil, err end
+        err = usage.check(items, placeholders, cmd.shape ~= nil)
         if err then return nil, err end
         return usage.align(items, placeholders)
     end

@@ -1,18 +1,22 @@
 #pragma once
 
+// Raising OpenSSL errors into Lua, and the boundary that wraps every
+// Lua-visible function in this library.
+
 struct lua_State;
 struct luaL_Reg;
 
 namespace myopenssl {
 
-/// @brief Throw Lua error for an OpenSSL library failure
+/// @brief Raise a Lua error for an OpenSSL library failure: "OpenSSL error
+/// in func", then each queued OpenSSL error on its own line. Drains the queue.
 /// @param L Lua interpreter state
 /// @param func Name of failed function
 [[noreturn]]
 auto openssl_failure(lua_State* L, char const* func) -> void;
 
-/// @brief Throw Lua error with the given message, followed by any queued
-/// OpenSSL errors
+/// @brief Raise a Lua error with the given message, followed by any queued
+/// OpenSSL errors, one per line. Drains the queue.
 /// @param L Lua interpreter state
 /// @param message First line of the error
 [[noreturn]]

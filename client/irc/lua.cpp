@@ -38,6 +38,9 @@ namespace {
 
 using namespace std::literals::string_view_literals;
 
+/// conn:close(): close the connection, ending the session with END(nil).
+/// Returns true, or nil and "connection closed" if this handle already
+/// closed it or the connection is gone.
 auto l_close_irc(lua_State* const L) -> int
 {
     auto const w = check_udata<std::weak_ptr<connection>>(L, 1);
@@ -57,6 +60,9 @@ auto l_close_irc(lua_State* const L) -> int
     }
 }
 
+/// conn:send(line): queue bytes to send; line should include its CR LF.
+/// Returns true, or nil and "connection closed" once the connection is
+/// closed or has ended.
 auto l_send_irc(lua_State* const L) -> int
 {
     auto const w = check_udata<std::weak_ptr<connection>>(L, 1);
@@ -78,14 +84,19 @@ auto l_send_irc(lua_State* const L) -> int
     }
 }
 
-// Not a lambda in pushirc: GCC 12 can't convert boundary<> of a local lambda
+/// __gc: release the handle's weak_ptr; the session itself keeps running.
+/// The empty weak_ptr owns nothing, so leaving it undestroyed is harmless,
+/// and a handle used after this (resurrected, or reached through a weak
+/// table) just reports "connection closed".
+/// Not a lambda in pushirc: GCC 12 can't convert boundary<> of a local lambda
 auto l_gc_irc(lua_State* const L) -> int
 {
     auto const w = check_udata<std::weak_ptr<connection>>(L, 1);
-    std::destroy_at(w);
+    w->reset();
     return 0;
 }
 
+/// Push a connection handle (with send and close) that refers weakly to irc
 auto pushirc(lua_State* const L, std::weak_ptr<connection> const irc) -> void
 {
     auto const w = new_udata<std::weak_ptr<connection>>(L, 1, [L] {
@@ -104,6 +115,9 @@ auto pushirc(lua_State* const L, std::weak_ptr<connection> const irc) -> void
         luaL_newlibtable(L, Methods);
         luaL_setfuncs(L, Methods, 0);
         lua_setfield(L, -2, "__index");
+        // Keep __gc out of reach of Lua code
+        lua_pushboolean(L, false);
+        lua_setfield(L, -2, "__metatable");
     });
     std::construct_at(w, irc);
 }
@@ -139,6 +153,7 @@ auto push_layer_info(lua_State* const L, LayerInfo const& info) -> void
     lua_pushinteger(L, static_cast<lua_Integer>(info.layer));
     lua_setfield(L, -2, "layer");
 
+    // Set the named field, leaving it absent when value is empty
     auto const field = [L](char const* const name, std::string_view const value) {
         if (not value.empty())
         {
@@ -165,7 +180,9 @@ auto push_layer_info(lua_State* const L, LayerInfo const& info) -> void
 /// @param irc_cb The Lua callback function reference.
 /// @param irc The shared pointer to the IRC connection.
 /// @param settings The settings for the IRC connection.
-/// @throws std::runtime_error if the line buffer is full.
+/// @throws boost::system::system_error or connection_error on a connect or
+/// read failure, irc_parse_error for a malformed line, and
+/// std::runtime_error if a line doesn't fit in the line buffer.
 auto run_session(
     lua_State* const L,
     int const irc_cb,
@@ -185,6 +202,7 @@ auto run_session(
     // cb("PROGRESS", "done", text, info)
     // cb("CON")
     {
+        // Deliver one PROGRESS event; established is null for "start"
         auto const progress = [L, irc_cb](std::string const& text, LayerInfo const* const established) {
             lua_rawgeti(L, LUA_REGISTRYINDEX, irc_cb);
             push_string(L, "PROGRESS"sv);
@@ -390,9 +408,9 @@ auto check_layer_port(lua_State* const L, lua_Integer const n) -> void
 }
 
 /// Raise a Lua error unless the value at the top of the stack is nil/absent
-/// or a string with no spaces or control characters, so it can't break out
-/// of the HTTP header or request line it is sent in. A `path` must also
-/// start with '/'. Pops the value. Returns whether a string was given.
+/// or a non-empty string with no spaces or control characters, so it can't
+/// break out of the HTTP header or request line it is sent in. A `path` must
+/// also start with '/'. Pops the value. Returns whether a string was given.
 auto check_layer_http_string(lua_State* const L, lua_Integer const n, char const* const field, bool const path) -> bool
 {
     auto const absent = lua_type(L, -1) <= LUA_TNIL;

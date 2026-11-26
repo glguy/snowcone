@@ -25,9 +25,10 @@ namespace {
 /// which may be collected, and its memory reused, while a completion is
 /// queued.
 ///
-/// The io_context destroys queued handlers only after lua_close, but no
-/// LuaRef is left to unref by then: every armed Pending belongs to a live
-/// timer, and lua_close runs each timer's __gc, which disarms it.
+/// Destroying a queued handler unrefs its LuaRef, which needs the state
+/// open. ~App destroys queued handlers (io_context.shutdown()) before
+/// lua_close, and any wait still armed then is disarmed by its timer's __gc
+/// during lua_close, so no LuaRef is left to unref after it.
 using Pending = std::optional<LuaRef>;
 
 struct Timer
@@ -69,6 +70,9 @@ auto l_gc(lua_State* const L) -> int
     return 0;
 }
 
+/// timer:start(delay, callback): cancel any wait in progress and call
+/// callback() once, after delay milliseconds (clamped to [0, ~31 years]).
+/// Raises an error on a finalized timer. Returns nothing.
 /// @param self
 /// @param delay milliseconds
 /// @param callback
@@ -108,6 +112,7 @@ auto l_start(lua_State* const L) -> int
     return 0;
 }
 
+/// timer:cancel(): no callback from an earlier start() runs after this.
 /// Does nothing on a finalized timer, which has no wait to cancel
 auto l_cancel(lua_State* const L) -> int
 {
