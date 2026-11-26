@@ -144,6 +144,28 @@ function M.matches(entry, pattern)
         or false
 end
 
+--- A ban, unban or kill entry matches a pattern: its mask, kind (kline,
+--- dline, kill, removed or inactive), oper (the full name, or the killer's
+--- nick or server), reason, or the nick of a user it hit. Each is matched
+--- alone, so ^ and $ anchor to one.
+---@param entry table
+---@param pattern string
+---@return boolean
+function M.ban_matches(entry, pattern)
+    local safematch = matching.safematch
+    if safematch(entry.mask, pattern)
+        or safematch(entry.kind, pattern)
+        or entry.oper and safematch(entry.oper, pattern)
+        or entry.reason and safematch(entry.reason, pattern)
+    then
+        return true
+    end
+    for nick in pairs(entry.nicks or {}) do
+        if safematch(nick, pattern) then return true end
+    end
+    return false
+end
+
 local function check_watches(S, ev, entry)
     for _, watch in ipairs(S.watches) do
         if watch.active then

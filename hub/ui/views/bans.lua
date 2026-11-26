@@ -7,9 +7,9 @@ local common     <const> = require 'hub.features.common'
 local control    <const> = require 'hub.ui.control'
 local dashboard  <const> = require 'hub.ui.dashboard'
 local draw       <const> = require 'hub.ui.draw'
-local matching   <const> = require 'hub.lib.matching'
 local oper       <const> = require 'hub.features.oper'
 local scrub      <const> = require 'hub.lib.scrub'
+local stores     <const> = require 'hub.features.snotice.stores'
 
 local palette <const> = {
     kline = draw.red,
@@ -19,12 +19,6 @@ local palette <const> = {
     kill = draw.magenta,
     dline = draw.cyan,
 }
-
-local function match_key(t, pat)
-    for k in pairs(t or {}) do
-        if matching.safematch(k, pat) then return true end
-    end
-end
 
 local function draw_entry(ctx, win, entry)
     local oper_name
@@ -106,11 +100,7 @@ return {
         local pattern = control.filter(ctx.id)
         local show
         if pattern then
-            show = function(entry)
-                return matching.safematch(entry.mask, pattern)
-                    or entry.reason and matching.safematch(entry.reason, pattern)
-                    or match_key(entry.nicks, pattern)
-            end
+            show = function(entry) return stores.ban_matches(entry, pattern) end
         end
         draw.draw_rotation(win, ctx.vs, 1, math.max(0, ctx.rows - 2), S.klines, show, function(w, entry)
             draw_entry(ctx, w, entry)

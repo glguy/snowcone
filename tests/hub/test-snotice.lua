@@ -306,6 +306,28 @@ T.case('a watch matches what the cliconn filter matches', function()
     T.eq({hits['^Real'], hits[ip]}, {1, 1}, 'gecos and IP alone')
 end)
 
+T.case('the bans filter matches each field of an entry alone', function()
+    local c = boot {'snotice'}
+    notice(c, 'a.example', 'op!o@staff/op{longopername} added global 60 min. K-Line for [*@192.0.2.9] [spam]')
+    notice(c, 'a.example', 'Disconnecting K-Lined user n1[~u@h1] (*@192.0.2.9)')
+    notice(c, 'a.example', 'Received KILL message for v!u@h.example. From killer Path: x!killer (go away)')
+    local ban_matches = T.require 'hub.features.snotice.stores'.ban_matches
+    local OrderedMap = T.require 'hub.lib.OrderedMap'
+    local S = stores()
+    local kline = OrderedMap.lookup(S.klines, 'kline *@192.0.2.9')
+    local kill = OrderedMap.lookup(S.klines, 'kill v')
+    local function hits(pattern)
+        return {ban_matches(kline, pattern), ban_matches(kill, pattern)}
+    end
+    T.eq(hits 'longopername', {true, false}, 'the oper past what its column shows')
+    T.eq(hits '^killer$', {false, true}, 'the killer')
+    T.eq(hits '^kill$', {false, true}, 'the kind, anchored to it alone')
+    T.eq(hits '^kline$', {true, false}, 'a timed K-Line by kind')
+    T.eq(hits '^n1$', {true, false}, 'a nick it hit')
+    T.eq(hits 'away', {false, true}, 'the reason')
+    T.eq(hits 'nobody', {false, false}, 'nothing else')
+end)
+
 T.case('/editwatch changes a watch by number', function()
     boot {'snotice'}
     local S = stores()
