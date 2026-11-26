@@ -624,21 +624,30 @@ char const* const udata_name<std::shared_ptr<Listener>> = "listener";
 namespace {
 
 /// listener:close(): stop listening and drop every open connection. Safe to
-/// repeat. Returns nothing.
+/// repeat, and does nothing on a finalized listener. Returns nothing.
 auto l_listener_close(lua_State* const L) -> int
 {
     auto& l = *check_udata<std::shared_ptr<Listener>>(L, 1);
-    l->close();
+    if (l)
+    {
+        l->close();
+    }
     return 0;
 }
 
-/// __gc: close the listener and destroy the userdata's shared_ptr
+/// __gc: close the listener and release the userdata's shared_ptr. The
+/// empty shared_ptr owns nothing, so leaving it undestroyed is harmless,
+/// and a listener used after this (resurrected, or reached through a weak
+/// table) is already closed.
 auto l_listener_gc(lua_State* const L) -> int
 {
     // Unreachable from Lua means nothing could close it later
-    auto const l = check_udata<std::shared_ptr<Listener>>(L, 1);
-    (*l)->close();
-    std::destroy_at(l);
+    auto& l = *check_udata<std::shared_ptr<Listener>>(L, 1);
+    if (l)
+    {
+        l->close();
+        l.reset();
+    }
     return 0;
 }
 
@@ -665,6 +674,9 @@ auto start_httpd(lua_State* const L) -> int
         luaL_newlibtable(L, M);
         luaL_setfuncs(L, M, 0);
         lua_setfield(L, -2, "__index");
+        // Keep __gc out of reach of Lua code
+        lua_pushboolean(L, false);
+        lua_setfield(L, -2, "__metatable");
     });
 
     std::construct_at(

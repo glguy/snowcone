@@ -84,12 +84,15 @@ auto l_send_irc(lua_State* const L) -> int
     }
 }
 
-/// __gc: destroy the handle's weak_ptr; the session itself keeps running.
+/// __gc: release the handle's weak_ptr; the session itself keeps running.
+/// The empty weak_ptr owns nothing, so leaving it undestroyed is harmless,
+/// and a handle used after this (resurrected, or reached through a weak
+/// table) just reports "connection closed".
 /// Not a lambda in pushirc: GCC 12 can't convert boundary<> of a local lambda
 auto l_gc_irc(lua_State* const L) -> int
 {
     auto const w = check_udata<std::weak_ptr<connection>>(L, 1);
-    std::destroy_at(w);
+    w->reset();
     return 0;
 }
 
@@ -112,6 +115,9 @@ auto pushirc(lua_State* const L, std::weak_ptr<connection> const irc) -> void
         luaL_newlibtable(L, Methods);
         luaL_setfuncs(L, Methods, 0);
         lua_setfield(L, -2, "__index");
+        // Keep __gc out of reach of Lua code
+        lua_pushboolean(L, false);
+        lua_setfield(L, -2, "__metatable");
     });
     std::construct_at(w, irc);
 }
