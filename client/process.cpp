@@ -370,7 +370,8 @@ auto l_execute(lua_State* const L) -> int
         lua_pushnil(L);
         while (lua_next(L, 4))
         {
-            auto const key = lua_type(L, -2) == LUA_TSTRING ? std::string_view{lua_tostring(L, -2)} : std::string_view{};
+            // with its length, so a NUL in a key can't truncate it to a known one
+            auto const key = to_string_view(L, -2).value_or(std::string_view{});
             if (key == "input")
             {
                 luaL_argcheck(L, lua_type(L, -1) == LUA_TSTRING, 4, "input must be a string");

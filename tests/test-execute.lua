@@ -13,6 +13,7 @@ end
 
 rejects('group without input', 'group needs input', 'true', {}, noop, {group = true})
 rejects('unknown option', 'unknown option', 'true', {}, noop, {inputs = ''})
+rejects('a known option with a NUL after it', 'unknown option', 'true', {}, noop, {['input\0x'] = ''})
 rejects('input type', 'input must be a string', 'true', {}, noop, {input = 1})
 rejects('group type', 'group must be a boolean', 'true', {}, noop, {input = '', group = 1})
 rejects('max_output type', 'max_output must be an integer', 'true', {}, noop, {max_output = 1.5})
