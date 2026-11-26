@@ -35,7 +35,9 @@ These hold everywhere. A change that breaks one needs a decision recorded in
    over the oldest ones, above a moving divider, so lines stay put while
    they are read or clicked. Scrolling back pins the view.
 7. **Features never draw.** Features update data and emit events; the UI
-   decides what to show, beep or flash.
+   decides what to show, beep or flash. Notify's backends are the one
+   exception: a desktop notification is not drawing, and the bell and
+   iTerm2 ones write their escape to the terminal themselves.
 8. **Failures stay where they happen, and are reported in one place.** An
    error in a route, subscriber, handler, plugin or command goes through
    `log.error` to the status view with its origin, and the rest of the
@@ -100,10 +102,11 @@ curses mode, so nothing that can fail lives there.) Each reload builds a
 `x/y.lua` or `x/y/init.lua`; other names go to the real `require`, so
 Penlight and native libraries load once.
 
-`app.build` loads configuration, every module and the plugins into the new
+`app.build` loads configuration and every module into the new
 generation. Only when all of it succeeded does it become `HUB.current`;
-`app.activate` then applies configuration and runs each module's
-`activate`. Any error before the swap leaves the old generation current.
+`app.activate` then applies configuration, starts the plugins (section 6)
+and runs each module's `activate`. Any error before the swap leaves the
+old generation current; a plugin that fails to start is only logged.
 
 A module may export:
 
@@ -133,6 +136,7 @@ Duplicate routes, commands or views fail the build.
 | `last_reload` | yes | Time and result of the last load, for `/client`. |
 | `errors` | yes | Error counts, total and by origin, for `/client`. |
 | `dirty`, `defer_draw` | yes | A draw is due; the current callback holds it back. |
+| `drawn_at`, `draw_timer` | yes | When the screen was last drawn; the timer of a draw held back (`runtime/pace.lua`). |
 | `entry_installed` | yes | The `setmodule` entry is in place. |
 | `tty_suspended` | yes | How many children hold the terminal. |
 | `tty_unfocused` | yes | The terminal said it lost focus (`runtime/tty.lua`). |
@@ -154,8 +158,10 @@ traceback (and re-raised
 only in the tests' strict mode), and the screen is drawn if something called
 `dispatch.dirty()`. A callback that knows more is coming calls
 `dispatch.defer_draw()`; the connection does that for every line but the
-last of a read, so a burst of messages draws once. The 1 Hz tick draws
-whatever is pending.
+last of a read, so a burst of messages draws once. Reads draw at most once
+every 100 ms (`runtime/pace.lua`): the last line of a read that comes
+sooner holds its draw on a timer. Keys and timers draw at once. The 1 Hz
+tick redraws every second, for the clocks and fading.
 
 ### Events
 
@@ -171,8 +177,9 @@ every topic, and a test checks that every literal topic emitted is listed.
 - `timer.start(owner, ms, route, ...)` is a one-shot timer firing into a
   route; repeat by starting another.
 - `task.spawn(name, {net, owner}, fn, ...)` runs a coroutine that can
-  `wait_irc(commands, timeout)`, `wait_event`, `sleep`, `dnslookup`,
-  `execute` and `prompt`, and calls `t:send`, `t:log`, `t:emit`, `t:api`.
+  `wait_irc(commands, timeout)`, `wait_reply`, `wait_event`, `sleep`,
+  `dnslookup`, `execute` and `prompt`, and calls `t:send`, `t:log`,
+  `t:emit`, `t:api`, `t:spawn` (a task of its own) and `t:cancel`.
   `t:request(commands, timeout, cmd, ...)` sends a command and iterates
   over its replies: the labeled reply when the network has
   `labeled-response`, else `wait_irc` steps.
@@ -222,7 +229,8 @@ connected at once.
   configuration (bad secrets, no host, a nick or password the server can't
   take) stop retrying (`manager.give_up`); refused connections retry.
   Every ending has a kind (`hub.CloseReason`: `local`, `config`, `banned`,
-  `refused`, `timeout`, `stream`, `server`) that decides what comes next,
+  `timeout`, `stream`, `server`; a refused connection is `stream`) that
+  decides what comes next,
   and is kept in `rec.closed` until a connection registers, so the views
   say why a network is down. A ban (465) retries after the longest delay.
 - **Liveness:** a PING once a minute (and after 30 s of silence) measures
@@ -409,7 +417,7 @@ A kind is a record:
 | --- | --- |
 | `kind` | Its name. |
 | `render(ctx, win)` | Draws the content, wrapped like a document. |
-| `rows(ctx)` | In place of `render`, for content that can be long: returns the count of rows and `draw(win, i)`, which draws row `i` at the cursor. Only the rows shown are drawn. |
+| `rows(ctx)` | In place of `render`, for content that can be long: returns the count of rows and `draw(win, i)`, which draws row `i` at the cursor, and optionally `pinned(i)`, which gives a function drawing the row to keep above row `i` once scrolled (a table's header), or nil. Only the rows shown are drawn. |
 | `title(detail)`, `modes(detail)` | Optional, for the rule. |
 | `keypress(ctx, key)` | Optional; comes before the view's. |
 | `filter` | It takes the filter while shown, and reads it with `control.filter(ctx.id)`. |
@@ -502,6 +510,8 @@ of ours last showed it, or the longest allowed until one has.
 ### Profiles
 
 `[ui] profile` (`dashboard`, `chat` or `all`) chooses the view rotation.
+The schema's list and `ui/control.lua`'s rotations are kept in step by a
+test.
 The rotation leaves out views for features the current network lacks.
 
 ### Filters
@@ -512,9 +522,13 @@ views also take a structured query (`/prefilter`).
 
 ## 8. Configuration
 
+A sketch of the file; `docs/CONFIG.md` describes every setting.
+
 ```toml
 [ui]
-profile = 'all'
+profile = 'all'                # dashboard, chat or all
+theme = 'modern'               # or classic
+separators = 'powerline'       # rounded, slant or plain
 
 [mention]                      # default for networks without their own
 patterns = ['%f[%w]mynick%f[^%w]']
@@ -522,12 +536,17 @@ patterns = ['%f[%w]mynick%f[^%w]']
 [notifications]
 backend = 'mac'                # bell, mac or iterm2
 
+[spell]                        # optional
+dictionary = '/usr/share/hunspell/en_US'  # personal = your word list
+
 [plugins]
 directory = 'plugins'          # relative to this file; default: plugins in the config directory
 modules = ['example']
+[plugins.custom.example]       # the plugin's api.config
 
 [[networks]]
 id = 'libera'                  # required; shown in the status bar
+ircd = 'solanum'               # or oftc-hybrid
 features = ['snotice', 'oper', 'topology', 'chat']
 autoconnect = true
 reconnect = { min_delay = 1, max_delay = 300 }
@@ -543,6 +562,9 @@ quit_message = 'bye'
 [networks.registration]        # password, username, capabilities
 [networks.sasl]                # automatic, credentials
 [networks.oper]                # automatic, credentials (password or challenge)
+[networks.mention]             # replaces [mention] for this network
+[[networks.buffers]]           # name, join, key, mention, activity, label, hidden
+[[networks.hide]]              # buffer, nick, account, command, pattern, regex, action
 [[networks.watches]]           # pattern, color, beep, flash, active
 ```
 
@@ -570,11 +592,12 @@ hub relies on these parts of the `snowcone` table (see `client/`):
 | `setmodule(fn)` | The single entry for keyboard, paste, mouse, resize, signals and print. A bracketed paste arrives whole as `on_paste(text)`, raw (escape sequences intact); one over 64 KiB is discarded and arrives as `on_paste(nil, size)`. A left click arrives as `on_mouse(y, x, shifted)` and a turn of the wheel as `on_wheel(y, x, delta)`, 1 up and -1 down. |
 | `start_ui()` | Takes over the terminal (ncurses, bracketed paste, keyboard input, signal handling, the window title and icon name, saved to restore at exit) and defines `ncurses`, `tty_width` and `tty_height`. Without it a program has no terminal and `print` writes to stdout; tests never call it. One-way; does nothing on a reload. hub's `init.lua` calls it when run as the program. |
 | `catch_signals(on)` | SIGINT, SIGTERM and SIGHUP arrive as `on_signal(name)`; otherwise the terminal is restored and the default action taken. `shutdown()` restores the terminal and the defaults for good, so a ^C then ends a process that fails to exit. ^Z (SIGTSTP) is handled natively: the terminal is restored, the process group stops, and SIGCONT redraws through `on_resize`. |
+| `write_private(path, content)` | Creates a file only its owner can read and write; an existing file is left alone and is an error. Returns true, or nil and a message. |
 | `set_title(text)` | Sets the terminal's window title and icon name (OSC 0) while the client has the terminal; nothing without a UI or while a child has it. |
 | `start_httpd`, `parse_irc`, `parse_irc_tags`, `irccase`, `pton`, `shutdown`, `raise`, `isalnum`, `stop_input`, `start_input` | As documented in `client/`. |
 
-Optional libraries (`mystringprep`, `mygeoip`, `mmdb`, `rex_pcre2`) are
-detected, never assumed.
+Optional libraries (`mystringprep`, `mmdb`, `rex_pcre2`) are detected,
+never assumed.
 
 ## 10. Testing
 
@@ -610,8 +633,10 @@ All tests run in snowcone without a UI, from CTest, with `luacheck` over
   ends. It is built only when libvterm is found.
 - Golden replay: `fixtures/snotes-live.log` (captured from a live network,
   anonymized by `tests/hub/tools/anonymize-snotes.lua`) and `snotes-synthetic.log`,
-  checked against the output of the reference parser in
-  `tests/hub/tools/parse_snote.lua`. Fixtures never contain personal data.
+  replayed through the snotice feature and checked against
+  `*.expected.lua`, which `tests/hub/tools/expect-snotes.lua` writes from
+  the reference parser in `tests/hub/tools/parse_snote.lua`. Fixtures
+  never contain personal data.
 - `test-structure.lua` enforces layering, native API ownership and the
   event catalog.
 - Two tools measure the tests themselves. `tests/hub/tools/coverage.sh`
@@ -630,5 +655,6 @@ Work that the design leaves room for:
 - **A table-driven notice parser,** checked against the golden fixtures.
 - **Paging back through chat history** with CHATHISTORY BEFORE when a
   buffer is scrolled to its start.
-- **State across restarts** (buffers, watches, plugin state) by saving
-  `HUB.state` parts on quit.
+- **State across restarts** (buffers, watches) by saving `HUB.state`
+  parts on quit. Plugins already have it, by hand: `api.save` and
+  `api.load`.
