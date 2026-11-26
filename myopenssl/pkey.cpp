@@ -1,5 +1,9 @@
 /***
-public/private key object
+public/private key object, from myopenssl.read_pem, read_raw, gen_pkey,
+pkey_from_store or x509:get_pubkey
+
+Closing (or collecting) a key frees it, and later use raises
+"pkey already closed".
 
 @classmod pkey
 */
@@ -9,6 +13,7 @@ public/private key object
 #include "digest.hpp"
 #include "errors.hpp"
 #include "invoke.hpp"
+#include "owned.hpp"
 
 extern "C" {
 #include <lauxlib.h>
@@ -17,6 +22,7 @@ extern "C" {
 
 #include <openssl/err.h>
 #include <openssl/evp.h>
+#include <openssl/params.h>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
 #include <openssl/store.h>
@@ -24,11 +30,13 @@ extern "C" {
 
 #include <climits>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <string_view>
 
 namespace myopenssl {
 
+/// Registry name of the pkey metatable
 static char const pkey_name[] = "EVP_PKEY*";
 
 auto check_pkey(lua_State* const L, int const arg) -> EVP_PKEY*
@@ -46,6 +54,13 @@ auto test_pkey(lua_State* const L, int const arg) -> EVP_PKEY*
 
 namespace {
 
+    using PkeyCtx = Owned<EVP_PKEY_CTX, EVP_PKEY_CTX_free>;
+    using MdCtx = Owned<EVP_MD_CTX, EVP_MD_CTX_free>;
+    using Bio = Owned<BIO, BIO_free_all>;
+    using Params = Owned<OSSL_PARAM, OSSL_PARAM_free>;
+
+    /// __gc and __close: free the key and mark the userdata closed. Safe to
+    /// run again on a closed key.
     auto l_gc(lua_State* const L) -> int
     {
         auto const pkeyPtr = static_cast<EVP_PKEY**>(luaL_checkudata(L, 1, pkey_name));
@@ -54,6 +69,26 @@ namespace {
         return 0;
     }
 
+    /// Push a bignum with value
+    auto push_int64(lua_State* const L, std::int64_t const value) -> void
+    {
+        auto const r = new_bignum(L);
+        // the magnitude, as unsigned arithmetic, so INT64_MIN works too
+        auto magnitude = value < 0 ? 0 - static_cast<std::uint64_t>(value) : static_cast<std::uint64_t>(value);
+        unsigned char bytes[8];
+        for (int i = 7; i >= 0; i--)
+        {
+            bytes[i] = static_cast<unsigned char>(magnitude & 0xff);
+            magnitude >>= 8;
+        }
+        if (nullptr == BN_bin2bn(bytes, sizeof bytes, r))
+        {
+            openssl_failure(L, "BN_bin2bn");
+        }
+        BN_set_negative(r, value < 0);
+    }
+
+    /// Pkey metamethods, registered without the dispatch boundary
     luaL_Reg const PkeyMT[]{
         {"__gc", l_gc},
         {"__close", l_gc},
@@ -64,9 +99,11 @@ namespace {
     @type pkey
     */
 
+    /// Pkey methods, the metatable's __index
     luaL_Reg const PkeyMethods[]{
         /***
-        Sign a message using a private key
+        Sign data with a private key directly (no digest: data is
+        typically already a digest)
         @function pkey:sign
         @tparam string data to sign
         @treturn string signature bytes
@@ -77,7 +114,8 @@ namespace {
              std::size_t data_len;
              auto const data = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 2, &data_len));
 
-             auto const ctx = EVP_PKEY_CTX_new(pkey, nullptr);
+             auto& ctx = PkeyCtx::push(L);
+             ctx = EVP_PKEY_CTX_new(pkey, nullptr);
              if (nullptr == ctx)
              {
                  openssl_failure(L, "EVP_PKEY_CTX_new");
@@ -86,7 +124,7 @@ namespace {
              auto success = EVP_PKEY_sign_init(ctx);
              if (0 >= success)
              {
-                 EVP_PKEY_CTX_free(ctx);
+                 PkeyCtx::reset(ctx);
                  openssl_failure(L, "EVP_PKEY_sign_init");
              }
 
@@ -96,7 +134,7 @@ namespace {
 
              if (0 >= success)
              {
-                 EVP_PKEY_CTX_free(ctx);
+                 PkeyCtx::reset(ctx);
                  openssl_failure(L, "EVP_PKEY_sign");
              }
 
@@ -104,7 +142,7 @@ namespace {
              auto const sig = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, sig_len));
 
              success = EVP_PKEY_sign(ctx, sig, &sig_len, data, data_len);
-             EVP_PKEY_CTX_free(ctx);
+             PkeyCtx::reset(ctx);
 
              if (0 >= success)
              {
@@ -116,9 +154,10 @@ namespace {
          }},
 
         /***
-        Sign a message using a private key
+        Sign a message using a private key, digesting it first
         @function pkey:digest_sign
-        @tparam[opt] digest digest to use
+        @tparam[opt] digest digest to use; nil for the key type's default,
+        and required to be nil for ED25519 and ED448
         @tparam string data to sign
         @treturn string signature bytes
         @raise openssl error on failure
@@ -129,7 +168,8 @@ namespace {
              std::size_t data_len;
              auto const data = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 3, &data_len));
 
-             auto const ctx = EVP_MD_CTX_new();
+             auto& ctx = MdCtx::push(L);
+             ctx = EVP_MD_CTX_new();
              if (nullptr == ctx)
              {
                  openssl_failure(L, "EVP_MD_CTX_new");
@@ -138,7 +178,7 @@ namespace {
              auto success = EVP_DigestSignInit(ctx, nullptr, md, nullptr, pkey);
              if (0 >= success)
              {
-                 EVP_MD_CTX_free(ctx);
+                 MdCtx::reset(ctx);
                  openssl_failure(L, "EVP_DigestSignInit");
              }
 
@@ -148,7 +188,7 @@ namespace {
 
              if (0 >= success)
              {
-                 EVP_MD_CTX_free(ctx);
+                 MdCtx::reset(ctx);
                  openssl_failure(L, "EVP_DigestSign");
              }
 
@@ -156,7 +196,7 @@ namespace {
              auto const sig = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, sig_len));
 
              success = EVP_DigestSign(ctx, sig, &sig_len, data, data_len);
-             EVP_MD_CTX_free(ctx);
+             MdCtx::reset(ctx);
 
              if (0 >= success)
              {
@@ -170,11 +210,12 @@ namespace {
         /***
         Verify a message signature using a public key
         @function pkey:digest_verify
-        @tparam[opt] digest digest to use
+        @tparam[opt] digest digest to use; nil as for digest_sign
         @tparam string signature
         @tparam string signed data
-        @treturn boolean success
-        @raise openssl error on failure
+        @treturn boolean whether the signature verifies
+        @raise openssl error when OpenSSL reports an error rather than a
+        mismatch (for some key types, a malformed signature)
         */
         {"digest_verify", [](auto const L) {
              auto const pkey = check_pkey(L, 1);
@@ -184,7 +225,8 @@ namespace {
              std::size_t data_len;
              auto const data = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 4, &data_len));
 
-             auto const ctx = EVP_MD_CTX_new();
+             auto& ctx = MdCtx::push(L);
+             ctx = EVP_MD_CTX_new();
              if (nullptr == ctx)
              {
                  openssl_failure(L, "EVP_MD_CTX_new");
@@ -193,12 +235,12 @@ namespace {
              auto success = EVP_DigestVerifyInit(ctx, nullptr, md, nullptr, pkey);
              if (0 >= success)
              {
-                 EVP_MD_CTX_free(ctx);
+                 MdCtx::reset(ctx);
                  openssl_failure(L, "EVP_DigestVerifyInit");
              }
 
              success = EVP_DigestVerify(ctx, sig, sig_len, data, data_len);
-             EVP_MD_CTX_free(ctx);
+             MdCtx::reset(ctx);
 
              if (0 > success)
              {
@@ -213,12 +255,13 @@ namespace {
          }},
 
         /***
-        Verify a signature using a public key
+        Verify a signature made by pkey:sign, using a public key
         @function pkey:verify
         @tparam string signature
         @tparam string signed data
-        @treturn boolean success
-        @raise openssl error on failure
+        @treturn boolean whether the signature verifies
+        @raise openssl error when OpenSSL reports an error rather than a
+        mismatch (for some key types, a malformed signature)
         */
         {"verify", [](auto const L) {
              auto const pkey = check_pkey(L, 1);
@@ -227,7 +270,8 @@ namespace {
              std::size_t data_len;
              auto const data = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 3, &data_len));
 
-             auto const ctx = EVP_PKEY_CTX_new(pkey, nullptr);
+             auto& ctx = PkeyCtx::push(L);
+             ctx = EVP_PKEY_CTX_new(pkey, nullptr);
              if (nullptr == ctx)
              {
                  openssl_failure(L, "EVP_PKEY_CTX_new");
@@ -236,12 +280,12 @@ namespace {
              auto success = EVP_PKEY_verify_init(ctx);
              if (0 >= success)
              {
-                 EVP_PKEY_CTX_free(ctx);
+                 PkeyCtx::reset(ctx);
                  openssl_failure(L, "EVP_PKEY_verify_init");
              }
 
              success = EVP_PKEY_verify(ctx, sig, sig_len, data, data_len);
-             EVP_PKEY_CTX_free(ctx);
+             PkeyCtx::reset(ctx);
 
              if (0 > success) {
                  openssl_failure(L, "EVP_PKEY_verify");
@@ -258,9 +302,10 @@ namespace {
         Decrypt a message using a private key
         @function pkey:decrypt
         @tparam string ciphertext
-        @tparam[opt] string format ("oaep" supported)
+        @tparam[opt] string format "oaep" for RSA OAEP padding; omitted or
+        "" for the key type's default
         @treturn string plaintext
-        @raise openssl error on failure
+        @raise on any other format, or openssl error on failure
         */
         {"decrypt", [](auto const L) {
              auto const pkey = check_pkey(L, 1);
@@ -269,7 +314,8 @@ namespace {
              auto const format = luaL_optlstring(L, 3, "", nullptr);
              luaL_argcheck(L, 0 == strcmp("", format) || 0 == strcmp("oaep", format), 3, "unknown padding (only \"oaep\" is supported)");
 
-             auto const ctx = EVP_PKEY_CTX_new(pkey, nullptr);
+             auto& ctx = PkeyCtx::push(L);
+             ctx = EVP_PKEY_CTX_new(pkey, nullptr);
              if (nullptr == ctx)
              {
                  openssl_failure(L, "EVP_PKEY_CTX_new");
@@ -278,7 +324,7 @@ namespace {
              auto success = EVP_PKEY_decrypt_init(ctx);
              if (0 >= success)
              {
-                 EVP_PKEY_CTX_free(ctx);
+                 PkeyCtx::reset(ctx);
                  openssl_failure(L, "EVP_PKEY_decrypt_init");
              }
 
@@ -287,7 +333,7 @@ namespace {
                  success = EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING);
                  if (0 >= success)
                  {
-                     EVP_PKEY_CTX_free(ctx);
+                     PkeyCtx::reset(ctx);
                      openssl_failure(L, "EVP_PKEY_CTX_set_rsa_padding");
                  }
              }
@@ -296,7 +342,7 @@ namespace {
              success = EVP_PKEY_decrypt(ctx, nullptr, &out_len, in, in_len);
              if (0 >= success)
              {
-                 EVP_PKEY_CTX_free(ctx);
+                 PkeyCtx::reset(ctx);
                  openssl_failure(L, "EVP_PKEY_decrypt");
              }
 
@@ -304,7 +350,7 @@ namespace {
              auto const out = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, out_len));
 
              success = EVP_PKEY_decrypt(ctx, out, &out_len, in, in_len);
-             EVP_PKEY_CTX_free(ctx);
+             PkeyCtx::reset(ctx);
 
              if (0 >= success)
              {
@@ -319,9 +365,10 @@ namespace {
         Encrypt a message using a public key
         @function pkey:encrypt
         @tparam string plaintext
-        @tparam[opt] string format ("oaep" supported)
+        @tparam[opt] string format "oaep" for RSA OAEP padding; omitted or
+        "" for the key type's default
         @treturn string ciphertext
-        @raise openssl error on failure
+        @raise on any other format, or openssl error on failure
         */
         {"encrypt", [](auto const L) {
              auto const pkey = check_pkey(L, 1);
@@ -330,7 +377,8 @@ namespace {
              auto const format = luaL_optlstring(L, 3, "", nullptr);
              luaL_argcheck(L, 0 == strcmp("", format) || 0 == strcmp("oaep", format), 3, "unknown padding (only \"oaep\" is supported)");
 
-             auto const ctx = EVP_PKEY_CTX_new(pkey, nullptr);
+             auto& ctx = PkeyCtx::push(L);
+             ctx = EVP_PKEY_CTX_new(pkey, nullptr);
              if (nullptr == ctx)
              {
                  openssl_failure(L, "EVP_PKEY_CTX_new");
@@ -339,7 +387,7 @@ namespace {
              auto success = EVP_PKEY_encrypt_init(ctx);
              if (0 >= success)
              {
-                 EVP_PKEY_CTX_free(ctx);
+                 PkeyCtx::reset(ctx);
                  openssl_failure(L, "EVP_PKEY_encrypt_init");
              }
 
@@ -348,7 +396,7 @@ namespace {
                  success = EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING);
                  if (0 >= success)
                  {
-                     EVP_PKEY_CTX_free(ctx);
+                     PkeyCtx::reset(ctx);
                      openssl_failure(L, "EVP_PKEY_CTX_set_rsa_padding");
                  }
              }
@@ -357,7 +405,7 @@ namespace {
              success = EVP_PKEY_encrypt(ctx, nullptr, &out_len, in, in_len);
              if (0 >= success)
              {
-                 EVP_PKEY_CTX_free(ctx);
+                 PkeyCtx::reset(ctx);
                  openssl_failure(L, "EVP_PKEY_encrypt");
              }
 
@@ -365,7 +413,7 @@ namespace {
              auto const out = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, out_len));
 
              success = EVP_PKEY_encrypt(ctx, out, &out_len, in, in_len);
-             EVP_PKEY_CTX_free(ctx);
+             PkeyCtx::reset(ctx);
 
              if (0 >= success)
              {
@@ -387,7 +435,8 @@ namespace {
              auto const priv = check_pkey(L, 1);
              auto const pub = check_pkey(L, 2);
 
-             auto const ctx = EVP_PKEY_CTX_new(priv, nullptr);
+             auto& ctx = PkeyCtx::push(L);
+             ctx = EVP_PKEY_CTX_new(priv, nullptr);
              if (nullptr == ctx)
              {
                  openssl_failure(L, "EVP_PKEY_CTX_new");
@@ -396,14 +445,14 @@ namespace {
              auto success = EVP_PKEY_derive_init(ctx);
              if (0 >= success)
              {
-                 EVP_PKEY_CTX_free(ctx);
+                 PkeyCtx::reset(ctx);
                  openssl_failure(L, "EVP_PKEY_derive_init");
              }
 
              success = EVP_PKEY_derive_set_peer(ctx, pub);
              if (0 >= success)
              {
-                 EVP_PKEY_CTX_free(ctx);
+                 PkeyCtx::reset(ctx);
                  openssl_failure(L, "EVP_PKEY_derive_set_peer");
              }
 
@@ -411,7 +460,7 @@ namespace {
              success = EVP_PKEY_derive(ctx, nullptr, &out_len);
              if (0 >= success)
              {
-                 EVP_PKEY_CTX_free(ctx);
+                 PkeyCtx::reset(ctx);
                  openssl_failure(L, "EVP_PKEY_derive");
              }
 
@@ -419,7 +468,7 @@ namespace {
              auto const out = reinterpret_cast<unsigned char*>(luaL_buffinitsize(L, &B, out_len));
 
              success = EVP_PKEY_derive(ctx, out, &out_len);
-             EVP_PKEY_CTX_free(ctx);
+             PkeyCtx::reset(ctx);
 
              if (0 >= success)
              {
@@ -430,11 +479,23 @@ namespace {
              return 1;
          }},
 
+        /***
+        Encode the private key in PEM format, encrypted when a cipher and
+        password are given
+        @function pkey:to_private_pem
+        @tparam[opt] string cipher OpenSSL cipher name, such as "aes256"
+        @tparam[opt] string password required exactly when cipher is given
+        @treturn string PEM text
+        @raise when only one of cipher and password is given, or openssl
+        error on failure, including an unknown cipher
+        */
         {"to_private_pem", [](auto const L) {
              auto const pkey = check_pkey(L, 1);
              auto const cipher_name = luaL_optlstring(L, 2, nullptr, nullptr);
              std::size_t pass_len;
              auto const pass = reinterpret_cast<unsigned char const*>(luaL_optlstring(L, 3, nullptr, &pass_len));
+
+             luaL_argcheck(L, pass_len <= INT_MAX, 3, "too long");
 
              if (nullptr == cipher_name && nullptr != pass)
              {
@@ -456,79 +517,115 @@ namespace {
                  }
              }
 
-             auto const bio = BIO_new(BIO_s_mem());
+             auto& bio = Bio::push(L);
+             bio = BIO_new(BIO_s_mem());
              if (nullptr == bio)
              {
                  openssl_failure(L, "BIO_new");
              }
 
-             if (0 == PEM_write_bio_PrivateKey(bio, pkey, cipher, pass, pass_len, nullptr, nullptr))
+             if (0 == PEM_write_bio_PrivateKey(bio, pkey, cipher, pass, static_cast<int>(pass_len), nullptr, nullptr))
              {
-                 BIO_free_all(bio);
                  openssl_failure(L, "PEM_write_bio_PrivateKey");
              }
              char* data;
              auto const len = BIO_get_mem_data(bio, &data);
              lua_pushlstring(L, data, len);
-             BIO_free_all(bio);
+             Bio::reset(bio);
              return 1;
          }},
 
+        /***
+        Encode the public key in PEM format
+        @function pkey:to_public_pem
+        @treturn string PEM text
+        @raise openssl error on failure
+        */
         {"to_public_pem", [](auto const L) {
              auto const pkey = check_pkey(L, 1);
-             auto const bio = BIO_new(BIO_s_mem());
+             auto& bio = Bio::push(L);
+             bio = BIO_new(BIO_s_mem());
              if (nullptr == bio)
              {
                  openssl_failure(L, "BIO_new");
              }
              if (0 == PEM_write_bio_PUBKEY(bio, pkey))
              {
-                 BIO_free_all(bio);
                  openssl_failure(L, "PEM_write_bio_PUBKEY");
              }
              char* data;
              auto const len = BIO_get_mem_data(bio, &data);
              lua_pushlstring(L, data, len);
-             BIO_free_all(bio);
+             Bio::reset(bio);
              return 1;
          }},
 
+        /***
+        Export the key's parameters, such as `pub` and `priv`
+        @function pkey:export
+        @treturn table parameter name to value: integers as bignums,
+        everything else as raw bytes in a string
+        @raise openssl error on failure
+        */
         {"export", [](auto const L) {
              auto const pkey = check_pkey(L, 1);
 
-             auto const cb = [L](OSSL_PARAM const* const params) {
-                 for (auto cursor = params; cursor->key; cursor++)
-                 {
-                     switch (cursor->data_type)
-                     {
-                     case OSSL_PARAM_UNSIGNED_INTEGER:
-                     case OSSL_PARAM_INTEGER: {
-                         auto r = push_bignum(L);
-                         if (0 == OSSL_PARAM_get_BN(cursor, &r))
-                         {
-                             return 0; // failure
-                         }
-                         break;
-                     }
-                     default:
-                         lua_pushlstring(L, reinterpret_cast<char const*>(cursor->data), cursor->data_size);
-                         break;
-                     }
-                     lua_setfield(L, -2, cursor->key);
-                 }
-                 return 1; // success
-             };
+             auto& params = Params::push(L);
+             if (0 == EVP_PKEY_todata(pkey, EVP_PKEY_KEYPAIR, &params))
+             {
+                 openssl_failure(L, "EVP_PKEY_todata");
+             }
 
              lua_newtable(L);
-             using Invoker = Invoke<decltype(cb)>;
-             auto const success = EVP_PKEY_export(pkey, EVP_PKEY_KEYPAIR, Invoker::invoke, Invoker::prep(cb));
-             if (0 == success)
+             for (auto cursor = params; cursor->key; cursor++)
              {
-                 openssl_failure(L, "EVP_PKEY_export");
+                 switch (cursor->data_type)
+                 {
+                 case OSSL_PARAM_UNSIGNED_INTEGER: {
+                     auto& r = push_bignum(L);
+                     if (0 == OSSL_PARAM_get_BN(cursor, &r))
+                     {
+                         openssl_failure(L, "OSSL_PARAM_get_BN");
+                     }
+                     break;
+                 }
+                 case OSSL_PARAM_INTEGER: {
+                     // OSSL_PARAM_get_BN takes signed integers only from
+                     // OpenSSL 3.2, and EC keys have int parameters
+                     std::int64_t value;
+                     if (0 != OSSL_PARAM_get_int64(cursor, &value))
+                     {
+                         push_int64(L, value);
+                     }
+                     else
+                     {
+                         auto& r = push_bignum(L);
+                         if (0 == OSSL_PARAM_get_BN(cursor, &r))
+                         {
+                             openssl_failure(L, "OSSL_PARAM_get_BN");
+                         }
+                     }
+                     break;
+                 }
+                 default:
+                     lua_pushlstring(L, static_cast<char const*>(cursor->data), cursor->data_size);
+                     break;
+                 }
+                 lua_setfield(L, -2, cursor->key);
              }
+             Params::reset(params);
              return 1;
          }},
 
+        /***
+        Set one of the key's settable parameters, such as "point-format"
+        @function pkey:set_param
+        @tparam string name parameter name
+        @tparam string|integer value a string for string parameters, an
+        integer in C int range for integer ones
+        @raise on an unknown parameter or unsupported parameter type, or
+        openssl error on failure
+        */
         {"set_param", [](auto const L) {
              auto const pkey = check_pkey(L, 1);
              auto const name = luaL_checkstring(L, 2);
@@ -587,9 +684,10 @@ namespace {
 
 } // namespace
 
-auto push_evp_pkey(lua_State* const L, EVP_PKEY* pkey) -> void
+auto push_evp_pkey(lua_State* const L) -> EVP_PKEY*&
 {
-    *static_cast<EVP_PKEY**>(lua_newuserdatauv(L, sizeof pkey, 0)) = pkey;
+    auto& pkey = *static_cast<EVP_PKEY**>(lua_newuserdatauv(L, sizeof(EVP_PKEY*), 0));
+    pkey = nullptr;
     if (luaL_newmetatable(L, pkey_name))
     {
         setfuncs(L, PkeyMT);
@@ -599,22 +697,23 @@ auto push_evp_pkey(lua_State* const L, EVP_PKEY* pkey) -> void
         lua_setfield(L, -2, "__index");
     }
     lua_setmetatable(L, -2);
+    return pkey;
 }
 
 auto l_read_raw(lua_State* const L) -> int
 {
     auto const type = luaL_checkinteger(L, 1);
+    luaL_argcheck(L, INT_MIN <= type && type <= INT_MAX, 1, "out of range");
     auto const priv = lua_toboolean(L, 2);
     std::size_t raw_len;
     auto const raw = reinterpret_cast<unsigned char const*>(luaL_checklstring(L, 3, &raw_len));
 
-    auto const pkey = (priv ? EVP_PKEY_new_raw_private_key : EVP_PKEY_new_raw_public_key)(type, nullptr, raw, raw_len);
+    auto& pkey = push_evp_pkey(L);
+    pkey = (priv ? EVP_PKEY_new_raw_private_key : EVP_PKEY_new_raw_public_key)(static_cast<int>(type), nullptr, raw, raw_len);
     if (nullptr == pkey)
     {
         openssl_failure(L, priv ? "EVP_PKEY_new_raw_private_key" : "EVP_PKEY_new_raw_public_key");
     }
-
-    push_evp_pkey(L, pkey);
     return 1;
 }
 
@@ -635,45 +734,49 @@ auto l_read_pem(lua_State* const L) -> int
         return pass_len;
     };
 
-    auto const bio = BIO_new_mem_buf(key, key_len);
+    luaL_argcheck(L, key_len <= INT_MAX, 1, "too long");
+
+    auto& pkey = push_evp_pkey(L);
+    auto& bio = Bio::push(L);
+    bio = BIO_new_mem_buf(key, static_cast<int>(key_len));
     if (nullptr == bio)
     {
         openssl_failure(L, "BIO_new_mem_buf");
     }
 
     using Invoker = Invoke<decltype(cb)>;
-    auto const pkey
-        = (priv ? PEM_read_bio_PrivateKey : PEM_read_bio_PUBKEY)(bio, nullptr, Invoker::invoke, Invoker::prep(cb));
-
-    BIO_free_all(bio);
+    pkey = (priv ? PEM_read_bio_PrivateKey : PEM_read_bio_PUBKEY)(bio, nullptr, Invoker::invoke, Invoker::prep(cb));
+    Bio::reset(bio);
 
     if (nullptr == pkey)
     {
         openssl_failure(L, priv ? "PEM_read_bio_PrivateKey" : "PEM_read_bio_PUBKEY");
     }
 
-    push_evp_pkey(L, pkey);
+    lua_pop(L, 1); // the empty BIO box
     return 1;
 }
 
 auto l_gen_pkey(lua_State* const L) -> int
 {
     auto const type = luaL_checkstring(L, 1);
-    EVP_PKEY* pkey;
 
     if (0 == strcmp("RSA", type))
     {
         auto const bits = luaL_checkinteger(L, 2);
         luaL_argcheck(L, 0 < bits && bits <= INT_MAX, 2, "out of range");
+        auto& pkey = push_evp_pkey(L);
         pkey = EVP_PKEY_Q_keygen(nullptr, nullptr, type, static_cast<std::size_t>(bits));
     }
     else if (0 == strcmp("EC", type))
     {
         auto const curve = luaL_checkstring(L, 2);
+        auto& pkey = push_evp_pkey(L);
         pkey = EVP_PKEY_Q_keygen(nullptr, nullptr, type, curve);
     }
     else if (0 == strcmp("X25519", type) || 0 == strcmp("X448", type) || 0 == strcmp("ED25519", type) || 0 == strcmp("ED448", type) || 0 == strcmp("SM2", type))
     {
+        auto& pkey = push_evp_pkey(L);
         pkey = EVP_PKEY_Q_keygen(nullptr, nullptr, type);
     }
     else
@@ -681,12 +784,10 @@ auto l_gen_pkey(lua_State* const L) -> int
         return luaL_error(L, "unknown key type '%s'", type);
     }
 
-    if (nullptr == pkey)
+    if (nullptr == test_pkey(L, -1))
     {
         openssl_failure(L, "EVP_PKEY_Q_keygen");
     }
-
-    push_evp_pkey(L, pkey);
     return 1;
 }
 
@@ -705,8 +806,14 @@ auto l_pkey_from_store(lua_State* const L) -> int
         memcpy(buf, pass, pass_len);
         return pass_len;
     };
+    auto& pkey = push_evp_pkey(L);
+
     using Invoker = Invoke<decltype(cb)>;
     auto const ui_method = UI_UTIL_wrap_read_pem_callback(Invoker::invoke, 0);
+    if (nullptr == ui_method)
+    {
+        openssl_failure(L, "UI_UTIL_wrap_read_pem_callback");
+    }
     auto const store = OSSL_STORE_open(key_name, ui_method, Invoker::prep(cb), nullptr, nullptr);
     if (nullptr == store)
     {
@@ -716,7 +823,6 @@ auto l_pkey_from_store(lua_State* const L) -> int
 
     // A null from OSSL_STORE_load can be an item that didn't decode, with
     // more to follow, so the loop runs until end of file
-    EVP_PKEY* pkey = nullptr;
     while (nullptr == pkey && not OSSL_STORE_eof(store))
     {
         auto const info = OSSL_STORE_load(store);
@@ -748,8 +854,7 @@ auto l_pkey_from_store(lua_State* const L) -> int
 
     // Items skipped on the way to the key leave their errors queued
     ERR_clear_error();
-    push_evp_pkey(L, pkey);
     return 1;
 }
 
-} // namespace openssl
+} // namespace myopenssl

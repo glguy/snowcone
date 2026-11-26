@@ -1,7 +1,7 @@
 project = 'myopenssl'
 title = 'myopenssl documentation'
 description = "Snowcone's limited bindings to OpenSSL"
-file = { 'digest.cpp', 'myopenssl.cpp', 'pkey.cpp', 'bignum.cpp' }
+file = { 'digest.cpp', 'myopenssl.cpp', 'pkey.cpp', 'bignum.cpp', 'x509.cpp' }
 dir = 'public'
 kind_names={topic='Manual',module='Libraries'}
 style = '!new'

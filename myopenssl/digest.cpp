@@ -1,5 +1,5 @@
 /***
-digest object
+digest object, from myopenssl.get_digest
 
 @classmod digest
 */
@@ -20,6 +20,7 @@ extern "C" {
 
 namespace myopenssl {
 
+/// Registry name of the digest metatable
 static char const digest_name[] = "EVP_MD*";
 
 auto check_digest(lua_State* const L, int const arg) -> EVP_MD const*
@@ -96,7 +97,7 @@ namespace {
         /***
         Size of this digest's output
         @function digest:size
-        @treturn integer size in bytes
+        @treturn integer size in bytes (-1 if OpenSSL doesn't know it)
         */
         {"size", [](auto const L) {
              auto const digest = check_digest(L, 1);
@@ -109,8 +110,8 @@ namespace {
         @function digest:pbkdf2
         @tparam string password
         @tparam string salt
-        @tparam integer iterations at least 1
-        @tparam integer keylen output length in bytes
+        @tparam integer iterations 1 to INT_MAX
+        @tparam integer keylen output length in bytes, 0 to INT_MAX
         @treturn string derived key
         @raise openssl error on failure
         */
@@ -143,6 +144,8 @@ namespace {
         {}
     };
 
+    /// Push a userdata for digest, a static EVP_MD that needs no freeing,
+    /// so the metatable has no __gc.
     static auto push_digest(lua_State* const L, EVP_MD const* const digest) -> void
     {
         // Allocate userdata

@@ -1,6 +1,6 @@
-#include "errors.hpp"
+// Raising OpenSSL errors into Lua, and the per-call error boundary.
 
-#include "invoke.hpp"
+#include "errors.hpp"
 
 extern "C" {
 #include <lauxlib.h>
@@ -16,7 +16,9 @@ extern "C" {
 
 namespace {
 
-/// Upvalue 1 is the luaL_Reg entry to call
+/// The closure setfuncs registers: upvalue 1 is a light userdata pointing
+/// at the luaL_Reg entry to call. Clears the OpenSSL error queue, calls it,
+/// and turns an escaping C++ exception into a Lua error.
 auto dispatch(lua_State* const L) -> int
 {
     auto const reg = static_cast<luaL_Reg const*>(lua_touserdata(L, lua_upvalueindex(1)));
@@ -70,19 +72,24 @@ auto myopenssl::openssl_failure_message(lua_State* L, char const* message) -> vo
     luaL_buffinit(L, &B);
     luaL_addstring(&B, message);
 
-    auto const cb = [&B](char const* str, size_t len) -> int {
-        // each line arrives with its own newline; move it to the front
-        if (0 < len && '\n' == str[len - 1])
-        {
-            len--;
-        }
+    // The queue is drained here rather than through ERR_print_errors_cb, so
+    // a memory error from the buffer never unwinds through OpenSSL's frames.
+    // Each line is ERR_print_errors_cb's, less its thread id.
+    char const* file;
+    int line;
+    char const* func;
+    char const* data;
+    int flags;
+    while (auto const code = ERR_get_error_all(&file, &line, &func, &data, &flags))
+    {
+        // data and file are valid only until the next call into ERR
+        char text[256];
+        ERR_error_string_n(code, text, sizeof text);
+        char entry[1024];
+        std::snprintf(entry, sizeof entry, "%s:%s:%d:%s", text, file, line, flags & ERR_TXT_STRING ? data : "");
         luaL_addchar(&B, '\n');
-        luaL_addlstring(&B, str, len);
-        return 1; // 1:success 0:failure
-    };
-
-    using Invoker = Invoke<decltype(cb)>;
-    ERR_print_errors_cb(Invoker::invoke, Invoker::prep(cb));
+        luaL_addstring(&B, entry);
+    }
 
     luaL_pushresult(&B);
     lua_error(L);
