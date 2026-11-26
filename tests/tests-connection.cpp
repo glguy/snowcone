@@ -1084,7 +1084,7 @@ TEST(WebSocket, ServerCloseReasonIsReported)
     ASSERT_TRUE(run_briefly(io)) << "timed out";
 
     auto const got = client_result.get();
-    server_result.get();
+    static_cast<void>(server_result.get()); // rethrows if the server failed
     EXPECT_EQ(got.end, ws::error::closed);
     EXPECT_EQ(got.close_reason, "WebSocket closed by the server with code 1008 (go away)");
 }
