@@ -1,4 +1,4 @@
--- Every network at a glance, in configuration order.
+-- Every network at a glance, in configuration order, shelved ones too.
 -- Click a name to open that network's page (/session). "retry" counts down to a
 -- scheduled reconnect; "sendq" counts lines the rate limit holds back.
 
@@ -43,6 +43,8 @@ return {
             local phase = rec.phase
             if rec.target ~= 'connected' and rec.target ~= rec.phase then
                 phase = phase .. '→' .. rec.target
+            elseif rec.shelved and rec.phase == 'idle' then
+                phase = 'shelved'
             end
             win:waddstr(string.format('%-18.18s', phase))
             draw.normal(win)

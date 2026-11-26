@@ -196,7 +196,7 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 | `id` | | Required. The network's name in the status bar, in `/net <id>` and in `@id` before a command, so keep it short. Letters, digits, `_`, `.` and `-`. Ids must be unique. |
 | `ircd` | `'solanum'` | The server software the network runs: `'solanum'` or `'oftc-hybrid'`. It decides how server notices are recognized and parsed, what numerics mean, how `snomask` is set, how CHALLENGE works and how MAP, TESTMASK and TESTLINE replies read. OFTC hybrid has no MASKTRACE, CHANTRACE or TESTKLINE, and its connection notices carry no account, so a K-Line can't freeze one. |
 | `features` | all features | Which [features](#features) run on this network. |
-| `autoconnect` | `true` | Connect at startup, and after a reload that adds the network. With `false`, the network waits for `/connect`. |
+| `autoconnect` | `true` | Connect at startup, and after a reload that adds the network. With `false`, the network waits for `/connect` (as `/connect@id` when no network is current), and stays out of the status bar until then. |
 | `reconnect.min_delay` | `1` | Seconds before the first reconnect attempt; at least 0.1. |
 | `reconnect.max_delay` | `300` | The longest wait between attempts. The delay doubles after each failure up to this limit, and returns to `min_delay` once a connection has stayed registered for a minute. A server that refuses you as banned (465) is retried after this delay at once, since a ban won't lift soon. It must not be below `min_delay`. |
 | `rate_limit.burst` | none | Lines that may go to the server at once. Without a `rate_limit` table, lines are never held back. With one, `burst` and `interval` are both required. |
@@ -204,7 +204,7 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 | `buffers` | none | Channels to join, and settings for the buffers of channels and nicks. See [Buffers](#buffers). |
 | `hide` | none | Rules for the messages the buffer view leaves out. See [Hide rules](#hide-rules). |
 | `reclaim_nick` | `true` | When the wanted nick is taken, or the server changes our nick, watch the wanted one with MONITOR and take it back once it is free. A nick the server holds for a while, or refuses for changing nick too fast, is tried again later. Behind a bouncer, the nick it gives us, and changes made by its other clients, are left alone. The wanted nick is the configured one, or the last given to `/nick`, which later connections register with too until the configured nick changes. |
-| `quit_message` | `'snowcone'` | The QUIT message for `/disconnect`, `/reconnect` and quitting. |
+| `quit_message` | `'snowcone'` | The QUIT message for `/disconnect`, `/shelve`, `/reconnect` and quitting. |
 | `snomask` | `'BFZbcklnsx'`, or `'bcfknrs'` on OFTC hybrid | What chooses the server notices to see, set after becoming an operator: on Solanum the server notice mask (`MODE nick +s mask`), on OFTC hybrid the user modes that select notices (`MODE nick +modes`). Used only with the `snotice` feature. |
 | `servers_file` | none | A TOML file describing the network's servers. See [The servers file](#the-servers-file). |
 | `server`, `layers`, `websocket` | | How to connect. See [Connecting](#connecting). `server` is required. |
@@ -668,7 +668,7 @@ The store is opened with the credential's `password`, or the layer's `client_pas
 - **Networks:**
   - A network added to the file connects if `autoconnect` allows.
   - A network removed from the file disconnects.
-  - `autoconnect` matters only for a network the reload adds. Changing it on a network already there neither connects nor disconnects it; use `/connect` or `/disconnect`.
+  - `autoconnect` matters only for a network the reload adds. Changing it on a network already there neither connects nor disconnects it; use `/connect`, `/disconnect` or `/shelve`.
 - **Settings that apply at once:** `ircd`, `features`, `reconnect`, `rate_limit`, `reclaim_nick`, `quit_message`, `mention`, `watches`, `hide` (for messages that arrive afterwards), the `mention`, `activity`, `label` and `hidden` of `buffers`, the servers file and the top-level tables. Messages already received keep how they counted.
 - **Settings that wait for the next time you become an operator:** `snomask`, and the snomask modes a change of `ircd` implies. `oper` credentials are used by the next `/oper`, and `oper.automatic` at the next registration.
 - **Settings that wait for a new connection:** `join` and `key` in `buffers`; hub doesn't join or part channels on a reload. A change to `server`, `layers`, `websocket`, `identity`, `registration` or `sasl` marks the network `restart pending: /reconnect` in `/networks` and `/session` until you reconnect.

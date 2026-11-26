@@ -71,14 +71,35 @@ end
 --- Network ids in configuration order.
 M.net_ids = manager.ids
 
+--- The networks the status bar shows, in configuration order: those not
+--- shelved, and the current one even when it is.
+---@return string[]
+function M.bar_net_ids()
+    local current = HUB.state.ui.current_net
+    local ids = {}
+    for _, id in ipairs(manager.ids()) do
+        if not HUB.state.nets[id].shelved or id == current then
+            table.insert(ids, id)
+        end
+    end
+    return ids
+end
+
+-- The first network not shelved, in configuration order, or nil
+local function first_unshelved()
+    for _, id in ipairs(manager.ids()) do
+        if not HUB.state.nets[id].shelved then return id end
+    end
+end
+
 --- The network that net-scoped views and commands act on: the chosen one
---- if it still exists, else the first configured.
+--- if it still exists, else the first not shelved, else none.
 ---@return string|nil
 function M.current_net()
     local nets = HUB.state.nets or {}
     local id = HUB.state.ui.current_net
     if id and nets[id] then return id end
-    local first = manager.ids()[1]
+    local first = first_unshelved()
     HUB.state.ui.current_net = first
     return first
 end
@@ -103,6 +124,21 @@ function M.set_current_net(id)
     HUB.state.ui.current_net = id
     M.ensure_usable_view()
     dispatch.dirty()
+end
+
+--- A network was shelved: when it is the current one, move to the first
+--- network not shelved, or to none.
+---@param id string
+function M.net_shelved(id)
+    if HUB.state.ui.current_net ~= id then return end
+    local next_id = first_unshelved()
+    if next_id then
+        M.set_current_net(next_id)
+    else
+        HUB.state.ui.current_net = nil
+        M.ensure_usable_view()
+        dispatch.dirty()
+    end
 end
 
 -- Configuration ======================================================

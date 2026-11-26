@@ -410,6 +410,7 @@ function M.subscribe(sub)
         if ev.flash then ncurses.flash() end
     end)
     sub.on('chat.message', function() dispatch.dirty() end)
+    sub.on('net.shelved', function(ev) control.net_shelved(ev.net) end)
     sub.on('clock.tick', compose)
 end
 

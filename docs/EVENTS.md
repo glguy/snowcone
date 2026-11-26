@@ -16,6 +16,7 @@ carry `net`, the network id.
 | `net.connected` | `{net, transport}` transport, as described, is up, registration starts | net/manager |
 | `net.registered` | `{net, nick}` end of MOTD after welcome | net/registration |
 | `net.closed` | `{net, reason, kind}` an attempt ended: `reason` is the text logged, `kind` one of `local` (we ended it), `config` (stays down), `banned` (465; retries after `reconnect.max_delay`), `refused`, `timeout`, `stream`, `server` (the server's ERROR) | net/manager |
+| `net.shelved` | `{net}` /shelve set a network aside; it is disconnecting, and out of the status bar until connected | net/manager |
 | `net.removed` | `{net}` a network left the configuration and its record is gone; drop its feature state | net/manager |
 | `irc.message` | `{net, msg}` every inbound message after the model update, except replayed history (chathistory batches) | net/manager |
 | `irc.sent` | `{net, msg}` outbound, secrets masked, once per line when it is sent or queued; `msg.delivery` is `{state = 'queued'}` for a queued line, later `'sent'` (with `delay`, seconds) or `'dropped'`, and absent for a line written at once | net/send |

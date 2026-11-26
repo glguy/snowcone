@@ -154,6 +154,17 @@ M.commands = {
         end,
     },
     {
+        name = 'shelve',
+        spec = '$T',
+        usage = '[message]',
+        group = 'connection',
+        scope = 'net',
+        help = 'Disconnect the network and leave it out of the status bar until /connect',
+        fn = function(ctx, message)
+            manager.shelve(ctx.net, message ~= '' and message or nil)
+        end,
+    },
+    {
         name = 'reconnect',
         spec = '',
         group = 'connection',

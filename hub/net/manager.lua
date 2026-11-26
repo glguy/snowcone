@@ -33,6 +33,8 @@ local M = {}
 ---@field id string
 ---@field cfg table network configuration (from state.config)
 ---@field target 'connected'|'idle'|'removed'
+---@field shelved boolean set aside: left out of the status bar until
+--- connected. Starts so without autoconnect; /shelve sets it
 ---@field phase 'idle'|'resolving_secrets'|'connecting'|'registering'|'connected'|'closing'
 ---@field attempt integer increments per connect attempt
 ---@field conn integer|nil resource id of the connection, nil when idle
@@ -404,6 +406,7 @@ end
 --- one on its way down comes back.
 function M.connect(id)
     local rec = get(id)
+    rec.shelved = false
     if rec.phase ~= 'idle' then
         rec.target = 'connected'
         return
@@ -442,6 +445,15 @@ function M.disconnect(id, quit_msg)
     elseif rec.phase == 'idle' and rec.target == 'removed' then
         remove_record(id)
     end
+end
+
+--- Disconnect, as M.disconnect, and set the network aside until it is
+--- connected again.
+function M.shelve(id, quit_msg)
+    local rec = get(id)
+    rec.shelved = true
+    M.disconnect(id, quit_msg)
+    bus.emit('net.shelved', {net = id})
 end
 
 --- Drop the current connection, if any, and connect again now.
@@ -715,6 +727,7 @@ local function new_record(net)
         id = net.id,
         cfg = net,
         target = net.autoconnect and 'connected' or 'idle',
+        shelved = not net.autoconnect,
         phase = 'idle',
         attempt = 0,
         established = {},

@@ -59,7 +59,9 @@ Settings can be overridden for one run on the command line, for example
 .SH USING HUB
 The bottom line is the status bar: the view's name, then every network
 colored by state (green connected, yellow on the way, red idle), with
-+ or ! for unseen chat or a mention. Click a network, press Meta-1 to
++ or ! for unseen chat or a mention. A network that doesn't autoconnect,
+or one set aside with /shelve, stays off the bar until /connect, except
+while it is the current network. Click a network, press Meta-1 to
 Meta-9, or use /net to choose the current network. Views and commands
 act on the current network.
 .PP
@@ -120,7 +122,7 @@ A view of the rotation
 .TP
 .B
 Meta-1..9
-Choose a network
+Choose a network in the status bar
 .TP
 .B
 Meta-a
@@ -185,7 +187,7 @@ The current network's connection
 The client's log, where errors appear
 .TP
 .B
-/connect, /disconnect, /reconnect
+/connect, /disconnect, /shelve, /reconnect
 Control the current network's connection
 .TP
 .B

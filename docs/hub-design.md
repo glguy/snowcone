@@ -221,6 +221,11 @@ connected at once.
 
 - **Phases:** `idle`, `resolving_secrets`, `connecting`, `registering`,
   `connected`, `closing`; `target` is `connected`, `idle` or `removed`.
+- **Shelved:** a network set aside, `shelved` on its record, is left out of
+  the status bar (and its Meta-digit) unless it is current. It starts so
+  without `autoconnect`; `manager.shelve` (`/shelve`) disconnects it and
+  sets it, emitting `net.shelved` so the UI moves off it, and any
+  `manager.connect` clears it. It lasts only as long as the process.
 - **Attempts:** every connection attempt increments `attempt`, and its
   callbacks are bound to `(id, attempt)`. Events from an attempt that already
   ended are dropped.

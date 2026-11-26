@@ -370,10 +370,10 @@ M.global = {
     [-ncurses.KEY_LEFT] = function() hscroll(-1) end,
 }
 
--- Meta-1..9 select networks in configuration order
+-- Meta-1..9 select networks as the status bar shows them
 for i = 1, 9 do
     M.global[meta(tostring(i))] = function()
-        local id = control.net_ids()[i]
+        local id = control.bar_net_ids()[i]
         if id then control.set_current_net(id) end
     end
 end

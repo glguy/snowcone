@@ -109,9 +109,11 @@ Secrets (passwords, keys) can be a string, `{ file = 'path' }`,
 
 Some things to know:
 
-- The status bar lists every network, colored by state, with `+` or `!`
-  for unseen chat; click one, use Meta-1..9, or `/net <id>` to choose the
-  current network. `/networks` shows them all.
+- The status bar lists the networks in use, colored by state, with `+` or
+  `!` for unseen chat; click one, use Meta-1..9, or `/net <id>` to choose
+  the current network. A network without `autoconnect` stays off it until
+  `/connect`, and `/shelve` disconnects one and takes it off again.
+  `/networks` shows them all.
 - Commands that act on a network can name one after the command:
   `/quote@oftc WHOIS someone`. `/quote` sends tags as typed:
   `/quote @+draft/react=👍;+draft/reply=abc TAGMSG #chan`.

@@ -90,14 +90,14 @@ function M.fragment(win, bg)
     win:waddstr ' '
 end
 
--- Every network as a region of its own, colored by phase (yellow while on
--- the way): the current one on a background of that color, so the bar's
--- colors run through it. The first follows straight on from the title.
+-- Every network not shelved, and the current one, as a region of its own,
+-- colored by phase (yellow while on the way): the current one on a
+-- background of that color, so the bar's colors run through it. The first follows straight on from the title.
 -- Click one to make it current.
 local function draw_nets(win, ctx, titlecolor)
     local current = ctx.net
     local first = true
-    for _, id in ipairs(control.net_ids()) do
+    for _, id in ipairs(control.bar_net_ids()) do
         local rec = HUB.state.nets[id]
         local color = phase_palette[rec.phase] or ncurses.COLOR_YELLOW
         local bg = id == current and color or surface

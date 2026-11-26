@@ -29,6 +29,7 @@ local function boot(networks)
     control.init_state(HUB.state)
     local bus = T.require 'hub.runtime.bus'
     bus.on(HUB.current.bus, 'task.prompt', 'test', control.add_prompt)
+    bus.on(HUB.current.bus, 'net.shelved', 'test', function(ev) control.net_shelved(ev.net) end)
     -- and the prompts asked while booting, before that subscription
     for id, t in pairs(HUB.tasks) do
         if t.wait == 'prompt' then
@@ -81,6 +82,33 @@ T.case('net commands use the current network or name@network', function()
     control.set_current_net 'b'
     cmdline.execute 'raw PRIVMSG z :raw  spaces '
     T.eq(cb:take(), {'PRIVMSG z :raw  spaces '}, 'raw sent unchanged on the current network')
+end)
+
+T.case('shelved networks stay off the status bar until connected', function()
+    local fake, control, cmdline = boot {network('a'), network('b'), network('c', {autoconnect = false})}
+    local ca, cb = fake.conns[1], fake.conns[2]
+    register(ca)
+    register(cb)
+    T.eq(control.bar_net_ids(), {'a', 'b'}, 'without autoconnect, shelved at start')
+
+    control.set_current_net 'c'
+    T.eq(control.bar_net_ids(), {'a', 'b', 'c'}, 'the current network shows though shelved')
+
+    control.set_current_net 'b'
+    cmdline.execute 'shelve done for now'
+    T.eq(cb:take(), {'QUIT :done for now'}, 'shelving disconnects')
+    T.eq(control.current_net(), 'a', 'off the shelved network')
+    T.eq(control.bar_net_ids(), {'a'}, 'and off the bar')
+
+    cmdline.execute 'disconnect'
+    T.eq(control.bar_net_ids(), {'a'}, 'a disconnected network stays on the bar')
+
+    cmdline.execute 'connect@c'
+    T.eq(control.bar_net_ids(), {'a', 'c'}, 'connecting takes it off the shelf')
+
+    cmdline.execute 'shelve@a'
+    cmdline.execute 'shelve@c'
+    T.eq({control.current_net(), control.bar_net_ids()}, {nil, {}}, 'all shelved: no current network')
 end)
 
 T.case('command completion offers networks after name@', function()

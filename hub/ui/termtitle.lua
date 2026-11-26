@@ -22,7 +22,7 @@ local marker_text <const> = {mention = '! ', activity = '+ '}
 
 local function marker()
     local seen
-    for _, id in ipairs(control.net_ids()) do
+    for _, id in ipairs(control.bar_net_ids()) do
         local a = statusbar.activity(id)
         if a == 'mention' then return a end
         seen = seen or a
