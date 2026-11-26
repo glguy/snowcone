@@ -19,13 +19,16 @@ namespace {
 /**
  * @brief Lua binding for Base64 decoding.
  *
- * Decodes the given Base64 string into its original binary form.
- * Characters outside the Base64 alphabet, including '=', are skipped.
+ * Decodes the given Base64 string into its original binary form. Input
+ * must be strict, padded Base64 (base64::valid), unless lenient is true:
+ * then characters outside the Base64 alphabet, including '=', are skipped,
+ * and only a dangling final character fails.
  * On success, it pushes the decoded string onto the Lua stack.
- * On failure (a dangling final character), it pushes fail (nil).
+ * On failure, it pushes fail (nil).
  * Raises a Lua error if the argument is not a string or number.
  *
  * param:     string input   Base64-encoded string to decode
+ * param:     boolean|nil lenient  skip characters outside the alphabet
  * return:    string|nil     decoded string, or fail on invalid input
  *
  * @param L Lua state
@@ -36,6 +39,11 @@ auto l_from_base64(lua_State* const L) -> int
     std::size_t len;
     auto const input_ptr = luaL_checklstring(L, 1, &len);
     std::string_view input { input_ptr, len };
+    if (not lua_toboolean(L, 2) && not base64::valid(input))
+    {
+        luaL_pushfail(L);
+        return 1;
+    }
 
     auto const outlen = base64::decoded_size(input.size());
 

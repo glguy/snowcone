@@ -136,13 +136,21 @@ do
     ------------------------------------------------------------------------
     -- malformed server input aborts rather than throwing
 
-    -- mybase64 skips characters outside the alphabet, so the payload that
-    -- fails to decode is one with a dangling sextet
+    -- strict by default; lenient skips what isn't in the alphabet
+    expect(mybase64.from_base64 'Zm9vYmFy' == 'foobar', 'strict decodes')
+    expect(mybase64.from_base64 'Zm9v\nYmFy' == nil, 'strict rejects a line break')
+    expect(mybase64.from_base64('Zm9v\nYmFy', true) == 'foobar', 'lenient skips it')
+    expect(mybase64.from_base64('A', true) == nil, 'lenient still fails a dangling sextet')
+
+    -- the server's base64 must be strict: a dangling sextet, a character
+    -- outside the alphabet and missing padding all abort
     do
-        local ok = run({mechanism = 'PLAIN', username = 'u', password = 'p'},
-            {auth 'A', numeric(N.ERR_SASLABORTED)})
-        expect(ok == false, 'bad base64 fails')
-        expect(sent[#sent] == 'AUTHENTICATE *', 'bad base64 aborts exchange')
+        for _, bad in ipairs {'A', 'Zm9v!!!!', 'Zm9', 'Zg=a', 'Z==='} do
+            local ok = run({mechanism = 'PLAIN', username = 'u', password = 'p'},
+                {auth(bad), numeric(N.ERR_SASLABORTED)})
+            expect(ok == false, 'bad base64 fails: ' .. bad)
+            expect(sent[#sent] == 'AUTHENTICATE *', 'bad base64 aborts exchange: ' .. bad)
+        end
 
         ok = run({mechanism = 'PLAIN', username = 'u', password = 'p'},
             {{command = 'AUTHENTICATE'}, numeric(N.ERR_SASLABORTED)})

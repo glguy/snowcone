@@ -66,4 +66,16 @@ auto encode(std::string_view input, char* output) -> void;
  */
 auto decode(std::string_view input, char* output) -> char*;
 
+/**
+ * @brief Whether input is strict Base64, as RFC 4648 writes it
+ *
+ * Only alphabet characters, a multiple of four of them counting padding,
+ * with '=' only as the last one or two. Empty input is valid. Unused low
+ * bits in a final partial group aren't checked, as decode() ignores them.
+ *
+ * @param input Base64 input text
+ * @return true when decode() would read every character of input
+ */
+auto valid(std::string_view input) -> bool;
+
 } // namespace base64

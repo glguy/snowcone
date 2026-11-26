@@ -114,4 +114,25 @@ auto decode(std::string_view const input, char* output) -> char*
     return output;
 }
 
+auto valid(std::string_view const input) -> bool
+{
+    if (input.size() % 4 != 0)
+    {
+        return false;
+    }
+    auto body = input;
+    for (int i = 0; i < 2 && body.ends_with('='); i++)
+    {
+        body.remove_suffix(1);
+    }
+    for (auto const c : body)
+    {
+        if (alphabet_values[static_cast<unsigned char>(c)] == -1)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace base64

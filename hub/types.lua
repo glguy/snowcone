@@ -557,11 +557,13 @@ mybase64 = {}
 ---@return string
 function mybase64.to_base64(s) end
 
---- Characters outside the alphabet, '=' among them, are skipped, so
---- most text that isn't Base64 still decodes.
+--- Strict, padded Base64 unless lenient: then characters outside the
+--- alphabet, '=' among them, are skipped, and only one alphabet character
+--- left over fails.
 ---@param s string
----@return string|nil nil only when one alphabet character is left over
-function mybase64.from_base64(s) end
+---@param lenient boolean|nil
+---@return string|nil nil when s doesn't decode
+function mybase64.from_base64(s, lenient) end
 
 ---@class mytoml.lib
 mytoml = {}

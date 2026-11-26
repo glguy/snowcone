@@ -95,6 +95,17 @@ TEST(Base64, Junk) {
     EXPECT_EQ(std::string_view(buffer, buffer + 3), std::string_view("\0\0\0", 3));
 }
 
+TEST(Base64, Valid) {
+    for (auto const good : {"", "Zg==", "Zm8=", "Zm9v", "Zm9vYmFy", "+/+/"})
+    {
+        EXPECT_TRUE(base64::valid(good)) << good;
+    }
+    for (auto const bad : {"A", "Zg", "Zg=", "Zm9", "Z===", "====", "Zg=a", "Zm9v!!!!", "Zm 9v", "Zm9v\n"})
+    {
+        EXPECT_FALSE(base64::valid(bad)) << bad;
+    }
+}
+
 } // namespace
 
 int main(int argc, char **argv) {

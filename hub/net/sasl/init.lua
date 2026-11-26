@@ -76,8 +76,9 @@ local function mechanism_factory(mechanism, authcid, password, key, authzid, use
             -- PEM; `password` decrypts it when it's encrypted
             key = myopenssl.read_pem(key, true, password)
         else
-            -- raw 32-byte X25519 private key, base64 encoded (never encrypted)
-            key = check(mybase64.from_base64(key), 'bad base64 in private sasl `key`')
+            -- raw 32-byte X25519 private key, base64 encoded (never
+            -- encrypted); leniently, as a pasted key may hold line breaks
+            key = check(mybase64.from_base64(key, true), 'bad base64 in private sasl `key`')
             key = myopenssl.read_raw(myopenssl.types.EVP_PKEY_X25519, true, key --[[@as string]])
         end
         return require 'hub.net.sasl.ecdh' (authzid, authcid, key)
