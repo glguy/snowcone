@@ -136,7 +136,7 @@ function M.new()
     ---@field invex string|nil
     ---@field excepts string|nil
     ---@field bouncer_networks table<string, table<string, string>>|nil by netid
-    ---@field label_next integer|nil the last label given to a request
+    ---@field label_next integer|nil the number of the last label sent on this connection
     ---@field prefixes string membership prefixes, highest first (PREFIX)
     ---@field error string|nil the text of the server's ERROR, closing the link
     ---@field banned string|nil the text of a 465, the server refusing us

@@ -5,7 +5,9 @@
 -- (unless the caller gave one) when the network has labeled-response, so the server's reply can be
 -- matched to them; tags don't count against the line length. The masked
 -- message goes to the network's console log and the `irc.sent` event;
--- chat echo is the chat feature's business.
+-- chat echo is the chat feature's business. M.raw, a debugging escape
+-- hatch for text that need not be valid IRC, records its line in the
+-- console but doesn't emit `irc.sent`.
 --
 -- A network's `rate_limit` paces its lines (lib/ratelimit.lua). A line
 -- that can't go yet waits in rec.sendq = {t, lines, timer}: t is the

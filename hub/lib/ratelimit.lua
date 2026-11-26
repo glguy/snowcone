@@ -1,7 +1,9 @@
 -- Pacing for outgoing lines, as RFC 1459 section 8.10 describes it.
 --
--- The bucket is a single time. It is never behind now: idle time refills
--- the burst, but never beyond it. Each line moves it one interval ahead,
+-- The bucket is a single time. While idle it falls behind now, and a time
+-- behind now counts as now, a full burst: idle time refills the burst, but
+-- never beyond it. Each line moves it one interval ahead of the later of
+-- the two,
 -- and a line may go while it is at most burst - 1 intervals ahead of now.
 -- So burst lines go at once, then one more each interval.
 

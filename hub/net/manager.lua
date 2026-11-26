@@ -270,10 +270,10 @@ end
 ---            the network stays down
 ---   banned   the server refused us with 465: reconnect after the longest
 ---            delay, as a ban won't lift soon
----   refused, timeout, stream, server
+---   timeout, stream, server
 ---            reconnect with backoff
 ---@class hub.CloseReason
----@field kind 'local'|'config'|'banned'|'refused'|'timeout'|'stream'|'server'
+---@field kind 'local'|'config'|'banned'|'timeout'|'stream'|'server'
 ---@field text string as logged
 ---@field at number clock when it ended
 
@@ -381,12 +381,11 @@ local function connect_body(t, attempt)
     if server.path then host, port = server.path, 0 end
 
     local cb = dispatch.trampoline('net.on_event', id, attempt)
-    local called, conn, err = pcall(transport_connect, host, port, layers, cb)
+    local called, conn = pcall(transport_connect, host, port, layers, cb)
     if not called then
-        -- bad arguments raise; treat that like any other configuration error
+        -- bad arguments raise; treat that like any other configuration error.
+        -- Other failures come later, as an END event.
         return failed(id, attempt, 'config', 'failed to connect: ' .. tostring(conn))
-    elseif not conn then
-        return failed(id, attempt, 'refused', 'failed to connect: ' .. tostring(err))
     end
 
     rec.conn = resources.add('connection', 'net:' .. id, conn, 'close')
@@ -563,7 +562,7 @@ function events.MSG(rec, msg, flush)
 
     do
         local time_tag = msg.tags.time
-        msg.time = time_tag and time_tag:match '^%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.%d%d%dZ$'
+        msg.time = time_tag and time_tag:match '^%d%d%d%d%-%d%d%-%d%dT(%d%d:%d%d:%d%d)%.?%d*Z$'
                 or os.date '!%H:%M:%S'
     end
     msg.timestamp = clock.now()

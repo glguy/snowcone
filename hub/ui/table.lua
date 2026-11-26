@@ -16,8 +16,9 @@
 -- has IRC formatting, drawn as such. key gives what a cell sorts by,
 -- for text that doesn't sort as what it means: a number (a duration), or
 -- text in lowercase hex (lib/address_key.lua); without one, or for nil,
--- the cell's text sorts, its runs of digits as numbers. Numbers come
--- before text. An optional column shows only when some row has a cell
+-- the cell's text sorts, its runs of digits as numbers. Ascending,
+-- numbers come before text; descending reverses that, though rows
+-- without a cell stay last either way. An optional column shows only when some row has a cell
 -- in it. The last column shown isn't padded.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
@@ -87,8 +88,9 @@ local function natural(text)
     return (text:gsub('.', hex))
 end
 
---- The rows in order of a column, numbers before text and rows without a
---- cell last; those alike stay in the order they came.
+--- The rows in order of a column: ascending, numbers before text, and
+--- descending, the reverse. Rows without a cell come last either way;
+--- those alike stay in the order they came.
 local function sorted(col, rows, descending)
     local numbers, texts, out, place, missing = {}, {}, {}, {}, {}
     for i, row in ipairs(rows) do
