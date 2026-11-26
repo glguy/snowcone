@@ -134,6 +134,24 @@ do
     assert(copy:get_subjectName()[1][2] == 'test')
 end
 
+-- A malformed signature is false for every key type, not an error
+do
+    local ec = myopenssl.gen_pkey('EC', 'P-256')
+    local sha256 = myopenssl.get_digest 'sha256'
+    local sig = ec:digest_sign(sha256, 'msg')
+    assert(ec:digest_verify(sha256, sig, 'msg'))
+    assert(ec:digest_verify(sha256, sig, 'other') == false)
+    for _, bad in ipairs {'', 'not DER', string.rep('\0', 72)} do
+        assert(ec:digest_verify(sha256, bad, 'msg') == false, bad)
+        assert(ec:verify(bad, sha256:digest 'msg') == false, bad)
+    end
+    assert(ec:verify(ec:sign(sha256:digest 'msg'), sha256:digest 'msg'))
+    assert(ed:digest_verify(nil, 'short', 'msg') == false)
+    -- the failures leave nothing queued for the next error
+    local _, err = pcall(myopenssl.get_digest, 'nope')
+    assert(not err:find '\n', err)
+end
+
 -- OpenSSL's errors follow the message, one per line, and are drained
 do
     local read, why = pcall(myopenssl.read_pem, 'not a key', false)

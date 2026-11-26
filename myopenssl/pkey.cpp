@@ -213,9 +213,9 @@ namespace {
         @tparam[opt] digest digest to use; nil as for digest_sign
         @tparam string signature
         @tparam string signed data
-        @treturn boolean whether the signature verifies
-        @raise openssl error when OpenSSL reports an error rather than a
-        mismatch (for some key types, a malformed signature)
+        @treturn boolean whether the signature verifies: false for a
+        mismatch and for a malformed signature alike
+        @raise openssl error when the key or digest can't verify at all
         */
         {"digest_verify", [](auto const L) {
              auto const pkey = check_pkey(L, 1);
@@ -239,18 +239,15 @@ namespace {
                  openssl_failure(L, "EVP_DigestVerifyInit");
              }
 
+             // Past the setup, every failure is the signature's: some key
+             // types report a malformed one as an error, others as a mismatch
              success = EVP_DigestVerify(ctx, sig, sig_len, data, data_len);
              MdCtx::reset(ctx);
-
-             if (0 > success)
-             {
-                 openssl_failure(L, "EVP_DigestVerify");
-             }
 
              // A signature that doesn't verify queues errors too
              ERR_clear_error();
 
-             lua_pushboolean(L, success);
+             lua_pushboolean(L, 1 == success);
              return 1;
          }},
 
@@ -259,9 +256,9 @@ namespace {
         @function pkey:verify
         @tparam string signature
         @tparam string signed data
-        @treturn boolean whether the signature verifies
-        @raise openssl error when OpenSSL reports an error rather than a
-        mismatch (for some key types, a malformed signature)
+        @treturn boolean whether the signature verifies: false for a
+        mismatch and for a malformed signature alike
+        @raise openssl error when the key can't verify at all
         */
         {"verify", [](auto const L) {
              auto const pkey = check_pkey(L, 1);
@@ -284,17 +281,14 @@ namespace {
                  openssl_failure(L, "EVP_PKEY_verify_init");
              }
 
+             // Past the setup, every failure is the signature's, as above
              success = EVP_PKEY_verify(ctx, sig, sig_len, data, data_len);
              PkeyCtx::reset(ctx);
-
-             if (0 > success) {
-                 openssl_failure(L, "EVP_PKEY_verify");
-             }
 
              // A signature that doesn't verify queues errors too
              ERR_clear_error();
 
-             lua_pushboolean(L, success);
+             lua_pushboolean(L, 1 == success);
              return 1;
          }},
 
