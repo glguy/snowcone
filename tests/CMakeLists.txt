@@ -9,6 +9,10 @@ add_executable(tests-base64 tests-base64.cpp)
 target_link_libraries(tests-base64 PRIVATE mybase64 GTest::gmock GTest::gtest_main)
 gtest_discover_tests(tests-base64)
 
+add_executable(tests-strings tests-strings.cpp)
+target_link_libraries(tests-strings PRIVATE snowcone_bindings GTest::gtest_main)
+gtest_discover_tests(tests-strings)
+
 add_executable(tests-connection tests-connection.cpp)
 target_link_libraries(tests-connection PRIVATE snowcone_net GTest::gtest_main)
 gtest_discover_tests(tests-connection)

@@ -18,6 +18,8 @@ extern "C" {
 #include <lauxlib.h>
 }
 
+#include "net/utf8.hpp"
+
 #include <cstddef>
 #include <cstdio>
 #include <optional>
@@ -97,17 +99,14 @@ inline auto to_string_view(lua_State* L, int const idx) -> std::optional<std::st
  * @brief Write text that may hold untrusted data (an error message quoting
  * a server's line, say) to a terminal, so it can't send control sequences.
  * Newlines and tabs pass, as do printable ASCII and valid UTF-8 other than
- * the C1 controls (U+0080 to U+009F, which some terminals obey). Any other
- * byte is written as \xNN. Nothing is allocated, so the panic handler can
+ * the C1 controls (U+0080 to U+009F, which some terminals obey). Overlong
+ * forms, surrogates and code points past U+10FFFF aren't valid, so a
+ * lenient decoder can't read one as a control. Any other byte is written
+ * as \xNN. Nothing is allocated, so the panic handler can
  * use it.
  */
 inline auto write_escaped(std::FILE* const out, std::string_view const str) -> void
 {
-    // Whether there is a UTF-8 continuation byte at i
-    auto const is_cont = [&](std::size_t const i) {
-        return i < str.size() && (static_cast<unsigned char>(str[i]) & 0xc0) == 0x80;
-    };
-
     for (std::size_t i = 0; i < str.size();)
     {
         auto const c = static_cast<unsigned char>(str[i]);
@@ -116,18 +115,13 @@ inline auto write_escaped(std::FILE* const out, std::string_view const str) -> v
         {
             len = 1;
         }
-        else if (0xc2 <= c && c <= 0xf4)
+        else if (c >= 0x80)
         {
-            auto const n = c < 0xe0 ? 2u : c < 0xf0 ? 3u : 4u;
-            auto valid = true;
-            for (std::size_t k = 1; k < n; ++k)
+            len = utf8_sequence_length(str.substr(i));
+            // the C1 controls are U+0080 to U+009F: C2 80 to C2 9F
+            if (len == 2 && c == 0xc2 && static_cast<unsigned char>(str[i + 1]) < 0xa0)
             {
-                valid = valid && is_cont(i + k);
-            }
-            auto const c1 = c == 0xc2 && valid && static_cast<unsigned char>(str[i + 1]) < 0xa0;
-            if (valid && not c1)
-            {
-                len = n;
+                len = 0;
             }
         }
 
