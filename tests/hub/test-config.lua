@@ -97,6 +97,18 @@ T.case('a servers file must be readable TOML that fits its schema', function()
     T.eq(load_with('servers.toml').networks[1].servers.servers.a.region, 'EU', 'relative to the configuration')
 end)
 
+T.case('configuration paths: ~ is home, absolute kept, relative beside the file', function()
+    local config = config_module()
+    local home = assert(os.getenv 'HOME')
+    T.eq(config.resolve_path('~', '/cfg'), home, '~ alone')
+    T.eq(config.resolve_path('~/k.pem', '/cfg'), home .. '/k.pem', '~/')
+    T.eq(config.resolve_path('~bob/k.pem', '/cfg'), '/cfg/~bob/k.pem', '~user is not expanded')
+    T.eq(config.resolve_path('/etc/k.pem', '/cfg'), '/etc/k.pem', 'absolute')
+    T.eq(config.resolve_path('a/~/k.pem', '/cfg'), '/cfg/a/~/k.pem', '~ only at the start')
+    T.eq(config.user_path('~/k.pem'), home .. '/k.pem', 'typed paths too')
+    T.eq(config.user_path('k.pem'), config.config_dir() .. '/k.pem', 'typed paths: the configuration directory')
+end)
+
 T.case('a command picks the credential it names, the automatic ones, or the first', function()
     local config = config_module()
     local creds = {automatic = {'b'}, credentials = {{name = 'a'}, {name = 'b'}, {mechanism = 'c'}}}

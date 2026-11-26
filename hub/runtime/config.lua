@@ -243,7 +243,7 @@ end
 local function read_servers(net, dir)
     local name = net.servers_file
     if not name then return end
-    local filename = path.isabs(name) and name or path.join(dir, name)
+    local filename = M.resolve_path(name, dir) --[[@as string]]
     if path.extension(filename) ~= '.toml' then
         error(string.format('networks.%s.servers_file: servers files are TOML, named *.toml: %s',
             net.id, filename), 0)
@@ -341,28 +341,38 @@ function M.network(id)
     end
 end
 
---- A path typed in a command: ~ expanded, and relative to the
---- configuration directory.
----@param text string
----@return string
-function M.user_path(text)
-    return path.join(M.config_dir(), path.expanduser(text))
-end
-
---- Resolve a path from the configuration: absolute paths are kept,
---- relative ones are relative to the configuration file's directory (the
---- configuration directory for a configuration not read from a file).
+--- Resolve a path the configuration names: a leading `~` or `~/` is the
+--- home directory (`~user` is left as written), an absolute path is kept,
+--- and a relative one is relative to `dir`, by default the configuration
+--- file's directory (the configuration directory for a configuration not
+--- read from a file). docs/CONFIG.md "Paths" describes this rule; every
+--- path in the configuration goes through here.
 ---@param entry string|nil
+---@param dir string|nil
 ---@return string|nil
-function M.resolve_path(entry)
+function M.resolve_path(entry, dir)
     if entry == nil then
         return nil
+    end
+    if entry == '~' or entry:sub(1, 2) == '~/' then
+        entry = assert(os.getenv 'HOME', 'HOME not set') .. entry:sub(2)
     end
     if path.isabs(entry) then
         return entry
     end
-    local cfg = HUB.state and HUB.state.config
-    return path.join(cfg and cfg.dir or M.config_dir(), entry)
+    if not dir then
+        local cfg = HUB.state and HUB.state.config
+        dir = cfg and cfg.dir or M.config_dir()
+    end
+    return path.join(dir, entry)
+end
+
+--- A path typed in a command, resolved as configuration paths are but
+--- relative to the configuration directory.
+---@param text string
+---@return string
+function M.user_path(text)
+    return M.resolve_path(text, M.config_dir()) --[[@as string]]
 end
 
 return M

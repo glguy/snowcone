@@ -5,8 +5,9 @@ This document describes the configuration file of `snowcone hub`: where it lives
 Contents:
 
 - [The file](#the-file)
+  - [Paths](#paths): how file names in the configuration and in commands are found
 - [A complete example](#a-complete-example)
-- [Top-level tables](#top-level-tables): `ui`, `mention`, `notifications`, `plugins`
+- [Top-level tables](#top-level-tables): `ui`, `mention`, `notifications`, `spell`, `plugins`
 - [Networks](#networks)
   - [Network settings](#network-settings)
   - [Features](#features)
@@ -31,11 +32,21 @@ The configuration is a TOML file. hub reads the first of these that applies:
 
 A file given with `/reload` or `--config` must be named `*.toml`.
 
-`$XDG_CONFIG_HOME/snowcone` is the *configuration directory*. Relative paths in the configuration, such as `servers_file`, `plugins.directory` and `{file = ...}` secrets, are relative to the directory of the configuration file.
+`$XDG_CONFIG_HOME/snowcone` is the *configuration directory*. Files hub keeps by default, such as the `plugins` directory and the `words` list, are there.
 
 Settings can be overridden on the command line with `key.path=value`, for example `ui.profile=chat`. A number in the path indexes a list, and a name after `networks` is a network's id: `networks.libera.reclaim_nick=false`. The value is read as a TOML value (`true`, `3`, `'text'`, `[1, 2]`), or else taken as text. Overrides are applied to the file's contents before checking.
 
-A field of the wrong type, a missing required field or an unknown feature name stops the load with an error naming the field. So does a field the schema doesn't know, reported as `Unexpected field ...`, so a misspelled or outdated key is never ignored.
+A field of the wrong type, a missing required field or a value not among those a field lists stops the load with an error naming the field. So does a field the schema doesn't know, reported as `Unexpected field ...`, so a misspelled or outdated key is never ignored.
+
+### Paths
+
+Every setting that names a file or directory finds it the same way: `servers_file`, `plugins.directory`, `spell.dictionary`, `spell.personal`, and `{ file = ... }` [secrets](#secrets) (among them `client_cert.file` and `key.file`).
+
+- A leading `~` or `~/` is your home directory. `~user` is not expanded.
+- An absolute path is used as written.
+- A relative path is relative to the directory of the configuration file, so a configuration and the files beside it can move together.
+
+A file named in a command, as in `/reload FILE`, `/dump FILE`, `/ecdsa_new FILE`, `/ecdsa_fp FILE`, `/cert_new FILE` and `/cert_fp FILE`, is found the same way, except that a relative path is relative to the configuration directory. `--config=PATH` is relative to the current directory, like any path on a command line.
 
 ## A complete example
 
@@ -132,7 +143,7 @@ In TOML, tables such as `[networks.server]` and `[[networks.layers]]` belong to 
 
 | Field | Meaning |
 |---|---|
-| `patterns` | Lua patterns; a malformed one fails the load. A channel message matching any of them, or any of `regexes`, is a mention: its buffer is marked `!` and a notification may be sent. A private message is always a mention. A [buffer's own](#buffers) mention settings replace both rules. |
+| `patterns` | Lua patterns; a malformed one fails the load. A channel message matching any of them, or any of `regexes`, is a mention: its buffer is marked `!` and a notification may be sent. Your nick is not matched unless a pattern names it, so without any patterns no channel message is a mention. A private message to you is always a mention, whatever these say; see [Buffers](#buffers). A [buffer's own](#buffers) mention settings replace both rules. |
 | `regexes` | PCRE2 regular expressions, matched as written: `(?i)` ignores case. They need `rex_pcre2`; a configuration with one fails to load without it, and so does one that doesn't compile. |
 
 A network's own `[networks.mention]` replaces these for that network. It does not add to them. Setting either `patterns` or `regexes` replaces both lists: a network with only `regexes` uses none of the top-level `patterns`.
@@ -149,30 +160,18 @@ Without this table, no notifications are sent.
 
 ### `[spell]`
 
-Spell checking for the messages you type. It needs snowcone built with
-hunspell, and a hunspell dictionary.
+Spell checking for the messages you type. It needs snowcone built with hunspell, and a hunspell dictionary.
 
 | Field | Default | Meaning |
 |---|---|---|
-| `dictionary` | | Required when the table is present. A hunspell dictionary without its extension: `'/usr/share/hunspell/en_US'` reads `en_US.aff` and `en_US.dic`; naming either file works too. A relative path is relative to the configuration file. |
+| `dictionary` | | Required when the table is present. A hunspell dictionary without its extension: `'/usr/share/hunspell/en_US'` reads `en_US.aff` and `en_US.dic`; naming either file works too. |
 | `personal` | `words` in the configuration directory | Your own words, one per line, also accepted. `/spell_add` appends to it. |
 
-While you talk (not in commands, filters or prompts), misspelled words are
-underlined in red. The word you are still typing isn't flagged. Words with
-digits, URLs, channel names, and the nicks in the shown channel (with
-their possessives) are never checked. Meta-$ replaces the misspelled word
-at the cursor, or else the last one before it, with each suggestion in
-turn, and then the word as it was. Ctrl-_ undoes the whole run. A word
-with formatting codes inside it is left for you to fix by hand.
-`/spell WORD` shows whether a word is spelled right and offers
-suggestions. `/spell_add WORD` accepts it from now on.
+While you talk (not in commands, filters or prompts), misspelled words are underlined in red. The word you are still typing isn't flagged. Words with digits, URLs, channel names, and the nicks in the shown channel (with their possessives) are never checked. Meta-$ replaces the misspelled word at the cursor, or else the last one before it, with each suggestion in turn, and then the word as it was. Ctrl-_ undoes the whole run. A word with formatting codes inside it is left for you to fix by hand. `/spell WORD` shows whether a word is spelled right and offers suggestions. `/spell_add WORD` accepts it from now on.
 
-A dictionary that isn't UTF-8 (many `en_US` files are ISO8859-1) checks
-only words written entirely in ASCII. Words in a script the dictionary
-doesn't cover, such as Cyrillic against `en_US`, are all flagged.
+A dictionary that isn't UTF-8 (many `en_US` files are ISO8859-1) checks only words written entirely in ASCII. Words in a script the dictionary doesn't cover, such as Cyrillic against `en_US`, are all flagged.
 
-`/reload` opens the dictionary again and re-reads the personal list, so
-it picks up a dictionary installed after an error, or words added by hand.
+`/reload` opens the dictionary again and re-reads the personal list, so it picks up a dictionary installed after an error, or words added by hand.
 
 Without this table, or without hunspell, nothing is checked.
 
@@ -225,7 +224,7 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 | `oper` | `snotice` | The K-Line workflow (stage, test and send K-Lines, unklines and undlines), plus `/testline`, `/kill`, `/wallops`, `/operwall`, and bans sent as typed: `/unkline`, `/dline`, `/undline`, `/xline`, `/unxline`, `/resv`, `/unresv`. A staged K-Line is shown and sent from snotice's views. `/oper` doesn't need it. |
 | `topology` | `snotice` | Server populations from MAP, links from LINKS, versions, uptimes and DNS rotations, shown in the load views. Shedding and drain notices update `/maintenance` as they happen. |
 
-An unknown feature name is an error, and so is a feature without the features it requires.
+A feature without the features it requires is an error.
 
 ### Connecting
 
@@ -310,7 +309,7 @@ username = 'proxyuser'
 password = 'proxypass'
 ```
 
-`host` and `port` are required. `username` and `password` must be given together or both left out. One without the other is an error, not a silent connection without authentication. `password` is a [secret](#secrets). SOCKS5 allows neither to be empty, and each is at most 255 bytes.
+`host` and `port` are required. `username` and `password` must be given together or both left out. One without the other fails the connection attempt (the load doesn't catch it), rather than connecting silently without authentication. `password` is a [secret](#secrets). SOCKS5 allows neither to be empty, and each is at most 255 bytes.
 
 ##### HTTP CONNECT layer
 
@@ -432,7 +431,7 @@ mechanism = 'EXTERNAL'
 | Field | Meaning |
 |---|---|
 | `name` | The name used in `automatic` and `/sasl`. Defaults to `mechanism`. |
-| `mechanism` | Required; see the list below. |
+| `mechanism` | Required; see the list below. The load doesn't check it: a mechanism not listed, or a field it needs that is missing, fails when the credential is used. |
 | `username` | The authentication identity. |
 | `password` | A [secret](#secrets): the password, or the passphrase of `key`. |
 | `key` | The [private key](#private-keys) for the challenge mechanisms. |
@@ -499,7 +498,7 @@ Each `[[networks.buffers]]` entry names a channel or nick and sets how its buffe
 | `label` | the first free one | The buffer's key in the jump pane (`j` in the buffer view): one letter or digit. No other buffer gets that key, even while this buffer isn't open. Two entries can't have the same label. With `false`, the buffer has no key, but you can still click it. |
 | `hidden` | `false` | Leave the buffer out of the jump pane. It still has a label, and typing that label in the jump pane still goes to the buffer. With `label = false` as well, the buffer can't be reached from the jump pane at all. |
 
-Other people's messages mark their buffer unseen (`+`, yellow); joins, parts and your own lines don't. A mention marks it `!` in magenta instead: Meta-A goes to it first, and it can send a [notification](#notifications). In a channel, a mention is a message matching the [mention patterns](#mention). In a private buffer, every message to you is a mention.
+Other people's messages mark their buffer unseen (`+`, yellow); joins, parts and your own lines don't. A mention marks it `!` in magenta instead: Meta-A goes to it first, and it can send a [notification](#notifications). In a channel, a mention is a message matching the [mention patterns](#mention). In a private buffer, a mention is a message addressed to your nick, other than a CTCP request such as VERSION (an action is a mention). A message to a broadcast mask, or to a nick you no longer have, is not. The network and top-level mention patterns don't apply to private buffers.
 
 A buffer's own `mention.patterns` or `mention.regexes` replace those rules for that buffer, in a channel or a private buffer. Setting either one replaces both lists:
 
@@ -587,7 +586,7 @@ The netcount view lists watches with their hit counts. `/addwatch 'pattern' [col
 
 ### The servers file
 
-`servers_file` names a TOML file, relative to the configuration directory and named `*.toml`, describing the network's servers. It is read when the configuration loads. A file that can't be read or parsed, or has a field of the wrong type or one the schema doesn't know, stops the load. All keys are optional:
+`servers_file` names a TOML file (found as [Paths](#paths) describes) named `*.toml`, describing the network's servers. It is read when the configuration loads. A file that can't be read or parsed, or has a field of the wrong type or one the schema doesn't know, stops the load. All keys are optional:
 
 ```toml
 primary_hub = 'hub.example'   # topology: the root of the link tree
@@ -625,7 +624,7 @@ Fields that hold passwords, keys or certificates accept a secret, which is one o
 | Form | Value |
 |---|---|
 | `'text'` | The string itself. |
-| `{ file = 'path' }` | The contents of the file, without its final line break. Relative paths are relative to the configuration directory. |
+| `{ file = 'path' }` | The contents of the file (see [Paths](#paths)), without its final line break. |
 | `{ command = 'program', arguments = [...] }` | The program's output, as described below. |
 | `{ prompt = 'label' }` | Asked for in the input line when needed, showing the network and label. Esc aborts it. |
 
@@ -664,12 +663,14 @@ The store is opened with the credential's `password`, or the layer's `client_pas
 
 `/reload` (or SIGUSR1) reads the configuration file and the servers files again, and loads new code, without dropping connections.
 
-`/reload FILE` switches to another configuration file. A relative `FILE` is relative to the configuration directory, and `~` is expanded. Once it loads, every later `/reload` and SIGUSR1 reads it too, until another file is given. A file that fails to load isn't remembered. The configuration directory stays the same, and command-line overrides still apply. `/client` shows the file in use under `code`.
+`/reload FILE` switches to another configuration file, found as [Paths](#paths) describes for commands. Once it loads, every later `/reload` and SIGUSR1 reads it too, until another file is given. A file that fails to load isn't remembered. The configuration directory stays the same, and command-line overrides still apply. `/client` shows the file in use under `code`, as `config`.
 
 - **Networks:**
   - A network added to the file connects if `autoconnect` allows.
   - A network removed from the file disconnects.
-- **Settings that apply at once:** `ircd` (except for the `snomask` modes, which are set when you become an operator), `features`, `reconnect`, `reclaim_nick`, `quit_message`, `snomask`, `oper`, `mention`, `watches`, `hide` (for messages that arrive afterwards), the `mention`, `activity`, `label` and `hidden` of `buffers`, the servers file and the top-level tables. Messages already received keep how they counted.
+  - `autoconnect` matters only for a network the reload adds. Changing it on a network already there neither connects nor disconnects it; use `/connect` or `/disconnect`.
+- **Settings that apply at once:** `ircd`, `features`, `reconnect`, `rate_limit`, `reclaim_nick`, `quit_message`, `mention`, `watches`, `hide` (for messages that arrive afterwards), the `mention`, `activity`, `label` and `hidden` of `buffers`, the servers file and the top-level tables. Messages already received keep how they counted.
+- **Settings that wait for the next time you become an operator:** `snomask`, and the snomask modes a change of `ircd` implies. `oper` credentials are used by the next `/oper`, and `oper.automatic` at the next registration.
 - **Settings that wait for a new connection:** `join` and `key` in `buffers`; hub doesn't join or part channels on a reload. A change to `server`, `layers`, `websocket`, `identity`, `registration` or `sasl` marks the network `restart pending: /reconnect` in `/networks` and `/session` until you reconnect.
 
-A configuration that fails to load leaves the running one in place. The error is logged, hub switches to `/status` to show it, and `/client` shows `last load failed` under `code`.
+A configuration that fails to load leaves the running one in place. The error is logged, hub switches to `/status` to show it, and `/client` shows `last load` with the time, `failed:` and the error under `code`.

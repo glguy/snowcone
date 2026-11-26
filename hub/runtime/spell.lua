@@ -33,7 +33,7 @@ local verdicts, n_verdicts = {}, 0
 
 local function personal_path(cfg)
     if cfg.personal then
-        return config.resolve_path(path.expanduser(cfg.personal))
+        return config.resolve_path(cfg.personal)
     end
     return path.join(config.config_dir(), 'words')
 end
@@ -88,7 +88,7 @@ function M.activate()
         return
     end
     local ok, h, info = pcall(function()
-        local base = config.resolve_path(path.expanduser(cfg.dictionary))
+        local base = config.resolve_path(cfg.dictionary)
         ---@cast base string
         -- the files' shared name, should one of them be named
         base = base:gsub('%.dic$', ''):gsub('%.aff$', '')
