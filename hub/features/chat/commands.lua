@@ -1,6 +1,7 @@
--- Chat's commands: talking (/cmsg a private message shown in a channel),
--- buffers and channel information; the channel operator commands are in
--- chat/modes.lua.
+-- Chat's commands: opening and closing buffers (/talk, /close), talking
+-- (/msg, /notice, /ctcp, and /cmsg, a private message shown in a
+-- channel), a channel's information (/chaninfo) and setting its topic
+-- (/topic). The channel operator commands are in chat/modes.lua.
 
 local bus       <const> = require 'hub.runtime.bus'
 local chat      <const> = require 'hub.features.chat'

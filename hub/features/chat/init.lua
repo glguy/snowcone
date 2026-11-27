@@ -1,49 +1,59 @@
 -- Chat: buffers of messages per network and target, mentions and
 -- history. This module routes messages to buffers, and is what the rest
--- of hub uses; its commands, in chat/commands.lua and chat/modes.lua,
--- build on it. Its parts, each requiring only those before it:
+-- of hub uses; its commands, in chat/commands.lua and chat/modes.lua
+-- (with chat/masks.lua), build on it.
+--
+-- Parts, each requiring only those before it:
 --
 --   store.lua                           state, folding, finding buffers
+--   channel_errors.lua, ctcp.lua        channel error numerics, CTCP replies
 --   config.lua, hide.lua, typing.lua    settings, hide rules, typing
 --   buffers.lua                         what a buffer holds
 --   history.lua, receipt.lua            chat history, our own lines
 --   opening.lua                         opening and closing buffers
 --   channels.lua                        asking about channels
 --
--- state.features.chat[net] = {
---   buffers  [folded target] = {name, messages = OrderedMap, activity,
---            mention, typing}; activity counts unseen messages, messages
---            are keyed by their msgid tag when they have one, and typing
---            holds who is typing there (chat/typing.lua)
---   pending  [label] = {[folded target] = {msg, buffer}}: our labeled
---            PRIVMSG and NOTICE lines awaiting the server's reply
---            (chat/receipt.lua)
---   closing  [folded channel] = true: channels /close parted, whose buffer
---            goes when our PART comes back
---   composing what we are writing and where, for our typing notices
---            (chat/typing.lua)
--- }
+-- State, state.features.chat[net] (hub.ChatState, chat/store.lua):
+--
+--   buffers    [folded target] = hub.ChatBuffer: name, messages (an
+--              OrderedMap keyed by msgid when there is one), activity
+--              (unseen messages), mention, first_unseen, typing
+--              (chat/typing.lua) and hide (chat/hide.lua)
+--   pending    [label] = {[folded target] = {msg, buffer}}: our labeled
+--              PRIVMSG and NOTICE lines awaiting the server's reply
+--              (chat/receipt.lua)
+--   closing    [folded channel] = true: channels /close parted, whose
+--              buffer goes when our PART comes back
+--   composing  what we are writing and where, for our typing notices
+--              (chat/typing.lua)
+--   casemapping, history_bucket, ctcp_bucket: what the keys are folded
+--              with, and the pacing of history requests and CTCP replies
+--
+-- Routing: channel messages go to the channel's buffer, private ones to
+-- a buffer named for the other side, and a private message with the
+-- channel-context tag naming a channel we are in to that channel's
+-- buffer, marked msg.context: '>' from the sender to us, '<' from us to
+-- the recipient (/cmsg sends one). Membership and identity changes go to
+-- the channels they concern and the user's private buffer. Hidden
+-- messages never count as activity or mentions.
+--
+-- Mentions: a channel message matching the mention settings is one; so
+-- is every private message to us, except a CTCP request. A buffer's
+-- configured settings ([[networks.buffers]], chat/config.lua) may give it
+-- its own mention patterns or regexes, which in a private buffer replace
+-- that rule, and with activity = false leave its messages other than
+-- mentions seen. A message is marked msg.mention only when its text
+-- matches, so a private buffer doesn't have every message marked.
 --
 -- Sending: replies to CTCP requests (paced, except to staff), CHATHISTORY
--- (chat/history.lua) for buffers, MONITOR for private ones (through
--- net/monitor.lua), our
--- typing (TAGMSG, chat/typing.lua), and what the commands ask for, such
--- as a channel's modes and topic (chat/channels.lua). PRIVMSG and NOTICE
--- go out only from commands and talk mode. Bans, quiets and kicks go out
--- at once, without staging: they reach one channel and are easily
--- undone.
---
--- Our own PRIVMSG and NOTICE lines are shown from irc.sent, and with
--- labeled-response await the server's reply (chat/receipt.lua).
---
--- A buffer's configured settings ([[networks.buffers]], chat/config.lua)
--- may give it its own mention patterns or regexes, which in a private
--- buffer replace the rule that every message to us is a mention, and
--- with activity = false leave its messages other than mentions seen.
---
--- A private message with the channel-context tag naming a channel we are
--- in is shown in that channel's buffer, marked msg.context: '>' from the
--- sender to us, '<' from us to the recipient. /cmsg sends one.
+-- for buffers (chat/history.lua), MONITOR for private ones (through
+-- net/monitor.lua), our typing (TAGMSG, chat/typing.lua), and what the
+-- commands ask for, such as a channel's modes and topic
+-- (chat/channels.lua). PRIVMSG and NOTICE go out only from commands and
+-- talk mode. Bans, quiets and kicks go out at once, unlike oper's staged
+-- K-Lines: they reach one channel and are easily undone. Our own PRIVMSG
+-- and NOTICE lines are shown from irc.sent, and with labeled-response
+-- await the server's reply (chat/receipt.lua).
 
 local buffers        <const> = require 'hub.features.chat.buffers'
 local bus            <const> = require 'hub.runtime.bus'

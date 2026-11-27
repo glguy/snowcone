@@ -1,5 +1,5 @@
 -- Chat's state: its buffers by network and folded target, and looking
--- them up. Every other part of chat builds on this one.
+-- them up. Every part of chat that holds state builds on this one.
 
 local casemap    <const> = require 'hub.lib.casemap'
 local common     <const> = require 'hub.features.common'
