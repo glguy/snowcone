@@ -127,15 +127,6 @@ M.commands = {
         bus.emit('chat.show_channel', {net = ctx.net, target = target})
     end),
     topic_command(),
-    command('list', '$R', '[pattern]',
-        'List channels, optionally matching a pattern; without one, fetched only the first time',
-    function(ctx, arg)
-        -- the list view's refresh button fetches again
-        if (arg and arg ~= '') or not chat.get(ctx.net).list_count then
-            chat.list(ctx.net, arg)
-        end
-        bus.emit('chat.show_list', {net = ctx.net})
-    end),
 }
 
 return M

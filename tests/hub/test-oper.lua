@@ -997,4 +997,114 @@ T.case('with labeled-response a listing takes its own reply', function()
     T.eq(next(HUB.tasks), nil, 'finished')
 end)
 
+T.case('/list sends the filters ELIST offers, in an order every server reads alike', function()
+    local c = boot {'chat'}
+    local function last(category) local l = T.log_lines(category) return l[#l] end
+    local function list(args)
+        T.command('list ' .. args)
+        T.require 'hub.runtime.task'.cancel_all()
+        return c:take()
+    end
+
+    -- before ELIST, only a channel by name
+    T.eq(list '#chan', {'LIST #chan'}, 'a channel needs no ELIST')
+    T.eq(list '>10', {}, 'nothing else')
+    T.eq(last 'error', 'list: test has no LIST by user count (ELIST=none)', 'said so')
+
+    c:recv ':srv 005 me CHANTYPES=#& ELIST=MNU :are supported'
+    T.eq(list '>9 <100', {'LIST >9,<100'}, 'users')
+    T.eq(list 'C<60', {}, 'no creation time')
+    T.eq(last 'error', 'list: test has no LIST by creation time (ELIST=MNU)', 'said so')
+
+    c:recv ':srv 005 me ELIST=cmntu :are supported'
+    T.eq(list '!*bot* T<60 #a* C>5,<3', {'LIST <3,C>5,T<60,#a*,!*bot*'}, 'the masks last, commas or spaces')
+    T.eq(list '!*bot*', {'LIST *,!*bot*'}, 'the exclusion never first')
+    T.eq(list '&x*', {'LIST &x*'}, 'any channel type')
+    T.eq(list '>0', {'LIST >0'}, 'more than none')
+
+    for _, bad in ipairs {
+        {'foo*', 'a mask starts with a channel type (#&), * or ?: foo*'},
+        {'!bar', 'a mask starts with a channel type (#&), * or ?: !bar'},
+        {'<0', '<0 lists nothing'},
+        {'>x', 'not a number: >x'},
+        {'>99999999', 'too large: >99999999'},
+        {'T<', 'not a number: T<'},
+        {'#a* #b*', 'one mask filter: #b*'},
+        {'>1 >2', 'one >n filter: >2'},
+        {'>1 <9 C<1 C>1 T<1 T>1 #a* !#b*', 'at most 7 filters'},
+        {'-x', 'a mask starts with a channel type (#&), * or ?: -x'},
+    } do
+        T.eq(list(bad[1]), {}, bad[1] .. ' not sent')
+        T.eq(last 'error', 'list: ' .. bad[2], bad[1])
+    end
+
+    -- OFTC hybrid reads C the other way about
+    c = boot({'chat'}, false, 'oftc-hybrid')
+    c:recv ':srv 005 me CHANTYPES=# ELIST=CMNTU :are supported'
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.listing', 'test', function(ev) table.insert(events, ev) end)
+    T.command 'list C<60 T<60'
+    T.eq(c:take(), {'LIST C>60,T<60'}, 'C turned around')
+    c:recv ':srv 323 me :End of /LIST'
+    T.eq({events[1].listing.command, last 'list'}, {'LIST C<60,T<60', 'LIST C<60,T<60: 0 replies'}, 'shown as typed')
+end)
+
+T.case('LIST lists its channels to the end, one at a time, and fails on refusals', function()
+    local c = boot({'chat'}, true)
+    c:recv ':srv 005 me CHANTYPES=# ELIST=CMNTU :are supported'
+    local function last(category) local l = T.log_lines(category) return l[#l] end
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.listing', 'test', function(ev) table.insert(events, ev) end)
+
+    T.command 'list'
+    T.eq(c:take(), {'@label=sc1 LIST'}, 'labeled')
+    T.command 'list'
+    T.eq(c:take(), {}, 'another would stop it')
+    T.eq(last 'error', 'list: a LIST is running on test', 'said so')
+    c:recv '@label=sc1 :srv BATCH +b labeled-response'
+    c:recv '@batch=b :srv 321 me Channel :Users  Name'
+    c:recv '@batch=b :srv 322 me #a 12 :topic a'
+    c:recv '@batch=b :srv 322 me #b 3 :'
+    c:recv '@batch=b :srv 323 me :End of /LIST'
+    c:recv ':srv BATCH -b'
+    local l = events[1].listing
+    T.eq({l.kind, l.command, #l.messages, l.sort}, {'list', 'LIST', 2, {header = 'users', descending = true}},
+        'its channels, the biggest first')
+    T.eq(last 'list', 'LIST: 2 replies', 'logged')
+
+    -- paced: refused, the end after
+    T.command 'list >0'
+    c:take()
+    c:recv '@label=sc2 :srv BATCH +b labeled-response'
+    c:recv '@batch=b :srv 263 me LIST :This command could not be completed because it has been used recently, and is rate-limited.'
+    c:recv '@batch=b :srv 323 me :End of /LIST'
+    c:recv ':srv BATCH -b'
+    T.eq(last 'list', 'LIST >0: This command could not be completed because it has been used recently, and is rate-limited.',
+        'failed')
+
+    -- a channel named alone that isn't there
+    T.command 'list #gone'
+    c:take()
+    c:recv '@label=sc3 :srv BATCH +b labeled-response'
+    c:recv '@batch=b :srv 321 me Channel :Users  Name'
+    c:recv '@batch=b :srv 401 me #gone :No such nick/channel'
+    c:recv '@batch=b :srv 323 me :End of /LIST'
+    c:recv ':srv BATCH -b'
+    T.eq(last 'list', 'LIST #gone: No such nick/channel', 'no such channel')
+    T.eq(#events, 1, 'neither shown')
+
+    -- OFTC hybrid: no end after either refusal
+    c = boot({'chat'}, false, 'oftc-hybrid')
+    T.command 'list'
+    c:take()
+    c:recv ':srv 263 me LIST :Server load is temporarily too heavy. Please wait a while and try again.'
+    T.eq(next(HUB.tasks), nil, 'paced ends it')
+    c:recv ':srv 005 me CHANTYPES=# ELIST=CMNTU :are supported'
+    T.command 'list >1'
+    c:take()
+    c:recv ':srv 521 me :Bad list syntax, type /QUOTE HELP LIST'
+    T.eq(last 'list', 'LIST >1: Bad list syntax, type /QUOTE HELP LIST', 'bad syntax ends it')
+    T.eq(next(HUB.tasks), nil, 'finished')
+end)
+
 T.run()

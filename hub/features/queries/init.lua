@@ -6,7 +6,7 @@
 --   whois.lua     WHOIS
 --   whowas.lua    WHOWAS
 --   listing.lua   STATS, TRACE, ETRACE, MASKTRACE, CHANTRACE, MOTD, INFO, HELP,
---                 LUSERS, PRIVS, SCAN
+--                 LUSERS, PRIVS, SCAN, LIST (its filters in list.lua)
 --
 -- and FINDFORWARDS, which the server answers with a notice that shows as
 -- any other.
@@ -24,6 +24,7 @@
 local common    <const> = require 'hub.features.common'
 local irc_model <const> = require 'hub.net.irc'
 local ircd      <const> = require 'hub.net.ircd'
+local list      <const> = require 'hub.features.queries.list'
 local listing   <const> = require 'hub.features.queries.listing'
 local send      <const> = require 'hub.net.send'
 local task      <const> = require 'hub.runtime.task'
@@ -153,6 +154,31 @@ local function scan_command()
     return cmd
 end
 
+-- A LIST running on a network: another would stop it, and list nothing
+local function listing_channels(net)
+    for _, t in pairs(HUB.tasks) do
+        if t.name == 'list' and t.net == net then return true end
+    end
+    return false
+end
+
+local function list_command()
+    return command('list', '$R', '[filter...]',
+        'LIST the channels, shown as a table; filters: #mask or *mask*, !mask to leave out, '
+            .. '>n or <n users, C<n or C>n created within or over n minutes ago, '
+            .. 'T<n or T>n topic set within or over n minutes ago, as the network offers them '
+            .. '(ELIST); without one a server may leave out small channels, which >0 lists',
+    function(ctx, rest)
+        local irc = model(ctx.net)
+        if not irc then error(ctx.net .. ' is not connected', 0) end
+        if listing_channels(ctx.net) then error('a LIST is running on ' .. ctx.net, 0) end
+        local words = {}
+        for w in rest:gmatch '[^%s,]+' do table.insert(words, w) end
+        local filter = list.parse(ctx.net, irc, words)
+        task.spawn('list', {net = ctx.net, owner = M.name}, listing.list, filter)
+    end)
+end
+
 function M.subscribe(sub)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
 end
@@ -194,6 +220,7 @@ M.commands = {
         task.spawn('privs', {net = ctx.net, owner = M.name}, listing.privs, nick ~= '' and nick or nil)
     end),
     scan_command(),
+    list_command(),
     command('findforwards', '$g', 'channel', 'FINDFORWARDS: the channels that forward (+f) to a channel',
     function(ctx, channel)
         if ircd.hybrid(ctx.net) then error('OFTC hybrid has no FINDFORWARDS', 0) end

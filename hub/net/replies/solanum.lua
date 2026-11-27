@@ -15,6 +15,8 @@
 --   reasons  a ban reason, and after a | the oper reason
 --   addr     an address, maybe in parentheses; 0 (hidden from us) and
 --            255.255.255.255 (hidden, or none) mean the server won't say
+--   chan     a channel's name, which the listings' tables make a button
+--            that talks there
 --
 -- The replies that take reading beyond their fields have a reader in
 -- M.readers (net/replies/read.lua): the auth block (RPL_STATSILINE), whose
@@ -169,7 +171,7 @@ M.fields = {
     [N.RPL_WHOREPLY] = {'channel', 'user', 'host', 'server', 'nick', 'flags', 'realname:text'},
 
     [N.RPL_LISTSTART] = {'-', 'text:text'},
-    [N.RPL_LIST] = {'channel', 'users', 'topic:text'},
+    [N.RPL_LIST] = {'channel:chan', 'users', 'topic:text'},
     [N.RPL_LISTEND] = text,
     [N.RPL_CHANNELMODEIS] = {'channel', 'modes:rest'},
     [N.RPL_CHANNELMLOCK] = {'channel', 'mlock', 'text:text'},

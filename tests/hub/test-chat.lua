@@ -1258,16 +1258,6 @@ T.case('a flood of new senders makes a few history requests, and CTCP requests a
     T.eq(chat.buffer('test', 'carol').mention, true, 'an action is')
 end)
 
-T.case('/list counts the channels it could not keep', function()
-    local c, chat = boot()
-    T.command 'list'
-    local C = chat.get('test')
-    C.list = T.require 'hub.lib.OrderedMap'.new(3)
-    for i = 1, 5 do c:recv(':srv 322 me #c' .. i .. ' 1 :topic') end
-    c:recv ':srv 323 me :End of /LIST'
-    T.eq({T.require 'hub.lib.OrderedMap'.size(C.list), C.list_count}, {3, 5}, 'kept 3 of 5')
-end)
-
 T.case('/msg opens the target\'s buffer', function()
     local c, chat = boot()
     T.command('msg carol hello')
@@ -1478,7 +1468,7 @@ T.case('CTCP replies to anyone are paced, and to staff are not', function()
         'the budget is untouched')
 end)
 
-T.case('talk, close and list', function()
+T.case('talk and close', function()
     local c, chat = boot()
     T.command 'talk #new'
     local sent = c:take()
@@ -1490,15 +1480,6 @@ T.case('talk, close and list', function()
     chat.close('test', 'carol')
     T.eq(c:take(), {'MONITOR - carol'}, 'unmonitored')
     T.eq(chat.buffer('test', 'Carol'), nil, 'closed')
-
-    T.command 'list'
-    T.eq(c:take(), {'LIST'}, 'LIST')
-    c:recv ':srv 321 me Channel :Users  Name'
-    c:recv ':srv 322 me #a 12 :topic a'
-    c:recv ':srv 322 me #b 3 :topic b'
-    c:recv ':srv 323 me :End of /LIST'
-    c:recv ':srv 322 me #late 1 :not listed'
-    T.eq(chat.get('test').list.n, 2, 'two channels, nothing after the end')
 end)
 
 T.case('closing a channel parts it, and its buffer stays closed', function()

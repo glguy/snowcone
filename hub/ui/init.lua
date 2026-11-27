@@ -317,7 +317,6 @@ local view_modules <const> = {
     require 'hub.ui.views.bans',
     require 'hub.ui.views.bouncer',
     require 'hub.ui.views.buffer',
-    require 'hub.ui.views.list',
     require 'hub.ui.views.channels',
     require 'hub.ui.views.netcount',
     require 'hub.ui.views.repeats',

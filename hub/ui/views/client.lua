@@ -111,7 +111,7 @@ local function store_rows()
             local pending = 0
             for _, entries in pairs(chat.pending) do pending = pending + count(entries) end
             row(id, 'chat', 'buffers', count(chat.buffers), 'messages', messages,
-                'list', OrderedMap.size(chat.list), 'awaiting replies', pending, 'closing', count(chat.closing))
+                'awaiting replies', pending, 'closing', count(chat.closing))
         end
     end
     return rows

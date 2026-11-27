@@ -1788,4 +1788,43 @@ T.case('channel information for a channel we are not in is a snapshot', function
     T.eq(irc_model.known_channel(irc, '#ext'), nil, 'parted')
 end)
 
+T.case('a LIST shows its channels biggest first, and a click on one talks there', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    local talk = T.require 'hub.ui.talk'
+    c:take()
+    cmdline.execute 'list'
+    T.eq(c:take(), {'LIST'}, 'sent')
+    c:recv ':srv 321 me Channel :Users  Name'
+    c:recv ':srv 322 me #small 3 :\x02bold\x02 topic'
+    c:recv ':srv 322 me #lobby 120 :come in'
+    c:recv ':srv 322 me #mid 15 :'
+    c:recv ':srv 323 me :End of /LIST'
+    T.eq(control.detail().kind, 'listing', 'shown')
+
+    HUB.current.routes['ui.draw']()
+    local rows = rows_of(detail_pad())
+    local order = {}
+    for y = 0, #rows do
+        local name = rows[y]:match '^(#%S+)'
+        if name then table.insert(order, name) end
+    end
+    T.eq(order, {'#lobby', '#mid', '#small'}, 'by users, descending')
+    T.ok(has_row(rows, 'users▼'), 'marked')
+    T.ok(has_row(rows, '^#small%s+3%s+bold topic$'), 'the topic formatted')
+    T.ok(has_row(rows, '^#mid%s+15%s+%-$'), 'no topic is -')
+
+    for y = 0, #rows do
+        local x = rows[y]:find('#lobby', 1, true)
+        if x then
+            HUB.current.routes['ui.entry']('on_mouse', y, x - 1, false)
+            break
+        end
+    end
+    T.eq({HUB.state.ui.view, talk.target 'test'}, {'buffer', '#lobby'}, 'its buffer is shown')
+    T.eq(c:take(), {'JOIN #lobby'}, 'and joined')
+    T.eq(T.log_lines 'error', {}, 'drawn')
+end)
+
 T.run()

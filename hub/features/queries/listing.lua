@@ -14,6 +14,7 @@
 --   M.lusers(t, server)           LUSERS
 --   M.privs(t, nick)              PRIVS
 --   M.scan(t, args)               SCAN UMODES
+--   M.list(t, filter)             LIST
 --
 -- Each kind says what it lists and what ends it (hub.ListingSpec); gather
 -- does the rest. The replies it lists are kept in order until the end,
@@ -40,11 +41,13 @@ local irc_model <const> = require 'hub.net.irc'
 local ircd      <const> = require 'hub.net.ircd'
 local log       <const> = require 'hub.runtime.log'
 local N         <const> = require 'hub.lib.numerics'
+local NH        <const> = require 'hub.lib.numerics_hybrid'
 
 --- A listing: what was asked, and the replies.
 ---@class hub.Listing
 ---@field kind string the command's, as the log names it
----@field command string as sent, with its arguments
+---@field command string as sent, with its arguments, unless the kind
+--- shows it otherwise
 ---@field messages hub.Message[] the replies, in order
 ---@field errors hub.Message[] errors the server followed with the end
 ---@field relabel table<string, string>|nil field labels that mean
@@ -52,6 +55,7 @@ local N         <const> = require 'hub.lib.numerics'
 --- user's server where ETRACE gives the class
 ---@field lines hub.ListingLines|nil when the replies are lines of text
 ---@field at integer epoch seconds when the end came
+---@field sort hub.ListingSort|nil how its tables are sorted at first
 ---@field view table|nil the UI's tables, worked out once (ui/details/listing.lua)
 
 --- Replies shown as lines of text, in one table: each reply's last
@@ -61,6 +65,12 @@ local N         <const> = require 'hub.lib.numerics'
 ---@field column string|nil the column's header; default text
 ---@field strip string|nil a Lua pattern to take off the start
 ---@field words boolean|nil
+
+--- A column, by its header, that a listing's tables are sorted by until
+--- another is chosen.
+---@class hub.ListingSort
+---@field header string
+---@field descending boolean
 
 --- What a listing is about, for telling its replies from another's
 --- without labels: the field of an end that must name `name`, and with
@@ -101,6 +111,9 @@ local N         <const> = require 'hub.lib.numerics'
 ---@field silence string|nil what the log says on no reply
 ---@field relabel table<string, string>|nil
 ---@field lines hub.ListingLines|nil
+---@field shown string|nil the command as the log and the tables show
+--- it, when not as sent
+---@field sort hub.ListingSort|nil
 
 local M = {}
 
@@ -204,10 +217,10 @@ end
 ---@param t hub.Task
 ---@param spec hub.ListingSpec
 local function gather(t, spec)
-    local command = table.concat(spec.args, ' ')
+    local command = spec.shown or table.concat(spec.args, ' ')
     ---@type hub.Listing
     local l = {kind = spec.kind, command = command, messages = {}, errors = {}, relabel = spec.relabel,
-        lines = spec.lines, at = os.time()}
+        lines = spec.lines, sort = spec.sort, at = os.time()}
 
     local function fail(fmt, ...)
         t:log(spec.kind, fmt, ...)
@@ -528,6 +541,27 @@ local scan_ends <const> = {[N.RPL_SCANMATCHED] = 'row'}
 function M.scan(t, args)
     gather(t, {kind = 'scan', args = {'SCAN', 'UMODES', table.unpack(args)}, rows = scan_rows, ends = scan_ends,
         key = 'scan', oper = true, errors = privs_without_end})
+end
+
+-- LIST's channels, until its end. Both servers refuse a LIST paced for
+-- load, Solanum with the end after; OFTC hybrid refuses bad filters with
+-- ERR_LISTSYNTAX and no end. Solanum answers a channel named alone and
+-- not there with no such nick. A second LIST while one runs stops it and
+-- lists nothing (/list sends none, features/queries/init.lua). The
+-- server's order means nothing, so the biggest channels come first.
+local list_rows <const> = {[N.RPL_LIST] = true}
+local list_ends <const> = {[N.RPL_LISTEND] = true}
+
+--- LIST the channels a filter picks (features/queries/list.lua).
+---@param t hub.Task
+---@param filter hub.ListFilter
+function M.list(t, filter)
+    local errors = {[N.RPL_LOAD2HI] = {'fatal', 'command'}}
+    if ircd.hybrid(t.net) then errors[NH.ERR_LISTSYNTAX] = {'fatal', 'any'} end
+    -- a big network's list is long in coming
+    gather(t, {kind = 'list', args = {'LIST', filter.arg}, shown = filter.shown, target = filter.channel,
+        rows = list_rows, ends = list_ends, key = 'list', errors = errors, timeout_ms = 300000,
+        sort = {header = 'users', descending = true}})
 end
 
 --- Whether a mask is one MASKTRACE takes: a user and a host about the

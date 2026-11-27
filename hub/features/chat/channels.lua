@@ -1,22 +1,15 @@
 -- What chat asks of the server about channels: a channel's modes, topic
--- and list modes, and the channel list (LIST).
+-- and list modes.
 --
 -- A channel we aren't in gets a snapshot (net/irc.lua observe_channel) to
 -- take the replies, kept as long as its buffer, and is asked again after
 -- each change we make there, since nothing tells us of changes in a
 -- channel we aren't in. The replies update the snapshot or the joined
 -- channel (net/handlers.lua).
---
--- The channel list holds the newest of the last LIST's replies, at most
--- store.list_size, in C.list, and C.list_count counts them all.
 
 local common     <const> = require 'hub.features.common'
 local irc_model  <const> = require 'hub.net.irc'
-local N          <const> = require 'hub.lib.numerics'
 local opening    <const> = require 'hub.features.chat.opening'
-local OrderedMap <const> = require 'hub.lib.OrderedMap'
-local send       <const> = require 'hub.net.send'
-local store      <const> = require 'hub.features.chat.store'
 
 local M = {}
 
@@ -110,46 +103,6 @@ end
 function M.unset_list(net, name, mode, mask)
     query(net, 'MODE', name, '-' .. mode, mask)
     M.refetch_observed(net, name)
-end
-
--- The channel list (LIST) =============================================
-
---- Fetch the channel list, replacing the last one (C.list).
----@param net string
----@param arg string|nil the server's LIST argument, such as a mask
-function M.list(net, arg)
-    local C = store.get(net)
-    OrderedMap.reset(C.list)
-    C.list_count = 0
-    C.listing = true
-    if arg and arg ~= '' then
-        send.send(net, 'LIST', arg)
-    else
-        send.send(net, 'LIST')
-    end
-end
-
---- Handlers of the replies to LIST, by command, for chat's own.
-M.handlers = {}
-
--- "<client> <channel> <client count> :<topic>"
-M.handlers[N.RPL_LIST] = function(net, msg)
-    local C = store.get(net)
-    if C.listing then
-        -- the list keeps the newest list_size; how many came is shown
-        C.list_count = (C.list_count or 0) + 1
-        OrderedMap.insert(C.list, msg[2], {
-            time = msg.time,
-            timestamp = msg.timestamp,
-            channel = msg[2],
-            users = math.tointeger(msg[3]),
-            topic = msg[4] or '',
-        })
-    end
-end
-
-M.handlers[N.RPL_LISTEND] = function(net)
-    store.get(net).listing = nil
 end
 
 return M

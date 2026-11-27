@@ -1,4 +1,4 @@
--- New channels, flooders and spambots. /list results are the list view.
+-- New channels, flooders and spambots.
 
 local control   <const> = require 'hub.ui.control'
 local dashboard <const> = require 'hub.ui.dashboard'

@@ -8,15 +8,13 @@
 --   buffers.lua                         what a buffer holds
 --   history.lua, receipt.lua            chat history, our own lines
 --   opening.lua                         opening and closing buffers
---   channels.lua                        asking about channels, LIST
+--   channels.lua                        asking about channels
 --
 -- state.features.chat[net] = {
 --   buffers  [folded target] = {name, messages = OrderedMap, activity,
 --            mention, typing}; activity counts unseen messages, messages
 --            are keyed by their msgid tag when they have one, and typing
 --            holds who is typing there (chat/typing.lua)
---   list     OrderedMap of /list results: {channel, users, topic}
---            (chat/channels.lua)
 --   pending  [label] = {[folded target] = {msg, buffer}}: our labeled
 --            PRIVMSG and NOTICE lines awaiting the server's reply
 --            (chat/receipt.lua)
@@ -105,7 +103,6 @@ M.refresh_modes = channels.refresh_modes
 M.refresh_topic = channels.refresh_topic
 M.fetch_list = channels.fetch_list
 M.unset_list = channels.unset_list
-M.list = channels.list
 
 -- CTCP replies to non-staff that may go at once, and the seconds that earn
 -- another; the burst stays below a typical rate limit's (5 lines)
@@ -404,11 +401,6 @@ end
 -- "<client> <channel> :<reason>": our line there was refused
 H[N.ERR_CANNOTSENDTOCHAN] = function(net, irc, msg)
     receipt.on_refusal(net, irc, msg)
-end
-
--- Replies to LIST (chat/channels.lua)
-for command, h in pairs(channels.handlers) do
-    H[command] = function(net, _, msg) h(net, msg) end
 end
 
 local function on_message(ev)

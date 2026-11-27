@@ -8,7 +8,7 @@
 -- (net/replies/solanum.lua or hybrid.lua), its values read for what they
 -- mean: times as dates, seconds and minutes as durations, ban types by
 -- name, a reason apart from its oper reason, an address the server won't
--- give as "-". A reply the network has a reader for (net/replies/read.lua:
+-- give as "-", a channel as a button that talks there. A reply the network has a reader for (net/replies/read.lua:
 -- auth blocks, links, modules) has the columns of what the reader makes
 -- of it. A reply the network doesn't name the fields of is one column of
 -- text: its arguments, after our nick for a numeric. A listing of lines
@@ -19,9 +19,14 @@
 -- the listing, for its list of messages: a STATS can have tens of
 -- thousands of rows, and only those shown are drawn. The filter (Ctrl-S,
 -- /filter) shows the rows with a cell that matches. Click a column's
--- header to sort its table by it.
+-- header to sort its table by it; a listing may say which column its
+-- tables are sorted by until then (hub.ListingSort).
 
 local address_key <const> = require 'hub.lib.address_key'
+local bus     <const> = require 'hub.runtime.bus'
+local chat    <const> = require 'hub.features.chat'
+local clicks  <const> = require 'hub.ui.clicks'
+local common  <const> = require 'hub.features.common'
 local control <const> = require 'hub.ui.control'
 local draw    <const> = require 'hub.ui.draw'
 local ircd    <const> = require 'hub.net.ircd'
@@ -47,10 +52,28 @@ end
 
 -- A column whose cells are the i-th of a row's, sorted by the i-th of its
 -- keys when it has one
-local function column(i, header, formatted, optional)
+local function column(i, header, formatted, optional, paint)
     return {header = header, text = function(cells) return cells[i] end,
         key = function(cells) return cells.keys and cells.keys[i] end,
-        formatted = formatted, optional = optional}
+        formatted = formatted, optional = optional, paint = paint}
+end
+
+-- The i-th cell as a channel: on a network with chat, a button that
+-- talks there, as /talk does
+local function channel_paint(net, i)
+    return function(win, cells)
+        local name = cells[i]
+        draw.green(win)
+        if net and common.enabled(net, 'chat') then
+            clicks.button(win, scrub(name), function()
+                chat.talk(net, name)
+                bus.emit('chat.focus', {net = net, target = name})
+            end, true)
+        else
+            win:waddstr(scrub(name))
+        end
+        draw.normal(win)
+    end
 end
 
 local function nonempty(value)
@@ -83,7 +106,7 @@ end
 --- The columns of a reply with fields, and its cells.
 ---@return table[] columns
 ---@return fun(msg: hub.Message): table cells
-local function by_fields(meant, fields, relabel)
+local function by_fields(net, meant, fields, relabel)
     local columns = {}
     for _, spec in ipairs(fields) do
         local label, kind = spec:match '^(.-):(%a+)$'
@@ -91,7 +114,8 @@ local function by_fields(meant, fields, relabel)
         if label ~= '-' then
             label = relabel and relabel[label] or label
             local formatted = kind == 'text' or kind == 'reasons'
-            table.insert(columns, column(#columns + 1, label, formatted))
+            local i = #columns + 1
+            table.insert(columns, column(i, label, formatted, false, kind == 'chan' and channel_paint(net, i) or nil))
             if kind == 'reasons' then
                 table.insert(columns, column(#columns + 1, 'oper reason', true, true))
             end
@@ -233,7 +257,8 @@ end
 ---@param messages hub.Message[]
 ---@param relabel table<string, string>|nil
 ---@param lines hub.ListingLines|nil every reply as lines of text
-local function sections_of(net, holder, messages, relabel, lines)
+---@param sort hub.ListingSort|nil a new section's order
+local function sections_of(net, holder, messages, relabel, lines, sort)
     local view = holder.view
     if view and view.version == version and view.messages == messages then return view.sections end
     -- what the tables were sorted by stays
@@ -256,12 +281,18 @@ local function sections_of(net, holder, messages, relabel, lines)
                 columns, cells = read_columns[reader]()
                 convert = function(m) return cells(reader(meant, m)) end
             elseif meant.fields[n] then
-                columns, convert = by_fields(meant, meant.fields[n], relabel)
+                columns, convert = by_fields(net, meant, meant.fields[n], relabel)
             else
                 columns, convert = plain(type(n) == 'number' and 2 or 1)
             end
+            local initial
+            if sort then
+                for i, col in ipairs(columns) do
+                    if col.header == sort.header then initial = {column = i, descending = sort.descending} end
+                end
+            end
             section = {command = n, name = ircd.numeric_name(net, n), columns = columns,
-                convert = convert, rows = {}, sort = sorts[n]}
+                convert = convert, rows = {}, sort = sorts[n] or initial}
             by_command[n] = section
             table.insert(sections, section)
         end
@@ -298,13 +329,14 @@ end
 --- scrolled under it. The tables are kept on holder.
 ---@param ctx hub.ViewContext
 ---@param opts {holder: table, messages: hub.Message[], errors: hub.Message[]|nil,
---- relabel: table<string, string>|nil, lines: hub.ListingLines|nil, before: table[]|nil}
+--- relabel: table<string, string>|nil, lines: hub.ListingLines|nil, before: table[]|nil,
+--- sort: hub.ListingSort|nil}
 ---@return integer count
 ---@return fun(win: ncurses.Window, i: integer) draw
 ---@return fun(i: integer): fun(win: ncurses.Window)|nil pinned
 function M.runs(ctx, opts)
     local pattern = control.filter(ctx.id)
-    local sections = sections_of(ctx.net, opts.holder, opts.messages, opts.relabel, opts.lines)
+    local sections = sections_of(ctx.net, opts.holder, opts.messages, opts.relabel, opts.lines, opts.sort)
 
     -- the rows in runs, each {count, draw(win, j), layout, section}: a run
     -- of a section's rows has the last two, for the header to pin
@@ -376,7 +408,7 @@ function M.rows(ctx)
     ---@type hub.Listing
     local l = ctx.vs.data
     return M.runs(ctx, {holder = l, messages = l.messages, errors = l.errors, relabel = l.relabel,
-        lines = l.lines})
+        lines = l.lines, sort = l.sort})
 end
 
 return M

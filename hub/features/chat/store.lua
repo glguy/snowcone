@@ -4,20 +4,15 @@
 local casemap    <const> = require 'hub.lib.casemap'
 local common     <const> = require 'hub.features.common'
 local irc_model  <const> = require 'hub.net.irc'
-local OrderedMap <const> = require 'hub.lib.OrderedMap'
 
 local M = {}
 
 M.name = 'chat'
 M.buffer_size = 1000
-M.list_size = 10000
 
 --- A network's chat, state.features.chat[net].
 ---@class hub.ChatState
 ---@field buffers table<string, hub.ChatBuffer> by folded target
----@field list hub.OrderedMap the last LIST reply
----@field listing true|nil while LIST replies arrive
----@field list_count integer|nil channels the last LIST replied with, kept or not
 ---@field pending table<string, table<string, {msg: hub.Message, buffer: hub.ChatBuffer|nil}>>
 --- by label, then by folded target; for the current connection
 ---@field closing table<string, true> channels /close parted, by folded name;
@@ -30,7 +25,7 @@ M.list_size = 10000
 
 ---@return hub.ChatState
 local function new_state()
-    return {buffers = {}, list = OrderedMap.new(M.list_size), pending = {}, closing = {}}
+    return {buffers = {}, pending = {}, closing = {}}
 end
 
 ---@param net string
