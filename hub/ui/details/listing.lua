@@ -1,6 +1,6 @@
--- A listing (hub.Listing, features/queries/listing.lua: STATS, TRACE, ETRACE,
--- MASKTRACE, CHANTRACE) in the detail pane: the errors the server gave, then a table
--- (ui/table.lua) per kind of reply, in the order they first came, each
+-- A listing (hub.Listing, features/queries/listing.lua: STATS, TRACE,
+-- ETRACE, MASKTRACE, CHANTRACE, MOTD, INFO, HELP) in the detail pane: the errors
+-- the server gave, then a table (ui/table.lua) per kind of reply, in the order they first came, each
 -- under its numeric and how many there are. M.runs draws any replies so,
 -- as a /quote's table view does (ui/details/reply.lua).
 --
@@ -11,7 +11,8 @@
 -- give as "-". Auth blocks (STATS I) have their flags read out, and links
 -- (STATS L) the times their last argument holds. A reply the network
 -- doesn't name the fields of is one column of text: its arguments, after
--- our nick for a numeric.
+-- our nick for a numeric. A listing of lines (HELP) is one table of their
+-- text, whatever replies hold them.
 --
 -- The rows, their cells and the tables are worked out once and kept on
 -- the listing, for its list of messages: a STATS can have tens of
@@ -225,7 +226,8 @@ local version <const> = {}
 ---@param holder table
 ---@param messages hub.Message[]
 ---@param relabel table<string, string>|nil
-local function sections_of(net, holder, messages, relabel)
+---@param lines integer|nil the numeric every reply is a line of text under
+local function sections_of(net, holder, messages, relabel, lines)
     local view = holder.view
     if view and view.version == version and view.messages == messages then return view.sections end
     -- what the tables were sorted by stays
@@ -236,12 +238,14 @@ local function sections_of(net, holder, messages, relabel)
     local meant = replies.of(net)
     local sections, by_command = {}, {}
     for _, msg in ipairs(messages) do
-        local n = msg.command
+        local n = lines or msg.command
         local section = by_command[n]
         if not section then
             local make = special[n]
             local columns, convert
-            if make then
+            if lines then
+                columns, convert = {column(1, 'text', true)}, function(m) return {nonempty(m[#m])} end
+            elseif make then
                 columns, convert = make(meant)
             elseif meant.fields[n] then
                 columns, convert = by_fields(meant, meant.fields[n], relabel)
@@ -280,13 +284,13 @@ end
 --- scrolled under it. The tables are kept on holder.
 ---@param ctx hub.ViewContext
 ---@param opts {holder: table, messages: hub.Message[], errors: hub.Message[]|nil,
---- relabel: table<string, string>|nil, before: table[]|nil}
+--- relabel: table<string, string>|nil, lines: integer|nil, before: table[]|nil}
 ---@return integer count
 ---@return fun(win: ncurses.Window, i: integer) draw
 ---@return fun(i: integer): fun(win: ncurses.Window)|nil pinned
 function M.runs(ctx, opts)
     local pattern = control.filter(ctx.id)
-    local sections = sections_of(ctx.net, opts.holder, opts.messages, opts.relabel)
+    local sections = sections_of(ctx.net, opts.holder, opts.messages, opts.relabel, opts.lines)
 
     -- the rows in runs, each {count, draw(win, j), layout, section}: a run
     -- of a section's rows has the last two, for the header to pin
@@ -357,7 +361,8 @@ end
 function M.rows(ctx)
     ---@type hub.Listing
     local l = ctx.vs.data
-    return M.runs(ctx, {holder = l, messages = l.messages, errors = l.errors, relabel = l.relabel})
+    return M.runs(ctx, {holder = l, messages = l.messages, errors = l.errors, relabel = l.relabel,
+        lines = l.lines})
 end
 
 return M

@@ -598,6 +598,73 @@ T.case('TRACE, ETRACE and MASKTRACE end at RPL_ENDOFTRACE, each its own', functi
     for _, t in pairs(HUB.tasks) do T.ok(t.name ~= 'masktrace', 'finished') end
 end)
 
+T.case('MOTD and INFO list their lines, each told by its end', function()
+    local c = boot {}
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.listing', 'test', function(ev) table.insert(events, ev) end)
+    local function last(category) local l = T.log_lines(category) return l[#l] end
+
+    T.command 'motd'
+    T.command 'info'
+    T.eq(c:take(), {'MOTD', 'INFO'}, 'sent')
+    c:recv ':srv 375 me :- srv Message of the Day -'
+    c:recv ':srv 372 me :- hello'
+    c:recv ':srv 371 me :Solanum'
+    c:recv ':srv 372 me :- world'
+    c:recv ':srv 376 me :End of /MOTD command.'
+    c:recv ':srv 374 me :End of /INFO list.'
+    T.eq({events[1].listing.kind, #events[1].listing.messages, events[1].listing.messages[2][2]},
+        {'motd', 2, '- world'}, 'the MOTD lines, not their start')
+    T.eq({events[2].listing.kind, #events[2].listing.messages}, {'info', 1}, 'the INFO line')
+    T.eq(T.log_lines 'motd', {'MOTD: 2 replies'}, 'one line')
+
+    -- a server's MOTD is told from ours by its source
+    T.command 'motd far.example'
+    T.command 'motd'
+    c:take()
+    c:recv ':srv 372 me :- ours'
+    c:recv ':srv 376 me :End of /MOTD command.'
+    c:recv ':far.example 372 me :- theirs'
+    c:recv ':far.example 376 me :End of /MOTD command.'
+    T.eq({events[3].listing.command, events[3].listing.messages[1][2]}, {'MOTD', '- ours'}, 'ours first')
+    T.eq({events[4].listing.command, events[4].listing.messages[1][2]}, {'MOTD far.example', '- theirs'},
+        "then the server's")
+
+    -- a STATS pending keeps its rows through a MOTD's end
+    T.command 'stats k'
+    T.command 'motd'
+    c:take()
+    c:recv ':srv 216 me k bad.example * ~u :spam'
+    c:recv ':srv 422 me :MOTD File is missing'
+    c:recv ':srv 219 me k :End of /STATS report'
+    T.eq(last 'motd', 'MOTD: MOTD File is missing', 'no MOTD fails it')
+    T.eq({events[5].listing.kind, #events[5].listing.messages}, {'stats', 1}, 'the STATS its own')
+
+    T.command 'info nowhere'
+    c:take()
+    c:recv ':srv 402 me nowhere :No such server'
+    T.eq(last 'info', 'INFO nowhere: No such server', 'no such server')
+    T.eq(next(HUB.tasks), nil, 'finished')
+end)
+
+T.case('HELP lists its lines, and fails on a topic it has none of', function()
+    local c = boot {}
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.listing', 'test', function(ev) table.insert(events, ev) end)
+
+    T.command 'serverhelp'
+    T.command 'serverhelp nosuch'
+    T.eq(c:take(), {'HELP', 'HELP nosuch'}, 'sent')
+    c:recv ':srv 704 me index :Help topics available to users:'
+    c:recv ':srv 705 me index :ADMIN    AWAY'
+    c:recv ':srv 706 me index :End of /HELP.'
+    c:recv ':srv 524 me nosuch :Help not found'
+    T.eq({events[1].listing.kind, #events[1].listing.messages}, {'help', 2}, 'the start and the text')
+    T.eq(T.log_lines 'help', {'HELP: 2 replies', 'HELP nosuch: Help not found'}, 'and the topic not found')
+    T.eq(#events, 1, 'opens nothing')
+    T.eq(next(HUB.tasks), nil, 'finished')
+end)
+
 T.case('CHANTRACE lists a channel like MASKTRACE, and fails on its channel errors', function()
     local c = boot({'chat', 'snotice', 'oper'})
     local events = {}

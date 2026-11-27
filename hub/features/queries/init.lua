@@ -5,7 +5,7 @@
 --   who.lua       WHO
 --   whois.lua     WHOIS
 --   whowas.lua    WHOWAS
---   listing.lua   STATS, TRACE, ETRACE, MASKTRACE, CHANTRACE
+--   listing.lua   STATS, TRACE, ETRACE, MASKTRACE, CHANTRACE, MOTD, INFO, HELP
 --
 -- and, for features to ask on the way to something else:
 --
@@ -122,6 +122,22 @@ M.commands = {
     function(ctx, target)
         if target:find ' ' then error('one target: ' .. target, 0) end
         task.spawn('trace', {net = ctx.net, owner = M.name}, listing.trace, target ~= '' and target or nil)
+    end),
+    command('motd', '$R', '[target]', "The MOTD of a server or nick's, or ours, shown as a table",
+    function(ctx, target)
+        if target:find ' ' then error('one target: ' .. target, 0) end
+        task.spawn('motd', {net = ctx.net, owner = M.name}, listing.motd, target ~= '' and target or nil)
+    end),
+    command('info', '$R', '[target]', "The INFO of a server or nick's, or ours, shown as a table",
+    function(ctx, target)
+        if target:find ' ' then error('one target: ' .. target, 0) end
+        task.spawn('info', {net = ctx.net, owner = M.name}, listing.info, target ~= '' and target or nil)
+    end),
+    -- /help is ours
+    command('serverhelp', '$R', '[topic]', "The server's HELP on a topic, or its index, shown as a table",
+    function(ctx, topic)
+        if topic:find ' ' then error('one topic: ' .. topic, 0) end
+        task.spawn('help', {net = ctx.net, owner = M.name}, listing.help, topic ~= '' and topic or nil)
     end),
     command('whois', '$g', 'nick', 'WHOIS a nick, shown in the detail pane', function(ctx, nick)
         M.whois(ctx.net, nick)

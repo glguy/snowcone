@@ -7,21 +7,27 @@
 --   M.etrace(t, arg)             ETRACE, ending at RPL_ENDOFTRACE
 --   M.masktrace(t, mask, gecos)  MASKTRACE, ending at RPL_ENDOFTRACE
 --   M.chantrace(t, channel)      CHANTRACE, ending at RPL_ENDOFTRACE
+--   M.motd(t, target)            MOTD, ending at RPL_ENDOFMOTD or ERR_NOMOTD
+--   M.info(t, target)            INFO, ending at RPL_ENDOFINFO
+--   M.help(t, topic)             HELP, ending at RPL_ENDOFHELP or ERR_HELPNOTFOUND
 --
 -- Every reply but the end is kept, in order, except the errors: those
 -- that end a reply fail the task (no such server or nick, naming the
 -- target; for CHANTRACE, no such channel or not on it, naming the
--- channel; the command unknown or short of arguments, naming it; no
--- privileges for an oper command; OFTC hybrid's refusal of a STATS for
+-- channel; for MOTD, no MOTD, and for HELP, no such topic, which come in
+-- place of the end; the
+-- command unknown or short of arguments, naming it; no privileges for an
+-- oper command; OFTC hybrid's refusal of a STATS for
 -- load, which no end follows), and those the server follows with the end
 -- (a STATS refused for privileges, load, or as disabled; STATS's short of
 -- arguments on hybrid) are kept apart, to show above the tables.
 --
 -- Without labeled-response the replies of every listing pending arrive
 -- mixed, but in the order the commands went out. The listings that end
--- alike (the STATS of a letter; the traces, all with RPL_ENDOFTRACE) wait
--- in a queue per network in the order sent, and an end goes to the first
--- that takes it: any, or for a trace of a target, one naming the target.
+-- alike (the STATS of a letter; the traces, all with RPL_ENDOFTRACE; the
+-- MOTDs; the INFOs; the HELPs) wait in a queue per network in the order sent, and an
+-- end goes to the first that takes it: any, or for a trace of a target, one
+-- naming the target, or for one of a server, one from it.
 -- The rows before an end that isn't a listing's own belong to another,
 -- and are dropped.
 
@@ -34,13 +40,15 @@ local N         <const> = require 'hub.lib.numerics'
 
 --- A listing: what was asked, and the replies.
 ---@class hub.Listing
----@field kind 'stats'|'trace'|'etrace'|'masktrace'|'chantrace'
+---@field kind 'stats'|'trace'|'etrace'|'masktrace'|'chantrace'|'motd'|'info'|'help'
 ---@field command string as sent, with its arguments
 ---@field messages hub.Message[] the replies, in order
 ---@field errors hub.Message[] errors the server followed with the end
 ---@field relabel table<string, string>|nil field labels that mean
 --- something else in this reply: MASKTRACE and CHANTRACE give each
 --- user's server where ETRACE gives the class
+---@field lines integer|nil when the replies are lines of text, the
+--- numeric to show them all under, each its last argument
 ---@field at integer epoch seconds when the end came
 ---@field view table|nil the UI's tables, worked out once (ui/details/listing.lua)
 
@@ -55,11 +63,28 @@ end
 local stats_rows <const> = range({}, 210, 250)
 local trace_rows <const> = range({[N.RPL_TRACELOG] = true}, 200, 209)
 local etrace_rows <const> = {[N.RPL_ETRACE] = true, [N.RPL_ETRACEFULL] = true}
+-- the lines; the start of each only names the server
+local motd_rows <const> = {[N.RPL_MOTD] = true}
+local info_rows <const> = {[N.RPL_INFO] = true}
+-- the first line, then the rest
+local help_rows <const> = {[N.RPL_HELPSTART] = true, [N.RPL_HELPTXT] = true}
+
+-- The ends of each kind's queue: true, or 'fails' for one that says there
+-- is nothing to list
+local stats_ends <const> = {[N.RPL_ENDOFSTATS] = true}
+local trace_ends <const> = {[N.RPL_ENDOFTRACE] = true}
+local motd_ends <const> = {[N.RPL_ENDOFMOTD] = true, [N.ERR_NOMOTD] = 'fails'}
+local info_ends <const> = {[N.RPL_ENDOFINFO] = true}
+local help_ends <const> = {[N.RPL_ENDOFHELP] = true, [N.ERR_HELPNOTFOUND] = 'fails'}
 
 -- The queue an end belongs to, nil for a message that isn't one
 local function end_key(msg)
-    if msg.command == N.RPL_ENDOFSTATS then return 'stats ' .. tostring(msg[2]) end
-    if msg.command == N.RPL_ENDOFTRACE then return 'trace' end
+    local n = msg.command
+    if n == N.RPL_ENDOFSTATS then return 'stats ' .. tostring(msg[2]) end
+    if n == N.RPL_ENDOFTRACE then return 'trace' end
+    if n == N.RPL_ENDOFMOTD or n == N.ERR_NOMOTD then return 'motd' end
+    if n == N.RPL_ENDOFINFO then return 'info' end
+    if n == N.RPL_ENDOFHELP or n == N.ERR_HELPNOTFOUND then return 'help' end
 end
 
 -- Unlabeled listings live in the queries state, as a task keeps its code
@@ -131,13 +156,13 @@ end
 
 ---@param t hub.Task
 ---@param spec {kind: string, args: string[], target: string|nil, rows: table<integer, true>,
---- key: string, names: {field: 'source'|2, name: string}|nil, from: (fun(msg: hub.Message): boolean)|nil,
---- relabel: table<string, string>|nil}
+--- ends: table<integer, true|'fails'>, key: string, names: {field: 'source'|2, name: string}|nil,
+--- from: (fun(msg: hub.Message): boolean)|nil, relabel: table<string, string>|nil, lines: integer|nil}
 local function gather(t, spec)
     local command = table.concat(spec.args, ' ')
     ---@type hub.Listing
     local l = {kind = spec.kind, command = command, messages = {}, errors = {}, relabel = spec.relabel,
-        at = os.time()}
+        lines = spec.lines, at = os.time()}
 
     local function fail(fmt, ...)
         t:log(spec.kind, fmt, ...)
@@ -170,8 +195,8 @@ local function gather(t, spec)
         if ircd.hybrid(t.net) then
             noted[N.RPL_LOAD2HI], fatal[N.RPL_LOAD2HI] = nil, is_command
         end
-    elseif spec.kind ~= 'trace' then
-        -- the oper commands; TRACE is anyone's
+    elseif spec.kind ~= 'trace' and spec.kind ~= 'motd' and spec.kind ~= 'info' then
+        -- the oper commands; TRACE, MOTD and INFO are anyone's
         fatal[N.ERR_NOPRIVILEGES] = any
     end
     if spec.kind == 'chantrace' then
@@ -185,8 +210,10 @@ local function gather(t, spec)
         fatal[N.ERR_NOTONCHANNEL] = is_channel
     end
 
-    local commands = {[N.RPL_ENDOFSTATS] = true, [N.RPL_ENDOFTRACE] = true}
-    for set in pairs {[spec.rows] = true, [fatal] = true, [noted] = true} do
+    -- only the ends of its own queue: another queue's end says nothing of
+    -- whose the rows before it are
+    local commands = {}
+    for set in pairs {[spec.rows] = true, [spec.ends] = true, [fatal] = true, [noted] = true} do
         for k in pairs(set) do commands[k] = true end
     end
 
@@ -203,8 +230,12 @@ local function gather(t, spec)
 
     for msg in t:request(commands, 120000, first, table.unpack(spec.args, 2)) do
         local n = msg.command
-        if end_key(msg) then
-            if mine(msg) then
+        if spec.ends[n] then
+            local own = mine(msg)
+            if own and spec.ends[n] == 'fails' then
+                -- "<client> :MOTD File is missing", "<client> <topic> :Help not found"
+                return fail('%s: %s', command, msg[#msg] or 'nothing')
+            elseif own then
                 local count = #l.messages
                 l.at = os.time()
                 log.add_detail(t.net, spec.kind, {kind = 'listing', data = l}, '%s: %d %s%s', command, count,
@@ -229,26 +260,30 @@ local function gather(t, spec)
     fail('%s: no reply', command)
 end
 
+-- Another server answers later than ours, so its replies are told by
+-- their source, when what was asked of is a server's name (a nick or a
+-- mask names none): the names an end must have, and the rows to keep.
+local function by_source(t, server)
+    local irc = HUB.state.nets[t.net] and HUB.state.nets[t.net].irc
+    if irc and server and server:find '%.' and not server:find '[*?]' then
+        local key = irc_model.fold(irc, server)
+        return {field = 'source', name = key},
+            function(msg) return msg.source ~= nil and irc_model.fold(irc, msg.source) == key end
+    end
+end
+
 --- STATS a letter, of a server or ours.
 ---@param t hub.Task
 ---@param letter string one character
 ---@param server string|nil
 function M.stats(t, letter, server)
-    -- another server answers later than ours, so its replies are told by
-    -- their source, when what was asked for is a server's name (a nick or
-    -- a mask names none)
-    local from, names
-    local irc = HUB.state.nets[t.net] and HUB.state.nets[t.net].irc
-    if irc and server and server:find '%.' and not server:find '[*?]' then
-        local key = irc_model.fold(irc, server)
-        names = {field = 'source', name = key}
-        from = function(msg) return msg.source ~= nil and irc_model.fold(irc, msg.source) == key end
-    end
+    local names, from = by_source(t, server)
     gather(t, {
         kind = 'stats',
         args = {'STATS', letter, server},
         target = server,
         rows = stats_rows,
+        ends = stats_ends,
         -- "<client> <letter> :End of /STATS report"
         key = 'stats ' .. letter,
         names = names,
@@ -256,9 +291,28 @@ function M.stats(t, letter, server)
     })
 end
 
+--- The MOTD of a server, a nick's, or ours.
+---@param t hub.Task
+---@param target string|nil
+function M.motd(t, target)
+    local names, from = by_source(t, target)
+    gather(t, {kind = 'motd', args = {'MOTD', target}, target = target, rows = motd_rows,
+        ends = motd_ends, key = 'motd', names = names, from = from})
+end
+
+--- The INFO of a server, a nick's, or ours.
+---@param t hub.Task
+---@param target string|nil
+function M.info(t, target)
+    local names, from = by_source(t, target)
+    gather(t, {kind = 'info', args = {'INFO', target}, target = target, rows = info_rows,
+        ends = info_ends, key = 'info', names = names, from = from})
+end
+
 local function trace_gather(t, spec)
     local irc = HUB.state.nets[t.net] and HUB.state.nets[t.net].irc
     spec.key = 'trace'
+    spec.ends = trace_ends
     -- for a target, an end naming it; else any
     if irc and spec.target then
         spec.names = {field = 2, name = irc_model.fold(irc, spec.target)}
@@ -304,7 +358,16 @@ end
 ---@param channel string
 function M.chantrace(t, channel)
     gather(t, {kind = 'chantrace', args = {'CHANTRACE', channel}, target = channel,
-        rows = etrace_rows, key = 'trace', relabel = {class = 'server'}})
+        rows = etrace_rows, ends = trace_ends, key = 'trace', relabel = {class = 'server'}})
+end
+
+--- HELP on a topic, or the index. The server answers it itself, in the
+--- order asked, so any end is taken.
+---@param t hub.Task
+---@param topic string|nil
+function M.help(t, topic)
+    gather(t, {kind = 'help', args = {'HELP', topic}, rows = help_rows, ends = help_ends, key = 'help',
+        lines = N.RPL_HELPTXT})
 end
 
 --- Whether a mask is one MASKTRACE takes: a user and a host about the

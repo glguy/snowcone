@@ -522,6 +522,24 @@ T.case('a WHO opens in the detail pane as a table', function()
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
 
+T.case('a HELP opens as one table of its lines', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:take()
+    cmdline.execute 'serverhelp'
+    T.eq(c:take(), {'HELP'}, 'sent')
+    c:recv ':srv 704 me index :Help topics available to users:'
+    c:recv ':srv 705 me index :ADMIN    AWAY'
+    c:recv ':srv 706 me index :End of /HELP.'
+    T.eq(control.detail().kind, 'listing', 'shown')
+    local text = detail_text()
+    T.ok(text:find('RPL_HELPTXT 705  2', 1, true), 'one heading for both')
+    T.ok(text:find('Help topics available to users:', 1, true), 'the first line')
+    T.ok(text:find('ADMIN    AWAY', 1, true), 'the text as sent')
+    T.ok(not text:find 'index', 'and not the topic')
+end)
+
 T.case('a STATS opens as tables by reply, read for what their fields mean, laid out once', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
