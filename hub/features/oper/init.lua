@@ -6,6 +6,7 @@
 -- TESTLINE, WHO, WHOWAS), each from a task that waits for its reply. OFTC
 -- hybrid has no TESTKLINE or MASKTRACE: TESTLINE finds the K-Line that hit
 -- a user, and there is no trace by mask.
+--
 -- KLINE, UNKLINE, UNDLINE and NickServ FREEZE go out only from commit,
 -- which the UI calls when the operator confirms.
 

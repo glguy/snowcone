@@ -1,7 +1,7 @@
 -- The organization and AS number of an address: MaxMind's
--- GeoLite2-ASN.mmdb in the configuration
--- directory through the optional mmdb library, else the legacy GeoIP
--- databases through mygeoip, else nothing.
+-- GeoLite2-ASN.mmdb in the configuration directory through the optional
+-- mmdb library, else the legacy GeoIP databases through mygeoip, else
+-- nothing.
 
 local path   <const> = require 'pl.path'
 local config <const> = require 'hub.runtime.config'

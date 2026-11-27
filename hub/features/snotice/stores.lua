@@ -1,4 +1,14 @@
--- What server notices tell us, per network.
+-- What server notices tell us about a network, state.features.snotice[net]
+-- (hub.Stores):
+--
+--   users, exits   recent connections and exits (cliconn, cliexit)
+--   klines         bans, unbans and kills (the bans view)
+--   new_channels   channel creations, flooders and spambots
+--   trackers       load averages of connections, exits, bans and filter
+--                  hits (lib/loadavg.lua)
+--   net_trackers   users per address range (nettrack.lua)
+--   watches        connection masks to mark and alert on (/addwatch and
+--                  the network's `watches`)
 --
 -- Notices may also send IRC: a reclaim when the wanted nick goes away. A
 -- watch hit emits notify.alert instead of beeping.

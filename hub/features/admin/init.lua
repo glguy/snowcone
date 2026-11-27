@@ -23,9 +23,9 @@
 -- server when it has a dot or a wildcard, else an option. DIE and
 -- RESTART name the server to stop, which must be its name in full: the
 -- server checks it, as the confirmation. SHEDDING's server is a name
--- without wildcards, and its rate seconds between users shed, at least 5. These but MODLIST have no
--- numeric reply: the server says what it did in a notice, and in server
--- notices to opers with +s.
+-- without wildcards, and its rate seconds between users shed, at least
+-- 5. These but MODLIST have no numeric reply: the server says what it did
+-- in a notice, and in server notices to opers with +s.
 --
 -- OFTC hybrid has CONNECT, SQUIT, DIE and RESTART alike, but only of our
 -- server for the last two, and REHASH of its own options and only ours. It

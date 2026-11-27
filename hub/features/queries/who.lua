@@ -30,8 +30,8 @@
 --
 -- A server stops at a limit for a user who isn't an operator: Solanum
 -- sends ERR_TOOMANYMATCHES before the end, and OFTC hybrid
--- ERR_WHOLIMEXCEED, and the WHO is marked truncated. RPL_LOAD2HI doesn't say which WHO it
--- refuses, so one fails every WHO pending.
+-- ERR_WHOLIMEXCEED, and the WHO is marked truncated. RPL_LOAD2HI doesn't
+-- say which WHO it refuses, so one fails every WHO pending.
 
 local bus       <const> = require 'hub.runtime.bus'
 local ip_org    <const> = require 'hub.features.queries.ip_org'

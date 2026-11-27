@@ -1,6 +1,7 @@
 -- A WHOWAS run as a network task: whowas(t, nick, count). Every past
--- entry the server keeps, or the newest count, is gathered into a hub.Whowas, logged as one line that
--- opens it, and emitted as query.whowas for the UI to show.
+-- entry the server keeps, or the newest count, is gathered into a
+-- hub.Whowas, logged as one line that opens it, and emitted as
+-- query.whowas for the UI to show.
 
 local bus       <const> = require 'hub.runtime.bus'
 local ip_org    <const> = require 'hub.features.queries.ip_org'

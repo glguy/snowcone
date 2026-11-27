@@ -5,8 +5,9 @@
 --   who.lua       WHO
 --   whois.lua     WHOIS
 --   whowas.lua    WHOWAS
---   listing.lua   STATS, TRACE, ETRACE, MASKTRACE, CHANTRACE, MOTD, INFO, HELP,
---                 LUSERS, PRIVS, SCAN, LIST (its filters in list.lua)
+--   listing.lua   STATS, TRACE, ETRACE, MASKTRACE, CHANTRACE, MOTD, INFO,
+--                 HELP, LUSERS, PRIVS, SCAN, LIST (its filters in
+--                 list.lua), and MODLIST for the admin feature
 --
 -- and FINDFORWARDS, which the server answers with a notice that shows as
 -- any other.

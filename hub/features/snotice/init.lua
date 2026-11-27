@@ -1,6 +1,16 @@
 -- Server notices on networks with the snotice feature: update the stores
--- from each (net/snote parses them) and emit `snote` and `snote.<name>`
--- with the network id.
+-- (snotice/stores.lua) from each (net/snote parses them) and emit `snote`
+-- and `snote.<name>` with the network id.
+--
+-- On becoming an operator it asks for the notices it reads (the
+-- network's snomask, else the ircd's default). TESTMASK replies set the
+-- counts of the tracked address ranges, which are asked for again on
+-- every netsplit and netjoin. The servers file's servers get a row in the
+-- load views, and its net_tracks become trackers kept in step with it.
+-- The network's configured watches replace those it made before,
+-- keeping their hit counts; /addwatch ones stay.
+--
+-- Commands: /addwatch, /editwatch, /delwatch and /nettrack.
 
 local bus      <const> = require 'hub.runtime.bus'
 local common   <const> = require 'hub.features.common'
