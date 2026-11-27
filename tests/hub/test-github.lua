@@ -427,7 +427,7 @@ T.case('the view draws, scrubbing what staff typed', function()
     T.ok(shown, 'shown as symbols')
 end)
 
-T.case("a request whose handler fails is the plugin's error, and gets a 500; so does a listener that can't start", function()
+T.case("a request whose handler fails is the plugin's error, and gets a 500; so does a listener that can't start, not a client's failed connection", function()
     local _, listener = boot()
     T.eq(deliver(listener, 'push', '{not json'), nil, 'no status: the host answers 500')
     local errors = T.log_lines 'error'
@@ -437,6 +437,12 @@ T.case("a request whose handler fails is the plugin's error, and gets a 500; so 
     listener.cb(nil, 'bind', 'address in use')
     errors = T.log_lines 'error'
     T.eq(errors[2], 'plugin github httpd: http bind: address in use', 'a listener that failed')
+
+    -- a client's failed connection is only logged
+    for _, what in ipairs {'read', 'write', 'accept'} do listener.cb(nil, what, 'connection reset') end
+    T.eq(#T.log_lines 'error', 2, 'no errors for clients')
+    local lines = T.log_lines 'github'
+    T.eq({lines[#lines - 2], lines[#lines]}, {'http read: connection reset', 'http accept: connection reset'}, 'logged')
 end)
 
 -- a case of its own: T.run returns at the first sleep, before later cases

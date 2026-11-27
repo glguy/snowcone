@@ -584,9 +584,14 @@ local routes = {
     end,
 }
 
+--- The httpd failures that mean the listener didn't start
+local listener_failures = Set{'resolve', 'open', 'set_option', 'bind', 'listen'}
+
 --- Callback logic for an httpd event. A handler's error goes to the
 --- host, which answers 500 and reports it as the plugin's, with its
---- traceback; so does a listener that couldn't start.
+--- traceback; so does a listener that couldn't start. A connection that
+--- failed (read, write, accept: a client that reset, sent a bad request
+--- or timed out) is the client's doing, and only logged.
 --- @param method? string HTTP request method or nil
 --- @param target string HTTP request path or error kind
 --- @param body string HTTP request body or error message
@@ -598,7 +603,11 @@ local function on_http(method, target, body, headers)
 
     -- No method means target:error_kind body:error_message
     if method == nil then
-        error(string.format('http %s: %s', target, body), 0)
+        if listener_failures[target] then
+            error(string.format('http %s: %s', target, body), 0)
+        end
+        api.log('http %s: %s', target, body)
+        return
     end
 
     for pattern, handler in pairs(routes) do
