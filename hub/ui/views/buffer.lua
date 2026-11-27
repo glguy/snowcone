@@ -1,46 +1,64 @@
 -- A chat buffer of the current network.
 --
--- t starts talk mode and a action mode, which tell the buffer we are
--- typing; Meta-T starts quiet talk mode, which doesn't; T starts notice
--- mode. @ and + toggle sending to a channel's ops or voiced users
--- (STATUSMSG), shown before the channel's name in the status bar and the
--- input mode; each buffer keeps its own until Esc, and no typing notices
--- go there. n and p step through the network's buffers, and j lists them
--- in the detail pane to jump to by label (ui/details/jump.lua);
--- Meta-Ctrl-K closes the shown buffer, as /close does. The messages the
--- hide rules hide (chat/hide.lua; joins, parts, quits and identity
--- changes unless configured otherwise) are left out; Meta-H shows them
--- in the shown buffer, which keeps that until Meta-H there again, and
--- the mode reads `show` meanwhile. Click a sender to inspect the
--- message in the detail pane. A private message meant for a channel
--- (channel-context, sent with /cmsg) is shown there marked >, after its
--- sender; ours marked <, after its recipient. Before the sender, ▸ marks
--- each message whose text matched the mention settings (magenta; not
--- every private message, though each is a mention of its buffer) and
--- the message that had made the buffer unseen when it last came into
--- sight (yellow): switched to, or seen again after another view or with
--- the terminal focused again. History never makes a buffer unseen. A
--- reply (the +reply tag) starts with ↩: click it to scroll to the
--- message it answers, which is highlighted until Esc. Click a channel's
--- name in the status bar for its information, a nick's for its WHOIS.
--- After the name, the two who most recently started typing there (not
--- those who paused), then up to four buffers with unseen messages,
--- mentions first, and a count of the rest, which opens the jump list.
+-- Keys:
+--
+--   t, a        talk and action modes, which tell the buffer we are typing
+--   Meta-T      quiet talk mode, which doesn't
+--   T           notice mode
+--   @, +        toggle sending to a channel's ops or voiced users
+--               (STATUSMSG), shown before the channel's name in the status
+--               bar and the input mode; each buffer keeps its own until
+--               Esc, and no typing notices go there
+--   n, p        step through the network's buffers
+--   j           list them in the detail pane, to jump to by label
+--               (ui/details/jump.lua)
+--   Meta-H      show the messages the hide rules hide (chat/hide.lua;
+--               joins, parts, quits and identity changes unless configured
+--               otherwise) in the shown buffer, which keeps that until
+--               Meta-H there again; the mode reads `show` meanwhile
+--   Meta-Ctrl-K close the shown buffer, as /close does
+--   Esc         clear the highlight and the STATUSMSG prefix
+--
+-- Messages: click a sender to inspect the message in the detail pane.
+-- Before the sender, ▸ marks each message whose text matched the mention
+-- settings (magenta; not every private message, though each is a mention
+-- of its buffer) and the message that had made the buffer unseen when it
+-- last came into sight (yellow): switched to, or seen again after another
+-- view or with the terminal focused again. History never makes a buffer
+-- unseen. A private message meant for a channel (channel-context, sent
+-- with /cmsg) is shown there marked >, after its sender; ours marked <,
+-- after its recipient. A reply (the +reply tag) starts with ↩: click it
+-- to scroll to the message it answers, which is highlighted until Esc. A
+-- channel's buffer shows why the server refused our JOIN, or a change we
+-- asked for there; when it forwards the JOIN elsewhere, both buffers say
+-- so and the view follows.
+--
+-- Status bar: the buffer's name; click a channel's for its information, a
+-- nick's for its WHOIS. Then the two who most recently started typing
+-- there (not those who paused), then up to four buffers with unseen
+-- messages, mentions first, and a count of the rest, which opens the jump
+-- list.
+--
 -- With no buffer chosen, the view shows one with a mention, else one with
--- activity, else the first by name. A channel's buffer shows why the
--- server refused our JOIN, or a change we asked for there; when it
--- forwards the JOIN elsewhere, both buffers say so and the view follows.
--- Viewing a buffer while the terminal
--- is focused marks it seen and withdraws its notification. The terminal's
+-- activity, else the first by name. Viewing a buffer while the terminal is
+-- focused marks it seen and withdraws its notification. The terminal's
 -- title names the shown buffer.
--- View state: scroll, hscroll, showing (buffers showing their hidden
--- messages, weak-keyed), unseen (the shown buffer, weak-keyed, to the
--- message that had made it unseen when it last came into sight, or
--- false), watched (the frame it was last seen in), highlight (a
--- message), reveal (a message to scroll to and highlight on the next
--- frame); and kept here by ui/talk.lua, targets and previous (the shown
--- and previously shown buffer's name, by network) and statusmsg (each
--- buffer's prefix, by network and folded name).
+--
+-- View state:
+--
+--   scroll, hscroll
+--   showing    buffers showing their hidden messages, weak-keyed
+--   unseen     the shown buffer, weak-keyed, to the message that had made
+--              it unseen when it last came into sight, or false
+--   watched    the frame it was last seen in
+--   highlight  a message
+--   reveal     a message to scroll to and highlight on the next frame
+--
+-- and kept here by ui/talk.lua:
+--
+--   targets    the shown buffer's name, by network
+--   previous   the previously shown buffer's name, by network
+--   statusmsg  each buffer's STATUSMSG prefix, by network and folded name
 
 local addircstr  <const> = require 'hub.ui.irc_formatting'
 local chat       <const> = require 'hub.features.chat'
