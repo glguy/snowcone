@@ -1,4 +1,9 @@
--- Capability negotiation. negotiate and REQ run inside network tasks.
+-- Capability negotiation, in network tasks. During registration
+-- (M.negotiate): CAP LS 302, a REQ for the wanted capabilities the
+-- server offers whose requirements are met, SASL if it was just enabled,
+-- then CAP END. After the welcome, CAP NEW requests what is wanted of
+-- the new ones and CAP DEL drops what depended on the removed ones; an
+-- ACK is recorded whoever asked for it.
 
 local irc_model <const> = require 'hub.net.irc'
 local N         <const> = require 'hub.lib.numerics'

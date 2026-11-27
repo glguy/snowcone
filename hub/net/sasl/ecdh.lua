@@ -1,3 +1,8 @@
+-- The ECDH-X25519-CHALLENGE SASL mechanism (Atheme): the server sends its
+-- X25519 public key, a salt and a challenge masked with a key derived
+-- from the shared secret; the unmasked challenge is the response.
+-- https://github.com/atheme/atheme/blob/master/doc/SASL-ECDH-X25519-CHALLENGE
+
 local check   = require 'hub.lib.check'
 local sha256  = myopenssl.get_digest 'sha256'
 local xor = myopenssl.xor

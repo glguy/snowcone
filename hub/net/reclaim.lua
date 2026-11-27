@@ -8,10 +8,11 @@
 -- `reclaim_nick` off the nick is still recorded, but never taken.
 --
 -- The nick is watched with MONITOR while reclaiming (net/monitor.lua, as
--- 'reclaim'). It comes free when MONITOR reports it offline, when whoever holds
--- it quits or changes nick in a channel we share, or when a server notice
--- says so (M.attempt, from features/snotice). A refusal that only
+-- 'reclaim'). It comes free when MONITOR reports it offline, when whoever
+-- holds it quits or changes nick in a channel we share, or when a server
+-- notice says so (M.attempt, from features/snotice). A refusal that only
 -- holds for a while is tried again later:
+--
 --   437  held: nick delay after a netsplit, or services' NICKDELAY; a
 --        delay that doubles with each refusal on the connection
 --   435  we are banned or quieted in a channel; the same delay

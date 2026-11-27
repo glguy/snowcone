@@ -1,3 +1,5 @@
+-- The EXTERNAL SASL mechanism: authentication by what the connection
+-- already proves, a TLS client certificate.
 -- https://datatracker.ietf.org/doc/html/rfc4422#appendix-A
 
 return function(authzid)

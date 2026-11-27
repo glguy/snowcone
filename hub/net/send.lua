@@ -2,8 +2,9 @@
 --
 -- An argument is a string, or {content = string, secret = true} to keep it
 -- out of logs. Requests (t:request), PRIVMSG and NOTICE carry a label tag
--- (unless the caller gave one) when the network has labeled-response, so the server's reply can be
--- matched to them; tags don't count against the line length. The masked
+-- (unless the caller gave one) when the network has labeled-response, so
+-- the server's reply can be matched to them; tags don't count against the
+-- line length. The masked
 -- message goes to the network's console log and the `irc.sent` event;
 -- chat echo is the chat feature's business. M.raw, a debugging escape
 -- hatch for text that need not be valid IRC, records its line in the

@@ -5,9 +5,10 @@
 -- mentions, CTCP and notices to the user are features that subscribe to
 -- `irc.message` and the events emitted here.
 --
--- Each handler in M.by_command is called as h(rec, irc, msg) with the network record, its
--- model and the message. M.for_ircd gives a network's handlers, by its
--- ircd (net/ircd.lua): Solanum's are M.by_command.
+-- Each handler in M.by_command is called as h(rec, irc, msg) with the
+-- network record, its model and the message. M.for_ircd gives a
+-- network's handlers, by its ircd (net/ircd.lua): Solanum's are
+-- M.by_command.
 
 local bus       <const> = require 'hub.runtime.bus'
 local cap       <const> = require 'hub.net.cap'

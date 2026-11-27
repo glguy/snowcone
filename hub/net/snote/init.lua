@@ -5,8 +5,8 @@
 -- whatever our nick is now.
 --
 -- Solanum sends a notice to * with a header, and its answer to our ban or
--- unban to our nick without one. OFTC hybrid sends it to the
--- oper's nick, with the header when one server tells its own opers and
+-- unban to our nick without one. OFTC hybrid sends it to the oper's
+-- nick, with the header when one server tells its own opers and
 -- without it when the notice is the network's (a connection, an exit, a
 -- kill), from the server it happened on.
 

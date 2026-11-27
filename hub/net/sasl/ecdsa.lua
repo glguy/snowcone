@@ -1,3 +1,6 @@
+-- The ECDSA-NIST256P-CHALLENGE SASL mechanism (Atheme): the response is
+-- the challenge signed with the account's NIST P-256 key.
+
 local check <const> = require 'hub.lib.check'
 
 return function(authzid, authcid, key)

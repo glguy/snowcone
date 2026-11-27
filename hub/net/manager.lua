@@ -1,9 +1,32 @@
--- Connection manager: one record per network, any number connected at
--- once.
+-- Connection manager: one record per network (hub.Network,
+-- state.nets[id]), any number connected at once.
+--
+-- A record's target is what we want of it (connected, idle, removed);
+-- its phase is where the current attempt is:
+--
+--   idle               no connection
+--   resolving_secrets  the layers' secrets (runtime/secrets.lua)
+--   connecting         the transport and its layers (TLS, a proxy, a
+--                      WebSocket), with each TLS layer's pinned key checked
+--   registering        net/registration.lua
+--   connected          registered
+--   closing            QUIT sent, waiting for the server to close
+--
+-- A closed connection reconnects while the target is connected and the
+-- reason allows, after a backoff with jitter that resets once a
+-- connection has stayed up a while; a ban waits the longest. Liveness
+-- pings a quiet connection, measures lag, closes one that stays silent
+-- and times out connecting. A configuration change updates the records:
+-- new networks, removed ones, and connection settings that wait for
+-- /reconnect under a live connection.
 --
 -- Connection callbacks are trampolines bound to (id, attempt). Events from
 -- any attempt but the current live one are dropped, so a connection that
--- closed and reconnected before its old events drained is safe.
+-- closed and reconnected before its old events drained is safe. An
+-- inbound line goes to the console, then the batch collector
+-- (net/batch.lua), the protocol handlers (net/handlers.lua), the
+-- server-notice check (net/snote), the tasks waiting on it, and last the
+-- irc.message event; a replayed line stops at the batch.
 
 local batch        <const> = require 'hub.net.batch'
 local bus          <const> = require 'hub.runtime.bus'
