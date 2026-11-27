@@ -1,4 +1,12 @@
--- Users per address range, and the connection watches.
+-- Users per address range (/nettrack), and the connection watches
+-- (/addwatch).
+--
+-- A tracker's + lists its ranges and - folds them; x removes a tracker
+-- or a range. A watch's x removes it, and A, B and F turn its matching,
+-- beep and flash on (capital) or off; →cliconn shows cliconn filtered by
+-- its pattern.
+--
+-- View state: expanded (the trackers listed by range).
 
 local control   <const> = require 'hub.ui.control'
 local dashboard <const> = require 'hub.ui.dashboard'

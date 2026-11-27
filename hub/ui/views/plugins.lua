@@ -1,12 +1,19 @@
--- The plugins of this generation, a section each: whether it runs, with
--- the error that stopped it; the errors since it was loaded, and the last
--- of them (a reload starts the count again);
--- the file it loads from and the keys of its [plugins.custom.<name>]
--- (not their values, which may be secret); what it added to the client
--- (views, commands, detail kinds, the events it follows) and what it has
--- running (tasks, timers, HTTP listeners). A plugin whose start failed
+-- The plugins of this generation, a section each, its rows:
+--
+--   state     running, or failed with the error that stopped it
+--   errors    how many since it was loaded (a reload starts the count
+--             again), and the last of them
+--   file      the file it loads from
+--   config    the keys of its [plugins.custom.<name>], not their values,
+--             which may be secret
+--   views, commands, details, events
+--             what it added to the client
+--   tasks, timers, http
+--             what it has running
+--
+-- A row it has nothing for is left out. A plugin whose start failed
 -- keeps what it registered first until the next reload, so it shows
--- that too, leaving out what it has none of.
+-- that too.
 --
 -- An error opens in the detail pane, with its traceback, as its line in
 -- the status view does. A view is a jump to it, red when it failed to

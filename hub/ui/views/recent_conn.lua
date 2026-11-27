@@ -1,9 +1,20 @@
 -- Recent connections (cliconn) and exits (cliexit).
 --
--- Click a mask to stage a K-Line (or an unkline for a K-Lined user); click
--- a server to show only it. A ban staged from another view shows cliconn. q shows live users, w exits, e both.
--- View state: scroll, filter, prefilter (a /prefilter query), server_filter,
--- conn_filter, mark_filter, highlight, show_reasons.
+-- Clicks: a mask stages a K-Line, or an unkline for a K-Lined user (with
+-- the oper feature); a server shows only it; a ◆ shows only the entries
+-- with that mark. The action bar's first chip cycles what the reason
+-- column shows: the reason, organization, ASN or address.
+--
+-- Keys: q shows live users only, w exits only, e both. Esc clears the
+-- server, live and mark filters and the highlight. /prefilter sets a
+-- query (lib/matchdsl.lua) these views keep until it is cleared.
+--
+-- A ban staged from another view, as by /kline, shows cliconn, where it
+-- is sent.
+--
+-- View state: scroll, filter, prefilter (a /prefilter query),
+-- server_filter, conn_filter, mark_filter, highlight (the mask staged),
+-- show_reasons.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
 local common    <const> = require 'hub.features.common'
