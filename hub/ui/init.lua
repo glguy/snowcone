@@ -315,7 +315,6 @@ M.init_state = control.init_state
 -- command that shows it, unless it sets command = false.
 local view_modules <const> = {
     require 'hub.ui.views.bans',
-    require 'hub.ui.views.bouncer',
     require 'hub.ui.views.buffer',
     require 'hub.ui.views.channels',
     require 'hub.ui.views.netcount',

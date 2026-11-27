@@ -920,6 +920,29 @@ T.case('a connecting network shows its step in /session and /networks', function
     end
 end)
 
+T.case("/session lists a bouncer's networks, with their state and errors", function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    control.set_view 'session'
+    local function text()
+        HUB.current.routes['ui.draw']()
+        return table.concat(rows_of(document_pad()), '\n')
+    end
+    T.ok(not text():find('Bouncer networks', 1, true), 'none without a bouncer')
+
+    c:recv ':srv BATCH +b soju.im/bouncer-networks'
+    c:recv '@batch=b :srv BOUNCER NETWORK 1 :name=libera;state=connected;host=irc.libera.chat;port=6697;tls=1;nickname=me;pass=secret'
+    c:recv '@batch=b :srv BOUNCER NETWORK 2 :name=oftc;state=disconnected;realname=Me;error=Connection\\srefused'
+    c:recv ':srv BATCH -b'
+    local shown = text()
+    T.ok(shown:find('Bouncer networks', 1, true), 'a section')
+    T.ok(shown:find('1: libera  state connected  host irc.libera.chat:6697 tls  nick me', 1, true), 'a network')
+    T.ok(shown:find('2: oftc  state disconnected  realname Me', 1, true), 'other attributes after')
+    T.ok(shown:find('error: Connection refused', 1, true), 'its error under it')
+    T.ok(not shown:find('secret', 1, true), 'never the password')
+    T.eq(T.log_lines 'error', {}, 'no errors')
+end)
+
 T.case('session lists show one row and expand on a click', function()
     local c = boot()
     local tokens = {}

@@ -1,6 +1,9 @@
 -- The current network: what lasts across connections (server, state,
 -- features), then the connection, if any (nick, link, transport, modes,
--- capabilities, channels, tasks).
+-- capabilities, channels, tasks), and behind a soju bouncer that lists
+-- them, the bouncer's networks: a row each by its id, with its name,
+-- state, address, nick and any other attribute but the password, and its
+-- error under it.
 --
 -- Long lists show their first row; click [+N more] for the rest. Caps put
 -- the trouble first: red for wanted but not enabled, green for enabled,
@@ -118,6 +121,62 @@ local function render_network(ctx, win, rec, now)
     words(ctx, win, 'features', features)
 end
 
+local bouncer_state_color <const> = {
+    connected = draw.green,
+    connecting = draw.yellow,
+    disconnected = draw.red,
+}
+
+-- The attributes a bouncer network's row shows in their own places, or not
+local placed <const> = {name = true, state = true, host = true, port = true, tls = true, nickname = true,
+    error = true, pass = true}
+
+---@param networks table<string, table<string, string>>
+local function render_bouncer(win, networks)
+    heading(win, 'Bouncer networks')
+    if next(networks) == nil then
+        label(win, 'networks')
+        win:waddstr '-\n'
+        return
+    end
+    for netid, attrs in tablex.sort(networks) do
+        label(win, scrub(netid))
+        draw.bold(win)
+        win:waddstr(scrub(attrs.name or '-'))
+        draw.normal(win)
+        if attrs.state then
+            key(win, 'state')
+            local color = bouncer_state_color[attrs.state]
+            if color then color(win) end
+            win:waddstr(scrub(attrs.state))
+            draw.normal(win)
+        end
+        if attrs.host then
+            key(win, 'host')
+            win:waddstr(scrub(attrs.host), attrs.port and ':' .. scrub(attrs.port) or '',
+                attrs.tls == '1' and ' tls' or '')
+        end
+        if attrs.nickname then
+            key(win, 'nick')
+            win:waddstr(scrub(attrs.nickname))
+        end
+        for k, v in tablex.sort(attrs) do
+            if not placed[k] then
+                key(win, scrub(k))
+                win:waddstr(scrub(v))
+            end
+        end
+        win:waddstr '\n'
+        if attrs.error then
+            label(win, 'error')
+            draw.red(win)
+            win:waddstr(scrub(attrs.error))
+            draw.normal(win)
+            win:waddstr '\n'
+        end
+    end
+end
+
 local function render_connection(ctx, win, rec, now)
     heading(win, 'Connection')
 
@@ -208,6 +267,8 @@ return {
         render_network(ctx, win, rec, now)
         if rec.conn then
             render_connection(ctx, win, rec, now)
+            local networks = rec.irc and rec.irc.bouncer_networks
+            if networks then render_bouncer(win, networks) end
         end
     end,
 }
