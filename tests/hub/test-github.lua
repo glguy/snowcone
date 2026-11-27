@@ -409,12 +409,34 @@ T.case('saved data survives a restart', function()
     T.eq(saved().projects[REPO].push_limit, 3, 'kept')
 end)
 
-T.case('the view draws', function()
+T.case('the view draws, scrubbing what staff typed', function()
     boot()
+    T.command 'gh_add_project Libera-Chat/x\x03 #a\x02b'
     local control = T.require 'hub.ui.control'
     control.set_view 'github'
     HUB.current.routes['ui.draw']()
     T.eq(T.log_lines 'error', {}, 'no errors')
+    local shown = false
+    for _, win in ipairs(fake_ncurses.windows) do
+        for y = 0, win.y or 0 do
+            local row = fake_ncurses.row(win, y)
+            T.ok(not row:find '[\x00-\x1f]', 'no control characters: ' .. row)
+            if row:find('Libera-Chat/x\u{2403}', 1, true) and row:find('#a\u{2402}b', 1, true) then shown = true end
+        end
+    end
+    T.ok(shown, 'shown as symbols')
+end)
+
+T.case("a request whose handler fails is the plugin's error, and gets a 500; so does a listener that can't start", function()
+    local _, listener = boot()
+    T.eq(deliver(listener, 'push', '{not json'), nil, 'no status: the host answers 500')
+    local errors = T.log_lines 'error'
+    T.eq(#errors, 1, 'one error')
+    T.ok(errors[1]:find('^plugin github httpd: '), errors[1])
+
+    listener.cb(nil, 'bind', 'address in use')
+    errors = T.log_lines 'error'
+    T.eq(errors[2], 'plugin github httpd: http bind: address in use', 'a listener that failed')
 end)
 
 -- a case of its own: T.run returns at the first sleep, before later cases

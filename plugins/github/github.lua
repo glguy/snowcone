@@ -584,7 +584,9 @@ local routes = {
     end,
 }
 
---- Callback logic for an httpd event
+--- Callback logic for an httpd event. A handler's error goes to the
+--- host, which answers 500 and reports it as the plugin's, with its
+--- traceback; so does a listener that couldn't start.
 --- @param method? string HTTP request method or nil
 --- @param target string HTTP request path or error kind
 --- @param body string HTTP request body or error message
@@ -596,20 +598,13 @@ local function on_http(method, target, body, headers)
 
     -- No method means target:error_kind body:error_message
     if method == nil then
-        api.log('http error: %s %s', target, body)
-        return
+        error(string.format('http %s: %s', target, body), 0)
     end
 
     for pattern, handler in pairs(routes) do
         local matches = {target:match(pattern)}
         if next(matches) then
-            local result, code, rbody, rheaders = pcall(handler, headers or {}, method, body, table.unpack(matches))
-            if result then
-                return code, rbody, rheaders
-            else
-                api.log('handler error: %s', code)
-                return 500, 'internal server error', plain_text_headers
-            end
+            return handler(headers or {}, method, body, table.unpack(matches))
         end
     end
 
@@ -1127,8 +1122,10 @@ return function(plugin_api)
             ncurses.colorset(ncurses.COLOR_BLUE, nil, win)
             win:waddstr('    Project                                  Channel              Events\n')
             ncurses.attrset(ncurses.WA_NORMAL, 0, win)
+            -- names and channels come from staff over IRC: scrubbed
             for key, project in tablex.sort(config.projects) do
-                win:waddstr(string.format('    %-40s %-20s %d\n', key, project.channel, tablex.size(project.events)))
+                win:waddstr(string.format('    %-40s %-20s %d\n', scrub(key), scrub(project.channel),
+                    tablex.size(project.events)))
             end
         end,
     })
