@@ -448,6 +448,42 @@ for an unknown view or kind. A plugin has them as `api.show_view` and
 plugin's kinds don't open on `events`, which are read when the generation
 is built; a plugin subscribes and calls `api.open_detail` instead.
 
+### A view or the detail pane
+
+A view is a place: what a network or the client has all the time, kept
+up to date whether or not anyone is looking — a stream, a store's
+counts, a page about a scope. There is one of each, per network when it
+is net-scoped; the user goes there by its command or the rotation and
+comes back to it as they left it.
+
+The pane shows a thing: one the user asked for, over the view they were
+in, which stays in sight below it. A thing is one of:
+
+- **An answer** to something sent: a WHO, a WHOIS, a listing, a /quote's
+  reply. It is what the server said then, logged as one line in /status
+  that reopens it, until [DISCARD] drops it.
+- **One item in full**, from a view or an answer: a message, an error, a
+  channel. It may be live, but it is about that one item.
+- **A tool** for the line being typed or the view under it: the buffers
+  to jump to, the formatting palette. It closes once used.
+- **Something private**, opened with `dispatch.open_detail` and held
+  only by the pane (below).
+
+To choose:
+
+- What exists before anyone asks is a view; what comes of asking — a
+  command sent, a click on an item — is a thing in the pane.
+- What there is one of, per network or for the client, is a view; what
+  there can be many of, one each time it is asked for, goes in the pane,
+  and the log holds the rest.
+- A view's command only shows it. A command that asks the server
+  something shows the answer in the pane; it doesn't fill a view.
+- Something the user works with alongside a view (a reply to read while
+  typing, a message beside its buffer) goes in the pane, so the view
+  stays in sight.
+- The pane never holds the only copy of a stream: what keeps coming is a
+  view's.
+
 **Failures.** A view or kind that fails to draw (`render`, `status`,
 `modes`, `title`) is disabled until the next reload, and reported once to
 the status view. A stand-in takes its record's place in `current.views` or
