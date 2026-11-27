@@ -325,7 +325,7 @@ end
 
 --- When a message happened, epoch seconds: its server-time tag
 --- (YYYY-MM-DDThh:mm:ss[.sss]Z), else now.
----@param msg hub.Message
+---@param msg {tags: table<string, string>|nil}
 ---@return integer
 function M.message_time(msg)
     local tag = msg.tags and msg.tags.time

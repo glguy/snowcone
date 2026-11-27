@@ -49,6 +49,7 @@ return function(T)
     local function stop_clock()
         local clock = T.require 'hub.runtime.clock'
         local now = math.ceil(clock.now()) + 0.0
+        ---@diagnostic disable-next-line: duplicate-set-field
         clock.now = function() return now end
         return function(seconds) now = now + seconds end
     end

@@ -228,6 +228,7 @@ T.case('talk and action modes tell the buffer we are typing; quiet talk mode doe
     local talk = T.require 'hub.ui.talk'
     local clock = T.require 'hub.runtime.clock'
     local now = clock.now()
+    ---@diagnostic disable-next-line: duplicate-set-field
     clock.now = function() return now end
     talk.set_target('test', '#chan')
     control.set_view 'buffer'
@@ -549,7 +550,7 @@ end)
 T.case('with our mask unknown, the room is for the longest', function()
     local c = boot()
     local irc_model = T.require 'hub.net.irc'
-    local irc = HUB.state.nets.test.irc
+    local irc = HUB.state.nets.test.irc ---@type hub.Irc
     -- :me! PRIVMSG #chan :\r\n is 22 bytes, around user@host
     T.eq(irc_model.text_room(irc, 'PRIVMSG', '#chan'), 512 - 22 - (10 + 1 + 63), 'by default')
     c:recv ':srv 005 me USERLEN=12 HOSTLEN=20 :are supported'

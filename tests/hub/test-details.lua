@@ -3,6 +3,9 @@
 --
 -- Run with:  snowcone tests/hub/test-details.lua
 
+-- A test reads what it expects to be there, and a nil fails it
+---@diagnostic disable: need-check-nil
+
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')
 local V = dofile(here .. '/viewlib.lua')(T, here)
@@ -134,6 +137,7 @@ T.case('the message detail decodes server notices', function()
     local message = T.require 'hub.ui.details.message'
     local note = T.require 'hub.net.snote'.parse('test', msg)
     T.eq({note.name, note.nick, note.ip, note.server}, {'connect', 'n', '192.0.2.1', 'gold.example'}, 'decoded')
+    ---@diagnostic disable-next-line: param-type-mismatch
     T.eq(T.require 'hub.net.snote'.parse('test', snowcone.parse_irc ':srv 001 me :Welcome'), nil, 'not a notice')
 
     local control = T.require 'hub.ui.control'
@@ -141,6 +145,7 @@ T.case('the message detail decodes server notices', function()
     control.open_detail('message', 'test', msg)
     HUB.current.routes['ui.draw']()
     local detail = control.detail()
+    ---@cast detail hub.Detail
     T.eq(message.level(detail), 'summary', 'opens at the summary')
     local rows = rows_of(detail_pad())
     T.eq(rows[0]:match '^(.-)%s*$', '[summary|message|raw]  →console', 'the levels, and a jump to show it in the console')
@@ -208,6 +213,7 @@ T.case('the message detail sums up a chat line', function()
     -- a command without a summary opens at the message level
     control.open_detail('message', 'test', snowcone.parse_irc ':alice!a@h AWAY :gone')
     HUB.current.routes['ui.draw']()
+    ---@diagnostic disable-next-line: param-type-mismatch
     T.eq(message.level(control.detail()), 'message', 'no summary')
     T.eq(rows_of(detail_pad())[0]:match '^(.-)%s*$', '[message|raw]', 'nor its segment')
     T.eq(T.log_lines 'error', {}, 'drawn')
@@ -229,6 +235,7 @@ T.case('the message detail sums up a topic change with the topic it replaced', f
     control.set_view 'status'
     control.open_detail('message', 'test', chat.newest(buffer))
     HUB.current.routes['ui.draw']()
+    ---@diagnostic disable-next-line: param-type-mismatch
     T.eq(message.level(control.detail()), 'summary', 'opens at the summary')
     local rows = rows_of(detail_pad())
     local set = (os.date('%Y-%m-%d %H:%M', 1700000000) --[[@as string]]):gsub('%-', '%%-')
@@ -403,6 +410,7 @@ T.case('the message detail sums up joins, parts, kicks, quits, nicks, modes and 
     c:recv ':srv 999 me what :is this'
     local log = HUB.state.nets.test.console
     control.open_detail('message', 'test', OrderedMap.get(log, OrderedMap.last(log)))
+    ---@diagnostic disable-next-line: param-type-mismatch
     T.eq(message.level(control.detail()), 'message', 'a reply not known has no summary')
     T.eq(T.log_lines 'error', {}, 'drawn')
 end)
@@ -1688,7 +1696,7 @@ T.case('channel information for a channel we are not in is a snapshot', function
     local control = T.require 'hub.ui.control'
     local talk = T.require 'hub.ui.talk'
     local irc_model = T.require 'hub.net.irc'
-    local irc = HUB.state.nets.test.irc
+    local irc = HUB.state.nets.test.irc ---@type hub.Irc
     c:recv ':srv 005 me CHANMODES=eIbq,k,flj,mnst PREFIX=(ov)@+ :are supported'
     c:recv ':me!u@h JOIN #home'
     c:recv ':srv 366 me #home :End of /NAMES list.'

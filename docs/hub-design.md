@@ -607,7 +607,7 @@ never assumed.
 ## 10. Testing
 
 All tests run in snowcone without a UI, from CTest, with `luacheck` over
-`hub/`.
+`hub/`. The Lua Language Server checks the types (below).
 
 - `tests/hub/lib.lua`: assertions, `T.boot`/`T.reload` (headless, strict,
   with an empty configuration unless given one), asynchronous cases with
@@ -650,6 +650,30 @@ All tests run in snowcone without a UI, from CTest, with `luacheck` over
   the modules named, in turn, and lists those no test notices: what they
   do is unchecked, or unobservable. Coverage counts what runs; the
   mutation score, what is checked.
+
+### Type checks
+
+`scripts/luals-check.sh` runs the Lua Language Server's checks over the
+whole repository, which it takes as the workspace (a directory checked
+alone loses `hub/types.lua` and the modules it requires), and exits
+nonzero when it finds anything; the repository checks clean. It uses `$LUALS`, else
+`lua-language-server` on `PATH`, else the newest VS Code Lua extension's
+server. `.luarc.json` at the root is the configuration for it and for an
+editor: Lua 5.4, modules found from the root (`hub.net.irc` is
+`hub/net/irc.lua`), `out/` left out, and `T.require` read as `require`,
+so a test's modules have their types.
+
+- `hub/types.lua` declares the native globals (`snowcone`, `ncurses`, the
+  `my*` libraries) for the checks; nothing loads it. A native function or
+  field the Lua code uses is declared there.
+- Annotations follow the code: a warning is answered with an annotation
+  (`---@type`, `---@cast`, a narrower `---@param`) or a
+  `---@diagnostic disable-next-line` naming the check, never by
+  reshaping code for the checker.
+- A test file whose cases index what they expect to be there starts with
+  `---@diagnostic disable: need-check-nil`, as a nil fails the test
+  anyway. Tests replacing a module's function, such as `clock.now`, mark
+  the line `duplicate-set-field`.
 
 ## 11. Direction
 

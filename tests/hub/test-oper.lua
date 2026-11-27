@@ -2,6 +2,9 @@
 --
 -- Run with:  snowcone tests/hub/test-oper.lua
 
+-- A test reads what it expects to be there, and a nil fails it
+---@diagnostic disable: need-check-nil
+
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')
 local FakeTransport = dofile(here .. '/fake_transport.lua')

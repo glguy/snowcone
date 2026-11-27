@@ -682,6 +682,7 @@ T.case('the status bar names the two who last started typing', function()
     local talk = T.require 'hub.ui.talk'
     local clock = T.require 'hub.runtime.clock'
     local now = clock.now()
+    ---@diagnostic disable-next-line: duplicate-set-field
     clock.now = function() return now end
     c:recv ':me!u@h JOIN #chan'
     talk.set_target('test', '#chan')

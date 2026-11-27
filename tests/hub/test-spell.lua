@@ -318,7 +318,7 @@ T.case('each reload reopens the dictionary and closes the one before', function(
     local personal = os.tmpname()
     boot(personal)
     local resources = T.require 'hub.runtime.resources'
-    local id = HUB.state.spell.id
+    local id = HUB.state.spell.id ---@type integer
     T.ok(resources.get(id), 'open at activation, held as a resource')
     T.eq(T.require 'hub.runtime.spell'.check 'qqqx', false, 'not a word yet')
 
@@ -332,7 +332,7 @@ T.case('each reload reopens the dictionary and closes the one before', function(
     T.eq(T.require 'hub.runtime.spell'.check 'qqqx', true, 'the edit is read')
 
     -- no [spell] closes it at once, without anything checking
-    local id2 = HUB.state.spell.id
+    local id2 = HUB.state.spell.id ---@type integer
     T.ok(T.reload {config = {networks = {}}}, 'reloaded')
     T.eq(resources.get(id2), nil, 'closed')
     T.eq(HUB.state.spell.id, nil, 'and forgotten')

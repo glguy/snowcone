@@ -402,6 +402,7 @@ T.case('the wanted nick is reclaimed when its holder leaves', function()
     T.eq(c:take(), {}, 'not while the NICK is unanswered')
     local clock = T.require 'hub.runtime.clock'
     local now = clock.now() + 11
+    ---@diagnostic disable-next-line: duplicate-set-field
     clock.now = function() return now end
     notice(c, 'a.example', 'Nick change: From other to ME [u@h]')
     notice(c, 'a.example', 'Nick change: From ME to another [u@h]')

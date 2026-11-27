@@ -152,7 +152,7 @@ do
             expect(sent[#sent] == 'AUTHENTICATE *', 'bad base64 aborts exchange: ' .. bad)
         end
 
-        ok = run({mechanism = 'PLAIN', username = 'u', password = 'p'},
+        local ok = run({mechanism = 'PLAIN', username = 'u', password = 'p'},
             {{command = 'AUTHENTICATE'}, numeric(N.ERR_SASLABORTED)})
         expect(ok == false and sent[#sent] == 'AUTHENTICATE *', 'missing argument aborts')
 

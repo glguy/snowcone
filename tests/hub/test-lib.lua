@@ -2,6 +2,9 @@
 --
 -- Run with:  snowcone tests/hub/test-lib.lua
 
+-- A test reads what it expects to be there, and a nil fails it
+---@diagnostic disable: need-check-nil
+
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')
 
@@ -265,6 +268,7 @@ T.case('every command usage lines up with its spec', function()
     for name, cmd in pairs(HUB.current.commands) do
         local placeholders, err = usage.parse(cmd.usage)
         local items = cmd.analyze('').items
+        ---@diagnostic disable-next-line: param-type-mismatch
         err = err or usage.check(items, placeholders, cmd.shape ~= nil)
         if cmd.shape and not (items[#items] and items[#items].rest) then
             err = 'a shape for a spec without a rest of the line'
@@ -283,6 +287,7 @@ T.case('a failed oneOf alternative leaves later errors their own path', function
         z = {type = 'string'},
     }}
     local ok, err = pcall(schema.check, s, {a = {y = 1}, z = 3}, {'root'})
+    ---@diagnostic disable-next-line: undefined-field
     T.ok(not ok and err:find('in root.z ', 1, true), err)
 end)
 

@@ -3,6 +3,9 @@
 --
 -- Run with:  snowcone tests/hub/test-chat.lua
 
+-- A test reads what it expects to be there, and a nil fails it
+---@diagnostic disable: need-check-nil
+
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')
 local FakeTransport = dofile(here .. '/fake_transport.lua')
@@ -600,10 +603,12 @@ T.case('hide rules classify messages as they reach each buffer', function()
     c:recv ':alice!a@h QUIT :bye'
     local function last(name)
         local buffer = chat.buffer('test', name)
+        ---@diagnostic disable-next-line: param-type-mismatch
         return chat.hidden(buffer, chat.newest(buffer))
     end
     T.eq({last '#small', last '#other'}, {false, true}, "a show rule in #small, the built-in rule in #other")
     local quit = chat.newest(chat.buffer('test', '#other'))
+    ---@cast quit hub.Message
     T.eq(chat.hide_decision(chat.buffer('test', '#other'), quit).rule, 'built-in', 'decided by')
     T.eq(chat.hide_decision(chat.buffer('test', '#small'), quit).rule, #hide - 1, 'by position')
 
@@ -634,6 +639,7 @@ T.case('a hide rule names a numeric by its digits', function()
     c:recv ':me!u@h JOIN #c'
     c:recv ':srv 474 me #c :Cannot join channel (+b) - you are banned'
     local buffer = chat.buffer('test', '#c')
+    ---@diagnostic disable-next-line: param-type-mismatch
     T.eq(chat.hidden(buffer, chat.newest(buffer)), true, 'matched')
 end)
 
@@ -753,6 +759,7 @@ T.case('typing is tracked in buffers until it lapses or ends', function()
     local c, chat = boot()
     local clock = T.require 'hub.runtime.clock'
     local now = clock.now()
+    ---@diagnostic disable-next-line: duplicate-set-field
     clock.now = function() return now end
     local function typing(target)
         local list = {}
@@ -854,6 +861,7 @@ T.case('our typing goes out active, refreshed, paused and done', function()
     local c, chat = boot_tags()
     local clock = T.require 'hub.runtime.clock'
     local now = clock.now()
+    ---@diagnostic disable-next-line: duplicate-set-field
     clock.now = function() return now end
 
     chat.compose('test', '#c', 'h')
@@ -895,6 +903,7 @@ T.case('our typing goes only where it can, and only at once', function()
     local c, chat = boot_tags()
     local clock = T.require 'hub.runtime.clock'
     local now = clock.now()
+    ---@diagnostic disable-next-line: duplicate-set-field
     clock.now = function() return now end
     c:recv ':irc.example WALLOPS :hello'
     for _, target in ipairs {'#elsewhere', 'nobody', 'irc.example'} do
@@ -1296,7 +1305,7 @@ end)
 T.case('a private buffer closed before its MONITOR reply unwatches on the reply', function()
     local c = boot()
     local irc_model = T.require 'hub.net.irc'
-    local irc = HUB.state.nets.test.irc
+    local irc = HUB.state.nets.test.irc ---@type hub.Irc
     T.command 'talk bob'
     T.eq(c:take(), {'CHATHISTORY LATEST bob * 50', 'MONITOR + bob'}, 'watched')
     T.command 'close bob'
@@ -1323,7 +1332,7 @@ end)
 T.case('a nick refused for a full MONITOR list is asked for again when room is made', function()
     local c = boot()
     local irc_model = T.require 'hub.net.irc'
-    local irc = HUB.state.nets.test.irc
+    local irc = HUB.state.nets.test.irc ---@type hub.Irc
     T.command 'talk alice'
     T.command 'talk bob'
     T.command 'talk carol'
@@ -1407,6 +1416,7 @@ T.case('history and MONITOR after registration', function()
     chat.open('test', 'Bob')
     chat.open('test', '#t')
     T.require 'hub.features.chat.buffers'.insert('test', chat.buffer('test', '#t'),
+        ---@diagnostic disable-next-line: missing-fields
         {command = 'PRIVMSG', tags = {time = '2026-01-01T00:00:09.000Z'}, '#t', 'last seen'})
     local c = fake.last()
     c:con()
@@ -1428,6 +1438,7 @@ T.case('CTCP replies to anyone are paced, and to staff are not', function()
     local clock = T.require 'hub.runtime.clock'
     -- a whole number, as the pacing of requests at one time is exact on it
     local now = math.floor(clock.now())
+    ---@diagnostic disable-next-line: duplicate-set-field
     clock.now = function() return now end
     local function notices()
         local list = {}
@@ -1927,7 +1938,9 @@ T.case('the bell rings once until the buffer is seen', function()
     boot()
     local written = capture_stdout()
     local bell = T.require 'hub.features.notify.bell'
+    ---@diagnostic disable-next-line: redundant-parameter
     local handle = bell.notify(nil, 'bob', 'bob', 'hi')
+    ---@diagnostic disable-next-line: redundant-parameter
     bell.notify(handle, 'bob', 'bob', 'again')
     T.eq(written, {'\x07'}, 'one bell')
 end)

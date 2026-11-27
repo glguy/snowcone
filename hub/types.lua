@@ -598,6 +598,7 @@ function GeoipDb:get_name_by_addr(addr) end
 function GeoipDb:get_name_by_addr_v6(addr) end
 
 ---@class mygeoip.lib
+---@field GEOIP_COUNTRY_EDITION integer
 ---@field GEOIP_ISP_EDITION integer
 ---@field GEOIP_ASNUM_EDITION_V6 integer
 local mygeoip_lib = {}
