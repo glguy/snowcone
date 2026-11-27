@@ -37,6 +37,7 @@
 --   api.load() -> the value last saved, or nil; api.save(value) writes it
 --             to <name>.dat (pretty-printed Lua), so it survives restarts
 
+local clock     <const> = require 'hub.runtime.clock'
 local file      <const> = require 'pl.file'
 local path      <const> = require 'pl.path'
 local pretty    <const> = require 'pl.pretty'
@@ -44,6 +45,7 @@ local config    <const> = require 'hub.runtime.config'
 local dispatch  <const> = require 'hub.runtime.dispatch'
 local log       <const> = require 'hub.runtime.log'
 local manager   <const> = require 'hub.net.manager'
+local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local resources <const> = require 'hub.runtime.resources'
 local send      <const> = require 'hub.net.send'
 local task      <const> = require 'hub.runtime.task'
@@ -60,7 +62,20 @@ function M.init_state(S)
     S.features.plugins = S.features.plugins or {}
 end
 
--- Loaded plugins of this generation, in load order: {name, error, views}
+--- A plugin of this generation, as /plugins shows it.
+---@class hub.PluginEntry
+---@field name string
+---@field file string the file it loads from
+---@field error string|nil why it failed to load or start
+---@field views string[] the ids of the views it added
+---@field details string[] the detail kinds it added
+---@field listeners {id: integer, host: string, service: string}[] its
+--- HTTP listeners, by resource id, whether or not still open
+---@field started number clock.now() when this generation loaded it
+---@field errors_before integer its errors counted before then
+
+-- Loaded plugins of this generation, in load order
+---@type hub.PluginEntry[]
 local loaded = {}
 M.loaded = loaded
 
@@ -71,6 +86,8 @@ local next_callback = 0
 -- The callback of each timer that hasn't fired, by the timer's id
 local timer_callbacks = {}
 
+---@param name string
+---@return string
 local function owner(name)
     return 'plugin:' .. name
 end
@@ -101,11 +118,17 @@ local function guarded(name, what, fn)
     end
 end
 
+--- The directory plugins load from.
+---@return string
 local function directory()
     local cfg = HUB.state.config.plugins
     local dir = cfg and cfg.directory
     return dir and config.resolve_path(dir) or path.join(config.config_dir(), 'plugins')
 end
+M.directory = directory
+
+-- The owner of what a plugin starts: its tasks and resources
+M.owner = owner
 
 local function register_callback(f)
     next_callback = next_callback + 1
@@ -153,7 +176,9 @@ local function make_api(name, entry, current)
     function api.detail(kind, record)
         record.kind = kind
         record.origin = 'plugin ' .. name .. ' detail ' .. kind
-        guard(name, 'detail ' .. kind, dispatch.add_detail_kind, record)
+        if guard(name, 'detail ' .. kind, dispatch.add_detail_kind, record) then
+            table.insert(entry.details, kind)
+        end
     end
     function api.open_detail(kind, net, data) dispatch.open_detail(kind, net, data) end
 
@@ -226,7 +251,9 @@ local function make_api(name, entry, current)
     function api.httpd(host, service, handler)
         local id = register_callback(guarded(name, 'httpd', handler))
         local listener = snowcone.start_httpd(host, service, dispatch.trampoline('plugins.callback', id))
-        return resources.add('httpd', owner(name), listener, 'close')
+        local rid = resources.add('httpd', owner(name), listener, 'close')
+        table.insert(entry.listeners, {id = rid, host = host, service = tostring(service)})
+        return rid
     end
 
     return api
@@ -234,27 +261,73 @@ end
 
 -- Loading ============================================================
 
+-- A plugin's errors are those whose origin starts 'plugin <name> ', as
+-- report and the plugin's views and kinds name them; HUB.errors counts
+-- them for the client's lifetime (runtime/log.lua)
+local function error_prefix(name)
+    return 'plugin ' .. name .. ' '
+end
+
+local function count_errors(name)
+    local prefix, n = error_prefix(name), 0
+    local errors = HUB.errors
+    for origin, count in pairs(errors and errors.by_origin or {}) do
+        if origin:sub(1, #prefix) == prefix then n = n + count end
+    end
+    return n
+end
+
+--- The errors a plugin has had since this generation loaded it, its load
+--- or start among them: how many, and the newest and the oldest one's
+--- lines in the log, while the log still holds them (the oldest is a
+--- failed plugin's failure). Earlier generations' are left out: a reload
+--- may have fixed them.
+---@param entry hub.PluginEntry
+---@return integer count
+---@return table|nil newest
+---@return table|nil oldest
+function M.errors(entry)
+    local n = count_errors(entry.name) - entry.errors_before
+    if n <= 0 then return 0, nil, nil end
+    local prefix = error_prefix(entry.name)
+    local newest, oldest
+    for line in OrderedMap.each(HUB.state.log) do
+        if line.timestamp < entry.started then break end
+        if line.category == 'error' and line.text:sub(1, #prefix) == prefix then
+            newest = newest or line
+            oldest = line
+        end
+    end
+    return n, newest, oldest
+end
+
+---@return hub.PluginEntry
 local function load_one(name, current)
     local filename = path.join(directory(), name .. '.lua')
+    ---@type hub.PluginEntry
+    local entry = {name = name, file = filename, views = {}, details = {}, listeners = {},
+        started = clock.now(), errors_before = count_errors(name)}
     local chunk, err = loadfile(filename, 't')
     if not chunk then
         report(name, 'load', err)
-        return {name = name, error = err}
+        entry.error = err
+        return entry
     end
 
     local ok, result = xpcall(chunk, traceback)
     if not ok then
         report(name, 'start', result)
-        return {name = name, error = result}
+        entry.error = result
+        return entry
     end
 
     if type(result) ~= 'function' then
         local e = 'returned ' .. type(result) .. ', not a function'
         report(name, 'start', e)
-        return {name = name, error = e}
+        entry.error = e
+        return entry
     end
 
-    local entry = {name = name, views = {}}
     local started, serr = guard(name, 'start', result, make_api(name, entry, current))
     if not started then entry.error = serr end
     return entry

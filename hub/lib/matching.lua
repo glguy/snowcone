@@ -54,6 +54,16 @@ local function repeats(pat)
     return count
 end
 
+--- A pattern that matches text as it is, in the engine in use.
+---@param text string
+---@return string
+function M.literal(text)
+    if M.kind == 'pcre2' then
+        return (text:gsub('[\\^$.|?*+()%[%]{}]', '\\%0'))
+    end
+    return (text:gsub('[%^%$%(%)%%%.%[%]%*%+%-%?]', '%%%0'))
+end
+
 --- Why a pattern can't be used, or nil when it can.
 ---@param pat string
 ---@return string|nil

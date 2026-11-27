@@ -5,7 +5,8 @@
 local here = (arg and arg[0] or ''):match '^(.*)/[^/]*$' or '.'
 local T = dofile(here .. '/lib.lua')
 local FakeTransport = dofile(here .. '/fake_transport.lua')
-dofile(here .. '/fake_ncurses.lua').install()
+local fake_ncurses = dofile(here .. '/fake_ncurses.lua')
+fake_ncurses.install()
 local path = require 'pl.path'
 local file = require 'pl.file'
 
@@ -527,34 +528,135 @@ end
     if not ok then error(err, 0) end
 end)
 
-T.case('every failure is in the status view; /plugins says one failed and links there', function()
-    assert(file.write(path.join(dir, 'nostart.lua'), [[error 'never starts']]))
-    local ok, err = pcall(function()
-        T.boot {strict = false, ui = true, config = {plugins = {directory = dir, modules = {'nostart'}}, networks = {}}}
-        local logged = T.log_lines 'error'
-        T.eq(#logged, 1, 'logged as an error like any other')
-        T.ok(logged[1]:find('^plugin nostart start: ') and logged[1]:find('never starts', 1, true), logged[1])
-
-        local entry
-        for e in T.require 'hub.lib.OrderedMap'.each(HUB.state.log) do
-            if e.category == 'error' then entry = e end
+-- The rows of the document view as last drawn, trailing spaces dropped
+local function page()
+    HUB.current.routes['ui.draw']()
+    local pad
+    for i = #fake_ncurses.windows, 1, -1 do
+        local win = fake_ncurses.windows[i]
+        if win.kind == 'newpad' and win.w == tty_width then
+            pad = win
+            break
         end
-        T.eq(entry.detail and entry.detail.kind, 'error', 'its traceback is one click away')
+    end
+    local rows = {}
+    for y = 0, pad.y do rows[y] = fake_ncurses.row(pad, y):match '^(.-)%s*$' end
+    return rows
+end
 
+-- Click the first cell of a row holding text
+local function click(rows, text)
+    for y = 0, #rows do
+        local at = rows[y]:find(text, 1, true)
+        if at then
+            HUB.current.routes['ui.entry']('on_mouse', y, utf8.len(rows[y]:sub(1, at - 1)), false)
+            return
+        end
+    end
+    error('no ' .. text .. ' on the page')
+end
+
+T.case('/plugins shows each plugin: its state, errors, file, config and what it added', function()
+    local plugin_sources = {
+        rich = [[
+return function(api)
+    api.view('richview', {render = function() end})
+    api.command('richcmd', '', function() end, 'a command')
+    api.detail('richkind', {render = function() end})
+    api.on('test.fire', function() error 'handler fails' end)
+    api.task('sleeper', function(t) t:sleep(60000) end)
+    api.timer(60000, function() end)
+    api.httpd('::1', 8080, function() end)
+end
+]],
+        halfway = [[
+return function(api)
+    api.command('halfcmd', '', function() end)
+    error 'stops halfway'
+end
+]],
+        nostart = [[error 'never starts']],
+    }
+    for name, src in pairs(plugin_sources) do
+        assert(file.write(path.join(dir, name .. '.lua'), src))
+    end
+    local real = snowcone.start_httpd
+    ---@diagnostic disable-next-line: duplicate-set-field
+    snowcone.start_httpd = function() return {close = function() end} end
+    local ok, err = pcall(function()
+        T.boot {strict = false, ui = true, config = {plugins = {directory = dir, modules = {'rich', 'halfway', 'nostart'},
+            custom = {rich = {token = 'hunter2', port = 1}}}, networks = {}}}
+        T.require 'hub.runtime.bus'.emit('test.fire', {})
+        T.require 'hub.runtime.bus'.emit('test.fire', {})
         local control = T.require 'hub.ui.control'
         control.set_view 'plugins'
-        HUB.current.routes['ui.draw']()
-        for y = 0, 3 do
-            for x = 0, 60 do
-                if HUB.state.ui.view == 'plugins' then
-                    HUB.current.routes['ui.entry']('on_mouse', y, x, false)
-                end
-            end
-        end
-        T.eq(HUB.state.ui.view, 'status', '→status goes there')
+        local rows = page()
+        local text = table.concat(rows, '\n', 0)
+
+        T.ok(text:find('     state: running', 1, true), 'running')
+        T.ok(text:find('    errors: 2  last plugin rich test.fire: ', 1, true), 'the errors since it started')
+        T.ok(text:find('      file: ' .. path.join(dir, 'rich.lua'), 1, true), 'its file')
+        T.ok(text:find('    config: port token', 1, true), 'the keys of its config')
+        T.ok(not text:find('hunter2', 1, true), 'never their values')
+        T.ok(text:find('     views: →richview', 1, true), 'its view')
+        T.ok(text:find('  commands: /richcmd', 1, true), 'its command')
+        T.ok(text:find('   details: richkind', 1, true), 'its detail kind')
+        T.ok(text:find('    events: test.fire', 1, true), 'its events')
+        T.ok(text:find('     tasks: sleeper', 1, true), 'its task')
+        T.ok(text:find('    timers: 1', 1, true), 'its timer')
+        T.ok(text:find('      http: ::1:8080', 1, true), 'its listener')
+
+        -- a start that failed halfway keeps what it registered
+        T.ok(text:find('state: failed  .-stops halfway'), 'failed')
+        T.ok(text:find('  commands: /halfcmd', 1, true), 'what it registered first')
+        T.ok(text:find('state: failed  .-never starts'), 'never started')
+
+        -- the failure opens its traceback; a command is a search in /help
+        click(rows, 'never starts')
+        local detail = control.detail()
+        T.eq({detail and detail.kind, detail and detail.data.where}, {'error', 'plugin nostart start'}, 'its error')
+        control.close_detail()
+        click(page(), '/richcmd')
+        T.eq({HUB.state.ui.view, control.view_state('help').filter}, {'help', 'richcmd'}, '/help, searching')
+        control.set_view 'plugins'
+        click(page(), '→richview')
+        T.eq(HUB.state.ui.view, 'richview', 'a view is a jump')
     end)
-    os.remove(path.join(dir, 'nostart.lua'))
+    snowcone.start_httpd = real
+    for name in pairs(plugin_sources) do os.remove(path.join(dir, name .. '.lua')) end
     if not ok then error(err, 0) end
+end)
+
+T.case("/plugins counts a plugin's errors since it was loaded: a reload that fixes it clears them", function()
+    local file_path = path.join(dir, 'fixed.lua')
+    assert(file.write(file_path, [[error 'broken for now']]))
+    local ok, err = pcall(function()
+        local cfg = {plugins = {directory = dir, modules = {'fixed'}}, networks = {}}
+        T.boot {strict = false, ui = true, config = cfg}
+        local control = T.require 'hub.ui.control'
+        control.set_view 'plugins'
+        local text = table.concat(page(), '\n', 0)
+        T.ok(text:find('state: failed  plugin', 1, true) or text:find('broken for now', 1, true), 'failed')
+        T.ok(not text:find('errors:', 1, true), 'the failure is its only error, shown once')
+
+        assert(file.write(file_path, [[return function(api) api.command('fixedcmd', '', function() end) end]]))
+        T.ok(T.reload {config = cfg}, 'reloaded')
+        control.set_view 'plugins'
+        text = table.concat(page(), '\n', 0)
+        T.ok(text:find('     state: running', 1, true), 'running')
+        T.ok(not text:find('errors:', 1, true) and not text:find('broken for now', 1, true),
+            "the last generation's error is gone")
+    end)
+    os.remove(file_path)
+    if not ok then error(err, 0) end
+end)
+
+T.case('/plugins without plugins says where they load from', function()
+    T.boot {ui = true, config = {plugins = {directory = dir}, networks = {}}}
+    T.require 'hub.ui.control'.set_view 'plugins'
+    local text = table.concat(page(), '\n', 0)
+    T.ok(text:find('      none: list them in [plugins] modules', 1, true), 'how to list them')
+    T.ok(text:find(' directory: ' .. dir, 1, true), 'and where from')
 end)
 
 -- a case of its own: T.run returns at the first sleep, before later cases

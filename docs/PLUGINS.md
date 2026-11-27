@@ -77,7 +77,7 @@ modules = ['seen']
 save_seconds = 60
 ```
 
-`/plugins` lists every configured plugin with buttons for the views it added, or says it failed. Click `[seen]` to open this one.
+`/plugins` shows every configured plugin: whether it runs, the errors it has had, its file and the keys of its settings, what it added (views, commands, detail kinds, events) and what it has running (tasks, timers, HTTP listeners). Click `→seen` to open this one's view; click an error to see its traceback.
 
 ## Loading and reloading
 
@@ -95,7 +95,7 @@ What that means for a plugin:
 
 - **Everything registered belongs to one generation.** Subscriptions, commands, views, timers, tasks and listeners all end at the next reload, and the plugin registers them again. It never needs to unregister anything.
 - **Local variables start fresh** on each reload. Only [`api.state` and saved files](#keeping-data) carry over.
-- **A plugin that fails to load stays stopped.** Step 3 has already happened by then, so a syntax error leaves no old copy running. The reload itself succeeds, `/plugins` says the plugin failed, and the error is in `/status`.
+- **A plugin that fails to load stays stopped.** Step 3 has already happened by then, so a syntax error leaves no old copy running. The reload itself succeeds, `/plugins` says the plugin failed with the error, one click from its traceback, and the error is in `/status`.
 - **A listener can reopen its port,** because the old one is closed first.
 
 A network may not be ready when a plugin starts. At startup the connection is just beginning, and even after a reload it may be down. Do work that needs a registered connection from `net.registered`, which also covers reconnecting. If it must also happen on a reload, try it from the start function too, and catch the failure:
