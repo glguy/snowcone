@@ -86,7 +86,6 @@ M.open = opening.open
 M.close = opening.close
 
 M.look = buffers.look
-M.first_unseen = buffers.first_unseen
 M.find = buffers.find
 M.newest = buffers.newest
 M.holder = buffers.holder
@@ -173,6 +172,9 @@ local function add(net, target, msg, mention, activity, matched)
     if activity then
         buffer.activity = buffer.activity + 1
     end
+    if (mention or activity) and not buffer.first_unseen then
+        buffer.first_unseen = msg
+    end
     bus.emit('chat.message', {net = net, target = target, msg = msg, mention = mention,
         activity = activity, hidden = hidden})
     return true
@@ -218,7 +220,7 @@ local function route_chat(net, irc, target, text, msg)
         local own = config.own_mention(net, buffer)
         local mention, matched = false, false
         if not ctcp_request then
-            matched = config.matches(own or config.mention(net, buffer), plain)
+            matched = config.matches(config.mention(net, buffer), plain)
             if own then
                 mention = matched
             else

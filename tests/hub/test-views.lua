@@ -1201,18 +1201,23 @@ T.case('a click on a reply scrolls to the message it answers, until Esc', functi
     T.eq(vs.scroll, 0, 'not scrolled')
 end)
 
-T.case('▸ marks mentions, and the first message unseen when the buffer was switched to', function()
+T.case('▸ marks mentions, and the message that made the buffer unseen when it came into sight', function()
     local c = boot({{name = '#chan', mention = {patterns = {'ping'}}}})
     HUB.state.config.mention = {patterns = {'^me:'}}
     local control = T.require 'hub.ui.control'
     local talk = T.require 'hub.ui.talk'
     c:recv ':me!u@h JOIN #chan'
+    c:recv ':srv BATCH +h chathistory #chan'
+    c:recv '@batch=h;msgid=h1;time=2026-01-01T00:00:00.000Z :alice!a@h PRIVMSG #chan :from-history'
+    c:recv ':srv BATCH -h'
     c:recv ':alice!a@h PRIVMSG #chan :before'
     c:recv ':bob!b@h PRIVMSG me :elsewhere'
     c:recv ':bob!b@h PRIVMSG me :me: called'
     control.set_view 'buffer'
     local chat = T.require 'hub.features.chat'
     T.ok(chat.buffer('test', 'bob').mention, 'a private message is a mention of its buffer')
+    local history = chat.find(chat.buffer('test', '#chan'), 'h1')
+    T.ok(history and history.history, 'the history is in the buffer, as history')
 
     -- the messages the main pad shows that are marked, by their text
     local function marked(target)
@@ -1232,17 +1237,38 @@ T.case('▸ marks mentions, and the first message unseen when the buffer was swi
         end
     end
 
-    T.eq(marked '#chan', {}, 'never seen: nothing marked')
-    T.eq(marked 'bob', {'called'}, 'only the private message whose text matches is marked')
+    T.eq(marked '#chan', {'before'}, 'never seen: the message that made it unseen, not the history before it')
+    T.eq(marked 'bob', {'called', 'elsewhere'}, 'the private message that made it unseen, and the one whose text matches')
     c:recv ':carol!c@h JOIN #chan'
     c:recv ':alice!a@h PRIVMSG #chan :first-new'
     c:recv ':alice!a@h PRIVMSG #chan :ping-second'
-    T.eq(marked '#chan', {'first-new', 'ping-second'}, 'the first unseen past the hidden JOIN, and the mention')
+    T.eq(marked '#chan', {'first-new', 'ping-second'}, 'the first unseen, not the hidden JOIN before it, and the mention')
     c:recv ':alice!a@h PRIVMSG #chan :while-shown'
     c:recv ':alice!a@h PRIVMSG #chan :ping-shown'
     T.eq(marked(), {'first-new', 'ping-second', 'ping-shown'}, 'the mark stays while shown')
     marked 'bob'
     T.eq(marked '#chan', {'ping-second', 'ping-shown'}, 'switching back: all seen, mentions still marked')
+
+    local tty = T.require 'hub.runtime.tty'
+    tty.set_focus(false)
+    c:recv ':alice!a@h PRIVMSG #chan :while-away'
+    T.eq(marked(), {'ping-second', 'ping-shown'}, 'drawn unfocused: nothing seen, the mark unchanged')
+    c:recv ':alice!a@h PRIVMSG #chan :later'
+    tty.set_focus(true)
+    T.eq(marked(), {'ping-second', 'ping-shown', 'while-away'}, 'focused again: the first that came meanwhile')
+
+    local function away_and_back()
+        control.set_view 'status'
+        HUB.current.routes['ui.draw']()
+        control.set_view 'buffer'
+    end
+    away_and_back()
+    T.eq(marked(), {'ping-second', 'ping-shown', 'while-away'}, 'back with nothing new: the mark stays')
+    control.set_view 'status'
+    HUB.current.routes['ui.draw']()
+    c:recv ':alice!a@h PRIVMSG #chan :in-another-view'
+    control.set_view 'buffer'
+    T.eq(marked(), {'in-another-view', 'ping-second', 'ping-shown'}, 'back from another view: the first that came meanwhile')
 end)
 
 T.case('our messages show whether the server confirmed them', function()

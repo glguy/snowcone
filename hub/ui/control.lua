@@ -45,6 +45,8 @@ M.profiles = {
 ---@field profile string
 ---@field view string the shown view's id
 ---@field views table<string, hub.ViewState> by view id
+---@field frame integer frames drawn, so a view can tell whether it was
+--- drawn in the one before
 ---@field input hub.InputState
 ---@field current_net string|nil the network chosen for net-scoped views
 ---@field profile_configured string|nil ui.profile from configuration, last applied
@@ -58,6 +60,7 @@ function M.init_state(S)
     ui.profile = ui.profile or 'all'
     ui.view = ui.view or 'status'
     ui.views = ui.views or {}
+    ui.frame = ui.frame or 0
     ui.input = ui.input or {}
     ui.input.editor = ui.input.editor or editor.new()
     -- Secrets get their own editor: a half-typed command survives a prompt,

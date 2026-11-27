@@ -120,6 +120,10 @@ Some things to know:
 - Every scrolling list is a rolling buffer: new lines replace the oldest
   above the divider, so nothing moves under the mouse.
 - The console's Meta-G shows all networks interleaved.
+- In a chat buffer, a magenta ▸ marks a message that mentions you, and a
+  yellow ▸ marks the one that made the buffer unseen, telling the new
+  messages from chat history before them. It is taken when you switch to
+  the buffer or come back to it from another view or window.
 - `/filter` filters the current view by pattern; the connection views
   also take a query with `/prefilter` (below).
 - `/reload` and SIGUSR1 load new code and configuration and keep

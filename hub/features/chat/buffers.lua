@@ -42,30 +42,12 @@ function M.next_buffer(net, from, active, except)
     return best
 end
 
---- Mark a buffer as seen, up to its newest message.
+--- Mark a buffer as seen.
 ---@param buffer hub.ChatBuffer
 function M.look(buffer)
     buffer.activity = 0
     buffer.mention = false
-    buffer.seen = OrderedMap.get(buffer.messages, OrderedMap.last(buffer.messages)) or false
-end
-
---- The first message after the one the buffer was last seen up to that
---- the hide rules don't hide. Nil when there is none, when the buffer was
---- never seen, or when the one last seen is no longer held.
----@param buffer hub.ChatBuffer
----@return hub.Message|nil
-function M.first_unseen(buffer)
-    local seen = buffer.seen
-    if seen == nil then return end
-    local after = seen == false
-    for msg in OrderedMap.reveach(buffer.messages) do
-        if after then
-            if not hide.hidden(buffer, msg) then return msg end
-        elseif msg == seen then
-            after = true
-        end
-    end
+    buffer.first_unseen = nil
 end
 
 --- A message's msgid, when it has one.

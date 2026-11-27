@@ -43,8 +43,8 @@ end
 ---@field messages hub.OrderedMap keyed by msgid, when there is one
 ---@field activity integer messages since it was last seen
 ---@field mention boolean
----@field seen hub.Message|false|nil the newest message when it was last
---- seen; false when it was seen empty, nil when never
+---@field first_unseen hub.Message|nil the message that made it unseen:
+--- the first to count as activity or a mention since it was last seen
 ---@field typing table<string, hub.ChatTyping>|nil by folded nick; nil in
 --- buffers from before typing was tracked (chat/typing.lua)
 ---@field hide table<hub.Message, hub.HideDecision|false>|nil how each

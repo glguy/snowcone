@@ -16,25 +16,31 @@
 -- (channel-context, sent with /cmsg) is shown there marked >, after its
 -- sender; ours marked <, after its recipient. Before the sender, ▸ marks
 -- each message whose text matched the mention settings (magenta; not
--- every private message, though each is a mention of its buffer) and the first message that was unseen when the
--- buffer was switched to (yellow). A reply (the +reply tag) starts with
--- ↩: click it to scroll to the message it answers, which is highlighted
--- until Esc. Click a channel's name in the status bar for its
--- information, a nick's for its WHOIS. After the name, the two who most
--- recently started typing there (not those who paused), then up to four
--- buffers with unseen messages, mentions first, and a count of the rest,
--- which opens the jump list.
+-- every private message, though each is a mention of its buffer) and
+-- the message that had made the buffer unseen when it last came into
+-- sight (yellow): switched to, or seen again after another view or with
+-- the terminal focused again. History never makes a buffer unseen. A
+-- reply (the +reply tag) starts with ↩: click it to scroll to the
+-- message it answers, which is highlighted until Esc. Click a channel's
+-- name in the status bar for its information, a nick's for its WHOIS.
+-- After the name, the two who most recently started typing there (not
+-- those who paused), then up to four buffers with unseen messages,
+-- mentions first, and a count of the rest, which opens the jump list.
 -- With no buffer chosen, the view shows one with a mention, else one with
 -- activity, else the first by name. A channel's buffer shows why the
--- server refused our JOIN; when it forwards the JOIN elsewhere, both
--- buffers say so and the view follows. Viewing a buffer while the terminal
+-- server refused our JOIN, or a change we asked for there; when it
+-- forwards the JOIN elsewhere, both buffers say so and the view follows.
+-- Viewing a buffer while the terminal
 -- is focused marks it seen and withdraws its notification. The terminal's
 -- title names the shown buffer.
 -- View state: scroll, hscroll, showing (buffers showing their hidden
 -- messages, weak-keyed), unseen (the shown buffer, weak-keyed, to the
--- first message unseen when it was switched to, or false), highlight (a
+-- message that had made it unseen when it last came into sight, or
+-- false), watched (the frame it was last seen in), highlight (a
 -- message), reveal (a message to scroll to and highlight on the next
--- frame).
+-- frame); and kept here by ui/talk.lua, targets and previous (the shown
+-- and previously shown buffer's name, by network) and statusmsg (each
+-- buffer's prefix, by network and folded name).
 
 local addircstr  <const> = require 'hub.ui.irc_formatting'
 local chat       <const> = require 'hub.features.chat'
@@ -193,7 +199,8 @@ local function render_msg(ctx, win, buffer, msg)
     local action = command == 'PRIVMSG' and message_text.action(msg[2] or '')
 
     -- between the time and the sender, ▸ marks a mention in magenta, and
-    -- in yellow the first message unseen when the buffer was switched to
+    -- in yellow the message that had made the buffer unseen when it came
+    -- into sight
     local first_unseen = ctx.vs.unseen and ctx.vs.unseen[buffer]
     if msg.mention then
         draw.magenta(win)
@@ -389,16 +396,25 @@ return {
             return
         end
 
-        -- switching to a buffer finds the first message unseen there,
-        -- marked until the next switch; weak, so a closed buffer goes
+        -- the message that made the buffer unseen is taken when the
+        -- buffer comes into sight: switched to, or seen again after another
+        -- view or with the terminal focused again, unless nothing came
+        -- meanwhile. It stays marked while the buffer stays in sight. Weak,
+        -- so a closed buffer goes.
+        local focused = tty.focused()
+        local frame = HUB.state.ui.frame
         local unseen = ctx.vs.unseen
-        if not (unseen and unseen[buffer] ~= nil) then
-            ctx.vs.unseen = setmetatable({[buffer] = chat.first_unseen(buffer) or false}, {__mode = 'k'})
+        local shown = unseen and unseen[buffer] ~= nil
+        if not shown then
+            ctx.vs.unseen = setmetatable({[buffer] = buffer.first_unseen or false}, {__mode = 'k'})
+        elseif focused and ctx.vs.watched ~= frame - 1 and buffer.first_unseen then
+            unseen[buffer] = buffer.first_unseen
         end
 
         -- seen only while someone can see it
-        if tty.focused() then
+        if focused then
             chat.look(buffer)
+            ctx.vs.watched = frame
             dispatch.route 'notify.dismiss' (ctx.net, target)
         end
 

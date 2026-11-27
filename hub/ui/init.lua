@@ -130,6 +130,7 @@ end
 local function render()
     if tty.suspended() then return end
 
+    HUB.state.ui.frame = HUB.state.ui.frame + 1
     clicks.reset()
     fit_textbox()
     local main_pad, input_win, textbox_pad = layout.main_pad, layout.input_win, layout.textbox_pad
