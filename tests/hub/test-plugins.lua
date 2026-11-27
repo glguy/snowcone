@@ -576,6 +576,7 @@ return function(api)
 end
 ]],
         nostart = [[error 'never starts']],
+        tableerr = [[error {code = 1}]],
     }
     for name, src in pairs(plugin_sources) do
         assert(file.write(path.join(dir, name .. '.lua'), src))
@@ -584,7 +585,7 @@ end
     ---@diagnostic disable-next-line: duplicate-set-field
     snowcone.start_httpd = function() return {close = function() end} end
     local ok, err = pcall(function()
-        T.boot {strict = false, ui = true, config = {plugins = {directory = dir, modules = {'rich', 'halfway', 'nostart'},
+        T.boot {strict = false, ui = true, config = {plugins = {directory = dir, modules = {'rich', 'halfway', 'nostart', 'tableerr'},
             custom = {rich = {token = 'hunter2', port = 1}}}, networks = {}}}
         T.require 'hub.runtime.bus'.emit('test.fire', {})
         T.require 'hub.runtime.bus'.emit('test.fire', {})
@@ -610,6 +611,7 @@ end
         T.ok(text:find('state: failed  .-stops halfway'), 'failed')
         T.ok(text:find('  commands: /halfcmd', 1, true), 'what it registered first')
         T.ok(text:find('state: failed  .-never starts'), 'never started')
+        T.ok(text:find('state: failed  table: '), 'an error that is not a string')
 
         -- the failure opens its traceback; a command is a search in /help
         click(rows, 'never starts')

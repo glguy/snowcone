@@ -96,7 +96,7 @@ local function render_plugin(ctx, win, entry)
         win:waddstr 'failed  '
         draw.normal(win)
         -- the failure is the first error of this load
-        error_text(ctx, win, entry.error:match '^[^\n]*', first)
+        error_text(ctx, win, tostring(entry.error):match '^[^\n]*', first)
     else
         draw.green(win)
         win:waddstr 'running\n'
