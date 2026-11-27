@@ -1,3 +1,8 @@
+-- Text from the network made safe to draw: C0 controls and DEL become
+-- their Unicode control pictures (␀, ␤, ␛, ...), and C1 controls, which
+-- some terminals obey, become U+FFFD. Anything a server or user sent
+-- goes through it before it reaches the terminal.
+
 local repls = {
     ['\x00'] = '␀', ['\x01'] = '␁', ['\x02'] = '␂', ['\x03'] = '␃',
     ['\x04'] = '␄', ['\x05'] = '␅', ['\x06'] = '␆', ['\x07'] = '␇',

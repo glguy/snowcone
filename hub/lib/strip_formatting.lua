@@ -1,3 +1,6 @@
+-- IRC formatting removed from text, for matching and quoting it
+-- (lib/message_text.lua).
+
 local hex6 <const> = string.rep('%x', 6)
 
 --- The text without its IRC formatting: the color codes and their
