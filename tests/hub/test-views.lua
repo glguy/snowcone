@@ -920,7 +920,7 @@ T.case('a connecting network shows its step in /session and /networks', function
     end
 end)
 
-T.case("/session lists a bouncer's networks, with their state and errors", function()
+T.case("/session lists a bouncer's networks, the one this connection is bound to, and why there are none", function()
     local c = boot()
     local control = T.require 'hub.ui.control'
     control.set_view 'session'
@@ -930,14 +930,26 @@ T.case("/session lists a bouncer's networks, with their state and errors", funct
     end
     T.ok(not text():find('Bouncer networks', 1, true), 'none without a bouncer')
 
+    -- the bouncer's capability without notifications: no list comes
+    local irc = HUB.state.nets.test.irc --[[@as hub.Irc]]
+    irc.caps_enabled['soju.im/bouncer-networks'] = true
+    local shown = text()
+    T.ok(shown:find('bound: none: this connection reaches only the bouncer', 1, true), 'not bound')
+    T.ok(shown:find('networks: not sent: soju.im/bouncer-networks-notify is not enabled', 1, true), 'why no list')
+    irc.caps_enabled['soju.im/bouncer-networks-notify'] = true
+    T.ok(text():find('networks: not sent yet', 1, true), 'or not yet')
+
+    c:recv ':srv 005 me BOUNCER_NETID=1 :are supported'
     c:recv ':srv BATCH +b soju.im/bouncer-networks'
     c:recv '@batch=b :srv BOUNCER NETWORK 1 :name=libera;state=connected;host=irc.libera.chat;port=6697;tls=1;nickname=me;pass=secret'
-    c:recv '@batch=b :srv BOUNCER NETWORK 2 :name=oftc;state=disconnected;realname=Me;error=Connection\\srefused'
+    c:recv '@batch=b :srv BOUNCER NETWORK 2 :name=oftc;state=disconnected;host=irc.oftc.net;port=6667;tls=0;realname=Me;error=Connection\\srefused'
     c:recv ':srv BATCH -b'
-    local shown = text()
-    T.ok(shown:find('Bouncer networks', 1, true), 'a section')
-    T.ok(shown:find('1: libera  state connected  host irc.libera.chat:6697 tls  nick me', 1, true), 'a network')
-    T.ok(shown:find('2: oftc  state disconnected  realname Me', 1, true), 'other attributes after')
+    shown = text()
+    T.ok(shown:find('bound: libera  id 1', 1, true), 'bound to one')
+    T.ok(shown:find('1: libera  (this connection)  state connected  host irc.libera.chat:6697 tls  nick me', 1, true),
+        'marked')
+    T.ok(shown:find('2: oftc  state disconnected  host irc.oftc.net:6667 cleartext  realname Me', 1, true),
+        'cleartext, other attributes after')
     T.ok(shown:find('error: Connection refused', 1, true), 'its error under it')
     T.ok(not shown:find('secret', 1, true), 'never the password')
     T.eq(T.log_lines 'error', {}, 'no errors')

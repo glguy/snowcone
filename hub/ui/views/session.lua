@@ -1,9 +1,12 @@
 -- The current network: what lasts across connections (server, state,
 -- features), then the connection, if any (nick, link, transport, modes,
--- capabilities, channels, tasks), and behind a soju bouncer that lists
--- them, the bouncer's networks: a row each by its id, with its name,
--- state, address, nick and any other attribute but the password, and its
--- error under it.
+-- capabilities, channels, tasks), and behind a soju bouncer, the
+-- bouncer's networks (soju.im/bouncer-networks): which one this connection
+-- is bound to (ISUPPORT BOUNCER_NETID), if any, then a row each by its id,
+-- with its name, state, address (cleartext in yellow), nick and any other
+-- attribute but the password, and its error under it. The bouncer sends
+-- them only with soju.im/bouncer-networks-notify, which the section says
+-- when it isn't enabled.
 --
 -- Long lists show their first row; click [+N more] for the rest. Caps put
 -- the trouble first: red for wanted but not enabled, green for enabled,
@@ -131,9 +134,45 @@ local bouncer_state_color <const> = {
 local placed <const> = {name = true, state = true, host = true, port = true, tls = true, nickname = true,
     error = true, pass = true}
 
----@param networks table<string, table<string, string>>
-local function render_bouncer(win, networks)
+-- The network this connection is bound to, by its id; nil when none
+---@param irc hub.Irc
+---@return string|nil
+local function bound_netid(irc)
+    local netid = irc.isupport.BOUNCER_NETID
+    if type(netid) == 'string' and netid ~= '' then return netid end
+end
+
+---@param irc hub.Irc
+local function render_bouncer(win, irc)
     heading(win, 'Bouncer networks')
+    local networks, bound = irc.bouncer_networks, bound_netid(irc)
+
+    label(win, 'bound')
+    if bound then
+        local network = networks and networks[bound]
+        draw.bold(win)
+        win:waddstr(scrub(network and network.name or bound))
+        draw.normal(win)
+        if network and network.name then
+            key(win, 'id')
+            win:waddstr(scrub(bound))
+        end
+        win:waddstr '\n'
+    else
+        win:waddstr 'none: this connection reaches only the bouncer\n'
+    end
+
+    if not networks then
+        label(win, 'networks')
+        draw.yellow(win)
+        if irc.caps_enabled['soju.im/bouncer-networks-notify'] then
+            win:waddstr 'not sent yet\n'
+        else
+            win:waddstr 'not sent: soju.im/bouncer-networks-notify is not enabled\n'
+        end
+        draw.normal(win)
+        return
+    end
     if next(networks) == nil then
         label(win, 'networks')
         win:waddstr '-\n'
@@ -144,6 +183,11 @@ local function render_bouncer(win, networks)
         draw.bold(win)
         win:waddstr(scrub(attrs.name or '-'))
         draw.normal(win)
+        if netid == bound then
+            draw.green(win)
+            win:waddstr '  (this connection)'
+            draw.normal(win)
+        end
         if attrs.state then
             key(win, 'state')
             local color = bouncer_state_color[attrs.state]
@@ -153,8 +197,14 @@ local function render_bouncer(win, networks)
         end
         if attrs.host then
             key(win, 'host')
-            win:waddstr(scrub(attrs.host), attrs.port and ':' .. scrub(attrs.port) or '',
-                attrs.tls == '1' and ' tls' or '')
+            win:waddstr(scrub(attrs.host), attrs.port and ':' .. scrub(attrs.port) or '')
+            if attrs.tls == '1' then
+                win:waddstr ' tls'
+            elseif attrs.tls == '0' then
+                draw.yellow(win)
+                win:waddstr ' cleartext'
+                draw.normal(win)
+            end
         end
         if attrs.nickname then
             key(win, 'nick')
@@ -267,8 +317,10 @@ return {
         render_network(ctx, win, rec, now)
         if rec.conn then
             render_connection(ctx, win, rec, now)
-            local networks = rec.irc and rec.irc.bouncer_networks
-            if networks then render_bouncer(win, networks) end
+            local irc = rec.irc
+            if irc and (irc.bouncer_networks or irc.caps_enabled['soju.im/bouncer-networks']) then
+                render_bouncer(win, irc)
+            end
         end
     end,
 }
