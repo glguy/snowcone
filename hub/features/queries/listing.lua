@@ -11,6 +11,18 @@
 --   M.info(t, target)            INFO, ending at RPL_ENDOFINFO
 --   M.help(t, topic)             HELP, ending at RPL_ENDOFHELP or ERR_HELPNOTFOUND
 --   M.modlist(t, pattern, server) MODLIST, ending at RPL_ENDOFMODLIST
+--   M.lusers(t, server)          LUSERS, ending at RPL_STATSCONN (on hybrid,
+--                                which sends it only to opers or when servers
+--                                aren't hidden, at RPL_GLOBALUSERS for others)
+--   M.privs(t, nick)             PRIVS, ending at its line without "* "
+--   M.scan(t, args)              SCAN UMODES, ending at RPL_SCANMATCHED
+--
+-- An end may be a reply of its own as well (PRIVS's last line, SCAN's
+-- count), kept as the others are. PRIVS of someone with nothing to show
+-- has no reply at all: with labels an ACK, which shows an empty listing;
+-- without, the wait runs out. LUSERS goes without a label: Solanum's
+-- handler for an oper batches nothing, so only its first line would be
+-- labeled, and it waits for its end as without labeled-response.
 --
 -- Every reply but the end is kept, in order, except the errors: those
 -- that end a reply fail the task (no such server or nick, naming the
@@ -26,11 +38,13 @@
 -- Without labeled-response the replies of every listing pending arrive
 -- mixed, but in the order the commands went out. The listings that end
 -- alike (the STATS of a letter; the traces, all with RPL_ENDOFTRACE; the
--- MOTDs; the INFOs; the HELPs; the MODLISTs) wait in a queue per network in the order sent, and an
--- end goes to the first that takes it: any, or for a trace of a target, one
--- naming the target, or for one of a server, one from it.
+-- MOTDs; and each other kind's) wait in a queue per network in the order
+-- sent, and an end goes to the first that takes it: any, or for a trace of
+-- a target or a PRIVS, one naming the nick, or for one of a server, one
+-- from it.
 -- The rows before an end that isn't a listing's own belong to another,
--- and are dropped.
+-- and are dropped, unless they are told by their source or the nick they
+-- name.
 
 local bus       <const> = require 'hub.runtime.bus'
 local common    <const> = require 'hub.features.common'
@@ -41,15 +55,25 @@ local N         <const> = require 'hub.lib.numerics'
 
 --- A listing: what was asked, and the replies.
 ---@class hub.Listing
----@field kind 'stats'|'trace'|'etrace'|'masktrace'|'chantrace'|'motd'|'info'|'help'|'modlist'
+---@field kind 'stats'|'trace'|'etrace'|'masktrace'|'chantrace'|'motd'|'info'|'help'|'modlist'|'lusers'|'privs'|'scan'
 ---@field command string as sent, with its arguments
 ---@field messages hub.Message[] the replies, in order
 ---@field errors hub.Message[] errors the server followed with the end
 ---@field relabel table<string, string>|nil field labels that mean
 --- something else in this reply: MASKTRACE and CHANTRACE give each
 --- user's server where ETRACE gives the class
----@field lines integer|nil when the replies are lines of text, the
---- numeric to show them all under, each its last argument
+---@field lines hub.ListingLines|nil when the replies are lines of text
+
+--- Replies shown as lines of text, in one table: each reply's last
+--- argument, less `strip`; with `middle`, after the arguments between our
+--- nick and it that it doesn't hold (LUSERS's counts); with `words`, a row
+--- for each of its words.
+---@class hub.ListingLines
+---@field under integer the numeric to show them all under
+---@field column string|nil the column's header; default text
+---@field strip string|nil a Lua pattern to take off the start
+---@field middle boolean|nil
+---@field words boolean|nil
 ---@field at integer epoch seconds when the end came
 ---@field view table|nil the UI's tables, worked out once (ui/details/listing.lua)
 
@@ -70,15 +94,29 @@ local info_rows <const> = {[N.RPL_INFO] = true}
 -- the first line, then the rest
 local help_rows <const> = {[N.RPL_HELPSTART] = true, [N.RPL_HELPTXT] = true}
 local modlist_rows <const> = {[N.RPL_MODLIST] = true}
+local lusers_rows <const> = range({[N.RPL_LOCALUSERS] = true, [N.RPL_GLOBALUSERS] = true}, 250, 255)
+local privs_rows <const> = {[N.RPL_PRIVS] = true}
+local scan_rows <const> = {[N.RPL_SCANUMODES] = true, [N.RPL_SCANMATCHED] = true}
 
--- The ends of each kind's queue: true, or 'fails' for one that says there
--- is nothing to list
+-- PRIVS's last line is the one without the "* " that says more follow
+local function privs_last(msg)
+    return not (msg[#msg] or ''):find '^%* '
+end
+
+-- The ends of each kind's queue: true, 'row' for one that is a reply to
+-- keep as well, 'fails' for one that says there is nothing to list, or a
+-- function of the reply giving one of those or nil for a reply that isn't
+-- an end
 local stats_ends <const> = {[N.RPL_ENDOFSTATS] = true}
 local trace_ends <const> = {[N.RPL_ENDOFTRACE] = true}
 local motd_ends <const> = {[N.RPL_ENDOFMOTD] = true, [N.ERR_NOMOTD] = 'fails'}
 local info_ends <const> = {[N.RPL_ENDOFINFO] = true}
 local help_ends <const> = {[N.RPL_ENDOFHELP] = true, [N.ERR_HELPNOTFOUND] = 'fails'}
 local modlist_ends <const> = {[N.RPL_ENDOFMODLIST] = true}
+local lusers_ends <const> = {[N.RPL_STATSCONN] = 'row'}
+local lusers_ends_hidden <const> = {[N.RPL_GLOBALUSERS] = 'row'}
+local privs_ends <const> = {[N.RPL_PRIVS] = function(msg) return privs_last(msg) and 'row' or nil end}
+local scan_ends <const> = {[N.RPL_SCANMATCHED] = 'row'}
 
 -- The queue an end belongs to, nil for a message that isn't one
 local function end_key(msg)
@@ -89,6 +127,9 @@ local function end_key(msg)
     if n == N.RPL_ENDOFINFO then return 'info' end
     if n == N.RPL_ENDOFHELP or n == N.ERR_HELPNOTFOUND then return 'help' end
     if n == N.RPL_ENDOFMODLIST then return 'modlist' end
+    if n == N.RPL_STATSCONN or n == N.RPL_GLOBALUSERS then return 'lusers' end
+    if n == N.RPL_PRIVS and privs_last(msg) then return 'privs' end
+    if n == N.RPL_SCANMATCHED then return 'scan' end
 end
 
 -- Unlabeled listings live in the queries state, as a task keeps its code
@@ -160,8 +201,10 @@ end
 
 ---@param t hub.Task
 ---@param spec {kind: string, args: string[], target: string|nil, rows: table<integer, true>,
---- ends: table<integer, true|'fails'>, key: string, names: {field: 'source'|2, name: string}|nil,
---- from: (fun(msg: hub.Message): boolean)|nil, relabel: table<string, string>|nil, lines: integer|nil}
+--- ends: table<integer, true|'row'|'fails'|fun(msg: hub.Message): true|'row'|'fails'|nil>, key: string,
+--- names: {field: 'source'|2, name: string}|nil, from: (fun(msg: hub.Message): boolean)|nil,
+--- relabel: table<string, string>|nil, lines: hub.ListingLines|nil, unended: boolean|nil,
+--- timeout_ms: integer|nil, silence: string|nil, unlabeled: boolean|nil}
 local function gather(t, spec)
     local command = table.concat(spec.args, ' ')
     ---@type hub.Listing
@@ -170,6 +213,14 @@ local function gather(t, spec)
 
     local function fail(fmt, ...)
         t:log(spec.kind, fmt, ...)
+    end
+
+    local function finish()
+        local count = #l.messages
+        l.at = os.time()
+        log.add_detail(t.net, spec.kind, {kind = 'listing', data = l}, '%s: %d %s%s', command, count,
+            count == 1 and 'reply' or 'replies', #l.errors > 0 and ', refused' or '')
+        bus.emit('query.listing', {net = t.net, listing = l})
     end
 
     local first = spec.args[1]
@@ -199,12 +250,14 @@ local function gather(t, spec)
         if ircd.hybrid(t.net) then
             noted[N.RPL_LOAD2HI], fatal[N.RPL_LOAD2HI] = nil, is_command
         end
-    elseif spec.kind ~= 'trace' and spec.kind ~= 'motd' and spec.kind ~= 'info' then
-        -- the oper commands; TRACE, MOTD and INFO are anyone's
+    elseif spec.kind ~= 'trace' and spec.kind ~= 'motd' and spec.kind ~= 'info' and spec.kind ~= 'lusers' then
+        -- the oper commands, and PRIVS of another; TRACE, MOTD, INFO and
+        -- LUSERS are anyone's
         fatal[N.ERR_NOPRIVILEGES] = any
     end
-    if spec.kind == 'modlist' then
-        -- "<client> admin :Insufficient oper privs", and nothing after
+    if spec.kind == 'modlist' or spec.kind == 'privs' or spec.kind == 'scan' then
+        -- "<client> admin :Insufficient oper privs" (or privs, or
+        -- oper_spy), and nothing after
         noted[N.ERR_NOPRIVS], fatal[N.ERR_NOPRIVS] = nil, any
     end
     if spec.kind == 'chantrace' then
@@ -224,9 +277,11 @@ local function gather(t, spec)
     for set in pairs {[spec.rows] = true, [spec.ends] = true, [fatal] = true, [noted] = true} do
         for k in pairs(set) do commands[k] = true end
     end
+    -- a labeled reply with nothing in it
+    if spec.unended then commands.ACK = true end
 
     -- with labels every end in the reply is ours
-    local queued = irc ~= nil and not irc_model.has_labels(irc)
+    local queued = irc ~= nil and (spec.unlabeled or not irc_model.has_labels(irc))
     if queued then
         local names = spec.names
         table.insert(queue(t.net, spec.key), {id = t.id, field = names and names.field, name = names and names.name})
@@ -236,36 +291,58 @@ local function gather(t, spec)
         return owner(t.net, irc, msg) == t.id
     end
 
-    for msg in t:request(commands, 120000, first, table.unpack(spec.args, 2)) do
+    local function kept(msg)
+        return spec.rows[msg.command] and (not spec.from or spec.from(msg))
+    end
+
+    -- One reply: true once the listing is done, shown or failed
+    local function step(msg)
         local n = msg.command
-        if spec.ends[n] then
+        local ending = spec.ends[n]
+        if type(ending) == 'function' then ending = ending(msg) end
+        if ending then
             local own = mine(msg)
-            if own and spec.ends[n] == 'fails' then
+            if own and ending == 'fails' then
                 -- "<client> :MOTD File is missing", "<client> <topic> :Help not found"
-                return fail('%s: %s', command, msg[#msg] or 'nothing')
+                fail('%s: %s', command, msg[#msg] or 'nothing')
+                return true
             elseif own then
-                local count = #l.messages
-                l.at = os.time()
-                log.add_detail(t.net, spec.kind, {kind = 'listing', data = l}, '%s: %d %s%s', command, count,
-                    count == 1 and 'reply' or 'replies', #l.errors > 0 and ', refused' or '')
-                bus.emit('query.listing', {net = t.net, listing = l})
-                return
-            elseif queued then
-                -- another listing's: what came before it was its own
+                if ending == 'row' and kept(msg) then table.insert(l.messages, msg) end
+                finish()
+                return true
+            elseif queued and not spec.from then
+                -- another listing's: what came before it was its own, but
+                -- for rows told apart by what they name
                 l.messages, l.errors = {}, {}
             end
         elseif fatal[n] and fatal[n](msg[2]) then
             if queued then leave(t.net, spec.key, t.id) end
             -- "<client> <name> :<why>", or "<client> :<why>"
-            return fail('%s: %s', command, msg[#msg] or 'refused')
+            fail('%s: %s', command, msg[#msg] or 'refused')
+            return true
         elseif noted[n] then
             if noted[n](msg[2]) then table.insert(l.errors, msg) end
-        elseif spec.rows[n] and (not spec.from or spec.from(msg)) then
+        elseif n == 'ACK' then
+            finish()
+            return true
+        elseif kept(msg) then
             table.insert(l.messages, msg)
         end
     end
+
+    local timeout_ms = spec.timeout_ms or 120000
+    local replies
+    if spec.unlabeled then
+        t:send(first, table.unpack(spec.args, 2))
+        replies = function() return t:wait_irc(commands, timeout_ms) end
+    else
+        replies = t:request(commands, timeout_ms, first, table.unpack(spec.args, 2))
+    end
+    for msg in replies do
+        if step(msg) then return end
+    end
     if queued then leave(t.net, spec.key, t.id) end
-    fail('%s: no reply', command)
+    fail('%s: %s', command, spec.silence or 'no reply')
 end
 
 -- Another server answers later than ours, so its replies are told by
@@ -375,7 +452,7 @@ end
 ---@param topic string|nil
 function M.help(t, topic)
     gather(t, {kind = 'help', args = {'HELP', topic}, rows = help_rows, ends = help_ends, key = 'help',
-        lines = N.RPL_HELPTXT})
+        lines = {under = N.RPL_HELPTXT}})
 end
 
 --- MODLIST the modules whose names match a pattern (all without one), of
@@ -387,6 +464,52 @@ function M.modlist(t, pattern, server)
     local names, from = by_source(t, server)
     gather(t, {kind = 'modlist', args = {'MODLIST', pattern, server}, target = server, rows = modlist_rows,
         ends = modlist_ends, key = 'modlist', names = names, from = from})
+end
+
+--- LUSERS of a server or ours: the counts of users, operators,
+--- channels and servers, as lines.
+---@param t hub.Task
+---@param server string|nil
+function M.lusers(t, server)
+    local names, from = by_source(t, server)
+    local ends = lusers_ends
+    if ircd.hybrid(t.net) then
+        local irc = HUB.state.nets[t.net] and HUB.state.nets[t.net].irc
+        if not (irc and irc.mode.o) then ends = lusers_ends_hidden end
+    end
+    -- the mask before a server is obsolete, but must be there
+    gather(t, {kind = 'lusers', args = server and {'LUSERS', '*', server} or {'LUSERS'}, target = server,
+        rows = lusers_rows, ends = ends, key = 'lusers', names = names, from = from, unlabeled = true,
+        lines = {under = N.RPL_LUSERCLIENT, middle = true}})
+end
+
+--- PRIVS of a nick, or ours: the privileges of its oper block, its
+--- operator and privset names, and its auth block's exemptions, a row
+--- each. The nick's server answers, naming it in every line.
+---@param t hub.Task
+---@param nick string|nil
+function M.privs(t, nick)
+    local irc = HUB.state.nets[t.net] and HUB.state.nets[t.net].irc
+    local names, from
+    local target = nick or (irc and irc.nick)
+    if irc and target then
+        local key = irc_model.fold(irc, target)
+        names = {field = 2, name = key}
+        from = function(msg) return msg[2] ~= nil and irc_model.fold(irc, msg[2]) == key end
+    end
+    gather(t, {kind = 'privs', args = {'PRIVS', nick}, target = nick, rows = privs_rows, ends = privs_ends,
+        key = 'privs', names = names, from = from, unended = true, timeout_ms = 30000,
+        silence = 'no reply, as the server gives when there are no privileges',
+        lines = {under = N.RPL_PRIVS, column = 'privilege', strip = '^%* ', words = true}})
+end
+
+--- SCAN UMODES: the users with some user modes and without others, and
+--- how many, by the options as Solanum reads them (modules/m_scan.c).
+---@param t hub.Task
+---@param args string[] the modes, then the options, as sent after UMODES
+function M.scan(t, args)
+    gather(t, {kind = 'scan', args = {'SCAN', 'UMODES', table.unpack(args)}, rows = scan_rows, ends = scan_ends,
+        key = 'scan'})
 end
 
 --- Whether a mask is one MASKTRACE takes: a user and a host about the

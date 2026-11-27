@@ -5,7 +5,11 @@
 --   who.lua       WHO
 --   whois.lua     WHOIS
 --   whowas.lua    WHOWAS
---   listing.lua   STATS, TRACE, ETRACE, MASKTRACE, CHANTRACE, MOTD, INFO, HELP
+--   listing.lua   STATS, TRACE, ETRACE, MASKTRACE, CHANTRACE, MOTD, INFO, HELP,
+--                 LUSERS, PRIVS, SCAN
+--
+-- and FINDFORWARDS, which the server answers with a notice that shows as
+-- any other.
 --
 -- and, for features to ask on the way to something else:
 --
@@ -21,6 +25,7 @@ local common    <const> = require 'hub.features.common'
 local irc_model <const> = require 'hub.net.irc'
 local ircd      <const> = require 'hub.net.ircd'
 local listing   <const> = require 'hub.features.queries.listing'
+local send      <const> = require 'hub.net.send'
 local task      <const> = require 'hub.runtime.task'
 local who       <const> = require 'hub.features.queries.who'
 local whois     <const> = require 'hub.features.queries.whois'
@@ -104,6 +109,50 @@ local function who_command()
     return cmd
 end
 
+-- SCAN's options, as Solanum reads them, each true when it takes a value
+local scan_options <const> = {['no-list'] = false, list = false, global = false, ['list-max'] = true, mask = true}
+
+local function scan_command()
+    local cmd = command('scan', '$a $R', '+modes[-modes] [option...]',
+        'SCAN UMODES: the users with modes and without others, shown as a table; options are no-list, '
+            .. 'global (operspy, with a list), list-max n and mask nick!user@host',
+    function(ctx, modes, rest)
+        if ircd.hybrid(ctx.net) then error('OFTC hybrid has no SCAN', 0) end
+        if not modes:find '^[+-]' then error('modes start with + or -: ' .. modes, 0) end
+        local args = {modes}
+        local words = {}
+        for w in rest:gmatch '%S+' do table.insert(words, w) end
+        local i = 1
+        while i <= #words do
+            local option = words[i]:lower()
+            local takes = scan_options[option]
+            if takes == nil then error('not a SCAN option: ' .. words[i], 0) end
+            table.insert(args, option)
+            if takes then
+                local value = words[i + 1]
+                if not value then error(option .. ' takes a value', 0) end
+                if option == 'list-max' and not math.tointeger(tonumber(value)) then
+                    error('list-max takes a number: ' .. value, 0)
+                end
+                table.insert(args, value)
+                i = i + 1
+            end
+            i = i + 1
+        end
+        task.spawn('scan', {net = ctx.net, owner = M.name}, listing.scan, args)
+    end)
+    function cmd.complete(_, before, seed)
+        if not before:find '%S' then return {} end
+        local t = {}
+        for option in pairs(scan_options) do
+            if option:sub(1, #seed) == seed:lower() then table.insert(t, option) end
+        end
+        table.sort(t)
+        return t
+    end
+    return cmd
+end
+
 function M.subscribe(sub)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
 end
@@ -132,6 +181,25 @@ M.commands = {
     function(ctx, target)
         if target:find ' ' then error('one target: ' .. target, 0) end
         task.spawn('info', {net = ctx.net, owner = M.name}, listing.info, target ~= '' and target or nil)
+    end),
+    command('lusers', '$R', '[server]', 'LUSERS: the counts of users, operators, channels and servers',
+    function(ctx, server)
+        if server:find ' ' then error('one server: ' .. server, 0) end
+        task.spawn('lusers', {net = ctx.net, owner = M.name}, listing.lusers, server ~= '' and server or nil)
+    end),
+    command('privs', '$R', '[nick]', "PRIVS: a nick's operator privileges, or ours, shown as a table",
+    function(ctx, nick)
+        if ircd.hybrid(ctx.net) then error('OFTC hybrid has no PRIVS', 0) end
+        if nick:find ' ' then error('one nick: ' .. nick, 0) end
+        task.spawn('privs', {net = ctx.net, owner = M.name}, listing.privs, nick ~= '' and nick or nil)
+    end),
+    scan_command(),
+    command('findforwards', '$g', 'channel', 'FINDFORWARDS: the channels that forward (+f) to a channel',
+    function(ctx, channel)
+        if ircd.hybrid(ctx.net) then error('OFTC hybrid has no FINDFORWARDS', 0) end
+        local irc = model(ctx.net)
+        if irc and not irc_model.is_channel_name(irc, channel) then error('not a channel: ' .. channel, 0) end
+        send.send(ctx.net, 'FINDFORWARDS', channel)
     end),
     -- /help is ours
     command('serverhelp', '$R', '[topic]', "The server's HELP on a topic, or its index, shown as a table",

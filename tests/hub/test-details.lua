@@ -557,6 +557,33 @@ T.case('a MODLIST opens as a table of modules, the version and description apart
     T.ok(text:find('ip_cloaking extension -    1.0     Cloaks hosts  0x7f0000002000', 1, true), 'not core is -')
 end)
 
+T.case('PRIVS shows a privilege a row, and LUSERS its lines with their counts', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:take()
+    cmdline.execute 'privs'
+    c:take()
+    c:recv ':srv 270 me me :* oper:general oper:kline'
+    c:recv ':srv 270 me me :operator:me privset:admin'
+    T.eq(control.detail().kind, 'listing', 'shown')
+    local text = detail_text()
+    T.ok(text:find('RPL_PRIVS 270  4', 1, true), 'a row each')
+    T.ok(text:find('privilege', 1, true) and text:find('\noper:kline', 1, true), 'under its header')
+    T.ok(not text:find('* oper', 1, true), 'without the more-to-come mark')
+
+    cmdline.execute 'lusers'
+    c:take()
+    c:recv ':srv 251 me :There are 1 users and 2 invisible on 3 servers'
+    c:recv ':srv 252 me 4 :IRC Operators online'
+    c:recv ':srv 265 me 3 10 :Current local users 3, max 10'
+    c:recv ':srv 250 me :Highest connection count: 11'
+    text = detail_text()
+    T.ok(text:find('RPL_LUSERCLIENT 251  4', 1, true), 'one table')
+    T.ok(text:find('4 IRC Operators online', 1, true), 'a count before its text')
+    T.ok(text:find('\nCurrent local users 3, max 10', 1, true), 'but not one the text holds')
+end)
+
 T.case('a STATS opens as tables by reply, read for what their fields mean, laid out once', function()
     local c = boot()
     local control = T.require 'hub.ui.control'

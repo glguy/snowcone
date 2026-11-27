@@ -1,6 +1,6 @@
 -- A listing (hub.Listing, features/queries/listing.lua: STATS, TRACE,
--- ETRACE, MASKTRACE, CHANTRACE, MOTD, INFO, HELP, MODLIST) in the detail
--- pane: the errors
+-- ETRACE, MASKTRACE, CHANTRACE, MOTD, INFO, HELP, MODLIST, LUSERS, PRIVS,
+-- SCAN) in the detail pane: the errors
 -- the server gave, then a table (ui/table.lua) per kind of reply, in the order they first came, each
 -- under its numeric and how many there are. M.runs draws any replies so,
 -- as a /quote's table view does (ui/details/reply.lua).
@@ -13,8 +13,8 @@
 -- (STATS L) the times their last argument holds, and modules (MODLIST)
 -- their version and description apart. A reply the network
 -- doesn't name the fields of is one column of text: its arguments, after
--- our nick for a numeric. A listing of lines (HELP) is one table of their
--- text, whatever replies hold them.
+-- our nick for a numeric. A listing of lines (HELP, LUSERS, PRIVS) is one
+-- table of their text, whatever replies hold them (hub.ListingLines).
 --
 -- The rows, their cells and the tables are worked out once and kept on
 -- the listing, for its list of messages: a STATS can have tens of
@@ -249,7 +249,27 @@ local version <const> = {}
 ---@param holder table
 ---@param messages hub.Message[]
 ---@param relabel table<string, string>|nil
----@param lines integer|nil the numeric every reply is a line of text under
+-- The text of a reply as lines show it: a row for each
+---@param lines hub.ListingLines
+---@param msg hub.Message
+---@return string[]
+local function line_texts(lines, msg)
+    local text = msg[#msg] or ''
+    if lines.strip then text = text:gsub(lines.strip, '', 1) end
+    if lines.middle then
+        local lead = {}
+        for i = 2, #msg - 1 do
+            if not text:find(msg[i], 1, true) then table.insert(lead, msg[i]) end
+        end
+        if lead[1] then text = table.concat(lead, ' ') .. ' ' .. text end
+    end
+    if not lines.words then return {text} end
+    local words = {}
+    for word in text:gmatch '%S+' do table.insert(words, word) end
+    return words
+end
+
+---@param lines hub.ListingLines|nil every reply as lines of text
 local function sections_of(net, holder, messages, relabel, lines)
     local view = holder.view
     if view and view.version == version and view.messages == messages then return view.sections end
@@ -261,13 +281,13 @@ local function sections_of(net, holder, messages, relabel, lines)
     local meant = replies.of(net)
     local sections, by_command = {}, {}
     for _, msg in ipairs(messages) do
-        local n = lines or msg.command
+        local n = lines and lines.under or msg.command
         local section = by_command[n]
         if not section then
             local make = special[n]
             local columns, convert
             if lines then
-                columns, convert = {column(1, 'text', true)}, function(m) return {nonempty(m[#m])} end
+                columns = {column(1, lines.column or 'text', true)}
             elseif make then
                 columns, convert = make(meant)
             elseif meant.fields[n] then
@@ -280,7 +300,13 @@ local function sections_of(net, holder, messages, relabel, lines)
             by_command[n] = section
             table.insert(sections, section)
         end
-        table.insert(section.rows, section.convert(msg))
+        if lines then
+            for _, text in ipairs(line_texts(lines, msg)) do
+                table.insert(section.rows, {nonempty(text)})
+            end
+        else
+            table.insert(section.rows, section.convert(msg))
+        end
     end
     holder.view = {version = version, messages = messages, sections = sections}
     return sections
@@ -307,7 +333,7 @@ end
 --- scrolled under it. The tables are kept on holder.
 ---@param ctx hub.ViewContext
 ---@param opts {holder: table, messages: hub.Message[], errors: hub.Message[]|nil,
---- relabel: table<string, string>|nil, lines: integer|nil, before: table[]|nil}
+--- relabel: table<string, string>|nil, lines: hub.ListingLines|nil, before: table[]|nil}
 ---@return integer count
 ---@return fun(win: ncurses.Window, i: integer) draw
 ---@return fun(i: integer): fun(win: ncurses.Window)|nil pinned

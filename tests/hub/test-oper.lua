@@ -709,6 +709,110 @@ T.case('the admin feature MODLISTs as a listing, and sends the other module comm
         'MODRELOAD m_foo.so far.example', 'MODRESTART', 'MODRESTART far.example'}, 'as typed')
 end)
 
+T.case('the admin feature sends the server commands as Solanum reads them', function()
+    local c = boot {'admin'}
+    for _, line in ipairs {
+        'serverconnect a.example', 'serverconnect a.example 7000', 'serverconnect a.example b.example',
+        'serverconnect a.example 7000 b.example', 'serverquit a.example', 'serverquit a.example going away',
+        'serverrehash', 'serverrehash motd', 'serverrehash *.example', 'serverrehash bans a.example',
+        'serverdie a.example', 'serverrestart a.example', 'grant bob admin', 'grant bob deoper', 'dehelper bob',
+        'shedding a.example 30 draining for maintenance', 'shedding a.example off',
+    } do
+        T.command(line)
+    end
+    T.eq(c:take(), {'CONNECT a.example', 'CONNECT a.example 7000', 'CONNECT a.example 0 b.example',
+        'CONNECT a.example 7000 b.example', 'SQUIT a.example', 'SQUIT a.example :going away',
+        'REHASH', 'REHASH MOTD', 'REHASH *.example', 'REHASH BANS a.example',
+        'DIE a.example a.example', 'RESTART a.example a.example', 'GRANT bob admin', 'GRANT bob deoper',
+        'DEHELPER bob', 'SHEDDING a.example 30 :draining for maintenance', 'SHEDDING a.example OFF'}, 'sent')
+
+    for _, line in ipairs {'serverrehash nonsense', 'serverdie *.example', 'serverconnect a.example b.example 7000',
+        'serverconnect a.example 70000', 'shedding *.example 30 x', 'shedding a.example 2 x', 'shedding a.example 30',
+        'shedding a.example off now'}
+    do
+        T.command(line)
+    end
+    T.eq(c:take(), {}, 'refused before anything goes out')
+    T.eq(#T.log_lines 'error', 8, 'each says why')
+    T.ok(T.log_lines 'error'[1]:find('not a REHASH option: nonsense (BANS,', 1, true), 'naming the options')
+end)
+
+T.case('LUSERS, PRIVS and SCAN gather as listings, and FINDFORWARDS is sent', function()
+    local c = boot {}
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.listing', 'test', function(ev) table.insert(events, ev) end)
+    local function last(category) local l = T.log_lines(category) return l[#l] end
+
+    T.command 'lusers'
+    T.command 'lusers far.example'
+    T.eq(c:take(), {'LUSERS', 'LUSERS * far.example'}, 'the mask before a server')
+    c:recv ':srv 251 me :There are 1 users and 2 invisible on 3 servers'
+    c:recv ':srv 252 me 4 :IRC Operators online'
+    c:recv ':srv 255 me :I have 3 clients and 1 servers'
+    c:recv ':srv 265 me 3 10 :Current local users 3, max 10'
+    c:recv ':srv 266 me 3 10 :Current global users 3, max 10'
+    c:recv ':srv 250 me :Highest connection count: 11 (10 clients) (50 connections received)'
+    c:recv ':far.example 251 me :There are 9 users'
+    c:recv ':far.example 250 me :Highest connection count: 1'
+    T.eq({events[1].listing.kind, #events[1].listing.messages}, {'lusers', 6}, 'every line, to the end')
+    T.eq({events[2].listing.command, #events[2].listing.messages}, {'LUSERS * far.example', 2}, "the server's")
+
+    -- the last line is the one without "* "; a nick's server answers
+    T.command 'privs'
+    T.command 'privs bob'
+    T.eq(c:take(), {'PRIVS', 'PRIVS bob'}, 'sent')
+    c:recv ':far.example 270 me bob :* oper:general oper:kline'
+    c:recv ':srv 270 me me :oper:general'
+    c:recv ':far.example 270 me bob :operator:bob privset:local_op'
+    T.eq({events[3].listing.command, #events[3].listing.messages}, {'PRIVS', 1}, 'ours')
+    T.eq({events[4].listing.command, #events[4].listing.messages}, {'PRIVS bob', 2}, "bob's, both lines")
+
+    T.command 'privs alice'
+    c:take()
+    c:recv ':srv 723 me privs :Insufficient oper privs'
+    T.eq(last 'privs', 'PRIVS alice: Insufficient oper privs', 'refused')
+
+    T.command 'scan +o-i global list-max 5 mask *!*@*.example'
+    T.eq(c:take(), {'SCAN UMODES +o-i global list-max 5 mask *!*@*.example'}, 'SCAN with options')
+    c:recv ':srv 751 me alice a h.example 192.0.2.1 srv.example +ow :Alice'
+    c:recv ':srv 750 me 1 :matches'
+    T.eq({events[5].listing.kind, #events[5].listing.messages}, {'scan', 2}, 'the user and the count')
+
+    T.command 'scan +o globl'
+    T.command 'scan o'
+    T.command 'scan +o list-max'
+    T.eq(c:take(), {}, 'a SCAN the server would refuse sends nothing')
+
+    T.command 'findforwards #a'
+    T.eq(c:take(), {'FINDFORWARDS #a'}, 'FINDFORWARDS')
+    T.eq(next(HUB.tasks), nil, 'finished')
+end)
+
+T.case('a labeled PRIVS with nothing to show is an empty listing', function()
+    local c = boot({}, true)
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.listing', 'test', function(ev) table.insert(events, ev) end)
+    T.command 'privs bob'
+    local line = c:take()[1]
+    local label = line:match '^@label=([^ ;]+)'
+    T.ok(label, line)
+    c:recv('@label=' .. label .. ' :srv ACK')
+    T.eq({#events, #events[1].listing.messages}, {1, 0}, 'shown empty')
+end)
+
+T.case('LUSERS goes without a label, as Solanum batches none of it for an oper', function()
+    local c = boot({}, true)
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.listing', 'test', function(ev) table.insert(events, ev) end)
+    T.command 'lusers'
+    T.eq(c:take(), {'LUSERS'}, 'unlabeled')
+    c:recv ':srv 251 me :There are 1 users and 2 invisible on 3 servers'
+    c:recv ':srv 252 me 4 :IRC Operators online'
+    c:recv ':srv 250 me :Highest connection count: 11'
+    T.eq({#events, events[1] and #events[1].listing.messages}, {1, 3}, 'every line')
+    T.eq(next(HUB.tasks), nil, 'finished')
+end)
+
 T.case('without the admin feature the module commands are refused, and hybrid has none', function()
     local c = boot {'snotice', 'oper'}
     T.command 'modlist'

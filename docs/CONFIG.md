@@ -215,14 +215,14 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 
 ### Features
 
-`features` lists what hub does on a network beyond keeping the connection and answering queries: `/who`, `/whois`, `/wii`, `/whowas`, `/stats`, `/trace`, `/etrace`, `/masktrace`, `/chantrace`, `/motd`, `/info` and `/serverhelp` work on every network. Leave it out to enable everything. Name only what you want, for example `features = ['chat']` for a network where you only chat.
+`features` lists what hub does on a network beyond keeping the connection and answering queries: `/who`, `/whois`, `/wii`, `/whowas`, `/stats`, `/trace`, `/etrace`, `/masktrace`, `/chantrace`, `/motd`, `/info`, `/serverhelp`, `/lusers`, `/privs`, `/scan` and `/findforwards` work on every network. Leave it out to enable everything. Name only what you want, for example `features = ['chat']` for a network where you only chat.
 
 | Feature | Requires | What it does |
 |---|---|---|
 | `chat` | | Chat buffers, talk mode, mentions, chat history, `/list` and the chat commands. |
 | `snotice` | | Parses server notices into the connection, exit, ban, channel and address-range views (cliconn, cliexit, connload, exitload, bans, channels, netcount), sets the snomask after opering, and runs watches. |
 | `oper` | `snotice` | The K-Line workflow (stage, test and send K-Lines, unklines and undlines), plus `/testline`, `/kill`, `/wallops`, `/operwall`, and bans sent as typed: `/unkline`, `/dline`, `/undline`, `/xline`, `/unxline`, `/resv`, `/unresv`. A staged K-Line is shown and sent from snotice's views. `/oper` doesn't need it. |
-| `admin` | | Commands for opers with the admin privilege, on Solanum: its modules, with `/modlist` (shown as a table), `/modload`, `/modunload`, `/modreload` and `/modrestart`. Leave it out for opers without the privilege, so the commands don't show. |
+| `admin` | | Commands for running the servers: on Solanum its modules, with `/modlist` (shown as a table), `/modload`, `/modunload`, `/modreload` and `/modrestart`; and `/serverconnect`, `/serverquit`, `/serverrehash`, `/serverdie` and `/serverrestart` (CONNECT, SQUIT, REHASH, DIE, RESTART); and on Solanum `/grant`, `/dehelper` and `/shedding`. Leave it out for opers without these privileges, so the commands don't show. |
 | `topology` | `snotice` | Server populations from MAP, links from LINKS, versions, uptimes and DNS rotations, shown in the load views. Shedding and drain notices update `/maintenance` as they happen. |
 
 A feature without the features it requires is an error.
