@@ -86,6 +86,7 @@ M.open = opening.open
 M.close = opening.close
 
 M.look = buffers.look
+M.first_unseen = buffers.first_unseen
 M.find = buffers.find
 M.newest = buffers.newest
 M.holder = buffers.holder
@@ -144,8 +145,10 @@ local function refold(net)
 end
 
 -- Place a message in a buffer, opening it if need be, unless the hide
--- rules discard it; false when they do
-local function add(net, target, msg, mention, activity)
+-- rules discard it; false when they do. `matched`: its text matched
+-- mention settings, which marks the message itself; a private message
+-- can be a mention without that, by being to us.
+local function add(net, target, msg, mention, activity, matched)
     if hide.discards(net, target, msg) then return false end
     local buffer = opening.open(net, target, msg.tags and msg.tags.time)
     local id = buffers.msgid(msg)
@@ -163,6 +166,9 @@ local function add(net, target, msg, mention, activity)
     end
     if mention then
         buffer.mention = true
+    end
+    if matched and not hidden then
+        msg.mention = true
     end
     if activity then
         buffer.activity = buffer.activity + 1
@@ -195,28 +201,32 @@ local function route_chat(net, irc, target, text, msg)
     end
 
     if irc_model.is_channel_name(irc, target) then
-        return add(net, target, msg, config.matches(config.mention(net, target), plain), true)
+        local matched = config.matches(config.mention(net, target), plain)
+        return add(net, target, msg, matched, true, matched)
     end
 
     -- to us, to a broadcast mask ($$*.net), or to a nick we just left: in
     -- the sender's buffer, or the channel it is meant for; only one to us
     -- is a mention, unless that buffer has its own patterns or regexes,
-    -- and never a CTCP request (VERSION, PING) other than an action
+    -- and never a CTCP request (VERSION, PING) other than an action. The
+    -- message itself is marked only when its text matches mention
+    -- settings, else every message there would be.
     local sender = nick or msg.source
     if sender then
         local buffer = context and nick and context or sender
         local ctcp_request = text:find '^\x01' and not text:find '^\x01ACTION'
         local own = config.own_mention(net, buffer)
-        local mention = false
+        local mention, matched = false, false
         if not ctcp_request then
+            matched = config.matches(own or config.mention(net, buffer), plain)
             if own then
-                mention = config.matches(own, plain)
+                mention = matched
             else
                 mention = irc_model.is_me(irc, target)
             end
         end
         if buffer == context then msg.context = '>' end
-        return add(net, buffer, msg, mention, true)
+        return add(net, buffer, msg, mention, true, matched)
     end
     return true
 end

@@ -1201,6 +1201,50 @@ T.case('a click on a reply scrolls to the message it answers, until Esc', functi
     T.eq(vs.scroll, 0, 'not scrolled')
 end)
 
+T.case('▸ marks mentions, and the first message unseen when the buffer was switched to', function()
+    local c = boot({{name = '#chan', mention = {patterns = {'ping'}}}})
+    HUB.state.config.mention = {patterns = {'^me:'}}
+    local control = T.require 'hub.ui.control'
+    local talk = T.require 'hub.ui.talk'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':alice!a@h PRIVMSG #chan :before'
+    c:recv ':bob!b@h PRIVMSG me :elsewhere'
+    c:recv ':bob!b@h PRIVMSG me :me: called'
+    control.set_view 'buffer'
+    local chat = T.require 'hub.features.chat'
+    T.ok(chat.buffer('test', 'bob').mention, 'a private message is a mention of its buffer')
+
+    -- the messages the main pad shows that are marked, by their text
+    local function marked(target)
+        if target then talk.set_target('test', target) end
+        HUB.current.routes['ui.draw']()
+        for i = #fake_ncurses.windows, 1, -1 do
+            local win = fake_ncurses.windows[i]
+            if win.kind == 'newpad' and win.h == tty_height - 1 and win.w ~= tty_width then
+                local list = {}
+                for y = 0, win.h - 1 do
+                    local row = fake_ncurses.row(win, y)
+                    if row:sub(9, 11) == '▸' then table.insert(list, row:match '(%S+)%s*$') end
+                end
+                table.sort(list)
+                return list
+            end
+        end
+    end
+
+    T.eq(marked '#chan', {}, 'never seen: nothing marked')
+    T.eq(marked 'bob', {'called'}, 'only the private message whose text matches is marked')
+    c:recv ':carol!c@h JOIN #chan'
+    c:recv ':alice!a@h PRIVMSG #chan :first-new'
+    c:recv ':alice!a@h PRIVMSG #chan :ping-second'
+    T.eq(marked '#chan', {'first-new', 'ping-second'}, 'the first unseen past the hidden JOIN, and the mention')
+    c:recv ':alice!a@h PRIVMSG #chan :while-shown'
+    c:recv ':alice!a@h PRIVMSG #chan :ping-shown'
+    T.eq(marked(), {'first-new', 'ping-second', 'ping-shown'}, 'the mark stays while shown')
+    marked 'bob'
+    T.eq(marked '#chan', {'ping-second', 'ping-shown'}, 'switching back: all seen, mentions still marked')
+end)
+
 T.case('our messages show whether the server confirmed them', function()
     boot()
     local draw = T.require 'hub.ui.draw'

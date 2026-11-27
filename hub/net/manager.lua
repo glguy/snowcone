@@ -87,6 +87,9 @@ local M = {}
 ---@field context '>'|'<'|nil of a private PRIVMSG or NOTICE shown in the
 --- channel its channel-context tag names: '>' to us, '<' from us
 --- (features/chat)
+---@field mention true|nil of a line in a chat buffer whose text matched
+--- the mention settings when it arrived; not every private message to us,
+--- though each is a mention of its buffer (features/chat)
 ---@field history true|nil of a line in a chat buffer that came from chat
 --- history rather than live, so what it says of its sender then isn't known
 --- (features/chat)
