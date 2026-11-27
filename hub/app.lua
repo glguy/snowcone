@@ -44,6 +44,7 @@ local function module_names(opts)
         'hub.features.topology',
         'hub.features.oper',
         'hub.features.oper.lines',
+        'hub.features.admin',
         'hub.features.chat',
         'hub.features.chat.commands',
         'hub.features.chat.modes',

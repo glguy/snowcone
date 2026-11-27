@@ -21,6 +21,7 @@ local group_order <const> = {
     {'chat', 'Chat'},
     {'snotice', 'Server notices'},
     {'oper', 'Operator'},
+    {'admin', 'Server admin'},
     {'topology', 'Topology'},
     {'keys', 'Services keys'},
 }

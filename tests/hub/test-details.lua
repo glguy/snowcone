@@ -540,6 +540,23 @@ T.case('a HELP opens as one table of its lines', function()
     T.ok(not text:find 'index', 'and not the topic')
 end)
 
+T.case('a MODLIST opens as a table of modules, the version and description apart', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    c:take()
+    cmdline.execute 'modlist'
+    T.eq(c:take(), {'MODLIST'}, 'sent')
+    c:recv ':srv 702 me m_away 0x7f0000001000 builtin (core) :[Version <none>] [Description: Provides AWAY]'
+    c:recv ':srv 702 me ip_cloaking 0x7f0000002000 extension :[Version 1.0] [Description: Cloaks hosts]'
+    c:recv ':srv 703 me :End of /MODLIST.'
+    T.eq(control.detail().kind, 'listing', 'shown')
+    local text = detail_text()
+    T.ok(text:find('module      origin    core version description   address', 1, true), 'its columns')
+    T.ok(text:find('m_away      builtin   core <none>  Provides AWAY 0x7f0000001000', 1, true), 'a core module')
+    T.ok(text:find('ip_cloaking extension -    1.0     Cloaks hosts  0x7f0000002000', 1, true), 'not core is -')
+end)
+
 T.case('a STATS opens as tables by reply, read for what their fields mean, laid out once', function()
     local c = boot()
     local control = T.require 'hub.ui.control'

@@ -1,5 +1,6 @@
 -- A listing (hub.Listing, features/queries/listing.lua: STATS, TRACE,
--- ETRACE, MASKTRACE, CHANTRACE, MOTD, INFO, HELP) in the detail pane: the errors
+-- ETRACE, MASKTRACE, CHANTRACE, MOTD, INFO, HELP, MODLIST) in the detail
+-- pane: the errors
 -- the server gave, then a table (ui/table.lua) per kind of reply, in the order they first came, each
 -- under its numeric and how many there are. M.runs draws any replies so,
 -- as a /quote's table view does (ui/details/reply.lua).
@@ -8,8 +9,9 @@
 -- (net/replies/solanum.lua or hybrid.lua), its values read for what they
 -- mean: times as dates, seconds and minutes as durations, ban types by
 -- name, a reason apart from its oper reason, an address the server won't
--- give as "-". Auth blocks (STATS I) have their flags read out, and links
--- (STATS L) the times their last argument holds. A reply the network
+-- give as "-". Auth blocks (STATS I) have their flags read out, links
+-- (STATS L) the times their last argument holds, and modules (MODLIST)
+-- their version and description apart. A reply the network
 -- doesn't name the fields of is one column of text: its arguments, after
 -- our nick for a numeric. A listing of lines (HELP) is one table of their
 -- text, whatever replies hold them.
@@ -202,6 +204,27 @@ special[N.RPL_STATSLINKINFO] = function()
             idle and draw.duration(idle),
             caps ~= '-' and nonempty(caps) or nil,
             keys = {[7] = tonumber(open), [8] = tonumber(idle)},
+        }
+    end
+end
+
+-- A module (MODLIST): <name> 0x<address> <origin>[ (core)] :[Version
+-- <version>] [Description: <description>], the origin builtin or
+-- extension; the address sorts as a number
+special[N.RPL_MODLIST] = function()
+    local columns = {
+        column(1, 'module'), column(2, 'origin'), column(3, 'core', false, true),
+        column(4, 'version', true, true), column(5, 'description', true, true),
+        column(6, 'address', false, true),
+    }
+    return columns, function(msg)
+        local last = #msg > 4 and msg[#msg] or ''
+        local version, description = last:match '^%[Version (.-)%] %[Description: (.*)%]$'
+        if not version then description = nonempty(last) end
+        return {
+            msg[2], msg[4], #msg > 5 and msg[5] == '(core)' and 'core' or nil,
+            nonempty(version), nonempty(description), msg[3],
+            keys = {[6] = msg[3] and math.tointeger(tonumber(msg[3]))},
         }
     end
 end

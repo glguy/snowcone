@@ -240,7 +240,7 @@ local rate_limit_schema <const> = table_ {
 }
 
 --- The features a network may enable; config.lua checks names against it.
-M.features = {'snotice', 'oper', 'topology', 'chat'}
+M.features = {'snotice', 'oper', 'admin', 'topology', 'chat'}
 
 --- The features each feature needs on the same network; config.lua
 --- refuses a network that enables one without them. Only combinations

@@ -10,14 +10,15 @@
 --   M.motd(t, target)            MOTD, ending at RPL_ENDOFMOTD or ERR_NOMOTD
 --   M.info(t, target)            INFO, ending at RPL_ENDOFINFO
 --   M.help(t, topic)             HELP, ending at RPL_ENDOFHELP or ERR_HELPNOTFOUND
+--   M.modlist(t, pattern, server) MODLIST, ending at RPL_ENDOFMODLIST
 --
 -- Every reply but the end is kept, in order, except the errors: those
 -- that end a reply fail the task (no such server or nick, naming the
 -- target; for CHANTRACE, no such channel or not on it, naming the
 -- channel; for MOTD, no MOTD, and for HELP, no such topic, which come in
--- place of the end; the
--- command unknown or short of arguments, naming it; no privileges for an
--- oper command; OFTC hybrid's refusal of a STATS for
+-- place of the end; the command unknown or short of arguments, naming
+-- it; no privileges for an oper command, or for MODLIST, which no end
+-- follows, the admin privilege; OFTC hybrid's refusal of a STATS for
 -- load, which no end follows), and those the server follows with the end
 -- (a STATS refused for privileges, load, or as disabled; STATS's short of
 -- arguments on hybrid) are kept apart, to show above the tables.
@@ -25,7 +26,7 @@
 -- Without labeled-response the replies of every listing pending arrive
 -- mixed, but in the order the commands went out. The listings that end
 -- alike (the STATS of a letter; the traces, all with RPL_ENDOFTRACE; the
--- MOTDs; the INFOs; the HELPs) wait in a queue per network in the order sent, and an
+-- MOTDs; the INFOs; the HELPs; the MODLISTs) wait in a queue per network in the order sent, and an
 -- end goes to the first that takes it: any, or for a trace of a target, one
 -- naming the target, or for one of a server, one from it.
 -- The rows before an end that isn't a listing's own belong to another,
@@ -40,7 +41,7 @@ local N         <const> = require 'hub.lib.numerics'
 
 --- A listing: what was asked, and the replies.
 ---@class hub.Listing
----@field kind 'stats'|'trace'|'etrace'|'masktrace'|'chantrace'|'motd'|'info'|'help'
+---@field kind 'stats'|'trace'|'etrace'|'masktrace'|'chantrace'|'motd'|'info'|'help'|'modlist'
 ---@field command string as sent, with its arguments
 ---@field messages hub.Message[] the replies, in order
 ---@field errors hub.Message[] errors the server followed with the end
@@ -68,6 +69,7 @@ local motd_rows <const> = {[N.RPL_MOTD] = true}
 local info_rows <const> = {[N.RPL_INFO] = true}
 -- the first line, then the rest
 local help_rows <const> = {[N.RPL_HELPSTART] = true, [N.RPL_HELPTXT] = true}
+local modlist_rows <const> = {[N.RPL_MODLIST] = true}
 
 -- The ends of each kind's queue: true, or 'fails' for one that says there
 -- is nothing to list
@@ -76,6 +78,7 @@ local trace_ends <const> = {[N.RPL_ENDOFTRACE] = true}
 local motd_ends <const> = {[N.RPL_ENDOFMOTD] = true, [N.ERR_NOMOTD] = 'fails'}
 local info_ends <const> = {[N.RPL_ENDOFINFO] = true}
 local help_ends <const> = {[N.RPL_ENDOFHELP] = true, [N.ERR_HELPNOTFOUND] = 'fails'}
+local modlist_ends <const> = {[N.RPL_ENDOFMODLIST] = true}
 
 -- The queue an end belongs to, nil for a message that isn't one
 local function end_key(msg)
@@ -85,6 +88,7 @@ local function end_key(msg)
     if n == N.RPL_ENDOFMOTD or n == N.ERR_NOMOTD then return 'motd' end
     if n == N.RPL_ENDOFINFO then return 'info' end
     if n == N.RPL_ENDOFHELP or n == N.ERR_HELPNOTFOUND then return 'help' end
+    if n == N.RPL_ENDOFMODLIST then return 'modlist' end
 end
 
 -- Unlabeled listings live in the queries state, as a task keeps its code
@@ -198,6 +202,10 @@ local function gather(t, spec)
     elseif spec.kind ~= 'trace' and spec.kind ~= 'motd' and spec.kind ~= 'info' then
         -- the oper commands; TRACE, MOTD and INFO are anyone's
         fatal[N.ERR_NOPRIVILEGES] = any
+    end
+    if spec.kind == 'modlist' then
+        -- "<client> admin :Insufficient oper privs", and nothing after
+        noted[N.ERR_NOPRIVS], fatal[N.ERR_NOPRIVS] = nil, any
     end
     if spec.kind == 'chantrace' then
         -- "<client> <channel> :No such channel", and the same for one
@@ -368,6 +376,17 @@ end
 function M.help(t, topic)
     gather(t, {kind = 'help', args = {'HELP', topic}, rows = help_rows, ends = help_ends, key = 'help',
         lines = N.RPL_HELPTXT})
+end
+
+--- MODLIST the modules whose names match a pattern (all without one), of
+--- a server or ours; a server needs a pattern before it.
+---@param t hub.Task
+---@param pattern string|nil
+---@param server string|nil
+function M.modlist(t, pattern, server)
+    local names, from = by_source(t, server)
+    gather(t, {kind = 'modlist', args = {'MODLIST', pattern, server}, target = server, rows = modlist_rows,
+        ends = modlist_ends, key = 'modlist', names = names, from = from})
 end
 
 --- Whether a mask is one MASKTRACE takes: a user and a host about the

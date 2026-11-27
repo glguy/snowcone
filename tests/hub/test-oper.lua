@@ -665,6 +665,62 @@ T.case('HELP lists its lines, and fails on a topic it has none of', function()
     T.eq(next(HUB.tasks), nil, 'finished')
 end)
 
+T.case('the admin feature MODLISTs as a listing, and sends the other module commands', function()
+    local c = boot {'admin'}
+    local events = {}
+    T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.listing', 'test', function(ev) table.insert(events, ev) end)
+    local function last(category) local l = T.log_lines(category) return l[#l] end
+
+    T.command 'modlist'
+    T.command 'modlist m_*'
+    T.command 'modlist * far.example'
+    T.eq(c:take(), {'MODLIST', 'MODLIST m_*', 'MODLIST * far.example'}, 'sent')
+    c:recv ':srv 702 me m_away 0x7f0000001000 builtin (core) :[Version <none>] [Description: Provides AWAY]'
+    c:recv ':srv 703 me :End of /MODLIST.'
+    c:recv ':srv 702 me m_ban 0x7f0000002000 builtin :[Version <none>] [Description: Provides BAN]'
+    c:recv ':srv 703 me :End of /MODLIST.'
+    c:recv ':far.example 702 me sno_x 0x1 extension :[Version 1] [Description: x]'
+    c:recv ':far.example 703 me :End of /MODLIST.'
+    T.eq({events[1].listing.kind, #events[1].listing.messages}, {'modlist', 1}, 'ours')
+    T.eq(events[2].listing.command, 'MODLIST m_*', 'with a pattern')
+    T.eq({events[3].listing.command, events[3].listing.messages[1][2]}, {'MODLIST * far.example', 'sno_x'},
+        "a server's")
+    T.eq(T.log_lines 'modlist', {'MODLIST: 1 reply', 'MODLIST m_*: 1 reply', 'MODLIST * far.example: 1 reply'},
+        'a line each')
+
+    -- refused for the admin privilege: no end follows
+    T.command 'modlist'
+    c:take()
+    c:recv ':srv 723 me admin :Insufficient oper privs'
+    T.eq(last 'modlist', 'MODLIST: Insufficient oper privs', 'fails at once')
+    T.eq(next(HUB.tasks), nil, 'finished')
+
+    T.command 'modlist * *.example'
+    T.command 'modlist a b c'
+    T.eq(c:take(), {}, 'a mask of servers, or three words, sends nothing')
+    T.ok(T.log_lines 'error'[1]:find 'one server', 'and says why')
+
+    for _, line in ipairs {'modload extensions/ip_cloaking.so', 'modload m_foo.so *.example', 'modunload m_foo.so',
+        'modreload m_foo.so far.example', 'modrestart', 'modrestart far.example'}
+    do
+        T.command(line)
+    end
+    T.eq(c:take(), {'MODLOAD extensions/ip_cloaking.so', 'MODLOAD m_foo.so *.example', 'MODUNLOAD m_foo.so',
+        'MODRELOAD m_foo.so far.example', 'MODRESTART', 'MODRESTART far.example'}, 'as typed')
+end)
+
+T.case('without the admin feature the module commands are refused, and hybrid has none', function()
+    local c = boot {'snotice', 'oper'}
+    T.command 'modlist'
+    T.eq(c:take(), {}, 'nothing sent')
+    T.ok(T.log_lines 'error'[1]:find 'needs the admin feature', 'needs the feature')
+
+    c = boot({'admin'}, false, 'oftc-hybrid')
+    T.command 'modunload m_foo.so'
+    T.eq(c:take(), {}, 'nothing sent on hybrid')
+    T.ok(T.log_lines 'error'[1]:find 'OFTC hybrid has no MODUNLOAD', 'and says why')
+end)
+
 T.case('CHANTRACE lists a channel like MASKTRACE, and fails on its channel errors', function()
     local c = boot({'chat', 'snotice', 'oper'})
     local events = {}
