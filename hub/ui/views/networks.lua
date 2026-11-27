@@ -40,6 +40,7 @@ return {
 
             local color = phase_color[rec.phase] or draw.yellow
             color(win)
+            ---@type string the phase as shown
             local phase = rec.phase
             if rec.target ~= 'connected' and rec.target ~= rec.phase then
                 phase = phase .. '→' .. rec.target

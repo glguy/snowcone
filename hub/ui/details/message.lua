@@ -21,6 +21,7 @@ local irc_model   <const> = require 'hub.net.irc'
 local ircd        <const> = require 'hub.net.ircd'
 local numerics    <const> = require 'hub.lib.numerics'
 local OrderedMap  <const> = require 'hub.lib.OrderedMap'
+local read        <const> = require 'hub.net.replies.read'
 local replies     <const> = require 'hub.net.replies'
 local scrub       <const> = require 'hub.lib.scrub'
 local snote       <const> = require 'hub.net.snote'
@@ -501,38 +502,25 @@ local function reply_summary(ctx, win, msg)
     args_line(ctx, win, msg, i, #msg)
 end
 
--- An auth block (STATS I, or TESTLINE matching no ban): I <name> <password>
--- <sigils><user>@<host> <port> <class> :<description>
+-- An auth block (STATS I, or TESTLINE matching no ban), as the network
+-- reads it (net/replies/read.lua)
 summaries[numerics.RPL_STATSILINE] = function(ctx, win, msg)
-    local name, password, mask, port, class = msg[3], msg[4], msg[5] or '', msg[6], msg[7]
-    local meant = replies.of(ctx.net)
+    local b = read.auth_block(replies.of(ctx.net), msg)
+    local flags = {}
+    for _, flag in ipairs(b.flags) do table.insert(flags, {flag[2] .. ' (' .. flag[1] .. ')'}) end
 
-    -- the flags are the sigils before the user, which the network's
-    -- auth_flags name
-    local sigils = {}
-    for sigil in pairs(meant.auth_flags) do table.insert(sigils, '%' .. sigil) end
-    local prefix, user, host = mask:match('^([' .. table.concat(sigils) .. ']*)([^@]*)@(.*)$')
-    if not prefix then prefix, user, host = '', mask, nil end
-    local flags, spoof = {}, false
-    for sigil in prefix:gmatch '.' do
-        table.insert(flags, {meant.auth_flags[sigil] .. ' (' .. sigil .. ')'})
-        if sigil == '=' then spoof = true end
-    end
-
-    local block = {{scrub(user) .. '@' .. (host == '255.255.255.255' and '(hidden)' or scrub(host or '?')), draw.bold}}
-    if class then table.insert(block, {'class ' .. scrub(class)}) end
+    local block = {{scrub(b.user) .. '@' .. (b.hidden and '(hidden)' or scrub(b.host or '?')), draw.bold}}
+    if b.class then table.insert(block, {'class ' .. scrub(b.class)}) end
     line(ctx, win, 'auth', stamped(block, msg))
     line(ctx, win, 'flags', flags)
-    if name and spoof then
-        -- hybrid gives * for a block without a spoof name
-        if name ~= '*' then line(ctx, win, 'spoof', {{scrub(name)}}) end
-    elseif meant.auth_redirects and name and name ~= 'NOMATCH' and name ~= '<NULL>' then
-        line(ctx, win, 'redirect', {{scrub(name) .. (port and port ~= '0' and ' port ' .. scrub(port) or '')}})
+    if b.spoof then
+        line(ctx, win, 'spoof', {{scrub(b.spoof)}})
+    elseif b.redirect then
+        local port = b.redirect_port and ' port ' .. scrub(b.redirect_port) or ''
+        line(ctx, win, 'redirect', {{scrub(b.redirect) .. port}})
     end
-    if meant.auth_passwords and password and password ~= '<NULL>' then
-        line(ctx, win, 'password', {{password == '*' and '(hidden)' or scrub(password)}})
-    end
-    if #msg > 7 then reason(ctx, win, 'desc', msg[#msg]) end
+    if b.password then line(ctx, win, 'password', {{scrub(b.password)}}) end
+    if b.description then reason(ctx, win, 'desc', b.description) end
 end
 
 -- The summary of a message, or nil

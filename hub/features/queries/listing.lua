@@ -2,49 +2,37 @@
 -- hub.Listing, logged as one line that opens it, and emitted as
 -- query.listing for the UI to show as tables (ui/details/listing.lua):
 --
---   M.stats(t, letter, server)   STATS, ending at RPL_ENDOFSTATS for its letter
---   M.trace(t, target)           TRACE, ending at RPL_ENDOFTRACE
---   M.etrace(t, arg)             ETRACE, ending at RPL_ENDOFTRACE
---   M.masktrace(t, mask, gecos)  MASKTRACE, ending at RPL_ENDOFTRACE
---   M.chantrace(t, channel)      CHANTRACE, ending at RPL_ENDOFTRACE
---   M.motd(t, target)            MOTD, ending at RPL_ENDOFMOTD or ERR_NOMOTD
---   M.info(t, target)            INFO, ending at RPL_ENDOFINFO
---   M.help(t, topic)             HELP, ending at RPL_ENDOFHELP or ERR_HELPNOTFOUND
---   M.modlist(t, pattern, server) MODLIST, ending at RPL_ENDOFMODLIST
---   M.lusers(t, server)          LUSERS, ending at RPL_STATSCONN (on hybrid,
---                                which sends it only to opers or when servers
---                                aren't hidden, at RPL_GLOBALUSERS for others)
---   M.privs(t, nick)             PRIVS, ending at its line without "* "
---   M.scan(t, args)              SCAN UMODES, ending at RPL_SCANMATCHED
+--   M.stats(t, letter, server)    STATS
+--   M.trace(t, target)            TRACE
+--   M.etrace(t, arg)              ETRACE
+--   M.masktrace(t, mask, gecos)   MASKTRACE
+--   M.chantrace(t, channel)       CHANTRACE
+--   M.motd(t, target)             MOTD
+--   M.info(t, target)             INFO
+--   M.help(t, topic)              HELP
+--   M.modlist(t, pattern, server) MODLIST
+--   M.lusers(t, server)           LUSERS
+--   M.privs(t, nick)              PRIVS
+--   M.scan(t, args)               SCAN UMODES
 --
--- An end may be a reply of its own as well (PRIVS's last line, SCAN's
--- count), kept as the others are. PRIVS of someone with nothing to show
--- has no reply at all: with labels an ACK, which shows an empty listing;
--- without, the wait runs out. LUSERS goes without a label: Solanum's
--- handler for an oper batches nothing, so only its first line would be
--- labeled, and it waits for its end as without labeled-response.
---
--- Every reply but the end is kept, in order, except the errors: those
--- that end a reply fail the task (no such server or nick, naming the
--- target; for CHANTRACE, no such channel or not on it, naming the
--- channel; for MOTD, no MOTD, and for HELP, no such topic, which come in
--- place of the end; the command unknown or short of arguments, naming
--- it; no privileges for an oper command, or for MODLIST, which no end
--- follows, the admin privilege; OFTC hybrid's refusal of a STATS for
--- load, which no end follows), and those the server follows with the end
--- (a STATS refused for privileges, load, or as disabled; STATS's short of
--- arguments on hybrid) are kept apart, to show above the tables.
+-- Each kind says what it lists and what ends it (hub.ListingSpec); gather
+-- does the rest. The replies it lists are kept in order until the end,
+-- which may be one of them too, or may say there is nothing to list and
+-- fail the task. Errors about the listing either fail it, when no end
+-- follows them, or are kept apart, to show above the tables, when one
+-- does. Every listing fails on no such server or nick naming its target,
+-- and on its command unknown or short of arguments; it notes a refusal
+-- for load or for an oper privilege; an oper command fails on not being
+-- an oper. A kind adds to or changes these.
 --
 -- Without labeled-response the replies of every listing pending arrive
 -- mixed, but in the order the commands went out. The listings that end
--- alike (the STATS of a letter; the traces, all with RPL_ENDOFTRACE; the
--- MOTDs; and each other kind's) wait in a queue per network in the order
--- sent, and an end goes to the first that takes it: any, or for a trace of
--- a target or a PRIVS, one naming the nick, or for one of a server, one
--- from it.
--- The rows before an end that isn't a listing's own belong to another,
--- and are dropped, unless they are told by their source or the nick they
--- name.
+-- alike wait in a queue per network in the order sent, and an end goes to
+-- the first that takes it: any, or one about the listing's target
+-- (hub.ListingAbout). The rows before an end that isn't a listing's own
+-- belong to another, and are dropped, unless they are told apart by what
+-- they name. A listing may go without a label on a network that has them,
+-- for a reply the server labels wrongly.
 
 local bus       <const> = require 'hub.runtime.bus'
 local common    <const> = require 'hub.features.common'
@@ -55,7 +43,7 @@ local N         <const> = require 'hub.lib.numerics'
 
 --- A listing: what was asked, and the replies.
 ---@class hub.Listing
----@field kind 'stats'|'trace'|'etrace'|'masktrace'|'chantrace'|'motd'|'info'|'help'|'modlist'|'lusers'|'privs'|'scan'
+---@field kind string the command's, as the log names it
 ---@field command string as sent, with its arguments
 ---@field messages hub.Message[] the replies, in order
 ---@field errors hub.Message[] errors the server followed with the end
@@ -63,19 +51,56 @@ local N         <const> = require 'hub.lib.numerics'
 --- something else in this reply: MASKTRACE and CHANTRACE give each
 --- user's server where ETRACE gives the class
 ---@field lines hub.ListingLines|nil when the replies are lines of text
+---@field at integer epoch seconds when the end came
+---@field view table|nil the UI's tables, worked out once (ui/details/listing.lua)
 
 --- Replies shown as lines of text, in one table: each reply's last
---- argument, less `strip`; with `middle`, after the arguments between our
---- nick and it that it doesn't hold (LUSERS's counts); with `words`, a row
---- for each of its words.
+--- argument, less `strip`; with `words`, a row for each of its words.
 ---@class hub.ListingLines
 ---@field under integer the numeric to show them all under
 ---@field column string|nil the column's header; default text
 ---@field strip string|nil a Lua pattern to take off the start
----@field middle boolean|nil
 ---@field words boolean|nil
----@field at integer epoch seconds when the end came
----@field view table|nil the UI's tables, worked out once (ui/details/listing.lua)
+
+--- What a listing is about, for telling its replies from another's
+--- without labels: the field of an end that must name `name`, and with
+--- `rows`, of each row too.
+---@class hub.ListingAbout
+---@field field 'source'|2
+---@field name string folded
+---@field rows boolean|nil
+
+--- How an error goes: 'fatal' fails the listing, 'noted' keeps it for the
+--- tables; and when it is about this listing, by its second argument:
+--- naming the target, naming the command, any, or as a function says.
+---@alias hub.ListingError {[1]: 'fatal'|'noted', [2]: 'target'|'command'|'any'|fun(name: string|nil): boolean}
+
+--- An end: true, 'row' for one that is a reply to keep as well, 'fails'
+--- for one that says there is nothing to list; or a function of the
+--- reply giving one of those, or nil for a reply that isn't an end.
+---@alias hub.ListingEnd true|'row'|'fails'|fun(msg: hub.Message): true|'row'|'fails'|nil
+
+--- What a kind of listing lists and how it ends.
+---@class hub.ListingSpec
+---@field kind string
+---@field args string[] the command and its arguments
+---@field target string|nil what errors about it name
+---@field rows table<integer, true> the replies it lists
+---@field ends table<integer, hub.ListingEnd>
+---@field key string its queue: the listings whose ends are alike
+---@field key_of (fun(msg: hub.Message): string)|nil an end's queue, when
+--- it depends on the end (a STATS letter)
+---@field about hub.ListingAbout|nil
+---@field oper boolean|nil an oper command, failing when we aren't one
+---@field errors table<integer, hub.ListingError|false>|nil to add to or
+--- change the defaults; false drops one
+---@field unended boolean|nil a labeled reply may have no end: an ACK
+--- shows an empty listing
+---@field unlabeled boolean|nil sent without a label
+---@field timeout_ms integer|nil
+---@field silence string|nil what the log says on no reply
+---@field relabel table<string, string>|nil
+---@field lines hub.ListingLines|nil
 
 local M = {}
 
@@ -84,53 +109,18 @@ local function range(set, lo, hi)
     return set
 end
 
--- The replies each kind lists
-local stats_rows <const> = range({}, 210, 250)
-local trace_rows <const> = range({[N.RPL_TRACELOG] = true}, 200, 209)
-local etrace_rows <const> = {[N.RPL_ETRACE] = true, [N.RPL_ETRACEFULL] = true}
--- the lines; the start of each only names the server
-local motd_rows <const> = {[N.RPL_MOTD] = true}
-local info_rows <const> = {[N.RPL_INFO] = true}
--- the first line, then the rest
-local help_rows <const> = {[N.RPL_HELPSTART] = true, [N.RPL_HELPTXT] = true}
-local modlist_rows <const> = {[N.RPL_MODLIST] = true}
-local lusers_rows <const> = range({[N.RPL_LOCALUSERS] = true, [N.RPL_GLOBALUSERS] = true}, 250, 255)
-local privs_rows <const> = {[N.RPL_PRIVS] = true}
-local scan_rows <const> = {[N.RPL_SCANUMODES] = true, [N.RPL_SCANMATCHED] = true}
+-- The errors of every listing
+local default_errors <const> = {
+    [N.ERR_NOSUCHSERVER] = {'fatal', 'target'},
+    [N.ERR_NOSUCHNICK] = {'fatal', 'target'},
+    [N.ERR_UNKNOWNCOMMAND] = {'fatal', 'command'},
+    [N.ERR_NEEDMOREPARAMS] = {'fatal', 'command'},
+    [N.RPL_LOAD2HI] = {'noted', 'command'},
+    [N.ERR_NOPRIVS] = {'noted', 'any'},
+}
 
--- PRIVS's last line is the one without the "* " that says more follow
-local function privs_last(msg)
-    return not (msg[#msg] or ''):find '^%* '
-end
-
--- The ends of each kind's queue: true, 'row' for one that is a reply to
--- keep as well, 'fails' for one that says there is nothing to list, or a
--- function of the reply giving one of those or nil for a reply that isn't
--- an end
-local stats_ends <const> = {[N.RPL_ENDOFSTATS] = true}
-local trace_ends <const> = {[N.RPL_ENDOFTRACE] = true}
-local motd_ends <const> = {[N.RPL_ENDOFMOTD] = true, [N.ERR_NOMOTD] = 'fails'}
-local info_ends <const> = {[N.RPL_ENDOFINFO] = true}
-local help_ends <const> = {[N.RPL_ENDOFHELP] = true, [N.ERR_HELPNOTFOUND] = 'fails'}
-local modlist_ends <const> = {[N.RPL_ENDOFMODLIST] = true}
-local lusers_ends <const> = {[N.RPL_STATSCONN] = 'row'}
-local lusers_ends_hidden <const> = {[N.RPL_GLOBALUSERS] = 'row'}
-local privs_ends <const> = {[N.RPL_PRIVS] = function(msg) return privs_last(msg) and 'row' or nil end}
-local scan_ends <const> = {[N.RPL_SCANMATCHED] = 'row'}
-
--- The queue an end belongs to, nil for a message that isn't one
-local function end_key(msg)
-    local n = msg.command
-    if n == N.RPL_ENDOFSTATS then return 'stats ' .. tostring(msg[2]) end
-    if n == N.RPL_ENDOFTRACE then return 'trace' end
-    if n == N.RPL_ENDOFMOTD or n == N.ERR_NOMOTD then return 'motd' end
-    if n == N.RPL_ENDOFINFO then return 'info' end
-    if n == N.RPL_ENDOFHELP or n == N.ERR_HELPNOTFOUND then return 'help' end
-    if n == N.RPL_ENDOFMODLIST then return 'modlist' end
-    if n == N.RPL_STATSCONN or n == N.RPL_GLOBALUSERS then return 'lusers' end
-    if n == N.RPL_PRIVS and privs_last(msg) then return 'privs' end
-    if n == N.RPL_SCANMATCHED then return 'scan' end
-end
+-- An oper privilege refused with no end after it
+local privs_without_end <const> = {[N.ERR_NOPRIVS] = {'fatal', 'any'}}
 
 -- Unlabeled listings live in the queries state, as a task keeps its code
 -- across a reload and must share them with tasks of the new code.
@@ -177,12 +167,13 @@ local function leave(net, key, id)
     end
 end
 
--- The task an end goes to: the first in its queue still running that
--- takes it, worked out by the first task to see it; false for none
-local function owner(net, irc, msg)
+-- The task an end of a queue goes to: the first in the queue still
+-- running that takes it, worked out by the first task to see it; false
+-- for none
+local function owner(net, irc, key, msg)
     local S = get(net)
     if S.claim and S.claim.msg == msg then return S.claim.id end
-    local q = queue(net, end_key(msg))
+    local q = queue(net, key)
     for i = #q, 1, -1 do
         if not HUB.tasks[q[i].id] then table.remove(q, i) end
     end
@@ -199,12 +190,19 @@ local function owner(net, irc, msg)
     return id
 end
 
+---@param irc table|nil
+---@param name string|nil
+---@return string|nil
+local function folded(irc, name)
+    return irc and name and irc_model.fold(irc, name)
+end
+
+local function model(net)
+    return HUB.state.nets[net] and HUB.state.nets[net].irc
+end
+
 ---@param t hub.Task
----@param spec {kind: string, args: string[], target: string|nil, rows: table<integer, true>,
---- ends: table<integer, true|'row'|'fails'|fun(msg: hub.Message): true|'row'|'fails'|nil>, key: string,
---- names: {field: 'source'|2, name: string}|nil, from: (fun(msg: hub.Message): boolean)|nil,
---- relabel: table<string, string>|nil, lines: hub.ListingLines|nil, unended: boolean|nil,
---- timeout_ms: integer|nil, silence: string|nil, unlabeled: boolean|nil}
+---@param spec hub.ListingSpec
 local function gather(t, spec)
     local command = table.concat(spec.args, ' ')
     ---@type hub.Listing
@@ -224,51 +222,25 @@ local function gather(t, spec)
     end
 
     local first = spec.args[1]
-    local irc = HUB.state.nets[t.net] and HUB.state.nets[t.net].irc
     -- a network without a connection fails with a message from the send
-    local function is_target(name)
-        return irc ~= nil and spec.target ~= nil and name ~= nil
-            and irc_model.fold(irc, name) == irc_model.fold(irc, spec.target)
-    end
-    local function is_command(name) return name ~= nil and name:upper() == first end
-    local function any() return true end
-
-    -- errors that end the reply, each when it is about this one, and those
-    -- the end follows
-    local fatal <const> = {
-        [N.ERR_NOSUCHSERVER] = is_target,
-        [N.ERR_NOSUCHNICK] = is_target,
-        [N.ERR_UNKNOWNCOMMAND] = is_command,
-        [N.ERR_NEEDMOREPARAMS] = is_command,
+    local irc = model(t.net)
+    local target = folded(irc, spec.target)
+    local tests <const> = {
+        target = function(name) return target ~= nil and folded(irc, name) == target end,
+        command = function(name) return name ~= nil and name:upper() == first end,
+        any = function() return true end,
     }
-    local noted <const> = {[N.RPL_LOAD2HI] = is_command, [N.ERR_NOPRIVS] = any}
-    if spec.kind == 'stats' then
-        noted[N.ERR_NOPRIVILEGES] = any
-        -- "<client> STATS <letter> :This command has been administratively disabled"
-        noted[N.ERR_DISABLED] = function(name) return name ~= nil and name:upper():find '^STATS' ~= nil end
-        noted[N.ERR_NEEDMOREPARAMS], fatal[N.ERR_NEEDMOREPARAMS] = is_command, nil
-        if ircd.hybrid(t.net) then
-            noted[N.RPL_LOAD2HI], fatal[N.RPL_LOAD2HI] = nil, is_command
-        end
-    elseif spec.kind ~= 'trace' and spec.kind ~= 'motd' and spec.kind ~= 'info' and spec.kind ~= 'lusers' then
-        -- the oper commands, and PRIVS of another; TRACE, MOTD, INFO and
-        -- LUSERS are anyone's
-        fatal[N.ERR_NOPRIVILEGES] = any
-    end
-    if spec.kind == 'modlist' or spec.kind == 'privs' or spec.kind == 'scan' then
-        -- "<client> admin :Insufficient oper privs" (or privs, or
-        -- oper_spy), and nothing after
-        noted[N.ERR_NOPRIVS], fatal[N.ERR_NOPRIVS] = nil, any
-    end
-    if spec.kind == 'chantrace' then
-        -- "<client> <channel> :No such channel", and the same for one
-        -- we aren't on: without the ! for an oper with operspy, with it
-        -- for anyone else, who has no ! to strip
-        local function is_channel(name)
-            return is_target(name) or is_target(name and '!' .. name)
-        end
-        fatal[N.ERR_NOSUCHCHANNEL] = is_channel
-        fatal[N.ERR_NOTONCHANNEL] = is_channel
+
+    -- the errors, by how they go: each a test of the name in the error
+    local fatal, noted = {}, {}
+    local errors = {}
+    for n, e in pairs(default_errors) do errors[n] = e end
+    if spec.oper then errors[N.ERR_NOPRIVILEGES] = {'fatal', 'any'} end
+    for n, e in pairs(spec.errors or {}) do errors[n] = e or nil end
+    for n, e in pairs(errors) do
+        local how, test = e[1], e[2]
+        local set = how == 'fatal' and fatal or noted
+        set[n] = type(test) == 'function' and test or tests[test]
     end
 
     -- only the ends of its own queue: another queue's end says nothing of
@@ -282,17 +254,19 @@ local function gather(t, spec)
 
     -- with labels every end in the reply is ours
     local queued = irc ~= nil and (spec.unlabeled or not irc_model.has_labels(irc))
+    local about = spec.about
     if queued then
-        local names = spec.names
-        table.insert(queue(t.net, spec.key), {id = t.id, field = names and names.field, name = names and names.name})
+        table.insert(queue(t.net, spec.key), {id = t.id, field = about and about.field, name = about and about.name})
     end
     local function mine(msg)
-        if not queued then return end_key(msg) == spec.key end
-        return owner(t.net, irc, msg) == t.id
+        if not queued then return true end
+        return owner(t.net, irc, spec.key_of and spec.key_of(msg) or spec.key, msg) == t.id
     end
 
     local function kept(msg)
-        return spec.rows[msg.command] and (not spec.from or spec.from(msg))
+        if not spec.rows[msg.command] then return false end
+        if not (about and about.rows) then return true end
+        return folded(irc, msg[about.field]) == about.name
     end
 
     -- One reply: true once the listing is done, shown or failed
@@ -310,9 +284,8 @@ local function gather(t, spec)
                 if ending == 'row' and kept(msg) then table.insert(l.messages, msg) end
                 finish()
                 return true
-            elseif queued and not spec.from then
-                -- another listing's: what came before it was its own, but
-                -- for rows told apart by what they name
+            elseif queued and not (about and about.rows) then
+                -- another listing's: what came before it was its own
                 l.messages, l.errors = {}, {}
             end
         elseif fatal[n] and fatal[n](msg[2]) then
@@ -347,60 +320,76 @@ end
 
 -- Another server answers later than ours, so its replies are told by
 -- their source, when what was asked of is a server's name (a nick or a
--- mask names none): the names an end must have, and the rows to keep.
+-- mask names none).
+---@return hub.ListingAbout|nil
 local function by_source(t, server)
-    local irc = HUB.state.nets[t.net] and HUB.state.nets[t.net].irc
+    local irc = model(t.net)
     if irc and server and server:find '%.' and not server:find '[*?]' then
-        local key = irc_model.fold(irc, server)
-        return {field = 'source', name = key},
-            function(msg) return msg.source ~= nil and irc_model.fold(irc, msg.source) == key end
+        return {field = 'source', name = irc_model.fold(irc, server), rows = true}
     end
 end
+
+-- STATS lists its letter's replies to "<client> <letter> :End of /STATS
+-- report", and gives refusals for privileges, load or as disabled before
+-- the end, as hybrid does arguments short; hybrid's refusal for load has
+-- no end after it
+local stats_rows <const> = range({}, 210, 250)
+local stats_ends <const> = {[N.RPL_ENDOFSTATS] = true}
 
 --- STATS a letter, of a server or ours.
 ---@param t hub.Task
 ---@param letter string one character
 ---@param server string|nil
 function M.stats(t, letter, server)
-    local names, from = by_source(t, server)
-    gather(t, {
-        kind = 'stats',
-        args = {'STATS', letter, server},
-        target = server,
-        rows = stats_rows,
-        ends = stats_ends,
-        -- "<client> <letter> :End of /STATS report"
-        key = 'stats ' .. letter,
-        names = names,
-        from = from,
-    })
+    local errors = {
+        [N.ERR_NOPRIVILEGES] = {'noted', 'any'},
+        -- "<client> STATS <letter> :This command has been administratively disabled"
+        [N.ERR_DISABLED] = {'noted', function(name) return name ~= nil and name:upper():find '^STATS' ~= nil end},
+        [N.ERR_NEEDMOREPARAMS] = {'noted', 'command'},
+    }
+    if ircd.hybrid(t.net) then errors[N.RPL_LOAD2HI] = {'fatal', 'command'} end
+    gather(t, {kind = 'stats', args = {'STATS', letter, server}, target = server, rows = stats_rows,
+        ends = stats_ends, key = 'stats ' .. letter,
+        key_of = function(msg) return 'stats ' .. tostring(msg[2]) end,
+        about = by_source(t, server), errors = errors})
 end
+
+-- MOTD and INFO list their lines (the start of each only names the
+-- server); no MOTD comes in place of the end
+local motd_rows <const> = {[N.RPL_MOTD] = true}
+local motd_ends <const> = {[N.RPL_ENDOFMOTD] = true, [N.ERR_NOMOTD] = 'fails'}
+local info_rows <const> = {[N.RPL_INFO] = true}
+local info_ends <const> = {[N.RPL_ENDOFINFO] = true}
 
 --- The MOTD of a server, a nick's, or ours.
 ---@param t hub.Task
 ---@param target string|nil
 function M.motd(t, target)
-    local names, from = by_source(t, target)
     gather(t, {kind = 'motd', args = {'MOTD', target}, target = target, rows = motd_rows,
-        ends = motd_ends, key = 'motd', names = names, from = from})
+        ends = motd_ends, key = 'motd', about = by_source(t, target)})
 end
 
 --- The INFO of a server, a nick's, or ours.
 ---@param t hub.Task
 ---@param target string|nil
 function M.info(t, target)
-    local names, from = by_source(t, target)
     gather(t, {kind = 'info', args = {'INFO', target}, target = target, rows = info_rows,
-        ends = info_ends, key = 'info', names = names, from = from})
+        ends = info_ends, key = 'info', about = by_source(t, target)})
 end
 
+-- The traces all end at RPL_ENDOFTRACE, naming the target asked of; all
+-- but TRACE are oper commands
+local trace_rows <const> = range({[N.RPL_TRACELOG] = true}, 200, 209)
+local etrace_rows <const> = {[N.RPL_ETRACE] = true, [N.RPL_ETRACEFULL] = true}
+local trace_ends <const> = {[N.RPL_ENDOFTRACE] = true}
+
 local function trace_gather(t, spec)
-    local irc = HUB.state.nets[t.net] and HUB.state.nets[t.net].irc
+    local irc = model(t.net)
     spec.key = 'trace'
     spec.ends = trace_ends
     -- for a target, an end naming it; else any
     if irc and spec.target then
-        spec.names = {field = 2, name = irc_model.fold(irc, spec.target)}
+        spec.about = {field = 2, name = irc_model.fold(irc, spec.target)}
     end
     gather(t, spec)
 end
@@ -423,7 +412,7 @@ local etrace_options_hybrid <const> = {['-full'] = true}
 function M.etrace(t, arg)
     local options = ircd.hybrid(t.net) and etrace_options_hybrid or etrace_options
     local target = arg and not options[arg:lower()] and arg or nil
-    trace_gather(t, {kind = 'etrace', args = {'ETRACE', arg}, target = target, rows = etrace_rows})
+    trace_gather(t, {kind = 'etrace', args = {'ETRACE', arg}, target = target, rows = etrace_rows, oper = true})
 end
 
 --- MASKTRACE the users that match [nick!]user@host, and a realname mask.
@@ -431,20 +420,32 @@ end
 ---@param mask string
 ---@param gecos string|nil
 function M.masktrace(t, mask, gecos)
-    trace_gather(t, {kind = 'masktrace', args = {'MASKTRACE', mask, gecos}, rows = etrace_rows,
+    trace_gather(t, {kind = 'masktrace', args = {'MASKTRACE', mask, gecos}, rows = etrace_rows, oper = true,
         relabel = {class = 'server'}})
 end
 
 --- CHANTRACE the users of a channel: one we're on, or any with ! before
 --- its name (operspy). The end names our server, not the channel, so
---- any end is taken. The errors name the channel as looked up: without
---- the ! when we have operspy, with it when we don't.
+--- any end is taken. No such channel, and not on it, fail it, naming the
+--- channel as looked up: without the ! when we have operspy, with it
+--- when we don't.
 ---@param t hub.Task
 ---@param channel string
 function M.chantrace(t, channel)
-    gather(t, {kind = 'chantrace', args = {'CHANTRACE', channel}, target = channel,
-        rows = etrace_rows, ends = trace_ends, key = 'trace', relabel = {class = 'server'}})
+    local irc = model(t.net)
+    local key = folded(irc, channel)
+    local function is_channel(name)
+        return key ~= nil and name ~= nil and (folded(irc, name) == key or folded(irc, '!' .. name) == key)
+    end
+    gather(t, {kind = 'chantrace', args = {'CHANTRACE', channel}, target = channel, rows = etrace_rows,
+        ends = trace_ends, key = 'trace', oper = true, relabel = {class = 'server'},
+        errors = {[N.ERR_NOSUCHCHANNEL] = {'fatal', is_channel}, [N.ERR_NOTONCHANNEL] = {'fatal', is_channel}}})
 end
+
+-- HELP lists its first line and the rest as lines of text; no such topic
+-- comes in place of the end
+local help_rows <const> = {[N.RPL_HELPSTART] = true, [N.RPL_HELPTXT] = true}
+local help_ends <const> = {[N.RPL_ENDOFHELP] = true, [N.ERR_HELPNOTFOUND] = 'fails'}
 
 --- HELP on a topic, or the index. The server answers it itself, in the
 --- order asked, so any end is taken.
@@ -455,61 +456,78 @@ function M.help(t, topic)
         lines = {under = N.RPL_HELPTXT}})
 end
 
+local modlist_rows <const> = {[N.RPL_MODLIST] = true}
+local modlist_ends <const> = {[N.RPL_ENDOFMODLIST] = true}
+
 --- MODLIST the modules whose names match a pattern (all without one), of
---- a server or ours; a server needs a pattern before it.
+--- a server or ours; a server needs a pattern before it. Refused for the
+--- admin privilege with no end after.
 ---@param t hub.Task
 ---@param pattern string|nil
 ---@param server string|nil
 function M.modlist(t, pattern, server)
-    local names, from = by_source(t, server)
     gather(t, {kind = 'modlist', args = {'MODLIST', pattern, server}, target = server, rows = modlist_rows,
-        ends = modlist_ends, key = 'modlist', names = names, from = from})
+        ends = modlist_ends, key = 'modlist', about = by_source(t, server), oper = true, errors = privs_without_end})
 end
 
---- LUSERS of a server or ours: the counts of users, operators,
---- channels and servers, as lines.
+-- LUSERS ends at RPL_STATSCONN, but on hybrid, which sends it only to
+-- opers or when servers aren't hidden, at RPL_GLOBALUSERS for others
+local lusers_rows <const> = range({[N.RPL_LOCALUSERS] = true, [N.RPL_GLOBALUSERS] = true}, 250, 255)
+local lusers_ends <const> = {[N.RPL_STATSCONN] = 'row'}
+local lusers_ends_hidden <const> = {[N.RPL_GLOBALUSERS] = 'row'}
+
+--- LUSERS of a server or ours: the counts of users, operators, channels
+--- and servers. It goes without a label: Solanum's handler for an oper
+--- batches nothing, so only its first line would be labeled.
 ---@param t hub.Task
 ---@param server string|nil
 function M.lusers(t, server)
-    local names, from = by_source(t, server)
     local ends = lusers_ends
     if ircd.hybrid(t.net) then
-        local irc = HUB.state.nets[t.net] and HUB.state.nets[t.net].irc
+        local irc = model(t.net)
         if not (irc and irc.mode.o) then ends = lusers_ends_hidden end
     end
     -- the mask before a server is obsolete, but must be there
     gather(t, {kind = 'lusers', args = server and {'LUSERS', '*', server} or {'LUSERS'}, target = server,
-        rows = lusers_rows, ends = ends, key = 'lusers', names = names, from = from, unlabeled = true,
-        lines = {under = N.RPL_LUSERCLIENT, middle = true}})
+        rows = lusers_rows, ends = ends, key = 'lusers', about = by_source(t, server), unlabeled = true})
 end
+
+-- PRIVS's lines each name the nick; its last is the one without the "* "
+-- that says more follow
+local privs_rows <const> = {[N.RPL_PRIVS] = true}
+local privs_ends <const> = {
+    [N.RPL_PRIVS] = function(msg) return not (msg[#msg] or ''):find '^%* ' and 'row' or nil end,
+}
 
 --- PRIVS of a nick, or ours: the privileges of its oper block, its
 --- operator and privset names, and its auth block's exemptions, a row
---- each. The nick's server answers, naming it in every line.
+--- each. The nick's server answers. Someone with nothing to show has no
+--- reply at all: with labels an ACK; without, the wait runs out. Another's
+--- needs an oper, with the privs privilege, refused with no end after.
 ---@param t hub.Task
 ---@param nick string|nil
 function M.privs(t, nick)
-    local irc = HUB.state.nets[t.net] and HUB.state.nets[t.net].irc
-    local names, from
-    local target = nick or (irc and irc.nick)
-    if irc and target then
-        local key = irc_model.fold(irc, target)
-        names = {field = 2, name = key}
-        from = function(msg) return msg[2] ~= nil and irc_model.fold(irc, msg[2]) == key end
-    end
+    local irc = model(t.net)
+    local about
+    local name = folded(irc, nick or (irc and irc.nick))
+    if name then about = {field = 2, name = name, rows = true} end
     gather(t, {kind = 'privs', args = {'PRIVS', nick}, target = nick, rows = privs_rows, ends = privs_ends,
-        key = 'privs', names = names, from = from, unended = true, timeout_ms = 30000,
-        silence = 'no reply, as the server gives when there are no privileges',
+        key = 'privs', about = about, oper = true, errors = privs_without_end, unended = true,
+        timeout_ms = 30000, silence = 'no reply, as the server gives when there are no privileges',
         lines = {under = N.RPL_PRIVS, column = 'privilege', strip = '^%* ', words = true}})
 end
 
+local scan_rows <const> = {[N.RPL_SCANUMODES] = true, [N.RPL_SCANMATCHED] = true}
+local scan_ends <const> = {[N.RPL_SCANMATCHED] = 'row'}
+
 --- SCAN UMODES: the users with some user modes and without others, and
 --- how many, by the options as Solanum reads them (modules/m_scan.c).
+--- A global listing needs operspy, refused with no end after.
 ---@param t hub.Task
 ---@param args string[] the modes, then the options, as sent after UMODES
 function M.scan(t, args)
     gather(t, {kind = 'scan', args = {'SCAN', 'UMODES', table.unpack(args)}, rows = scan_rows, ends = scan_ends,
-        key = 'scan'})
+        key = 'scan', oper = true, errors = privs_without_end})
 end
 
 --- Whether a mask is one MASKTRACE takes: a user and a host about the

@@ -4,6 +4,7 @@
 -- where hybrid's numbers or arguments differ.
 
 local NH      <const> = require 'hub.lib.numerics_hybrid'
+local read    <const> = require 'hub.net.replies.read'
 local solanum <const> = require 'hub.net.replies.solanum'
 local tablex  <const> = require 'pl.tablex'
 
@@ -77,5 +78,11 @@ tablex.update(M.fields, {
     [NH.RPL_ISCAPTURED] = {'nick', 'text:text'},
     [NH.RPL_ISUNCAPTURED] = {'nick', 'text:text'},
 })
+
+--- Solanum's readers but MODLIST's, whose arguments differ.
+M.readers = {
+    [NH.RPL_STATSILINE] = read.auth_block,
+    [NH.RPL_STATSLINKINFO] = read.link,
+}
 
 return M

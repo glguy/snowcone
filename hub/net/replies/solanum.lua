@@ -16,11 +16,13 @@
 --   addr     an address, maybe in parentheses; 0 (hidden from us) and
 --            255.255.255.255 (hidden, or none) mean the server won't say
 --
--- The auth block reply (RPL_STATSILINE), whose fields depend on its flags,
--- has a summary of its own; other replies not here, but for errors, have
--- none.
+-- The replies that take reading beyond their fields have a reader in
+-- M.readers (net/replies/read.lua): the auth block (RPL_STATSILINE), whose
+-- fields depend on its flags, a link (RPL_STATSLINKINFO), and a module
+-- (RPL_MODLIST). Other replies not here, but for errors, have no summary.
 
-local N <const> = require 'hub.lib.numerics'
+local N    <const> = require 'hub.lib.numerics'
+local read <const> = require 'hub.net.replies.read'
 
 local M = {}
 
@@ -265,7 +267,8 @@ M.fields = {
 
     [N.RPL_STARTTLS] = text,
     [N.ERR_STARTTLS] = text,
-    [N.RPL_MODLIST] = {'module', 'address', 'origin', 'info:text'},
+    -- the origin, then " (core)" for a core module
+    [N.RPL_MODLIST] = {'module', 'address', 'origin:rest', 'info:text'},
     [N.RPL_ENDOFMODLIST] = text,
     [N.RPL_HELPSTART] = {'topic', 'text:text'},
     [N.RPL_HELPTXT] = {'topic', 'text:text'},
@@ -310,6 +313,13 @@ M.fields = {
     [N.ERR_SASLABORTED] = text,
     [N.ERR_SASLALREADY] = text,
     [N.RPL_SASLMECHS] = {'mechs', 'text:text'},
+}
+
+--- The readers of replies whose arguments need more than fields.
+M.readers = {
+    [N.RPL_STATSILINE] = read.auth_block,
+    [N.RPL_STATSLINKINFO] = read.link,
+    [N.RPL_MODLIST] = read.module,
 }
 
 return M

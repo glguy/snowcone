@@ -364,6 +364,13 @@ T.case('the message detail sums up joins, parts, kicks, quits, nicks, modes and 
         '^password: secret$',
     })
     T.ok(not has_row(rows, 'flags') and not has_row(rows, 'desc'), 'no flags, no description')
+    -- a core module's origin holds the (core) after it
+    expect(summary(':srv 702 me m_away 0x7f00 builtin (core) :[Version <none>] [Description: Provides AWAY]', true), {
+        '^  module: m_away$',
+        '^ address: 0x7f00$',
+        '^  origin: builtin %(core%)$',
+        '^    info: %[Version <none>%] %[Description: Provides AWAY%]$',
+    })
     expect(summary(':srv 216 me k *.example * ~bad :Spam (2026/11/01)|ticket 42', true), {
         '^   reply: RPL_STATSKLINE %(216%) to me, at ',
         '^    type: temporary K%-Line$',
@@ -557,7 +564,7 @@ T.case('a MODLIST opens as a table of modules, the version and description apart
     T.ok(text:find('ip_cloaking extension -    1.0     Cloaks hosts  0x7f0000002000', 1, true), 'not core is -')
 end)
 
-T.case('PRIVS shows a privilege a row, and LUSERS its lines with their counts', function()
+T.case('PRIVS shows a privilege a row, and LUSERS a table per reply', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
     local cmdline = T.require 'hub.ui.cmdline'
@@ -579,9 +586,9 @@ T.case('PRIVS shows a privilege a row, and LUSERS its lines with their counts', 
     c:recv ':srv 265 me 3 10 :Current local users 3, max 10'
     c:recv ':srv 250 me :Highest connection count: 11'
     text = detail_text()
-    T.ok(text:find('RPL_LUSERCLIENT 251  4', 1, true), 'one table')
-    T.ok(text:find('4 IRC Operators online', 1, true), 'a count before its text')
-    T.ok(text:find('\nCurrent local users 3, max 10', 1, true), 'but not one the text holds')
+    T.ok(text:find('RPL_LUSEROP 252  1', 1, true), 'a table per reply')
+    T.ok(text:find('count text', 1, true) and text:find('4     IRC Operators online', 1, true), 'by its fields')
+    T.ok(text:find('users max text', 1, true), 'the local users by theirs')
 end)
 
 T.case('a STATS opens as tables by reply, read for what their fields mean, laid out once', function()

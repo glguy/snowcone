@@ -1,31 +1,31 @@
--- A listing (hub.Listing, features/queries/listing.lua: STATS, TRACE,
--- ETRACE, MASKTRACE, CHANTRACE, MOTD, INFO, HELP, MODLIST, LUSERS, PRIVS,
--- SCAN) in the detail pane: the errors
--- the server gave, then a table (ui/table.lua) per kind of reply, in the order they first came, each
--- under its numeric and how many there are. M.runs draws any replies so,
--- as a /quote's table view does (ui/details/reply.lua).
+-- A listing (hub.Listing, features/queries/listing.lua) in the detail
+-- pane: the errors the server gave, then a table (ui/table.lua) per kind
+-- of reply, in the order they first came, each under its numeric and how
+-- many there are. M.runs draws any replies so, as a /quote's table view
+-- does (ui/details/reply.lua).
 --
 -- A table's columns are the reply's fields as the network names them
 -- (net/replies/solanum.lua or hybrid.lua), its values read for what they
 -- mean: times as dates, seconds and minutes as durations, ban types by
 -- name, a reason apart from its oper reason, an address the server won't
--- give as "-". Auth blocks (STATS I) have their flags read out, links
--- (STATS L) the times their last argument holds, and modules (MODLIST)
--- their version and description apart. A reply the network
--- doesn't name the fields of is one column of text: its arguments, after
--- our nick for a numeric. A listing of lines (HELP, LUSERS, PRIVS) is one
--- table of their text, whatever replies hold them (hub.ListingLines).
+-- give as "-". A reply the network has a reader for (net/replies/read.lua:
+-- auth blocks, links, modules) has the columns of what the reader makes
+-- of it. A reply the network doesn't name the fields of is one column of
+-- text: its arguments, after our nick for a numeric. A listing of lines
+-- (hub.ListingLines) is one table of their text, whatever replies hold
+-- them.
 --
 -- The rows, their cells and the tables are worked out once and kept on
 -- the listing, for its list of messages: a STATS can have tens of
--- thousands of rows, and only those shown are drawn. The filter (Ctrl-S, /filter) shows the rows with a
--- cell that matches. Click a column's header to sort its table by it.
+-- thousands of rows, and only those shown are drawn. The filter (Ctrl-S,
+-- /filter) shows the rows with a cell that matches. Click a column's
+-- header to sort its table by it.
 
 local address_key <const> = require 'hub.lib.address_key'
 local control <const> = require 'hub.ui.control'
 local draw    <const> = require 'hub.ui.draw'
 local ircd    <const> = require 'hub.net.ircd'
-local N       <const> = require 'hub.lib.numerics'
+local read    <const> = require 'hub.net.replies.read'
 local replies <const> = require 'hub.net.replies'
 local scrub   <const> = require 'hub.lib.scrub'
 local tables  <const> = require 'hub.ui.table'
@@ -142,89 +142,59 @@ local function by_fields(meant, fields, relabel)
     end
 end
 
--- Replies whose cells take reading of their own
-local special <const> = {}
+-- The columns of the replies a network reads (net/replies/read.lua), by
+-- reader, and their cells from what the reader makes of a reply
+local read_columns <const> = {}
 
--- An auth block (STATS I): I <name> <password> <sigils><user>@<host>
--- <port> <class> :<description>, read as the message detail reads it
-special[N.RPL_STATSILINE] = function(meant)
-    local sigils = {}
-    for sigil in pairs(meant.auth_flags) do table.insert(sigils, '%' .. sigil) end
-    local flags_pattern = '^([' .. table.concat(sigils) .. ']*)([^@]*)@(.*)$'
-    local columns = {
+read_columns[read.auth_block] = function()
+    return {
         column(1, 'mask'), column(2, 'flags', false, true), column(3, 'class'),
         column(4, 'spoof or redirect', false, true), column(5, 'port', false, true),
         column(6, 'password', false, true), column(7, 'description', true, true),
-    }
-    return columns, function(msg)
-        local name, password, mask, port, class = msg[3], msg[4], msg[5] or '', msg[6], msg[7]
-        local prefix, user, host = mask:match(flags_pattern)
-        if not prefix then prefix, user, host = '', mask, nil end
-        local flags, spoof = {}, false
-        for sigil in prefix:gmatch '.' do
-            table.insert(flags, meant.auth_flags[sigil])
-            if sigil == '=' then spoof = true end
-        end
-        local named, redirect
-        if spoof then
-            -- hybrid gives * for a block without a spoof name
-            if name ~= '*' then named = name end
-        elseif meant.auth_redirects and name ~= 'NOMATCH' and name ~= '<NULL>' then
-            named, redirect = name, true
-        end
-        local shown_password
-        if meant.auth_passwords and password and password ~= '<NULL>' then
-            shown_password = password == '*' and '(hidden)' or password
-        end
+    }, function(b)
+        ---@cast b hub.AuthBlock
+        local names = {}
+        for _, flag in ipairs(b.flags) do table.insert(names, flag[2]) end
         return {
-            user .. '@' .. (host == '255.255.255.255' and '(hidden)' or host or '?'),
-            flags[1] and table.concat(flags, ','),
-            class,
-            nonempty(named),
-            redirect and port ~= '0' and nonempty(port) or nil,
-            shown_password,
-            #msg > 7 and nonempty(msg[#msg]) or nil,
+            b.user .. '@' .. (b.hidden and '(hidden)' or b.host or '?'),
+            names[1] and table.concat(names, ','),
+            b.class,
+            nonempty(b.spoof or b.redirect),
+            b.redirect_port,
+            b.password,
+            nonempty(b.description),
         }
     end
 end
 
--- A link (STATS L): <name> <sendq> <sent messages> <sent KiB> <received
--- messages> <received KiB> :<seconds open> <seconds idle> <capabilities>
-special[N.RPL_STATSLINKINFO] = function()
-    local columns = {
+read_columns[read.link] = function()
+    return {
         column(1, 'link'), column(2, 'sendq'), column(3, 'sent msgs'), column(4, 'sent KiB'),
         column(5, 'recv msgs'), column(6, 'recv KiB'), column(7, 'open'), column(8, 'idle'),
         column(9, 'caps', false, true),
-    }
-    return columns, function(msg)
-        local open, idle, caps = (msg[8] or ''):match '^(%d+) (%d+) ?(.*)$'
+    }, function(k)
+        ---@cast k hub.Link
         return {
-            msg[2], msg[3], msg[4], msg[5], msg[6], msg[7],
-            open and draw.duration(open) or nonempty(msg[8]),
-            idle and draw.duration(idle),
-            caps ~= '-' and nonempty(caps) or nil,
-            keys = {[7] = tonumber(open), [8] = tonumber(idle)},
+            k.name, k.sendq, k.sent_msgs, k.sent_kib, k.recv_msgs, k.recv_kib,
+            k.open and draw.duration(k.open) or nonempty(k.times),
+            k.idle and draw.duration(k.idle),
+            k.caps,
+            keys = {[7] = k.open, [8] = k.idle},
         }
     end
 end
 
--- A module (MODLIST): <name> 0x<address> <origin>[ (core)] :[Version
--- <version>] [Description: <description>], the origin builtin or
--- extension; the address sorts as a number
-special[N.RPL_MODLIST] = function()
-    local columns = {
+-- the address sorts as a number
+read_columns[read.module] = function()
+    return {
         column(1, 'module'), column(2, 'origin'), column(3, 'core', false, true),
         column(4, 'version', true, true), column(5, 'description', true, true),
         column(6, 'address', false, true),
-    }
-    return columns, function(msg)
-        local last = #msg > 4 and msg[#msg] or ''
-        local version, description = last:match '^%[Version (.-)%] %[Description: (.*)%]$'
-        if not version then description = nonempty(last) end
+    }, function(m)
+        ---@cast m hub.Module
         return {
-            msg[2], msg[4], #msg > 5 and msg[5] == '(core)' and 'core' or nil,
-            nonempty(version), nonempty(description), msg[3],
-            keys = {[6] = msg[3] and math.tointeger(tonumber(msg[3]))},
+            m.name, m.origin, m.core and 'core' or nil, nonempty(m.version), nonempty(m.description), m.address,
+            keys = {[6] = m.address and math.tointeger(tonumber(m.address))},
         }
     end
 end
@@ -242,13 +212,6 @@ end
 -- again by the code loaded
 local version <const> = {}
 
---- The sections of messages, worked out once and kept on holder for
---- those messages: {numeric, name, columns, rows}, a row the cells of a
---- reply.
----@param net string|nil
----@param holder table
----@param messages hub.Message[]
----@param relabel table<string, string>|nil
 -- The text of a reply as lines show it: a row for each
 ---@param lines hub.ListingLines
 ---@param msg hub.Message
@@ -256,19 +219,19 @@ local version <const> = {}
 local function line_texts(lines, msg)
     local text = msg[#msg] or ''
     if lines.strip then text = text:gsub(lines.strip, '', 1) end
-    if lines.middle then
-        local lead = {}
-        for i = 2, #msg - 1 do
-            if not text:find(msg[i], 1, true) then table.insert(lead, msg[i]) end
-        end
-        if lead[1] then text = table.concat(lead, ' ') .. ' ' .. text end
-    end
     if not lines.words then return {text} end
     local words = {}
     for word in text:gmatch '%S+' do table.insert(words, word) end
     return words
 end
 
+--- The sections of messages, worked out once and kept on holder for
+--- those messages: {numeric, name, columns, rows}, a row the cells of a
+--- reply.
+---@param net string|nil
+---@param holder table
+---@param messages hub.Message[]
+---@param relabel table<string, string>|nil
 ---@param lines hub.ListingLines|nil every reply as lines of text
 local function sections_of(net, holder, messages, relabel, lines)
     local view = holder.view
@@ -284,12 +247,14 @@ local function sections_of(net, holder, messages, relabel, lines)
         local n = lines and lines.under or msg.command
         local section = by_command[n]
         if not section then
-            local make = special[n]
+            local reader = meant.readers[n]
             local columns, convert
             if lines then
                 columns = {column(1, lines.column or 'text', true)}
-            elseif make then
-                columns, convert = make(meant)
+            elseif reader and read_columns[reader] then
+                local cells
+                columns, cells = read_columns[reader]()
+                convert = function(m) return cells(reader(meant, m)) end
             elseif meant.fields[n] then
                 columns, convert = by_fields(meant, meant.fields[n], relabel)
             else
