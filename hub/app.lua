@@ -5,7 +5,9 @@
 --   init_state(S)                   see runtime/state.lua
 --   routes      [name] = function, targets for trampolines and late calls
 --   subscribe(sub)                   sub.on(topic, fn) on the new bus
---   commands    sequence of {name, spec, usage, fn, help, scope, feature, group}
+--   commands    sequence of {name, spec, usage, fn, help, scope, feature,
+--               group}, and optionally complete, shape and exists for the
+--               input line (see add_command below)
 --   views       sequence of view records (ui/init.lua)
 --   check_config(cfg)                check and complete its part of a loaded
 --                                    configuration; raising fails the load
