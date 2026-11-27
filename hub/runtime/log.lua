@@ -1,4 +1,9 @@
--- Status log. It also receives the client's print().
+-- The status log: lines by category, optionally about a network and
+-- holding a detail the UI can open in full (a WHOIS, an error with its
+-- traceback), in a ring of M.capacity. The newest line is also kept for
+-- the status bar until dismissed. It receives the client's print()
+-- (the log.print route), echoes each line to stdout when booted with
+-- echo, and counts errors by where they came from, for /client.
 
 local bus        <const> = require 'hub.runtime.bus'
 local clock      <const> = require 'hub.runtime.clock'
