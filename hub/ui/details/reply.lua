@@ -1,12 +1,13 @@
 -- The labeled reply to a /quote (hub.QuoteReply, commands/core.lua) in
 -- the detail pane: the line sent, then one row per reply message. Click a
 -- sender to inspect that message, as in a buffer or the console; [BACK]
--- returns here, scrolled as it was. The filter (Ctrl-S, /filter) shows only the messages that match.
+-- returns here, scrolled as it was. The filter (Ctrl-S, /filter) shows
+-- only the messages that match.
 --
 -- `table`, of the table|raw control, shows the reply as tables instead
 -- (ui/details/listing.lua), a table per kind of reply with a column per
--- field, and `raw` goes back;
--- the detail keeps which, in vs.table, and the reply the tables.
+-- field, and `raw` goes back; the detail keeps which, in vs.table, and
+-- the reply the tables.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
 local command_color <const> = require 'hub.ui.command_color'

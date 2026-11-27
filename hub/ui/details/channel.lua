@@ -1,15 +1,18 @@
 -- A channel's information in the detail pane, read live from the model
 -- (net/irc.lua): topic and who set it, creation time, modes, our own
 -- prefix modes (op, voice, ...), members by rank (in italics when known to
--- be away), and the list modes (bans, quiets, ...); [↻] asks the server for
--- a list, or for the topic or modes, again or for the first time.
--- A channel we aren't in shows its snapshot (net/irc.lua), with how old each
--- part is and no members; it lives as long as the channel's buffer, or the
--- connection.
--- A fetched list shows its count and folds its entries behind [+]; the
--- detail keeps the open ones in open_lists. [x] removes an entry. The
--- data is {name}; the filter (Ctrl-S, /filter) shows only the members
+-- be away), and the list modes (bans, quiets, ...). [↻] asks the server
+-- for a list, or for the topic or modes, again or for the first time.
+--
+-- A channel we aren't in shows its snapshot (net/irc.lua), with how old
+-- each part is and no members; it lives as long as the channel's buffer,
+-- or the connection.
+--
+-- A fetched list shows its count and folds its entries behind [+]; [x]
+-- removes an entry. The filter (Ctrl-S, /filter) shows only the members
 -- and list entries that match, folded or not.
+--
+-- Detail data: {name}; the detail keeps the open lists in open_lists.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
 local chat      <const> = require 'hub.features.chat'

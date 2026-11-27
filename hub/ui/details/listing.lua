@@ -8,10 +8,11 @@
 -- (net/replies/solanum.lua or hybrid.lua), its values read for what they
 -- mean: times as dates, seconds and minutes as durations, ban types by
 -- name, a reason apart from its oper reason, an address the server won't
--- give as "-", a channel as a button that talks there. A reply the network has a reader for (net/replies/read.lua:
--- auth blocks, links, modules) has the columns of what the reader makes
--- of it. A reply the network doesn't name the fields of is one column of
--- text: its arguments, after our nick for a numeric. A listing of lines
+-- give as "-", a channel as a button that talks there. A reply the
+-- network has a reader for (net/replies/read.lua: auth blocks, links,
+-- modules) has the columns of what the reader makes of it. A reply the
+-- network doesn't name the fields of is one column of text: its
+-- arguments, after our nick for a numeric. A listing of lines
 -- (hub.ListingLines) is one table of their text, whatever replies hold
 -- them.
 --

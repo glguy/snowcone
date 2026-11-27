@@ -1,16 +1,19 @@
 -- An IRC message in the detail pane, at one of three levels, which the
--- control at the top, [summary|message|raw], switches between, the level
--- shown in reverse video: a summary of what it means, for a command that
--- has one; the message as the server sent it (tags, source, our delivery
--- and the server's receipt, command and arguments); and that with its
--- strings escaped. It opens at the summary when there is one.
+-- control at the top, [summary|message|raw], switches between (the level
+-- shown in reverse video):
+--
+--   summary  what it means, for a command that has one; the pane opens
+--            here when there is one
+--   message  as the server sent it: tags, source, our delivery and the
+--            server's receipt, command and arguments
+--   raw      that with its strings escaped
+--
 -- After it, the places the message can be shown, each marked with an
 -- arrow as a jump and not a mode: →buffer, for a message a chat buffer
 -- holds, shows that buffer (the one shown, when it is among them)
 -- scrolled to the message, highlighted; →console, for one the network's
 -- console holds, shows it there. A line under them names the hide rule
 -- that decided the message in that buffer (chat/hide.lua), when one did.
--- Also the command colors and notice matching the console shares.
 
 local addircstr   <const> = require 'hub.ui.irc_formatting'
 local chat        <const> = require 'hub.features.chat'

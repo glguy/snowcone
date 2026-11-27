@@ -13,6 +13,7 @@
 -- color, when the code needs both: before a comma, which would otherwise
 -- be read as starting a background, and when changing a code that had
 -- both.
+--
 -- Detail state: target, 'text' or 'background'.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'

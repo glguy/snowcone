@@ -14,6 +14,7 @@
 -- or magenta for a mention; the shown buffer is underlined. After the
 -- label, → marks where Meta-A goes, ← where Meta-S goes back, and ↔ a
 -- buffer that is both.
+--
 -- Labels live in the buffer view's state: labels[buffer] = label.
 
 local chat    <const> = require 'hub.features.chat'
