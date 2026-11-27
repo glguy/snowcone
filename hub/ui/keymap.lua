@@ -1,4 +1,28 @@
--- The key handler tables.
+-- The key handler tables. A key goes, in order, to the input mode (text
+-- into the line, then M.input), the detail pane's kind, the view, and
+-- last M.global (ui/init.lua).
+--
+-- M.input, while an input mode is active: editing, history, completion
+-- and spelling suggestions, and Enter, which acts as the mode says.
+--
+-- M.global:
+--
+--   Esc                 dismiss the log line; then abort a prompt, or
+--                       close the detail pane (outside input modes), or
+--                       end the input mode and reset the view: scroll,
+--                       filter and its own reset
+--   / and Ctrl-S        command and filter modes
+--   Ctrl-N, Ctrl-P      next and previous view of the rotation
+--   F1..F12, Meta-1..9  a view of the rotation, a network as the status
+--                       bar shows them
+--   Meta-A, Meta-S      the next buffer with unseen messages (mentions
+--                       first), and back to the previous one
+--   Meta-P              the formatting palette
+--   Page Up/Down, arrows  scroll; Left and Right a wide view or detail
+--   Ctrl-L              redraw, a rolling log laid out afresh
+--   Ctrl-C, Ctrl-Z      quit, suspend
+--
+-- The terminal's focus reports arrive as keys too (KEY_RESUME, KEY_EXIT).
 
 local chat      <const> = require 'hub.features.chat'
 local cmdline   <const> = require 'hub.ui.cmdline'

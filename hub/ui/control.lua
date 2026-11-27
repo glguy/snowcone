@@ -1,5 +1,8 @@
--- View selection and input modes, shared by the key handlers, the command
--- line and the renderer.
+-- The UI's state and what acts on it, shared by the key handlers, the
+-- command line and the renderer: the views, their rotation and state,
+-- and disabling one that fails; input modes and their editors; the
+-- current network and those the status bar shows; the configuration's
+-- UI settings; filters; the detail pane; and prompts a task waits on.
 
 local common   <const> = require 'hub.features.common'
 local dispatch <const> = require 'hub.runtime.dispatch'

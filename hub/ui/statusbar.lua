@@ -1,4 +1,18 @@
--- The bottom line: view name, input box or last log line.
+-- The bottom line, in fragments separated as ui.separators says
+-- (ui/theme.lua). It starts with the view's name, on red while a K-Line
+-- is staged on the current network; click it for the next view.
+--
+-- In an input mode, then the mode, with the STATUSMSG prefix talking goes
+-- out with and by how much a line is too long to send, and the input box:
+-- a filter's pattern green when it compiles, a command line colored as it
+-- parses with placeholders for the arguments not yet typed (ui/cmdline.lua),
+-- and other lines formatted as they will be seen, misspellings marked. A
+-- password prompt shows only its label and a spinner.
+--
+-- Otherwise, then the networks (click one to choose it), each marked !
+-- for a mention waiting or + for other unseen chat; the view's own
+-- fragments (view.status); its modes in yellow, with the scroll and
+-- filter every view has; and the last log line.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
 local cmdline   <const> = require 'hub.ui.cmdline'

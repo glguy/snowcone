@@ -1,10 +1,10 @@
 -- Tables for wide detail kinds: a header row, then a row per item and a
 -- column per field, each as wide as its widest cell, with "-" for a cell
 -- that has nothing. A reply can have tens of thousands of rows, so all
--- that looks at every row (the layout, the order, the text each row matches
--- the filter by, the rows a filter shows) is done once and kept on a holder
--- the caller gives, what the rows belong to; drawing touches only the
--- rows shown.
+-- that looks at every row (the layout, the order, the text each row
+-- matches the filter by, the rows a filter shows) is done once and kept
+-- on a holder the caller gives, what the rows belong to; drawing touches
+-- only the rows shown.
 --
 -- Click a column's header to sort by it, again to reverse, and once more
 -- for the order the rows came in. The holder keeps the choice, in sort.
@@ -18,8 +18,8 @@
 -- text in lowercase hex (lib/address_key.lua); without one, or for nil,
 -- the cell's text sorts, its runs of digits as numbers. Ascending,
 -- numbers come before text; descending reverses that, though rows
--- without a cell stay last either way. An optional column shows only when some row has a cell
--- in it. The last column shown isn't padded.
+-- without a cell stay last either way. An optional column shows only
+-- when some row has a cell in it. The last column shown isn't padded.
 
 local addircstr <const> = require 'hub.ui.irc_formatting'
 local clicks    <const> = require 'hub.ui.clicks'
