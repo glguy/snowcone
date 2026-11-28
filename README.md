@@ -143,7 +143,7 @@ Some things to know:
 - The detail pane at the top shows one thing in full: click a log line
   marked ▸, a message in a buffer or the console, or a channel name, or
   use `/who`, `/whois`, `/whowas`, `/stats`, `/trace`, `/etrace`,
-  `/masktrace`, `/chantrace`, `/motd`, `/info`, `/serverhelp`, `/lusers`, `/privs`, `/scan`, `/modlist`, `/chaninfo`, `/quote` or `/eval`. It is as tall as its
+  `/masktrace`, `/chantrace`, `/motd`, `/info`, `/serverhelp`, `/lusers`, `/privs`, `/scan`, `/modlist`, `/accept`, `/chaninfo`, `/quote` or `/eval`. It is as tall as its
   content, up to half the screen. The band under it has ✕ to close it
   at the left, ← to go back after a click inside it, its title, and at
   the right DISCARD, which
@@ -153,10 +153,13 @@ Some things to know:
   paging keys and the wheel over it scroll it, and Left and Right scroll
   a wide one (`/quote` replies, `/eval` values, the WHO, STATS, trace,
   MOTD, INFO, HELP, LUSERS, PRIVS, SCAN and MODLIST tables, whose headers stay at the top as their rows scroll). Ctrl-S and `/filter` filter the channel, `/quote`, WHO,
-  WHOWAS, STATS, trace, MOTD, INFO, HELP, LUSERS, PRIVS, SCAN and MODLIST panes instead of the view. A `/quote` reply's
+  WHOWAS, STATS, trace, MOTD, INFO, HELP, LUSERS, PRIVS, SCAN, MODLIST and ACCEPT panes instead of the view. A `/quote` reply's
   `table` (of `table|raw`) shows it as those tables, a column per field, and `raw` goes
   back. Click a column's header in any of these tables to sort by it, again
   to reverse, and once more for the order received.
+- `/accept` shows the nicks that may message you past +g, as the server
+  last sent them, each with [x] to take it off; `/accept nick` and
+  `/accept -nick` add and remove them, then show the list.
 - Meta-P opens the formatting palette.
 
 Plugins are Lua files in `~/.config/snowcone/plugins/`, listed in

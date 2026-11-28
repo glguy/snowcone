@@ -8,6 +8,7 @@
 --   listing.lua   STATS, TRACE, ETRACE, MASKTRACE, CHANTRACE, MOTD, INFO,
 --                 HELP, LUSERS, PRIVS, SCAN, LIST (its filters in
 --                 list.lua), and MODLIST for the admin feature
+--   accept.lua    ACCEPT's list, after each change to it too
 --
 -- and FINDFORWARDS, which the server answers with a notice that shows as
 -- any other.
@@ -22,11 +23,13 @@
 -- loaded; any feature may require these modules, and they require no
 -- feature's.
 
+local accept    <const> = require 'hub.features.queries.accept'
 local common    <const> = require 'hub.features.common'
 local irc_model <const> = require 'hub.net.irc'
 local ircd      <const> = require 'hub.net.ircd'
 local list      <const> = require 'hub.features.queries.list'
 local listing   <const> = require 'hub.features.queries.listing'
+local log       <const> = require 'hub.runtime.log'
 local send      <const> = require 'hub.net.send'
 local task      <const> = require 'hub.runtime.task'
 local who       <const> = require 'hub.features.queries.who'
@@ -53,6 +56,19 @@ end
 local function command(name, spec, usage, help, fn, complete)
     return {name = name, spec = spec, usage = usage, scope = 'net', group = M.name, help = help, fn = fn,
         complete = complete}
+end
+
+--- Change the accept list, each word a nick to add or -nick to take off,
+--- then show it as it is, in the detail pane. Not connected, it logs so.
+---@param net string
+---@param words string[] none only shows it
+function M.accept(net, words)
+    local rec = HUB.state.nets[net]
+    if not (rec and rec.phase == 'connected') then
+        return log.add_net(net, accept.name, '%s is not connected', net)
+    end
+    if words[1] then send.send(net, 'ACCEPT', table.concat(words, ',')) end
+    accept.fetch(net)
 end
 
 --- WHOIS a nick, on its server (with idle time) if `remote`; the reply
@@ -185,7 +201,10 @@ local function list_command()
 end
 
 function M.subscribe(sub)
-    sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
+    sub.on('net.removed', function(ev)
+        common.drop_state(M.name, ev.net)
+        accept.drop(ev.net)
+    end)
 end
 
 -- Tab on a command's lone argument, a server or nick: the servers
@@ -293,6 +312,17 @@ M.commands = {
         if before:find '%S' then return {} end
         if seed:sub(1, 1) ~= '-' then return nil end
         return common.starting(etrace_options, seed)
+    end),
+    command('accept', '$R', '[[-]nick...]',
+        'Let nicks message us past +g (caller ID), or with - no longer, then show the list; with none, show it',
+    function(ctx, rest)
+        local words = {}
+        for word in rest:gmatch '%S+' do
+            -- the server reads a , as between nicks and a * first as the list
+            if not word:match '^%-?[^,*-][^,*]*$' then error('not a nick or -nick: ' .. word, 0) end
+            table.insert(words, word)
+        end
+        M.accept(ctx.net, words)
     end),
 }
 

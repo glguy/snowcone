@@ -215,7 +215,7 @@ Each `[[networks]]` entry is one network that hub keeps a connection to. There c
 
 ### Features
 
-`features` lists what hub does on a network beyond keeping the connection and answering queries: `/who`, `/whois`, `/wii`, `/whowas`, `/stats`, `/trace`, `/etrace`, `/masktrace`, `/chantrace`, `/motd`, `/info`, `/serverhelp`, `/lusers`, `/privs`, `/scan`, `/list` and `/findforwards` work on every network. Leave it out to enable everything. Name only what you want, for example `features = ['chat']` for a network where you only chat.
+`features` lists what hub does on a network beyond keeping the connection and answering queries: `/who`, `/whois`, `/wii`, `/whowas`, `/stats`, `/trace`, `/etrace`, `/masktrace`, `/chantrace`, `/motd`, `/info`, `/serverhelp`, `/lusers`, `/privs`, `/scan`, `/list`, `/findforwards` and `/accept` work on every network. Leave it out to enable everything. Name only what you want, for example `features = ['chat']` for a network where you only chat.
 
 | Feature | Requires | What it does |
 |---|---|---|

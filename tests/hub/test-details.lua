@@ -572,6 +572,57 @@ T.case('a MODLIST opens as a table of modules, the version and description apart
     T.ok(text:find('ip_cloaking extension -    1.0     Cloaks hosts  0x7f0000002000', 1, true), 'not core is -')
 end)
 
+T.case('the accept list shows a nick a row, each with [x] to take it off', function()
+    local c = boot()
+    local control = T.require 'hub.ui.control'
+    local cmdline = T.require 'hub.ui.cmdline'
+    local entry = HUB.current.routes['ui.entry']
+    c:take()
+    cmdline.execute 'accept'
+    T.eq(c:take(), {'ACCEPT *'}, 'sent')
+    c:recv ':srv 281 me alice bob '
+    c:recv ':srv 282 me :End of /ACCEPT list.'
+    T.eq(control.detail().kind, 'accept', 'shown')
+    local text = detail_text()
+    T.ok(text:find('2 nicks, as of', 1, true), 'how many, and how old')
+    T.ok(text:find('%[x%] alice') and text:find('%[x%] bob'), 'each with [x]')
+
+    control.set_filter('detail', 'al')
+    text = detail_text()
+    T.ok(text:find('[x] alice', 1, true) and not text:find('[x] bob', 1, true), 'filtered')
+    T.ok(text:find('1 of 2 nicks match', 1, true), 'counted')
+    control.set_filter('detail', nil)
+
+    HUB.current.routes['ui.draw']()
+    local rows = rows_of(detail_pad())
+    local clicked = false
+    for y = 0, #rows do
+        local x = rows[y]:find('[x] bob', 1, true)
+        if x then
+            entry('on_mouse', y, utf8.len(rows[y], 1, x), false)
+            clicked = true
+        end
+    end
+    T.ok(clicked, "bob's [x] drawn")
+    T.eq(c:take(), {'ACCEPT -bob', 'ACCEPT *'}, 'taken off, then asked for again')
+    c:recv ':srv 281 me alice '
+    c:recv ':srv 282 me :End of /ACCEPT list.'
+    text = detail_text()
+    T.ok(text:find('[x] alice', 1, true) and not text:find('bob', 1, true), 'the list as it is now')
+
+    -- not connected, a click says so
+    T.require 'hub.net.manager'.disconnect 'test'
+    HUB.current.routes['ui.draw']()
+    rows = rows_of(detail_pad())
+    for y = 0, #rows do
+        local x = rows[y]:find('[x] alice', 1, true)
+        if x then entry('on_mouse', y, utf8.len(rows[y], 1, x), false) end
+    end
+    local lines = T.log_lines 'accept'
+    T.eq(lines[#lines], 'test is not connected', 'logged')
+    T.eq(T.log_lines 'error', {}, 'drawn, and nothing raised')
+end)
+
 T.case('PRIVS shows a privilege a row, and LUSERS a table per reply', function()
     local c = boot()
     local control = T.require 'hub.ui.control'

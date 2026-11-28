@@ -38,6 +38,7 @@ local M = {}
 ---@type table<string, table>
 M.kinds = {}
 for _, m in ipairs {
+    require 'hub.ui.details.accept',
     require 'hub.ui.details.channel',
     require 'hub.ui.details.error',
     require 'hub.ui.details.format',

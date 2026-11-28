@@ -743,6 +743,79 @@ T.case('the admin feature sends the server commands as Solanum reads them', func
     T.ok(T.log_lines 'error'[1]:find('not a REHASH option: nonsense (BANS,', 1, true), 'naming the options')
 end)
 
+T.case('/accept shows the accept list, and changes it then shows it', function()
+    local events
+    local function listen()
+        events = {}
+        T.require 'hub.runtime.bus'.on(HUB.current.bus, 'query.accept', 'test',
+            function(ev) table.insert(events, ev) end)
+    end
+    local c = boot {}
+    listen()
+
+    T.command 'accept'
+    T.eq(c:take(), {'ACCEPT *'}, 'with none, the list')
+    -- Solanum: a nick an argument, the last with a space after
+    c:recv ':srv 281 me alice bob '
+    c:recv ':srv 281 me carol'
+    c:recv ':srv 282 me :End of /ACCEPT list.'
+    T.eq(events[1].accept.nicks, {'alice', 'bob', 'carol'}, 'every nick')
+    T.eq(T.log_lines 'accept', {'accept list: 3 nicks'}, 'logged as a line that opens it')
+
+    T.command 'accept dave -bob'
+    T.eq(c:take(), {'ACCEPT dave,-bob', 'ACCEPT *'}, 'changes in one ACCEPT, then the list')
+    c:recv ':srv 282 me :End of /ACCEPT list.'
+    T.eq(events[2].accept.nicks, {}, 'an empty list')
+
+    T.command 'accept a,b'
+    T.command 'accept *'
+    T.command 'accept --x'
+    T.eq(c:take(), {}, 'what the server would read otherwise goes nowhere')
+    T.eq(next(HUB.tasks), nil, 'finished')
+
+    -- without labels, one fetch at a time: one asked for meanwhile follows
+    T.command 'accept -alice'
+    T.command 'accept -bob'
+    T.eq(c:take(), {'ACCEPT -alice', 'ACCEPT *', 'ACCEPT -bob'}, 'the second fetch waits')
+    c:recv ':srv 281 me bob carol '
+    c:recv ':srv 282 me :End of /ACCEPT list.'
+    T.eq(events[3].accept.nicks, {'bob', 'carol'}, 'the first list')
+    T.eq(c:take(), {'ACCEPT *'}, 'then the second fetch')
+    c:recv ':srv 281 me carol '
+    c:recv ':srv 282 me :End of /ACCEPT list.'
+    T.eq({#events, events[4].accept.nicks}, {4, {'carol'}}, 'the list as it is now')
+    T.eq(next(HUB.tasks), nil, 'one task, finished')
+
+    -- OFTC hybrid: the nicks in the last argument
+    c = boot({}, false, 'oftc-hybrid')
+    listen()
+    T.command 'accept'
+    c:take()
+    c:recv ':srv 281 me :alice bob'
+    c:recv ':srv 282 me :End of /ACCEPT list.'
+    T.eq(events[1].accept.nicks, {'alice', 'bob'}, "hybrid's list")
+
+    -- a server without ACCEPT
+    T.command 'accept'
+    c:take()
+    c:recv ':srv 421 me ACCEPT :Unknown command'
+    T.eq(T.log_lines 'accept'[#T.log_lines 'accept'], 'ACCEPT: Unknown command', 'refused')
+    T.eq(next(HUB.tasks), nil, 'and done')
+
+    -- with labeled-response, the list comes in the reply's batch
+    c = boot({}, true)
+    listen()
+    T.command 'accept'
+    local line = c:take()[1]
+    local label = line:match '^@label=([^ ;]+) ACCEPT %*$'
+    T.ok(label, line)
+    c:recv('@label=' .. label .. ' :srv BATCH +b labeled-response')
+    c:recv '@batch=b :srv 281 me alice '
+    c:recv '@batch=b :srv 282 me :End of /ACCEPT list.'
+    c:recv ':srv BATCH -b'
+    T.eq(events[1].accept.nicks, {'alice'}, 'the labeled list')
+end)
+
 T.case('LUSERS, PRIVS and SCAN gather as listings, and FINDFORWARDS is sent', function()
     local c = boot {}
     local events = {}
