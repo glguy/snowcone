@@ -31,11 +31,7 @@ end
 ---@param net string
 ---@return hub.ChatState
 function M.get(net)
-    local C = common.net_state(M.name, net, new_state)
-    -- added after state from earlier code
-    C.pending = C.pending or {}
-    C.closing = C.closing or {}
-    return C
+    return common.net_state(M.name, net, new_state)
 end
 
 ---@class hub.ChatBuffer
@@ -45,8 +41,8 @@ end
 ---@field mention boolean
 ---@field first_unseen hub.Message|nil the message that made it unseen:
 --- the first to count as activity or a mention since it was last seen
----@field typing table<string, hub.ChatTyping>|nil by folded nick; nil in
---- buffers from before typing was tracked (chat/typing.lua)
+---@field typing table<string, hub.ChatTyping>|nil by folded nick; nil
+--- while nobody is typing there (chat/typing.lua)
 ---@field hide table<hub.Message, hub.HideDecision|false>|nil how each
 --- message was classified (chat/hide.lua), weak-keyed; nil until one is
 
@@ -66,13 +62,11 @@ function M.model(net)
 end
 
 --- A buffer named for a server, which sends WALLOPS and messages to
---- broadcast masks; such a buffer has no history, typing or MONITOR. A
---- buffer from before, named *wallops, is one too.
+--- broadcast masks; such a buffer has no history, typing or MONITOR.
 ---@param net string
 ---@param name string
 ---@return boolean
 function M.is_server(net, name)
-    if name:sub(1, 1) == '*' then return true end
     local rec = HUB.state.nets[net]
     local irc = rec and rec.irc
     local channel = irc and irc_model.is_channel_name(irc, name) or not irc and name:find '^[#&]'
