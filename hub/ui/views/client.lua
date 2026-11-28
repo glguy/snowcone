@@ -72,7 +72,7 @@ local function store_rows()
 
     local S = HUB.state
     local muted = 0
-    for _, m in pairs(S.features.notify and S.features.notify.muted or {}) do muted = muted + count(m) end
+    for _, m in pairs(S.features.notify.muted) do muted = muted + count(m) end
     row('-', 'client', 'status log', ring(S.log), 'all consoles', ring(S.console_all),
         'plugins', count(S.features.plugins), 'notified buffers', muted)
 
