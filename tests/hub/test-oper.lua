@@ -53,6 +53,9 @@ T.case('/oper logs in with a named credential, or the automatic ones', function(
     c:recv ':srv 376 me :End of MOTD'
     c:take()
 
+    T.eq(T.complete_args('oper ', ''), {'other', 'password'}, 'Tab offers them by name')
+    T.eq(T.complete_args('oper other ', ''), {}, 'and one only')
+
     T.command 'oper other'
     T.eq(c:take(), {'OPER second p2'}, 'by name')
     c:recv ':srv 464 me :Password incorrect'
@@ -1105,6 +1108,70 @@ T.case('LIST lists its channels to the end, one at a time, and fails on refusals
     c:recv ':srv 521 me :Bad list syntax, type /QUOTE HELP LIST'
     T.eq(last 'list', 'LIST >1: Bad list syntax, type /QUOTE HELP LIST', 'bad syntax ends it')
     T.eq(next(HUB.tasks), nil, 'finished')
+end)
+
+T.case('Tab offers servers, tags and the admin commands\' keywords', function()
+    local c = boot()
+    local servers = {'alpha.example', 'beta.example', 'hub.example'}
+    T.eq(T.complete_args('serverdie ', ''), servers, "the servers file's servers")
+    c:recv ':srv 015 me :new.example[01X] ---- | Users: 5'
+    c:recv ':srv 017 me :End of /MAP'
+    T.eq(T.complete_args('lusers ', 'n'), {'new.example'}, "and MAP's")
+    c:recv ':srv 364 me linked.example hub.example :1 Linked'
+    c:recv ':srv 365 me * :End of /LINKS list.'
+    T.eq(T.complete_args('lusers ', 'l'), {'linked.example'}, "and LINKS's")
+    T.eq(T.complete_args('stats ', ''), {}, 'nothing for a STATS letter')
+    T.eq(T.complete_args('stats k ', 'a'), {'alpha.example'}, 'the server after it')
+    T.eq(T.complete_args('trace ', 'A'), {'alpha.example'}, 'a target, in any case')
+    T.eq(T.complete_args('trace ', 'bob'), nil, 'else the default, for a nick')
+    T.eq(T.complete_args('etrace ', '-v'), {'-v4', '-v6'}, "ETRACE's options")
+    T.eq(T.complete_args('etrace ', 'b'), nil, 'or a nick')
+    T.eq(T.complete_args('modunload m_foo ', 'b'), {'beta.example'}, 'a module command\'s server')
+    T.eq(T.complete_args('serverconnect alpha.example 0 ', 'h'), {'hub.example'}, 'the server to connect from')
+    T.eq(T.complete_args('serverconnect alpha.example ', 'h'), {'hub.example'}, 'or in place of the port')
+    T.eq(T.complete_args('serverconnect alpha.example hub.example ', ''), {}, 'but nothing after that')
+    T.eq(T.complete_args('serverquit alpha.example ', 'b'), nil, 'the reason is the default\'s')
+    T.eq(T.complete_args('serverrehash ', 'B'), {'BANS', 'beta.example'}, 'REHASH options and servers')
+    T.eq(T.complete_args('serverrehash MOTD ', 'h'), {'hub.example'}, 'the server after an option')
+    T.eq(T.complete_args('serverrehash hub.example ', ''), {}, 'nothing after a server')
+    T.eq(T.complete_args('shedding alpha.example ', 'o'), {'OFF'}, 'OFF for a rate')
+    T.eq(T.complete_args('shedding alpha.example 60 ', 'b'), nil, 'the reason is the default\'s')
+    T.eq(T.complete_args('shedding alpha.example off ', ''), {}, 'but OFF takes none')
+    T.eq(T.complete_args('grant bob ', 'd'), {'deoper'}, 'deoper for a privilege set')
+    T.eq(T.complete_args('grant ', 'b'), nil, 'the nick is the default\'s')
+    T.eq(T.complete_args('grant bob deoper ', ''), {}, 'nothing after the set')
+    T.eq(T.complete_args('tag ', ''), {'tagged'}, "the servers file's tags")
+    T.command 'tag mine'
+    T.eq(T.complete_args('tag ', ''), {'mine', 'tagged'}, 'and those added')
+    T.eq(T.complete_args('unkline *@bad.example ON ', 'a'), {'alpha.example'}, 'a server after ON')
+    T.eq(T.complete_args('resv 1d #bad on ', 'h'), {'hub.example'}, 'ON in any case, after a duration')
+    T.eq(T.complete_args('dline 1.2.3.4 ON ', 'b'), {'beta.example'}, 'with an optional reason too')
+    T.eq(T.complete_args('unkline ON ', ''), nil, 'an ON that is the target is not one')
+    T.eq(T.complete_args('resv #bad ', 'O'), nil, 'the reason is the default\'s')
+    T.eq(T.complete_args('xline bad ON alpha.example ', ''), nil, 'past the server too')
+end)
+
+T.case('Tab offers the servers MAP showed only while the topology feature runs', function()
+    local c = boot()
+    c:recv ':srv 015 me :new.example[01X] ---- | Users: 5'
+    c:recv ':srv 017 me :End of /MAP'
+    T.eq(T.complete_args('lusers ', 'n'), {'new.example'}, "MAP's")
+    T.ok(T.reload {config = {networks = {{
+        id = 'test',
+        server = {host = 'test.example', port = 6667},
+        identity = {nick = 'me'},
+        servers_file = path.abspath(here .. '/fixtures/servers.toml'),
+        features = {'snotice', 'oper', 'admin'},
+    }}}})
+    T.eq(T.complete_args('lusers ', 'n'), {}, 'not after a reload turns it off')
+    T.eq(T.complete_args('lusers ', 'a'), {'alpha.example'}, "but the servers file's")
+end)
+
+T.case('on OFTC hybrid, Tab offers only what hybrid takes', function()
+    boot(nil, false, 'oftc-hybrid')
+    T.eq(T.complete_args('serverrehash ', ''), {'DNS', 'FDLIMIT', 'MOTD', 'OMOTD'}, "hybrid's options, no servers")
+    T.eq(T.complete_args('serverrehash MOTD ', ''), {}, 'and no server after one')
+    T.eq(T.complete_args('serverdie ', ''), {}, 'DIE and RESTART stop only ours')
 end)
 
 T.run()

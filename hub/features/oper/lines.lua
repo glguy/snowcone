@@ -258,6 +258,13 @@ local function shaper(g)
     end
 end
 
+-- Tab after ON offers servers; elsewhere, the default
+local function completer(g)
+    return function(ctx, before, seed)
+        if parse(ctx.net, g, before).on_alone then return common.complete_server(ctx.net, seed) end
+    end
+end
+
 local oper_command <const> = common.net_command('oper')
 
 ---@param name string
@@ -277,7 +284,7 @@ local function line_command(name, usage, help, g)
         end
         if p.reason then table.insert(args, p.reason) end
         send.send(ctx.net, g.command, table.unpack(args))
-    end)
+    end, completer(g))
     cmd.shape = shaper(g)
     return cmd
 end

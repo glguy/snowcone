@@ -6,6 +6,7 @@
 
 local chat      <const> = require 'hub.features.chat'
 local clicks    <const> = require 'hub.ui.clicks'
+local common    <const> = require 'hub.features.common'
 local control   <const> = require 'hub.ui.control'
 local details   <const> = require 'hub.ui.details'
 local draw      <const> = require 'hub.ui.draw'
@@ -357,6 +358,11 @@ M.commands = {
             HUB.state.ui.profile = name
             dispatch.dirty()
         end,
+        complete = common.one_of(function()
+            local names = {}
+            for name in pairs(control.profiles) do table.insert(names, name) end
+            return names
+        end),
     },
     {
         name = 'net',
@@ -367,6 +373,11 @@ M.commands = {
         fn = function(_, id)
             control.set_current_net(id)
         end,
+        complete = common.one_of(function()
+            local ids = {}
+            for id in pairs(HUB.state.nets) do table.insert(ids, id) end
+            return ids
+        end),
     },
 }
 

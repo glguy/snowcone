@@ -46,11 +46,11 @@ local admin_command <const> = common.net_command(M.name)
 
 -- A command Solanum has and hybrid doesn't, refused on hybrid with a hint
 local function solanum_command(hint)
-    return function(name, spec, usage, help, fn)
+    return function(name, spec, usage, help, fn, complete)
         return admin_command(name, spec, usage, help, function(ctx, ...)
             if ircd.hybrid(ctx.net) then error('OFTC hybrid has no ' .. name:upper() .. hint, 0) end
             return fn(ctx, ...)
-        end)
+        end, complete)
     end
 end
 
@@ -84,8 +84,20 @@ local function is_option(net, word)
     return false
 end
 
+-- Tab offers the options and servers, and a server after an option;
+-- on hybrid, which rehashes only ours, just the options
+local function complete_rehash(ctx, before, seed)
+    local n = common.words_before(before)
+    local servers = ircd.hybrid(ctx.net) and {} or common.complete_server(ctx.net, seed)
+    if n == 1 and is_option(ctx.net, before:match '%S+') then return servers end
+    if n > 0 then return {} end
+    local t = common.starting(options_of(ctx.net), seed)
+    table.move(servers, 1, #servers, #t + 1, t)
+    return t
+end
+
 local function rehash_command()
-    local cmd = admin_command('serverrehash', '$R', '[option] [server]',
+    return admin_command('serverrehash', '$R', '[option] [server]',
         'REHASH the config, or what an option names (BANS, MOTD, TKLINES ...), on a server or a mask of them',
     function(ctx, rest)
         local words = words_of(rest)
@@ -101,22 +113,14 @@ local function rehash_command()
         if option then table.insert(args, option:upper()) end
         if server then table.insert(args, server) end
         send.send(ctx.net, 'REHASH', table.unpack(args))
-    end)
-    function cmd.complete(ctx, before, seed)
-        if before:find '%S' then return nil end
-        local t = {}
-        for _, option in ipairs(options_of(ctx.net)) do
-            if option:sub(1, #seed) == seed:upper() then table.insert(t, option) end
-        end
-        return t
-    end
-    return cmd
+    end, complete_rehash)
 end
 
 -- DIE or RESTART a server, named in full; Solanum takes a remote one as
 -- the name to check and the server to send it to, which works for ours
 -- too
 local function stop_command(name, command, help)
+    local servers <const> = common.server_at(0)
     return admin_command(name, '$a', 'server', help, function(ctx, server)
         if server:find '[*?]' then error(command .. ' names one server in full: ' .. server, 0) end
         if ircd.hybrid(ctx.net) then
@@ -124,6 +128,10 @@ local function stop_command(name, command, help)
         else
             send.send(ctx.net, command, server, server)
         end
+    end, function(ctx, before, seed)
+        -- hybrid stops only ours, whose name we don't know
+        if ircd.hybrid(ctx.net) then return {} end
+        return servers(ctx, before, seed)
     end)
 end
 
@@ -143,7 +151,7 @@ local function on_module(name, usage, help)
         else
             send.send(ctx.net, command, module)
         end
-    end)
+    end, common.server_at(1))
 end
 
 M.commands = {
@@ -155,7 +163,7 @@ M.commands = {
         if extra and extra ~= '' then error('a pattern and a server: ' .. rest, 0) end
         if server and server:find '[*?]' then error('MODLIST asks one server, named in full: ' .. server, 0) end
         task.spawn('modlist', {net = ctx.net, owner = M.name}, listing.modlist, pattern, server)
-    end),
+    end, common.server_at(1)),
     on_module('modload', '[path/]module [server]', 'MODLOAD a module, on a server or a mask of them'),
     on_module('modunload', 'module [server]', 'MODUNLOAD a module, on a server or a mask of them'),
     on_module('modreload', 'module [server]', 'MODRELOAD a module, on a server or a mask of them'),
@@ -168,7 +176,7 @@ M.commands = {
         else
             send.send(ctx.net, 'MODRESTART')
         end
-    end),
+    end, common.server_at(0)),
     admin_command('serverconnect', '$a $R', 'server [port] [from]',
         'CONNECT a server to ours, or to the server from; port 0 or none is its connect block\'s',
     function(ctx, server, rest)
@@ -185,6 +193,14 @@ M.commands = {
         if port then table.insert(args, port) end
         if from then table.insert(args, from) end
         send.send(ctx.net, 'CONNECT', table.unpack(args))
+    end, function(ctx, before, seed)
+        -- the server, then the one to connect from in place of a port or
+        -- after one; a port has no candidates of its own
+        local words = words_of(before)
+        if #words < 2 or #words == 2 and math.tointeger(tonumber(words[2])) then
+            return common.complete_server(ctx.net, seed)
+        end
+        return {}
     end),
     admin_command('serverquit', '$a $T', 'server [reason]', 'SQUIT a server off the network, with a reason',
     function(ctx, server, reason)
@@ -193,18 +209,20 @@ M.commands = {
         else
             send.send(ctx.net, 'SQUIT', server)
         end
-    end),
+    end, common.server_at(0, true)),
     rehash_command(),
     stop_command('serverdie', 'DIE', 'DIE: shut a server down, named in full'),
     stop_command('serverrestart', 'RESTART', 'RESTART a server, named in full'),
+    -- Tab offers deoper for the privilege set; the others are the
+    -- server's configuration
     extension_command('grant', '$a $a', 'nick privset|deoper',
         "GRANT: oper a nick with a privilege set, change its set, or deoper it",
     function(ctx, nick, privset)
         send.send(ctx.net, 'GRANT', nick, privset)
-    end),
+    end, common.default_first {'deoper'}),
     extension_command('dehelper', '$a', 'nick', 'DEHELPER: take helper status (+h) from a nick', function(ctx, nick)
         send.send(ctx.net, 'DEHELPER', nick)
-    end),
+    end, common.default_first()),
     extension_command('shedding', '$a $a $T', 'server rate|OFF [reason]',
         'SHEDDING: disconnect a user from a server every rate seconds, for a reason, until OFF',
     function(ctx, server, rate, reason)
@@ -219,6 +237,13 @@ M.commands = {
         end
         if reason == '' then error('shedding takes a reason', 0) end
         send.send(ctx.net, 'SHEDDING', server, rate, reason)
+    end, function(ctx, before, seed)
+        local n = common.words_before(before)
+        if n == 0 then return common.complete_server(ctx.net, seed) end
+        if n == 1 then return common.starting({'OFF'}, seed) end
+        -- OFF takes no reason
+        if words_of(before)[2]:upper() == 'OFF' then return {} end
+        return nil
     end),
 }
 

@@ -1629,6 +1629,30 @@ T.case('Tab after mode offers what fits the argument', function()
     T.eq(T.complete_args('mode -b ', '', nil, '#chan'), {'*!*@bad.example'}, 'its masks')
 end)
 
+T.case('Tab after op and voice offers the members they would change', function()
+    local c = boot()
+    c:recv ':srv 005 me PREFIX=(ov)@+ CHANMODES=bq,k,l,imnst :are supported'
+    c:recv ':me!u@h JOIN #chan'
+    c:recv ':srv 353 me = #chan :@me @alice +bob carol'
+    c:take()
+    local function sorted(t) table.sort(t) return t end
+    T.eq(sorted(T.complete_args('op ', '', nil, '#chan')), {'bob', 'carol'}, 'op: the unopped')
+    T.eq(sorted(T.complete_args('deop ', '', nil, '#chan')), {'alice', 'me'}, 'deop: the opped')
+    T.eq(T.complete_args('deop me ', '', nil, '#chan'), {'alice'}, 'but for those named')
+    T.eq(T.complete_args('deop ALICE ', '', nil, '#chan'), {'me'}, 'named in any case')
+    T.eq(T.complete_args('devoice ', '', nil, '#chan'), {'bob'}, 'devoice: the voiced')
+    T.eq(T.complete_args('voice ', 'b', nil, '#chan'), {}, 'voice: not them')
+    T.eq(T.complete_args('op ', 'b'), nil, 'no channel shown: the default')
+end)
+
+T.case('Tab after ctcp offers the common requests', function()
+    boot()
+    T.eq(T.complete_args('ctcp ', 'b'), nil, 'the target is the default\'s')
+    T.eq(T.complete_args('ctcp bob ', 'v'), {'VERSION'}, 'a request, in any case')
+    T.eq(T.complete_args('ctcp bob PING ', ''), {}, 'nothing after it')
+    T.eq(T.complete_args('ctcp #chan ', 'p'), {'PING'}, 'to a channel too')
+end)
+
 T.case('Tab after unban offers the ban list, fetching it first', function()
     local c = boot()
     local control = T.require 'hub.ui.control'
@@ -1669,9 +1693,22 @@ T.case('Tab after close offers buffers, and after sasl credentials', function()
     local function sorted(t) table.sort(t) return t end
     T.eq(sorted(T.complete_args('close ', '#')), {'#chan', '#other'}, 'channels')
     T.eq(T.complete_args('close ', 'b'), {'bob'}, 'queries')
-    T.eq(T.complete_args('close #chan ', ''), nil, 'one target')
+    T.eq(T.complete_args('close #chan ', ''), {}, 'one target')
     T.eq(sorted(T.complete_args('sasl ', '')), {'EXTERNAL', 'main'}, 'credentials by name')
     T.eq(T.complete_args('sasl ', 'm'), {'main'}, 'matching')
+    T.eq(T.complete_args('sasl ', 'ext'), {'EXTERNAL'}, 'in any case')
+    T.eq(T.complete_args('sasl main ', ''), {}, 'one credential')
+end)
+
+T.case('Tab on a nick or channel argument gives the default, and nothing past it', function()
+    boot()
+    T.eq(T.complete_args('whois ', 'b'), nil, 'the default for the nick')
+    T.eq(T.complete_args('whois bob ', ''), {}, 'one nick')
+    T.eq(T.complete_args('ban bob ', '', nil, '#chan'), {}, 'one mask or nick')
+    T.eq(T.complete_args('unban bob ', '', nil, '#chan'), {}, 'one to unset')
+    T.eq(T.complete_args('whowas bob ', ''), {}, 'nothing for a count')
+    T.eq(T.complete_args('kick bob ', ''), nil, 'but a reason is the default\'s')
+    T.eq(T.complete_args('serverhelp ', 'b'), {}, 'and a help topic has none')
 end)
 
 -- Tab and Shift-Tab on a line in talk mode, on the shown buffer #chan

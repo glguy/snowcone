@@ -6,6 +6,7 @@
 
 local OrderedMap <const> = require 'hub.lib.OrderedMap'
 local bus      <const> = require 'hub.runtime.bus'
+local common   <const> = require 'hub.features.common'
 local config   <const> = require 'hub.runtime.config'
 local dispatch <const> = require 'hub.runtime.dispatch'
 local log      <const> = require 'hub.runtime.log'
@@ -86,6 +87,18 @@ local function quote_shape(_, rest, slot)
         ghosts = {params}
     end
     return {words = words, ghosts = ghosts or {}}
+end
+
+-- Tab on /oper's or /sasl's credential: the network's, by name
+local function credential_names(kind)
+    return common.one_of(function(ctx)
+        local cfg = HUB.state.nets[ctx.net].cfg[kind]
+        local names = {}
+        for _, credential in ipairs(cfg and cfg.credentials or {}) do
+            table.insert(names, credential.name or credential.mechanism)
+        end
+        return names
+    end)
 end
 
 M.commands = {
@@ -246,17 +259,7 @@ M.commands = {
             local credentials = config.pick_credentials(HUB.state.nets[ctx.net].cfg.oper, name)
             task.spawn('oper', {net = ctx.net, owner = 'commands'}, oper.first, credentials)
         end,
-        -- the network's credentials, by name
-        complete = function(ctx, before, seed)
-            if before ~= '' then return nil end
-            local oper_cfg = HUB.state.nets[ctx.net].cfg.oper
-            local t = {}
-            for _, credential in ipairs(oper_cfg and oper_cfg.credentials or {}) do
-                local name = credential.name or credential.mechanism
-                if name:sub(1, #seed) == seed then table.insert(t, name) end
-            end
-            return t
-        end,
+        complete = credential_names 'oper',
     },
     {
         name = 'sasl',
@@ -279,17 +282,7 @@ M.commands = {
                 task.spawn('sasl', opts, sasl.first, credentials)
             end
         end,
-        -- the network's credentials, by name
-        complete = function(ctx, before, seed)
-            if before ~= '' then return nil end
-            local sasl_cfg = HUB.state.nets[ctx.net].cfg.sasl
-            local t = {}
-            for _, credential in ipairs(sasl_cfg and sasl_cfg.credentials or {}) do
-                local name = credential.name or credential.mechanism
-                if name:sub(1, #seed) == seed then table.insert(t, name) end
-            end
-            return t
-        end,
+        complete = credential_names 'sasl',
     },
     {
         name = 'dump',

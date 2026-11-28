@@ -43,8 +43,16 @@ local function model(net)
 end
 
 -- A command on a network, whatever its features
-local function command(name, spec, usage, help, fn)
-    return {name = name, spec = spec, usage = usage, scope = 'net', group = M.name, help = help, fn = fn}
+---@param name string
+---@param spec string
+---@param usage string|nil
+---@param help string
+---@param fn function
+---@param complete hub.Complete|nil
+---@return table
+local function command(name, spec, usage, help, fn, complete)
+    return {name = name, spec = spec, usage = usage, scope = 'net', group = M.name, help = help, fn = fn,
+        complete = complete}
 end
 
 --- WHOIS a nick, on its server (with idle time) if `remote`; the reply
@@ -56,8 +64,42 @@ function M.whois(net, nick, remote)
     task.spawn('whois', {net = net, owner = M.name}, whois, nick, remote or false)
 end
 
+-- Tab on the options offers formats for what a WHO is mostly for:
+-- every field (bar the token and oplevel), who's who and addresses;
+-- and o, alone or with every field, for operators only. The address is asked for only while
+-- we're opered, as the server hides it from the rest, and the
+-- channel not for a channel's WHO, as it would be the same on every
+-- row. A server without WHOX takes o only after the mask 0.
+local function complete_who(ctx, before, seed)
+    local words = {}
+    for word in before:gmatch '[^ ]+' do table.insert(words, word) end
+    if #words == 0 then return nil end -- the mask: nicks and channels
+    if #words > 1 then return {} end
+    local irc = model(ctx.net)
+    if not irc then return {} end
+    local mask = words[1]
+    local offered
+    if not irc.isupport.WHOX then
+        offered = mask == '0' and {'o'} or {}
+    else
+        local channel = irc_model.is_channel_name(irc, mask:match '^!(.+)$' or mask)
+        local function format(letters)
+            if channel then letters = letters:gsub('c', '') end
+            if not irc.mode.o then letters = letters:gsub('i', '') end
+            return '%' .. letters
+        end
+        local all = format 'cuihsnfdlar'
+        offered = {all, format 'cnfar', format 'nuihar', 'o', 'o' .. all}
+    end
+    local t = {}
+    for _, option in ipairs(offered) do
+        if option:sub(1, #seed) == seed then table.insert(t, option) end
+    end
+    return t
+end
+
 local function who_command()
-    local cmd = command('who', '$a $R', 'mask [options]',
+    return command('who', '$a $R', 'mask [options]',
         'WHO a channel, nick or mask; options are o for operators only, then a WHOX %format',
     function(ctx, mask, options)
         if options:find ' ' then error('options are one word: ' .. options, 0) end
@@ -73,49 +115,21 @@ local function who_command()
             end
         end
         task.spawn('who', {net = ctx.net, owner = M.name}, who.run, mask, options ~= '' and options or nil)
-    end)
-
-    -- Tab on the options offers formats for what a WHO is mostly for:
-    -- every field (bar the token and oplevel), who's who and addresses;
-    -- and o, alone or with every field, for operators only. The address is asked for only while
-    -- we're opered, as the server hides it from the rest, and the
-    -- channel not for a channel's WHO, as it would be the same on every
-    -- row. A server without WHOX takes o only after the mask 0.
-    function cmd.complete(ctx, before, seed)
-        local words = {}
-        for word in before:gmatch '[^ ]+' do table.insert(words, word) end
-        if #words == 0 then return nil end -- the mask: nicks and channels
-        if #words > 1 then return {} end
-        local irc = model(ctx.net)
-        if not irc then return {} end
-        local mask = words[1]
-        local offered
-        if not irc.isupport.WHOX then
-            offered = mask == '0' and {'o'} or {}
-        else
-            local channel = irc_model.is_channel_name(irc, mask:match '^!(.+)$' or mask)
-            local function format(letters)
-                if channel then letters = letters:gsub('c', '') end
-                if not irc.mode.o then letters = letters:gsub('i', '') end
-                return '%' .. letters
-            end
-            local all = format 'cuihsnfdlar'
-            offered = {all, format 'cnfar', format 'nuihar', 'o', 'o' .. all}
-        end
-        local t = {}
-        for _, option in ipairs(offered) do
-            if option:sub(1, #seed) == seed then table.insert(t, option) end
-        end
-        return t
-    end
-    return cmd
+    end, complete_who)
 end
 
 -- SCAN's options, as Solanum reads them, each true when it takes a value
 local scan_options <const> = {['no-list'] = false, list = false, global = false, ['list-max'] = true, mask = true}
 
+local function complete_scan(_, before, seed)
+    if not before:find '%S' then return {} end
+    local options = {}
+    for option in pairs(scan_options) do table.insert(options, option) end
+    return common.starting(options, seed)
+end
+
 local function scan_command()
-    local cmd = command('scan', '$a $R', '+modes[-modes] [option...]',
+    return command('scan', '$a $R', '+modes[-modes] [option...]',
         'SCAN UMODES: the users with modes and without others, shown as a table; options are no-list, '
             .. 'global (operspy, with a list), list-max n and mask nick!user@host',
     function(ctx, modes, rest)
@@ -142,17 +156,7 @@ local function scan_command()
             i = i + 1
         end
         task.spawn('scan', {net = ctx.net, owner = M.name}, listing.scan, args)
-    end)
-    function cmd.complete(_, before, seed)
-        if not before:find '%S' then return {} end
-        local t = {}
-        for option in pairs(scan_options) do
-            if option:sub(1, #seed) == seed:lower() then table.insert(t, option) end
-        end
-        table.sort(t)
-        return t
-    end
-    return cmd
+    end, complete_scan)
 end
 
 -- A LIST running on a network: another would stop it, and list nothing
@@ -184,6 +188,17 @@ function M.subscribe(sub)
     sub.on('net.removed', function(ev) common.drop_state(M.name, ev.net) end)
 end
 
+-- Tab on a command's lone argument, a server or nick: the servers
+-- starting with it, or else the default
+local function server_or_nick(ctx, before, seed)
+    if before:find '%S' then return {} end
+    local t = common.complete_server(ctx.net, seed)
+    return t[1] and t or nil
+end
+
+-- ETRACE's options, as Solanum reads them
+local etrace_options <const> = {'-full', '-v4', '-v6'}
+
 M.commands = {
     who_command(),
     command('stats', '$a $R', 'letter [server]', "STATS a letter, of a server or ours, shown as tables",
@@ -193,33 +208,33 @@ M.commands = {
         if server:find ' ' then error('one server: ' .. server, 0) end
         task.spawn('stats', {net = ctx.net, owner = M.name}, listing.stats, letter,
             server ~= '' and server or nil)
-    end),
+    end, common.server_at(1)),
     command('trace', '$R', '[target]', 'TRACE a server or nick, or ours, shown as tables',
     function(ctx, target)
         if target:find ' ' then error('one target: ' .. target, 0) end
         task.spawn('trace', {net = ctx.net, owner = M.name}, listing.trace, target ~= '' and target or nil)
-    end),
+    end, server_or_nick),
     command('motd', '$R', '[target]', "The MOTD of a server or nick's, or ours, shown as a table",
     function(ctx, target)
         if target:find ' ' then error('one target: ' .. target, 0) end
         task.spawn('motd', {net = ctx.net, owner = M.name}, listing.motd, target ~= '' and target or nil)
-    end),
+    end, server_or_nick),
     command('info', '$R', '[target]', "The INFO of a server or nick's, or ours, shown as a table",
     function(ctx, target)
         if target:find ' ' then error('one target: ' .. target, 0) end
         task.spawn('info', {net = ctx.net, owner = M.name}, listing.info, target ~= '' and target or nil)
-    end),
+    end, server_or_nick),
     command('lusers', '$R', '[server]', 'LUSERS: the counts of users, operators, channels and servers',
     function(ctx, server)
         if server:find ' ' then error('one server: ' .. server, 0) end
         task.spawn('lusers', {net = ctx.net, owner = M.name}, listing.lusers, server ~= '' and server or nil)
-    end),
+    end, common.server_at(0)),
     command('privs', '$R', '[nick]', "PRIVS: a nick's operator privileges, or ours, shown as a table",
     function(ctx, nick)
         if ircd.hybrid(ctx.net) then error('OFTC hybrid has no PRIVS', 0) end
         if nick:find ' ' then error('one nick: ' .. nick, 0) end
         task.spawn('privs', {net = ctx.net, owner = M.name}, listing.privs, nick ~= '' and nick or nil)
-    end),
+    end, common.default_first()),
     scan_command(),
     list_command(),
     command('findforwards', '$g', 'channel', 'FINDFORWARDS: the channels that forward (+f) to a channel',
@@ -228,19 +243,20 @@ M.commands = {
         local irc = model(ctx.net)
         if irc and not irc_model.is_channel_name(irc, channel) then error('not a channel: ' .. channel, 0) end
         send.send(ctx.net, 'FINDFORWARDS', channel)
-    end),
+    end, common.default_first()),
     -- /help is ours
+    -- the server's topics are its own
     command('serverhelp', '$R', '[topic]', "The server's HELP on a topic, or its index, shown as a table",
     function(ctx, topic)
         if topic:find ' ' then error('one topic: ' .. topic, 0) end
         task.spawn('help', {net = ctx.net, owner = M.name}, listing.help, topic ~= '' and topic or nil)
-    end),
+    end, common.complete_nothing),
     command('whois', '$g', 'nick', 'WHOIS a nick, shown in the detail pane', function(ctx, nick)
         M.whois(ctx.net, nick)
-    end),
+    end, common.default_first()),
     command('wii', '$a', 'nick', 'WHOIS a nick on its server (with idle time)', function(ctx, nick)
         M.whois(ctx.net, nick, true)
-    end),
+    end, common.default_first()),
     command('whowas', '$a $R', 'nick [count]', 'WHOWAS a nick, at most count entries',
     function(ctx, nick, count)
         local n
@@ -249,7 +265,7 @@ M.commands = {
             if not n or n < 1 then error('count must be a positive number: ' .. count, 0) end
         end
         task.spawn('whowas', {net = ctx.net, owner = M.name}, whowas, nick, n)
-    end),
+    end, common.default_first()),
     command('masktrace', '$a $R', '[nick!]user@host [realname]',
         'MASKTRACE the users a mask matches, shown as a table',
     function(ctx, mask, gecos)
@@ -257,7 +273,7 @@ M.commands = {
         if not listing.masktrace_mask(mask) then error('not a [nick!]user@host mask: ' .. mask, 0) end
         task.spawn('masktrace', {net = ctx.net, owner = M.name}, listing.masktrace, mask,
             gecos ~= '' and gecos or nil)
-    end),
+    end, common.default_first()),
     command('chantrace', '$g', '[!]channel',
         "CHANTRACE a channel's users, shown as a table; ! for one we aren't on (operspy)",
     function(ctx, channel)
@@ -267,11 +283,16 @@ M.commands = {
             error('not a channel: ' .. channel, 0)
         end
         task.spawn('chantrace', {net = ctx.net, owner = M.name}, listing.chantrace, channel)
-    end),
+    end, common.default_first()),
     command('etrace', '$R', '[-full|-v4|-v6|nick]', "ETRACE our server's users, or a nick, shown as a table",
     function(ctx, arg)
         if arg:find ' ' then error('one argument: ' .. arg, 0) end
         task.spawn('etrace', {net = ctx.net, owner = M.name}, listing.etrace, arg ~= '' and arg or nil)
+    end, function(_, before, seed)
+        -- an option, or else a nick
+        if before:find '%S' then return {} end
+        if seed:sub(1, 1) ~= '-' then return nil end
+        return common.starting(etrace_options, seed)
     end),
 }
 

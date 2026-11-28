@@ -625,4 +625,33 @@ T.case('a server notice is marked on a network without snotice, before anything 
     T.eq(seen[3], false, 'a notice from a user is none')
 end)
 
+T.case('Tab offers watch numbers and the options not yet given', function()
+    boot {'snotice'}
+    local S = stores()
+    T.command "addwatch 'one' red"
+    local n = tostring(#S.watches)
+    T.eq(T.complete_args('delwatch ', n), {n}, 'a watch by number')
+    T.eq(T.complete_args('delwatch ', '99'), {}, 'none past the last')
+    T.eq(T.complete_args('addwatch ', 'f'), {'filter', 'flash'}, 'filter and the switches')
+    T.eq(T.complete_args("addwatch 'x' ", 'b'), {'beep', 'black', 'blue'}, 'switches and colors')
+    T.eq(T.complete_args("addwatch 'x' red beep ", ''), {'flash', 'noflash'}, 'but for what is given')
+    T.eq(T.complete_args("addwatch 'two ", 'b'), {}, "nothing in a pattern's quotes")
+    T.eq(T.complete_args('editwatch ', n), {n}, "editwatch's number")
+    T.eq(T.complete_args('editwatch ' .. n .. ' ', 'fi'), {'filter'}, 'then its options')
+    T.eq(T.complete_args('editwatch ' .. n .. " 'x' red ", 'b'), {'beep'}, 'but for what is given')
+    T.eq(T.complete_args("addwatch red 'x' beep flash ", ''), {}, 'nothing once all is given')
+
+    -- the cliconn filter, as the UI puts it in the context
+    local run = T.require 'hub.commands.run'
+    local with_filter = {net = 'test', context = function(ctx) ctx.filter = '^x' end}
+    T.eq(run.complete_args('addwatch filter ', 'f', with_filter), {'flash'}, 'filter sets the pattern')
+
+    for _ = #S.watches + 1, 12 do T.command "addwatch 'more'" end
+    local tens = {}
+    for i = 10, #S.watches do table.insert(tens, tostring(i)) end
+    table.insert(tens, 1, '1')
+    table.sort(tens)
+    T.eq(T.complete_args('delwatch ', '1'), tens, 'every number the seed starts')
+end)
+
 T.run()

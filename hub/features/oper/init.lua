@@ -453,7 +453,7 @@ M.commands = {
         else
             task.spawn('kline lookup', {net = ctx.net, owner = M.name}, kline_lookup, target)
         end
-    end),
+    end, common.default_first()),
     oper_command('duration', '$r', 'duration', 'Set the K-Line duration: 4h, 1d, 1w 2d ...', function(ctx, text)
         text = text:gsub(' +', '')
         local n = M.parse_duration(text)
@@ -472,7 +472,7 @@ M.commands = {
             table.insert(settings.tags, tag)
         end
         settings.tag = tag
-    end),
+    end, common.one_of(function(ctx) return M.tags(ctx.net) end)),
     oper_command('droptag', '', nil, 'Stop tagging, and forget the tag if /tag added it', function(ctx)
         local settings = M.get(ctx.net).settings
         for i, t in ipairs(settings.tags) do
@@ -485,7 +485,7 @@ M.commands = {
     end),
     oper_command('testline', '$g', 'mask', 'TESTLINE a mask', function(ctx, mask)
         send.send(ctx.net, 'TESTLINE', mask)
-    end),
+    end, common.default_first()),
     oper_command('kill', '$a $T', 'nick [reason]', 'KILL a nick off the network', function(ctx, nick, reason)
         if reason ~= '' then
             send.send(ctx.net, 'KILL', nick, reason)

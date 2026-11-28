@@ -367,6 +367,34 @@ local function watch_exists(ctx, i, word)
     return i ~= 1 or numbered_watch(ctx.net, word) ~= nil
 end
 
+-- The network's watches, by number
+local function watch_numbers(ctx)
+    local t = {}
+    for i in ipairs(stores.get(ctx.net).watches) do table.insert(t, tostring(i)) end
+    return t
+end
+
+-- Tab on a watch's options: filter, the colors and the switches, but for
+-- what the options before it set; nothing in a pattern's quotes
+local function complete_options(ctx, before, seed)
+    local given = {}
+    for _, w in ipairs(watch_words(before)) do
+        if w.pattern and not w.closed then return {} end
+        local field = watch_option(ctx, w)
+        if field then given[field] = true end
+    end
+    if seed:find '^[\'"]' then return {} end
+    local t = {}
+    if not given.pattern then table.insert(t, 'filter') end
+    if not given.color then
+        for color in pairs(colors) do table.insert(t, color) end
+    end
+    for word, switch in pairs(switches) do
+        if not given[switch[1]] then table.insert(t, word) end
+    end
+    return common.starting(t, seed)
+end
+
 local function editwatch(ctx, id, args)
     local previous = stores.get(ctx.net).watches[id]
     if not previous then
@@ -386,6 +414,7 @@ M.commands = {
         help = 'Mark and alert on connections; the options in any order',
         fn = addwatch,
         shape = watch_shape,
+        complete = complete_options,
     },
     {
         name = 'editwatch', spec = '$i $R', scope = 'net', feature = 'snotice',
@@ -394,6 +423,11 @@ M.commands = {
         fn = editwatch,
         shape = watch_shape,
         exists = watch_exists,
+        complete = function(ctx, before, seed)
+            local number, options = before:match '^ *(%S+) (.*)$'
+            if not number then return common.starting(watch_numbers(ctx), seed) end
+            return complete_options(ctx, options, seed)
+        end,
     },
     {
         name = 'delwatch', spec = '$i', usage = 'number', scope = 'net', feature = 'snotice',
@@ -406,6 +440,7 @@ M.commands = {
             end
             table.remove(watches, i)
         end,
+        complete = common.one_of(watch_numbers),
     },
     {
         name = 'nettrack', spec = '$g $g', usage = 'name address[/prefix]', scope = 'net', feature = 'snotice',

@@ -910,4 +910,24 @@ T.case('on OFTC hybrid a ban command reads a duration as minutes', function()
     T.eq(look_of 'resv 1d #x', 'good[resv] sep[ ] plain[1d] sep[ ] text[#x]', '1d the target, and the rest the reason')
 end)
 
+T.case('/net completes network ids', function()
+    local networks = {}
+    for _, id in ipairs {'alpha', 'beta', 'bravo'} do
+        table.insert(networks, {id = id, server = {host = id .. '.test', port = 6667}, identity = {nick = 'me'}})
+    end
+    T.boot {ui = true, transport = FakeTransport.new(), config = {networks = networks}}
+    local cmdline = T.require 'hub.ui.cmdline'
+    T.eq(cmdline.complete_args('net ', ''), {'alpha', 'beta', 'bravo'}, 'every network, sorted')
+    T.eq(cmdline.complete_args('net ', 'b'), {'beta', 'bravo'}, 'the seed narrows')
+    T.eq(cmdline.complete_args('net beta ', ''), {}, 'one network')
+end)
+
+T.case('/profile completes the profiles', function()
+    boot()
+    local cmdline = T.require 'hub.ui.cmdline'
+    T.eq(cmdline.complete_args('profile ', ''), {'all', 'chat', 'dashboard'}, 'every profile, sorted')
+    T.eq(cmdline.complete_args('profile ', 'd'), {'dashboard'}, 'the seed narrows')
+    T.eq(cmdline.complete_args('profile chat ', ''), {}, 'one profile')
+end)
+
 T.run()

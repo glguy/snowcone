@@ -61,24 +61,14 @@ local function ban_command(name, mode, help)
         else
             task.spawn(name, {net = ctx.net, owner = chat.name}, ban_nick, channel, arg, '+' .. mode)
         end
-    end)
+    end, common.default_first())
 end
 
--- Unset a list mode: a mask as given, or a nick's ban mask
-local function unban_command(name, mode, help)
-    local cmd = command(name, '$g', 'mask|nick', help, function(ctx, arg)
-        local channel = M.shown_channel(ctx)
-        if is_mask(arg) then
-            send.send(ctx.net, 'MODE', channel, '-' .. mode, arg)
-            chat.refetch_observed(ctx.net, channel)
-        else
-            task.spawn(name, {net = ctx.net, owner = chat.name}, ban_nick, channel, arg, '-' .. mode)
-        end
-    end)
-    -- Tab offers the list's masks and the channel's nicks; a list not yet
-    -- fetched is asked for, for the next Tab
-    function cmd.complete(ctx, before, seed)
-        if before ~= '' then return nil end
+-- Tab on what to unset: the list's masks and the channel's nicks; a list
+-- not yet fetched is asked for, for the next Tab
+local function complete_unset(mode)
+    return function(ctx, before, seed)
+        if before:find '%S' then return {} end
         local irc = model(ctx.net)
         local channel = irc and ctx.target and irc_model.known_channel(irc, ctx.target)
         if not channel then return nil end
@@ -96,7 +86,19 @@ local function unban_command(name, mode, help)
         for _, member in pairs(channel.members) do offer(member.user.nick) end
         return t[1] and t or nil
     end
-    return cmd
+end
+
+-- Unset a list mode: a mask as given, or a nick's ban mask
+local function unban_command(name, mode, help)
+    return command(name, '$g', 'mask|nick', help, function(ctx, arg)
+        local channel = M.shown_channel(ctx)
+        if is_mask(arg) then
+            send.send(ctx.net, 'MODE', channel, '-' .. mode, arg)
+            chat.refetch_observed(ctx.net, channel)
+        else
+            task.spawn(name, {net = ctx.net, owner = chat.name}, ban_nick, channel, arg, '-' .. mode)
+        end
+    end, complete_unset(mode))
 end
 
 -- Send changes ({sign, flag, argument or nil}) to a channel's modes, in
@@ -131,6 +133,29 @@ local function send_changes(net, irc, channel, changes)
     end
 end
 
+-- Tab on the nicks to change: the channel's members the change would
+-- change, but for those already named
+local function complete_prefix(change)
+    return function(ctx, before, seed)
+        local irc = model(ctx.net)
+        local channel = irc and ctx.target and irc_model.known_channel(irc, ctx.target)
+        if not channel then return nil end
+        ---@cast irc -nil the channel came from it
+        local sign, mode = change:sub(1, 1), change:sub(2)
+        local named = {}
+        for nick in before:gmatch '[^ ]+' do named[irc_model.fold(irc, nick)] = true end
+        local t = {}
+        local starts = chat.name_matcher(ctx.net, seed)
+        for key, member in pairs(channel.members) do
+            local nick = member.user.nick
+            if not named[key] and (member.modes[mode] == true) == (sign == '-') and starts(nick) then
+                table.insert(t, nick)
+            end
+        end
+        return t
+    end
+end
+
 -- Give (+o) or take (-o) a prefix mode for nicks in the shown channel, in
 -- as few MODE lines as the server's MODES allows; with no nicks, bare()
 local function prefix_command(name, change, help, bare)
@@ -143,7 +168,7 @@ local function prefix_command(name, change, help, bare)
         local irc = model(ctx.net)
         ---@cast irc -nil shown_channel needs it
         send_changes(ctx.net, irc, channel, changes)
-    end)
+    end, complete_prefix(change))
 end
 
 -- The changes a modestring makes, {sign, flag, takes an argument}, by the
@@ -236,6 +261,52 @@ local function mode_shape(ctx, rest, slot)
     return {words = shown, ghosts = ghosts}
 end
 
+-- Tab on a change's argument offers what fits it: the channel's nicks
+-- for a prefix mode, a list's masks to unset (fetching a list not yet
+-- fetched, for the next Tab), the key to unset
+local function complete_mode(ctx, before, seed)
+    local irc = model(ctx.net)
+    local channel = irc and ctx.target and irc_model.known_channel(irc, ctx.target)
+    if not channel then return nil end
+    ---@cast irc -nil the channel came from it
+    local words = {}
+    for word in before:gmatch '[^ ]+' do table.insert(words, word) end
+    if not words[1] then return nil end
+    local ok, parsed = pcall(parse_modestring, irc, words[1])
+    if not ok then return nil end
+
+    -- the change whose argument is being typed
+    local change, n = nil, 0
+    for _, c in ipairs(parsed) do
+        if c[3] then
+            n = n + 1
+            if n == #words then change = c break end
+        end
+    end
+    if not change then return nil end
+    local sign, flag = change[1], change[2]
+
+    local t = {}
+    local starts = chat.name_matcher(ctx.net, seed)
+    local function offer(s)
+        if starts(s) then table.insert(t, s) end
+    end
+    if irc.mode_to_prefix[flag] then
+        for _, member in pairs(channel.members) do offer(member.user.nick) end
+    elseif sign == '-' and irc.modes_A:find(flag, 1, true) then
+        local entries = channel.list_modes[flag]
+        if not entries then
+            chat.fetch_list(ctx.net, channel.name, flag)
+            return nil
+        end
+        for mask in pairs(entries) do offer(mask) end
+    elseif sign == '-' and channel.modes and type(channel.modes[flag]) == 'string' then
+        offer(channel.modes[flag])
+    end
+    table.sort(t)
+    return t[1] and t or nil
+end
+
 -- /mode: changes checked against the network's modes, or the modes shown
 local function mode_command()
     local cmd = command('mode', '$R', '[modes [arg...]]',
@@ -287,55 +358,9 @@ local function mode_command()
         end
         send_changes(ctx.net, irc, channel, changes)
         chat.refetch_observed(ctx.net, channel)
-    end)
+    end, complete_mode)
 
     cmd.shape = mode_shape
-
-    -- Tab on a change's argument offers what fits it: the channel's nicks
-    -- for a prefix mode, a list's masks to unset (fetching a list not yet
-    -- fetched, for the next Tab), the key to unset
-    function cmd.complete(ctx, before, seed)
-        local irc = model(ctx.net)
-        local channel = irc and ctx.target and irc_model.known_channel(irc, ctx.target)
-        if not channel then return nil end
-        ---@cast irc -nil the channel came from it
-        local words = {}
-        for word in before:gmatch '[^ ]+' do table.insert(words, word) end
-        if not words[1] then return nil end
-        local ok, parsed = pcall(parse_modestring, irc, words[1])
-        if not ok then return nil end
-
-        -- the change whose argument is being typed
-        local change, n = nil, 0
-        for _, c in ipairs(parsed) do
-            if c[3] then
-                n = n + 1
-                if n == #words then change = c break end
-            end
-        end
-        if not change then return nil end
-        local sign, flag = change[1], change[2]
-
-        local t = {}
-        local starts = chat.name_matcher(ctx.net, seed)
-        local function offer(s)
-            if starts(s) then table.insert(t, s) end
-        end
-        if irc.mode_to_prefix[flag] then
-            for _, member in pairs(channel.members) do offer(member.user.nick) end
-        elseif sign == '-' and irc.modes_A:find(flag, 1, true) then
-            local entries = channel.list_modes[flag]
-            if not entries then
-                chat.fetch_list(ctx.net, channel.name, flag)
-                return nil
-            end
-            for mask in pairs(entries) do offer(mask) end
-        elseif sign == '-' and channel.modes and type(channel.modes[flag]) == 'string' then
-            offer(channel.modes[flag])
-        end
-        table.sort(t)
-        return t[1] and t or nil
-    end
     return cmd
 end
 

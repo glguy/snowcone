@@ -16,6 +16,11 @@ local M = {}
 ---@field target string|nil the buffer shown for that network, if any
 ---@field filter string|nil the cliconn view's filter, for /addwatch and /editwatch
 
+--- Tab's candidates for a command's argument: before is the arguments
+--- before it, seed the start of it; nil for the default, channels and
+--- nicks.
+---@alias hub.Complete fun(ctx: hub.CommandContext, before: string, seed: string): string[]|nil
+
 --- Where a command line comes from.
 ---@class hub.CommandOrigin
 ---@field net string|nil the network a net command acts on unless it names one

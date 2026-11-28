@@ -14,55 +14,33 @@ local M = {}
 
 local command <const> = common.net_command(chat.name)
 
+-- The CTCP requests clients commonly answer
+local ctcp_requests <const> = {'CLIENTINFO', 'FINGER', 'PING', 'SOURCE', 'TIME', 'USERINFO', 'VERSION'}
+
 local function model(net)
     local rec = HUB.state.nets[net]
     return rec and rec.irc
 end
 
-local function close_command()
-    local cmd = command('close', '$R', '[target]',
-        'Close a buffer, the shown one by default, parting its channel',
-    function(ctx, target)
-        if target == '' then
-            target = ctx.target
-        end
-        if not target then
-            error('no buffer to close', 0)
-        end
-        chat.close(ctx.net, target)
-    end)
-
-    -- Tab offers the network's open buffers
-    function cmd.complete(ctx, before, seed)
-        if before ~= '' then return nil end
-        local t = {}
-        local starts = chat.name_matcher(ctx.net, seed)
-        for _, buffer in pairs(chat.get(ctx.net).buffers) do
-            if starts(buffer.name) then table.insert(t, buffer.name) end
-        end
-        return t
+-- Tab on /close's target: the network's open buffers
+local function complete_buffer(ctx, before, seed)
+    if before:find '%S' then return {} end
+    local t = {}
+    local starts = chat.name_matcher(ctx.net, seed)
+    for _, buffer in pairs(chat.get(ctx.net).buffers) do
+        if starts(buffer.name) then table.insert(t, buffer.name) end
     end
-    return cmd
+    return t
 end
 
-local function topic_command()
-    local cmd = command('topic', '$T', '[text]', "Set the shown channel's topic, or clear it",
-    function(ctx, text)
-        local channel = modes.shown_channel(ctx)
-        send.send(ctx.net, 'TOPIC', channel, text)
-        chat.refetch_observed(ctx.net, channel)
-    end)
-
-    -- Tab with nothing typed yet offers the current topic, to edit
-    function cmd.complete(ctx, before, seed)
-        if before ~= '' or seed ~= '' then return nil end
-        local irc = model(ctx.net)
-        local channel = irc and ctx.target and irc_model.known_channel(irc, ctx.target)
-        if channel and channel.topic and channel.topic ~= '' then
-            return {channel.topic}
-        end
+-- Tab on /topic with nothing typed yet: the current topic, to edit
+local function complete_topic(ctx, before, seed)
+    if before:find '%S' or seed ~= '' then return nil end
+    local irc = model(ctx.net)
+    local channel = irc and ctx.target and irc_model.known_channel(irc, ctx.target)
+    if channel and channel.topic and channel.topic ~= '' then
+        return {channel.topic}
     end
-    return cmd
 end
 
 -- Open the buffer of each of a line's targets (a,b), without its
@@ -81,8 +59,17 @@ M.commands = {
     function(ctx, target)
         chat.talk(ctx.net, target)
         bus.emit('chat.focus', {net = ctx.net, target = target})
-    end),
-    close_command(),
+    end, common.default_first()),
+    command('close', '$R', '[target]', 'Close a buffer, the shown one by default, parting its channel',
+    function(ctx, target)
+        if target == '' then
+            target = ctx.target
+        end
+        if not target then
+            error('no buffer to close', 0)
+        end
+        chat.close(ctx.net, target)
+    end, complete_buffer),
     -- each opens its targets' buffers, so the line shows there
     command('msg', '$a $t', 'target text', 'Send a message', function(ctx, target, text)
         open_targets(ctx.net, target)
@@ -115,7 +102,7 @@ M.commands = {
     command('ctcp', '$a $r', 'target request', 'Send a CTCP request', function(ctx, target, text)
         open_targets(ctx.net, target)
         send.send(ctx.net, 'PRIVMSG', target, '\x01' .. text .. '\x01')
-    end),
+    end, common.default_first(ctcp_requests)),
     command('chaninfo', '$R', '[channel]',
         "Show a channel's topic, modes and members",
     function(ctx, target)
@@ -126,8 +113,12 @@ M.commands = {
         end
         chat.channel_info(ctx.net, target)
         bus.emit('chat.show_channel', {net = ctx.net, target = target})
-    end),
-    topic_command(),
+    end, common.default_first()),
+    command('topic', '$T', '[text]', "Set the shown channel's topic, or clear it", function(ctx, text)
+        local channel = modes.shown_channel(ctx)
+        send.send(ctx.net, 'TOPIC', channel, text)
+        chat.refetch_observed(ctx.net, channel)
+    end, complete_topic),
 }
 
 return M
